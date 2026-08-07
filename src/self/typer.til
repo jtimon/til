@@ -116,7 +116,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     return call
 }
 
-priv rewrite_til_type_arg := proc(scope: TypeScope, mut parent: Expr, arg_idx: USize, ptype: Type, in_func: I32, ctx: Context) {
+priv rewrite_til_type_arg := proc(scope: TypeScope, mut parent: Expr, arg_idx: USize, ptype: Type, in_func: I32, mut ctx: Context) {
     if is_type_metatype(ptype).not() { return }
     ref arg : Expr = parent.children[arg_idx]
     switch arg.node_type {
@@ -229,12 +229,12 @@ priv CtorArg := enum {
 // type_error_at and every caller.
 // Non-priv so the garbager module can report use-after-ownership-transfer
 // against the same diagnostic counter.
-type_error := proc(e: Expr, msg: Str, ctx: Context) {
+type_error := proc(e: Expr, msg: Str, mut ctx: Context) {
     e.error(ctx.path, msg)
     ctx.errors++
 }
 
-type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, ctx: Context) {
+type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, mut ctx: Context) {
     println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
     ctx.errors++
 }
@@ -376,7 +376,7 @@ find_ns_decl := func(sdef: Expr, method: Str) returns Option(ref Declaration) {
     return Option(ref Declaration).Some(d)
 }
 
-priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, ctx: Context) returns Bool {
+priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, mut ctx: Context) returns Bool {
     // Top-level `priv` free functions are file-mangled to
     // `priv__<path>__<name>`, and init_rewrite_refs only rewrites Ident
     // references -- not the method name on a UFCS FieldAccess. So
@@ -628,7 +628,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns Bool {
 // `OwnType.Own` (constructors, take_* helpers, factory funcs, etc.).
 // Future steps broaden the surface (struct field defaults, assignments,
 // ref-typed returns).
-priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, ctx: Context) {
+priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, mut ctx: Context) {
     if stmt.children.len() == 0 { return }
     switch stmt.node_type {
     case .Decl(sdecl):
@@ -652,7 +652,7 @@ priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, ctx: Contex
 // quarantine, resolved through aliases: a `ref Dynamic` field is a raw
 // pointer whose null IS a legal value by design (doc/ownership.org's
 // manual-memory island).
-priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, scope: TypeScope, ctx: Context) {
+priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, scope: TypeScope, mut ctx: Context) {
     if fd.own_type.is(OwnType.Ref).not() { return }
     if fd.default_value.is_none() { return }
     if fd.default_expr().node_type.is_literal_null() {
@@ -671,7 +671,7 @@ priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, scope: T
 // (`fcd.fn_sig = src.clone()` where fn_sig was `ref mut Expr = NULL`).
 // Caller passes the resolved target name (just for the diagnostic) and
 // the rhs Expr; the predicate is the same as steps 1-3.
-priv check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope, ctx: Context) {
+priv check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope, mut ctx: Context) {
     if rhs.node_type.is(NodeType.FCall).not() { return }
     if fcall_returns_own(rhs, scope).not() { return }
     stmt.type_error(format("ref target '", target_name, "' cannot be assigned an owned value (.clone() / constructor / function returning own) -- borrow the source directly, or change the target to 'own'/'mut'")
@@ -697,7 +697,7 @@ priv check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr,
 // #321: the NULL keyword is gone, so the only source spelling that
 // reaches here is `ref x : Dynamic = 0` -- the message names that, not
 // a keyword the user cannot type.
-priv check_ref_local_null_init := proc(stmt: Expr, ctx: Context) {
+priv check_ref_local_null_init := proc(stmt: Expr, mut ctx: Context) {
     if stmt.children.len() == 0 { return }
     switch stmt.node_type {
     case .Decl(sdecl):
@@ -709,7 +709,7 @@ priv check_ref_local_null_init := proc(stmt: Expr, ctx: Context) {
     }
 }
 
-priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, in_func: I32, ctx: Context) returns Bool {
+priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, in_func: I32, mut ctx: Context) returns Bool {
     if obj.til_type().is(Type.Struct).not().and(obj.til_type().is(Type.Enum).not()) { return false }
     switch sdef.node_type {
     case .StructDef(fpf_sdd):
@@ -779,7 +779,7 @@ is_clone_fcall := func(e: Expr) returns Bool {
     }
 }
 
-priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_data: FunctionDef, ctx: Context) {
+priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_data: FunctionDef, mut ctx: Context) {
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
         mut fvc : USize = 0
@@ -849,7 +849,7 @@ priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_da
                     // (ownership transfer). The source's `mut` is what
                     // keeps the binding from auto-aliasing into a ref, so
                     // count this as a write-through.
-                    own_arg_b_o := scope.get_binding(an.ident_name())
+                    mut own_arg_b_o := scope.get_binding(an.ident_name())
                     if own_arg_b_o.is_some() {
                         ref mut own_arg_b : TypeBinding = own_arg_b_o.unwrap()
                         own_arg_b.written = true
@@ -898,7 +898,7 @@ priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_da
         }
 }
 
-priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, fdef_o: Option(ref Expr), ctx: Context) {
+priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, fdef_o: Option(ref Expr), mut ctx: Context) {
     if fdef_o.is_none() { return }
     ref fdef_data : FunctionDef = funcdef_of(fdef_o.unwrap())
     validate_fcall_own_args_for_fdef(scope, e, fdef_data, ctx)
@@ -939,10 +939,10 @@ priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionD
     }
 }
 
-priv infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_func: I32, ctx: Context) returns Bool {
-    sdef_o := scope.get_struct(name)
+priv infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_func: I32, mut ctx: Context) returns Bool {
+    mut sdef_o := scope.get_struct(name)
     if sdef_o.is_none() { return false }
-    ref sdef : Expr = sdef_o.unwrap()
+    ref mut sdef : Expr = sdef_o.unwrap()
     return infer_struct_constructor_fcall_impl(scope, sdef, e, name, in_func, ctx)
 }
 
@@ -981,7 +981,7 @@ priv rewrite_ctor_field_shorthand := func(ctor_sdd: StructDef, mut e: Expr) {
     }
 }
 
-priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e: Expr, name: Str, in_func: I32, ctx: Context) returns Bool {
+priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, mut sdef: Expr, mut e: Expr, name: Str, in_func: I32, mut ctx: Context) returns Bool {
     // #187 step 1: mark the struct binding as used so a priv struct
     // that is only ever instantiated (no namespace method calls) is
     // not misreported as dead. Skip when current_type_name matches
@@ -989,7 +989,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
     // struct's own auto-generated or user-written ns methods, which
     // does not count as "used externally".
     if ctx.current_type_name.eq(name).not() {
-        sb_used_o := scope.get_binding(name)
+        mut sb_used_o := scope.get_binding(name)
         if sb_used_o.is_some() {
             ref mut sb_used : TypeBinding = sb_used_o.unwrap()
             sb_used.used = true
@@ -1018,7 +1018,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         }
     }
 
-    ref ctor_sdd : StructDef = structdef_of(sdef)
+    ref mut ctor_sdd : StructDef = structdef_of(sdef)
     nfields := ctor_sdd.fields.len()
     rewrite_ctor_field_shorthand(ctor_sdd, e)
     mut field_vals := Vec(CtorArg).new()
@@ -1026,7 +1026,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         field_vals.push(own CtorArg.Unfilled())
     }
     for i in 1..e.children.len() {
-        ref arg : Expr = e.children[i]
+        ref mut arg : Expr = e.children[i]
         switch arg.node_type {
         case .NamedArg(aname):
             // #307: the fields_index maps the arg name straight to its
@@ -1133,7 +1133,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         // would never be typed against this (enclosing) scope -- losing the
         // captured variables' types in codegen. Infer capturing closures
         // here too so `n.add(1)` etc. resolve against the live scope.
-        ref ci : Expr = e.children[i]
+        ref mut ci : Expr = e.children[i]
         mut needs_infer := ci.til_type().is(Type.Unknown)
         switch ci.node_type {
         case .FuncDef(ci_fd): if ci_fd.captures.len() > 0 { needs_infer = true }
@@ -1205,7 +1205,7 @@ priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope) ret
 // numeric literals to fit the param type, applies implicit widen /
 // usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
 // args (the caller has already decided this arg is not constrained).
-priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, ctx: Context) {
+priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, mut ctx: Context) {
     // #269: accept a conforming concrete type where an interface is expected.
     // The #251 conformance check guarantees the methods exist; the runtime
     // dispatches the method call to the concrete type. (Interpreter path
@@ -1283,7 +1283,7 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
 
 }
 
-priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Expr, fdef_data: FunctionDef, in_func: I32, ctx: Context) {
+priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Expr, fdef_data: FunctionDef, in_func: I32, mut ctx: Context) {
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
         mut fvc : USize = 0
@@ -1335,6 +1335,10 @@ priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Exp
             if param1.is_mut.or(ptype_t.is(Type.Dynamic)) {
                 mark_written_through(scope, e.children[ci])
             }
+            if param1.is_mut {
+                check_write_roots_mut(scope, e.children[ci], e.children[ci],
+                    format("pass this to the 'mut' parameter '", param1.name, "'"), ctx)
+            }
             ci++
             pi++
         }
@@ -1347,12 +1351,8 @@ priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Exp
                     ref vparam : Declaration = fdef_data.params[pi]
                     ref vptype_name : Str = vparam.explicit_type
                     mut is_splat := false
-                    switch e.node_type {
-                    case .FCall(fcd_v):
-                        is_splat = fcd_v.is_splat
-                    case:
-                        UNREACHABLE("expected FCall, got ", e.node_type.head_str())
-                    }
+                    ref fcd_v : FCallData = fcall_of(e)
+                    is_splat = fcd_v.is_splat
                     // #342: a splat sharing the variadic block with other
                     // args used to be refused here -- which argument carried
                     // the `..` was recorded nowhere, so the desugar wrapped
@@ -1450,7 +1450,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Exp
         }
 }
 
-priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind_o: Option(ref TypeBinding), mut fdef_o: Option(ref Expr), in_func: I32, ctx: Context) {
+priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind_o: Option(ref TypeBinding), mut fdef_o: Option(ref Expr), in_func: I32, mut ctx: Context) {
     // Argument inference can instantiate a generic and refresh scope
     // registrations. Snapshot the lookup name before that mutation, then
     // resolve the settled FuncDef once afterward for this function and caller.
@@ -1490,7 +1490,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
     infer_and_validate_fcall_args_for_fdef(scope, e, fdef_data, in_func, ctx)
 }
 
-priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind_o: Option(ref TypeBinding), fdef_o: Option(ref Expr), in_func: I32, ctx: Context) {
+priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind_o: Option(ref TypeBinding), fdef_o: Option(ref Expr), in_func: I32, mut ctx: Context) {
     // #303: stamp noreturn calls at resolution time. lookup_func tracks
     // get_binding's scope walk, so a shadowing local wins over a core
     // function of the same name -- the stamp reflects the callee that
@@ -1713,7 +1713,7 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
     return bits.band(callee_bit).bor(bits.band(callee_bit.bnot()).shl(1))
 }
 
-priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
+priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) returns Bool {
     ref mut fa : Expr = e.children[0]
     ref mut obj : Expr = fa.children[0]
     mut method := ""
@@ -1901,15 +1901,11 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         fa.children[0] = type_ident
         // Keep every child-indexed call flag aligned with the argument it
         // describes when UFCS inserts self at position 1.
-        switch e.node_type {
-        case .FCall(ufcs_fcd):
-            ufcs_fcd.own_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.own_args)
-            ufcs_fcd.keep_outer_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.keep_outer_args)
-            ufcs_fcd.ref_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.ref_args)
-            ufcs_fcd.splat_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.splat_args)
-        case:
-            UNREACHABLE("expected FCall, got ", e.node_type.head_str())
-        }
+        ref mut ufcs_fcd : FCallData = fcall_of(e)
+        ufcs_fcd.own_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.own_args)
+        ufcs_fcd.keep_outer_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.keep_outer_args)
+        ufcs_fcd.ref_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.ref_args)
+        ufcs_fcd.splat_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.splat_args)
         mut new_children := Vec(Expr).new()
         new_children.push_take(e.children, 0)
         new_children.push_take(recv_holder, 0)
@@ -1951,7 +1947,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     }
     // A Some nf2o means the def lookup above hit, so this cannot be None.
     ref sdef2 : Expr = sdef2_o.unwrap()
-    ref ns_func2 : Expr = nf2o.unwrap()
+    ref mut ns_func2 : Expr = nf2o.unwrap()
     mut ns_member_priv := false
     switch find_ns_decl(sdef2, method) {
     case .Some(fd):
@@ -2088,12 +2084,8 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             // If bit 0 (callee) was set by the parser's 'own expr' handler,
             // propagate it to bit 1 (the UFCS self arg) and clear bit 0.
             if get_own_arg(e, 0) {
-                switch e.node_type {
-                case .FCall(ufcs_fcd2):
-                    ufcs_fcd2.own_args = ufcs_fcd2.own_args - 1
-                case:
-                    UNREACHABLE("expected FCall, got ", e.node_type.head_str())
-                }
+                ref mut ufcs_fcd2 : FCallData = fcall_of(e)
+                ufcs_fcd2.own_args = ufcs_fcd2.own_args - 1
                 set_own_arg(e, 1)
             }
         }
@@ -2175,7 +2167,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
 // receiver re-walk in infer_field_access_fcall) is now prevented at
 // source: the post-UFCS re-walk skips already-typed children, so the
 // receiver Expr is inferred exactly once.
-priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, ctx: Context) {
+priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, mut ctx: Context) {
     if b.is_priv.not() { return }
     if b.path.eq(ctx.path).not() {
         // init_declarations_unit rewrote top-level priv decls to
@@ -2222,7 +2214,7 @@ priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, ctx: Context)
 // hand-written ns methods both reference the parent type by name).
 // Thin wrapper: looks up the binding, gates on current_type_name,
 // then defers to check_priv_access for the actual emit.
-priv check_priv_type_name := proc(e: Expr, name: Str, scope: TypeScope, ctx: Context) {
+priv check_priv_type_name := proc(e: Expr, name: Str, scope: TypeScope, mut ctx: Context) {
     if name.len() == 0 { return }
     if ctx.current_type_name == name { return }
     b_o := scope.get_binding(name)
@@ -2234,7 +2226,7 @@ priv check_priv_type_name := proc(e: Expr, name: Str, scope: TypeScope, ctx: Con
 // visible inside the struct's own namespace methods, not just the
 // declaring file. current_type_name == owner_name iff we are
 // type-checking a member body of that struct.
-priv check_member_priv := proc(e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, ctx: Context) {
+priv check_member_priv := proc(e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, mut ctx: Context) {
     if member_is_priv.not() { return }
     if ctx.current_type_name == owner_name { return }
     e.type_error(format("'", owner_name, ".", member_name, "' is private to its struct; remove 'priv' to expose it"), ctx)
@@ -2248,7 +2240,7 @@ priv check_member_priv := proc(e: Expr, owner_name: Str, member_name: Str, membe
 // Exceptions fall out naturally: `self` is a param (not a local) so a
 // delete method's own `free(own self)` box-release is allowed, and raw
 // pointer types (U8/Dynamic) have no `delete` method so raw frees are fine.
-priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
+priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Context) {
     if e.children.len() < 2 { return }
     if get_own_arg(e, 1).not() { return }
     switch e.children[1].node_type {
@@ -2337,7 +2329,7 @@ priv cast_pair_ok := func(src: Type, target: Type) returns Bool {
 // a Type value (so downstream passes see a well-formed Type, as with
 // Vec(I32).new()), and sets the call's result type to T -- the typer's
 // stand-in for the not-yet-expressible `returns T`.
-priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
+priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) {
     if e.children.len() != 3 {
         e.type_error("cast expects (value, Type), e.g. x.cast(I32)", ctx)
         e.set_til_type(Type.Unknown)
@@ -2422,7 +2414,7 @@ priv fcall_callee_declared_return_type := func(scope: TypeScope, callee: Expr) r
 // and sets the outer FCall's til_type to the sig's return type. Returns
 // false when the callee isn't a cast-to-FuncSig shape so callers can
 // fall back to other paths.
-priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
+priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) returns Bool {
     ref mut callee : Expr = e.children[0]
     if callee.node_type.is(NodeType.FCall).not() { return false }
     if callee.til_type().is_funcptr().not() { return false }
@@ -2511,7 +2503,7 @@ priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func:
 // monomorphization passes need, and inferring a synthesized name as a value
 // could spuriously fail symbol resolution). The token is NOT rewritten into a
 // runtime Type expression, so the bare Ident survives for those passes.
-priv infer_array_vec_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_func: I32, ctx: Context) {
+priv infer_array_vec_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_func: I32, mut ctx: Context) {
     for i in 2..e.children.len() {
         infer_expr(scope, e.children[i], in_func, ctx)
     }
@@ -2752,7 +2744,7 @@ priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDe
 }
 
 // Explicit late application: read the type tokens straight off the call.
-priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Set(Str), display_name: Str, ctx: Context) returns Bool {
+priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Set(Str), display_name: Str, mut ctx: Context) returns Bool {
     for i in 0..gfd.params.len() {
         ref p : Declaration = gfd.params[i]
         if p.explicit_type.eq("Type").not() { continue }
@@ -2788,7 +2780,7 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
 // Numeric literals are SOFT: they narrow against hard evidence when there
 // is any, and otherwise pick the documented I64 / F32 default. Dynamic,
 // Unknown and null establish nothing at all.
-priv generic_infer_subs := proc(scope: TypeScope, mut e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), display_name: Str, in_func: I32, ctx: Context) returns Bool {
+priv generic_infer_subs := proc(scope: TypeScope, mut e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), display_name: Str, in_func: I32, mut ctx: Context) returns Bool {
     vo := generic_value_only_fdef(gfd)
     if desugar_fcall_args_for_fdef(e, display_name, vo, 0, ctx).not() { return false }
     for ai in 1..e.children.len() {
@@ -3003,7 +2995,7 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
 // it the #302 storage record the builder checks). Apply exactly the
 // ownership normalization infer_func_def_expr applies, so the two agree;
 // the full inference re-runs it idempotently when the body is typed.
-priv generic_normalize_concrete_sig := func(scope: TypeScope, mut fdef_expr: Expr, ctx: Context) {
+priv generic_normalize_concrete_sig := func(scope: TypeScope, mut fdef_expr: Expr, mut ctx: Context) {
     switch fdef_expr.node_type {
     case .FuncDef(fdef):
         auto_ok := fdef.func_type.is_plain().or(fdef.func_type.is_lazy())
@@ -3030,7 +3022,7 @@ priv generic_normalize_concrete_sig := func(scope: TypeScope, mut fdef_expr: Exp
 // Instantiate through the shared init constructor, queue the concrete
 // declaration, rewrite the call, and continue down the ordinary concrete
 // path with the resolved concrete FunctionDef.
-priv generic_finish_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Set(Str), explicit: Bool, in_func: I32, ctx: Context) {
+priv generic_finish_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Set(Str), explicit: Bool, in_func: I32, mut ctx: Context) {
     mut src := GenericFuncSource(name = src_name.clone(), path = ctx.path.clone())
     sb_o := scope.get_binding(src_name)
     if sb_o.is_some() {
@@ -3095,7 +3087,7 @@ priv generic_finish_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, 
 }
 
 // Type a call whose callee is still bound to a retained generic SOURCE.
-priv infer_generic_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, display_name: Str, in_func: I32, ctx: Context) {
+priv infer_generic_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, display_name: Str, in_func: I32, mut ctx: Context) {
     // A source whose call closure declares a struct or enum needs init's
     // complete declaration pipeline (layout, generated methods,
     // registration); late instantiation cannot provide it, so those keep
@@ -3136,7 +3128,7 @@ priv infer_generic_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, d
     generic_finish_fcall(scope, e, src_name, subs, ref_params, explicit, in_func, ctx)
 }
 
-priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
+priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) {
     // #320: ref-qualified args (`f(ref x)`) only mean something on type
     // arguments of type-gen macro instantiations, and those are fully
     // expanded during init -- any call still carrying a ref bit here is
@@ -3368,7 +3360,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     return
 }
 
-infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
     switch expr.node_type {
     case .Literal(Literal.Num):  infer_literal_expr(expr)
     case .Literal(Literal.Null): infer_literal_expr(expr)
@@ -3399,70 +3391,66 @@ infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context)
     }
 }
 
-priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
-    switch expr.node_type {
-    case .Ident(id_name):
-        type := scope.get_type(id_name.ident_name())
-        if type.is(Type.Unknown) {
-            // #341: the empty receiver a leading-dot variant parses to. One
-            // that survives to here sat in a position with no expected enum
-            // type to fill it from, so say that instead of reporting a
-            // symbol named "" -- which reads like a compiler bug.
-            if id_name.ident_name().len() == 0 {
-                expr.type_error("a leading-dot enum variant needs a known enum type in this position; write the enum name out (issue #341)", ctx)
-            } else {
-                expr.type_error(format("undefined symbol '", Str.clone(id_name.ident_name()), "'"), ctx)
+priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) {
+    ref id_name : IdentData = ident_of(expr)
+    type := scope.get_type(id_name.ident_name())
+    if type.is(Type.Unknown) {
+        // #341: the empty receiver a leading-dot variant parses to. One
+        // that survives to here sat in a position with no expected enum
+        // type to fill it from, so say that instead of reporting a
+        // symbol named "" -- which reads like a compiler bug.
+        if id_name.ident_name().len() == 0 {
+            expr.type_error("a leading-dot enum variant needs a known enum type in this position; write the enum name out (issue #341)", ctx)
+        } else {
+            expr.type_error(format("undefined symbol '", Str.clone(id_name.ident_name()), "'"), ctx)
+        }
+    }
+    expr.set_til_type(type)
+    mut ib_o := scope.get_binding(id_name.ident_name())
+    if ib_o.is_some() {
+        ref mut ib : TypeBinding = ib_o.unwrap()
+        // #154: cross-file edge is recorded unconditionally -- the
+        // current_type_name gate below only guards the priv-decl
+        // `used` flag, and a type's own ns methods live in the
+        // type's file so a self-reference is a no-op edge anyway.
+        note_cross_file_use(ctx, ib.path)
+        // #187 step 1: skip "used" marking when we're inside the
+        // ident's own type namespace. Auto-generated clone/delete/
+        // variant-constructor bodies reference the parent type by
+        // name; counting those would mask a genuinely unused priv
+        // type. External Ident references still mark it used.
+        // Same reachability rule for a name used as a value (a
+        // function passed as a func-pointer, a global read).
+        if ctx.current_type_name.eq(id_name.ident_name()).not() {
+            mark_binding_referenced(ctx, ib)
+        }
+        check_priv_access(expr, id_name.ident_name(), ib, ctx)
+        if scope.lookup_func(ib.name).is_some() {
+            expr.set_til_type(Type.FuncPtr)
+        }
+        if scope.struct_def_of(ib.name).is_some() {
+            if expr_type_name_ref(expr).is_none() {
+                ref resolved_name : Str = resolve_type_alias(scope, id_name.ident_name())
+                expr.set_til_type(Type.Custom(resolved_name.clone()))
             }
         }
-        expr.set_til_type(type)
-        ib_o := scope.get_binding(id_name.ident_name())
-        if ib_o.is_some() {
-            ref mut ib : TypeBinding = ib_o.unwrap()
-            // #154: cross-file edge is recorded unconditionally -- the
-            // current_type_name gate below only guards the priv-decl
-            // `used` flag, and a type's own ns methods live in the
-            // type's file so a self-reference is a no-op edge anyway.
-            note_cross_file_use(ctx, ib.path)
-            // #187 step 1: skip "used" marking when we're inside the
-            // ident's own type namespace. Auto-generated clone/delete/
-            // variant-constructor bodies reference the parent type by
-            // name; counting those would mask a genuinely unused priv
-            // type. External Ident references still mark it used.
-            // Same reachability rule for a name used as a value (a
-            // function passed as a func-pointer, a global read).
-            if ctx.current_type_name.eq(id_name.ident_name()).not() {
-                mark_binding_referenced(ctx, ib)
-            }
-            check_priv_access(expr, id_name.ident_name(), ib, ctx)
-            if scope.lookup_func(ib.name).is_some() {
-                expr.set_til_type(Type.FuncPtr)
-            }
-            if scope.struct_def_of(ib.name).is_some() {
-                if expr_type_name_ref(expr).is_none() {
-                    ref resolved_name : Str = resolve_type_alias(scope, id_name.ident_name())
-                    expr.set_til_type(Type.Custom(resolved_name.clone()))
-                }
-            }
-        }
-    case:
-        UNREACHABLE("expected Ident, got ", expr.node_type.head_str())
     }
 }
 
-priv infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+priv infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
     if expr.children.len() > 0 {
         infer_expr(scope, expr.children[0], in_func, ctx)
     }
 }
 
-priv infer_map_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx: Context) {
-    for e_i : Expr in expr.children {
+priv infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
+    for mut e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
 }
 
-priv infer_set_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx: Context) {
-    for e_i : Expr in expr.children {
+priv infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
+    for mut e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
 }
@@ -3511,7 +3499,7 @@ priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
 // allocation has no path out -- the destructor silently leaks every
 // time it runs. Issued at struct typing time so the error points at
 // the struct declaration.
-priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ctx: Context) {
+priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, mut ctx: Context) {
     switch sdef.node_type {
     case .StructDef(cdsdd):
         cdnd_o := def_ns_get(sdef, "delete")
@@ -3543,7 +3531,7 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ct
 // Resolve enum payload type names against scope so e.g. a macro param `T`
 // used as `Variant: T` payload is marked used, matching how StructDef
 // field types do.
-priv typer_resolve_enum_payload_types := func(edef: EnumDef, scope: TypeScope, ctx: Context) {
+priv typer_resolve_enum_payload_types := func(edef: EnumDef, scope: TypeScope, mut ctx: Context) {
     for vd_e : VariantDef in edef.variants {
         ref pt_e : Str = vd_e.payload_type
         if pt_e.len() > 0 {
@@ -3580,13 +3568,13 @@ priv interface_method_conforms := func(iface_name: Str, impl_name: Str, iface_fd
     }
 }
 
-priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
+priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) {
     expr.set_til_type(Type.None)
-    inner := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut inner := TypeScope(parent = Option(ref TypeScope).Some(scope))
     switch expr.node_type {
     case .StructDef(tc_sdd):
         mut tcfi : USize = 0
-        for fd : Declaration in tc_sdd.fields {
+        for mut fd : Declaration in tc_sdd.fields {
             ref tc_fname : Str = tc_sdd.field_name_at(tcfi)
             tcfi = tcfi + 1
             if fd.redundant_mut {
@@ -3789,9 +3777,9 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     //      settled type).
     saved_in_ns := ctx.typing_namespace_member
     ctx.typing_namespace_member = true
-    ref tc_ns : Vec(Declaration) = def_ns_decls(expr)
+    ref mut tc_ns : Vec(Declaration) = def_ns_decls(expr)
     mut tcni : USize = 0
-    for tc_nd : Declaration in tc_ns {
+    for mut tc_nd : Declaration in tc_ns {
         ref tc_name : Str = def_ns_name_at(expr, tcni)
         tcni = tcni + 1
         if tc_nd.default_value.is_none() { continue }
@@ -3814,7 +3802,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     }
     tc_const_order := ns_const_eval_order(ctx.current_type_name, expr)
     for tc_ci_pos : I64 in tc_const_order {
-        ref tc_cd : Declaration = tc_ns.unsafe_get(tc_ci_pos.to_usize())
+        ref mut tc_cd : Declaration = tc_ns.unsafe_get(tc_ci_pos.to_usize())
         // A non-func namespace member is a constant (e.g. `MAX : F32 =
         // 3.4..e38`). Coerce its numeric literals to the declared type
         // before inference, exactly like top-level / local / field decls
@@ -3829,7 +3817,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
         infer_expr(inner, tc_cd.default_expr(), 0, ctx)
         tc_cd.til_type =tc_cd.default_expr().til_type().clone()
     }
-    for tc_bd : Declaration in tc_ns {
+    for mut tc_bd : Declaration in tc_ns {
         if tc_bd.default_value.is_none() { continue }
         if tc_bd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
         infer_func_def_expr(inner, tc_bd.default_expr(), ctx)
@@ -3895,83 +3883,79 @@ priv is_auto_shallow_type := func(t: Type, type_name: Str, scope: TypeScope, ctx
 }
 
 priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
-    switch expr.node_type {
-    case .FuncDef(fdef):
-        // Issue #223 step 1: a function-pointer signature must match the
-        // auto-shallow ABI of the ordinary func/proc it will hold, so
-        // normalize primitive params/returns to Shallow here too. Otherwise
-        // the call-through codegen would deref a value return as a pointer.
-        sig_auto_shallow := fdef.func_type.is_plain()
-        if fdef.return_type.len() > 0 {
-            return_type_name := fdef.return_type.clone()
-            ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
-            if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { fdef.return_type = resolved_return_type }
-            // Issue #223 step 2: forbid redundant 'shallow' on a primitive
-            // funcptr return. COMMENTED OUT during rollout (see infer_func_def_expr).
-            // NOTE: infer_func_sig_expr is a func with no ctx, so enabling this
-            // needs the diagnostic raised from a proc context.
-            // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Shallow)) {
-            //     if is_primitive(til_type_from_explicit_type(resolved_return_type)) {
-            //         <raise: redundant 'shallow' on primitive return type ... drop it>
-            //     }
-            // }
-            if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Own)) {
-                if is_primitive(til_type_from_explicit_type(resolved_return_type)) {
-                    fdef.return_own_type = OwnType.Shallow
-                }
+    ref mut fdef : FunctionDef = funcdef_of(expr)
+    // Issue #223 step 1: a function-pointer signature must match the
+    // auto-shallow ABI of the ordinary func/proc it will hold, so
+    // normalize primitive params/returns to Shallow here too. Otherwise
+    // the call-through codegen would deref a value return as a pointer.
+    sig_auto_shallow := fdef.func_type.is_plain()
+    if fdef.return_type.len() > 0 {
+        return_type_name := fdef.return_type.clone()
+        ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
+        if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { fdef.return_type = resolved_return_type }
+        // Issue #223 step 2: forbid redundant 'shallow' on a primitive
+        // funcptr return. COMMENTED OUT during rollout (see infer_func_def_expr).
+        // NOTE: infer_func_sig_expr is a func with no ctx, so enabling this
+        // needs the diagnostic raised from a proc context.
+        // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Shallow)) {
+        //     if is_primitive(til_type_from_explicit_type(resolved_return_type)) {
+        //         <raise: redundant 'shallow' on primitive return type ... drop it>
+        //     }
+        // }
+        if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Own)) {
+            if is_primitive(til_type_from_explicit_type(resolved_return_type)) {
+                fdef.return_own_type = OwnType.Shallow
             }
         }
-        for param : Declaration in fdef.params {
-            ptype_name := param.explicit_type.clone()
-            ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
-            // Keep USize/UPtr as their alias name ONLY when the two widths
-            // actually differ (a --usize=32 / 32-bit build): there the coercion
-            // must recognize size vs pointer params. When they are equal (the
-            // default), resolve to the primitive as before -- byte-identical.
-            if is_usize_name(ptype_name).or(is_uptr_name(ptype_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { param.explicit_type = resolved_ptype }
-            param.til_type =til_type_from_explicit_type(resolved_ptype)
-            // Issue #58 / #147 step 5: if the param's type resolves to a
-            // FuncSig alias (a bodyless FuncDef in scope), upgrade
-            // til_type from Type.Custom(name) to Type.FuncPtrSig(name)
-            // so downstream consumers (builder's fcall_fn_sig fallback,
-            // typer's func_def propagation) can read the FuncSig name
-            // off the type instead of off `param.explicit_type`. This
-            // is what makes the FuncPtrSig migration reach param-level
-            // til_type, not just expr-level inferred types.
-            sig_fd_param_o := scope.lookup_func(resolved_ptype)
-            if sig_fd_param_o.is_some() {
-                if sig_fd_param_o.unwrap().children.len() == 0 {
-                    param.til_type = Type.FuncPtrSig(resolved_ptype.clone())
-                }
+    }
+    for mut param : Declaration in fdef.params {
+        ptype_name := param.explicit_type.clone()
+        ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
+        // Keep USize/UPtr as their alias name ONLY when the two widths
+        // actually differ (a --usize=32 / 32-bit build): there the coercion
+        // must recognize size vs pointer params. When they are equal (the
+        // default), resolve to the primitive as before -- byte-identical.
+        if is_usize_name(ptype_name).or(is_uptr_name(ptype_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { param.explicit_type = resolved_ptype }
+        param.til_type =til_type_from_explicit_type(resolved_ptype)
+        // Issue #58 / #147 step 5: if the param's type resolves to a
+        // FuncSig alias (a bodyless FuncDef in scope), upgrade
+        // til_type from Type.Custom(name) to Type.FuncPtrSig(name)
+        // so downstream consumers (builder's fcall_fn_sig fallback,
+        // typer's func_def propagation) can read the FuncSig name
+        // off the type instead of off `param.explicit_type`. This
+        // is what makes the FuncPtrSig migration reach param-level
+        // til_type, not just expr-level inferred types.
+        sig_fd_param_o := scope.lookup_func(resolved_ptype)
+        if sig_fd_param_o.is_some() {
+            if sig_fd_param_o.unwrap().children.len() == 0 {
+                param.til_type = Type.FuncPtrSig(resolved_ptype.clone())
             }
-            // Issue #223 step 2: forbid redundant 'shallow' on a primitive
-            // funcptr parameter. COMMENTED OUT during rollout (see infer_func_def_expr).
-            // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Shallow)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
-            //     <raise: redundant 'shallow' on primitive parameter ... drop it>
-            // }
-            if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
+        }
+        // Issue #223 step 2: forbid redundant 'shallow' on a primitive
+        // funcptr parameter. COMMENTED OUT during rollout (see infer_func_def_expr).
+        // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Shallow)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
+        //     <raise: redundant 'shallow' on primitive parameter ... drop it>
+        // }
+        if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
+            param.own_type = OwnType.Shallow
+        }
+        // A FuncPtr param is an 8-byte pointer; the C ABI passes it
+        // by value just like a primitive, so the funcptr-sig has to
+        // match auto-shallow too. Otherwise emit_fcall_funcptr_cast
+        // generates `(void * *)` for the param and the arg emit
+        // takes its address, both wrong for a callee that expects
+        // the function pointer by value. param.til_type at this
+        // point is Type.Custom(name) -- the FuncPtr-ness lives in
+        // the scope binding for the alias name, not in the inline
+        // Type, so look it up.
+        if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
+            pbind_o := scope.get_binding(resolved_ptype)
+            mut pbind_is_funcptr := false
+            if pbind_o.is_some() { pbind_is_funcptr = pbind_o.unwrap().type.is_funcptr() }
+            if param.til_type.is(Type.Body).or(pbind_is_funcptr) {
                 param.own_type = OwnType.Shallow
             }
-            // A FuncPtr param is an 8-byte pointer; the C ABI passes it
-            // by value just like a primitive, so the funcptr-sig has to
-            // match auto-shallow too. Otherwise emit_fcall_funcptr_cast
-            // generates `(void * *)` for the param and the arg emit
-            // takes its address, both wrong for a callee that expects
-            // the function pointer by value. param.til_type at this
-            // point is Type.Custom(name) -- the FuncPtr-ness lives in
-            // the scope binding for the alias name, not in the inline
-            // Type, so look it up.
-            if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
-                pbind_o := scope.get_binding(resolved_ptype)
-                mut pbind_is_funcptr := false
-                if pbind_o.is_some() { pbind_is_funcptr = pbind_o.unwrap().type.is_funcptr() }
-                if param.til_type.is(Type.Body).or(pbind_is_funcptr) {
-                    param.own_type = OwnType.Shallow
-                }
-            }
         }
-    case:
-        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
     expr.set_til_type(Type.FuncPtr)
 }
@@ -3994,7 +3978,7 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope) ret
     return enum_has_ref_payload(rdef_o.unwrap())
 }
 
-priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
+priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, mut ctx: Context) {
     mut throws_count : USize = 0
     ref fdef : FunctionDef = funcdef_of(expr)
     if fdef.return_own_type.is(OwnType.Ref).not() { return }
@@ -4104,7 +4088,7 @@ priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, de
 // parameter `own` transfers it instead, and the caller stops freeing --
 // verified: the same program runs correctly with `own f`. Checked on the
 // DEFINITION, so it holds no matter who calls it.
-priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, ctx: Context) {
+priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, mut ctx: Context) {
     if fdef.children.len() == 0 { return }
     ref pfd : FunctionDef = funcdef_of(fdef)
     if pfd.variadic_index >= 0 { return }
@@ -4121,7 +4105,7 @@ priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, ctx:
     }
 }
 
-priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, ctx: Context) {
+priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, mut ctx: Context) {
     switch e.node_type {
     case .Return:
         if e.children.len() == 0 { return }
@@ -4174,7 +4158,7 @@ priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: Ty
     }
 }
 
-priv check_returned_borrowed_closure_captures := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
+priv check_returned_borrowed_closure_captures := proc(func_scope: TypeScope, expr: Expr, mut ctx: Context) {
     switch expr.node_type {
     case .FuncDef:
         if expr.children.len() == 0 { return }
@@ -4430,7 +4414,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             // normalization above already overwrote param.explicit_type,
             // so this is the only place that still knows a `n: USize`
             // param was written USize rather than the target's U32.
-            pb_o := func_scope.get_binding(param.name)
+            mut pb_o := func_scope.get_binding(param.name)
             if pb_o.is_some() {
                 ref mut pb : TypeBinding = pb_o.unwrap()
                 pb.declared_type_name = ptype_name.clone()
@@ -4573,7 +4557,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
 // lives in context.til, shared with the builder's emit-side terminator so the
 // two can never drift. The C -Werror=return-type backstop stays on to catch
 // anything the analysis still misses in the other direction.
-priv check_all_paths_return := proc(expr: Expr, ctx: Context) {
+priv check_all_paths_return := proc(expr: Expr, mut ctx: Context) {
     switch expr.node_type {
     case .FuncDef(fdef):
         // Only user Func/Proc bodies with a declared return type must return on
@@ -4596,7 +4580,7 @@ priv check_all_paths_return := proc(expr: Expr, ctx: Context) {
     }
 }
 
-priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
+priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, mut ctx: Context) {
     ref fdef : FunctionDef = funcdef_of(expr)
     if fdef.func_type.is(FuncType.ExtFunc) { return }
     if fdef.func_type.is(FuncType.ExtProc) { return }
@@ -4622,7 +4606,7 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context
 // params (locals are skipped via is_param in the step-1 check, so the
 // two passes don't overlap). Called once per function -- params live on
 // the func_scope only, not on the if/while/block inner scopes.
-priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: Str, ctx: Context) {
+priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: Str, mut ctx: Context) {
     ref fdef : FunctionDef = funcdef_of(expr)
     if fdef.func_type.is(FuncType.ExtFunc) { return }
     if fdef.func_type.is(FuncType.ExtProc) { return }
@@ -4646,7 +4630,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
     }
 }
 
-check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
+check_unused_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
     for b in scope.bindings.values {
         if b.is_param { continue }
         if b.is_builtin { continue }
@@ -4677,7 +4661,7 @@ check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
 // immutable sources -- dropping the `mut` would require the language
 // to distinguish "rebindable local pointer" from "write-through ref
 // mut"; tracked separately on #164).
-check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
+check_unused_mut_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
     for b in scope.bindings.values {
         if b.is_param { continue }
         if b.is_builtin { continue }
@@ -4752,7 +4736,7 @@ priv propagate_priv_refs := func(scope: TypeScope, ctx: Context) {
         if ctx.priv_ref_edges.has(referrer).not() { continue }
         ref referees : Vec(Str) = ctx.priv_ref_edges[referrer]
         for referee : Str in referees {
-            rbo := scope.get_binding(referee)
+            mut rbo := scope.get_binding(referee)
             if rbo.is_none() { continue }
             ref mut rb2 : TypeBinding = rbo.unwrap()
             if rb2.used { continue }
@@ -4762,7 +4746,7 @@ priv propagate_priv_refs := func(scope: TypeScope, ctx: Context) {
     }
 }
 
-check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 {
+check_unused_priv_top_level := proc(scope: TypeScope, mut ctx: Context) returns I32 {
     mut found : I32 = 0
     propagate_priv_refs(scope, ctx)
     for b in scope.bindings.values {
@@ -4824,7 +4808,7 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
 // auto_gen_depth == 0 so boilerplate clone/delete don't mask
 // unused decls). After type_check, walk every struct/enum decl in
 // each ImportUnit and flag the leftovers.
-check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Context) returns I32 {
+check_unused_priv_members_in_program := proc(program: Expr, path: Str, mut ctx: Context) returns I32 {
     mut found : I32 = 0
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -4897,7 +4881,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
 // Fires for a direct Literal.Num return expression (including negative
 // literals like -1, which the parser now produces as a single literal);
 // any other expression is left as-is.
-priv narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context) {
+priv narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, mut ctx: Context) {
     if ctx.typer_return_type_name.len() == 0 { return }
     rt := type_from_name(ctx.typer_return_type_name, scope, ctx)
     if is_numeric_type(rt).not() { return }
@@ -4955,7 +4939,7 @@ priv make_owned_iface_box := func(iface_name: Str, concrete_name: Str, own value
     return box
 }
 
-priv box_return_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
+priv box_return_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
     iface_name := ctx.typer_return_type_name.clone()
     mut raw_val := stmt.children[0].clone()
     infer_expr(scope, stmt.children[0], in_func, ctx)
@@ -4988,7 +4972,7 @@ priv fcall_has_injected_err_arg := func(e: Expr) returns Bool {
     return false
 }
 
-priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {    if stmt.children.len() > 0 {
+priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, mut ctx: Context) {    if stmt.children.len() > 0 {
         // #251 follow-up: a conforming concrete RETURNED where an interface is
         // declared coerces to an OWNED box (box_return_value). Done in a
         // helper because it must snapshot the raw value BEFORE inference
@@ -5077,19 +5061,19 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
     }
 }
 
-priv infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+priv infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
     ref if_cond_t : Type = stmt.children[0].til_type()
     if type_is_primitive(if_cond_t, Primitive.Bool).not().and(if_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("if condition must be Bool", ctx)
     }
-    then_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut then_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(then_scope, stmt.children[1], in_func, 1, in_loop, returns_ref, 0, ctx)
     garbager_destroy_body(ctx, stmt.children[1], then_scope)
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
     if stmt.children.len() > 2 {
-        else_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut else_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(else_scope, stmt.children[2], in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, stmt.children[2], else_scope)
         check_unused_locals(else_scope, ctx.path, ctx)
@@ -5121,7 +5105,7 @@ priv resolve_fa_receiver_alias := func(scope: TypeScope, mut obj: Expr) {
     }
 }
 
-priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
     infer_expr(scope, expr.children[0], in_func, ctx)
     resolve_fa_receiver_alias(scope, expr.children[0])
     mut obj_sname_o := expr_type_name_ref(expr.children[0])
@@ -5154,20 +5138,15 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             // #154: reading a member of a cross-file type uses its import.
             note_cross_file_type_use(scope, ctx, obj_sname)
             mut fname := ""
-            switch expr.node_type {
-            case .FieldAccess(fn):
-                fname = Str.clone(fn.field_access_name())
-            case:
-                UNREACHABLE("expected FieldAccess, got ", expr.node_type.head_str())
-                return
-            }
+            ref fn : FieldAccessData = fieldaccess_of(expr)
+            fname = Str.clone(fn.field_access_name())
             mut found := false
             // Search struct fields from payload
             switch sdef.node_type {
             case .StructDef(fa_sdd):
-                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                mut fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
                 if fld_o.is_some() {
-                    ref fld : Declaration = fld_o.unwrap()
+                    ref mut fld : Declaration = fld_o.unwrap()
                     mut field_type := fld.til_type.clone()
                     if fld.explicit_type.len() > 0 {
                         resolved_field_type := type_from_name(fld.explicit_type, scope, ctx)
@@ -5184,9 +5163,9 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             }
             // Search namespace declarations from payload ns_decls
             if found.not() {
-                nsd_o := def_ns_get(sdef, fname)
+                mut nsd_o := def_ns_get(sdef, fname)
                 if nsd_o.is_some() {
-                    ref nsd : Declaration = nsd_o.unwrap()
+                    ref mut nsd : Declaration = nsd_o.unwrap()
                     expr.set_til_type(nsd.til_type.clone())
                     if sdef.node_type.is(NodeType.EnumDef).and(nsd.default_value.is_some()) {
                         switch nsd.default_expr().node_type {
@@ -5216,7 +5195,7 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
     }
 }
 
-priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
+priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
     infer_expr(scope, stmt.children[1], in_func, ctx)
     ref obj : Expr = stmt.children[0]
@@ -5233,6 +5212,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
     // it written. `a.b.c = ...` writes the root `a` (transitively), and
     // when `a` is a borrow, the storage `a` aliases.
     mark_written_through(scope, obj)
+    check_write_roots_mut(scope, stmt, obj, format("assign to '", fname, "' here"), ctx)
     obj_sname_o := expr_type_name_ref(obj)
     if obj_sname_o.is_some() {
         ref obj_sname : Str = obj_sname_o.unwrap()
@@ -5244,9 +5224,9 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
             mut found := false
             switch sdef.node_type {
             case .StructDef(fa_sdd):
-                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                mut fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
                 if fld_o.is_some() {
-                    ref fld : Declaration = fld_o.unwrap()
+                    ref mut fld : Declaration = fld_o.unwrap()
                     found = true
                     check_member_priv(stmt, obj_sname, fname, fld.is_priv, ctx)
                     if ctx.auto_gen_depth == 0 { fld.used = true }
@@ -5366,7 +5346,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
     }
 }
 
-priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
+priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, mut ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
     ref while_cond_t : Type = stmt.children[0].til_type()
     if type_is_primitive(while_cond_t, Primitive.Bool).not().and(while_cond_t.is(Type.Unknown).not()) {
@@ -5377,7 +5357,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         ref cond : Expr = stmt.children[0]
         line := cond.line
         col := cond.col
-        ref body : Expr = stmt.children[1]
+        ref mut body : Expr = stmt.children[1]
         wname := format("_wcond_Bool_", ctx.hoist_counter.to_str())
         ctx.hoist_counter++
 
@@ -5418,7 +5398,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         }
         body.children.move_from(own new_ch)
     }
-    while_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut while_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(while_scope, stmt.children[1], in_func, 1, 1, returns_ref, 0, ctx)
     garbager_destroy_body(ctx, stmt.children[1], while_scope)
     check_unused_locals(while_scope, ctx.path, ctx)
@@ -5426,70 +5406,65 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
     stmt.set_til_type(Type.None)
 }
 
-priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) returns Bool {
+priv infer_decl_type_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: Context) returns Bool {
     if is_struct_or_enum(stmt).not() { return false }
     is_enum := stmt.children[0].node_type.is(NodeType.EnumDef)
-    switch stmt.node_type {
-    case .Decl(sdecl):
-        if sdecl.explicit_type.len() > 0 {
-            declared := type_from_name(sdecl.explicit_type, scope, ctx)
-            mut expected := Type.Struct("StructDef")
-            if is_enum { expected = Type.Struct("EnumDef") }
-            if declared.eq(expected).not() {
-                mut value_type := "StructDef"
-                if is_enum { value_type = "EnumDef" }
-                stmt.type_error(format("'", sdecl.name, "' declared as ", sdecl.explicit_type, " but value is ", value_type), ctx)
-            }
+    ref sdecl : Declaration = decl_of(stmt)
+    if sdecl.explicit_type.len() > 0 {
+        declared := type_from_name(sdecl.explicit_type, scope, ctx)
+        mut expected := Type.Struct("StructDef")
+        if is_enum { expected = Type.Struct("EnumDef") }
+        if declared.eq(expected).not() {
+            mut value_type := "StructDef"
+            if is_enum { value_type = "EnumDef" }
+            stmt.type_error(format("'", sdecl.name, "' declared as ", sdecl.explicit_type, " but value is ", value_type), ctx)
         }
-        stmt.set_til_type(Type.None)
-        ref sname : Str = sdecl.name
-        existing_o := scope.get_binding(sname)
-        if existing_o.is_some() {
-            ref existing : TypeBinding = existing_o.unwrap()
-            existing_sd_o := scope.struct_def_of(existing.name)
-            if existing_sd_o.is_some() {
-                ref existing_sd : Expr = existing_sd_o.unwrap()
-                ref type_expr : Expr = stmt.children[0]
-                if existing_sd.line.neq(type_expr.line).or(
-                    existing_sd.col.neq(type_expr.col).or(
-                        existing.path.eq(ctx.path).not()
-                    )
-                ) {
-                    mut kind := "struct"
-                    if is_enum { kind = "enum" }
-                    stmt.type_error(format(kind, " '", sname, "' already declared at ", existing.path, ":", existing.line.to_str(), ":", existing.col.to_str()), ctx)
-                    return true
-                }
-            }
-        }
-        mut builtin_type := Type.Struct(sname.clone())
-        mut is_builtin := false
-        if is_enum {
-            builtin_type = Type.Enum(sname.clone())
-        } else {
-            mut prim : Primitive = Primitive.I64
-            if builtin_primitive_from_name(sname, prim) {
-                builtin_type = Type.Primitive(prim)
-                is_builtin = true
-            } else if sname == "Dynamic" {
-                builtin_type = Type.Dynamic
-                is_builtin = true
-            }
-        }
-        scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        scope.set_struct_def(sname, stmt.children[0])
-        ref mut b : TypeBinding = scope.get_binding(sname).unwrap()
-        b.is_builtin = is_builtin
-        b.is_priv = sdecl.is_priv
-        b.orig_name = sdecl.orig_name.clone()
-        return true
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return false
     }
+    stmt.set_til_type(Type.None)
+    ref sname : Str = sdecl.name
+    existing_o := scope.get_binding(sname)
+    if existing_o.is_some() {
+        ref existing : TypeBinding = existing_o.unwrap()
+        existing_sd_o := scope.struct_def_of(existing.name)
+        if existing_sd_o.is_some() {
+            ref existing_sd : Expr = existing_sd_o.unwrap()
+            ref type_expr : Expr = stmt.children[0]
+            if existing_sd.line.neq(type_expr.line).or(
+                existing_sd.col.neq(type_expr.col).or(
+                    existing.path.eq(ctx.path).not()
+                )
+            ) {
+                mut kind := "struct"
+                if is_enum { kind = "enum" }
+                stmt.type_error(format(kind, " '", sname, "' already declared at ", existing.path, ":", existing.line.to_str(), ":", existing.col.to_str()), ctx)
+                return true
+            }
+        }
+    }
+    mut builtin_type := Type.Struct(sname.clone())
+    mut is_builtin := false
+    if is_enum {
+        builtin_type = Type.Enum(sname.clone())
+    } else {
+        mut prim : Primitive = Primitive.I64
+        if builtin_primitive_from_name(sname, prim) {
+            builtin_type = Type.Primitive(prim)
+            is_builtin = true
+        } else if sname == "Dynamic" {
+            builtin_type = Type.Dynamic
+            is_builtin = true
+        }
+    }
+    scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set_struct_def(sname, stmt.children[0])
+    ref mut b : TypeBinding = scope.get_binding(sname).unwrap()
+    b.is_builtin = is_builtin
+    b.is_priv = sdecl.is_priv
+    b.orig_name = sdecl.orig_name.clone()
+    return true
 }
 
-priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) returns Bool {
+priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: Context) returns Bool {
     if is_func_decl(stmt).not() { return false }
     switch stmt.node_type {
     case .Decl(sdecl):
@@ -5548,24 +5523,19 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
 
 priv infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr) returns Bool {
     if stmt.children[0].node_type.is(NodeType.Ident).not() { return false }
-    switch stmt.node_type {
-    case .Decl(sdecl):
-        alias_b_o := scope.get_binding(sdecl.name)
-        if alias_b_o.is_some() {
-            ref alias_b : TypeBinding = alias_b_o.unwrap()
-            if alias_b.is_type_alias {
-                stmt.set_til_type(Type.None)
-                return true
-            }
+    ref sdecl : Declaration = decl_of(stmt)
+    alias_b_o := scope.get_binding(sdecl.name)
+    if alias_b_o.is_some() {
+        ref alias_b : TypeBinding = alias_b_o.unwrap()
+        if alias_b.is_type_alias {
+            stmt.set_til_type(Type.None)
+            return true
         }
-        return false
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return false
     }
+    return false
 }
 
-priv declared_type_for_decl := func(scope: TypeScope, stmt: Expr, ctx: Context) returns Type {
+priv declared_type_for_decl := func(scope: TypeScope, stmt: Expr, mut ctx: Context) returns Type {
     ref sdecl : Declaration = decl_of(stmt)
     mut declared := stmt.til_type().clone()
     switch declared {
@@ -5592,7 +5562,7 @@ priv pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: Type) {
             pre_coerce_decl_numeric_literals(expr.children[i], target)
         }
     case:
-        for c : Expr in expr.children {
+        for mut c : Expr in expr.children {
             pre_coerce_decl_numeric_literals(c, target)
         }
     }
@@ -5619,7 +5589,7 @@ priv fcall_is_raw_alloc := func(e: Expr) returns Bool {
 // gen/til/*.c, and `s : Str = 0` / `n : I64 = "x"` typed clean too.
 // `at` is the node the diagnostic hangs off (the Decl stmt for a local,
 // the default expr for a field).
-priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared: Type, explicit_type: Str, scope: TypeScope, ctx: Context) {
+priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared: Type, explicit_type: Str, scope: TypeScope, mut ctx: Context) {
     if can_implicit_usize_coerce(val.til_type(), declared, explicit_type).not()
         .and(val.til_type().is(declared).not())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
@@ -5638,7 +5608,7 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
     }
 }
 
-priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
+priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
     switch stmt.node_type {
     case .Decl(sdecl):
         mut declared := declared_type_for_decl(scope, stmt, ctx)
@@ -5750,8 +5720,8 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
     }
 }
 
-priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
-    ref rhs : Expr = stmt.children[0]
+priv infer_decl_untyped_value := proc(mut stmt: Expr, mut ctx: Context) {
+    ref mut rhs : Expr = stmt.children[0]
     mut inferred := rhs.til_type().clone()
     switch rhs.node_type {
     case .FuncDef(rhs_fd):
@@ -5776,12 +5746,8 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     }
     stmt.set_til_type(inferred)
     if stmt.til_type().is(Type.Dynamic) {
-        switch stmt.node_type {
-        case .Decl(sdecl):
-            stmt.type_error(format("cannot store Dynamic in '", sdecl.name, "'; add a type annotation like '", sdecl.name, " : Type = ...' to specify the concrete type"), ctx)
-        case:
-            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        }
+        ref sdecl : Declaration = decl_of(stmt)
+        stmt.type_error(format("cannot store Dynamic in '", sdecl.name, "'; add a type annotation like '", sdecl.name, " : Type = ...' to specify the concrete type"), ctx)
     }
 }
 
@@ -5819,7 +5785,7 @@ priv dynvec_elem_from_new := func(rhs: Expr) returns Str {
     return ""
 }
 
-priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I32, dv_elem: Str, ctx: Context) {
+priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type_body: I32, dv_elem: Str, mut ctx: Context) {
     switch stmt.node_type {
     case .Decl(sdecl):
         ref mut rhs : Expr = stmt.children[0]
@@ -6029,7 +5995,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
     }
 }
 
-priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_type_body: I32, ctx: Context) {
+priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, in_type_body: I32, mut ctx: Context) {
     if stmt.children.len() == 0 { return }
     // Issue #328: a retained direct-generic SOURCE is a template, not code.
     // Its signature and body still name the unbound type parameters, so
@@ -6040,15 +6006,11 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
     mut dv_elem := ""
     ref first_child : Expr = stmt.children[0]
     if first_child.node_type.is(NodeType.StructDef).or(first_child.node_type.is(NodeType.EnumDef)) {
-        switch stmt.node_type {
-        case .Decl(td_decl):
-            saved_type_name := ctx.current_type_name.clone()
-            ctx.current_type_name = td_decl.name.clone()
-            infer_expr(scope, stmt.children[0], in_func, ctx)
-            ctx.current_type_name = saved_type_name
-        case:
-            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        }
+        ref td_decl : Declaration = decl_of(stmt)
+        saved_type_name := ctx.current_type_name.clone()
+        ctx.current_type_name = td_decl.name.clone()
+        infer_expr(scope, stmt.children[0], in_func, ctx)
+        ctx.current_type_name = saved_type_name
     } else {
         // Issue #93 follow-up: when the decl's rhs is a FuncDef body
         // (top-level after init_declarations_unit's nested-def lift),
@@ -6122,15 +6084,11 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
     if infer_decl_type_def(scope, stmt, ctx) { return }
     if infer_decl_func_def(scope, stmt, ctx) { return }
     if infer_decl_type_alias_passthrough(scope, stmt) { return }
-    switch stmt.node_type {
-    case .Decl(sdecl):
-        if sdecl.explicit_type.len() > 0 {
-            infer_decl_typed_value(scope, stmt, in_func, ctx)
-        } else {
-            infer_decl_untyped_value(stmt, ctx)
-        }
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
+    ref sdecl : Declaration = decl_of(stmt)
+    if sdecl.explicit_type.len() > 0 {
+        infer_decl_typed_value(scope, stmt, in_func, ctx)
+    } else {
+        infer_decl_untyped_value(stmt, ctx)
     }
     check_ref_decl_owned_init(stmt, scope, ctx)
     check_ref_local_null_init(stmt, ctx)
@@ -6192,7 +6150,7 @@ priv scope_root_ref := func(s: TypeScope) returns ref TypeScope {
 // assignment target, which additionally requires a `mut` capture.
 priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
-        captures: Vec(Declaration), ctx: Context) {
+        captures: Vec(Declaration), mut ctx: Context) {
     if block_scope.bindings.has(name) { return }   // block-local (or shadow)
     if capture_listed(captures, name) {
         if is_write.eq(1).and(capture_is_mut(captures, name).not()) {
@@ -6215,7 +6173,7 @@ priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
 // stop at them.
 priv capture_block_check_refs := proc(e: Expr,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
-        captures: Vec(Declaration), ctx: Context) {
+        captures: Vec(Declaration), mut ctx: Context) {
     switch e.node_type {
     case .CaptureBlock, .BodyValue, .FuncDef: return
     case .Ident(idd):
@@ -6229,7 +6187,7 @@ priv capture_block_check_refs := proc(e: Expr,
     }
 }
 
-priv body_value_check_no_return := proc(e: Expr, ctx: Context) {
+priv body_value_check_no_return := proc(e: Expr, mut ctx: Context) {
     switch e.node_type {
     case .FuncDef: return
     case .Return:
@@ -6241,7 +6199,7 @@ priv body_value_check_no_return := proc(e: Expr, ctx: Context) {
     }
 }
 
-priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
+priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) {
     mut captures := Vec(Declaration).new()
     switch expr.node_type {
     case .BodyValue(bd):
@@ -6261,7 +6219,7 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Contex
     }
     ref mut body : Expr = expr.children[0]
     body_value_check_no_return(body, ctx)
-    body_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut body_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     mut capture_source_muts := Vec(Bool).new()
     mut capture_source_written := Vec(Bool).new()
     capture_private_mut_begin(scope, captures, capture_source_muts, capture_source_written)
@@ -6279,9 +6237,9 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Contex
 // captured name must exist; mark it used (so listing it counts as a use)
 // and check the `mut` modifier against the source binding's mutability.
 // Shared by capture blocks and capturing functions.
-priv validate_captures := proc(scope: TypeScope, captures: Vec(Declaration), errnode: Expr, ctx: Context) {
+priv validate_captures := proc(scope: TypeScope, mut captures: Vec(Declaration), errnode: Expr, mut ctx: Context) {
     for mut cap : Declaration in captures {
-        b_o := scope.get_binding(cap.name)
+        mut b_o := scope.get_binding(cap.name)
         if b_o.is_none() {
             errnode.type_error(format("capture '", cap.name,
                 "': no such variable in the enclosing scope"), ctx)
@@ -6315,7 +6273,7 @@ priv validate_captures := proc(scope: TypeScope, captures: Vec(Declaration), err
 priv capture_private_mut_begin := func(scope: TypeScope, captures: Vec(Declaration),
         mut source_muts: Vec(Bool), mut source_written: Vec(Bool)) {
     for cap : Declaration in captures {
-        b_o := scope.get_binding(cap.name)
+        mut b_o := scope.get_binding(cap.name)
         if b_o.is_none() {
             missing_mut := false
             missing_written := false
@@ -6335,7 +6293,7 @@ priv capture_private_mut_end := func(scope: TypeScope, captures: Vec(Declaration
     for i in 0..captures.len() {
         ref cap : Declaration = captures[i]
         if cap.is_mut.not().or(cap.own_type.is(OwnType.Ref)) { continue }
-        b_o := scope.get_binding(cap.name)
+        mut b_o := scope.get_binding(cap.name)
         if b_o.is_none() { continue }
         ref mut b : TypeBinding = b_o.unwrap()
         b.is_mut = source_muts[i]
@@ -6375,7 +6333,7 @@ priv capture_block_rename := proc(mut e: Expr, from: Str, to: Str) {
 // (expr_transfers_own reports the CaptureBlock, so the enclosing scope stands
 // down its delete and a later use is a use-after-move error).
 priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
-        in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+        in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context) {
     mut captures := Vec(Declaration).new()
     switch stmt.node_type {
     case .CaptureBlock(cbd):
@@ -6408,7 +6366,7 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
         cbody.children.move_from(own new_ch)
     }
     ref mut body : Expr = stmt.children[0]
-    block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(block_scope, body, in_func, 1, in_loop, returns_ref, 0, ctx)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, block_scope, root, captures, ctx)
@@ -6435,7 +6393,7 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
     stmt.set_til_type(Type.None)
 }
 
-infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
+infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context) {
     // Issue #244: a Match at statement position is either the lowering's
     // result-temp-tagged form (desugar it like a switch) or a bare user
     // `match` whose value is discarded (an error pointing at switch).
@@ -6499,7 +6457,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
     case .If:
         infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case .Body:
-        block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, stmt, block_scope)
         check_unused_locals(block_scope, ctx.path, ctx)
@@ -6535,8 +6493,8 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
         // throws-set matching land in the validation step. Body
         // statements need infer_body so var refs etc. resolve.
         if stmt.children.len() == 3 {
-            ref body_expr : Expr = stmt.children[2]
-            catch_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+            ref mut body_expr : Expr = stmt.children[2]
+            mut catch_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
             garbager_destroy_body(ctx, body_expr, catch_scope)
             check_unused_locals(catch_scope, ctx.path, ctx)
@@ -6550,13 +6508,13 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
     }
 }
 
-priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
+priv reregister_scope_defs := func(body: Expr, mut scope: TypeScope) {
     for rstmt : Expr in body.children {
         if rstmt.children.len() == 0 { continue }
         ref rfirst : Expr = rstmt.children[0]
         switch rstmt.node_type {
         case .Decl(rdecl):
-            rb_o := scope.get_binding(rdecl.name)
+            mut rb_o := scope.get_binding(rdecl.name)
             if rb_o.is_some() {
                 ref mut rb : TypeBinding = rb_o.unwrap()
                 if rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef)) {
@@ -6626,7 +6584,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
     }
 }
 
-reregister_repl_scope_defs := func(body: Expr, scope: TypeScope) {
+reregister_repl_scope_defs := func(body: Expr, mut scope: TypeScope) {
     reregister_scope_defs(body, scope)
 }
 
@@ -6634,7 +6592,7 @@ reregister_repl_scope_defs := func(body: Expr, scope: TypeScope) {
 // proc no longer runs the asap-destruction pass; the scope-management
 // sites that call infer_body invoke garbager_destroy_body(body, scope)
 // themselves before tearing the scope down.
-infer_body := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
+infer_body := proc(mut scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context) {
     body.set_til_type(Type.None)
     mut i : USize = 0
     while i < body.children.len() {
@@ -6659,7 +6617,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I
 // re-registration below happens immediately after it and by destination
 // index -- never against the pending storage, and never one-at-a-time
 // interleaved with more moves.
-priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, ctx: Context) {
+priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, mut ctx: Context) {
     if ctx.generic_pending.children.len() == 0 { return }
 
     // Nested struct/enum/func definitions inside a substituted body are
@@ -6667,9 +6625,9 @@ priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, ctx: Co
     // an ordinary function. Task 6 refuses to infer a source whose
     // closure declares a struct or enum, so only FuncDefs reach here.
     mut nested := Vec(Expr).new()
-    for pstmt : Expr in ctx.generic_pending.children {
+    for mut pstmt : Expr in ctx.generic_pending.children {
         if pstmt.children.len() == 0 { continue }
-        ref prhs : Expr = pstmt.children[0]
+        ref mut prhs : Expr = pstmt.children[0]
         if prhs.node_type.is(NodeType.FuncDef).not() { continue }
         if prhs.children.len() == 0 { continue }
         switch pstmt.node_type {
@@ -6717,7 +6675,7 @@ priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, ctx: Co
     }
 }
 
-priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
+priv infer_body_unit := proc(mut scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context) {
     body.set_til_type(Type.None)
     // Issue #158: record foldable macro/func names so constfolder reuses
     // ctx.constfolder_foldables instead of re-scanning. Issue #315: classify
@@ -6766,7 +6724,7 @@ priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, own
 // the name resolves to a real struct/enum. Bindings whose type does
 // not resolve are left as ~Custom~ and surface as undefined-symbol
 // errors during type_check (same as today).
-normalize_scope_bindings := func(scope: TypeScope) {
+normalize_scope_bindings := func(mut scope: TypeScope) {
     for mut b in scope.bindings.values {
         switch b.type {
         case .Custom(name):
@@ -6805,7 +6763,7 @@ normalize_scope_bindings := func(scope: TypeScope) {
 // Moved into the typer module so the parser stays dumb and the lift
 // happens during the typer phase rather than as its own #158 pass.
 
-priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
+priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
     ctx.errors = 0
     context_enter_file(ctx, path)
     // #328: the late-generic queue is per unit. It should already be
@@ -6881,22 +6839,22 @@ priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Co
 // scope-using methodgen (gen_struct_clone_delete,
 // gen_missing_enum_clone) the same way and eventually retire
 // init_declarations_global's heavy parts entirely.
-type_file := proc(path: Str, ctx: Context) returns I32 {
+type_file := proc(path: Str, mut ctx: Context) returns I32 {
     mut total : I32 = 0
     total = total + type_decls_file(path, ctx)
     total = total + type_bodies_file(path, ctx)
     return total
 }
 
-priv type_repl_delta_decls_from := proc(program: Expr, start_idx: USize, ctx: Context) returns I32 {
+priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut ctx: Context) returns I32 {
     total : I32 = 0
     mut i := start_idx
     while i < program.children.len() {
-        ref stmt : Expr = program.children[i]
+        ref mut stmt : Expr = program.children[i]
         i++
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
-        ref rhs : Expr = stmt.children[0]
+        ref mut rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef) {
             switch stmt.node_type {
             case .Decl(d):
@@ -6920,7 +6878,7 @@ priv type_repl_delta_decls_from := proc(program: Expr, start_idx: USize, ctx: Co
     return total
 }
 
-type_repl_delta := proc(path: Str, program: Expr, ctx: Context) returns I32 {
+type_repl_delta := proc(path: Str, mut program: Expr, mut ctx: Context) returns I32 {
     context_enter_file(ctx, path)
     mut total : I32 = 0
     total = total + type_repl_delta_decls_from(program, 0, ctx)
@@ -6946,13 +6904,13 @@ type_repl_delta := proc(path: Str, program: Expr, ctx: Context) returns I32 {
 // stay in init_declarations_global for now -- they hit the #174
 // method-body cycle and will migrate once the second sweep takes
 // over function bodies.
-priv type_decls_file := proc(path: Str, ctx: Context) returns I32 {
+priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     if ctx.imports_typer_decls_done.has(path) {
         return 0
     }
     ctx.imports_typer_decls_done.add(own path.clone())
 
-    ref iu : ImportUnit = ctx.imported[path]
+    ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
     ast_count : USize = count_ast_imports(iu.ast)
     auto_count : USize = iu.imports.len() - ast_count
@@ -7007,10 +6965,10 @@ priv type_decls_file := proc(path: Str, ctx: Context) returns I32 {
     // layouts are already done by the time we get here. Within a
     // file, compute_struct_layout / compute_enum_layout internally
     // recurse on nested defs to handle local forward references.
-    for stmt : Expr in iu.ast.children {
+    for mut stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
-        ref rhs : Expr = stmt.children[0]
+        ref mut rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef) {
             switch stmt.node_type {
             case .Decl(d):
@@ -7038,13 +6996,13 @@ priv type_decls_file := proc(path: Str, ctx: Context) returns I32 {
 // here is the same shape as the current single-sweep type_file: walk
 // imports in source order, then type_check_unit. Renamed from
 // type_file to make the two-sweep split explicit.
-priv type_bodies_file := proc(path: Str, ctx: Context) returns I32 {
+priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
     if ctx.imports_typer_bodies_done.has(path) {
         return 0
     }
     ctx.imports_typer_bodies_done.add(own path.clone())
 
-    ref iu : ImportUnit = ctx.imported[path]
+    ref mut iu : ImportUnit = ctx.imported[path]
 
     // Walk the AST in source order; recurse on each ~import("...")~ FCall.
     // iu.imports stays as a source-ordered side table for path resolution.
@@ -7121,7 +7079,7 @@ priv type_bodies_file := proc(path: Str, ctx: Context) returns I32 {
     return total + type_check_unit(path, iu.ast, ctx.scope, ctx)
 }
 
-priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
+priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
     mut aname := ""
     switch stmt.node_type {
     case .Assign(adata):
@@ -7147,7 +7105,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     // - Ref bindings: `ref mut x : T = &slot` followed by `x = v` is
     //   the explicit write-through-ref pattern -- the assign is the
     //   whole point of the binding.
-    ub_o := scope.get_binding(aname)
+    mut ub_o := scope.get_binding(aname)
     if ub_o.is_some() {
         ref mut ub : TypeBinding = ub_o.unwrap()
         // #154: writing a cross-file global counts as using its import
@@ -7399,7 +7357,7 @@ literal_in_range := func(val_str: Str, target: Type) returns Bool {
 // type, ref/let decl explicit_type). Shares the single
 // scope.get_binding lookup with the priv check, so user-facing
 // callers don't pay for two Map traversals per declaration position.
-priv type_from_name_at := proc(name: Str, scope: TypeScope, e: Expr, ctx: Context) returns Type {
+priv type_from_name_at := proc(name: Str, scope: TypeScope, e: Expr, mut ctx: Context) returns Type {
     pt := type_from_name(name, scope, ctx)
     if name.len() == 0 { return pt }
     if ctx.current_type_name == name { return pt }
@@ -7408,7 +7366,7 @@ priv type_from_name_at := proc(name: Str, scope: TypeScope, e: Expr, ctx: Contex
     return pt
 }
 
-type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
+type_from_name := func(name: Str, scope: TypeScope, mut ctx: Context) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
     // #192: USize/UPtr resolve to the loader-stamped per-target primitive
@@ -7416,7 +7374,7 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
     if name == "USize" { return type_from_name(ctx.target_usize_pname, scope, ctx) }
     if name == "UPtr" { return type_from_name(ctx.target_uptr_pname, scope, ctx) }
     fp := name_fingerprint(name)
-    b_o := scope.get_binding_fp(name, fp)
+    mut b_o := scope.get_binding_fp(name, fp)
     if b_o.is_some() {
         ref mut b : TypeBinding = b_o.unwrap()
         // #154: a type annotation naming a cross-file type uses its
@@ -7519,7 +7477,7 @@ priv usize_name := func(scope: TypeScope) returns Str {
     return "U64"
 }
 
-usize_type := func(scope: TypeScope, ctx: Context) returns Type {
+usize_type := func(scope: TypeScope, mut ctx: Context) returns Type {
     return type_from_name(usize_name(scope), scope, ctx)
 }
 
@@ -7949,7 +7907,7 @@ priv rewrite_zero_to_null := func(mut e: Expr, shallow target: Type, owned: Bool
     }
 }
 
-priv check_is_null_arg_dynamic := proc(scope: TypeScope, e: Expr, ctx: Context) {
+priv check_is_null_arg_dynamic := proc(scope: TypeScope, e: Expr, mut ctx: Context) {
     if e.children.len() < 2 { return }
     ref arg : Expr = e.children[1]
     mut t := arg.til_type().clone()
@@ -7976,7 +7934,7 @@ priv check_is_null_arg_dynamic := proc(scope: TypeScope, e: Expr, ctx: Context) 
 //     own -- the same trust `returns ref` extends today. til has no origin
 //     checker; #147 tracks that general problem.
 // Only an OWNED local is certain to dangle, and that is what this flags.
-priv check_enum_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, ctx: Context) {
+priv check_enum_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ctx: Context) {
     ref ret_val : Expr = stmt.children[0]
     if is_enum_variant_ctor_with_payload(ret_val, scope).not() { return }
     ref ebl_callee : Expr = ret_val.children[0]
@@ -8767,15 +8725,79 @@ priv lookup_binding_at := func(scope: TypeScope, r: BorrowRoot) returns Option(r
 
 priv mark_roots_written := func(scope: TypeScope, roots: Vec(BorrowRoot)) {
     for r : BorrowRoot in roots {
-        rb_o := lookup_binding_at(scope, r)
+        mut rb_o := lookup_binding_at(scope, r)
         if rb_o.is_none() { continue }
         ref mut rb : TypeBinding = rb_o.unwrap()
         rb.written = true
     }
 }
 
+// #344 step B: is this root storage the writer is allowed to change?
+//
+//   mut   -- the whole point of the keyword.
+//   own   -- the callee took ownership; writing what you own is not
+//            writing through someone else's borrow.
+//   ref   -- a plain `ref` borrow is read-only and a `ref mut` one is not;
+//            is_mut already carries that distinction.
+//
+// A global (module-scope or namespace decl) is exempt, on the same
+// reasoning #164's redundant-`mut` check exempts them: a write may live in
+// a downstream importer this build never loads, so a per-build verdict
+// would depend on which files happened to be compiled.
+priv root_is_writable := func(scope: TypeScope, b: TypeBinding, r: BorrowRoot) returns Bool {
+    if b.is_mut { return true }
+    if b.own_type.is(OwnType.Own) { return true }
+    ref root : TypeScope = scope_root_ref(scope)
+    if root.bindings.has(r.name).not() { return false }
+    ref gb : TypeBinding = root.bindings[r.name]
+    return gb.line.eq(r.line).and(gb.col == r.col).and(gb.path == r.path)
+}
+
+// A root the author cannot put `mut` on: a `case V(p):` payload binding,
+// whose mutability the language INHERITS from the scrutinee (doc/enums.org
+// "Payload mutability"), and the typer's own temps. Judging those on their
+// own absent qualifier would demand a keyword there is no place to write.
+// The scrutinee they alias is in the same root set and IS judged, so the
+// real question still gets asked -- one hop further up.
+priv root_carries_own_qualifier := func(b: TypeBinding, r: BorrowRoot) returns Bool {
+    if b.is_alias { return false }
+    if r.name.len() == 0 { return false }
+    if r.name.starts_with("_") { return false }
+    if r.name.starts_with("hoisted__") { return false }
+    return true
+}
+
+// #344 step B: reject a write whose storage the writer may not change.
+// `obj` is what is being written, `site` where to report, `what` the
+// caller's description of the attempt. Every root the write reaches must
+// be writable -- including the ones reached THROUGH a borrow, which is the
+// hole this issue is about: `inner_of(o).n = 1` writes `o`, and a plain
+// `o` parameter is a read-only borrow of the caller's storage.
+//
+// Deliberately NOT wired to the conservative `Dynamic` argument lint:
+// handing a raw pointer to a callee is a guess about what the callee does
+// with it, and a guess must not produce a rejection.
+priv check_write_roots_mut := proc(scope: TypeScope, site: Expr, obj: Expr, what: Str, mut ctx: Context) {
+    // Typer-emitted bodies (clone / delete / size / enum to_str / ...) have
+    // signatures the user cannot edit, so a diagnostic on them is not
+    // actionable -- the same carve-out check_unused_mut_params makes.
+    if ctx.auto_gen_depth > 0 { return }
+    roots := expr_borrow_roots(scope, obj, 0)
+    for r : BorrowRoot in roots {
+        rb_o := lookup_binding_at(scope, r)
+        if rb_o.is_none() { continue }
+        ref rb : TypeBinding = rb_o.unwrap()
+        if root_carries_own_qualifier(rb, r).not() { continue }
+        if root_is_writable(scope, rb, r) { continue }
+        site.type_error(format("cannot ", what, ": '", r.name,
+            "' is an immutable binding; declare it 'mut'"), ctx)
+        println(r.path, ":", r.line.to_str(), ":", r.col.to_str(),
+            ": note: '", r.name, "' declared here")
+    }
+}
+
 priv mark_name_written := func(scope: TypeScope, name: Str) {
-    bo := scope.get_binding(name)
+    mut bo := scope.get_binding(name)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
     b.written = true
@@ -8982,7 +9004,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, U64), scope: TypeScope, s
 // OR this function's freshly computed summary into the recorded one.
 // Monotone by construction, so the fixed point below terminates; the
 // return value is its progress signal.
-priv update_ref_return_summary := func(fd_expr: Expr, scope: TypeScope, self_type: Str) returns Bool {
+priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self_type: Str) returns Bool {
     if fd_expr.children.len() == 0 { return false }
     switch fd_expr.node_type {
     case .FuncDef(fd):
@@ -9010,7 +9032,7 @@ priv update_ref_return_summary := func(fd_expr: Expr, scope: TypeScope, self_typ
 // they need their own descent; a FuncDef is never descended into, because
 // init_declarations_unit hoists nested definitions to file scope and
 // typer_lift_lambdas has already lifted the anonymous ones.
-priv summarize_unit_walk := func(e: Expr, scope: TypeScope, self_type: Str, depth: I32) returns Bool {
+priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, depth: I32) returns Bool {
     if depth > 96 { return false }
     mut changed := false
     switch e.node_type {
@@ -9020,24 +9042,24 @@ priv summarize_unit_walk := func(e: Expr, scope: TypeScope, self_type: Str, dept
         // A type definition names the `self` its namespace methods take;
         // the name lives on the Decl, not on the def node.
         if e.children.len() > 0 {
-            ref drhs : Expr = e.children[0]
+            ref mut drhs : Expr = e.children[0]
             if drhs.node_type.is(NodeType.StructDef).or(drhs.node_type.is(NodeType.EnumDef)) {
                 return summarize_unit_walk(drhs, scope, dd.name, depth + 1)
             }
         }
     case .StructDef(sd):
-        for nd : Declaration in sd.ns_decls {
+        for mut nd : Declaration in sd.ns_decls {
             if nd.default_value.is_none() { continue }
             if summarize_unit_walk(nd.default_expr(), scope, self_type, depth + 1) { changed = true }
         }
     case .EnumDef(ed):
-        for nd : Declaration in ed.ns_decls {
+        for mut nd : Declaration in ed.ns_decls {
             if nd.default_value.is_none() { continue }
             if summarize_unit_walk(nd.default_expr(), scope, self_type, depth + 1) { changed = true }
         }
     case:
     }
-    for c : Expr in e.children {
+    for mut c : Expr in e.children {
         if summarize_unit_walk(c, scope, self_type, depth + 1) { changed = true }
     }
     return changed
@@ -9052,7 +9074,7 @@ priv summarize_unit_walk := func(e: Expr, scope: TypeScope, self_type: Str, dept
 // the round cap simply keeps the roots it proved: fewer roots means less
 // credit, never wrong credit. Instantiated generics need no separate pass
 // -- their FunctionDef is cloned from the template, summary included.
-priv compute_ref_return_summaries := func(program: Expr, scope: TypeScope) {
+priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope) {
     mut round : I32 = 0
     mut changed := true
     while changed.and(round < 8) {
@@ -9513,9 +9535,9 @@ priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enu
 // enforces that every other arm agrees (a mismatch surfaces as an assign
 // type error). Arm values are type-checked on a throwaway clone so the real
 // arm nodes stay pristine for the desugar that re-infers them.
-priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
     if expr.children.len() == 0 { expr.set_til_type(Type.Unknown); return }
-    ref subj : Expr = expr.children[0]
+    ref mut subj : Expr = expr.children[0]
     infer_expr(scope, subj, in_func, ctx)
     // #341: a match types its arms HERE, before the shared switch desugar
     // ever sees them, so `case .Some(v):` has to be qualified here too --
@@ -9546,8 +9568,8 @@ priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ct
 // Type of one match arm's value-expression. Clones the arm body (so the real
 // node is untouched), prepends the pattern's payload bindings via the shared
 // switch helper, infers the bindings, then infers the value expression.
-priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, ctx: Context) returns Type {
-    arm_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, mut ctx: Context) returns Type {
+    mut arm_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     body_idx := case_node.children.len() - 1
     has_pattern := case_pattern_count(case_node) > 0
     mut trial := case_node.children[body_idx].clone()
@@ -9578,7 +9600,7 @@ priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr,
 // in place by an Ident referencing its result temp. Returns the number of
 // statements inserted, so the caller can advance past them to type-check the
 // now-match-free statement.
-priv lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns USize {
+priv lower_matches_in_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context) returns USize {
     mut pre := Vec(Expr).new()
     ref mut stmt : Expr = body.children[stmt_idx]
     replace_matches_rec(scope, stmt, in_func, in_loop, returns_ref, ctx, pre)
@@ -9625,7 +9647,7 @@ priv match_is_bool_identity := func(m: Expr) returns Bool {
 // lowered result temp and collecting the temp's setup statements into `pre`.
 // Does not descend into a Match (its arms are lowered by lower_one_match's own
 // infer_body pass) nor into nested blocks/definitions (handled separately).
-priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) {
+priv replace_matches_rec := proc(mut scope: TypeScope, mut node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context, mut pre: Vec(Expr)) {
     switch node.node_type {
     case .Body, .FuncDef, .StructDef, .EnumDef: return
     // #282: do not hoist a match out of a case guard (or body) -- it is
@@ -9663,7 +9685,7 @@ priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32,
 // the arms into `_m = <value>` assignments and emits the dispatch, including
 // any nested matches in arm values), then its statements are appended to
 // `pre`. Returns the temp's name.
-priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) returns Str {
+priv lower_one_match := proc(mut scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context, mut pre: Vec(Expr)) returns Str {
     line := match_node.line
     col := match_node.col
     ref result_t : Type = match_node.til_type()
@@ -9697,7 +9719,7 @@ priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, i
 // marker. Run on each non-default case BEFORE make_switch_case_condition
 // (which is a func and can't call the proc-typed type_error). Skips
 // silently for patterns that aren't struct-shaped.
-priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: Context) {
+priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, mut ctx: Context) {
     if pattern.node_type.is(NodeType.FCall).not() { return }
     if pattern.children.len() == 0 { return }
     if pattern.children[0].node_type.is(NodeType.Ident).not() { return }
@@ -9995,7 +10017,7 @@ priv steal_own_param_payload_returns := proc(scope: TypeScope, enum_def: Expr, s
 // scrutinee, runs the same coverage/exhaustiveness checks as the desugar path;
 // an exhaustive enum switch with no `case:` turns its last case into the
 // default so the emitted C switch has a terminal arm (no -Wreturn-type).
-priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, enum_def_o: Option(ref Expr), in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, enum_def_o: Option(ref Expr), in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context) {
     ref sw_expr : Expr = stmt.children[0]
     sw_sname_o := expr_type_name_ref(sw_expr)
     mut is_enum := false
@@ -10041,7 +10063,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, enum_def_o: Op
             has_last_case = true
         }
         ref mut case_body : Expr = cn.children[body_idx]
-        case_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut case_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, case_body, case_scope)
         check_unused_locals(case_scope, ctx.path, ctx)
@@ -10127,7 +10149,7 @@ priv dotted_pattern_receiver := func(pat: Expr) returns Option(ref Expr) {
 // with no enum to resolve against is caught by infer_ident_expr's "needs a
 // known enum type in this position".
 priv qualify_dotted_expr := func(e: Expr, expected: Type) {
-    recv_o := dotted_pattern_receiver(e)
+    mut recv_o := dotted_pattern_receiver(e)
     if recv_o.is_none() { return }
     if expected.is(Type.Enum).not() { return }
     ename := til_type_name(expected)
@@ -10141,13 +10163,13 @@ priv qualify_dotted_expr := func(e: Expr, expected: Type) {
 // what it sees today. A dotted pattern over a non-enum subject has no enum
 // to resolve against and is rejected here rather than left to fail as a
 // baffling "no variant" further down.
-priv qualify_dotted_case_patterns := proc(stmt: Expr, sw_type: Type, ctx: Context) {
+priv qualify_dotted_case_patterns := proc(stmt: Expr, sw_type: Type, mut ctx: Context) {
     sname := til_type_name(sw_type)
     for ci in 1..stmt.children.len() {
         ref cnode : Expr = stmt.children[ci]
         if cnode.node_type.is(NodeType.Case).not() { continue }
         for pi in 0..case_pattern_count(cnode) {
-            recv_o := dotted_pattern_receiver(cnode.children[pi])
+            mut recv_o := dotted_pattern_receiver(cnode.children[pi])
             if recv_o.is_none() { continue }
             if sw_type.is(Type.Enum).not().or(sname.len() == 0) {
                 cnode.children[pi].type_error("a leading-dot pattern needs an enum subject: the elided name is the subject's enum, and this switch's subject is not one -- write the pattern out in full (issue #341)", ctx)
@@ -10164,7 +10186,7 @@ priv qualify_dotted_case_patterns := proc(stmt: Expr, sw_type: Type, ctx: Contex
     }
 }
 
-priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
+priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut sw_expr : Expr = stmt.children[0]
     sw_line := stmt.line
@@ -10215,9 +10237,9 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
         case:
         }
         for tci in 1..stmt.children.len() {
-            ref tcase : Expr = stmt.children[tci]
+            ref mut tcase : Expr = stmt.children[tci]
             tbody_idx := tcase.children.len() - 1
-            ref tvbody : Expr = tcase.children[tbody_idx]
+            ref mut tvbody : Expr = tcase.children[tbody_idx]
             mut tvalue : Expr = tvbody.children.pop()
             while match_is_bool_identity(tvalue) { tvalue = tvalue.children[0].clone() }
             // An arm value that is itself a match sits in tail position: hand
@@ -10371,7 +10393,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
     mut switch_can_throw := false
 
     for ci in 1..stmt.children.len() {
-        ref case_node : Expr = stmt.children[ci]
+        ref mut case_node : Expr = stmt.children[ci]
         pat_count := case_pattern_count(case_node)
         if pat_count == 0 {
             if saw_default {
@@ -10571,7 +10593,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
     return true
 }
 
-priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, ctx: Context) returns Bool {
+priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, mut ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut iter : Expr = stmt.children[0]
     if iter.node_type.is(NodeType.FCall).not() { return false }
@@ -10688,7 +10710,7 @@ priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     return true
 }
 
-priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, ctx: Context) returns Bool {
+priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, mut ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut iter : Expr = stmt.children[0]
 
@@ -10727,7 +10749,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     if find_namespace_func(sdef, "unsafe_get", scope).is_none() {
         method_name = "get"
     }
-    get_funco := find_namespace_func(sdef, method_name, scope)
+    mut get_funco := find_namespace_func(sdef, method_name, scope)
 
     if len_funco.is_none() {
         stmt.type_error(format("type '", type_name, "' has no 'len' method (required for for-in)"), ctx)
@@ -10746,7 +10768,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         stmt.type_error(format("type '", type_name, "' has no 'get' method (required for for-in)"), ctx)
         return false
     }
-    ref get_func : Expr = get_funco.unwrap()
+    ref mut get_func : Expr = get_funco.unwrap()
     mut elem_type := ""
     stmt_tname_o := expr_type_name_ref(stmt)
     if stmt_tname_o.is_some() {
@@ -10761,7 +10783,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     // must fill those itself; capture their default expressions here while
     // get_def is in scope. Empty (no-op) for the common get(self, i) shape.
     mut get_trailing_defaults := Vec(Expr).new()
-    ref get_def : FunctionDef = funcdef_of(get_func)
+    ref mut get_def : FunctionDef = funcdef_of(get_func)
     // A throwing get gets its signature extended in place with
     // synthetic _err_kind/payload params below. Allow either
     // the original (self, idx) shape or the already-extended one
@@ -10834,6 +10856,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     // `mut` that actually reflects the loop's intent.
     if forin_is_mut {
         mark_written_through(scope, iter)
+        check_write_roots_mut(scope, stmt, iter, "mutate the elements of this collection", ctx)
     }
     ref for_body : Expr = stmt.children[1]
     line := stmt.line
@@ -11028,7 +11051,7 @@ priv collection_elem_type_of := func(scope: TypeScope, col_type_name: Str) retur
 // so the interpreter aliases each slot -- a `for k, mut v` write must
 // persist into the map. Returns false for the single-variable form
 // (name2 empty), leaving the other for-in desugars to handle it.
-priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, ctx: Context) returns Bool {
+priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, mut ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
 
     mut var_name := ""
@@ -11066,6 +11089,7 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
     // `mut map` whose only writer is this loop.
     if forin_is_mut.or(forin_is_mut2) {
         mark_written_through(scope, iter)
+        check_write_roots_mut(scope, stmt, iter, "mutate the entries of this map", ctx)
     }
 
     mut type_name := ""

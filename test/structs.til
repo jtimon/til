@@ -25,7 +25,7 @@ Entity := struct {
 }
 
 test_basic_struct := test() {
-    p := Point()
+    mut p := Point()
     assert_eq(I64, p.x, 0)
     assert_eq(I64, p.y, 0)
     p.x = 5
@@ -35,7 +35,7 @@ test_basic_struct := test() {
 }
 
 test_mixed_types := test() {
-    bob := Person()
+    mut bob := Person()
     assert_eq(Str, bob.name, "unknown")
     assert_eq(I64, bob.age, 0)
     bob.name = "Bob"
@@ -45,7 +45,7 @@ test_mixed_types := test() {
 }
 
 test_bool_fields := test() {
-    f := Flags()
+    mut f := Flags()
     assert(f.active.not())
     assert(f.visible)
     f.active = true
@@ -83,7 +83,7 @@ test_explicit_annotation := test() {
 }
 
 test_immutable_fields := test() {
-    e1 := Entity(id=1, name="hero")
+    mut e1 := Entity(id=1, name="hero")
     assert_eq(I64, e1.id, 1)
     assert_eq(Str, e1.name, "hero")
     e1.name = "villain"
@@ -153,7 +153,7 @@ test_required_ref_field_from_field_access := test() {
 }
 
 test_independence := test() {
-    a := Point()
+    mut a := Point()
     b := Point()
     a.x = 1
     assert_eq(I64, a.x, 1)
@@ -166,7 +166,7 @@ Line := struct {
 }
 
 test_nested_structs := test() {
-    l1 := Line()
+    mut l1 := Line()
     assert_eq(I64, l1.start.x, 0)
     assert_eq(I64, l1.start.y, 0)
     assert_eq(I64, l1.end.x, 0)
@@ -225,11 +225,11 @@ test_namespace := test() {
     assert_eq(Str, Counter.default_name, "Counter")
     Counter.instance_count = 42
     assert_eq(I64, Counter.instance_count, 42)
-    c1 := Counter()
+    mut c1 := Counter()
     assert_eq(I64, c1.instance_count, 42)
     assert_eq(Str, c1.default_name, "Counter")
     Counter.instance_count = 100
-    c2 := Counter()
+    mut c2 := Counter()
     assert_eq(I64, c2.instance_count, 100)
     assert_eq(I64, c1.instance_count, 100)
     c1.value = 5
@@ -270,7 +270,7 @@ test_ufcs := test() {
 
 test_clone := test() {
     // Clone a simple struct
-    p := Point(x=3, y=7)
+    mut p := Point(x=3, y=7)
     p2 := p.clone()
     assert_eq(I64, p2.x, 3)
     assert_eq(I64, p2.y, 7)
@@ -280,7 +280,7 @@ test_clone := test() {
     assert_eq(I64, p.x, 99)
 
     // Clone a nested struct (Line has Point fields)
-    l := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    mut l := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     l2 := l.clone()
     assert_eq(I64, l2.start.x, 1)
     assert_eq(I64, l2.end.y, 4)
@@ -358,7 +358,7 @@ Container := struct {
 }
 
 test_vec_in_struct := test() {
-    c := Container()
+    mut c := Container()
     c.items.push(own 10)
     c.items.push(own 20)
     c.items.push(own 30)
@@ -369,7 +369,7 @@ test_vec_in_struct := test() {
 }
 
 test_nested_struct_field_mutation := test() {
-    l := Line()
+    mut l := Line()
     l.start.x = 42
     l.start.y = 99
     assert_eq(I64, l.start.x, 42)
@@ -379,7 +379,7 @@ test_nested_struct_field_mutation := test() {
 }
 
 test_field_access_copy := test() {
-    c := Container()
+    mut c := Container()
     c.items.push(own 1)
     c.items.push(own 2)
     copy := c.items
@@ -389,7 +389,7 @@ test_field_access_copy := test() {
 }
 
 test_field_reassign := test() {
-    bob := Person()
+    mut bob := Person()
     assert_eq(Str, bob.name, "unknown")
     bob.name = "Alice"
     assert_eq(Str, bob.name, "Alice")
@@ -403,7 +403,7 @@ Point2 := Point
 
 test_struct_type_alias := test() {
     # Construct via alias
-    p := Point2(x=10, y=20)
+    mut p := Point2(x=10, y=20)
     assert_eq(I64, p.x, 10)
     assert_eq(I64, p.y, 20)
 
@@ -515,7 +515,7 @@ usize_holder_vec_first := func(v: Vec(USize)) returns USize {
 }
 
 test_usize_alias_instance_names := test() {
-    h := UsizeHolder()
+    mut h := UsizeHolder()
     h.m.set("a", own 7)
     h.v.push(own 41)
     assert_eq(USize, h.get_via_free("a"), 7)

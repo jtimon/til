@@ -532,10 +532,10 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
     }
     program.children.delete_marked(pm)
 
-    for stmt : Expr in program.children {
+    for mut stmt : Expr in program.children {
         if is_struct_or_enum(stmt).not() { continue }
         ref sdecl : Declaration = decl_of(stmt)
-        ref sdef : Expr = stmt.children[0]
+        ref mut sdef : Expr = stmt.children[0]
         switch sdef.node_type {
         case .StructDef(scv_sdd):
             scavenge_members_in_place(scv_sdd.ns_decls, scv_sdd.ns_index, sdecl.name, visited)
@@ -697,7 +697,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
             if any { e.children.delete_marked(marks) }
         }
     }
-    for c : Expr in e.children {
+    for mut c : Expr in e.children {
         prune_trivial_deletes(c, dropped)
     }
 }
@@ -721,8 +721,8 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     //     unused, but the FCall may have side effects, so replace the Decl
     //     with the bare FCall. Results that own storage stay as Decl + delete:
     //     the garbager's AST, not either backend, says how they are reclaimed.
-    candidates := Set(Str).new()
-    candidates_replace := Set(Str).new()
+    mut candidates := Set(Str).new()
+    mut candidates_replace := Set(Str).new()
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -765,7 +765,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     // Phase 2: collect "real" refs -- everything except trivial deletes
     // that target a candidate temp. Those are weak refs we'll drop along
     // with the candidate.
-    refs := Set(Str).new()
+    mut refs := Set(Str).new()
     for stmt : Expr in body.children {
         target := match_trivial_delete(stmt)
         if target.len().gt(0).and(candidates.has(target)) { continue }
@@ -776,7 +776,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     // matching trivial-delete stmts.
     marks : U8 = malloc(n)
     memset(marks, 0, n)
-    dropped := Set(Str).new()
+    mut dropped := Set(Str).new()
     mut any := false
     for i in 0..n {
         ref stmt : Expr = body.children[i]
@@ -865,7 +865,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
     n := body.children.len()
     if n == 0 { return }
     for i in 0..n {
-        ref stmt : Expr = body.children[i]
+        ref mut stmt : Expr = body.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
         switch stmt.node_type {
@@ -876,9 +876,9 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
             dd.own_type = OwnType.Shallow
             mut j : USize = i + 1
             while j < n {
-                ref del : Expr = body.children[j]
+                ref mut del : Expr = body.children[j]
                 if match_named_delete(del, dd.name) {
-                    ref bool_arg : Expr = del.children[2]
+                    ref mut bool_arg : Expr = del.children[2]
                     bool_arg.node_type = NodeType.Literal(Literal.Bool(false))
                     break
                 }
@@ -897,7 +897,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
-    for c : Expr in e.children {
+    for mut c : Expr in e.children {
         body_dce_walk(c, child_top)
     }
     if is_body {
@@ -906,9 +906,9 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
     }
 }
 
-priv body_dce_ns := proc(rhs: Expr) {
-    ref dce_ns : Vec(Declaration) = def_ns_decls(rhs)
-    for nsd : Declaration in dce_ns {
+priv body_dce_ns := proc(mut rhs: Expr) {
+    ref mut dce_ns : Vec(Declaration) = def_ns_decls(rhs)
+    for mut nsd : Declaration in dce_ns {
         if nsd.default_value.is_none() { continue }
         if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_expr().children.len() == 0 { continue }
@@ -923,9 +923,9 @@ dce_program_bodies := proc(mut program: Expr) {
     // methods (which live in StructDef.ns_decls outside the children
     // tree) need a separate walk.
     body_dce_walk(program, true)
-    for stmt : Expr in program.children {
+    for mut stmt : Expr in program.children {
         if is_def(stmt).not() { continue }
-        ref rhs : Expr = stmt.children[0]
+        ref mut rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
             body_dce_ns(rhs)
         }

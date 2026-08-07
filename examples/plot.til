@@ -57,7 +57,7 @@ Row := struct {
 }
 
 parse_csv := func(content: Str) returns Vec(Row) {
-    rows := Vec(Row).new()
+    mut rows := Vec(Row).new()
     lines := content.split(NL)
     mut i : USize = 1 // skip header
     while i.lt(lines.len()) {

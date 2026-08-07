@@ -1,7 +1,7 @@
 mode test
 
 test_tuple_i64 := test() {
-    t := Tuple.new()
+    mut t := Tuple.new()
     t.push(I64, own 42)
     t.push(I64, own 99)
     t.push(I64, own 7)
@@ -17,7 +17,7 @@ test_tuple_i64 := test() {
 }
 
 test_tuple_strings := test() {
-    t := Tuple.new()
+    mut t := Tuple.new()
     t.push(Str, own "hello")
     t.push(Str, own "world")
 
@@ -30,7 +30,7 @@ test_tuple_strings := test() {
 }
 
 test_tuple_mixed := test() {
-    t := Tuple.new()
+    mut t := Tuple.new()
     t.push(I64, own 42)
     t.push(Str, own "hello")
     t.push(Bool, own true)
@@ -46,7 +46,7 @@ test_tuple_mixed := test() {
 }
 
 test_tuple_type_at := test() {
-    t := Tuple.new()
+    mut t := Tuple.new()
     t.push(I64, own 10)
     t.push(Str, own "world")
 
@@ -62,7 +62,7 @@ test_tuple_type_at := test() {
 }
 
 test_tuple_clone := test() {
-    t := Tuple.new()
+    mut t := Tuple.new()
     t.push(I64, own 42)
     t.push(Str, own "hello")
 
@@ -75,7 +75,7 @@ test_tuple_clone := test() {
 }
 
 test_tuple_grow := test() {
-    t := Tuple.new()
+    mut t := Tuple.new()
     // Push enough data to force realloc (initial cap = 8 bytes)
     t.push(I64, own 1)
     t.push(I64, own 2)

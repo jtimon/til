@@ -502,7 +502,7 @@ namespace:
 
     /// Split the string on `delim`, returning a Vec of Str clones.
     split := func(self: Str, delim: Str) returns Vec(Str) {
-        parts := Vec(Str).new()
+        mut parts := Vec(Str).new()
         // delim empty, or self too short to contain it: no split point
         // exists, self is the sole part. The self.len() < delim.len()
         // guard also stops the `pos <= self.len() - delim.len()` bound

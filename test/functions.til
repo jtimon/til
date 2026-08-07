@@ -30,11 +30,11 @@ fn_swap := func(mut a: I64, mut b: I64) {
 }
 
 test_mut_params := test() {
-    mut_val := 42
+    mut mut_val := 42
     fn_inc(mut_val)
     assert_eq(I64, mut_val, 43)
-    mut_a := 10
-    mut_b := 20
+    mut mut_a := 10
+    mut mut_b := 20
     fn_swap(mut_a, mut_b)
     assert_eq(I64, mut_a, 20)
     assert_eq(I64, mut_b, 10)

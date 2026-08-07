@@ -1195,7 +1195,7 @@ context_reset_type_scope := func(mut ctx: Context) {
 // symbol declared in decl_path. Gated on the --check-unused-imports
 // flag so default builds pay one branch; check_unused_imports_collected
 // in loader.til consumes the edges once the typer sweeps finish.
-note_cross_file_use := func(ctx: Context, decl_path: Str) {
+note_cross_file_use := func(mut ctx: Context, decl_path: Str) {
     if ctx.check_unused_imports.not() { return }
     if decl_path.len() == 0 { return }
     if decl_path == ctx.path { return }
@@ -1205,7 +1205,7 @@ note_cross_file_use := func(ctx: Context, decl_path: Str) {
 // #154: same, keyed by a type name (constructor calls, method-call and
 // field-access receivers): the use edge points at the file declaring
 // the type.
-note_cross_file_type_use := func(scope: TypeScope, ctx: Context, type_name: Str) {
+note_cross_file_type_use := func(scope: TypeScope, mut ctx: Context, type_name: Str) {
     if ctx.check_unused_imports.not() { return }
     if type_name.len() == 0 { return }
     b_o := scope.get_binding(type_name)
@@ -1382,7 +1382,7 @@ size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
     return ctx.target_usize_pname.eq(host_usize).not().or(ctx.target_uptr_pname.eq(host_uptr).not())
 }
 
-constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
+constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.children[0].node_type {
     case .FuncDef(fd):

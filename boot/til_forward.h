@@ -2890,6 +2890,9 @@ void priv___src_self_typer_til__push_root_unique(Vec__BorrowRoot * out, BorrowRo
 Vec__BorrowRoot * priv___src_self_typer_til__expr_borrow_roots(TypeScope * scope, Expr * e, I32 depth);
 Option__ref_TypeBinding priv___src_self_typer_til__lookup_binding_at(TypeScope * scope, BorrowRoot * r);
 void priv___src_self_typer_til__mark_roots_written(TypeScope * scope, Vec__BorrowRoot * roots);
+Bool priv___src_self_typer_til__root_is_writable(TypeScope * scope, TypeBinding * b, BorrowRoot * r);
+Bool priv___src_self_typer_til__root_carries_own_qualifier(TypeBinding * b, BorrowRoot * r);
+void priv___src_self_typer_til__check_write_roots_mut(TypeScope * scope, Expr * site, Expr * obj, Str * what, Context * ctx);
 void priv___src_self_typer_til__mark_name_written(TypeScope * scope, Str * name);
 void priv___src_self_typer_til__mark_written_through(TypeScope * scope, Expr * obj);
 void priv___src_self_typer_til__summary_bind_case(Expr * cn, U64 subj_bits, Map__Str_U64 * roots);

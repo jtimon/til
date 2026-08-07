@@ -119,7 +119,7 @@ priv is_doc_ws := func(c: I8) returns Bool {
 // scan of a Vec.
 
 priv keyword_map := func() returns Map(Str, TokenType) {
-    kw := Map(Str, TokenType).new()
+    mut kw := Map(Str, TokenType).new()
     kw.set("mut", own TokenType.KwMut)
     kw.set("const", own TokenType.KwConst)
     kw.set("own", own TokenType.KwOwn)

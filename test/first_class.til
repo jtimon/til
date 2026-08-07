@@ -414,7 +414,7 @@ test_dyn_vec_body_clone_owned_callable_capture := test() {
 
 test_dyn_array_body_clone := test() {
     mut calls := 0
-    bodies := DynArray.new(Body, 2)
+    mut bodies := DynArray.new(Body, 2)
     b : Body = [mut calls] { calls = calls.add(2) }
     bodies.set(0, own b)!
     copied := bodies.clone()
@@ -489,7 +489,7 @@ test_dyn_vec_body_lifecycle := test() {
     mut appended := DynVec.new(Body)
     append_left : Body = [mut calls] { calls = calls.add(16) }
     appended.push(own append_left)
-    append_source := DynVec.new(Body)
+    mut append_source := DynVec.new(Body)
     append_right : Body = [mut calls] { calls = calls.add(32) }
     append_source.push(own append_right)
     appended.append(own append_source)
@@ -534,7 +534,7 @@ test_dyn_vec_body_lifecycle := test() {
 
 test_dyn_array_body_set_oob := test() {
     mut calls := 0
-    bodies := DynArray.new(Body, 1)
+    mut bodies := DynArray.new(Body, 1)
     b : Body = [mut calls] { calls = calls.add(1) }
     mut caught := false
     bodies.set(1, own b)?

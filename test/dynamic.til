@@ -1,7 +1,7 @@
 mode test
 
 test_kwargs_map_i64 := test() {
-    dm := KwargsMap.new()
+    mut dm := KwargsMap.new()
     dm.set("answer", "I64", I64.size(), own 42)
     dm.set("count", "I64", I64.size(), own 7)
 
@@ -22,7 +22,7 @@ test_kwargs_map_i64 := test() {
 }
 
 test_kwargs_map_mixed := test() {
-    dm := KwargsMap.new()
+    mut dm := KwargsMap.new()
     dm.set("name", "Str", Str.size(), own "til")
     dm.set("enabled", "Bool", Bool.size(), own true)
     dm.set("size", "I64", I64.size(), own 64)
@@ -44,7 +44,7 @@ test_kwargs_map_mixed := test() {
 }
 
 test_kwargs_map_overwrite := test() {
-    dm := KwargsMap.new()
+    mut dm := KwargsMap.new()
     dm.set("v", "I64", I64.size(), own 1)
     dm.set("v", "Str", Str.size(), own "two")
 

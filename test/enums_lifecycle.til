@@ -30,11 +30,11 @@ test_nested_enum_payload_clone := test() {
 }
 
 test_vec_payload_clone := test() {
-    bag := WordBag()
+    mut bag := WordBag()
     bag.items.push(own "a")
     bag.items.push(own "b")
 
-    b := PayloadBox.Bag(bag)
+    mut b := PayloadBox.Bag(bag)
     b2 := b.clone()
 
     switch b {
@@ -112,8 +112,8 @@ priv bag_of := func(bh: BagHolder) returns ref WordBag {
 }
 
 test_ref_return_payload_alias := test() {
-    bh := BagHolder(pb = PayloadBox.Bag(WordBag()))
-    ref wb : WordBag = bag_of(bh)
+    mut bh := BagHolder(pb = PayloadBox.Bag(WordBag()))
+    ref mut wb : WordBag = bag_of(bh)
     wb.items.push(own "added")
     switch bh.pb {
     case PayloadBox.Bag(bag2):

@@ -57,7 +57,7 @@ namespace:
     /// Overwrite the element at index `i` without a bounds check, dropping
     /// the old value. Caller guarantees `i < self.cap`; the write-side
     /// mirror of unsafe_get (issue #284).
-    unsafe_set := func(self: DynArray, i: USize, own val: Dynamic) {
+    unsafe_set := func(mut self: DynArray, i: USize, own val: Dynamic) {
         if self.elem_kind == ELEM_BOXED {
             self.elem_delete(self.unsafe_get(i), false)
         } else if self.elem_kind == ELEM_FN {
@@ -72,7 +72,7 @@ namespace:
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `dynarr[i] = val` (or `dynarr.set(i, own val)!`) to panic on a bad index.
-    set := func(self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds {
+    set := func(mut self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds {
         if i >= self.cap {
             // val is not stored on the error path: drop its content and box.
             // (if/else so the owned `val` is consumed on exactly one path.)

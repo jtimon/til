@@ -1,7 +1,7 @@
 mode test
 
 test_vec_push_get := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 42)
     v.push(own 99)
     v.push(own 7)
@@ -17,7 +17,7 @@ test_vec_push_get := test() {
 }
 
 test_vec_grow := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     // default cap is 4, push 8 to force growth
     v.push(own 1)
     v.push(own 2)
@@ -34,7 +34,7 @@ test_vec_grow := test() {
 }
 
 test_vec_strings := test() {
-    v := Vec(Str).new()
+    mut v := Vec(Str).new()
     v.push(own "hello")
     v.push(own "world")
 
@@ -47,7 +47,7 @@ test_vec_strings := test() {
 }
 
 test_vec_set := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -67,7 +67,7 @@ test_vec_set := test() {
 }
 
 test_vec_set_str := test() {
-    v := Vec(Str).new()
+    mut v := Vec(Str).new()
     v.push(own "aaa")
     v.push(own "bbb")
 
@@ -83,7 +83,7 @@ test_vec_set_str := test() {
 // Covers literal and computed indices, I64 and Str elements; the
 // round-trip is asserted under both interp and compile.
 test_vec_subscript_assign := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -101,7 +101,7 @@ test_vec_subscript_assign := test() {
 }
 
 test_vec_subscript_assign_str := test() {
-    v := Vec(Str).new()
+    mut v := Vec(Str).new()
     v.push(own "aaa")
     v.push(own "bbb")
     v[0] = "zzz"
@@ -116,7 +116,7 @@ test_vec_subscript_assign_str := test() {
 // Uses a Str element so the owned value's throw-path cleanup is
 // exercised under make_asan.
 test_vec_subscript_assign_oob := test() {
-    v := Vec(Str).new()
+    mut v := Vec(Str).new()
     v.push(own "a")
     mut caught := false
     v.set(5, own "unstored")?
@@ -137,7 +137,7 @@ test_vec_size := test() {
 }
 
 test_vec_dynamic := test() {
-    v := Vec(Dynamic).new()
+    mut v := Vec(Dynamic).new()
     // Use pointer-sized allocs so FFI Vec.push reads valid memory.
     // Fill each with a distinct non-zero sentinel so the post-push
     // is(a, b) check verifies stored bytes really differ (ASAN's
@@ -159,7 +159,7 @@ test_vec_dynamic := test() {
 }
 
 test_vec_pop := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 11)
     v.push(own 22)
     v.push(own 33)
@@ -182,7 +182,7 @@ test_vec_pop := test() {
 }
 
 test_vec_remove_at := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -200,7 +200,7 @@ test_vec_remove_at := test() {
 }
 
 test_vec_remove_at_oob := test() {
-    v := Vec(Str).new()
+    mut v := Vec(Str).new()
     v.push(own "kept")
     mut caught := false
     v.remove_at(2)?
@@ -213,7 +213,7 @@ test_vec_remove_at_oob := test() {
 }
 
 test_vec_take_prefix := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -236,7 +236,7 @@ test_vec_take_prefix := test() {
 }
 
 test_vec_take_prefix_str := test() {
-    v := Vec(Str).new()
+    mut v := Vec(Str).new()
     v.push(own "aa")
     v.push(own "bb")
     v.push(own "cc")
@@ -256,8 +256,8 @@ test_vec_take_prefix_str := test() {
 }
 
 test_vec_append := test() {
-    a := Vec(I64).new()
-    b := Vec(I64).new()
+    mut a := Vec(I64).new()
+    mut b := Vec(I64).new()
     a.push(own 1)
     a.push(own 2)
     b.push(own 3)
@@ -273,8 +273,8 @@ test_vec_append := test() {
 }
 
 test_vec_append_str := test() {
-    a := Vec(Str).new()
-    b := Vec(Str).new()
+    mut a := Vec(Str).new()
+    mut b := Vec(Str).new()
     a.push(own "aa")
     b.push(own "bb")
     b.push(own "cc")
@@ -295,7 +295,7 @@ test_vec_append_str := test() {
 // bounds). Results must be identical to the old checked-get path; this
 // asserts the sum/order over a grown Vec is unchanged.
 test_vec_for_in := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 1)
     v.push(own 2)
     v.push(own 3)
@@ -318,7 +318,7 @@ test_vec_for_in := test() {
 }
 
 test_vec_for_in_str := test() {
-    v := Vec(Str).new()
+    mut v := Vec(Str).new()
     v.push(own "a")
     v.push(own "b")
     v.push(own "c")
@@ -339,7 +339,7 @@ ChainPoint := struct {
 }
 
 test_vec_unsafe_get_chained_field := test() {
-    v := Vec(ChainPoint).new()
+    mut v := Vec(ChainPoint).new()
     v.push(own ChainPoint(x = 41, y = 2))
     v.push(own ChainPoint(x = 5, y = 7))
     assert_eq(I64, v.unsafe_get(0).x, 41)
@@ -348,13 +348,13 @@ test_vec_unsafe_get_chained_field := test() {
 }
 
 test_vec_take_prefix_append_roundtrip := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     v.push(own 5)
     v.push(own 6)
     v.push(own 7)
     v.push(own 8)
 
-    prefix := v.take_prefix(2)
+    mut prefix := v.take_prefix(2)
     prefix.append(own v)
 
     assert_eq(USize, prefix.len(), 4)

@@ -3,7 +3,7 @@ mode test
 import("../src/std/dyn_hashmap")
 
 test_dyn_hashmap_i64_basic := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     m.set(1, own 10)
     m.set(2, own 20)
     m.set(3, own 30)
@@ -22,7 +22,7 @@ test_dyn_hashmap_i64_basic := test() {
 }
 
 test_dyn_hashmap_i64_overwrite := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     m.set(5, own 50)
     m.set(5, own 500)
     assert_eq(USize, m.len(), 1)
@@ -31,7 +31,7 @@ test_dyn_hashmap_i64_overwrite := test() {
 }
 
 test_dyn_hashmap_str_keys := test() {
-    m := DynHashMap.new(Str, I64)
+    mut m := DynHashMap.new(Str, I64)
     m.set("apple", own 1)
     m.set("banana", own 2)
     m.set("cherry", own 3)
@@ -50,7 +50,7 @@ test_dyn_hashmap_str_keys := test() {
 }
 
 test_dyn_hashmap_str_value := test() {
-    m := DynHashMap.new(Str, Str)
+    mut m := DynHashMap.new(Str, Str)
     m.set("key1", own "value1")
     m.set("key2", own "value2")
     assert_eq(USize, m.len(), 2)
@@ -61,7 +61,7 @@ test_dyn_hashmap_str_value := test() {
 }
 
 test_dyn_hashmap_grow_past_initial_buckets := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     for i in 0..100 {
         m.set(i, own i.mul(10))
     }
@@ -76,7 +76,7 @@ test_dyn_hashmap_grow_past_initial_buckets := test() {
 }
 
 test_dyn_hashmap_str_overwrite_releases_old_value := test() {
-    m := DynHashMap.new(Str, Str)
+    mut m := DynHashMap.new(Str, Str)
     m.set("k", own "first")
     m.set("k", own "second")
     assert_eq(USize, m.len(), 1)
@@ -85,7 +85,7 @@ test_dyn_hashmap_str_overwrite_releases_old_value := test() {
 }
 
 test_dyn_hashmap_remove_missing_is_noop := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     m.set(1, own 10)
     assert(m.remove(99).not())
     assert_eq(USize, m.len(), 1)
@@ -93,7 +93,7 @@ test_dyn_hashmap_remove_missing_is_noop := test() {
 }
 
 test_dyn_hashmap_remove_only_entry := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     m.set(5, own 50)
     assert(m.remove(5))
     assert_eq(USize, m.len(), 0)
@@ -101,7 +101,7 @@ test_dyn_hashmap_remove_only_entry := test() {
 }
 
 test_dyn_hashmap_remove_then_reinsert := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     m.set(7, own 70)
     assert(m.remove(7))
     m.set(7, own 700)
@@ -111,7 +111,7 @@ test_dyn_hashmap_remove_then_reinsert := test() {
 }
 
 test_dyn_hashmap_remove_swap_keeps_others_findable := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     for i in 0..50 {
         m.set(i, own i.mul(10))
     }
@@ -131,7 +131,7 @@ test_dyn_hashmap_remove_swap_keeps_others_findable := test() {
 }
 
 test_dyn_hashmap_remove_all := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     for i in 0..20 {
         m.set(i, own i.mul(10))
     }
@@ -149,7 +149,7 @@ test_dyn_hashmap_remove_all := test() {
 }
 
 test_dyn_hashmap_remove_str_key_frees_c_str := test() {
-    m := DynHashMap.new(Str, I64)
+    mut m := DynHashMap.new(Str, I64)
     m.set("apple", own 1)
     m.set("banana", own 2)
     assert(m.remove("apple"))
@@ -169,14 +169,14 @@ priv dyn_hashmap_lookup_or := func(m: DynHashMap, key: Str, fallback: I64) retur
 }
 
 test_dyn_hashmap_get_throws_key_not_found := test() {
-    m := DynHashMap.new(Str, I64)
+    mut m := DynHashMap.new(Str, I64)
     m.set("hit", own 7)
     assert_eq(I64, dyn_hashmap_lookup_or(m, "hit", -1), 7)
     assert_eq(I64, dyn_hashmap_lookup_or(m, "miss", -1), -1)
 }
 
 test_dyn_hashmap_remove_returns_bool := test() {
-    m := DynHashMap.new(I64, I64)
+    mut m := DynHashMap.new(I64, I64)
     m.set(1, own 10)
     assert(m.remove(1))
     assert(m.remove(1).not())
@@ -201,7 +201,7 @@ test_dyn_hashmap_clear := test() {
 test_dyn_hashmap_clone := test() {
     mut m := DynHashMap.new(Str, I64)
     for i in 0..40 { m.set(format("k", i.to_str()), own i) }
-    c := m.clone()
+    mut c := m.clone()
     assert_eq(USize, c.len(), 40)
     for i in 0..40 {
         ref v : I64 = c.get(format("k", i.to_str()))!
