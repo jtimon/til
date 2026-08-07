@@ -3237,7 +3237,7 @@ priv expr_has_unguarded_break := func(e: Expr) returns Bool {
 // constant integer/char literal (no payload binding, range, guard, or string)
 // whose body holds no loop-targeting `break`. Such switches are left as
 // Switch/Case nodes for the backends; everything else desugars to if/elif.
-switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: Bool) returns Bool {
+switch_is_clike := func(stmt: Expr, sw_expr: Expr, is_match: Bool, enum_def_o: Option(ref Expr)) returns Bool {
     if is_match { return false }
     ref sw_type : Type = sw_expr.til_type()
     sw_sname := til_type_name(sw_type)
@@ -3249,9 +3249,8 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
         // value whose `.tag` the C switch can read; a constructor call etc.
         // emits as a pointer, so leave those to the desugar.
         if is_simple_lvalue_expr(sw_expr).not() { return false }
-        edef0_o := scope.get_struct(sw_sname)
-        if edef0_o.is_none() { return false }
-        ref edef0 : Expr = edef0_o.unwrap()
+        if enum_def_o.is_none() { return false }
+        ref edef0 : Expr = enum_def_o.unwrap()
         if edef0.node_type.is(NodeType.EnumDef).not() { return false }
         is_enum = true
     } else if type_is_primitive(sw_type, Primitive.Bool) {
@@ -3323,9 +3322,8 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
                 case: return false
                 }
                 if base_ok.not() { return false }
-                // base_ok above proved the pattern names this very enum, so
-                // its def is registered; enum_variant_index derefs it anyway.
-                ref edef1 : Expr = scope.get_struct(sw_sname).unwrap()
+                // The initial classification resolved this exact enum.
+                ref edef1 : Expr = enum_def_o.unwrap()
                 vidx := enum_variant_index(edef1, vname)
                 if vidx < 0 { return false }
                 if needs_payload.and(enum_variant_type(edef1, vidx).len().eq(0)) { return false }
@@ -3385,7 +3383,7 @@ priv lvalue_root_name := func(e: Expr) returns Str {
 // without reading the pointee. When that leaves the binding with no readers
 // at all, emitting it would produce a dead C local -- which #326 deliberately
 // keeps as -Werror=unused-variable -- so skip it entirely.
-prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, binding_is_dead: Bool = false) {
+prepend_clike_payload_binding := func(scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, binding_is_dead: Bool = false) {
     if binding_is_dead { return }
     ref pat : Expr = case_node.children[0]
     if pat.node_type.is(NodeType.FCall).not() { return }
@@ -3401,9 +3399,6 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     case .Ident(bn): binding_name = Str.clone(bn.ident_name())
     case: return
     }
-    enum_def_o := scope.get_struct(sw_sname)
-    if enum_def_o.is_none() { return }
-    ref enum_def : Expr = enum_def_o.unwrap()
     vt_idx := enum_variant_index(enum_def, variant_name)
     if vt_idx < 0 { return }
     payload_type := enum_variant_type(enum_def, vt_idx)

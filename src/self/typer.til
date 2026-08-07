@@ -8700,13 +8700,7 @@ priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) retur
 // Patterns the trie doesn't statically describe (value literals, struct
 // patterns, non-enum subjects) return false so a more permissive checker
 // or guard-protected arm doesn't get a false positive.
-priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expected_type_name: Str, pattern: Expr) returns Bool {
-    if expected_type_name.len() == 0 { return false }
-    enum_def_o := scope.get_struct(expected_type_name)
-    if enum_def_o.is_none() { return false }
-    ref enum_def : Expr = enum_def_o.unwrap()
-    if enum_def.node_type.is(NodeType.EnumDef).not() { return false }
-
+priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expected_type_name: Str, enum_def: Expr, pattern: Expr) returns Bool {
     if pattern.node_type.is(NodeType.FieldAccess) {
         if pattern.children.len() > 0 {
             if pattern.children[0].node_type.is(NodeType.Ident) {
@@ -8770,7 +8764,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                                         if inner_def_o.is_some() {
                                             if inner_def_o.unwrap().node_type.is(NodeType.EnumDef) {
                                                 if sub2.sub_names.len() > 0 {
-                                                    return is_pattern_covered(scope, sub2, inner_type_name, inner_pat)
+                                                    return is_pattern_covered(scope, sub2, inner_type_name, inner_def_o.unwrap(), inner_pat)
                                                 }
                                             }
                                         }
@@ -8792,13 +8786,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
 // describe a variant of `expected_type_name` (e.g. ~case 42:~, or a
 // pattern targeting a different enum -- those will surface as other
 // type errors).
-priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode, expected_type_name: Str, pattern: Expr) {
-    if expected_type_name.len() == 0 { return }
-    enum_def_o := scope.get_struct(expected_type_name)
-    if enum_def_o.is_none() { return }
-    ref enum_def : Expr = enum_def_o.unwrap()
-    if enum_def.node_type.is(NodeType.EnumDef).not() { return }
-
+priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode, expected_type_name: Str, enum_def: Expr, pattern: Expr) {
     // `case Type.Variant` (bare).
     if pattern.node_type.is(NodeType.FieldAccess) {
         if pattern.children.len() > 0 {
@@ -8869,7 +8857,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                                                     if sub2.sub_names.len() == 0 {
                                                         init_coverage_for_enum(sub2, inner_def)
                                                     }
-                                                    mark_pattern_coverage(scope, sub2, inner_type_name, inner_pat)
+                                                    mark_pattern_coverage(scope, sub2, inner_type_name, inner_def, inner_pat)
                                                 }
                                             }
                                         }
@@ -9359,7 +9347,7 @@ priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: S
 // can simply be moved into a fresh box. Gated on exactly that -- an own param
 // subject, an owned (non-ref) payload, and a return type that IS the payload
 // type -- so a borrowed subject or a ref payload keeps the clone.
-priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, ctx: Context) returns Bool {
+priv steal_own_param_payload_returns := proc(scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, ctx: Context) returns Bool {
     if ctx.typer_return_type_name.len() == 0 { return false }
     mut param_name := ""
     switch sw_expr.node_type {
@@ -9384,9 +9372,6 @@ priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mu
     case .Ident(bn): bind_name = Str.clone(bn.ident_name())
     case: return false
     }
-    enum_def_o := scope.get_struct(sw_sname)
-    if enum_def_o.is_none() { return false }
-    ref enum_def : Expr = enum_def_o.unwrap()
     vt_idx := enum_variant_index(enum_def, variant_name)
     if vt_idx < 0 { return false }
     // A BORROWED payload is a pointer the enum never owned, so there is
@@ -9421,23 +9406,17 @@ priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mu
 // scrutinee, runs the same coverage/exhaustiveness checks as the desugar path;
 // an exhaustive enum switch with no `case:` turns its last case into the
 // default so the emitted C switch has a terminal arm (no -Wreturn-type).
-priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, enum_def_o: Option(ref Expr), in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
     ref sw_expr : Expr = stmt.children[0]
     sw_sname_o := expr_type_name_ref(sw_expr)
     mut is_enum := false
     is_bool := type_is_primitive(sw_expr.til_type(), Primitive.Bool)
     mut bool_labels := 0
     mut coverage := CoverageNode()
-    if sw_expr.til_type().is(Type.Enum).and(sw_sname_o.is_some()) {
-        ref sw_sname : Str = sw_sname_o.unwrap()
-        edef_o := scope.get_struct(sw_sname)
-        if edef_o.is_some() {
-            ref edef : Expr = edef_o.unwrap()
-            if edef.node_type.is(NodeType.EnumDef) {
-                is_enum = true
-                init_coverage_for_enum(coverage, edef)
-            }
-        }
+    if enum_def_o.is_some() {
+        ref edef : Expr = enum_def_o.unwrap()
+        is_enum = true
+        init_coverage_for_enum(coverage, edef)
     }
     mut has_default := false
     mut default_line : U32 = 0
@@ -9455,16 +9434,17 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         } else {
             if is_enum {
                 ref sw_sname : Str = sw_sname_o.unwrap()
+                ref edef : Expr = enum_def_o.unwrap()
                 // #334: every pattern of the case counts toward coverage.
                 // Payload bindings only exist on single-pattern cases (a
                 // binding pattern sharing a case is rejected before the
                 // clike dispatch), so the binding prepend stays keyed to
                 // children[0].
                 for pi in 0..pc {
-                    mark_pattern_coverage(scope, coverage, sw_sname, cn.children[pi])
+                    mark_pattern_coverage(scope, coverage, sw_sname, edef, cn.children[pi])
                 }
-                stole_box := steal_own_param_payload_returns(scope, sw_expr, cn, sw_sname, ctx)
-                prepend_clike_payload_binding(scope, sw_expr, cn, sw_sname, stole_box)
+                stole_box := steal_own_param_payload_returns(scope, edef, sw_expr, cn, ctx)
+                prepend_clike_payload_binding(scope, edef, sw_expr, cn, stole_box)
             }
             // A multi-pattern bool case can cover both labels on its own.
             if is_bool { bool_labels = bool_labels + pc.to_i64() }
@@ -9480,9 +9460,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
     }
     if is_enum {
         ref sw_sname : Str = sw_sname_o.unwrap()
-        // is_enum was set from this same lookup above, so a miss here
-        // would mean the scope changed under us.
-        ref edef2 : Expr = scope.get_struct(sw_sname).unwrap()
+        ref edef2 : Expr = enum_def_o.unwrap()
         mut missing := Vec(Str).new()
         collect_missing_paths(scope, coverage, edef2, "", missing, ctx)
         if has_default {
@@ -9690,24 +9668,24 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
     // comes from) and before the clike dispatch below, which returns early
     // for payload-free enums.
     qualify_dotted_case_patterns(stmt, sw_expr.til_type(), ctx)
-    if switch_is_clike(scope, stmt, sw_expr, is_match) {
-        infer_clike_switch(scope, stmt, in_func, in_loop, returns_ref, ctx)
-        return false
-    }
-    mut coverage := CoverageNode()
-    mut has_default_case := false
-    mut has_switch_enum_def := false
     sw_expr_sname_o := expr_type_name_ref(sw_expr)
     mut switch_enum_def_o := Option(ref Expr).None
     if sw_expr.til_type().is(Type.Enum).and(sw_expr_sname_o.is_some()) {
         ref sw_expr_sname : Str = sw_expr_sname_o.unwrap()
         switch_enum_def_o = scope.get_struct(sw_expr_sname)
-        if switch_enum_def_o.is_some() {
-            ref switch_enum_def : Expr = switch_enum_def_o.unwrap()
-            if switch_enum_def.node_type.is(NodeType.EnumDef) {
-                has_switch_enum_def = true
-                init_coverage_for_enum(coverage, switch_enum_def)
-            }
+    }
+    if switch_is_clike(stmt, sw_expr, is_match, switch_enum_def_o) {
+        infer_clike_switch(scope, stmt, switch_enum_def_o, in_func, in_loop, returns_ref, ctx)
+        return false
+    }
+    mut coverage := CoverageNode()
+    mut has_default_case := false
+    mut has_switch_enum_def := false
+    if switch_enum_def_o.is_some() {
+        ref switch_enum_def : Expr = switch_enum_def_o.unwrap()
+        if switch_enum_def.node_type.is(NodeType.EnumDef) {
+            has_switch_enum_def = true
+            init_coverage_for_enum(coverage, switch_enum_def)
         }
     }
 
@@ -9831,7 +9809,8 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
             validate_struct_pattern_rest(scope, vp_pat, ctx)
             if has_switch_enum_def.and(has_guard.not()) {
                 ref sw_expr_sname : Str = sw_expr_sname_o.unwrap()
-                if is_pattern_covered(scope, coverage, sw_expr_sname, vp_pat).not() { all_covered = false }
+                ref switch_enum_def : Expr = switch_enum_def_o.unwrap()
+                if is_pattern_covered(scope, coverage, sw_expr_sname, switch_enum_def, vp_pat).not() { all_covered = false }
             }
         }
         if saw_default {
@@ -9843,8 +9822,9 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
         // covered for exhaustiveness.
         if has_switch_enum_def.and(has_guard.not()) {
             ref sw_expr_sname : Str = sw_expr_sname_o.unwrap()
+            ref switch_enum_def : Expr = switch_enum_def_o.unwrap()
             for mc_i in 0..pat_count {
-                mark_pattern_coverage(scope, coverage, sw_expr_sname, case_node.children[mc_i])
+                mark_pattern_coverage(scope, coverage, sw_expr_sname, switch_enum_def, case_node.children[mc_i])
             }
         }
         user_stmt_count := case_body.children.len()
@@ -9966,8 +9946,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
 
     if has_switch_enum_def {
         ref sw_expr_sname : Str = sw_expr_sname_o.unwrap()
-        // has_switch_enum_def was set from this same lookup above.
-        ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname).unwrap()
+        ref switch_enum_def : Expr = switch_enum_def_o.unwrap()
         mut missing_paths := Vec(Str).new()
         collect_missing_paths(scope, coverage, switch_enum_def, "", missing_paths, ctx)
         if has_default_case {
