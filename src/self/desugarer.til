@@ -1891,7 +1891,7 @@ priv hoist_walk_consolidated := proc(
     if found_key.len() == 0 { return }
     line := child.line
     col := child.col
-    tmp_name := format("_bang_ret_", ctx.bang_counter.to_str())
+    tmp_name := format("_bang_ret_", synth_suffix(ctx, ctx.bang_counter.to_str()))
     ctx.bang_counter = ctx.bang_counter + 1
     mut cloned := child.clone()
     clear_bang_flag(cloned)
@@ -2477,7 +2477,7 @@ priv process_throw_catch_in_body := proc(
         // return (otherwise unreachable).
         if root_bang_throws.len() > 0 {
             if stmt.node_type.is(NodeType.Return) {
-                tmp_name := format("_bang_ret_", ctx.bang_counter.to_str())
+                tmp_name := format("_bang_ret_", synth_suffix(ctx, ctx.bang_counter.to_str()))
                 ctx.bang_counter = ctx.bang_counter + 1
                 // Carry the function's declared return type/ownership onto
                 // the hoisted temp Decl. Vec.get / Array.get return
@@ -3922,7 +3922,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             if elem_type.len() == 0 { return false }
             count : USize = fcall.children.len() - 2
             if cn_str == "vec" {
-                vec_name := format("_vec_", ctx.coll_counter.to_str())
+                vec_name := format("_vec_", synth_suffix(ctx, ctx.coll_counter.to_str()))
                 ctx.coll_counter++
                 if desugar_splat_collection_literal(ctx, fcall, new_ch, scope, elem_type,
                         vec_name, true, true, OwnType.Own) {
@@ -3940,7 +3940,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
                 rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct(vec_type))
                 return true
             }
-            arr_name := format("_array_", ctx.coll_counter.to_str())
+            arr_name := format("_array_", synth_suffix(ctx, ctx.coll_counter.to_str()))
             ctx.coll_counter++
             array_type := variadic_array_type_name(scope, elem_type)
             if desugar_splat_collection_literal(ctx, fcall, new_ch, scope, elem_type,
@@ -4224,7 +4224,7 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     array_type := variadic_array_type_name(scope, elem_type)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc) { return }
     if desugar_mixed_splat_variadic_call(ctx, e, new_ch, scope, elem_type, array_type, vi, vc) { return }
-    va_name := format("_va_Array_", ctx.va_counter.to_str())
+    va_name := format("_va_Array_", synth_suffix(ctx, ctx.va_counter.to_str()))
     ctx.va_counter++
     mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
     scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, e.line, e.col, false, OwnType.Own)
@@ -4268,7 +4268,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
             ki := fdef_kwargs_index(e, fdef)
             if ki >= 0 {
                 kc := fcall_kwargs_count(e)
-                kw_name := format("_kw", ctx.kw_counter.to_str())
+                kw_name := format("_kw", synth_suffix(ctx, ctx.kw_counter.to_str()))
                 ctx.kw_counter++
                 kw_decl := build_kwargs_map_decl(e, kw_name)
                 scope.set(kw_name, Type.Struct("KwargsMap"), false, ctx.path, e.line, e.col, false, OwnType.Shallow)
@@ -4983,7 +4983,7 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
             if get_splat_arg(e, start.add(k).add(run)) { break }
             run++
         }
-        grp_name := format("_va_Array_", ctx.va_counter.to_str())
+        grp_name := format("_va_Array_", synth_suffix(ctx, ctx.va_counter.to_str()))
         ctx.va_counter++
         mut grp_decl := build_variadic_array_decl(e, scope, elem_type, grp_name, run, ctx)
         scope.set(grp_name, Type.Struct(array_type.clone()), false, ctx.path, e.line, e.col, false, OwnType.Own)
@@ -5281,7 +5281,7 @@ priv finish_hoist_temp := func(mut ctx: Context, own decl: Expr, mut hoisted: Ve
     // temp survives DCE and goes unused, that's a DCE bug worth
     // surfacing (as a C -Werror=unused-but-set-variable) rather than
     // hiding behind a `(void)<name>;` guard.
-    tname := format("hoisted__", tp, "_", ctx.hoist_counter.to_str())
+    tname := format("hoisted__", tp, "_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
     ctx.hoist_counter++
 
     decl.set_til_type(val.til_type())

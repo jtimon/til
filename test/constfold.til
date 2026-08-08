@@ -289,3 +289,10 @@ test_const_and_or_fold := test() {
     expect(true.and(true), "T.and(T)")
     expect(false.or(true), "F.or(T)")
 }
+
+// Test 13: a pure call whose argument is itself a folded pure call folds all
+// the way down -- add(double_il(3), 4) leaves one constant, no runtime call.
+test_mixed_fold := test() {
+    result := add(double_il(3), 4)
+    assert_eq(I64, result, 10)
+}

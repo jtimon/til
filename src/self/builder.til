@@ -8513,23 +8513,31 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
 }
 
 priv make_build_dirs := proc(paths: BuildPaths) {
+    // The .c / _forward.h pair is written for EVERY mode, to c_path and to
+    // the fwd_path derived from it, so its directory has to exist whatever
+    // the mode is. The library branch used to create only gen/til + gen/lib
+    // and skip this, so `translate -c gen/c/x.c <a library>` died on
+    // `cfile_open: could not open 'gen/c/x_forward.h'` unless some other
+    // build had already made gen/c. In the suite that is a scheduling
+    // accident: pure_no_unbuilt_variant_ctor (library) passes only when a
+    // non-library `-c gen/c/...` test happens to run first.
+    cp_slash := paths.c_path.rfind("/")
+    mut cp_dir := "gen/til"
+    if cp_slash > 0 {
+        cp_slash_u : USize = cp_slash.to_usize()
+        cp_dir = paths.c_path.substr(0, cp_slash_u)
+    }
+    if mkdir_p(cp_dir) != 0 { panic("failed to create build output dir") }
     if paths.do_lib {
         if mkdir_p("gen/til") != 0 { panic("failed to create gen/til") }
         if mkdir_p("gen/lib") != 0 { panic("failed to create gen/lib") }
     } else {
-        cp_slash := paths.c_path.rfind("/")
         bp_slash := paths.bin_path.rfind("/")
-        mut cp_dir := "gen/til"
-        if cp_slash > 0 {
-            cp_slash_u : USize = cp_slash.to_usize()
-            cp_dir = paths.c_path.substr(0, cp_slash_u)
-        }
         mut bp_dir := "bin"
         if bp_slash > 0 {
             bp_slash_u : USize = bp_slash.to_usize()
             bp_dir = paths.bin_path.substr(0, bp_slash_u)
         }
-        if mkdir_p(cp_dir) != 0 { panic("failed to create build output dir") }
         if mkdir_p(bp_dir) != 0 { panic("failed to create binary output dir") }
     }
 }

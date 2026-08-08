@@ -1017,12 +1017,62 @@ Context := struct {
     // `_sw_<T>_<N>`, ...), va_counter for variadic-Array packs
     // (`_va_Array_<N>`), kw_counter for keyword-arg DynMaps
     // (`_kw<N>`), coll_counter for vec/array literal hoists
-    // (`_vec_<N>`, `_array_<N>`). They never reset -- they only
-    // need to mint unique-across-program names.
+    // (`_vec_<N>`, `_array_<N>`).
+    //
+    // Issue #101: every name these mint is a C LOCAL of the function
+    // whose body is being typed, so the suffix only has to be unique
+    // WITHIN that function. infer_func_def_expr saves them, zeroes
+    // them, and restores them around each body -- so `hoisted__I64_3`
+    // means "the fourth hoist in this function", not "the 3rd of
+    // 108,000 in the program". Without the reset a one-line edit
+    // renumbered every temp emitted after it, which is what made a
+    // small source change produce a six-figure generated-C diff.
+    // Statements OUTSIDE any function body (module-level initializers,
+    // whose temps ARE file-scope C globals) keep using the outer
+    // sequence, and the save/restore keeps that sequence independent
+    // of whatever the function bodies did.
     hoist_counter : I32 = 0
     va_counter : I32 = 0
     kw_counter : I32 = 0
     coll_counter : I32 = 0
+
+    // Issue #101: the top-level definition whose body the counters above
+    // are currently numbering, or "" at module level. Every synthesised
+    // name inside a definition carries it, so restarting the counters per
+    // definition does NOT make two definitions share a name.
+    //
+    // The qualifier is not cosmetic. The compiler keeps side tables keyed
+    // by bare identifier that outlive one body -- constfolder_known is the
+    // one that bites -- so two functions that both hold a `hoisted__Str_0`
+    // are the same entry there, and the constfolder starts folding one
+    // function's call with another's value. That is what a first cut of
+    // this change did: it made an unrelated call look foldable, walked
+    // into `type_name_storage_kind`, read `ELEM_FN : USize = 2` out of the
+    // interpreter scope as if the slot held an Expr pointer, and
+    // segfaulted compiling the compiler.
+    //
+    // The value is the definition's already-unique program-level name: a
+    // priv is mangled to `priv__<path>__<name>` by the initer before the
+    // typer runs, a public free function must be unique to link, and a
+    // namespace member uses `<Type>_<member>`, its own C symbol.
+    synth_owner := ""
+
+    // Issue #101: NOT part of the per-body reset above. `body_<N>` is a
+    // file-scope C function plus a `body_<N>_env` struct type, so its
+    // suffix must be unique across the whole program. It used to draw
+    // from hoist_counter, which the reset would have made collide
+    // between two functions that each hold one body value.
+    body_value_counter : I32 = 0
+
+    // Issue #101: loader counter for the `_lzr_<N>` result temp that
+    // lazy_build_prelude mints when statement-inlining a lazy body
+    // (#262). It used to be a module global in loader.til, so a second
+    // LoadedProgram built in the same process kept counting from the
+    // first program's last name -- the last generated-name state leak
+    // outside Context. Minted by the loader's lazy pass, which runs
+    // before the typer, so the per-body reset above does not reach it:
+    // `_lzr_<N>` is still a whole-program ordinal.
+    lazy_stmt_temp_counter : I64 = 0
 
     // Remaining typer-phase scratch, moved off module globals. errors is
     // the per-unit type-error counter (reset and returned by
@@ -1144,6 +1194,50 @@ Context := struct {
     // Kept last so every Context-owned AST/registry using symbols is deleted
     // before the canonical name table that gives those symbols meaning.
     symbols := SymbolPool()
+}
+
+// Issue #101: the trailing part of a synthesised temp name. Inside a
+// top-level definition it is `<owner>_<n>` with the counters restarted per
+// definition, so `n` says "the n-th temp of THIS function" and editing one
+// function cannot renumber another's. At module level (owner "") the temp
+// is a file-scope C global drawn from the outer, never-restarted sequence,
+// which stays a whole-program ordinal. Takes the already-stringified
+// counter so one helper serves the I32 and I64 counters alike.
+// The owner is not optional and it cannot be narrowed to "the families
+// that look like they need it". Two context-wide tables key on these
+// names: ctx.builder_str_lit_ident_symbols maps `hoisted__Str_<N>` to its
+// pooled `_til_str_lits[i]` element (builder_register_str_lits_for_expr's
+// own comment says "the ident map is context-wide, and an ordinary name
+// can mean something else in a sibling body"), and the constfolder's
+// constfolder_known decides whether a body's idents are all resolvable
+// before it evaluates that body. Both were tried without the qualifier:
+// the first made one function's Str temp resolve to another's literal
+// (`return _til_str_lits[22];` from a Str*-returning function), and the
+// second let a body fold with an unbound parameter, turning I64_to_str's
+// `format("-", U64_to_str(mag))` into the constant "-18446744073709551615".
+synth_suffix := func(ctx: Context, n: Str) returns Str {
+    if ctx.synth_owner.len() == 0 { return n.clone() }
+    return format(ctx.synth_owner, "_", n)
+}
+
+// Issue #101: the owner tag for a definition in the unit at `path`. The
+// definition's own name is already unique program-wide -- a priv arrives
+// here mangled to `priv__<path>__<name>` -- but that mangling is ~30
+// characters of path boilerplate, and the owner is repeated in EVERY temp
+// the definition mints: spelling it out cost 8.7MB of generated C. So
+// privs are named `<unit>_<orig_name>` instead, where <unit> is the path
+// with the `src/` prefix, the `.til` suffix and the separators removed
+// (`src/self/loader.til` -> `self_loader`). That is an injective encoding
+// of the path, so it discriminates units exactly as the mangling did, at
+// a third of the length. Non-privs keep their own name, which has to be
+// unique already or the C would not link.
+synth_owner_name := func(path: Str, name: Str, orig_name: Str) returns Str {
+    if orig_name.len() == 0 { return name.clone() }
+    mut tag := path.clone()
+    if tag.starts_with("./") { tag = tag.strip_prefix("./").clone() }
+    if tag.starts_with("src/") { tag = tag.strip_prefix("src/").clone() }
+    if tag.ends_with(".til") { tag = tag.strip_suffix(".til").clone() }
+    return format(tag.replace("/", "_"), "_", orig_name)
 }
 
 // --- Helpers moved from initer.til ---

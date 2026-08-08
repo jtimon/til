@@ -3841,10 +3841,35 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
         infer_expr(inner, tc_cd.default_expr(), 0, ctx)
         tc_cd.til_type =tc_cd.default_expr().til_type().clone()
     }
+    // Issue #101: a member body is a top-level definition too, so it opens
+    // its own synthesised-name window, named after the member's own C
+    // symbol (`<Type>_<member>`) -- the same uniqueness the emitted
+    // function names already depend on.
+    mut tcbi : USize = 0
     for tc_bd : Declaration in tc_ns {
+        ref tc_bname : Str = def_ns_name_at(expr, tcbi)
+        tcbi = tcbi + 1
         if tc_bd.default_value.is_none() { continue }
         if tc_bd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+        saved_ns_synth_owner := ctx.synth_owner.clone()
+        saved_ns_hoist := ctx.hoist_counter
+        saved_ns_va := ctx.va_counter
+        saved_ns_kw := ctx.kw_counter
+        saved_ns_coll := ctx.coll_counter
+        saved_ns_bang := ctx.bang_counter
+        ctx.synth_owner = format(ctx.current_type_name, "_", tc_bname)
+        ctx.hoist_counter = 0
+        ctx.va_counter = 0
+        ctx.kw_counter = 0
+        ctx.coll_counter = 0
+        ctx.bang_counter = 0
         infer_func_def_expr(inner, tc_bd.default_expr(), ctx)
+        ctx.synth_owner = saved_ns_synth_owner
+        ctx.hoist_counter = saved_ns_hoist
+        ctx.va_counter = saved_ns_va
+        ctx.kw_counter = saved_ns_kw
+        ctx.coll_counter = saved_ns_coll
+        ctx.bang_counter = saved_ns_bang
     }
     ctx.typing_namespace_member = saved_in_ns
     // Static check: a hand-written `delete` must free (or transfer) every
@@ -5399,7 +5424,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         line := cond.line
         col := cond.col
         ref body : Expr = stmt.children[1]
-        wname := format("_wcond_Bool_", ctx.hoist_counter.to_str())
+        wname := format("_wcond_Bool_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
 
         mut decl := Expr.new(NodeType.Decl(Declaration(name = wname.clone())), line, col)
@@ -6073,6 +6098,21 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
         // the body.
         mut tracked_func := false
         saved_top_func := ctx.current_top_func_name.clone()
+        // Issue #101: this Decl-with-a-FuncDef-body window is also the
+        // synthesised-name window. The counters restart inside it and every
+        // name they mint carries ctx.synth_owner, so a temp's number is its
+        // ordinal within THIS definition. Anonymous lambdas and nested
+        // blocks are typed by infer_expr below without opening a window of
+        // their own, so they keep sharing this definition's sequence --
+        // which is what keeps their lifted top-level names unique.
+        // bang_counter belongs here too: process_throw_catch_in_func_body
+        // mints `_bang_ret_<N>` while this body is being typed.
+        saved_synth_owner := ctx.synth_owner.clone()
+        saved_hoist_counter := ctx.hoist_counter
+        saved_va_counter := ctx.va_counter
+        saved_kw_counter := ctx.kw_counter
+        saved_coll_counter := ctx.coll_counter
+        saved_bang_counter := ctx.bang_counter
         switch stmt.node_type {
         case .Decl(sdecl):
             if sdecl.explicit_type.len() > 0 {
@@ -6112,6 +6152,12 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
             if stmt.children[0].node_type.is(NodeType.FuncDef) {
                 if stmt.children[0].children.len() > 0 {
                     ctx.current_top_func_name = sdecl.name.clone()
+                    ctx.synth_owner = synth_owner_name(ctx.path, sdecl.name, sdecl.orig_name)
+                    ctx.hoist_counter = 0
+                    ctx.va_counter = 0
+                    ctx.kw_counter = 0
+                    ctx.coll_counter = 0
+                    ctx.bang_counter = 0
                     tracked_func = true
                 }
             }
@@ -6133,6 +6179,12 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
         infer_expr(scope, stmt.children[0], in_func, ctx)
         if tracked_func {
             ctx.current_top_func_name = saved_top_func
+            ctx.synth_owner = saved_synth_owner
+            ctx.hoist_counter = saved_hoist_counter
+            ctx.va_counter = saved_va_counter
+            ctx.kw_counter = saved_kw_counter
+            ctx.coll_counter = saved_coll_counter
+            ctx.bang_counter = saved_bang_counter
         }
     }
     if infer_decl_type_def(scope, stmt, ctx) { return }
@@ -6262,8 +6314,12 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Contex
     switch expr.node_type {
     case .BodyValue(bd):
         if bd.closure_name.len().eq(0) {
-            bd.closure_name = format("body_", ctx.hoist_counter.to_str())
-            ctx.hoist_counter++
+            // #101: body_value_counter, not hoist_counter -- this name
+            // becomes a file-scope C function and a `_env` struct type,
+            // so it must be unique program-wide, while hoist_counter now
+            // restarts at 0 in every function body.
+            bd.closure_name = format("body_", ctx.body_value_counter.to_str())
+            ctx.body_value_counter++
         }
         captures = bd.captures.clone()
     case:
@@ -6412,7 +6468,7 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
     for cap : Declaration in captures {
         if cap.own_type.is(OwnType.Shallow).not() { continue }
         if scope.get_binding(cap.name).is_none() { continue }
-        fresh := format("_cap_", cap.name, "_", ctx.hoist_counter.to_str())
+        fresh := format("_cap_", cap.name, "_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
         ref mut cbody : Expr = stmt.children[0]
         capture_block_rename(cbody, cap.name, fresh)
@@ -9183,7 +9239,7 @@ priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, i
     col := match_node.col
     ref result_t : Type = match_node.til_type()
     tname := type_to_name(result_t)
-    mname := format("_m_", type_prefix(result_t), "_", ctx.hoist_counter.to_str())
+    mname := format("_m_", type_prefix(result_t), "_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
     ctx.hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, explicit_type = tname.clone(), til_type = result_t.clone())), line, col)
@@ -9828,7 +9884,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
         sw_ref = sw_expr.clone()
     } else {
         tp := type_prefix(sw_expr.til_type())
-        sw_name := format("_sw_", tp, "_", ctx.hoist_counter.to_str())
+        sw_name := format("_sw_", tp, "_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
         mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
         decl.add_child(own sw_expr.clone())
@@ -9865,7 +9921,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
 
     mut matched_name := ""
     if any_guard {
-        matched_name = format("_sw_matched_", ctx.hoist_counter.to_str())
+        matched_name = format("_sw_matched_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
         mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
         matched_decl.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
@@ -10151,11 +10207,11 @@ priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     ref for_body : Expr = stmt.children[1]
     line := stmt.line
     col := stmt.col
-    counter := ctx.hoist_counter
+    counter := synth_suffix(ctx, ctx.hoist_counter.to_str())
     ctx.hoist_counter++
 
-    end_name := format("_re_", elem_type, "_", counter.to_str())
-    cur_name := format("_rc_", elem_type, "_", counter.to_str())
+    end_name := format("_re_", elem_type, "_", counter)
+    cur_name := format("_rc_", elem_type, "_", counter)
 
     mut block := Expr.new(NodeType.Body, line, col)
 
@@ -10354,10 +10410,10 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     line := stmt.line
     col := stmt.col
 
-    counter := ctx.hoist_counter
+    counter := synth_suffix(ctx, ctx.hoist_counter.to_str())
     ctx.hoist_counter++
-    col_name := format("_fc_", type_name, "_", counter.to_str())
-    idx_name := format("_fi_USize_", counter.to_str())
+    col_name := format("_fc_", type_name, "_", counter)
+    idx_name := format("_fi_USize_", counter)
 
     mut block := Expr.new(NodeType.Body, line, col)
 
@@ -10384,7 +10440,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     // followed by `if _kind != 0 { panic(...) }`, instead of routing
     // through the bang/throw-catch pipeline. Self-contained: no extra
     // pre-pass, no fdef-level slot prepend.
-    fk_name := format("_forin_err_kind_", counter.to_str())
+    fk_name := format("_forin_err_kind_", counter)
     if get_throws {
         mut kind_decl := Expr.new(NodeType.Decl(Declaration(name = fk_name.clone(),
             explicit_type = "I64", til_type = Type.Primitive(Primitive.I64), is_mut = true)), line, col)
@@ -10392,7 +10448,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         block.add_child(own kind_decl)
         for gtn : Str in get_throw_types {
             if throw_type_has_payload(ctx, gtn).not() { continue }
-            slot_name := format("_forin_", gtn, "_", counter.to_str())
+            slot_name := format("_forin_", gtn, "_", counter)
             mut slot_decl := Expr.new(NodeType.Decl(decl_typed(name = slot_name,
                 explicit_type = gtn,
                 is_mut = true)), line, col)
@@ -10427,7 +10483,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         get_call.add_child(own kind_arg)
         for gtn : Str in get_throw_types {
             if throw_type_has_payload(ctx, gtn).not() { continue }
-            slot_name := format("_forin_", gtn, "_", counter.to_str())
+            slot_name := format("_forin_", gtn, "_", counter)
             mut slot_arg := Expr.new(ident_node(slot_name), line, col)
             slot_arg.set_til_type(til_type_from_explicit_type(gtn))
             get_call.add_child(own slot_arg)
@@ -10610,10 +10666,10 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
     ref for_body : Expr = stmt.children[1]
     line := stmt.line
     col := stmt.col
-    counter := ctx.hoist_counter
+    counter := synth_suffix(ctx, ctx.hoist_counter.to_str())
     ctx.hoist_counter++
-    col_name := format("_fc_", type_name, "_", counter.to_str())
-    idx_name := format("_fi_USize_", counter.to_str())
+    col_name := format("_fc_", type_name, "_", counter)
+    idx_name := format("_fi_USize_", counter)
 
     // Resolve the concrete key/value element types. Probe the inferred
     // map's `keys` / `values` field types (which carry the monomorphized

@@ -1,6 +1,6 @@
 # priority: low
 # category: cleanups
-** OPEN #101 Deterministic temp variable names in generated C
+** WIP #101 Deterministic temp variable names in generated C
 
 :DEPENDENCY_OF: [[../fixed/77.org][#77]]
   The original symptom was generated names such as ~_t4253~,
@@ -8,47 +8,47 @@
   That made generated-C diffs noisy and prevented the self-build from being
   used as a byte-exact correctness check.
 
-*** Current status
+*** Two different properties, and only one of them was ever fixed
 
-  Most of the original fix has already landed incidentally through later
-  compiler-state cleanups:
+  REPRODUCIBILITY -- same input, same bytes -- was reached incrementally:
+  ~anon_type_counter~, ~lambda_counter~, ~bang_counter~, ~ctor_seq~,
+  ~hoist_counter~, ~va_counter~, ~kw_counter~ and ~coll_counter~ moved onto
+  ~Context~, ~Map~ became ordered, and [[../fixed/77.org][#77]] recorded a
+  byte-identical self-build. This issue was briefly closed on that basis.
+  That was wrong: reproducibility is not what makes a generated-C diff
+  readable.
 
-  - ~anon_type_counter~, ~lambda_counter~, ~bang_counter~, ~ctor_seq~,
-    ~hoist_counter~, ~va_counter~, ~kw_counter~, and ~coll_counter~ now live
-    on ~Context~. A fresh ~LoadedProgram~ therefore starts them from the same
-    zero state, and their increments follow AST/source-order walks.
-  - ~Map~ is an ordered map and ~LoadedProgram.unit_paths()~ walks the
-    deterministic ~core_units~ then ~units~ Vecs. Generated declaration,
-    string-pool, generic-instantiation, and helper order is not based on hash
-    bucket or pointer order.
-  - [[../fixed/77.org][#77]] is complete and records a byte-identical
-    self-build.
-  - Rechecked on 2026-08-06: two consecutive
-    ~bin/til translate src/til.til~ runs emitted byte-identical ~til.c~ and
-    ~til_forward.h~.
+  STABILITY -- small source change, small generated diff -- was untouched,
+  and it is the property the original symptom is about. Every counter was
+  monotonic across the WHOLE program, so a synthesized name's suffix was
+  really its ordinal in a whole-program walk. Anything that minted a temp
+  renumbered every temp downstream of it. Measured on 2026-08-06:
 
-  One real counter is still outside that model. ~src/self/loader.til~ has the
-  module-global mutable ~lazy_stmt_temp_counter~. ~lazy_build_prelude~ uses it
-  for the ~_lzr_N~ result introduced when a lazy function has a statement
-  prelude before its inlinable tail. It is initialized once per compiler
-  PROCESS, not once per ~LoadedProgram~. Two independent programs compiled in
-  one process therefore receive names based on whatever lazy calls the first
-  program happened to contain. Separate CLI invocations both start at zero,
-  which is why the ordinary repeat test passes and why this state leak stayed
-  hidden.
-
-  The issue is thus no longer "make all counters deterministic". The root fix
-  is to finish making generated-name state program-owned, then install a
-  regression guard that always runs instead of relying on occasional manual
-  self-build diffs.
+  - a 5-line test appended at the very END of ~test/constfold.til~ (the
+    cheapest possible insertion point) moved 80 of the 1180 lines of
+    ~test/constfold.c~; only ~10 were the new test, the rest were
+    ~assert_eq__I64~'s temps shifting by +5 and the ~_til_str_lits[]~
+    indexes after the insertion shifting by 1;
+  - a 3-line behaviour-identical refactor of ~repl_prompt~ in
+    ~src/til.til~ (the LAST unit emitted, so the best case) moved 4,737 of
+    the 267,001 lines of ~til.c~; 2,235 of the 2,364 removed lines carried
+    a renumbered temp, against ~10 lines of real change. Churn ran from
+    line 12,428 to EOF, every hoist temp after the edit shifted by a
+    constant +3;
+  - a 9-line addition to ~src/self/context.til~ (an EARLY unit) moved
+    258,822 lines of ~boot/til.c~, 114,182 of them carrying a renumbered
+    temp.
 
 *** Determinism contract
 
   - A fresh ~LoadedProgram~ plus identical source/options must emit identical
     bytes, regardless of earlier compilations in the process, allocator
     addresses, or scheduling outside that compilation.
-  - Counters may be monotonic across one program when uniqueness spans units;
-    they must be fields of that program's ~Context~, never module globals.
+  - A synthesized name must not depend on how many names were minted
+    earlier in the program. Its variable part is an ordinal within the
+    definition that owns it, plus that definition's own unique name.
+  - Counters may be monotonic across one definition; they must be fields
+    of that program's ~Context~, never module globals.
   - Counter increments and indexed names must follow ordered AST, Vec, or
     sorted-Map walks. Do not derive names or emission order from addresses.
   - The contract covers every generated artifact, not only the main C file:
@@ -58,66 +58,126 @@
     produced. Comparisons must use artifacts generated under the same HEAD,
     because ~VERSION~ deliberately embeds the current git commit.
 
-*** Implementation plan
+*** Progress
 
-  Land all of this in one normal commit; do not split counter migration,
-  audit, and regression coverage into tiny commits.
+  - [X] Move the last module-global counter (~lazy_stmt_temp_counter~ in
+    ~loader.til~, minting ~_lzr_<N>~) onto ~Context~. It was initialized
+    once per compiler PROCESS, so a second ~LoadedProgram~ in one process
+    was named from the first program's leftovers.
+  - [X] Audit every generated-name producer in parser, loader, desugarer,
+    initer, typer and builder. No synthesized-name counter remains as
+    module-level mutable state under ~src/self/~; the three ~priv mut~
+    globals left in ~interpreter.til~ (~dispatch_scratch_depth~,
+    ~word_ring_idx~, ~scope_pool~) are runtime scratch and name nothing.
+  - [X] Regression guard: ~self_translate~ in ~src/tests.til~ translates
+    ~src/til.til~ ONCE to a unique ~tmp/~ path and ~cmp~s the ~.c~ and the
+    ~_forward.h~ against the pass-1 ~boot/~ artifacts the build just
+    produced. Those were written by a different compiler binary in a
+    different process, so one translation buys both halves: repeatability
+    (byte-identical output across processes) and bootstrap self-application
+    (the compiler built from pass 1 re-emits pass 1's bytes). A first cut
+    ran the translation twice and compared the two runs as well; that only
+    re-tested one process against itself and doubled the suite's slowest
+    job -- ~self_ms~ went 99.1s -> 167.0s on the merge machine, and 515s ->
+    204s here when it was removed again. Because the surviving comparison
+    is a fixed-point check, any commit that changes how names are emitted
+    must now build with ~make test_two_pass~ and carry the ~Two-pass: ~
+    prefix -- which is exactly what ~doc/self.org~ already prescribes.
+  - [X] ~test_stmt_inline_two_results~ in ~test/lazy.til~: two
+    statement-inlined lazy calls in one body, so two ~_lzr_<N>~ temps are
+    minted back to back and each result must read back its own call's tail.
+  - [X] Per-definition numbering for the typer/desugarer temp families.
+    ~hoist_counter~ / ~va_counter~ / ~kw_counter~ / ~coll_counter~ /
+    ~bang_counter~ restart at zero for each top-level definition, and
+    ~synth_suffix~ prefixes every name they mint with ~ctx.synth_owner~ --
+    the definition's own unique program-level name (a priv is already
+    mangled to ~priv__<path>__<name>~ by the initer; a member uses
+    ~<Type>_<member>~, its own C symbol). So ~hoisted__U32_foo_3~ is "the
+    fourth hoist in foo". The qualifier is load-bearing, not cosmetic: a
+    first cut reset the counters WITHOUT it, two functions ended up sharing
+    a ~hoisted__Str_0~, and the constfolder -- whose ~constfolder_known~
+    table is keyed by bare identifier -- started folding one function's
+    call with another's value, walked into ~type_name_storage_kind~, read
+    ~ELEM_FN : USize = 2~ out of the interpreter scope as if the slot held
+    an ~Expr~ pointer, and segfaulted compiling the compiler.
+    Re-measured after the change: the ~repl_prompt~ refactor above now
+    moves 99 lines instead of 4,737, and of the 45 removed lines 24 are
+    ~__LOC__~ line shifts, 4 are string-pool indexes, and the remaining 19
+    are ~repl_prompt~'s own temps. No other function is touched.
 
-  1. Add ~lazy_stmt_temp_counter : I64 = 0~ to ~Context~ beside the other
-     synthesized-name counters. Delete the module-global declaration in
-     ~loader.til~, pass the existing ~ctx~ from ~lazy_stmt_inline_body~ into
-     ~lazy_build_prelude~, and mint/increment ~ctx.lazy_stmt_temp_counter~
-     there. A new ~LoadedProgram~ then resets the family naturally, while a
-     REPL session that intentionally keeps one Context continues to allocate
-     collision-free names across cumulative turns.
+    Same design as rstil's Bug #40 fix, arrived at independently:
+    ~context.current_precomp_func~ + ~context.precomp_forin_counter~,
+    saved/zeroed/restored at ~precomp_declaration~ and at both struct-member
+    loops in ~precomp_struct_def~, with ~make_temp_name(prefix, func, id)~
+    building ~_for_i_<func>_<n>~ and falling back to ~<prefix>_<n>~ outside
+    any function. Regression test ~src/test/deterministic.til~. rstil left
+    ~AnonStruct<N>~ / ~AnonEnum<N>~ on program-global counters, the same two
+    items still open below.
 
-  2. Audit all generated-name producers in parser, loader, desugarer, initer,
-     typer, and builder. Classify each suffix source as one of: a Context
-     counter, a deterministic source location, an ordered-loop index, or a
-     Vec length populated by an ordered AST walk. The current inventory
-     includes anonymous types; lifted lambdas/closures; bang, collection,
-     variadic, kwargs, hoist, while/switch/range/for-in, match, payload, and
-     lazy-result temps; constructor temps; and pooled string indexes. Remove
-     or migrate any other module-global counter found by the audit rather than
-     documenting an exception.
-
-  3. Upgrade the existing ~self_translate~ entry in ~src/tests.til~ instead of
-     adding a manual-only Make target. Have the selected test compiler
-     (~til_bin~, which is ~bin/til_asan~ under the default suite) translate
-     ~src/til.til~ twice to two unique paths under ~tmp/~, then use ~cmp~ to
-     require equality of both the ~.c~ files and both ~_forward.h~ files. Also
-     compare one result with the pass-1 ~boot/til.c~ and
-     ~boot/til_forward.h~ that the build just produced. This keeps the existing
-     largest-input coverage and makes both same-compiler repeatability and
-     bootstrap self-application part of every ~make test~ run. Use unique
-     output paths so the parallel suite cannot race another translation.
-
-  4. Keep one focused lazy statement-inlining witness in ~test/lazy.til~ with
-     at least two ~_lzr_N~ sites in one body/program. Its runtime assertions
-     prove the migrated names remain unique and substitution still targets
-     the right result. The self-translate byte comparison is the regression
-     for global determinism; the lazy fixture is the semantic regression for
-     the counter that moved.
-
-  5. Close #101 in the same commit with a post-mortem naming the historical
-     Context migrations, the final ~lazy_stmt_temp_counter~ state leak, and
-     the strengthened ~self_translate~ regression. Update #77's dependency
-     link only if needed; #77 itself remains fixed.
-
-*** Commit and verification shape
-
-  This is a source-state fix, not a change to how the compiler emits a given
-  AST construct. HEAD's ~til_boot~ already understands Context fields and the
-  existing lazy lowering, so ~doc/self.org~ says no preparation commit and no
-  ~Two-pass:~ prefix are needed. The one commit contains the Context/loader
-  change, existing-test updates, generated ~boot/~ artifacts, and the #101
-  FIXED move/post-mortem.
-
-  Before committing, run ~make clean && make test~. Completion requires:
-
-  - the focused lazy tests pass in interpret and compiled modes;
-  - both repeated self-translate artifact comparisons pass;
-  - pass-1 ~boot/~ equals the fresh self-translation for both generated files;
-  - the full default ASAN suite passes;
-  - no synthesized-name counter remains as module-level mutable state under
-    ~src/self/~.
+  - [X] Keep the owner SHORT. rstil can use the bare source name because it
+    qualifies at precomp time; til's initer has already rewritten a priv to
+    ~priv__<path>__<name>~ before the typer runs, and nearly everything
+    under ~src/self~ is priv, so spelling the mangled name into every temp
+    cost 8.7MB of generated C (15.39MB -> 24.14MB, +57%, same line count).
+    ~synth_owner_name~ builds ~<unit>_<orig_name>~ instead, where ~<unit>~
+    is the path minus ~src/~, minus ~.til~, with separators collapsed
+    (~src/self/loader.til~ -> ~self_loader~) -- an injective encoding of the
+    path, so it discriminates units exactly as the mangling did at a third
+    of the length. 24.14MB -> 21.48MB (+39% over master). Measured cost of
+    what remains: ~cc -c -Wall -Wextra -g~ 13.83s vs 13.69s and
+    self-translate 18.7s/16.2s vs 17.0s/15.7s, i.e. none -- the whole
+    residual cost is the artifact, and ~boot/til.c~ is committed.
+  - [ ] Get the remaining +39% back by moving the qualifier OUT of the
+    emitted name. A C local only has to be unique inside its own function,
+    and the per-definition ordinal already is: unqualified names are 1-2
+    digits where the old whole-program ones were 5, so the generated C
+    would come out SMALLER than master's. What blocks it is that two
+    context-wide tables are keyed by the bare name, and both were tried
+    and both broke:
+      - ~ctx.builder_str_lit_ident_symbols~ maps ~hoisted__Str_<N>~ to its
+        pooled ~_til_str_lits[i]~ element, and is populated by a
+        whole-program pre-pass. Sharing a name across bodies made a
+        ~Str *~-returning function emit ~return _til_str_lits[22];~.
+      - the constfolder's ~constfolder_known~ decides whether a body's
+        idents are all resolvable before evaluating it. Sharing a name let
+        ~I64_to_str~'s ~format("-", U64_to_str(mag))~ fold to the constant
+        ~"-18446744073709551615"~ -- a body evaluated with an unbound
+        parameter. Restricting the qualifier to ~hoisted__Str_~ only (6% of
+        the 205,000 synthesised-name occurrences) fixes the first and not
+        the second.
+    The fix is to key those two tables by (definition, name) rather than by
+    name, so the qualifier lives in the map key instead of in ~til.c~. The
+    builder side needs the owner threaded through
+    ~builder_register_str_lits_for_expr~ and set again at
+    ~emit_func_def~ time; the constfolder side needs ~func_uses_unknown_globals~
+    to stop resolving a body-local's name against the global scope at all,
+    which also removes its unchecked ~deref(slot)~-as-~Expr~ (that is how a
+    fold reaching ~ELEM_FN : USize = 2~ segfaults with ~fdef=0x2~; naively
+    replacing the deref with a ~lookup_func~ opens the wrong-fold hole
+    above, so the two have to be fixed together).
+  - [ ] Anonymous lambdas and body values are still numbered
+    program-globally: ~_lambda_<N>~ (~lambda_counter~), ~body_<N>~
+    (~body_value_counter~) and the parser's anonymous types
+    (~anon_type_counter~) become file-scope C symbols and types, so they
+    need a program-unique name -- but they should take it from their
+    enclosing definition the way the temps above now do, not from a
+    whole-program ordinal.
+  - [ ] ~ctor_seq~ (the builder's ~_cs<N>~ / ~_sc<N>~ / ~_ctor_<N>~) is
+    still a whole-program ordinal advanced during emission. It accounted
+    for 104 lines of the ~repl_prompt~ probe's churn. It should restart per
+    emitted function, which is a builder-side change rather than a typer
+    one.
+  - [ ] ~_lzr_<N>~ is minted by the loader's lazy pass, which runs before
+    the typer, so the per-definition window does not reach it. It is still
+    a whole-program ordinal (0 lines of churn in the probe, but the same
+    class of problem).
+  - [ ] The string pool. ~_til_str_lits[<n>]~ indexes are positions in an
+    ordered first-use walk, so inserting one literal shifts every index
+    after it -- 238 lines of the original ~repl_prompt~ probe, 4 after the
+    change above (only because that edit's own literals moved). A stable
+    scheme needs a content-derived or per-unit key rather than a dense
+    whole-program array position.
+  - [ ] ~__LOC__~ string literals embed line numbers, so any insertion
+    shifts every one below it in the same file (24 lines in the probe).
+    This is inherent to what ~__LOC__~ means; it is listed for completeness
+    as the floor the other items cannot go below.
