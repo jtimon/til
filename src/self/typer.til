@@ -4508,7 +4508,16 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             process_throw_catch_in_func_body(ctx, expr.children[0], fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
         if macro_is_template.not() {
+            mut capture_source_muts := Vec(Bool).new()
+            mut capture_source_written := Vec(Bool).new()
+            if fdef.captures.len() > 0 {
+                validate_captures(scope, fdef.captures, expr, ctx)
+                capture_private_mut_begin(scope, fdef.captures, capture_source_muts, capture_source_written)
+            }
             infer_body(func_scope, expr.children[0], in_func_val, 1, 0, returns_ref_val, 0, ctx)
+            if fdef.captures.len() > 0 {
+                capture_private_mut_end(scope, fdef.captures, capture_source_muts, capture_source_written)
+            }
             garbager_destroy_body(ctx, expr.children[0], func_scope)
             // Issue #54: for a capturing function/lambda, validate the
             // captures against the enclosing scope and enforce that the
@@ -4516,7 +4525,6 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             // body-locals, globals, funcs/types) -- the same explicit-
             // capture restriction as a bare capture block.
             if fdef.captures.len() > 0 {
-                validate_captures(scope, fdef.captures, expr, ctx)
                 ref cap_root : TypeScope = scope_root_ref(scope)
                 capture_block_check_refs(expr.children[0], scope, func_scope, cap_root, fdef.captures, ctx)
             }
@@ -6270,7 +6278,11 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Contex
     ref mut body : Expr = expr.children[0]
     body_value_check_no_return(body, ctx)
     body_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut capture_source_muts := Vec(Bool).new()
+    mut capture_source_written := Vec(Bool).new()
+    capture_private_mut_begin(scope, captures, capture_source_muts, capture_source_written)
     infer_body(body_scope, body, 0, 1, 0, 0, 0, ctx)
+    capture_private_mut_end(scope, captures, capture_source_muts, capture_source_written)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, body_scope, root, captures, ctx)
     garbager_destroy_body(ctx, body, body_scope)
@@ -6309,6 +6321,41 @@ priv validate_captures := proc(scope: TypeScope, captures: Vec(Declaration), err
                 }
             }
         }
+    }
+}
+
+// A private mutable capture (`shallow mut` / `own mut`) is writable while
+// typing the closure body, but the write targets environment storage, not the
+// enclosing binding. Temporarily expose that mutability to normal assignment
+// inference, then restore the source's mutation bookkeeping exactly.
+priv capture_private_mut_begin := func(scope: TypeScope, captures: Vec(Declaration),
+        mut source_muts: Vec(Bool), mut source_written: Vec(Bool)) {
+    for cap : Declaration in captures {
+        b_o := scope.get_binding(cap.name)
+        if b_o.is_none() {
+            missing_mut := false
+            missing_written := false
+            source_muts.push(own missing_mut.clone())
+            source_written.push(own missing_written.clone())
+            continue
+        }
+        ref mut b : TypeBinding = b_o.unwrap()
+        source_muts.push(own b.is_mut.clone())
+        source_written.push(own b.written.clone())
+        if cap.is_mut.and(cap.own_type.is(OwnType.Ref).not()) { b.is_mut = true }
+    }
+}
+
+priv capture_private_mut_end := func(scope: TypeScope, captures: Vec(Declaration),
+        source_muts: Vec(Bool), source_written: Vec(Bool)) {
+    for i in 0..captures.len() {
+        ref cap : Declaration = captures[i]
+        if cap.is_mut.not().or(cap.own_type.is(OwnType.Ref)) { continue }
+        b_o := scope.get_binding(cap.name)
+        if b_o.is_none() { continue }
+        ref mut b : TypeBinding = b_o.unwrap()
+        b.is_mut = source_muts[i]
+        b.written = source_written[i]
     }
 }
 

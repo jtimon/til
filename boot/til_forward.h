@@ -2720,6 +2720,8 @@ void priv___src_self_typer_til__capture_block_check_refs(Expr * e, TypeScope * e
 void priv___src_self_typer_til__body_value_check_no_return(Expr * e, Context * ctx);
 void priv___src_self_typer_til__infer_body_value_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec__Declaration * captures, Expr * errnode, Context * ctx);
+void priv___src_self_typer_til__capture_private_mut_begin(TypeScope * scope, Vec__Declaration * captures, Vec__Bool * source_muts, Vec__Bool * source_written);
+void priv___src_self_typer_til__capture_private_mut_end(TypeScope * scope, Vec__Declaration * captures, Vec__Bool * source_muts, Vec__Bool * source_written);
 void priv___src_self_typer_til__capture_block_rename(Expr * e, Str * from, Str * to);
 void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_body_stmt(TypeScope * scope, Expr * body, USize * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
@@ -3819,6 +3821,7 @@ void * priv___src_self_interpreter_til__raw_arg_pointer(void * raw, priv___src_s
 Expr * priv___src_self_interpreter_til__callable_raw_func_def(void * raw);
 Scope * priv___src_self_interpreter_til__callable_raw_env(void * raw, Scope * fallback);
 void priv___src_self_interpreter_til__callable_raw_free(void * raw, Context * ctx);
+void * priv___src_self_interpreter_til__eval_callable_callee_raw(Scope * scope, Expr * callee, Bool * owned, Context * ctx);
 void priv___src_self_interpreter_til__init_field_raw(void * inst_data, Declaration * dd, USize field_offset, USize field_size, void * raw, Type raw_type, Bool raw_is_ref, Bool raw_is_place, Context * ctx);
 void priv___src_self_interpreter_til__context_return_set(Context * ctx, void * raw);
 void * priv___src_self_interpreter_til__context_return_take(Context * ctx);

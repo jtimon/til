@@ -1221,6 +1221,25 @@ priv callable_raw_free := func(raw: Dynamic, ctx: Context) {
     raw_block_free(raw)
 }
 
+priv eval_callable_callee_raw := proc(scope: Scope, callee: Expr,
+        mut owned: Bool, ctx: Context) returns Dynamic {
+    switch callee.node_type {
+    case .Ident(id):
+        hb_o := scope_lookup_heap_binding(scope, id.ident_name())
+        if hb_o.is_some() {
+            ref hb : HeapBinding = hb_o.unwrap()
+            if heap_type_is_callable(hb_type(hb)) {
+                if hb.moved_out { panic("call of moved binding: ", id.ident_name()) }
+                owned = false
+                return to_ptr(hb.ptr)
+            }
+        }
+    case:
+    }
+    owned = true
+    return eval_expr_raw(scope, callee, ctx)
+}
+
 priv init_field_raw := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, raw: Dynamic, shallow raw_type: Type, raw_is_ref: Bool, raw_is_place: Bool, ctx: Context) {
     ref dst : Dynamic = ptr_add(inst_data, field_offset)
     if decl_is_funcsig(dd, ctx) {
@@ -2836,10 +2855,11 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
             }
         case:
         }
-        fn_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
+        mut fn_raw_owned := true
+        fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
         if callable_box_is(deref(fn_raw)) {
             result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
-            callable_raw_free(fn_raw, ctx)
+            if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
             return result
         }
         ref func_def : Expr = callable_raw_func_def(fn_raw)
@@ -2878,7 +2898,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                             mut result : Dynamic = eval_call(scope, e, ctx, concrete_destination)
                             e.set_til_type(orig_result_type)
                             swap(Expr, e.children[0], flat_ident)
-                            callable_raw_free(fn_raw, ctx)
+                            if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                             if concrete_return_own_type.is(OwnType.Ref).not() {
                                 result = raw_coerce_value(result, concrete_result_type, orig_result_type, ctx, concrete_return_own_type)
                                 result = raw_result_finish(orig_result_type, result, destination, false, ctx)
@@ -2913,7 +2933,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                             mut enum_raw : Dynamic = destination
                             if enum_raw.is_null() { enum_raw = dispatch_result_alloc(e.til_type(), ctx) }
                             if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
-                                callable_raw_free(fn_raw, ctx)
+                                if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                                 // A prim-stamped result (is() -> Bool)
                                 // collapses to an inline word.
                                 if raw_type_is_prim(e.til_type(), ctx) {
@@ -2954,7 +2974,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                 mut result : Dynamic = eval_call(scope, e, ctx, direct_destination)
                 e.set_til_type(orig_direct_result_type)
                 swap(Expr, e.children[0], flat_ident2)
-                callable_raw_free(fn_raw, ctx)
+                if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                 if direct_return_own_type.is(OwnType.Ref).not() {
                     result = raw_coerce_value(result, direct_result_type, orig_direct_result_type, ctx, direct_return_own_type)
                     result = raw_result_finish(orig_direct_result_type, result, destination, false, ctx)
@@ -2963,7 +2983,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
             }
 
         result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
-        callable_raw_free(fn_raw, ctx)
+        if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
         return result
     }
 
@@ -3072,7 +3092,8 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
             interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
             exit(1)
         }
-        fn_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
+        mut fn_raw_owned := true
+        fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
         ref fn_def : Expr = callable_raw_func_def(fn_raw)
 
         // An ext_func reaching here did not dispatch above (not a builtin and
@@ -3089,7 +3110,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                 // and `GetRandomValue(5, 5)` returned 0 instead of 5. A
                 // missing symbol has to say so.
                 if ext_fd.func_type.is_ext() {
-                    callable_raw_free(fn_raw, ctx)
+                    if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                     if ctx.constfold_active.not() {
                         panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name())
                     }
@@ -3251,12 +3272,12 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                         }
                         init_field_raw(inst_data, fdd, ctor_fl.offset, ctor_fl.size, arg_raw, arg_source_type, arg_is_ref, arg_is_place, ctx)
                     }
-                callable_raw_free(fn_raw, ctx)
+                if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                 return inst_data
         }
 
         result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
-        callable_raw_free(fn_raw, ctx)
+        if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
         return result
     case .FCall:
         // Issue #58: postfix call on a sub-expression callee, e.g.
