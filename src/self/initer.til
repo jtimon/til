@@ -3930,7 +3930,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
 // ride along to their new positions through the constructor's map. Args
 // past the last formal are variadic tail elements and keep their order.
 priv generic_rewrite_call := func(mut parent: Expr, call_idx: USize, mono: Str, arg_pos: Vec(I64)) {
-    ref call : Expr = parent.children[call_idx]
+    ref mut call : Expr = parent.children[call_idx]
     mut newcall := Expr.new(NodeType.FCall(FCallData()), call.line, call.col)
     switch call.node_type {
     case .FCall(old_fd):
@@ -3960,7 +3960,9 @@ priv generic_rewrite_call := func(mut parent: Expr, call_idx: USize, mono: Str, 
         // token used to hold and the mixed-splat lowering read the wrong
         // argument -- `gjoin(Str, "x", ..c)` silently lost an element.
         src_splat := get_splat_arg(call, k)
-        newcall.add_child(own call.children[k].clone())
+        // Moved: `call` itself is deep-deleted by the parent-slot assignment
+        // below, so cloning each argument only to free the original is waste.
+        newcall.add_child(own take_expr(call.children[k]))
         if src_own { set_own_arg(newcall, new_pos) }
         if src_splat { set_splat_arg(newcall, new_pos) }
         new_pos = new_pos + 1

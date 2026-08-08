@@ -2923,7 +2923,7 @@ Bool subtree_references_name(Expr * e, Str * name);
 Str * priv___src_self_desugarer_til__guess_expr_type_name(Expr * e);
 Str * priv___src_self_desugarer_til__guess_local_type(TypeScope * scope, Expr * e, Str * var_name);
 Str * priv___src_self_desugarer_til__guess_prior_local_type_in_vec(TypeScope * scope, Vec__Expr * stmts, USize upto, Str * var_name);
-void priv___src_self_desugarer_til__seed_prior_local_types(Context * ctx, Vec__Expr * stmts, USize upto);
+void priv___src_self_desugarer_til__seed_local_type_from_stmt(Context * ctx, Expr * stmt);
 void priv___src_self_desugarer_til__collect_throw_ident_names(Expr * e, Set__Str * names);
 void priv___src_self_desugarer_til__annotate_throw_ident_expr_types(TypeScope * scope, Expr * e, Expr * root_body);
 Bool priv___src_self_desugarer_til__subtree_has_throw_type(Context * ctx, Expr * e, Expr * root_body, Str * type_name);
@@ -3006,6 +3006,7 @@ Expr * priv___src_self_desugarer_til__build_variadic_array_decl(Expr * fcall, Ty
 Str * priv___src_self_desugarer_til__variadic_err_slot_name(Str * va_name, Str * suffix);
 void priv___src_self_desugarer_til__build_variadic_err_slots(Str * va_name, Vec__Expr * new_ch, TypeScope * scope, Context * ctx, U32 line, U32 col);
 void priv___src_self_desugarer_til__narrow_literal_to_elem(Expr * val, Type * elem_t);
+Expr * priv___src_self_desugarer_til__build_variadic_arg_value(Expr * val_in, TypeScope * scope);
 Expr * priv___src_self_desugarer_til__build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, USize src_idx, USize j, Context * ctx);
 Expr * priv___src_self_desugarer_til__build_builtin_vec_decl(Expr * fcall, Str * elem_type, Str * vec_name);
 Expr * priv___src_self_desugarer_til__build_builtin_vec_push(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name, USize j, Context * ctx);
