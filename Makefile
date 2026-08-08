@@ -1,134 +1,94 @@
-# til Makefile
+# til Makefile -- the bootstrap seam, and nothing else.
 #
 # make          Build bin/til (self-hosted compiler) + regenerate boot/
 # make test     Build + run all tests
-# make clean    Remove all build artifacts
-# make help     Show this help
+# make help     List every goal there is
 #
-# bin/til_boot  Built from last commit via git (boot/ + src/c/ from HEAD).
-#               Completely isolated from uncommitted changes. Always safe.
-# bin/til       Built by til_boot from ALL current sources (.til + src/c/).
-#               Most .til and C changes take effect immediately. Emit-side
-#               changes (e.g. new auto-gen methods) need a preparation
-#               commit -- see doc/self.org.
-# boot/         Generated C checked into repo. Regenerated every build
-#               so the next commit's til_boot has current code.
+# Build POLICY does not live here. It is make.til, compiled to bin/make
+# (issue #345): which artifact depends on what, which command produces
+# it, and what differs per host are ordinary til code, not a second
+# language embedded in this file. What is left is the chicken-and-egg
+# part a til program cannot do for itself -- produce the compiler that
+# compiles it -- plus handing the requested goals over:
+#
+#   1. build the vendored libffi that the checked-in compiler C links
+#   2. copy HEAD's boot/ and src/c/ out of git, compile bin/til_boot
+#   3. compile make.til into bin/make with it
+#   4. run bin/make ONCE with every requested goal
+#
+# `make <goals>` and `bin/make <goals>` are therefore the same build.
+# bin/make is the direct interface (and takes real options, e.g. -j4);
+# make stays the compatibility and clean-checkout interface.
+#
+# bin/til_boot  Built from the last commit via git (boot/ + src/c/ from
+#               HEAD). Completely isolated from uncommitted changes.
+#               Always safe. Rebuilt on every invocation, because its
+#               real input is a commit, not a file make can stat.
+# bin/til       Built by til_boot from ALL current sources (.til +
+#               src/c/). Most .til and C changes take effect
+#               immediately. Emit-side changes (e.g. new auto-gen
+#               methods) need a preparation commit -- see doc/self.org.
+# boot/         Generated C checked into the repo. Regenerated every
+#               build so the next commit's til_boot has current code.
+#
+# Recovery: git checkout HEAD boot/ && make test
 
-.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win win_server build_win_host build_mac build_wasm doc summary help install tmp two_pass check_usize64 check_clang
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
 
-all: bin/til
+LIBFFI_DIR := vendor/libffi
+# configure names its build directory after the host triple, which is
+# not predictable here, so the archive is discovered rather than named.
+LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
+LIBFFI_FLAGS = -L$(LIBFFI_LIBDIR) -lffi
 
 CORE := $(wildcard src/core/*.til)
 STD := $(wildcard src/std/*.til)
-SELF := $(wildcard src/self/*.til)
-LIB_TIL := $(wildcard examples/lib/*.til) $(wildcard vendor/bindings/*.til)
-LD_FLAGS := -rdynamic -ldl
+EXT_C := $(wildcard src/c/*.c) $(wildcard src/c/*.h)
 
-# Host gating (issue #25 phase 1): -lrt and -latomic do not exist on
-# macOS (their contents live in libSystem), raylib needs the desktop
-# frameworks at final link, and xvfb-run is Linux-only (mac has no X11;
-# run the suite bare there). No warning suppressions on either host:
-# the generated C compiles clean under -Wall -Wextra -Werror on gcc and
-# clang alike (the old Darwin -Wno-* set mirrored the clang/cross set
-# toolchain_extra_args used to carry; both suppressed nothing).
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
-ifeq ($(UNAME_S),Darwin)
-RAYLIB_SYS_FLAGS := -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo
-NNG_SYS_FLAGS :=
-XVFB_RUN :=
-else
-RAYLIB_SYS_FLAGS := -lrt
-NNG_SYS_FLAGS := -latomic
-XVFB_RUN := xvfb-run --auto-servernum
+# What bin/til_boot links, and all it links. The checked-in compiler C
+# calls libffi directly (the interpreter's ext_func dispatch), and
+# nothing else vendored: no raylib, tinyfd or nng function appears in
+# boot/til.c or src/c/, so their archives contribute nothing to this
+# link and their system dependencies (-lrt, -latomic, the macOS desktop
+# frameworks) are not needed either. Verified by linking without them.
+# make.til builds those libraries, because bin/til -- which does link
+# them -- is its business, not the bootstrap's.
+BOOT_LD_FLAGS := -rdynamic -ldl -lm -lpthread
+
+# --- Goal delegation ---
+#
+# At parse time make already knows what was asked for, so there is no
+# need for a catch-all pattern rule (which would need source-file guards
+# and would swallow typos): the requested goals become phony frontends
+# for one delegation target, which runs bin/make once with the whole
+# list. Arbitrary path goals -- `make vendor/raylib/src/libraylib-x86.a`
+# -- and multi-goal invocations both keep working, and no registry of
+# til targets is duplicated here.
+BOOTSTRAP_GOALS := bin/make bin/til_boot $(LIBFFI_DIR)/.built
+DELEGATED := $(filter-out $(BOOTSTRAP_GOALS),$(MAKECMDGOALS))
+ifeq ($(MAKECMDGOALS),)
+DELEGATED := all
 endif
 
-RAYLIB_LIB := vendor/raylib/src/libraylib.a
-RAYLIB_FLAGS := -Lvendor/raylib/src -lraylib -lm -lpthread $(RAYLIB_SYS_FLAGS)
+# Command-line variables reach the build program unchanged. J is passed
+# as the option bin/make spells it; the rest are read from the
+# environment (bin/make also takes --riscv32-cc=<path> directly).
+export RISCV32_CC EMCC EMAR EMRANLIB
 
-TINYFD_LIB := vendor/tinyfiledialogs/libtinyfd.a
-TINYFD_FLAGS := -Lvendor/tinyfiledialogs -ltinyfd
+ifneq ($(DELEGATED),)
+.PHONY: .til-delegate $(DELEGATED)
+# A real (silent) no-op recipe, not an empty one: without it make
+# reports "Nothing to be done for 'bin/tests'" for every goal after the
+# first, all of which the single delegation has already built.
+$(DELEGATED): .til-delegate
+	@:
 
-# Loadable twins of the vendored archives, for the INTERPRETER only.
-#
-# The two backends need different artifacts from the same library. A COMPILED
-# program links the .a and stays self-contained -- that must not change.
-# INTERPRETED code instead calls through libffi, which needs the function's
-# ADDRESS at runtime, and a static archive can never provide one: it cannot be
-# dlopen'd, and it contributes nothing to bin/til either, since a linker keeps
-# only the members the compiler itself references and the compiler never calls
-# raylib. So `link(".../libraylib.a")` left every raylib symbol unresolvable
-# from interpreted code.
-#
-# Each .a therefore gets a .so beside it, force-linked with --whole-archive so
-# every member is kept. src/self/interpreter.til dlopens the sibling .so of any
-# archive a program links. Built here, ONCE, rather than by the interpreter at
-# run time: same link either way, but this keeps `cc` out of interpretation and
-# off the REPL's per-turn path. Relinking an archive into a shared object needs
-# its members to be PIC, which is why tinyfd is compiled -fPIC below (raylib's
-# own Makefile already does it).
-RAYLIB_SO := vendor/raylib/src/libraylib.so
-TINYFD_SO := vendor/tinyfiledialogs/libtinyfd.so
-FFI_SOS := $(RAYLIB_SO) $(TINYFD_SO)
-
-# "Keep every member of this archive" is spelled differently by the two
-# linkers: GNU ld brackets the archive with --whole-archive/--no-whole-archive,
-# Apple's ld64 takes -force_load,<archive> (it rejects the GNU flags outright:
-# "ld: unknown options: --whole-archive"). The twin keeps the .so name on both
-# hosts -- dlopen loads a Mach-O dylib whatever the file is called, and the
-# interpreter derives the twin's path from the archive's.
-ifeq ($(UNAME_S),Darwin)
-FORCE_LOAD = -Wl,-force_load,$(1)
-else
-FORCE_LOAD = -Wl,--whole-archive $(1) -Wl,--no-whole-archive
+.til-delegate: bin/make
+	bin/make $(if $(J),-j$(J)) $(DELEGATED)
 endif
 
-$(RAYLIB_SO): $(RAYLIB_LIB)
-	cc -shared -fPIC -o $@ $(call FORCE_LOAD,$(RAYLIB_LIB)) -lm -lpthread $(RAYLIB_SYS_FLAGS)
-
-$(TINYFD_SO): $(TINYFD_LIB)
-	cc -shared -fPIC -o $@ $(call FORCE_LOAD,$(TINYFD_LIB))
-
-EMSDK_DIR := vendor/emscripten
-EMCC ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emcc
-EMAR ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emar
-EMRANLIB ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emranlib
-
-NNG_LIB := vendor/nng/libnng.a
-NNG_FLAGS := -Lvendor/nng -lnng -lpthread $(NNG_SYS_FLAGS)
-
-LIBFFI_DIR := vendor/libffi
-LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
-LIBFFI_FLAGS = -L$(LIBFFI_LIBDIR) -lffi
-LIBFFI_BINDGEN_INCDIR := $(LIBFFI_DIR)/x86_64-pc-linux-gnu/include
-
-$(RAYLIB_LIB):
-	$(MAKE) -C vendor/raylib/src PLATFORM=PLATFORM_DESKTOP \
-	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include"
-
-# -fPIC so this archive can also be relinked into $(TINYFD_SO) above; its
-# non-PIC relocations fail a shared link otherwise.
-#
-# The Makefile prerequisite is what makes that flag actually reach an existing
-# tree. `make clean` does not touch vendor/, and make cannot see that a RECIPE
-# changed, so an archive compiled before -fPIC was added would sit there
-# forever and fail the shared link with "recompile with -fPIC" -- which is
-# exactly what happened. Depending on this file rebuilds the archive whenever
-# the recipe that produces it changes. raylib needs no equivalent: its own
-# Makefile adds -fPIC unconditionally for Linux, so its archive's linkability
-# does not depend on flags we pass (and rebuilding it on every Makefile edit
-# would cost minutes).
-$(TINYFD_LIB): vendor/tinyfiledialogs/tinyfiledialogs.c Makefile
-	cc -Wall -Wextra -fPIC -c -o vendor/tinyfiledialogs/tinyfiledialogs.o vendor/tinyfiledialogs/tinyfiledialogs.c
-	ar rcs $@ vendor/tinyfiledialogs/tinyfiledialogs.o
-
-# nng (nanomsg-next-gen) static lib, built from vendored source via cmake.
-# Static-only, no tests/tools/TLS to keep the build self-contained.
-$(NNG_LIB):
-	cmake -S vendor/nng -B vendor/nng/build -DCMAKE_BUILD_TYPE=Release \
-	  -DBUILD_SHARED_LIBS=OFF -DNNG_TESTS=OFF -DNNG_ENABLE_NNGCAT=OFF -DNNG_ENABLE_TLS=OFF
-	cmake --build vendor/nng/build --parallel
-	cp vendor/nng/build/libnng.a $@
+# --- Bootstrap ---
 
 # REM vendored libffi is release v3.7.1, vendored from the upstream git
 # tag (the release-tarball hosts are unreachable from bot sessions) with
@@ -136,7 +96,10 @@ $(NNG_LIB):
 # automake 1.16, libtool 2.4.7 + libltdl-dev for ltdl.m4) -- issue #304.
 # The 3.4.6-era local sysv.S cfi backport is upstream since 3.4.7;
 # nothing local is patched into this tree anymore.
-vendor/libffi/.built:
+#
+# This is the one vendored library the bootstrap needs, so it is the one
+# that stays here. The cross-compiled libffi builds are make.til's.
+$(LIBFFI_DIR)/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)
 ifeq ($(UNAME_S),Darwin)
@@ -152,55 +115,12 @@ ifeq ($(UNAME_S)-$(UNAME_M),Linux-aarch64)
 endif
 	touch $@
 
-# Bindings are produced by `bin/til bindings <header> -o <output.til>`
-# (src/self/binder.til wired through src/til.til). The binder takes one
-# C header, preprocesses with `cc -E -CC -dD`, filters back to the input
-# directory, and writes a `mode lib` til file. No library-specific
-# knowledge baked in -- callers add their own `link("...")` directive
-# next to the `import(...)` site (see src/til.til and src/modes/gui.til).
-#
-# Manual only: `make update_c_libs` regenerates the in-tree
-# vendor/bindings/*.til files.  Normal `make` / `make test` consumes
-# whatever is committed there.  This is intentional: the auto-generator
-# can't infer til-level qualifiers (proc vs func for purity, own vs ref
-# for pointer ownership, and never-NULL promises for pointers --
-# nullability lives in header comments, not in C's types) from C headers
-# alone, so the committed vendor/bindings/*.til files are hand-curated --
-# they happen to start their life as generator output but are edited
-# in-tree afterwards.
-# Running update_c_libs blows away those edits; redo the audit (see
-# doc/ffi.org) before committing.
-#
-# raylib needs two headers: raylib.h plus rcamera.h (which raylib.h does
-# not include but ships the CameraMoveForward/Right/Up helpers we need).
-# Each is generated to a transient tmp/ file and concatenated, stripping
-# the second `mode lib` so the combined file has exactly one mode
-# header. rcamera.h references Camera / Vector3 / Matrix without
-# including raylib.h; cc -E only preprocesses (no type checking) so the
-# binder emits those decls verbatim and they resolve against the
-# raylib.h block once the two are joined.
-#
-# nng generates from the single umbrella header nng/nng.h. The protocol
-# constructors (nng_pair0_open, nng_pub0_open, ...) live in separate
-# nng/protocol/*/*.h headers that reference NNG_DECL/nng_socket without
-# including nng.h, so they do NOT preprocess cleanly standalone; they are
-# hand-appended to vendor/bindings/nng.til (see the "Protocol
-# constructors" section there). After regenerating, re-apply the audited
-# hand-edits documented in doc/ffi.org (nng_logger alias, the non-shallow
-# logger param, and the protocol-constructor block).
-update_c_libs: bin/til | tmp
-	mkdir -p vendor/bindings
-	bin/til bindings -o vendor/bindings/tinyfd.til vendor/tinyfiledialogs/tinyfiledialogs.h
-	bin/til bindings -o vendor/bindings/libffi.til $(LIBFFI_BINDGEN_INCDIR)/ffi.h
-	bin/til bindings -o vendor/bindings/nng.til vendor/nng/include/nng/nng.h
-	bin/til bindings -o tmp/raylib_main.til vendor/raylib/src/raylib.h
-	bin/til bindings -o tmp/rcamera.til vendor/raylib/src/rcamera.h
-	cp tmp/raylib_main.til vendor/bindings/raylib.til
-	sed -e '/^mode lib$$/d' tmp/rcamera.til >> vendor/bindings/raylib.til
-
-# --- Boot compiler (from last commit, always safe) ---
-
-bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) $(FFI_SOS) vendor/libffi/.built
+# The recovery compiler: HEAD's committed boot/ and src/c/, extracted
+# with git so no uncommitted edit can reach it, compiled here. .PHONY
+# because its input is a commit and make cannot stat one -- a new HEAD
+# has to reconstruct it, which worktree mtimes would not notice.
+.PHONY: bin/til_boot
+bin/til_boot: $(LIBFFI_DIR)/.built
 	mkdir -p bin tmp/boot/boot tmp/boot/src/c
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
@@ -208,637 +128,14 @@ bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) $(FFI_SOS) vendor/libff
 	for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
 
-# --- The til build program (issue #345) ---
-#
-# make.til is the Nob-style build program: build policy as ordinary til
-# code instead of a second language embedded in this file. bin/make is a
-# generated artifact under the already-ignored bin/ tree -- never
-# committed, never installed, and rebuilt from make.til (by this rule,
-# and by bin/make itself) whenever the source is newer.
-#
-# This rule is the whole chicken-and-egg seam Make has to keep: it owns
-# producing bin/til_boot from the last commit and compiling the build
-# program with it. The prerequisites mirror make.til's own self_sources()
-# so both entry points agree on when bin/make is stale.
-#
-# Deliberately NOT a prerequisite of `all` yet: the migration in issue
-# #345 keeps the recipes below available beside their make.til
-# replacements until every target has been moved and compared.
-bin/make: make.til $(CORE) $(STD) $(wildcard src/c/*.c) $(wildcard src/c/*.h) bin/til_boot
+# The build program itself: a generated artifact under the already
+# ignored bin/ tree, never committed and never installed. bin/til_boot
+# is an ORDER-ONLY prerequisite: bin/make must be built with it, but the
+# bootstrap compiler is relinked on every invocation, so keying on its
+# mtime would recompile the build program every time for nothing.
+# Prerequisites otherwise mirror make.til's own self_sources(), so both
+# entry points agree on when bin/make is stale.
+bin/make: make.til $(CORE) $(STD) $(EXT_C) | bin/til_boot
 	bin/til_boot build -o bin/make make.til
-
-# --- Self-hosted compiler (current code) + regenerate boot/ ---
-
-bin/til: bin/til_boot $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
-	bin/til_boot build -o bin/til src/til.til
-	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
-
-# --- Two-pass build ---
-#
-# Pass 1 (the bin/til prerequisite) compiles current sources with til_boot
-# from HEAD. Pass 2 reruns the build using the freshly-compiled bin/til so
-# the resulting boot/til.c reflects the new compiler self-applied. Use this
-# when a single commit must ship both an emit-side change and the boot
-# artifacts that change would produce when applied to itself; without
-# two_pass the same outcome takes two commits (preparation + use, see
-# doc/self.org). Commits relying on this target MUST be prefixed
-# "Two-pass: " so the local merger reproduces the same regen procedure
-# (see doc/bots/merging_from_remote.org).
-two_pass: bin/til
-	bin/til build -o bin/til src/til.til
-	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
-
-# --- ASAN build (for memory debugging) ---
-#
-# Delegates to `bin/til build --asan`, which threads the sanitizer flags
-# through src/self/builder.til. Same recipe is reusable for any .til
-# program ("bin/til build --asan -o foo foo.til") so we can asan-test
-# compiled outputs, not just the compiler itself.
-bin/til_asan: bin/til $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
-	bin/til build --asan -o bin/til_asan src/til.til
-
-# --- Debug build (for gdb) ---
-
-bin/til_debug: bin/til
-	cc -g -O0 -Wall -Wextra -Werror -fsigned-char \
-	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
-	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) \
-	  -o bin/til_debug
-
-# --- Test programs ---
-
-bin/test_runner: bin/til $(CORE) $(STD) $(SELF) src/test_runner.til
-	bin/til build src/test_runner.til
-
-bin/plot: bin/til $(CORE) $(STD) $(SELF) examples/plot.til
-	bin/til build examples/plot.til
-
-bin/tests: bin/til $(CORE) $(STD) $(SELF) src/tests.til
-	bin/til build src/tests.til
-
-# --- Test suite ---
-
-test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests check_usize64 check_clang
-	$(XVFB_RUN) bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
-	cp gen/til/constfold.c test/constfold.c
-
-# Issue #309 regression: USize defaults to U32, so the whole suite above runs
-# at U32. This target covers the --usize=64 OPT-OUT: it forces the USize
-# container-width alias back to U64 on this 64-bit host (Str.size() 16 -> 24)
-# while the compiler binary itself stays U32. test/usize64.til asserts the wide
-# widths and round-trips strings/vecs, exiting non-zero on any mismatch. Run
-# both interpreted (compile-time constfold + interpreter fold code at U64) and
-# compiled (-DTIL_USIZE64 in the emitted C).
-#
-# test/usize64_comptime.til guards the compile-time interpreter's Str-view
-# folding at the OPPOSITE divergence -- a U32-host compiler folding U64-target
-# code: its macro body folds replace/find/contains (CAP_VIEW views) at the U64
-# target width. Built under ASAN so a heap-use-after-free from mis-widened
-# ownership sentinels aborts the compile.
-check_usize64: bin/til bin/til_asan tmp
-	bin/til --usize=64 test/usize64.til
-	bin/til build --usize=64 -o tmp/usize64 test/usize64.til
-	tmp/usize64
-	bin/til build --usize=64 -o tmp/usize64_sizes test/usize64_sizes.til
-	tmp/usize64_sizes
-	bin/til_asan build --usize=64 -o tmp/usize64_comptime test/usize64_comptime.til
-	tmp/usize64_comptime
-
-# Issue #321 follow-up: enforce the invariant the header comment above
-# already states -- the generated C must compile clean under
-# -Wall -Wextra -Werror on gcc AND clang. Nothing enforced it, and the
-# local loop is gcc-only, so a diagnostic clang implements and gcc does
-# not is invisible here: -Wswitch-bool on the niche enum's switch subject
-# (`switch (x.data != NULL)`) passed every linux job and broke every macOS
-# job for several commits, including the cross-build job that only runs
-# `make`. macOS CI runs on master, so the class was structurally
-# undetectable before merge. A syntax-only pass over the freshly emitted
-# compiler is ~2.6s -- a third of gcc's -- and covers the whole class.
-# boot/til.c is the exact artifact the mac jobs compile to build til_boot.
-check_clang: bin/til
-	@if command -v clang > /dev/null 2>&1; then \
-		clang -fsyntax-only -Wall -Wextra -Werror -fsigned-char \
-			-Isrc -Isrc/c -Iboot boot/til.c \
-		&& echo "check_clang: generated C is clang-clean"; \
-	else \
-		echo "check_clang: clang not installed on this host, skipping"; \
-	fi
-
-# test_fast: like `test` but without ASAN. It uses the regular compiler and
-# compiled test/example binaries run without sanitizer instrumentation, so the
-# suite is faster at the cost of not catching compiler or program leaks / heap
-# errors. Use for quick iteration; `make test` remains the default before
-# committing.
-test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize64 check_clang
-	$(XVFB_RUN) bin/tests $(if $(J),-j$(J))
-	cp gen/til/constfold.c test/constfold.c
-
-# Two-pass equivalent of `make test`. Runs pass 2 first so bin/til reflects
-# the self-applied compiler before tests build dependents from it. Use this
-# when committing a "Two-pass: " change (see doc/self.org and the Makefile
-# header comment on the two_pass target). check_usize64 runs against the
-# two-pass compiler too (issue #309: the --usize=64 opt-out, previously gated
-# only by `test`/`test_fast`) -- invoked after the pass-2 rebuild so it exercises
-# the self-applied bin/til / bin/til_asan, not the pre-two_pass ones.
-#
-# `-o bin/til_boot -o bin/til` is what makes that true. check_usize64 lists
-# bin/til as a prerequisite, and bin/til comes from bin/til_boot, whose own
-# prerequisite `tmp` is .PHONY -- deliberately, since til_boot is built from
-# `git show HEAD:boot/...` and make cannot see that input as a file, so it has
-# to rebuild every invocation. In a RECURSIVE make that combination re-ran
-# pass 1 and its `cp gen/til/til.c boot/` overwrote the pass-2 artifacts this
-# target exists to produce, silently reducing every "Two-pass: " commit to an
-# ordinary one-pass boot/. --old-file pins both as current for the sub-make,
-# so check_usize64 runs against the self-applied compiler and boot/ keeps
-# pass 2. (`test` needs none of this: it reaches check_usize64 as an ordinary
-# prerequisite in a single make invocation, with no recursion to re-trigger
-# pass 1.)
-test_two_pass:
-	$(MAKE) two_pass
-	bin/til build --asan -o bin/til_asan src/til.til
-	$(MAKE) -o bin/til_boot -o bin/til check_usize64 check_clang
-	bin/til build src/test_runner.til
-	bin/til build examples/plot.til
-	bin/til build src/tests.til
-	$(XVFB_RUN) bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
-	cp gen/til/constfold.c test/constfold.c
-
-# ASAN target names are kept as aliases for scripts and muscle memory. The
-# default `test` target is now the strict full-ASAN suite: it runs the suite via
-# bin/til_asan and passes --asan through to compiled binaries.
-test_asan: test
-
-test_asan_full: test
-
-test_nogui: bin/til bin/test_runner bin/plot bin/tests
-	bin/tests --no-gui $(if $(J),-j$(J))
-
-# --- Doc generator (regenerates doc/gen/ org+HTML+search and UML docs) ---
-#
-# Run on demand, not from `make test` -- doc gen on src/til.til runs the
-# full init+typer pipeline and adds ~1 minute of wall time. Includes
-# examples/uml.til, which is expensive enough to keep out of `make test`.
-# Commit the refreshed doc/gen/ tree and UML outputs alongside
-# notable doc-affecting changes.
-doc: bin/til
-	rm -rf doc/gen
-	bin/til doc src/til.til
-	bin/til run examples/uml.til
-
-# --- Issue summary generator (regenerates issues/summary.org) ---
-#
-# Runs examples/issues.til which walks issues/open/, parses each
-# .org file, and writes issues/summary.org.  Use instead of `make test`
-# when only issue tracking files changed (Doc: commits).
-summary: tmp bin/til
-	bin/til run examples/issues.til
-
-install: bin/til
-	bin/til install src/til.til
-# Shared writable scratch dir for targets that need it (test_repl_help
-# writes the REPL stdin/stdout fixtures there; til_boot copies snapshot
-# sources into tmp/boot/).
-tmp:
-	mkdir -p tmp
-
-# --- REPL help() smoke test ---
-#
-# Pipes a single help() call into bin/til, captures stdout, and verifies
-# the expected core doc text appears. Run on demand because the REPL
-# still runs the compiler pipeline per turn, which is too expensive for
-# `make test`. The test driver itself is a TIL script (mode cli) --
-# test/repl_help.til.
-test_repl_help: bin/til tmp
-	bin/til run test/repl_help.til
-
-# --- Windows cross-compilation ---
-
-# Mingw-cross builds of raylib + tinyfd. Linux native builds stay in
-# vendor/raylib/src/libraylib.a / vendor/tinyfiledialogs/libtinyfd.a; the
-# Windows variants land alongside with -win64 suffixes. raylib's
-# Makefile builds .o files in its own src/ dir, so we copy the sources
-# into tmp/raylib-win/ first to avoid clobbering Linux .o files.
-RAYLIB_WIN_LIB := vendor/raylib/src/libraylib-win64.a
-TINYFD_WIN_LIB := vendor/tinyfiledialogs/libtinyfd-win64.a
-
-$(RAYLIB_WIN_LIB):
-	rm -rf tmp/raylib-win
-	mkdir -p tmp/raylib-win
-	cp -r vendor/raylib/src/. tmp/raylib-win/
-	$(MAKE) -C tmp/raylib-win clean
-	$(MAKE) -C tmp/raylib-win \
-	  PLATFORM=PLATFORM_DESKTOP PLATFORM_OS=WINDOWS \
-	  CC=x86_64-w64-mingw32-gcc AR=x86_64-w64-mingw32-ar \
-	  RAYLIB_LIB_NAME=raylib-win64 RAYLIB_RELEASE_PATH=.
-	cp tmp/raylib-win/libraylib-win64.a $@
-
-$(TINYFD_WIN_LIB):
-	mkdir -p tmp
-	x86_64-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win.o vendor/tinyfiledialogs/tinyfiledialogs.c
-	x86_64-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win.o
-
-# windows-x86 (32-bit) variants via the mingw i686 toolchain (issue #232).
-# Same recipe as -win64 with the i686 compiler and a -win32 suffix; mingw
-# supplies the win32 GL/GDI backend, so no 32-bit sysroot is needed.
-RAYLIB_WIN32_LIB := vendor/raylib/src/libraylib-win32.a
-TINYFD_WIN32_LIB := vendor/tinyfiledialogs/libtinyfd-win32.a
-
-$(RAYLIB_WIN32_LIB):
-	rm -rf tmp/raylib-win32
-	mkdir -p tmp/raylib-win32
-	cp -r vendor/raylib/src/. tmp/raylib-win32/
-	$(MAKE) -C tmp/raylib-win32 clean
-	$(MAKE) -C tmp/raylib-win32 \
-	  PLATFORM=PLATFORM_DESKTOP PLATFORM_OS=WINDOWS \
-	  CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar \
-	  RAYLIB_LIB_NAME=raylib-win32 RAYLIB_RELEASE_PATH=.
-	cp tmp/raylib-win32/libraylib-win32.a $@
-
-$(TINYFD_WIN32_LIB):
-	mkdir -p tmp
-	i686-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win32.o vendor/tinyfiledialogs/tinyfiledialogs.c
-	i686-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win32.o
-
-# linux-x86 (32-bit) gui variants via gcc -m32 / multilib (issue #232).
-# raylib compiles against the VENDORED X11 headers (vendor/x11/include,
-# arch-independent -- same as the native recipe) and GLFW dlopens libX11
-# at runtime, so the final gui link needs no 32-bit X11 sysroot: only
-# gcc-multilib (32-bit libc) is required, same dep the CI linux-x86 job
-# already installs for the CLI target.
-RAYLIB_X86_LIB := vendor/raylib/src/libraylib-x86.a
-TINYFD_X86_LIB := vendor/tinyfiledialogs/libtinyfd-x86.a
-
-$(RAYLIB_X86_LIB):
-	rm -rf tmp/raylib-x86
-	mkdir -p tmp/raylib-x86
-	cp -r vendor/raylib/src/. tmp/raylib-x86/
-	$(MAKE) -C tmp/raylib-x86 clean
-	$(MAKE) -C tmp/raylib-x86 PLATFORM=PLATFORM_DESKTOP \
-	  CUSTOM_CFLAGS="-m32 -DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include" \
-	  RAYLIB_LIB_NAME=raylib-x86 RAYLIB_RELEASE_PATH=.
-	cp tmp/raylib-x86/libraylib-x86.a $@
-
-$(TINYFD_X86_LIB):
-	mkdir -p tmp
-	cc -m32 -c -o tmp/tinyfiledialogs-x86.o vendor/tinyfiledialogs/tinyfiledialogs.c
-	ar rcs $@ tmp/tinyfiledialogs-x86.o
-
-# linux-arm32 gui variants via the same cross gcc the CLI target uses
-# (issue #232). Same story as -x86: vendored X11 headers for the compile,
-# GLFW dlopens libX11 on the target device at runtime, so no ARM X11
-# sysroot is needed to build or link -- only gcc-arm-linux-gnueabihf.
-RAYLIB_ARM32_LIB := vendor/raylib/src/libraylib-arm32.a
-TINYFD_ARM32_LIB := vendor/tinyfiledialogs/libtinyfd-arm32.a
-
-$(RAYLIB_ARM32_LIB):
-	rm -rf tmp/raylib-arm32
-	mkdir -p tmp/raylib-arm32
-	cp -r vendor/raylib/src/. tmp/raylib-arm32/
-	$(MAKE) -C tmp/raylib-arm32 clean
-	$(MAKE) -C tmp/raylib-arm32 PLATFORM=PLATFORM_DESKTOP \
-	  CC=arm-linux-gnueabihf-gcc AR=arm-linux-gnueabihf-ar \
-	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include" \
-	  RAYLIB_LIB_NAME=raylib-arm32 RAYLIB_RELEASE_PATH=.
-	cp tmp/raylib-arm32/libraylib-arm32.a $@
-
-$(TINYFD_ARM32_LIB):
-	mkdir -p tmp
-	arm-linux-gnueabihf-gcc -c -o tmp/tinyfiledialogs-arm32.o vendor/tinyfiledialogs/tinyfiledialogs.c
-	arm-linux-gnueabihf-ar rcs $@ tmp/tinyfiledialogs-arm32.o
-
-# linux-riscv32 gui variants (issue #232). Identical recipe shape, but no
-# distro ships a riscv32 gcc -- the CI job downloads the Bootlin
-# toolchain, so the compiler is a parameter: pass RISCV32_CC=<path> (and
-# the matching ar is derived from it). target_gui_libs(LinuxRiscv32)
-# points at these paths.
-RAYLIB_RISCV32_LIB := vendor/raylib/src/libraylib-riscv32.a
-TINYFD_RISCV32_LIB := vendor/tinyfiledialogs/libtinyfd-riscv32.a
-RISCV32_AR = $(dir $(RISCV32_CC))$(patsubst %-gcc,%-ar,$(notdir $(RISCV32_CC)))
-
-$(RAYLIB_RISCV32_LIB):
-	test -n "$(RISCV32_CC)" || { echo "ERROR: pass RISCV32_CC=<path to riscv32 gcc> (e.g. the Bootlin toolchain)"; exit 1; }
-	rm -rf tmp/raylib-riscv32
-	mkdir -p tmp/raylib-riscv32
-	cp -r vendor/raylib/src/. tmp/raylib-riscv32/
-	$(MAKE) -C tmp/raylib-riscv32 clean
-	$(MAKE) -C tmp/raylib-riscv32 PLATFORM=PLATFORM_DESKTOP \
-	  CC=$(RISCV32_CC) AR=$(RISCV32_AR) \
-	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include" \
-	  RAYLIB_LIB_NAME=raylib-riscv32 RAYLIB_RELEASE_PATH=.
-	cp tmp/raylib-riscv32/libraylib-riscv32.a $@
-
-$(TINYFD_RISCV32_LIB):
-	test -n "$(RISCV32_CC)" || { echo "ERROR: pass RISCV32_CC=<path to riscv32 gcc> (e.g. the Bootlin toolchain)"; exit 1; }
-	mkdir -p tmp
-	$(RISCV32_CC) -c -o tmp/tinyfiledialogs-riscv32.o vendor/tinyfiledialogs/tinyfiledialogs.c
-	$(RISCV32_AR) rcs $@ tmp/tinyfiledialogs-riscv32.o
-
-# tinyfd cross-built for macOS (issue #25 phase 3, mac gui cross): one .c
-# file that only needs libc (it shells out to osascript), so it
-# cross-compiles on any host against the SDK-less vendored headers -- no
-# mac required. raylib for mac is likewise built from source on any host
-# (RAYLIB_MAC_*_LIB below), against the framework-type shims.
-TINYFD_MAC_ARM64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-arm64.a
-TINYFD_MAC_X64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-x64.a
-$(TINYFD_MAC_ARM64_LIB): | tmp check_mac_cross_tools
-	clang -target arm64-apple-macos11 -nostdlibinc -isystem vendor/macos/include -c vendor/tinyfiledialogs/tinyfiledialogs.c -o tmp/tinyfd-macos-arm64.o
-	llvm-ar rcs $@ tmp/tinyfd-macos-arm64.o
-$(TINYFD_MAC_X64_LIB): | tmp check_mac_cross_tools
-	clang -target x86_64-apple-macos11 -nostdlibinc -isystem vendor/macos/include -c vendor/tinyfiledialogs/tinyfiledialogs.c -o tmp/tinyfd-macos-x64.o
-	llvm-ar rcs $@ tmp/tinyfd-macos-x64.o
-
-# raylib cross-built for macOS FROM LINUX -- no mac, no Apple SDK (issue #25
-# phase 3 / #232). Mac has no redistributable SDK like mingw, BUT raylib's
-# RGFW desktop backend drives Cocoa through the objc runtime (objc_msgSend)
-# and only needs framework *type* headers, vendored as SDK-less shims under
-# vendor/macos/frameworks-shim (Cocoa/OpenGL bind at runtime). So clang
-# cross-compiles raylib's RGFW/OpenGL backend to a mac .a on linux. miniaudio
-# runtime-links CoreAudio (dlopen) and glad runtime-links OpenGL, so neither
-# leaves link symbols; the remaining framework symbols (CoreFoundation/
-# CoreGraphics/IOKit/libobjc/HIToolbox) resolve against the generated .tbd
-# stubs below. rglfw.c is NOT built (that is the GLFW backend; RGFW replaces
-# it). This is the mac analogue of the mingw-cross win raylib.
-RAYLIB_MAC_MODULES := rcore rshapes rtextures rtext rmodels raudio
-RAYLIB_MAC_CFLAGS  := -O1 -DPLATFORM_DESKTOP_RGFW -DGRAPHICS_API_OPENGL_33 \
-  -isystem vendor/macos/include -Ivendor/macos/frameworks-shim -Ivendor/raylib/src -Wno-static-in-inline
-RAYLIB_MAC_ARM64_LIB := vendor/raylib/src/libraylib-macos-arm64.a
-RAYLIB_MAC_X64_LIB   := vendor/raylib/src/libraylib-macos-x64.a
-
-# Preflight for every SDK-less mac-cross artifact. Order-only prereq of
-# the mac targets themselves (not just build_mac) because make builds
-# prerequisites BEFORE the build_mac recipe runs -- a missing tool used
-# to die mid-recipe with a bare "llvm-ar: not found" (a user hit exactly
-# that: clang installed, llvm package absent). clang emits the Mach-O
-# objects, ld.lld links them (via bin/til), llvm-ar indexes the archives
-# (GNU ar/ranlib do not understand Mach-O members), and llvm-nm feeds
-# the stub generator.
-.PHONY: check_mac_cross_tools
-check_mac_cross_tools:
-	@command -v clang   >/dev/null 2>&1 || { echo "ERROR: the macOS cross-build needs clang -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
-	@command -v ld.lld  >/dev/null 2>&1 || { echo "ERROR: the macOS cross-build links via 'clang -fuse-ld=lld' and needs the lld linker -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
-	@command -v llvm-ar >/dev/null 2>&1 || { echo "ERROR: the macOS cross-build archives Mach-O objects with llvm-ar (GNU ar cannot) -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
-	@command -v llvm-nm >/dev/null 2>&1 || { echo "ERROR: the macOS framework stub generator reads symbols with llvm-nm -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
-
-$(RAYLIB_MAC_ARM64_LIB): | tmp check_mac_cross_tools
-	rm -rf tmp/raylib-macos-arm64 && mkdir -p tmp/raylib-macos-arm64
-	for m in $(RAYLIB_MAC_MODULES); do \
-	  clang -target arm64-apple-macos11 -c $(RAYLIB_MAC_CFLAGS) vendor/raylib/src/$$m.c -o tmp/raylib-macos-arm64/$$m.o || exit 1; \
-	done
-	llvm-ar rcs $@ tmp/raylib-macos-arm64/*.o
-
-$(RAYLIB_MAC_X64_LIB): | tmp check_mac_cross_tools
-	rm -rf tmp/raylib-macos-x64 && mkdir -p tmp/raylib-macos-x64
-	for m in $(RAYLIB_MAC_MODULES); do \
-	  clang -target x86_64-apple-macos11 -c $(RAYLIB_MAC_CFLAGS) vendor/raylib/src/$$m.c -o tmp/raylib-macos-x64/$$m.o || exit 1; \
-	done
-	llvm-ar rcs $@ tmp/raylib-macos-x64/*.o
-
-# Framework .tbd link stubs, generated ON LINUX from the archives' true
-# external symbols (examples/gen_framework_stubs.til --linux-map maps each
-# by symbol prefix to its owning framework -- no `nm -m`, which only
-# annotates linked Mach-O on a mac, and no SDK). The real Cocoa/OpenGL/...
-# dylibs live on every mac and bind at runtime, exactly like the vendored
-# libSystem.tbd. The generator is a til program (repo tooling stays til).
-MAC_FRAMEWORK_STUBS := vendor/macos/frameworks/.stamp
-$(MAC_FRAMEWORK_STUBS): bin/til $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) examples/gen_framework_stubs.til | check_mac_cross_tools
-	rm -rf vendor/macos/frameworks && mkdir -p vendor/macos/frameworks
-	bin/til run examples/gen_framework_stubs.til --linux-map vendor/macos/frameworks \
-	  $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB)
-	touch $@
-
-# libffi cross-built for win64. Needed to cross-compile til.exe itself
-# (the compiler links libffi for its ext_func interpreter dispatch --
-# windows AS A HOST, issue #25) and any windows program that calls
-# ext_func at runtime. mingw's triple is fixed, so configure lands the
-# build in a predictable x86_64-w64-mingw32/ subdir that target_ffi_lib
-# points at directly; we build that subdir with -C rather than via the
-# top-level Makefile, which AX_ENABLE_BUILDDIR repoints per configure
-# run. Depends on the native .built so the host libffi is configured
-# first and its stable archive is never disturbed by this second
-# configure (different per-triple subdir).
-LIBFFI_WIN_LIB := vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a
-$(LIBFFI_WIN_LIB): vendor/libffi/.built
-	cd $(LIBFFI_DIR) && ./configure --host=x86_64-w64-mingw32 --disable-shared --enable-static --disable-docs --quiet
-	$(MAKE) -C $(LIBFFI_DIR)/x86_64-w64-mingw32
-
-# libffi cross-built for win32 (mingw i686) -- runtime ext_func in
-# 32-bit windows programs and a 32-bit til.exe host (issue #232). Its
-# own per-triple subdir, so it never disturbs the win64/native builds.
-LIBFFI_WIN32_LIB := vendor/libffi/i686-w64-mingw32/.libs/libffi.a
-$(LIBFFI_WIN32_LIB): vendor/libffi/.built
-	cd $(LIBFFI_DIR) && ./configure --host=i686-w64-mingw32 --disable-shared --enable-static --disable-docs --quiet
-	$(MAKE) -C $(LIBFFI_DIR)/i686-w64-mingw32
-
-# nng cross-built for win64 (mode server / the nng custom modes). nng's
-# cmake rejects "legacy mingw" unless three C11 symbols probe true
-# (timespec_get, condvar, snprintf); mingw only exposes timespec_get +
-# its TIME_UTC macro under the UCRT. We do NOT build against the UCRT,
-# though: a UCRT nng imports ucrtbase.dll, and since Ubuntu's mingw
-# startup (crt2.o) is msvcrt, the program ends up importing BOTH
-# ucrtbase.dll and msvcrt.dll -- a dual-CRT binary that real Windows
-# refuses to load (issue #25: the windows-host exit-127; wine tolerated
-# it, which hid the bug). Instead force the three probes true, define
-# TIME_UTC so nng compiles, and let it link the plain msvcrt; the one
-# genuinely-missing function, timespec_get, is supplied by ext.c's
-# msvcrt shim. The final program then imports only msvcrt.dll (verified:
-# the cross-built binaries match the working single-CRT hello_script.exe
-# profile and run under wine). Built in its own build-win64/ dir so the
-# native nng build is untouched.
-NNG_WIN_LIB := vendor/nng/build-win64/libnng.a
-$(NNG_WIN_LIB):
-	cmake -S vendor/nng -B vendor/nng/build-win64 -DCMAKE_BUILD_TYPE=Release \
-	  -DBUILD_SHARED_LIBS=OFF -DNNG_TESTS=OFF -DNNG_ENABLE_NNGCAT=OFF -DNNG_ENABLE_TLS=OFF \
-	  -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
-	  -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
-	  -DCMAKE_C_FLAGS="-DTIME_UTC=1" -DNNG_HAVE_TIMESPEC_GET=1 -DNNG_HAVE_CONDVAR=1 -DNNG_HAVE_SNPRINTF=1
-	cmake --build vendor/nng/build-win64 --parallel
-
-# The nng custom-mode examples (sender/receiver/publisher/subscriber),
-# consumed via --extra-modes and linking libnng, are shared by the win
-# and mac server sweeps.
-SERVER_EXAMPLES := examples/sender.til examples/receiver.til examples/publisher.til examples/subscriber.til
-
-# Excluded from the bin/%.exe pattern sweep (mirrors the mac sweep):
-# raylib.til is a direct-FFI demo with hardcoded Linux link() paths (not
-# mode gui); custom_modes.til is a mode-DEFINITIONS file consumed via
-# --extra-modes, not a standalone program; bench_hashmap.til has a stale
-# parse error on every platform. The server examples need --extra-modes
-# + the win64 nng, so they build via win_server below.
-WIN_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/custom_modes.til examples/bench_hashmap.til $(SERVER_EXAMPLES),$(wildcard examples/*.til))
-WIN_EXAMPLES := $(patsubst examples/%.til,bin/%.exe,$(WIN_EXAMPLES_SRC))
-
-build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES) win_server
-win_server: bin/til $(NNG_WIN_LIB)
-	for f in $(SERVER_EXAMPLES); do \
-	  bin/til build --target=windows-x64 --extra-modes=examples/custom_modes.til \
-	    -o bin/$$(basename $$f .til).exe $$f || exit 1; \
-	done
-
-bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
-	bin/til build --target=windows-x64 $<
-
-# windows-x86 (32-bit) sweep -- issue #232. Mirrors build_win for the
-# i686 mingw toolchain; outputs get a -x86 suffix so they sit next to the
-# win64 .exe. mingw supplies the win32 GL/GDI backend, so the gui examples
-# link libraylib-win32.a + libtinyfd-win32.a with no 32-bit sysroot. The
-# nng mode-server examples stay win64-only (no win32 nng build), so this
-# sweep covers the portable + gui examples -- the same WIN_EXAMPLES_SRC.
-build_win32: $(RAYLIB_WIN32_LIB) $(TINYFD_WIN32_LIB) bin/til
-	for f in $(WIN_EXAMPLES_SRC); do \
-	  bin/til build --target=windows-x86 \
-	    -o bin/$$(basename $$f .til)-x86.exe $$f || exit 1; \
-	done
-
-# til.exe: the compiler itself cross-built for a windows HOST (issue
-# #25). Like the native compiler it links the win64 libffi AND libnng so
-# the interpreter/constfolder ext_func dispatch works when til runs ON
-# windows -- hence both are prerequisites (without NNG_WIN_LIB the link
-# fails: mingw-ld cannot find vendor/nng/build-win64/libnng.a). Not part
-# of build_win (that sweeps example programs); this is the compiler.
-build_win_host: bin/til.exe
-
-bin/til.exe: bin/til $(LIBFFI_WIN_LIB) $(NNG_WIN_LIB) $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
-	bin/til build --target=windows-x64 -o bin/til.exe src/til.til
-
-# --- macOS builds (issue #25) ---
-#
-# build_mac mirrors build_win. On a mac host it sweeps every example
-# natively (including gui: the vendored raylib/tinyfd/nng/libffi are
-# mac-native at the same vendor paths there), arch following the host.
-# On any other host it CROSS-compiles for BOTH mac arches using the
-# vendored SDK-less toolchain (vendor/macos: zig's darwin libc headers
-# + libSystem.tbd, driven by clang -target + lld -- issue #25 phase 2).
-# Outputs get -macos-arm64 / -macos-x64 suffixes since there is no
-# .exe-style extension to tell mac binaries apart.
-#
-# Exclusions: raylib.til is a direct raylib FFI demo (mode script, not
-# mode gui), so the builder never adds the desktop frameworks its final
-# link needs on mac. The cross sweep additionally skips the mode server
-# examples: their libnng archive is a mac-native vendored file that does
-# not exist in-tree (mode gui DOES cross-sweep -- its raylib/tinyfd
-# archives build from source on linux, see RAYLIB_MAC_*_LIB).
-# bench_hashmap.til is excluded because it does not parse (stale
-# `HashMap(I64, I64).hasher = fnv1a` syntax at line 165, fails
-# identically on linux; no sweep has ever built it). custom_modes.til
-# is excluded because it is not a standalone program: it is a
-# mode-definitions file consumed via --extra-modes (see the
-# build_sender/build_receiver/... tests in src/tests.til); building it
-# directly redefines the built-in modes.
-MAC_TARGET := $(if $(filter arm64,$(UNAME_M)),macos-arm64,macos-x64)
-# Native sweep (mac host): the portable modes PLUS gui -- a real mac has
-# the Apple frameworks the SDK-less cross toolchain lacks, so the 15
-# mode-gui examples (chess, go, shootil, ...) link natively against the
-# freshly-built vendor/raylib + vendor/tinyfd. mode server / the nng
-# custom modes still need a native libnng (phase 3), so the same
-# cli|script|pure|lib|gui whitelist as the cross sweep, plus gui.
-# raylib.til (direct-FFI demo, linux link() paths) and bench_hashmap.til
-# (does not parse) stay out.
-MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til,$(shell grep -l -E '^mode (cli|script|pure|lib|gui)$$' examples/*.til))
-# Cross sweep whitelist by mode. cli|script|pure|lib always cross-compile
-# (portable, no desktop libs). mode gui ALSO cross-compiles now: raylib's
-# RGFW desktop backend builds for mac ON LINUX against the SDK-less
-# framework-type shims (vendor/macos/frameworks-shim) -- see RAYLIB_MAC_*_LIB
-# above -- so no mac and no prebuilt vendored archive are needed (the
-# analogue of the mingw-cross win raylib). server / the nng custom modes
-# link the linux-built vendored libnng.a via the SERVER path, not this sweep.
-MAC_CROSS_GUI_MODE := |gui
-MAC_CROSS_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(shell grep -l -E '^mode (cli|script|pure|lib$(MAC_CROSS_GUI_MODE))$$' examples/*.til))
-
-# The nng custom-mode examples (SERVER_EXAMPLES, defined by the windows
-# section above) build on a mac host against the native mac libnng
-# (nng's posix/mac backend needs only libSystem, no frameworks), like
-# the linux build_sender/... suite tests -- just with the mac target.
-ifeq ($(UNAME_S),Darwin)
-build_mac: bin/til $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB)
-	for f in $(MAC_EXAMPLES_SRC); do \
-	  bin/til build --target=$(MAC_TARGET) $$f || exit 1; \
-	done
-	for f in $(SERVER_EXAMPLES); do \
-	  bin/til build --target=$(MAC_TARGET) --extra-modes=examples/custom_modes.til $$f || exit 1; \
-	done
-else
-# Linux -> macOS cross needs the LLVM toolchain: clang (Mach-O codegen),
-# lld (links + ad-hoc-signs arm64 via -fuse-ld=lld), llvm-ar/llvm-nm (mac
-# archives + stub generation). A bare checkout often has clang alone and
-# dies mid-build with cryptic errors; check_mac_cross_tools (an
-# order-only prereq here AND of every mac artifact target, since
-# prerequisites build before this recipe runs) names the missing tool
-# with the apt hint instead.
-build_mac: bin/til $(if $(MAC_CROSS_GUI_MODE),$(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) $(TINYFD_MAC_ARM64_LIB) $(TINYFD_MAC_X64_LIB) $(MAC_FRAMEWORK_STUBS)) | check_mac_cross_tools
-	for f in $(MAC_CROSS_EXAMPLES_SRC); do \
-	  b=$$(basename $$f .til); \
-	  bin/til build --target=macos-arm64 -o bin/$$b-macos-arm64 $$f || exit 1; \
-	  bin/til build --target=macos-x64 -o bin/$$b-macos-x64 $$f || exit 1; \
-	done
-endif
-
-# --- Browser WASM cross-compilation ---
-
-RAYLIB_WASM_LIB := vendor/raylib/src/libraylib-web.a
-
-$(EMCC):
-	git clone https://github.com/emscripten-core/emsdk.git $(EMSDK_DIR)
-	$(EMSDK_DIR)/emsdk install latest
-	$(EMSDK_DIR)/emsdk activate latest
-
-$(RAYLIB_WASM_LIB): $(EMCC)
-	rm -rf tmp/raylib-web
-	mkdir -p tmp/raylib-web
-	cp -r vendor/raylib/src/. tmp/raylib-web/
-	$(MAKE) -C tmp/raylib-web clean
-	$(MAKE) -C tmp/raylib-web \
-	  PLATFORM=PLATFORM_WEB CC=$(EMCC) AR=$(EMAR) RANLIB=$(EMRANLIB) \
-	  RAYLIB_LIB_NAME=raylib-web RAYLIB_RELEASE_PATH=.
-	cp tmp/raylib-web/libraylib-web.web.a $@
-
-WASM_EXAMPLES_SRC := $(filter examples/shootil.til,$(wildcard examples/*.til))
-WASM_EXAMPLES := $(patsubst examples/%.til,bin/%.html,$(WASM_EXAMPLES_SRC))
-
-build_wasm: two_pass $(RAYLIB_WASM_LIB) $(WASM_EXAMPLES)
-
-bin/%.html: examples/%.til bin/til $(RAYLIB_WASM_LIB)
-	bin/til build --target=wasm32 --cc="$(EMCC)" -o $@ $<
-
-# --- Utilities ---
-
-help:
-	echo "make                Build bin/til + regenerate boot/"
-	echo "make test           Build + run full ASAN tests"
-	echo "make test_fast      Build + run tests without ASAN"
-	echo "make two_pass       Build, then rebuild with the fresh bin/til"
-	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
-	echo "make build_mac      Build mac examples (native on a mac; SDK-less cross for both arches elsewhere)"
-	echo "make build_wasm     Build browser WASM examples"
-	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
-	echo "make doc            Regenerate doc/gen/ and UML docs"
-	echo "make summary        Regenerate issues/summary.org from issues/open/"
-	echo "make install        Install til under PREFIX (default /usr/local)"
-	echo "make clean          Remove build artifacts"
-	echo "make clean_vendor   Remove vendored libraries' build artifacts (after vendor upgrades)"
-	echo ""
-	echo "bin/til_boot  From last commit (git). Always works."
-	echo "bin/til       From current sources. May break."
-	echo "boot/         Generated C. Committed for til_boot."
-	echo ""
-	echo "Workflow: make test, then commit (including boot/)."
-	echo "Recovery: git checkout HEAD boot/ && make test"
-
-clean:
-	rm -rf bin/* gen/*
-	rm -rf tmp/boot
-
-# Remove the vendored libraries' build artifacts (untracked: .o files,
-# .a archives incl. the -win64/-web/stable-path variants, nng's cmake
-# build dir, libffi's configured tree + .built stamp) so the next make
-# rebuilds them from the committed sources. Separate from `clean` so
-# normal rebuilds stay fast; needed after upgrading a vendored library
-# (e.g. the libffi 3.4.6 -> 3.7.1 swap, issue #304: a stale .built
-# stamp would otherwise keep linking the old archive). git clean is
-# used instead of each library's own `make clean` because after a tree
-# swap the leftover generated build system belongs to the OLD version.
-# vendor/emscripten is deliberately excluded: it is a downloaded SDK,
-# not a build artifact of committed sources.
-clean_vendor:
-	git clean -fdx vendor/raylib vendor/tinyfiledialogs vendor/nng vendor/libffi

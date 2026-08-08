@@ -1,0 +1,673 @@
+# priority: medium
+# category: cleanups
+** FIXED #345 Move build orchestration from Makefile into make.til
+
+*** Post-mortem
+
+The Makefile was 825 lines of a second implementation language. Most of
+it was not bootstrap: it was policy -- which artifact depends on what,
+which command produces it, what differs per host -- expressed in a
+language with no functions, no records, and no way to say "run this
+argv". It is now 141 lines, and every one of them is bootstrap or goal
+delegation.
+
+What was actually in the way, and had to be built first: there was no
+way to run a program from til without a shell. ~spawn_cmd~ hands a
+STRING to /bin/sh (or cmd.exe), so a build program would have had to
+quote every path back out of a command line, differently per host, and
+one path with a space in it would have either broken or silently run
+something else. ~run_cmd~ additionally funnelled every capture through
+one ~tmp/_run_cmd_out~ file, which two commands cannot share. So the
+first commit added an argv-based command to the existing std/C
+boundary (~Cmd~ over ~ccmd_*~ in ~src/c/ext.c~) plus the filesystem
+operations the Makefile was reaching through the shell for: directory
+iteration, path types, ~rm -rf~, and the atomic rename a
+self-rebuilding program swaps itself in with (~Dir~, ~File.is_dir~,
+~File.is_file~, ~File.remove_tree~, ~File.rename~).
+
+On top of that, ~make.til~ -- compiled to ~bin/make~, a generated
+artifact under ~bin/~ that is never committed and never installed. It
+is a program, in the nob.h sense: functions that call the steps they
+depend on, mtime checks, and commands run in order. One ~Build~ per
+invocation memoizes finished steps, so a multi-goal request does shared
+work once; one command table drives dispatch, ~help~ and the alias
+list, so those cannot drift apart; artifact paths are entries in that
+same table, so ~make vendor/raylib/src/libraylib-x86.a~ still names
+something. It rebuilds and re-runs itself when ~make.til~ changes,
+keeping the previous executable until the replacement exists.
+
+Two things fell out of moving the policy into a language with
+functions. ~test_two_pass~ no longer needs the Makefile's ~$(MAKE) -o
+bin/til_boot -o bin/til~ trick: per-invocation memoization means pass 1
+cannot be re-entered to overwrite the pass-2 ~boot/~, so the target is
+just statements in order. And the bootstrap link turned out to be much
+smaller than it looked: ~bin/til_boot~ references libffi and nothing
+else vendored, so raylib, tinyfd, nng, their shared twins, ~-lrt~,
+~-latomic~ and the macOS desktop frameworks all left the Makefile for
+~make.til~, where ~bin/til~ -- which does link them -- is built.
+Verified by linking the bootstrap without them, not by assuming it.
+
+No behaviour changed. Every entry point works as before (~make~,
+~make test~, ~make test_two_pass~, ~make build_win_host win_server~,
+direct artifact goals, ~J~ and ~RISCV32_CC~ on the command line), and
+~make <goals>~ is now literally ~bin/make <goals>~ with a bootstrap in
+front of it.
+
+Regression coverage: ~test/process.til~ (argv execution: spaces, both
+quote characters, empty arguments, non-zero exits, signal deaths,
+stream separation and merging, redirection, cwd, environment
+overrides, concurrent captures, poll/status, rendering) and the
+directory/tree/rename tests in ~test/files.til~. The build program
+itself is covered the way a build is: ~make clean && make test~ and
+~bin/make clean~ + ~make bin/make~ + ~bin/make test~ both run the full
+suite, and CI exercises the delegation path in every job plus the
+direct ~bin/make~ interface in the macOS gui cross job.
+
+One thing the migration surfaced, and fixed here: ~make install~ had
+been broken since 2026-07-25 (d3ba00f9 moved ~lib/~ to ~examples/lib/~
+and updated the Makefile, the tests and the examples, but not
+~install_compiler_support~, which kept copying a ~<root>/lib~ that no
+longer existed). Every install planted the binary and then died on
+"failed to install compiler library sources". Running each moved target
+once is what found it -- nothing in the suite had ever run ~install~,
+which is why two weeks passed. The stale copy is gone and
+~test/install.til~ now installs the compiler under ~tmp/~ and builds a
+program with the result.
+
+Deliberately not done (issue step 10): no build LIBRARY was extracted.
+The process and filesystem primitives are public std, which is where
+they belong -- any til program can run a command now. The rest of
+~make.til~ is this project's build, and nothing in it has been repeated
+by a second repository yet, so extracting a ~std.build~ from one data
+point would be inventing an abstraction rather than finding one. No
+cache, manifest or package format was added: the dependency
+description is recomputed on every run and mtimes answer it.
+
+The 825-line Makefile is now a second implementation language inside the
+project. It owns bootstrap isolation, native dependency builds, compiler
+regeneration, the test suite, documentation tools, installation, and every
+cross-target matrix. Most of that policy should be ordinary til code in a
+top-level ~make.til~. Keep a small multiplatform Makefile only for the
+chicken-and-egg path: produce the first trusted ~bin/til_boot~, compile the
+build program, and delegate the requested goals.
+
+This is project-first, not an attempt to design ~std.build~ in advance.
+~make.til~ should solve til's real build completely. Its low-level process
+and filesystem primitives must be usable by any til project, but a general
+declarative build framework should only be extracted after this script has
+shown which abstractions are actually repeated.
+
+When the references disagree, prefer the Nob model over the Zig model:
+the build is an ordinary, explicit program with simple dependency checks,
+not a second configuration language or a large hidden build engine.
+
+*** Non-negotiable existing contracts
+
+- ~bin/til_boot~ is built from ~HEAD~'s committed ~boot/~ AND ~src/c/~,
+  never from uncommitted copies. It remains the last-known-good recovery
+  compiler described by ~doc/self.org~.
+- A clean checkout still needs only the documented native toolchain plus
+  vendored sources. The migration must not introduce Python, CMake beyond
+  the existing nng build, a shell-script layer, a downloaded build runner,
+  or prebuilt binaries.
+- Existing entry points keep working while and after the migration:
+  ~make~, ~make test~, ~make test_two_pass~, ~make build_win_host
+  win_server~, and direct artifact goals such as
+  ~make vendor/raylib/src/libraylib-x86.a~.
+- Command-line Make variables used today, notably ~J~ and ~RISCV32_CC~,
+  reach the til build unchanged. The direct build-program interface should
+  also offer normal positional/options parsing without Make's forwarding
+  limitations.
+- Single-pass, two-pass, and staged bootstrap migrations keep their current
+  meaning. ~make.til~ must not blur the difference or silently choose a
+  second pass.
+- Normal builds continue to regenerate the committed ~boot/til.c~ and
+  ~boot/til_forward.h~ exactly as today. Other source-tree mutations remain
+  explicit commands: bindings, docs, issue summary, framework stubs, and
+  the constfold fixture must not become hidden cache side effects.
+- Every current Linux and macOS native build and every cross-build target
+  keeps working before old Make recipes are removed. Windows-native support
+  must not be made less portable by relying on POSIX command parsing.
+
+*** What to take from the three references
+
+**** rstil: bootstrap and dogfooding
+
+Reference: ~../rstil/Makefile~, ~../rstil/make.til~, and rstil issue #82 in
+~../rstil/doc/todo/pre.org~.
+
+Keep:
+
+- a small Makefile that builds the bootstrap compiler and the compiled
+  build program, then delegates project targets
+- ~make.til~ as normal language code, with direct functions for concrete
+  build operations
+- mtime-based ~needs_rebuild(output, inputs)~ checks
+- self-rebuild followed by re-exec with the original arguments
+- Make as an optional/convenient frontend rather than the source of build
+  policy
+
+Do not copy:
+
+- shell commands assembled by concatenating strings
+- repeated manual exit-status checks after every command
+- duplicated target/help lists
+- a fixed temporary capture path such as ~tmp/_run_cmd_out~, which is not
+  reentrant or parallel-safe
+- Make's catch-all pattern plus ~%.rs~, ~%.til~, and ~Makefile~ guard rules
+- the self-rebuild bug fixed by rstil #171 or the argument-forwarding and
+  shebang problems recorded in rstil #194
+
+**** nob.h: the primary model
+
+Reference: https://github.com/tsoding/nob.h, especially ~Nob_Cmd~,
+~nob_cmd_run~, ~nob_needs_rebuild~, and ~NOB_GO_REBUILD_URSELF~.
+
+Adopt:
+
+- commands represented as argv elements, not shell text
+- streaming command output by default, with explicit redirection/capture
+- immediate, loud failure that prints the command and exit status
+- ordinary imperative control flow, loops, and host conditionals
+- small filesystem helpers and mtime checks instead of a persistent build
+  database
+- a self-rebuild transaction: preserve the old executable, compile the
+  replacement, restore the old one if compilation fails, then execute the
+  replacement with the same arguments
+- one command registry that drives dispatch, usage, and help so those views
+  cannot drift apart
+
+Nob intentionally does not hide the build behind a general DAG/cache
+framework. Follow that bias for the first complete til build.
+
+**** Zig: selected orchestration ideas, not the whole framework
+
+Reference: https://ziglang.org/learn/build-system/.
+
+Adopt only the parts that make this concrete build clearer:
+
+- requested targets are lazy: constructing or naming an artifact does not
+  build it unless the selected command reaches it
+- dependencies are explicit and a completed step is memoized for the rest
+  of one invocation, so multi-goal builds do shared work once
+- host, target, toolchain, artifact suffixes, and vendor-library paths are
+  structured data instead of repeated conditionals
+- generated outputs are named and passed to their consumers explicitly
+- target names, descriptions, and options generate discoverable help
+- project tools are built and then run like any other artifact
+
+Defer Zig-style content-addressed caches, package management, installation
+graphs, sandboxing, remote caches, automatic concurrency, and a public
+~std.Build~ API. There is no concrete need for those in the first migration,
+and a new cache/manifest would create a second source of truth. Recompute the
+small dependency description on each run and use source/output mtimes first.
+
+*** Proposed end state
+
+**** The minimal Makefile
+
+The Makefile owns only the bootstrap closure and frontend delegation:
+
+1. Detect the native host details needed to compile the bootstrap.
+2. Build only libraries that are genuinely required to link and run the
+   committed bootstrap compiler.
+3. Copy ~HEAD:boot/*~ and ~HEAD:src/c/*~ into ~tmp/boot/~ with ~git show~,
+   preserving complete isolation from uncommitted changes.
+4. Compile those committed sources into ~bin/til_boot~.
+5. Compile ~make.til~ into an uncommitted ~bin/make~ using
+   ~bin/til_boot~.
+6. Invoke ~bin/make~ once with all requested non-bootstrap goals.
+
+The current bootstrap target builds and links raylib, tinyfiledialogs, nng,
+their interpreter shared objects, and libffi before ~til_boot~. The checked-in
+compiler C directly references libffi, but no raylib/tinyfd/nng functions
+appear in ~boot/til.c~ or ~src/c/~. Prove the actual link closure on Linux
+and macOS. Move every library not needed merely to run ~bin/til_boot build
+make.til~ into ~make.til~; do not assume all current prerequisites are
+irreducible. Vendored libffi remains in the Makefile unless the bootstrap
+compiler is later split so it no longer contains the interpreter.
+
+Do not use rstil's broad ~%~ delegation rule. At parse time Make already
+knows ~MAKECMDGOALS~. Define the requested non-bootstrap goals as phony
+frontends that all depend on one internal delegation target. That target
+builds ~bin/make~ and executes it once with the complete goal list. This
+preserves arbitrary path goals and multi-goal invocations without source-file
+pattern guards or a duplicated registry of every til target. With no command
+line goals, delegate ~all~.
+
+~bin/make~ is a generated build artifact under the already-ignored ~bin/~
+tree. The Makefile writes it; Make delegation and developers execute it; it
+is regenerated from ~make.til~ and its imported sources and is never
+committed or installed as part of til itself. Direct ~bin/make <targets>~ is
+the Nob-like interface; ~make <targets>~ remains the compatibility and clean
+checkout interface.
+
+**** make.til
+
+Start with ~mode cli~ and existing language facilities. Do not add a special
+~mode make~ merely because rstil had one; add a mode only if the concrete
+script exposes a permission or import rule that ~mode cli~ cannot express.
+
+The initial script should be explicit rather than framework-shaped:
+
+- one ~Build~ state owns host information, requested options, and a set/map
+  of steps completed during this process
+- ~build_til~, ~build_til_asan~, ~build_tests~, ~build_raylib(target)~,
+  and similar ordinary functions call their dependencies before doing work
+- each artifact-producing function compares its output to explicit inputs
+  before running and marks itself complete afterwards
+- command handlers call those functions; multiple requested handlers share
+  the same ~Build~ state
+- a command table is the single source for name, short usage, description,
+  and dispatch
+- aliases such as ~test_asan -> test~ remain aliases, not copied recipes
+- host/target differences live in typed records and small functions, not in
+  command strings
+
+This gives the useful part of a DAG -- explicit edges, lazy reachability,
+and per-run deduplication -- without first building a generic scheduler.
+Run independent work sequentially until correctness and parity are complete.
+The test runner already owns its bounded ~-j~ concurrency, and vendor tools
+such as CMake already own theirs. Add build-step concurrency only after a
+measured need and deterministic output handling.
+
+**** Required reusable host primitives
+
+The current ~src/std/sys.til~ process API is not sufficient for a portable
+build program: ~spawn_cmd~ always invokes ~/bin/sh -c~ or ~cmd.exe /c~,
+~run_cmd~ quotes arguments itself, combines output through one global temp
+file, and cannot express cwd or redirection structurally. Building on it
+would preserve the root portability and quoting bugs in a different file.
+
+Add the smallest reusable process surface needed by ~make.til~, in the
+existing std/C boundary:
+
+- argv-based synchronous run and asynchronous spawn/wait
+- cwd and explicit environment overrides
+- inherited output by default; optional stdout/stderr file redirection and
+  captured output
+- exact exit code and signal termination reporting
+- command rendering for logs only, never for execution
+- POSIX ~exec*~ and correct Windows argument quoting/CreateProcess handling,
+  using Nob's implementation as a reference
+
+The checked runner must print the rendered command and terminate on failure.
+Keep a lower-level status-returning operation for commands whose non-zero
+result is expected. Shell syntax remains possible only by explicitly running
+~sh -c~ or ~cmd /c~ as argv; ordinary build commands must never require it.
+
+Add only the missing portable filesystem operations demonstrated by the
+script: stat/existence/type, directory iteration or globbing, recursive
+removal, recursive copy, and safe executable replacement for self-rebuild.
+Reuse current ~file_mtime~, ~mkdir_p~, ~copy_file~, ~copy_tree~, and
+~File.remove~ where their contracts already fit. These primitives belong to
+general til scripting; dependency policy stays in ~make.til~.
+
+**** Self-rebuild and recovery
+
+Both entry paths must be safe:
+
+- Make checks ~make.til~ and its imported build-support sources before
+  compiling ~bin/make~ with ~bin/til_boot~.
+- Direct ~bin/make~ performs the same dependency check at startup. If stale,
+  it rebuilds itself through ~bin/til_boot~, atomically preserves/restores
+  the old executable like Nob, and re-execs with the exact original argv.
+- A failed self-rebuild leaves the previous build program runnable and exits
+  non-zero. It never continues with code that does not match the source.
+- A changed ~HEAD~ still causes Make's bootstrap path to reconstruct
+  ~bin/til_boot~ from that commit. Do not replace this with worktree mtimes.
+- ~clean~ must leave a recoverable route on every supported host. Account
+  explicitly for Windows not allowing deletion of a running executable;
+  do not silently skip failed deletions.
+
+*** Target migration inventory
+
+Move policy in dependency order while both implementations can be compared.
+No Make recipe is deleted until its replacement target has the same output,
+failure behavior, and incremental behavior.
+
+**** Native dependencies and compiler chain
+
+- raylib static library and interpreter shared twin
+- tinyfiledialogs static library and interpreter shared twin
+- nng native static build
+- vendored libffi native build and stable host paths
+- ~bin/til~, including copying generated compiler C/header into ~boot/~
+- ~two_pass~
+- ~bin/til_asan~ and ~bin/til_debug~
+
+Centralize the native link flags and the Darwin/Linux differences now spread
+through the first 150 Makefile lines. Preserve the rule that compiled user
+programs link static archives while interpreted FFI loads shared twins.
+
+**** Test and verification targets
+
+- ~bin/test_runner~, ~bin/plot~, and ~bin/tests~
+- ~test~, ~test_fast~, ~test_nogui~, and ~test_repl_help~
+- ~test_two_pass~ with its current protection against an accidental pass-1
+  rebuild overwriting pass-2 ~boot/~
+- ~test_asan~ and ~test_asan_full~ aliases
+- ~check_usize64~ and ~check_clang~
+- ~J~ forwarding and host-specific xvfb behavior
+
+Express the two-pass sequence directly in til rather than reproducing
+Make's recursive ~-o bin/til_boot -o bin/til~ workaround. The direct program
+owns sequencing, so it can hold the pass-2 compiler/artifacts and then invoke
+checks without re-entering pass 1.
+
+**** Project tools and lifecycle
+
+- ~update_c_libs~ with its hand-audit warning and temporary raylib header
+  concatenation
+- ~doc~, ~summary~, ~install~, and ~help~
+- ~clean~ and ~clean_vendor~
+- all currently documented direct binary/artifact goals
+
+Do not use an in-process reimplementation of ~sed~, ~cp~, or ~rm~ as the
+goal. Use portable til filesystem/text APIs where simple, and explicit argv
+tools where the external tool is an intentional dependency.
+
+**** Cross-target data and artifacts
+
+- Windows x64/x86 raylib and tinyfd archives, nng, libffi, example sweeps,
+  server examples, and the Windows-host compiler
+- Linux x86, arm32, and riscv32 GUI archives, including ~RISCV32_CC~
+- native and SDK-less cross macOS arm64/x64 archives, tool preflight,
+  generated framework stubs, portable/gui example sweeps, and server cases
+- Emscripten bootstrap, web raylib, and the WASM example target
+
+Represent repeated variants as data and loops. Keep target-specific reasons
+for exclusions next to the data so the current detailed Makefile comments
+are not lost. Tool preflight must retain actionable errors rather than
+falling through to a later compiler/linker failure.
+
+*** Implementation sequence
+
+1. [X] Record a target contract table from the current Makefile: public
+   name, dependencies, inputs, outputs, tracked-file mutations, host/target
+   restrictions, environment inputs, and CI call sites.
+2. [X] Add and test argv-based process execution/capture plus only the
+   portable filesystem primitives required by the build. Follow
+   ~doc/self.org~ for any bootstrap-visible C interface migration.
+3. [X] Add ~make.til~ and ~bin/make~ without changing the default build.
+   Implement command registration/help, host detection, checked commands,
+   mtime checks, per-run step memoization, and Nob-style self-rebuild.
+4. [X] Establish the minimal Makefile bootstrap seam. Prove which native
+   libraries ~til_boot~ actually needs, preserve the Git ~HEAD~ extraction,
+   and add one-shot multi-goal delegation while old recipes remain available
+   for differential testing.
+5. [X] Move native vendor artifacts and the one-pass/two-pass compiler
+   chain. Verify generated ~boot/~ is byte-identical for unchanged inputs.
+6. [X] Move the full test/check chain and make every normal and two-pass
+   pre-commit workflow green through both entry paths.
+7. [X] Move project tools, install, cleanup, docs, bindings, and aliases.
+8. [X] Move every cross-target recipe as structured target data; switch CI
+   jobs to exercise delegation/direct ~bin/make~ without reducing coverage.
+9. [X] Remove migrated Make policy, leaving only bootstrap and delegation;
+   update ~doc/self.org~, ~make help~, bot/build instructions, CI comments,
+   and recovery documentation in the same final change.
+10. [X] After the project build has settled, review which helpers are truly
+    generic. Keep process/filesystem primitives public; extract a small build
+    library only for abstractions used by more than this repository. Do not
+    add a persistent cache, manifest, or package format in this issue.
+
+*** Acceptance tests
+
+- From a clean checkout, the minimal Makefile builds ~bin/til_boot~ from
+  committed ~HEAD~, builds ~bin/make~, and ~make test~ passes.
+- Dirty or deliberately broken worktree copies of ~boot/~ and ~src/c/~ do
+  not affect ~bin/til_boot~; the last commit remains recoverable.
+- ~make~, ~make test~, ~make clean && make test~,
+  ~make test_two_pass~, and direct ~bin/make~ equivalents produce the same
+  artifacts and exit statuses as before.
+- ~make build_win_host win_server~ invokes the build program once and shared
+  prerequisites run once. Direct path goals used by CI still work.
+- A second unchanged invocation skips every artifact with valid outputs;
+  touching each declared input rebuilds exactly the affected closure.
+- Modifying ~make.til~ causes direct ~bin/make~ to rebuild and re-exec with
+  all arguments intact. A deliberately failing rebuild restores the old
+  executable and fails loudly.
+- Process tests cover spaces, quotes, empty arguments, non-zero exits,
+  stdout/stderr separation, cwd, and concurrent captures without shell
+  interpretation. Windows quoting has a native or Wine regression test
+  before the API is called multiplatform.
+- Linux x64/arm64 native tests, both macOS native jobs, all existing cross
+  targets, direct artifact jobs, docs/summary generation, and install keep
+  their current CI coverage.
+- No committed generated artifact changes merely because orchestration moved
+  from Make to til. Any intentional generation difference is reviewed as a
+  separate behavior change, not hidden in this migration.
+
+*** Target contract table (step 1)
+
+Read off the 825-line Makefile as it stands. Every entry is one public
+name, in the order the migration takes them. "mutates" means TRACKED
+files the target rewrites; untracked outputs under ~bin/~, ~gen/~,
+~tmp/~ and ~vendor/~ are listed as outputs only. "env" lists the
+command-line / environment inputs that reach the recipe.
+
+**** Native dependencies
+
+- ~vendor/raylib/src/libraylib.a~ -- deps: none. inputs:
+  vendor/raylib/src/*.c, vendor/x11/include. outputs: the archive plus
+  raylib's own .o files in its source dir. mutates: nothing. host: any
+  native. env: CURDIR. CI: reached by every job through til_boot.
+- ~vendor/raylib/src/libraylib.so~ -- deps: libraylib.a. inputs: the
+  archive. outputs: the .so twin (dlopen'd by the interpreter for FFI).
+  host: link flags differ Darwin (-force_load, frameworks) vs Linux
+  (--whole-archive, -lrt).
+- ~vendor/tinyfiledialogs/libtinyfd.a~ -- deps: tinyfiledialogs.c AND
+  the Makefile itself (the -fPIC recipe change must rebuild an existing
+  archive). outputs: the archive + .o. host: any native.
+- ~vendor/tinyfiledialogs/libtinyfd.so~ -- deps: libtinyfd.a. Same
+  force-load split as raylib's twin.
+- ~vendor/nng/libnng.a~ -- deps: none. inputs: vendor/nng sources.
+  outputs: vendor/nng/build/ (cmake tree) + the copied archive. tools:
+  cmake. host: -latomic on Linux, nothing extra on Darwin.
+- ~vendor/libffi/.built~ -- deps: none. inputs: the vendored libffi
+  tree. outputs: the configured per-triple build dir, .libs/libffi.a,
+  the stamp, and on Darwin / arm64 Linux a stable-path copy
+  (libffi-macos.a / libffi-linux-arm64.a) because configure's triple
+  dir is not predictable. tools: sh, configure, make.
+
+**** Compiler chain
+
+- ~bin/til_boot~ -- deps: tmp, libraylib.a, libtinyfd.a, libnng.a, both
+  .so twins, libffi/.built. inputs: ~git show HEAD:boot/*~ and
+  ~HEAD:src/c/*~ ONLY (never the worktree copies). outputs:
+  tmp/boot/**, bin/til_boot. mutates: nothing. env: none. Phony-ish: it
+  rebuilds every invocation because its real input is a git commit, not
+  a file. CI: every job.
+- ~all~ = ~bin/til~ -- deps: bin/til_boot + src/core/*.til,
+  src/std/*.til, src/self/*.til, examples/lib/*.til,
+  vendor/bindings/*.til, src/til.til. outputs: gen/til/til.c,
+  gen/til/til_forward.h, bin/til. MUTATES: boot/til.c,
+  boot/til_forward.h. CI: "Build bin/til (native)" in ~12 jobs.
+- ~two_pass~ -- deps: bin/til. Reruns the same build with the fresh
+  bin/til. Same outputs and same boot/ mutation, one pass later.
+- ~bin/til_asan~ -- deps: bin/til + all compiler sources. outputs:
+  bin/til_asan. Delegates the sanitizer flags to src/self/builder.til.
+- ~bin/til_debug~ -- deps: bin/til. Compiles boot/til.c + src/c/*.c
+  with -g -O0 by hand (the one recipe that links the compiler without
+  going through til).
+- ~update_c_libs~ -- deps: bin/til, tmp. MUTATES vendor/bindings/
+  tinyfd.til, libffi.til, nng.til, raylib.til. Manual only; the raylib
+  binding is two generator runs concatenated with the second ~mode lib~
+  stripped. env: none. Not in CI.
+
+**** Test and verification
+
+- ~bin/test_runner~, ~bin/plot~, ~bin/tests~ -- deps: bin/til + core/
+  std/self sources + their own .til. outputs: the binaries.
+- ~test~ -- deps: bin/til, bin/til_asan, bin/test_runner, bin/plot,
+  bin/tests, check_usize64, check_clang. Runs the suite under
+  xvfb-run (Linux only) with ~--til-bin bin/til_asan --asan~.
+  MUTATES test/constfold.c (copied from gen/til/constfold.c). env: J
+  (forwarded as -j). CI: linux-x64, linux-arm64 native.
+- ~test_fast~ -- same without ASAN. Same constfold mutation. env: J.
+- ~test_nogui~ -- deps: bin/til + the three test binaries. Runs
+  ~bin/tests --no-gui~. No xvfb, no constfold copy. env: J.
+- ~test_two_pass~ -- recursive: ~make two_pass~, then an ASAN rebuild,
+  then ~make -o bin/til_boot -o bin/til check_usize64 check_clang~ (the
+  --old-file pins exist only to stop the sub-make re-running pass 1 and
+  overwriting pass-2 boot/), then rebuilds the three test binaries and
+  runs the suite. MUTATES boot/til.c, boot/til_forward.h,
+  test/constfold.c. env: J.
+- ~test_asan~, ~test_asan_full~ -- aliases of ~test~.
+- ~check_usize64~ -- deps: bin/til, bin/til_asan, tmp. Runs the
+  --usize=64 opt-out interpreted and compiled. outputs: tmp/usize64,
+  tmp/usize64_sizes, tmp/usize64_comptime. CI: its own linux-x64 job.
+- ~check_clang~ -- deps: bin/til. Syntax-only pass over boot/til.c with
+  clang -Wall -Wextra -Werror; skipped with a message when clang is
+  absent. Nothing else enforces that the emitted C is clang-clean.
+- ~test_repl_help~ -- deps: bin/til, tmp. Runs test/repl_help.til.
+  Manual (the REPL runs the whole pipeline per turn).
+
+**** Project tools and lifecycle
+
+- ~doc~ -- deps: bin/til. rm -rf doc/gen, then ~til doc src/til.til~
+  and ~til run examples/uml.til~. MUTATES doc/gen/** and the UML
+  outputs. Manual (~1 minute).
+- ~summary~ -- deps: tmp, bin/til. MUTATES issues/summary.org.
+- ~install~ -- deps: bin/til. Runs ~til install src/til.til~. env:
+  none. (~make help~ advertised a PREFIX variable, but the recipe never
+  passed one: the prefix is til's own ~--prefix=~ option and defaults
+  to /usr/local. The help text now says that instead.)
+- ~tmp~ -- phony mkdir -p tmp, an order-only prerequisite of several
+  targets.
+- ~help~ -- echoes the target list. A second registry of names that has
+  to be kept in step with the recipes by hand.
+- ~clean~ -- rm -rf bin/* gen/* tmp/boot. Leaves vendor/ alone.
+- ~clean_vendor~ -- ~git clean -fdx~ over raylib, tinyfiledialogs, nng
+  and libffi (deliberately not vendor/emscripten, a downloaded SDK).
+
+**** Cross targets
+
+- windows-x64: ~vendor/raylib/src/libraylib-win64.a~ (raylib rebuilt in
+  tmp/raylib-win/ so Linux .o files survive),
+  ~vendor/tinyfiledialogs/libtinyfd-win64.a~,
+  ~vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a~ (deps:
+  libffi/.built), ~vendor/nng/build-win64/libnng.a~ (msvcrt, not UCRT
+  -- the three C11 probes are forced true and ext.c supplies
+  timespec_get). Consumers: ~bin/%.exe~ pattern sweep over
+  examples/*.til minus raylib.til, custom_modes.til, bench_hashmap.til
+  and the four server examples; ~win_server~ (those four, via
+  --extra-modes + libnng); ~build_win~ (= archives + sweep +
+  win_server); ~build_win_host~ = ~bin/til.exe~ (deps: bin/til, win
+  libffi, win nng, all compiler sources). tools: x86_64-w64-mingw32-gcc
+  /-ar, cmake. CI: "windows-x64/x86 (cross-compile on linux)" and
+  "windows-x64 host", which runs ~make build_win_host win_server~ --
+  the multi-goal invocation the delegation seam must keep working.
+- windows-x86: ~libraylib-win32.a~, ~libtinyfd-win32.a~, ~build_win32~
+  (same sweep, -x86 suffixed outputs, no nng). tools: i686-w64-mingw32-*.
+- linux-x86: ~libraylib-x86.a~, ~libtinyfd-x86.a~ (gcc -m32, vendored
+  X11 headers, GLFW dlopens libX11 at run time so no 32-bit sysroot).
+  CI calls the two archive paths as DIRECT GOALS.
+- linux-arm32: ~libraylib-arm32.a~, ~libtinyfd-arm32.a~ via
+  arm-linux-gnueabihf-gcc/-ar. CI calls both as direct goals.
+- linux-riscv32: ~libraylib-riscv32.a~, ~libtinyfd-riscv32.a~. env:
+  RISCV32_CC is REQUIRED (no distro ships the compiler; CI downloads
+  the Bootlin toolchain and passes it on the make command line), and
+  RISCV32_AR is derived from it by string substitution. Both recipes
+  fail with an actionable message when it is unset.
+- macos: ~libtinyfd-macos-arm64.a~, ~libtinyfd-macos-x64.a~,
+  ~libraylib-macos-arm64.a~, ~libraylib-macos-x64.a~ (six raylib
+  modules, RGFW backend, SDK-less shims), ~vendor/macos/frameworks/
+  .stamp~ (generated by examples/gen_framework_stubs.til from the two
+  archives' symbols), and ~check_mac_cross_tools~ (an order-only
+  preflight for clang, ld.lld, llvm-ar, llvm-nm, present on every mac
+  artifact target so a missing tool is named instead of surfacing as a
+  link error). ~build_mac~ is host-split: on Darwin it sweeps every
+  cli|script|pure|lib|gui example natively plus the server examples
+  against the native libnng; elsewhere it cross-builds both arches for
+  the same modes minus server. CI: two native mac jobs, "macos
+  (cross-compile on linux)", and "macos gui" which calls the stamp and
+  the two tinyfd archives as direct goals.
+- wasm: ~vendor/emscripten/upstream/emscripten/emcc~ (git clone + emsdk
+  install/activate -- the one recipe that downloads a toolchain),
+  ~libraylib-web.a~, ~bin/%.html~, ~build_wasm~ (deps: two_pass).
+  env: EMCC, EMAR, EMRANLIB are overridable. Not in CI.
+
+**** Environment and command-line inputs, all together
+
+~J~ (test parallelism, forwarded as -j), ~RISCV32_CC~ (required by the
+riscv32 archives), ~EMCC~/~EMAR~/~EMRANLIB~ (overridable emscripten
+tools), ~PREFIX~ (install, read on the til side), and the two host
+probes ~uname -s~ / ~uname -m~ that pick the frameworks-vs-lrt link
+flags, the force-load spelling, xvfb, the mac stable libffi path, and
+build_mac's native-vs-cross split. ~CURDIR~ is used to pass absolute
+include paths into vendor sub-makes. Nothing else reaches a recipe.
+
+*** Progress
+
+- [X] Step 1: the contract table above.
+- [X] Step 2: argv-based process execution and the filesystem
+  primitives the build needs, in the existing std/C boundary.
+  - ~src/c/ext.c~ / ~src/c/ext.h~: ~ccmd_*~ builds a command out of
+    argv elements and runs it through execvp / CreateProcess -- no
+    shell, so no quoting and no expansion. cwd, per-child environment
+    overrides, stdout/stderr redirection to files, capture into
+    per-command spool files (so concurrent captures cannot mix, which
+    the single ~tmp/_run_cmd_out~ path made impossible), start/wait/
+    poll, exact exit codes with signal deaths reported as negatives,
+    and a render-for-logs that nothing executes. Plus ~cdir_*~
+    (directory iteration), ~cpath_is_dir~/~cpath_is_file~,
+    ~cremove_tree~ (rm -rf) and ~crename_path~ (the atomic swap
+    self-rebuild needs).
+  - ~src/std/sys.til~: the ~Cmd~ struct over that handle API,
+    including ~run~ (status-returning) and ~run_checked~ (prints the
+    command, dies with the exact status).
+  - ~src/std/file.til~: ~Dir~ (open/next/list), ~File.is_dir~,
+    ~File.is_file~, ~File.remove_tree~, ~File.rename~.
+  - ~test/process.til~ covers spaces, both quotes, empty arguments,
+    non-zero exits, signal deaths, stdout/stderr separation and
+    merging, file redirection, cwd, environment overrides, concurrent
+    captures, poll/status and render; ~test/files.til~ covers the
+    filesystem additions. Windows quoting follows
+    CommandLineToArgvW's rules but has no wine regression test yet --
+    that is owed before the API is called multiplatform.
+- [X] Step 3: ~make.til~ and ~bin/make~, beside the Makefile rather
+  than instead of it.
+  - One command table drives dispatch, ~help~ and the alias list, so
+    the three cannot drift apart the way the Makefile's recipes and its
+    hand-written ~help~ echo lines can. An alias is the same handler
+    under a second name, never a copied recipe.
+  - One ~Build~ per invocation carries the host, the options and the
+    set of finished steps. Each step function calls the steps it
+    depends on, asks ~Build~ whether it has already run, and compares
+    its output against explicit inputs (~needs_rebuild~, mtimes only --
+    no manifest, no cache). Multi-goal invocations therefore do shared
+    work once, which is the useful half of a dependency graph without a
+    scheduler.
+  - That memoization is what removes the Makefile's ~$(MAKE) -o
+    bin/til_boot -o bin/til~ trick from ~test_two_pass~: pass 1 has
+    already run, so nothing can re-enter it and overwrite the pass-2
+    ~boot/~ the target exists to produce. The sequence is just
+    statements in order.
+  - Nob-style self-rebuild: ~bin/make~ checks ~make.til~ (plus core,
+    std, ~src/c~ and ~bin/til_boot~) at startup, renames the running
+    program aside, compiles the replacement with ~bin/til_boot~,
+    restores the old one and exits non-zero if that fails, and
+    otherwise runs the replacement with the exact arguments it was
+    given. Verified all three ways: stale source rebuilds and forwards
+    its arguments, a deliberately broken source leaves a working
+    program behind and exits 1, and the interrupted-rebuild leftover is
+    settled on the next run (which is also how Windows, unable to
+    delete a running image, gets its deletion).
+  - The Makefile gains exactly one rule, ~bin/make~, whose
+    prerequisites mirror ~make.til~'s own ~self_sources()~. It is
+    deliberately not a prerequisite of ~all~: nothing about the default
+    build changes yet.
+  - Commands implemented so far: ~til~, ~two_pass~, ~asan~,
+    ~test_runner~, ~plot~, ~tests~, ~test~, ~test_fast~, ~test_nogui~,
+    ~test_two_pass~, ~test_repl_help~, ~check_usize64~, ~check_clang~,
+    ~doc~, ~summary~, ~install~, ~clean~, ~help~, plus the ~all~ and
+    ~test_asan~/~test_asan_full~ aliases. Verified end to end on
+    linux-x64: ~bin/make clean~ (which deletes the running program),
+    then ~make bin/make~ to bootstrap again, then ~bin/make test~ --
+    242/242, the same as ~make clean && make test~.
+- [ ] Steps 4 onwards: not started. Note that steps 5-7 are only
+  PARTLY anticipated by the command list above -- the native vendor
+  artifacts (raylib, tinyfd, nng, libffi and the .so twins),
+  ~bin/til_debug~, ~update_c_libs~, ~clean_vendor~ and every cross
+  target are still Makefile-only, and no Make recipe has been removed.

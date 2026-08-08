@@ -1,6 +1,40 @@
 * Self-hosting build
 
-  See Makefile header comments and ~make help~ for the full reference.
+  See the Makefile header comments and ~make help~ for the full
+  reference.
+
+** Where the build lives
+
+  Build policy is a til program: ~make.til~, compiled to ~bin/make~
+  (issue #345). Which artifact depends on what, which command produces
+  it, and what differs per host are ordinary til code -- functions that
+  call the steps they depend on, compare mtimes, and run commands.
+
+  The Makefile owns only the part a til program cannot do for itself,
+  produce the compiler that compiles it:
+
+  1. build the vendored libffi that the checked-in compiler C links
+  2. copy HEAD's ~boot/~ and ~src/c/~ out of git, compile ~bin/til_boot~
+  3. compile ~make.til~ into ~bin/make~ with it
+  4. run ~bin/make~ once with every requested goal
+
+  So ~make test~ and ~bin/make test~ are the same build. Both entry
+  points stay supported: ~bin/make~ is the direct one (real options,
+  e.g. ~-j4~ or ~--riscv32-cc=<path>~), ~make~ is the compatibility and
+  clean-checkout one, and it passes ~J~, ~RISCV32_CC~, ~EMCC~, ~EMAR~
+  and ~EMRANLIB~ through unchanged.
+
+  ~bin/make~ keeps itself current: if ~make.til~ (or the std/core/C
+  sources it is built from) is newer, it renames the running program
+  aside, compiles the replacement with ~bin/til_boot~, restores the old
+  one if that fails, and otherwise re-runs it with the same arguments.
+  ~bin/make~ is a generated artifact under ~bin/~ -- never committed,
+  never installed.
+
+  Note that ~bin/til_boot~ links libffi and nothing else vendored: no
+  raylib, tinyfd or nng function appears in ~boot/til.c~ or ~src/c/~.
+  Those libraries are built by ~make.til~, for ~bin/til~, which does
+  link them.
 
 ** Key concepts
 
@@ -242,6 +276,11 @@
   of the suite.
 
 ** Commands
+
+  Every one of these also works as ~bin/make <goal>~, which is the same
+  build without the Make frontend. ~make help~ (i.e. ~bin/make help~)
+  lists all of them, the artifact paths that can be named directly, and
+  the options.
 
   - ~make test~ builds + runs all tests (uses xvfb-run). Commit includes boot/.
   - ~make two_pass~ builds, then rebuilds with the freshly-built ~bin/til~

@@ -525,6 +525,13 @@ main := proc(args: ..Str) {
     // one again.
     add_single(tests, "repl_pty", "cli", 0, "", format(TIL, " run test/repl_pty.til"))
 
+    // `til install` end to end: install the compiler under tmp/ and
+    // build a program with the RESULT, from another directory, against
+    // the installed std and C runtime. Nothing covered install before,
+    // which is how it stayed broken for two weeks after lib/ moved to
+    // examples/lib/ and the installer kept copying the old path.
+    add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
+
     // Issue #302 stage 0: the garbager decision-audit golden. Translating
     // the frozen fixture with TIL_GC_AUDIT set dumps the asap pass's
     // per-binding decisions and destructor sites; the byte-exact compare

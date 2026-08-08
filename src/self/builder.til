@@ -8637,8 +8637,17 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/std"), format(dst_root, "/src/std"), "install compiler std sources")
     if rc != 0 { return rc }
-    rc = install_tree(format(root, "/lib"), format(dst_root, "/lib"), "install compiler library sources")
-    if rc != 0 { return rc }
+    // There is no top-level lib/ to install. It held six example-only
+    // modules (alphabeta, cell, fonts, music, svg, the custom_modes
+    // preludes) and moved to examples/lib/ -- nothing in src/ ever
+    // imported them, so the installed compiler needs neither the old
+    // path nor the new one. The move updated the Makefile, the tests and
+    // the examples but not this line, and copy_tree of a directory that
+    // does not exist fails, so every `make install` since has stopped
+    // here with "failed to install compiler library sources" AFTER
+    // planting the binary. What an installed til actually needs is the
+    // source it compiles against: core, std, modes, the C runtime and
+    // boot.
     rc = install_tree(format(root, "/src/modes"), format(dst_root, "/src/modes"), "install compiler mode sources")
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/c"), format(dst_root, "/src/c"), "install compiler C sources")

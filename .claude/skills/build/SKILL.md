@@ -8,6 +8,11 @@ user-invocable: true
 
 Read doc/self.org for the bootstrap model and `make help` for targets.
 
+Build policy is make.til, compiled to bin/make: `make <goal>` builds
+that program and hands the goal to it, so `make test` and `bin/make
+test` are the same build. Change a build step in make.til, not in the
+Makefile, which now owns only the bootstrap (bin/til_boot and bin/make).
+
 ## Step 1: Build and test
 
 ```bash

@@ -1,0 +1,82 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// `til install` end to end, because nothing covered it and it was
+// broken for two weeks without anyone noticing.
+//
+// When lib/ moved to examples/lib/, install_compiler_support kept
+// copying <root>/lib -- a directory that no longer existed -- so every
+// install planted the binary and then failed on "install compiler
+// library sources", leaving a til whose support tree was half there.
+// The suite had no install test of any kind, so the whole target was
+// invisible to it.
+//
+// This installs the compiler under tmp/ and then USES the result: the
+// installed til must compile and run a program from a different
+// directory, against the installed std, C runtime and boot. That is
+// what the support tree exists for, so anything missing from it fails
+// here instead of on a user's machine.
+//
+// Not part of `both`: it is a driver, not a test() file. Run through
+// `bin/til run test/install.til` like the other cli-driven tests.
+
+PREFIX := "tmp/install_test"
+WORK := "tmp/install_test_work"
+
+require := proc(path: Str) {
+    if File.is_file(path).not() {
+        panic("install did not produce '", path, "'")
+    }
+}
+
+main := proc() returns I64 {
+    File.remove_tree(PREFIX)
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+
+    mut install := Cmd.new("bin/til", "install", format("--prefix=", PREFIX), "src/til.til")
+    install.run_checked()
+
+    // The binary, and every source tree an installed compiler needs to
+    // build a program: til sources it type-checks against, the C
+    // runtime and the generated compiler C it links.
+    require(format(PREFIX, "/bin/til"))
+    require(format(PREFIX, "/lib/til/src/core/core.til"))
+    require(format(PREFIX, "/lib/til/src/std/file.til"))
+    require(format(PREFIX, "/lib/til/src/modes/gui.til"))
+    require(format(PREFIX, "/lib/til/src/c/ext.c"))
+    require(format(PREFIX, "/lib/til/boot/til.c"))
+
+    // Paths are relative to WORK, where the program is compiled: the
+    // installed til is found through its own location, not through this
+    // repository's working directory.
+    installed_til := "../install_test/bin/til"
+    File.writefile(format(WORK, "/installed_probe.til"), format(
+        "mode cli\n\n",
+        "import(\"../install_test/lib/til/src/std/file\")\n\n",
+        "main := proc() returns I64 {\n",
+        "    File.writefile(\"probe.txt\", \"installed til works\")\n",
+        "    print(File.readfile(\"probe.txt\"))\n",
+        "    return 0\n",
+        "}\n"))
+
+    mut build := Cmd.new(installed_til, "build", "installed_probe.til")
+    build.cwd(WORK)
+    build.run_checked()
+
+    mut run := Cmd.new("./bin/installed_probe")
+    run.cwd(WORK)
+    run.capture()
+    status := run.run()
+    if status != 0 {
+        panic("the program built by the installed til exited with ", status.to_str())
+    }
+    if run.out() != "installed til works" {
+        panic("the program built by the installed til printed '", run.out(), "'")
+    }
+
+    println("install PASS")
+    return 0
+}
