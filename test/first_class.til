@@ -1649,6 +1649,28 @@ gswap_angle := func<T: Type>(mut a: T, mut b: T) {
 test_generic_func_angle_identity := test() {
     assert_eq(I64, gid_angle(I64)(7), 7)
 }
+
+// #328 follow-up: the angle form infers an OMITTED type argument from its
+// value arguments, exactly as the direct `func(T: Type, v: T)` form does.
+// Before, every call through the name read as a type application, so
+// `gid_angle(7)` instantiated the macro with the VALUE as its type and
+// reported "undefined type 'n1_7'". The inferred and the explicit call
+// name the SAME instance (`gid_angle__I64`), so the two coexist.
+APoint328 := struct { x := 0 }
+gpair_angle := func<K: Type, V: Type>(k: K, _v: V) returns K { return k }
+// A file-scope decl reaches init's top-level expansion loop directly,
+// without passing the inline hoist -- the second place the rule is needed.
+gangle_toplevel := gid_angle(APoint328(x = 3))
+
+test_generic_func_angle_inferred := test() {
+    assert_eq(I64, gid_angle(7), 7)
+    assert_eq(I64, gid_angle(I64)(8), 8)
+    assert_eq(Str, gid_angle("hi"), "hi")
+    p := gid_angle(APoint328(x = 5))
+    assert_eq(I64, p.x, 5)
+    assert_eq(I64, gangle_toplevel.x, 3)
+    assert_eq(I64, gpair_angle(4, "s"), 4)
+}
 test_generic_func_angle_swap := test() {
     mut x := 1
     mut y := 2

@@ -3102,6 +3102,77 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
     resolve_fcall_return_type(scope, e, mono, cb_used, cfd_o, in_func, ctx)
 }
 
+// #328 follow-up: is this binding a `func<T>` ANGLE-generic? The parser
+// desugars `gid := func<T>(v: T) returns T { ... }` to a macro returning
+// FuncDef whose body is `return func(v: T) returns T { ... }` -- pure
+// sugar, exactly as `struct<T>` desugars to a StructDef-returning macro.
+// Every EXPLICIT use is already rewritten by init (`gid(I64)(7)` reads as
+// `gid__I64(7)`), so a macro call still standing here is the omitted-type
+// -argument form and nothing else.
+priv angle_generic_template := func(fd: Expr) returns Option(ref Expr) {
+    switch fd.node_type {
+    case .FuncDef(mfd):
+        if mfd.func_type.is(FuncType.Macro).not() { return Option(ref Expr).None }
+        if mfd.return_type.eq("FuncDef").or(mfd.return_type.eq("FunctionDef")).not() {
+            return Option(ref Expr).None
+        }
+        if mfd.params.len() == 0 { return Option(ref Expr).None }
+        for p : Declaration in mfd.params {
+            if p.explicit_type.eq("Type").not() { return Option(ref Expr).None }
+        }
+    case:
+        return Option(ref Expr).None
+    }
+    // body -> return -> the template FuncDef. A hand-written macro can
+    // return anything, so every step is checked rather than assumed.
+    if fd.children.len() == 0 { return Option(ref Expr).None }
+    ref body : Expr = fd.children[0]
+    if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
+    if body.children.len() != 1 { return Option(ref Expr).None }
+    ref ret : Expr = body.children[0]
+    if ret.node_type.is(NodeType.Return).not() { return Option(ref Expr).None }
+    if ret.children.len() != 1 { return Option(ref Expr).None }
+    ref tmpl : Expr = ret.children[0]
+    if tmpl.node_type.is(NodeType.FuncDef).not() { return Option(ref Expr).None }
+    return Option(ref Expr).Some(tmpl)
+}
+
+// Build the DIRECT-generic equivalent of an angle-generic: the macro's
+// type parameters prepended to the template's own parameters. That is the
+// same function `gid := func(T: Type, v: T) returns T` spells by hand, so
+// the whole #328 inference-and-instantiate path applies unchanged, and the
+// instance it names (`gid__I64`) is the one init's macro expansion would
+// have produced for the explicit form.
+priv make_angle_generic_twin := func(macro_fd: Expr, tmpl: Expr) returns Expr {
+    mut twin := FunctionDef()
+    switch tmpl.node_type {
+    case .FuncDef(tfd):
+        twin.func_type = tfd.func_type
+        twin.return_type = tfd.return_type.clone()
+        twin.return_own_type = tfd.return_own_type
+        twin.noreturn = tfd.noreturn
+        for t : Str in tfd.throw_types { twin.throw_types.push(own t.clone()) }
+        switch macro_fd.node_type {
+        case .FuncDef(mfd):
+            for gp : Declaration in mfd.params { twin.params.push(own gp.clone()) }
+        case:
+        }
+        ntype := twin.params.len().to_i32()
+        for vp : Declaration in tfd.params { twin.params.push(own vp.clone()) }
+        // The variadic/kwargs markers index the PARAMETER LIST, so they
+        // shift by however many type params were prepended. -1 means
+        // "none" and must stay -1.
+        twin.variadic_index = tfd.variadic_index
+        if twin.variadic_index >= 0 { twin.variadic_index = twin.variadic_index + ntype }
+        twin.kwargs_index = tfd.kwargs_index
+        if twin.kwargs_index >= 0 { twin.kwargs_index = twin.kwargs_index + ntype }
+    case:
+    }
+    mut def := Expr.new(NodeType.FuncDef(twin), tmpl.line, tmpl.col)
+    for c : Expr in tmpl.children { def.add_child(own c.clone()) }
+    return def
+}
+
 // Type a call whose callee is still bound to a retained generic SOURCE.
 priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, display_name: Str, in_func: I32, ctx: Context) {
     // A source whose call closure declares a struct or enum needs init's
@@ -3251,6 +3322,11 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     // Recorded as a NAME so the binding borrow above is released before
     // the generic path mutates e.children and registers new bindings.
     mut generic_src_name := ""
+    // #328 follow-up: set when the callee is a `func<T>` angle-generic and
+    // this is its omitted-type-argument call. The twin is registered after
+    // the binding borrow is released, for the same reason the name above
+    // is recorded rather than the binding.
+    mut angle_src_name := ""
     if callee_bind_o.is_some() {
         ref mut callee_bind : TypeBinding = callee_bind_o.unwrap()
         // #187: a call from inside a function is only evidence once that
@@ -3264,10 +3340,29 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         if callee_fdef_o.is_some() {
             if init_func_is_generic(callee_fdef_o.unwrap()) {
                 generic_src_name = callee_bind.name.clone()
+            } else if angle_generic_template(callee_fdef_o.unwrap()).is_some() {
+                angle_src_name = callee_bind.name.clone()
             } else {
                 desugar_user_func_fcall_args(scope, e, name, callee_bind, ctx)
             }
         }
+    }
+    if angle_src_name.len() > 0 {
+        // Swap the macro's func_def for its direct-generic twin, then hand
+        // the call to the ordinary generic path. Every explicit use was
+        // rewritten to a concrete name by init, so nothing left in this
+        // unit still needs to read the macro through this binding.
+        macro_fd_o := scope.lookup_func(angle_src_name)
+        tmpl_o := angle_generic_template(macro_fd_o.unwrap())
+        ctx.angle_twins.add_child(own make_angle_generic_twin(macro_fd_o.unwrap(), tmpl_o.unwrap()))
+        ref twin : Expr = ctx.angle_twins.children[ctx.angle_twins.children.len() - 1]
+        // Against ctx.scope, never the caller's nested body scope: the
+        // macro's BINDING is a unit-level one, and lookup_func answers
+        // from the scope that owns the binding -- a func_def parked in a
+        // body scope with no binding beside it is simply never seen.
+        ctx.scope.set_func_def(angle_src_name, twin)
+        infer_generic_fcall(scope, e, angle_src_name, name, in_func, ctx)
+        return
     }
     if generic_src_name.len() > 0 {
         infer_generic_fcall(scope, e, generic_src_name, name, in_func, ctx)
@@ -6828,6 +6923,10 @@ priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Co
     // empty (every flush drains it), but a stale entry would be appended
     // to the WRONG unit, so clear it here and check it drained at exit.
     ctx.generic_pending.children.clear()
+    // #328 follow-up: same per-unit lifetime for the angle-generic twins.
+    // A twin is only reachable through this unit's scope registration, so
+    // carrying one into the next unit would leave a dangling func_def.
+    ctx.angle_twins.children.clear()
     // Lift anonymous func literals out of expression positions to
     // top-level _lambda_<N> priv decls. The typer then types them as
     // ordinary named functions through the normal walk below. Doing
