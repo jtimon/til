@@ -755,6 +755,35 @@ namespace:
     }
 }
 
+// Issue #292: a Context-local identifier for one canonical name. Zero is
+// reserved for "not interned", so real symbols start at one.
+Sym := U32
+
+SymbolPool := struct {
+    by_name := Map(Str, Sym).new()
+    next : Sym = 1
+namespace:
+    intern := func(mut self: SymbolPool, name: Str) returns Sym {
+        // Search once on the hot existing-name path. Map.set repeats the
+        // search only for a name's first insertion.
+        mut lo : USize = 0
+        mut hi : USize = self.by_name.keys.len()
+        while lo < hi {
+            mid := lo.add(hi.sub(lo) / 2)
+            c := Str.cmp(self.by_name.keys.unsafe_get(mid), name)
+            if c < 0 { lo = mid + 1 }
+            else {
+                if c > 0 { hi = mid }
+                else { return self.by_name.values.unsafe_get(mid).clone() }
+            }
+        }
+        sym := self.next
+        self.next++
+        self.by_name.set(name, own sym.clone())
+        return sym
+    }
+}
+
 Context := struct {
     mode := Mode()
     path := ""
@@ -914,7 +943,7 @@ Context := struct {
     closure_emit_env := ""
     closure_emit_captures := Set(Str).new()
 
-    funcsig_names := Set(Str).new()
+    funcsig_names := Set(Sym).new()
     closure_value_names := Set(Str).new()
     script_globals := Set(Str).new()
     ref_globals := Set(Str).new()
@@ -1111,6 +1140,10 @@ Context := struct {
     ffi_struct_defs := Map(Str, ExprPtrBox).new()
     ffi_type_cache := Vec(FFITypePtrBox).new()
     ffi_type_cache_inited := false
+
+    // Kept last so every Context-owned AST/registry using symbols is deleted
+    // before the canonical name table that gives those symbols meaning.
+    symbols := SymbolPool()
 }
 
 // --- Helpers moved from initer.til ---

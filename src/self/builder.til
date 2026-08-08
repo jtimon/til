@@ -268,7 +268,7 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context)
 // doesn't try to free a stack pointer.
 
 priv is_funcsig_type := func(name: Str, ctx: Context) returns Bool {
-    return ctx.funcsig_names.has(name)
+    return ctx.funcsig_names.has(ctx.symbols.intern(name))
 }
 
 // Deliberately WITHOUT USize/UPtr, unlike is_primitive_type: those are
@@ -842,7 +842,7 @@ priv type_name_to_c := func(name: Str, ctx: Context) returns Str {
     case "Fn", "Body": return "TilClosure *"
     case:
     }
-    if ctx.funcsig_names.has(name) { return name }
+    if is_funcsig_type(name, ctx) { return name }
     return name.format(" *")
 }
 
@@ -865,7 +865,7 @@ priv type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
     case "Fn", "Body": return "TilClosure *"
     case:
     }
-    if ctx.funcsig_names.has(name) { return name }
+    if is_funcsig_type(name, ctx) { return name }
     return name
 }
 
@@ -6659,14 +6659,14 @@ priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
             ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is(NodeType.FuncDef) {
                 if rhs.children.len() == 0 {
-                    ctx.funcsig_names.add(own dd.name.clone())
+                    ctx.funcsig_names.add(own ctx.symbols.intern(dd.name))
                 }
             }
             if stmt.til_type().is(Type.None) {
                 switch rhs.node_type {
                 case .Ident(rhs_name):
-                    if ctx.funcsig_names.has(rhs_name.ident_name()) {
-                        ctx.funcsig_names.add(own dd.name.clone())
+                    if is_funcsig_type(rhs_name.ident_name(), ctx) {
+                        ctx.funcsig_names.add(own ctx.symbols.intern(dd.name))
                     }
                 case:
                 }
@@ -6700,7 +6700,7 @@ priv emit_global_inits := proc(f: File, lp: LoadedProgram) {
 }
 
 priv build_register_funcsig_names_lp := func(lp: LoadedProgram) {
-        lp.ctx.funcsig_names = Set(Str).new()
+        lp.ctx.funcsig_names = Set(Sym).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         register_funcsig_prog(iu.ast, lp.ctx)

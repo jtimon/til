@@ -258,6 +258,7 @@ typedef struct GenericFuncSource GenericFuncSource;
 typedef struct ImportUnit ImportUnit;
 typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct InternedTypes InternedTypes;
+typedef struct SymbolPool SymbolPool;
 typedef struct Context Context;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 enum {
@@ -270,6 +271,7 @@ enum {
     Option__ref_TypeBinding_TAG_Some
 };
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
+typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 enum {
@@ -280,6 +282,7 @@ typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
+typedef struct Set__U32 Set__U32;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
 enum {
     Option__ref_Expr_TAG_None,
@@ -297,6 +300,7 @@ enum {
 typedef struct Option__ref_Declaration Option__ref_Declaration;
 typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
+typedef struct Vec__U32 Vec__U32;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
@@ -800,6 +804,13 @@ typedef struct Map__Str_Expr {
 } Map__Str_Expr;
 
 
+typedef struct Set__U32 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Set__U32;
+
+
 struct Option__ref_Expr {
     Expr *data;
 };
@@ -833,6 +844,13 @@ typedef struct Vec__TypeBinding {
     USize count;
     USize cap;
 } Vec__TypeBinding;
+
+
+typedef struct Vec__U32 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__U32;
 
 
 typedef struct Vec__Mode {
@@ -1461,6 +1479,12 @@ typedef struct Map__Str_TypeBinding {
 } Map__Str_TypeBinding;
 
 
+typedef struct Map__Str_U32 {
+    Vec__Str keys;
+    Vec__U32 values;
+} Map__Str_U32;
+
+
 typedef struct Map__Str_Mode {
     Vec__Str keys;
     Vec__Mode values;
@@ -1575,6 +1599,12 @@ typedef struct TypeScope {
 } TypeScope;
 
 
+typedef struct SymbolPool {
+    Map__Str_U32 by_name;
+    U32 next;
+} SymbolPool;
+
+
 typedef struct Context {
     Mode mode;
     Str path;
@@ -1620,7 +1650,7 @@ typedef struct Context {
     Bool typing_namespace_member;
     Str closure_emit_env;
     Set__Str closure_emit_captures;
-    Set__Str funcsig_names;
+    Set__U32 funcsig_names;
     Set__Str closure_value_names;
     Set__Str script_globals;
     Set__Str ref_globals;
@@ -1667,6 +1697,7 @@ typedef struct Context {
     Map__Str_ExprPtrBox ffi_struct_defs;
     Vec__FFITypePtrBox ffi_type_cache;
     Bool ffi_type_cache_inited;
+    SymbolPool symbols;
 } Context;
 
 
@@ -2173,6 +2204,9 @@ void BuilderFuncScratch_delete(BuilderFuncScratch * self, Bool call_free);
 void priv___src_self_context_til__interned_vec_free_pointees(Vec__Dynamic * v);
 InternedTypes * InternedTypes_clone(InternedTypes * _self);
 void InternedTypes_delete(InternedTypes * self, Bool call_free);
+U32 SymbolPool_intern(SymbolPool * self, Str * name);
+SymbolPool * SymbolPool_clone(SymbolPool * self);
+void SymbolPool_delete(SymbolPool * self, Bool call_free);
 Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool call_free);
 void context_register_target_int_alias_types(Context * ctx, Str * usize_name, Str * uptr_name);
@@ -2274,6 +2308,10 @@ Bool Option__ref_TypeScope_is_none(Option__ref_TypeScope self);
 Bool Option__ref_TypeBinding_is_some(Option__ref_TypeBinding self);
 Bool Option__ref_TypeBinding_is_none(Option__ref_TypeBinding self);
 TypeBinding * Option__ref_TypeBinding_unwrap(Option__ref_TypeBinding * self);
+Map__Str_U32 * Map__Str_U32_new(void);
+void Map__Str_U32_set(Map__Str_U32 * self, Str * key, U32 * val);
+void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free);
+Map__Str_U32 * Map__Str_U32_clone(Map__Str_U32 * self);
 Map__Str_Mode * Map__Str_Mode_new(void);
 Bool Map__Str_Mode_has(Map__Str_Mode * self, Str * key);
 Mode * Map__Str_Mode_get(Map__Str_Mode * self, Str * key, I64 * _err_kind);
@@ -2308,6 +2346,12 @@ StructLayout * Map__Str_StructLayout_get(Map__Str_StructLayout * self, Str * key
 void Map__Str_StructLayout_set(Map__Str_StructLayout * self, Str * key, StructLayout * val);
 void Map__Str_StructLayout_delete(Map__Str_StructLayout * self, Bool call_free);
 Map__Str_StructLayout * Map__Str_StructLayout_clone(Map__Str_StructLayout * self);
+Set__U32 * Set__U32_new(void);
+void Set__U32_clear(Set__U32 * self);
+Bool Set__U32_has(Set__U32 * self, U32 val);
+void Set__U32_add(Set__U32 * self, U32 * val);
+void Set__U32_delete(Set__U32 * self, Bool call_free);
+Set__U32 * Set__U32_clone(Set__U32 * self);
 Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_new(void);
 Bool Map__Str_call_Vec_Str_has(Map__Str_call_Vec_Str * self, Str * key);
 Vec__Str * Map__Str_call_Vec_Str_get(Map__Str_call_Vec_Str * self, Str * key, I64 * _err_kind);
@@ -2365,6 +2409,12 @@ void Vec__TypeBinding_remove_at(Vec__TypeBinding * self, USize i, I64 * _err_kin
 void Vec__TypeBinding_unsafe_set(Vec__TypeBinding * self, USize i, TypeBinding * val);
 void Vec__TypeBinding_delete(Vec__TypeBinding * self, Bool call_free);
 Vec__TypeBinding * Vec__TypeBinding_clone(Vec__TypeBinding * self);
+Vec__U32 * Vec__U32_new(void);
+void Vec__U32_clear(Vec__U32 * self);
+U32 * Vec__U32_unsafe_get(Vec__U32 * self, USize * i);
+void Vec__U32_unsafe_set(Vec__U32 * self, USize i, U32 * val);
+void Vec__U32_delete(Vec__U32 * self, Bool call_free);
+Vec__U32 * Vec__U32_clone(Vec__U32 * self);
 Vec__Mode * Vec__Mode_new(void);
 void Vec__Mode_clear(Vec__Mode * self);
 Mode * Vec__Mode_unsafe_get(Vec__Mode * self, USize * i);
@@ -2409,6 +2459,7 @@ void Vec__ExprPtrBox_unsafe_set(Vec__ExprPtrBox * self, USize i, ExprPtrBox * va
 void Vec__ExprPtrBox_delete(Vec__ExprPtrBox * self, Bool call_free);
 Vec__ExprPtrBox * Vec__ExprPtrBox_clone(Vec__ExprPtrBox * self);
 void adopt__TypeBinding(void * dest, TypeBinding * src);
+void adopt__U32(void * dest, U32 * src);
 void adopt__Mode(void * dest, Mode * src);
 void adopt__FuncType(void * dest, FuncType * src);
 void adopt__ImportUnit(void * dest, ImportUnit * src);
