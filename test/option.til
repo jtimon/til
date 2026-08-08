@@ -156,7 +156,7 @@ test_option_ref_unwrap := test() {
 }
 
 // #321: a borrowed STR payload. Every other case here uses a struct
-// payload, and that gap hid a real interpreter bug: call_copies_ref_str
+// payload, and that gap hid a real interpreter bug: call-result shape
 // classified any ext-callee ref-Str result as an owned COPY, so the
 // interpreter freed the BORROWED Str a case binding yields (the binding
 // is `deref(get_payload(..))`, and deref is an ext_func the caller stamps

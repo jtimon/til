@@ -511,7 +511,7 @@ namespace:
 /// Instantiating Option in this unit needed two prerequisites: the #303
 /// noreturn seed made order-independent (seed_noreturn_chain, loader.til),
 /// since Option.unwrap ends in `case: panic` and core.til imports ast
-/// before exit; and the borrowed-Str fix in call_copies_ref_str, since
+/// before exit; and the borrowed-Str call-shape fix, since
 /// this is the first Option(ref Str) interpreted code calls.
 member_name_of := func(idx: Map(Str, USize), pos: USize) returns Option(ref Str) {
     for mi in 0..idx.len() {

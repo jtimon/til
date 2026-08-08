@@ -641,10 +641,6 @@ priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns Dynamic
     return result
 }
 
-priv call_result_is_ref := func(e: Expr, ctx: Context) returns Bool {
-    return fcall_returns_ref(e, ctx.scope).neq(0)
-}
-
 // #321: an ext function's ref-Str result is a COPY only when the callee
 // actually DECLARES a Str return -- that is the C-buffer case this rule
 // exists for. A callee declaring `returns ref Dynamic` (deref, to_ptr) is
@@ -653,59 +649,26 @@ priv call_result_is_ref := func(e: Expr, ctx: Context) returns Bool {
 // deref wrapper with the payload type). Treating those as copies made the
 // interpreter free a BORROWED Str payload: `Option(ref Str)` corrupted the
 // heap in interpreted mode while compiling and running fine.
-priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
-    if call_result_is_ref(e, ctx).not() { return false }
-    switch e.til_type() {
-    case .Struct(name):
-        if name != "Str" { return false }
-    case:
-        return false
-    }
-    switch e.children[0].node_type {
-    case .Ident(id):
-        ref slot : Dynamic = scope_get(scope, id.ident_name())?
-        catch (missing: KeyNotFound) { return false }
-        ref raw : Dynamic = slot
-        ref fn_def : Expr = callable_raw_func_def(raw)
-        switch fn_def.node_type {
-        case .FuncDef(fd): return ext_fdef_copies_str(fd)
-        case: return false
-        }
-    case .FieldAccess(fa):
-        ref receiver : Expr = e.children[0].children[0]
-        type_name_o := expr_type_name_ref(receiver)
-        if type_name_o.is_some() {
-            ref type_name : Str = type_name_o.unwrap()
-            fn_raw_o := ns_get(type_name, fa.field_access_name(), ctx)
-            if fn_raw_o.is_none() { return false }
-            ref fn_def : Expr = callable_raw_func_def(fn_raw_o.unwrap())
-            switch fn_def.node_type {
-            case .FuncDef(fd): return ext_fdef_copies_str(fd)
-            case: return false
-            }
-        }
-        type_name := til_type_name_c(receiver.til_type())
-        fn_raw_o := ns_get(type_name, fa.field_access_name(), ctx)
-        if fn_raw_o.is_none() { return false }
-        ref fn_def : Expr = callable_raw_func_def(fn_raw_o.unwrap())
-        switch fn_def.node_type {
-        case .FuncDef(fd): return ext_fdef_copies_str(fd)
-        case: return false
-        }
-    case:
-    }
-    return false
-}
-
-// See call_copies_ref_str: an ext callee hands back a C-owned Str buffer
+// An ext callee hands back a C-owned Str buffer
 // only when it declares one. `returns ref Dynamic` is pointer laundering.
 priv ext_fdef_copies_str := func(fd: FunctionDef) returns Bool {
     if fd.func_type.is_ext().not() { return false }
     return fd.return_type == "Str"
 }
 
-priv call_raw_result_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
-    return call_result_is_ref(e, ctx).and(call_copies_ref_str(scope, e, ctx).not())
+priv resolved_call_result_is_ref := func(e: Expr, fn_def: Expr) returns Bool {
+    switch fn_def.node_type {
+    case .FuncDef(fd):
+        if fd.return_own_type.is(OwnType.Ref).not() { return false }
+        switch e.til_type() {
+        case .Struct(name):
+            if (name == "Str").and(ext_fdef_copies_str(fd)) { return false }
+        case:
+        }
+        return true
+    case:
+        return false
+    }
 }
 
 // --- Inline-scalar value words ------------------------------------------
@@ -904,12 +867,17 @@ priv RawResultInfo := struct {
     arg_deref := false
 }
 
-priv raw_result_info_new := func(_ctx: Context) returns RawResultInfo {
+priv raw_result_info_new := func() returns RawResultInfo {
     return RawResultInfo(source_type_p = to_ptr(TYPE_UNKNOWN))
 }
 
 priv raw_result_source_type := func(info: RawResultInfo) returns ref Type {
     return to_ptr(info.source_type_p)
+}
+
+priv set_resolved_call_result_info := func(e: Expr, fn_def: Expr, destination: Dynamic, mut info: RawResultInfo, ctx: Context) {
+    info.is_ref = resolved_call_result_is_ref(e, fn_def)
+    info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(e.til_type(), ctx))
 }
 
 // Collapse an already-evaluated raw for the scalar-typed expr `e` into an
@@ -942,7 +910,7 @@ priv eval_scalar_arg_word_info := proc(s: Scope, e: Expr, mut info: RawResultInf
 
 // Evaluate a Bool-typed argument to a til-level truth value.
 priv eval_bool_arg := proc(s: Scope, e: Expr, mut ctx: Context) returns Bool {
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     return word_bits(eval_scalar_arg_word_info(s, e, info, ctx)) != 0
 }
 
@@ -1393,8 +1361,9 @@ priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns Op
         ref stored : Dynamic = deref(slot)
         return Option(ref Dynamic).Some(stored)
     case .FCall:
-        if call_raw_result_is_ref(scope, obj, ctx) {
-            raw_base : Dynamic = eval_expr_raw(scope, obj, ctx)
+        mut info := raw_result_info_new()
+        raw_base : Dynamic = eval_expr_raw_info(scope, obj, ctx, info)
+        if info.is_ref {
             ref call_base : Dynamic = to_ptr(raw_base)
             return Option(ref Dynamic).Some(call_base)
         }
@@ -1726,7 +1695,7 @@ priv eval_expr_raw_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut inf
         result : Dynamic = place
         return result
     case .FCall:
-        return eval_call_meta(scope, e, ctx, info.is_ref, info.is_word, destination)
+        return eval_call_info(scope, e, ctx, info, destination)
     case .FuncDef(fd):
         if fd.captures.len().gt(0) {
             closure : Dynamic = make_interp_closure(e, scope, ctx)
@@ -1754,7 +1723,7 @@ priv eval_expr_raw_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut inf
 }
 
 eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     return eval_expr_raw_info(scope, e, ctx, info, destination)
 }
 
@@ -1811,7 +1780,7 @@ priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr, ctx: Contex
 }
 
 priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
     mut raw_type := raw_result_source_type(info).clone()
     switch raw_type {
@@ -1923,7 +1892,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     if stmt.til_type().is(Type.None) {
         if rhs.node_type.is(NodeType.Ident) { return }
     }
-    mut rhs_info := raw_result_info_new(ctx)
+    mut rhs_info := raw_result_info_new()
     mut rhs_raw : Dynamic = 0
     mut source_hb_o := Option(ref HeapBinding).None
     switch rhs.node_type {
@@ -2152,10 +2121,9 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
     }
     if did_swap_replace { return }
     // A bare call-statement discards its typed raw result.
-    mut discard_is_ref := false
-    mut discard_is_word := false
-    discard : Dynamic = eval_call_meta(scope, stmt, ctx, discard_is_ref, discard_is_word)
-    raw_result_drop(stmt.til_type(), discard, discard_is_ref, ctx)
+    mut discard_info := raw_result_info_new()
+    discard : Dynamic = eval_call_info(scope, stmt, ctx, discard_info)
+    raw_result_drop(stmt.til_type(), discard, discard_info.is_ref, ctx)
 }
 
 priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
@@ -2213,7 +2181,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 case:
                 }
             } else {
-                mut new_info := raw_result_info_new(ctx)
+                mut new_info := raw_result_info_new()
                 new_raw = eval_expr_raw_info(scope, rhs, ctx, new_info)
                 if new_info.is_ref {
                     // A ref raw is the bare target address: load the scalar
@@ -2274,7 +2242,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 case .Ident(val_id):
                     val_raw = scope_move_bound_raw(scope, val_id.ident_name(), ctx)
                 case:
-                    mut val_info := raw_result_info_new(ctx)
+                    mut val_info := raw_result_info_new()
                     val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
                     val_is_ref = val_info.is_ref
                     val_source_type = raw_result_source_type(val_info).clone()
@@ -2291,7 +2259,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     val_is_ref = true
                     val_source_type = hb_type(source_hb).clone()
                 case:
-                    mut val_info := raw_result_info_new(ctx)
+                    mut val_info := raw_result_info_new()
                     val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
                     val_is_ref = val_info.is_ref
                     val_source_type = raw_result_source_type(val_info).clone()
@@ -2487,7 +2455,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     }
                     return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.interp_ret_is_ref, ctx)
                 case .FCall:
-                    mut inner_info := raw_result_info_new(ctx)
+                    mut inner_info := raw_result_info_new()
                     return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
                     return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.interp_ret_is_ref, ctx)
                 case .FieldAccess:
@@ -2497,7 +2465,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         return_raw = field_access_base(scope, ret_expr, ctx).unwrap()
                         return_source_is_ref = true
                     } else {
-                        mut inner_info := raw_result_info_new(ctx)
+                        mut inner_info := raw_result_info_new()
                         return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
                         return_source_type = raw_result_source_type(inner_info).clone()
                         return_raw = raw_result_reframe(return_source_type, return_raw, inner_info.is_ref, false, ctx)
@@ -2507,7 +2475,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         return_raw = 0
                         return_source_is_ref = true
                     } else {
-                        mut inner_info := raw_result_info_new(ctx)
+                        mut inner_info := raw_result_info_new()
                         return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
                         return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.interp_ret_is_ref, ctx)
                     }
@@ -2653,7 +2621,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 }
             }
         case:
-            mut arg_info := raw_result_info_new(ctx)
+            mut arg_info := raw_result_info_new()
             mut arg_raw : Dynamic = eval_expr_raw_info(caller_scope, arg_expr, ctx, arg_info)
             ref arg_source_type : Type = raw_result_source_type(arg_info)
             if is_variadic_param.not().and(param.explicit_type == "Dynamic") {
@@ -2823,11 +2791,11 @@ priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Dynamic,
     }
 }
 
-priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_is_ref: Bool, mut result_is_word: Bool, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     ref c : Context = ctx
     ref callee_expr : Expr = e.children[0]
-    result_is_ref = call_raw_result_is_ref(scope, e, ctx)
-    result_is_word = result_is_ref.not().and(destination.is_null()).and(raw_type_is_prim(e.til_type(), ctx))
+    info.is_ref = false
+    info.is_word = destination.is_null().and(raw_type_is_prim(e.til_type(), ctx))
 
     // Namespace method call: Struct.method(args)
     if callee_expr.node_type.is(NodeType.FieldAccess) {
@@ -2858,11 +2826,14 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
         mut fn_raw_owned := true
         fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
         if callable_box_is(deref(fn_raw)) {
+            ref boxed_func_def : Expr = callable_raw_func_def(fn_raw)
+            set_resolved_call_result_info(e, boxed_func_def, destination, info, ctx)
             result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
             if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
             return result
         }
         ref func_def : Expr = callable_raw_func_def(fn_raw)
+        set_resolved_call_result_info(e, func_def, destination, info, ctx)
 
             // FuncPtr field: stored function may be ext_func from another type
             if callee_expr.til_type().is_funcptr() {
@@ -3001,10 +2972,10 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
         mut ext_result_type := e.til_type().clone()
         mut ext_return_own_type := OwnType.Shallow
         mut ext_variadic_index : I32 = -1
-        ext_result_is_ref := result_is_ref
         if ext_slot.is_null().not() {
             ref ext_binding_raw : Dynamic = ext_slot
             ref ext_def : Expr = callable_raw_func_def(ext_binding_raw)
+            set_resolved_call_result_info(e, ext_def, destination, info, ctx)
             switch ext_def.node_type {
             case .FuncDef(ext_fd):
                 if ext_fd.return_type.len() == 0 { ext_result_type = Type.None }
@@ -3019,6 +2990,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                 UNREACHABLE("unexpected ", ext_def.node_type.head_str())
             }
         }
+        ext_result_is_ref := info.is_ref
         // `cast(e, T)` and dyn_call_ret declare Dynamic because til has no
         // dependent return types; the typer places the concrete result on the
         // call expression. Allocate dispatch storage at that contextual type.
@@ -3243,7 +3215,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                                 arg_is_place = heap_type_is_callable(hb_type(source_hb)).not()
                             }
                         case:
-                            mut arg_info := raw_result_info_new(ctx)
+                            mut arg_info := raw_result_info_new()
                             arg_raw = eval_expr_raw_info(scope, arg, ctx, arg_info)
                             arg_is_ref = arg_info.is_ref
                             arg_source_type = raw_result_source_type(arg_info).clone()
@@ -3284,6 +3256,8 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
         // `cast(raw, BinaryOp)(3, 4)`. Eval the callee (the cast) to
         // get the function pointer, then dispatch with the call's args.
         cast_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
+        ref cast_func_def : Expr = callable_raw_func_def(cast_raw)
+        set_resolved_call_result_info(e, cast_func_def, destination, info, ctx)
         result : Dynamic = eval_callable_call(scope, e, cast_raw, ctx, destination)
         callable_raw_free(cast_raw, ctx)
         return result
@@ -3295,9 +3269,8 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
 }
 
 priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
-    mut result_is_ref := false
-    mut result_is_word := false
-    return eval_call_meta(scope, e, ctx, result_is_ref, result_is_word, destination)
+    mut info := raw_result_info_new()
+    return eval_call_info(scope, e, ctx, info, destination)
 }
 
 // Single owning-pointer box for side tables that need to own raw Dynamic
@@ -4694,7 +4667,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             for nci_pos : I64 in const_order {
                 cur_nci := nci_pos.to_usize()
                 ref nsd : Declaration = reg_ns.unsafe_get(cur_nci)
-                mut info := raw_result_info_new(ctx)
+                mut info := raw_result_info_new()
                 mut raw : Dynamic = eval_expr_raw_info(global, nsd.default_expr(), ctx, info)
                 if info.is_ref {
                     owned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw, ctx)
@@ -5882,13 +5855,13 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
 }
 
 priv eval_i64_arg := proc(s: Scope, e: Expr, ctx: Context) returns I64 {
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_scalar_arg_word_info(s, e, info, ctx)
     return raw_to_i64(raw_result_source_type(info), raw, ctx)
 }
 
 priv eval_u64_arg := proc(s: Scope, e: Expr, ctx: Context) returns U64 {
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_scalar_arg_word_info(s, e, info, ctx)
     return raw_to_u64(raw_result_source_type(info), raw, ctx)
 }
@@ -6038,7 +6011,7 @@ priv h_U32_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns
 // raw bits and write them at the target width.
 priv h_cast := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref src_expr : Expr = e.children[1]
-    mut src_info := raw_result_info_new(ctx)
+    mut src_info := raw_result_info_new()
     src : Dynamic = eval_expr_raw_info(s, src_expr, ctx, src_info)
     tn := til_type_name_c(e.til_type())
     if (tn == "Fn").or(tn == "Body") {
@@ -6209,7 +6182,7 @@ str_copy_into := func(result: Dynamic, src: Str, ctx: Context) {
 }
 
 priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     value_raw : Dynamic = raw_arg_pointer(raw, info, ctx)
     ref value : Str = to_ptr(value_raw)
@@ -6609,7 +6582,7 @@ priv dyn_type_to_str_raw := func(type_data: Dynamic, r: Dynamic, ctx: Context) r
 
 priv h_dyn_type_to_str := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     type_data : Dynamic = raw_arg_pointer(raw, info, ctx)
     result := dyn_type_to_str_raw(type_data, r, ctx)
@@ -6793,7 +6766,7 @@ priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
         }
     case:
         ref arg : Expr = e.children[1]
-        mut info := raw_result_info_new(ctx)
+        mut info := raw_result_info_new()
         raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ptr : Dynamic = raw_arg_pointer(raw, info, ctx)
         if ptr.is_null().not() {
@@ -6863,14 +6836,14 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
             }
         }
         ref arg : Expr = e.children[1]
-        mut info := raw_result_info_new(ctx)
+        mut info := raw_result_info_new()
         raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ref stored : Dynamic = deref(raw)
         if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
         raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     case:
         ref arg : Expr = e.children[1]
-        mut info := raw_result_info_new(ctx)
+        mut info := raw_result_info_new()
         raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ref stored : Dynamic = deref(raw)
         if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
@@ -6881,7 +6854,7 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
 
 priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     ref stored : Dynamic = deref(slot)
@@ -6895,7 +6868,7 @@ priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Cont
 
 priv h_til_closure_slot_clone := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     holder : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
@@ -6907,7 +6880,7 @@ priv h_til_closure_slot_clone := proc(s: Scope, e: Expr, r: Dynamic, ctx: Contex
 
 priv h_til_closure_slot_pop := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     write_ptr(r, deref(slot))
@@ -6918,7 +6891,7 @@ priv h_til_closure_slot_pop := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
 
 priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref slot_expr : Expr = e.children[1]
-    mut slot_info := raw_result_info_new(ctx)
+    mut slot_info := raw_result_info_new()
     slot_raw : Dynamic = eval_expr_raw_info(s, slot_expr, ctx, slot_info)
     dst : Dynamic = raw_arg_pointer(slot_raw, slot_info, ctx)
     ref source_expr : Expr = e.children[2]
@@ -6947,7 +6920,7 @@ priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Contex
 
 priv h_cfile_close := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_close(raw_arg_pointer(handle_raw, handle_info, ctx))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
@@ -6956,7 +6929,7 @@ priv h_cfile_close := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns
 
 priv h_cfile_write_str := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     sv := eval_str_owned(s, e.children[2], ctx)
     cfile_write_str(raw_arg_pointer(handle_raw, handle_info, ctx), sv)
@@ -6966,7 +6939,7 @@ priv h_cfile_write_str := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) ret
 
 priv h_ptr_add := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref buf_expr : Expr = e.children[1]
-    mut buf_info := raw_result_info_new(ctx)
+    mut buf_info := raw_result_info_new()
     buf_raw : Dynamic = eval_expr_raw_info(s, buf_expr, ctx, buf_info)
     write_ptr(r, ptr_add(raw_arg_pointer(buf_raw, buf_info, ctx), eval_u64_arg(s, e.children[2], ctx)))
     raw_result_drop(buf_expr.til_type(), buf_raw, buf_info.is_ref, ctx)
@@ -6982,7 +6955,7 @@ priv h_ptr_add := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool
 // inline in this compiled handler -- no handler recursion.
 priv h_is_null := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     write_bool(r, raw_arg_pointer(raw, info, ctx).is_null())
     raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
@@ -6996,7 +6969,7 @@ priv h_is_null := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool
 priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref ae : Expr = e.children[1]
     ref be : Expr = e.children[2]
-    mut a_info := raw_result_info_new(ctx)
+    mut a_info := raw_result_info_new()
     a : Dynamic = eval_expr_raw_info(s, ae, ctx, a_info)
     switch be.node_type {
     case .FieldAccess(variant):
@@ -7037,7 +7010,7 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
         }
     case:
     }
-    mut b_info := raw_result_info_new(ctx)
+    mut b_info := raw_result_info_new()
     b : Dynamic = eval_expr_raw_info(s, be, ctx, b_info)
     write_bool(r, memcmp(raw_arg_pointer(a, a_info, ctx), raw_arg_pointer(b, b_info, ctx), eval_u64_arg(s, e.children[3], ctx)) == 0)
     raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
@@ -7120,7 +7093,7 @@ priv h_get_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns 
         return true
     }
     ref arg : Expr = e.children[1]
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     if gp_is_niche { write_ptr(r, deref(raw_arg_pointer(raw, info, ctx))) return true }
     write_ptr(r, ptr_add(raw_arg_pointer(raw, info, ctx), gp_off))
@@ -7130,7 +7103,7 @@ priv h_get_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns 
 
 priv h_cfile_read_all := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     content := cfile_read_all(raw_arg_pointer(handle_raw, handle_info, ctx))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
@@ -7160,7 +7133,7 @@ priv h_cfile_exists := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns
 
 priv h_cfile_tell := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     write_i64(r, cfile_tell(raw_arg_pointer(handle_raw, handle_info, ctx)))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
@@ -7169,7 +7142,7 @@ priv h_cfile_tell := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns B
 
 priv h_cfile_seek := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_seek(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
@@ -7178,7 +7151,7 @@ priv h_cfile_seek := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns 
 
 priv h_cfile_seek_cur := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_seek_cur(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
@@ -7187,7 +7160,7 @@ priv h_cfile_seek_cur := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) retu
 
 priv h_cfile_seek_end := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_seek_end(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
@@ -7196,7 +7169,7 @@ priv h_cfile_seek_end := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) retu
 
 priv h_cfile_read_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_info := raw_result_info_new(ctx)
+    mut handle_info := raw_result_info_new()
     handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     content := cfile_read_n(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
@@ -7329,7 +7302,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
     if method == "delete" {
         if nargs == 0 { panic("dyn_call delete without receiver") }
         ref recv_expr : Expr = e.children[4]
-        mut recv_info := raw_result_info_new(ctx)
+        mut recv_info := raw_result_info_new()
         recv_raw : Dynamic = eval_expr_raw_info(s, recv_expr, ctx, recv_info)
         recv_ptr : Dynamic = raw_arg_pointer(recv_raw, recv_info, ctx)
         mut call_free := true
@@ -7355,8 +7328,9 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
         fake_call.push_child_clone(e.children[ai + 4])
     }
 
-    raw : Dynamic = eval_call(s, fake_call, ctx)
-    raw_result_move_into(e.til_type(), r, raw, call_raw_result_is_ref(s, e, ctx), ctx)
+    mut call_info := raw_result_info_new()
+    raw : Dynamic = eval_call_info(s, fake_call, ctx, call_info)
+    raw_result_move_into(e.til_type(), r, raw, call_info.is_ref, ctx)
     return true
 }
 
@@ -7390,7 +7364,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
         switch e.children[2].node_type {
         case .FieldAccess(variant):
             ref subject : Expr = e.children[1]
-            mut subject_info := raw_result_info_new(ctx)
+            mut subject_info := raw_result_info_new()
             subject_raw : Dynamic = eval_expr_raw_info(scope, subject, ctx, subject_info)
             write_bool(result, enum_data_tag_key(raw_arg_pointer(subject_raw, subject_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
             raw_result_drop(subject.til_type(), subject_raw, subject_info.is_ref, ctx)
@@ -7410,7 +7384,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 // #320: ref payload -- the payload word is the SOURCE's
                 // address (a borrow): no clone, no move, no ownership.
                 ref borrow_expr : Expr = e.children[1]
-                mut borrow_info := raw_result_info_new(ctx)
+                mut borrow_info := raw_result_info_new()
                 borrow_raw : Dynamic = eval_expr_raw_info(scope, borrow_expr, ctx, borrow_info)
                 write_enum_flat(result, enum_name, ctor_tag, bits_word(0), 0, false, false, ctx)
                 // #320 niche: the borrow IS the whole value (offset 0);
@@ -7448,7 +7422,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                     case:
                     }
                 }
-                mut pdata_info := raw_result_info_new(ctx)
+                mut pdata_info := raw_result_info_new()
                 if transferred_ident.not() {
                     pdata = eval_expr_raw_info(scope, payload_expr, ctx, pdata_info)
                     pdata_is_ref = pdata_info.is_ref
@@ -7595,7 +7569,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
 
     for i in 0..nargs {
         ref arg_expr : Expr = e.children[i + 1]
-        mut arg_info := raw_result_info_new(ctx)
+        mut arg_info := raw_result_info_new()
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
         arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
         arg_raw_off := i.mul(16)
@@ -7944,7 +7918,7 @@ priv scalar_write_raw := func(t: Str, result: Dynamic, v: I64) {
 }
 
 priv scalar_read_arg := proc(scope: Scope, arg: Expr, shallow target_type: Type, ctx: Context) returns Dynamic {
-    mut info := raw_result_info_new(ctx)
+    mut info := raw_result_info_new()
     raw : Dynamic = eval_scalar_arg_word_info(scope, arg, info, ctx)
     return raw_coerce_value(raw, raw_result_source_type(info), target_type, ctx)
 }
@@ -8083,8 +8057,8 @@ priv enum_core_is_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynamic
     if edef.node_type.is(NodeType.EnumDef).not() { return false }
     ref ae : Expr = e.children[1]
     ref be : Expr = e.children[2]
-    mut a_info := raw_result_info_new(ctx)
-    mut b_info := raw_result_info_new(ctx)
+    mut a_info := raw_result_info_new()
+    mut b_info := raw_result_info_new()
     a : Dynamic = eval_expr_raw_info(scope, ae, ctx, a_info)
     b : Dynamic = eval_expr_raw_info(scope, be, ctx, b_info)
     write_bool(result, memcmp(raw_arg_pointer(a, a_info, ctx), raw_arg_pointer(b, b_info, ctx), enum_tag_size(edef)) == 0)
