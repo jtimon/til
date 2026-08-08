@@ -1585,6 +1585,14 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                        li_rhs.node_type.is(NodeType.FCall)) {
                     li.is_heap = false
                 }
+                // #302 stage 4: the POD-struct ctor Decl. The C backend
+                // emits `Point p = (Point){...}` -- a stack value -- so
+                // the record has to say Stack too; it used to say
+                // HeapBox and the backend compensated at every delete
+                // site. 582 decls per a first_class translate.
+                if pod_ctor_decl_is_stack(li_rhs, scope) {
+                    li.is_heap = false
+                }
                 if is_pod_enum_clone_wrap(li_rhs, scope) {
                     // POD-enum clone wrap (`c := Color.clone(Color.Red)`):
                     // builder emits a stack value (Color c = (Color){...};)
@@ -2541,6 +2549,13 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
             // uses call_free=false / arg_is_own=false and the destructor
             // becomes a true no-op (`Color_delete(&c, &(Bool){0});`).
             if is_pod_enum_clone_wrap(rhs0, ctx.scope) { continue }
+            // #302 stage 4: same shape again for a POD-STRUCT ctor
+            // (`p := Point(x = 1)`), which the backend also emits as a
+            // stack compound literal. Promoting it back to HeapBox is
+            // what forced the backend to override the delete at every
+            // site; keeping the Stack decision lets make_delete_call
+            // emit `Point_delete(&p, false)` on its own.
+            if pod_ctor_decl_is_stack(rhs0, ctx.scope) { continue }
             // #302 stage 1: shallow-return FCall RHS -- the builder
             // stack-allocates these (fcall_is_shallow_return), and
             // collect_scope_locals already forced is_heap=false for

@@ -70,11 +70,16 @@ priv is_stack_local := func(name: Str, ctx: Context) returns Bool {
 // paths means the twin predicates drifted: fail loudly here instead of
 // emitting C whose delete call_free disagrees with its storage (a
 // stack free / leak at runtime). Paths that KNOWINGLY diverge today --
-// the POD-struct ctor stack shortcut, the can_hoist `_hp` deref
-// copies, the POD-struct user-clone value copy (each records HeapBox
-// but emits stack, compensated by the delete shims /
-// is_noop_delete_stmt) -- stay unasserted until stages 4/6 collapse
-// the compensation.
+// the can_hoist `_hp` deref copies, the POD-struct user-clone value
+// copy -- stay unasserted until stages 4/6 collapse the compensation.
+// The POD-struct ctor shortcut is MOSTLY converged: the garbager
+// records Stack for it (pod_ctor_decl_is_stack, shared from
+// context.til) and keeps that decision through promotion, so its
+// delete now arrives correct instead of being rewritten at the emit
+// site. It stays unasserted because a GENERIC instantiation rewrites
+// the Decl's RHS into a ctor after the garbager has already recorded
+// it, leaving a stale HeapBox on a local whose delete is skipped
+// anyway.
 priv assert_gc_stack := func(dd: Declaration, shape: Str) {
     if dd.gc_storage.is(GcStorage.HeapBox) {
         panic(__LOC__, ": #302 storage record mismatch: garbager recorded HeapBox for '", dd.name,
@@ -2860,13 +2865,20 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         // call_free temp if present, so -Wunused-variable
                         // doesn't trip.
                         if is_stack_local(del_arg.ident_name(), ctx).and(c1.til_type().is(Type.Struct)) {
+                            // Str only. A POD-STRUCT stack local used to
+                            // need the same override, because the garbager
+                            // recorded HeapBox for it and this rewrote the
+                            // resulting own+call_free=true call into the
+                            // stack shape. The record tells the truth now
+                            // (#302 stage 4), so that call arrives correct
+                            // and the generic path emits it.
                             del_ct_o := get_stack_local_ctype(del_arg.ident_name(), ctx)
-                            mut del_ct_pod := false
+                            mut del_ct_is_str := false
                             if del_ct_o.is_some() {
                                 ref del_ct : Str = del_ct_o.unwrap()
-                                del_ct_pod = del_ct.eq("Str").or(is_pod_struct(del_ct, ctx))
+                                del_ct_is_str = del_ct.eq("Str")
                             }
-                            if del_ct_pod {
+                            if del_ct_is_str {
                                 ref del_ct : Str = del_ct_o.unwrap()
                                 if e.children.len() >= 3 {
                                     switch e.children[2].node_type {

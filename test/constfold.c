@@ -805,7 +805,7 @@ void test_struct_fold_simple(void) {
     I64 hoisted__I64_7171 = 99;
     assert_eq__I64(v.y, hoisted__I64_7171, &_til_str_lits[28]);
     Str_delete(&_til_str_lits[28], (Bool){0});
-    CfVec2_delete(&v, (Bool){0});
+    CfVec2_delete(({ CfVec2 *_oa = malloc(sizeof(CfVec2)); *_oa = v; _oa; }), 1);
 }
 
 void test_struct_fold_values(void) {
@@ -816,7 +816,7 @@ void test_struct_fold_values(void) {
     I64 hoisted__I64_7177 = 20;
     assert_eq__I64(p.y, hoisted__I64_7177, &_til_str_lits[30]);
     Str_delete(&_til_str_lits[30], (Bool){0});
-    CfVec2_delete(&p, (Bool){0});
+    CfVec2_delete(({ CfVec2 *_oa = malloc(sizeof(CfVec2)); *_oa = p; _oa; }), 1);
 }
 
 void CfRect_delete(CfRect * self, Bool call_free) {
@@ -839,7 +839,7 @@ void test_struct_fold_nested(void) {
     I64 hoisted__I64_7232 = 200;
     assert_eq__I64(r.bottom_right.y, hoisted__I64_7232, &_til_str_lits[34]);
     Str_delete(&_til_str_lits[34], (Bool){0});
-    CfRect_delete(&r, (Bool){0});
+    CfRect_delete(({ CfRect *_oa = malloc(sizeof(CfRect)); *_oa = r; _oa; }), 1);
 }
 
 void CfVec3f_delete(CfVec3f * self, Bool call_free) {
@@ -865,7 +865,7 @@ void test_struct_fold_f32(void) {
     Str_delete(hoisted__Str_7294, 1);
     Str_delete(&_til_str_lits[39], (Bool){0});
     Str_delete(&_til_str_lits[40], (Bool){0});
-    CfVec3f_delete(&v, (Bool){0});
+    CfVec3f_delete(({ CfVec3f *_oa = malloc(sizeof(CfVec3f)); *_oa = v; _oa; }), 1);
 }
 
 Bool Color_eq(Color * self, Color * other) {

@@ -2296,6 +2296,11 @@ I64 priv___src_self_context_til__qname_part_cmp(Str * key, USize off, Str * part
 I64 qname_cmp(Str * key, Str * a, Str * sep, Str * b);
 I64 qname_keys_index(Vec__Str * keys, Str * a, Str * sep, Str * b);
 Bool qname_in_set(Set__Str * s, Str * a, Str * sep, Str * b);
+Bool pod_struct_is(Str * struct_name, TypeScope * scope);
+Bool priv___src_self_context_til__pod_primitive_name(Str * name);
+Bool pod_ctor_args_safe(Expr * ctor, TypeScope * scope);
+Bool priv___src_self_context_til__pod_fcall_is_struct_ctor(Expr * e);
+Bool pod_ctor_decl_is_stack(Expr * rhs, TypeScope * scope);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind);
