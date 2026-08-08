@@ -129,8 +129,7 @@ namespace:
         // copy immediately overwrites -- an allocation, a free, and a
         // leak if the free is forgotten (ASAN caught 488 of them).
         out : Vec(T) = malloc(Vec(T).size())
-        memcpy(out, self, Vec(T).size())
-        memset(self, 0, Vec(T).size())
+        adopt_from(out, self, Vec(T).size())
         return out
     }
 
@@ -150,8 +149,7 @@ namespace:
             T.delete(own ptr_add(dest.data, i.mul(T.size())), false)
         }
         free(own dest.data)
-        memcpy(dest, self, Vec(T).size())
-        memset(self, 0, Vec(T).size())
+        adopt_from(dest, self, Vec(T).size())
     }
 
     /// Take `other`'s contents, dropping whatever self held. OTHER is
@@ -191,8 +189,7 @@ namespace:
         }
         last := self.count - 1
         out : T = malloc(T.size())
-        memcpy(out, ptr_add(self.data, last.mul(T.size())), T.size())
-        memset(ptr_add(self.data, last.mul(T.size())), 0, T.size())
+        adopt_from(out, ptr_add(self.data, last.mul(T.size())), T.size())
         self.count = last
         return out
     }
@@ -281,9 +278,8 @@ namespace:
             self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(T.size())),
-               ptr_add(src.data, i.mul(T.size())), T.size())
-        memset(ptr_add(src.data, i.mul(T.size())), 0, T.size())
+        adopt_from(ptr_add(self.data, self.count.mul(T.size())),
+                   ptr_add(src.data, i.mul(T.size())), T.size())
         self.count = self.count + 1
     }
 

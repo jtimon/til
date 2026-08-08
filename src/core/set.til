@@ -76,8 +76,12 @@ namespace:
             }
         }
         if found {
+            // Nothing blanks the box between the two: the memset that
+            // used to sit here was dead either way. For a literal Str the
+            // builder gates it on `cap != TIL_CAP_LIT` (the same guard the
+            // free carries), so it never ran; for a real box it zeroed
+            // bytes that the next line frees.
             T.delete(own val, false)
-            memset(val, 0, T.size())
             free(own val)
         } else {
             if self.count == self.cap {
