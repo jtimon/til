@@ -1,0 +1,22 @@
+mode cli
+
+// #342: own_args / ref_args / splat_args are U64 bitmaps indexed by child
+// position, so a qualifier past child 63 has no bit to set and used to be
+// dropped in silence -- a `..` there reached the variadic lowering as an
+// ordinary element, and the callee read the splatted Array's header bytes as
+// its element type. The parser refuses the call instead. 63 plain arguments
+// below put the splat at child 64, one past the last addressable bit.
+
+splat_limit_src := array(Str, "y", "z")
+
+splat_limit_out := format(
+    "x", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+    "x", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+    "x", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+    "x", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+    "x", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+    "x", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+    "x", "x", "x",
+    ..splat_limit_src)
+
+println(splat_limit_out)
