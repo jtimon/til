@@ -25,11 +25,11 @@ import("context")
 //                  synthesized (the only genuinely new Expr here)
 priv SLOT_EMPTY : I32 = -1
 priv slot_default_code := func(defaults_index: USize) returns I32 {
-    mut c : I32 = -2
+    c : I32 = -2
     return c.sub(defaults_index.to_i32())
 }
 priv slot_default_index := func(code: I32) returns USize {
-    mut c : I32 = -2
+    c : I32 = -2
     return c.sub(code).to_usize()
 }
 
@@ -4676,7 +4676,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         if is_raw_alloc { continue }
 
         ref arg : Expr = expr.children[i]
-        mut hoist_fi := fi
+        hoist_fi := fi
         if is_ctor_call.and(hoist_sdef_o.is_some()) {
         if hoist_sdef_o.unwrap().node_type.is(NodeType.StructDef) {
             fi++
@@ -5129,7 +5129,7 @@ priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
     vi_u := vi.to_usize()
     if block_has_splat(e, vi_u, vc).not() { return false }
 
-    mut combined := build_splat_folded_array(ctx, e, new_ch, scope, elem_type,
+    combined := build_splat_folded_array(ctx, e, new_ch, scope, elem_type,
         array_type, vi_u, vc)
 
     // Replace the whole block with the single combined Array, in the shape

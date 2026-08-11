@@ -32,7 +32,7 @@ test_dyn_array_subscript := test() {
     assert_eq(I64, y, 20)
     assert_eq(I64, z, 30)
 
-    mut i : USize = 1
+    i : USize = 1
     ref w : I64 = a[i.add(1)]
     assert_eq(I64, w, 30)
 }

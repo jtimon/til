@@ -138,7 +138,7 @@ main := proc(args: ..Str) {
     print(stat.clone())
     print("\n")
 
-    mut clean_msg := trim_leading_whitespace(msg)
+    clean_msg := trim_leading_whitespace(msg)
     raw_subject := clean_msg.substr(0, count_subject_end(clean_msg)).clone()
     if clean_msg.len().lt(0) { }
     subject := trim_quotes(trim_spaces(raw_subject))

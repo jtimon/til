@@ -656,9 +656,9 @@ priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, 
 // solve. Bucket contents keep the same order (both fills visit
 // predecessors in increasing block id), so the fixpoint meets in the
 // same sequence.
-priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), mut preds: Vec(USize)) {
+priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), pred_off: Array(USize), mut preds: Vec(USize)) {
     n := blocks.len()
-    mut counts := Array(USize).new(n)
+    counts := Array(USize).new(n)
     for i in 0..n { counts[i] = 0 }
     for p in 0..n {
         ref pb : GcCfgBlock = blocks[p]
@@ -686,7 +686,7 @@ priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), 
         preds.cap = acc
     }
     preds.count = acc
-    mut cursor := Array(USize).new(n)
+    cursor := Array(USize).new(n)
     for bi in 0..n {
         ref pb2 : USize = pred_off[bi]
         cursor[bi] = pb2.add(0)
@@ -707,7 +707,7 @@ priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), 
 // The sweep itself, over precomputed predecessors and per-block
 // transfer functions. Split out so a caller solving MANY locals over
 // one body pays for the graph once (gc_flow_stmt_table).
-priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize), kill: Array(U8), entry_state: U8, mut ins: Array(U8), mut outs: Array(U8)) {
+priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize), kill: Array(U8), entry_state: U8, ins: Array(U8), outs: Array(U8)) {
     for i in 0..n {
         ins[i] = FLOW_UNREACHED
         outs[i] = FLOW_UNREACHED
@@ -741,11 +741,11 @@ priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize
     }
 }
 
-priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, mut ins: Array(U8), mut outs: Array(U8)) {
+priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, ins: Array(U8), outs: Array(U8)) {
     n := blocks.len()
-    mut kill := Array(U8).new(n)
+    kill := Array(U8).new(n)
     for i in 0..n { kill[i] = gc_flow_block_kill(blocks, i, name, scope, ctx) }
-    mut pred_off := Array(USize).new(n.add(1))
+    pred_off := Array(USize).new(n.add(1))
     mut preds := Vec(USize).new()
     gc_flow_preds(blocks, pred_off, preds)
     gc_flow_fixpoint(n, pred_off, preds, kill, entry_state, ins, outs)
@@ -772,7 +772,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
     // predecessor map and a name sweep per recursion level.
     if has_exit.not() { return Array(U8).new(0) }
     stmts := body.children.len()
-    mut table := Array(U8).new(locals.len().mul(stmts))
+    table := Array(U8).new(locals.len().mul(stmts))
     for t in 0..locals.len().mul(stmts) { table[t] = FLOW_UNREACHED }
     // No binding here can ever leave Owned, so no graph is needed: each
     // row is Uninit up to its Decl and Owned after, in closed form.
@@ -838,16 +838,16 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
     mut blocks := Vec(GcCfgBlock).new()
     cfg_build(blocks, body)
     n := blocks.len()
-    mut pred_off := Array(USize).new(n.add(1))
+    pred_off := Array(USize).new(n.add(1))
     mut preds := Vec(USize).new()
     gc_flow_preds(blocks, pred_off, preds)
-    mut kill := Array(U8).new(n)
-    mut ins := Array(U8).new(n)
-    mut outs := Array(U8).new(n)
+    kill := Array(U8).new(n)
+    ins := Array(U8).new(n)
+    outs := Array(U8).new(n)
     // Reachability is name-independent, so solve it once with the
     // identity transfer everywhere; the untransferred bindings ride it
     // instead of each running their own fixpoint.
-    mut reachable := Array(Bool).new(stmts)
+    reachable := Array(Bool).new(stmts)
     for s in 0..stmts { reachable[s] = false }
     for bi in 0..n { kill[bi] = FLOW_ID }
     gc_flow_fixpoint(n, pred_off, preds, kill, FLOW_OWNED, ins, outs)
@@ -937,8 +937,8 @@ priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScop
     cfg_build(blocks, body)
     mut entry := FLOW_UNINIT
     if local.decl_index < 0 { entry = FLOW_OWNED }
-    mut ins := Array(U8).new(blocks.len())
-    mut outs := Array(U8).new(blocks.len())
+    ins := Array(U8).new(blocks.len())
+    outs := Array(U8).new(blocks.len())
     gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
     mut may_owned := false
     mut may_moved := false
@@ -969,8 +969,8 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
     cfg_build(blocks, body)
     mut entry := FLOW_UNINIT
     if local.decl_index < 0 { entry = FLOW_OWNED }
-    mut ins := Array(U8).new(blocks.len())
-    mut outs := Array(U8).new(blocks.len())
+    ins := Array(U8).new(blocks.len())
+    outs := Array(U8).new(blocks.len())
     gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
     for bi in 0..blocks.len() {
         ref b : GcCfgBlock = blocks[bi]
@@ -1007,8 +1007,8 @@ priv gc_flow_dump := proc(ctx: Context, blocks: Vec(GcCfgBlock), locals: Vec(Loc
         if gc_audit_local_is_noise(local) { continue }
         mut entry := FLOW_UNINIT
         if local.decl_index < 0 { entry = FLOW_OWNED }
-        mut ins := Array(U8).new(blocks.len())
-        mut outs := Array(U8).new(blocks.len())
+        ins := Array(U8).new(blocks.len())
+        outs := Array(U8).new(blocks.len())
         gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
         mut ss := ""
         for j in 0..blocks.len() {
@@ -1340,7 +1340,7 @@ priv fact_bit_req := func(fi: FactIndex, name: Str) returns USize {
 }
 
 priv fact_bit_test := func(mask: Vec(U64), base: USize, bit: USize) returns Bool {
-    mut one : U64 = 1
+    one : U64 = 1
     return mask.unsafe_get(base.add(bit / 64)).band(one.shl(bit.mod(64).to_u64())) > 0
 }
 

@@ -1,6 +1,6 @@
 # priority: high
 # category: bugs
-** OPEN #344 One-sided mut enforcement: non-mut writes compile, backends disagree, accessors launder writes
+** WIP #344 One-sided mut enforcement: non-mut writes compile, backends disagree, accessors launder writes
 
 Four probes, all run on master's own compiler (~til_boot~ built from
 HEAD's boot/), interpreted AND compiled. They show one gap from three
@@ -219,3 +219,27 @@ fails. After A lands, master's ~til_boot~ understands the propagated
 write and B is an ordinary single-pass use commit. These are the only
 two bootstrap stages; splitting B by subsystem would add history but
 no buildable state.
+
+*** Progress
+
+- [X] A. Preparation: make write tracking follow borrows.
+      ~TypeBinding.borrow_roots~ (name + declaration site, so a nested
+      shadow cannot absorb a write) and ~FunctionDef.ref_return_params~
+      (a parameter-indexed return-borrow summary) landed. The summary is
+      settled per unit by a monotone fixed point before any body is typed
+      and refreshed once each body IS typed, so neither source order nor
+      late monomorphization changes the answer. One write walker
+      (~mark_written_through~) now serves field assignment, assignment
+      through a ~ref mut~, resolved ~mut~ arguments and ~mut self~
+      receivers, the ~Dynamic~ lint, and both ~for mut~ paths, crediting
+      the roots a write really reaches. The two false marks -- every UFCS
+      receiver, and creating a ~ref mut~ alias -- are gone, and the
+      qualifiers that were surviving on them were dropped across
+      src/self, examples and tests.
+- [ ] B. Use: enforce the contract (reject a write whose typed terminal
+      root is non-mut), sweep core/std/self/examples/tests under the new
+      checker, convert the ~24 single-variant extraction switches #253
+      left, and add the negative cases to ~test/typer_errors.til~.
+      Needs A merged into master first: HEAD's ~til_boot~ must already
+      understand the propagated write before a body whose only write is
+      behind an accessor can be built (see doc/self.org).

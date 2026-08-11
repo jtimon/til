@@ -92,7 +92,7 @@ LANGS := array(Array__Str, LANG_PT, LANG_ES, LANG_EN)
 
 // -- Helper functions --
 
-seven_triad_type := func(mut sc_chrom: Array(I32), ti: USize) returns U32 {
+seven_triad_type := func(sc_chrom: Array(I32), ti: USize) returns U32 {
     ref root_c : I32 = sc_chrom[ti]
     i3 := (sc_chrom[(ti + 2) % SEVEN_NATURAL_COUNT] - root_c + SEVEN_CYCLE) % SEVEN_CYCLE
     i5 := (sc_chrom[(ti + 4) % SEVEN_NATURAL_COUNT] - root_c + SEVEN_CYCLE) % SEVEN_CYCLE
@@ -179,8 +179,8 @@ start_scale := func(mut playing: Bool, mut play_idx: USize, mut play_timer: I64)
 }
 
 draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USize, note_count: USize,
-                  mut sc_diat: Array(I32), mut sc_span: Array(I32), mut sc_acc: Array(I32),
-                  mut sc_triad: Array(U32), playing: Bool, play_idx: USize,
+                  sc_diat: Array(I32), sc_span: Array(I32), sc_acc: Array(I32),
+                  sc_triad: Array(U32), playing: Bool, play_idx: USize,
                   clicked_note: I32, fnt: Font) {
     five_system := active_five_system(use_five, use_nathex)
     dnx := note_x(dni, note_count)
@@ -255,8 +255,8 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
 
 recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
                               note_count: USize,
-                              mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_span: Array(I32),
-                              mut sc_acc: Array(I32), mut sc_freq: Array(I64), mut sc_triad: Array(U32)) {
+                              sc_chrom: Array(I32), sc_diat: Array(I32), sc_span: Array(I32),
+                              sc_acc: Array(I32), sc_freq: Array(I64), sc_triad: Array(U32)) {
     root_chromatic := (NATURALS[sel_diatonic] + sel_accidental + SEVEN_CYCLE) % SEVEN_CYCLE
     mut chrom_total := root_chromatic
     mut diat_pos := sel_diatonic.to_i32()
@@ -312,7 +312,7 @@ scale_piano_key := func(chrom: I32) returns I32 {
     return chrom
 }
 
-highlight_scale_for_key := func(key_idx: I32, note_count: USize, mut sc_chrom: Array(I32), mut clicked_note: I32, mut clicked_timer: I32) {
+highlight_scale_for_key := func(key_idx: I32, note_count: USize, sc_chrom: Array(I32), mut clicked_note: I32, mut clicked_timer: I32) {
     for ci : USize in 0..note_count {
         ref chrom : I32 = sc_chrom[ci]
         scale_key_idx := scale_piano_key(chrom)
@@ -410,12 +410,12 @@ main := proc() {
     fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, Option(ref I32).None, 0)
 
     // Scale result arrays. Once uses the first 8/6 slots; full span uses 15/16.
-    mut sc_chrom := Array(I32).new(MAX_SCALE_NOTES)
-    mut sc_diat := Array(I32).new(MAX_SCALE_NOTES)
-    mut sc_span := Array(I32).new(MAX_SCALE_NOTES)
-    mut sc_acc := Array(I32).new(MAX_SCALE_NOTES)
-    mut sc_freq := Array(I64).new(MAX_SCALE_NOTES)
-    mut sc_triad := Array(U32).new(SEVEN_NATURAL_COUNT)
+    sc_chrom := Array(I32).new(MAX_SCALE_NOTES)
+    sc_diat := Array(I32).new(MAX_SCALE_NOTES)
+    sc_span := Array(I32).new(MAX_SCALE_NOTES)
+    sc_acc := Array(I32).new(MAX_SCALE_NOTES)
+    sc_freq := Array(I64).new(MAX_SCALE_NOTES)
+    sc_triad := Array(U32).new(SEVEN_NATURAL_COUNT)
 
     // State. Default is 7 Greek modes.
     mut use_five := false

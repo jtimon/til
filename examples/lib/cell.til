@@ -9,7 +9,7 @@ ca_new_grid := func(cols: I64, rows: I64) returns Array(I64) {
 }
 
 // Clear all cells to 0
-ca_clear_grid := func(mut grid: Array(I64), total: I64) {
+ca_clear_grid := func(grid: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
         grid[i.to_usize()] = 0
@@ -18,7 +18,7 @@ ca_clear_grid := func(mut grid: Array(I64), total: I64) {
 }
 
 // Count live neighbors for cell at index (toroidal wrapping)
-ca_count_neighbors := func(mut grid: Array(I64), idx: I64, cols: I64, rows: I64) returns I64 {
+ca_count_neighbors := func(grid: Array(I64), idx: I64, cols: I64, rows: I64) returns I64 {
     cx := idx.mod(cols)
     cy := idx.div(cols)
     mut count := 0
@@ -42,7 +42,7 @@ ca_count_neighbors := func(mut grid: Array(I64), idx: I64, cols: I64, rows: I64)
 }
 
 // Check if a value is in an array of counts
-ca_in_set := func(mut arr: Array(I64), len: I64, val: I64) returns Bool {
+ca_in_set := func(arr: Array(I64), len: I64, val: I64) returns Bool {
     mut i := 0
     while i.lt(len) {
         if arr[i.to_usize()].eq(val) { return true }
@@ -54,8 +54,8 @@ ca_in_set := func(mut arr: Array(I64), len: I64, val: I64) returns Bool {
 // Step: compute next generation using life-like born/survive rules
 // born = array of neighbor counts where dead cell becomes alive
 // survive = array of neighbor counts where live cell stays alive
-ca_step := func(mut grid: Array(I64), mut next: Array(I64), cols: I64, rows: I64,
-                mut born: Array(I64), born_len: I64, mut survive: Array(I64), survive_len: I64) {
+ca_step := func(grid: Array(I64), next: Array(I64), cols: I64, rows: I64,
+                born: Array(I64), born_len: I64, survive: Array(I64), survive_len: I64) {
     total := cols.mul(rows)
     mut i := 0
     while i.lt(total) {
@@ -78,7 +78,7 @@ ca_step := func(mut grid: Array(I64), mut next: Array(I64), cols: I64, rows: I64
 }
 
 // Copy next grid into grid (swap buffers)
-ca_swap := func(mut grid: Array(I64), mut next: Array(I64), total: I64) {
+ca_swap := func(grid: Array(I64), next: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
         grid[i.to_usize()] = next[i.to_usize()].clone()

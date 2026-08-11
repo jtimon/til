@@ -32,7 +32,7 @@ main := proc() {
     SetTargetFPS(60)
 
     // Load all fonts
-    mut fonts := Array(Font).new(NUM_FONTS)
+    fonts := Array(Font).new(NUM_FONTS)
     for i in 0..NUM_FONTS {
         ref path : Str = FONTS[i]
         f := LoadFontEx(path.c_str, 48, Option(ref I32).None, 0)

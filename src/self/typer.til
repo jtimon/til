@@ -1323,25 +1323,17 @@ priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Exp
             ptype_t := type_from_name(ptype, scope, ctx)
             rewrite_til_type_arg(scope, e, ci, ptype_t, in_func, ctx)
             narrow_dynamic(e.children[ci], ptype_t)
-            // #164: arg passed to a `mut` param may be written through.
+            // #164: an arg passed to a `mut` param may be written through,
+            // and the callee's signature is what proves it -- so this also
+            // covers a `mut self` receiver, whose UFCS call reaches here as
+            // `Type.method(recv, ...)` with the receiver at parameter 0.
+            // #344: a real mutable borrow travels along borrow provenance.
             // A `Dynamic` param is an untyped raw pointer the callee can
-            // write through (move/memcpy/memset/write_ptr all take Dynamic
-            // dests), so treat those conservatively as writes too.
+            // write through (move/memcpy/memset/write_ptr/adopt all take
+            // Dynamic dests), so treat those conservatively as writes too.
+            // That arm is a LINT, not proof of a typed mutable borrow.
             if param1.is_mut.or(ptype_t.is(Type.Dynamic)) {
-                ref arg_e : Expr = e.children[ci]
-                switch arg_e.node_type {
-                case .Ident(arg_id):
-                    arg_b_o := scope.get_binding(arg_id.ident_name())
-                    if arg_b_o.is_some() {
-                        ref mut arg_b : TypeBinding = arg_b_o.unwrap()
-                        arg_b.written = true
-                    }
-                case .FieldAccess:
-                    if arg_e.children.len() > 0 {
-                        mark_field_assign_root_written(scope, arg_e.children[0])
-                    }
-                case:
-                }
+                mark_written_through(scope, e.children[ci])
             }
             ci++
             pi++
@@ -1717,7 +1709,7 @@ priv numeric_conv_target_name := func(method: Str) returns Str {
 // FCall bitmaps use absolute child positions. UFCS inserts the receiver at
 // child 1, so preserve the callee's bit 0 and move every argument bit right.
 priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
-    mut callee_bit : U64 = 1
+    callee_bit : U64 = 1
     return bits.band(callee_bit).bor(bits.band(callee_bit.bnot()).shl(1))
 }
 
@@ -2183,7 +2175,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
 // receiver re-walk in infer_field_access_fcall) is now prevented at
 // source: the post-UFCS re-walk skips already-typed children, so the
 // receiver Expr is inferred exactly once.
-priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding, ctx: Context) {
+priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, ctx: Context) {
     if b.is_priv.not() { return }
     if b.path.eq(ctx.path).not() {
         // init_declarations_unit rewrote top-level priv decls to
@@ -2230,7 +2222,7 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding, ctx: 
 // hand-written ns methods both reference the parent type by name).
 // Thin wrapper: looks up the binding, gates on current_type_name,
 // then defers to check_priv_access for the actual emit.
-priv check_priv_type_name := proc(mut e: Expr, name: Str, scope: TypeScope, ctx: Context) {
+priv check_priv_type_name := proc(e: Expr, name: Str, scope: TypeScope, ctx: Context) {
     if name.len() == 0 { return }
     if ctx.current_type_name == name { return }
     b_o := scope.get_binding(name)
@@ -2242,7 +2234,7 @@ priv check_priv_type_name := proc(mut e: Expr, name: Str, scope: TypeScope, ctx:
 // visible inside the struct's own namespace methods, not just the
 // declaring file. current_type_name == owner_name iff we are
 // type-checking a member body of that struct.
-priv check_member_priv := proc(mut e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, ctx: Context) {
+priv check_member_priv := proc(e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, ctx: Context) {
     if member_is_priv.not() { return }
     if ctx.current_type_name == owner_name { return }
     e.type_error(format("'", owner_name, ".", member_name, "' is private to its struct; remove 'priv' to expose it"), ctx)
@@ -3038,7 +3030,7 @@ priv generic_normalize_concrete_sig := func(scope: TypeScope, mut fdef_expr: Exp
 // Instantiate through the shared init constructor, queue the concrete
 // declaration, rewrite the call, and continue down the ordinary concrete
 // path with the resolved concrete FunctionDef.
-priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Set(Str), explicit: Bool, in_func: I32, ctx: Context) {
+priv generic_finish_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Set(Str), explicit: Bool, in_func: I32, ctx: Context) {
     mut src := GenericFuncSource(name = src_name.clone(), path = ctx.path.clone())
     sb_o := scope.get_binding(src_name)
     if sb_o.is_some() {
@@ -3103,7 +3095,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
 }
 
 // Type a call whose callee is still bound to a retained generic SOURCE.
-priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, display_name: Str, in_func: I32, ctx: Context) {
+priv infer_generic_fcall := proc(scope: TypeScope, mut e: Expr, src_name: Str, display_name: Str, in_func: I32, ctx: Context) {
     // A source whose call closure declares a struct or enum needs init's
     // complete declaration pipeline (layout, generated methods,
     // registration); late instantiation cannot provide it, so those keep
@@ -3160,18 +3152,14 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
             e.type_error("'ref' argument qualifier is only valid on type arguments of type templates (e.g. Opt(ref T))", ctx)
         }
     }
-    // #164: a UFCS receiver `obj.method(args)` is conservatively treated
-    // as "written" -- the namespace method may mutate it via `mut self`
-    // (e.g. `Str.push_str(mut self: Str, s: Str)`), and the UFCS rewrite
-    // turns into a callee_bind=NULL path that infer_and_validate_fcall_args
-    // exits early on, so the precise pp2.is_mut check below won't fire
-    // for namespace methods. Done before all dispatch.
-    if e.children.len() > 0 {
-        ref c0_w : Expr = e.children[0]
-        if c0_w.node_type.is(NodeType.FieldAccess).and(c0_w.children.len().gt(0)) {
-            mark_field_assign_root_written(scope, c0_w.children[0])
-        }
-    }
+    // #344: no blanket "a UFCS receiver is written" mark here any more.
+    // It fired before dispatch, on every `obj.method(...)` regardless of
+    // what `method` does with its receiver, so `mut` survived on bindings
+    // whose only use was a read-only method. The UFCS rewrite in
+    // infer_field_access_fcall lands the receiver at parameter 0 of
+    // `Type.method(recv, ...)` and runs it through
+    // infer_and_validate_fcall_args_for_fdef, which marks it exactly when
+    // the resolved `self` is `mut` -- the fact, instead of the guess.
     if e.children[0].node_type.is(NodeType.FieldAccess) {
         if infer_field_access_fcall(scope, e, in_func, ctx) { return }
     }
@@ -4545,6 +4533,15 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             expr.type_error("macro must declare a return type", ctx)
         }
         if macro_is_template.not() {
+            // #344: refresh the return-borrow summary now that the body is
+            // TYPED. The per-unit pre-pass is syntactic, so it cannot see
+            // through a UFCS receiver whose type it does not know yet, and
+            // an instantiated generic is created long after that pass ran.
+            // Re-deriving here is monotone (the recorded bits are only
+            // ORed into), so a late answer can add roots but never retract
+            // one, and callees typed before their callers -- imports, and
+            // ordinary source order -- get the better answer in time.
+            update_ref_return_summary(expr, ctx.scope, ctx.current_type_name)
             check_ref_function_returns(func_scope, expr, ctx)
             check_returned_borrowed_closure_captures(func_scope, expr, ctx)
             check_param_stored_globally(expr, func_scope, ctx)
@@ -5219,25 +5216,6 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
     }
 }
 
-// #164: walk a FieldAssign's LHS chain (`a.b.c = ...`) down to the root
-// Ident and mark its binding as written, so the unused-mut check
-// recognises that `a` was effectively mutated.
-priv mark_field_assign_root_written := func(scope: TypeScope, obj: Expr) {
-    switch obj.node_type {
-    case .Ident(root_id):
-        rb_o := scope.get_binding(root_id.ident_name())
-        if rb_o.is_some() {
-            ref mut rb : TypeBinding = rb_o.unwrap()
-            rb.written = true
-        }
-    case .FieldAccess:
-        if obj.children.len() > 0 {
-            mark_field_assign_root_written(scope, obj.children[0])
-        }
-    case:
-    }
-}
-
 priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
     infer_expr(scope, stmt.children[1], in_func, ctx)
@@ -5251,9 +5229,10 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
         UNREACHABLE("expected FieldAssign, got ", stmt.node_type.head_str())
         return
     }
-    // #164: walk to the root identifier of the obj chain and mark it
-    // written. `a.b.c = ...` writes the root `a` (transitively).
-    mark_field_assign_root_written(scope, obj)
+    // #164 / #344: walk to the root identifier of the obj chain and mark
+    // it written. `a.b.c = ...` writes the root `a` (transitively), and
+    // when `a` is a borrow, the storage `a` aliases.
+    mark_written_through(scope, obj)
     obj_sname_o := expr_type_name_ref(obj)
     if obj_sname_o.is_some() {
         ref obj_sname : Str = obj_sname_o.unwrap()
@@ -5982,21 +5961,26 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
             if expr_is_ref_decl_source(rhs, scope).not().and(raw_alloc_rhs.not()) {
                 stmt.type_error("'ref' declaration requires a ref-returning function, a ref/param variable, or a raw allocation", ctx)
             }
+            // #344: remember WHAT this borrow aliases. A write through the
+            // binding is then credited to that storage instead of stopping
+            // at the alias -- which is what makes an honest `mut` on the
+            // parameter an accessor borrowed from survive #164's check.
+            decl_b.borrow_roots = expr_borrow_roots(scope, rhs, 0)
             if sdecl.is_mut {
                 switch rhs.node_type {
                 case .Ident(rid):
                     rb_o := scope.get_binding(rid.ident_name())
                     if rb_o.is_some() {
-                        ref mut rb : TypeBinding = rb_o.unwrap()
+                        ref rb : TypeBinding = rb_o.unwrap()
                         if rb.is_mut.not() {
                             stmt.type_error("'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", ctx)
                         }
-                        // #164: a `ref mut` binding launders mutability from
-                        // the source. The source's `mut` is what makes this
-                        // legal, so don't flag it as redundant even if the
-                        // source name is never directly written through.
-                        rb.written = true
                     }
+                    // #344: taking the borrow is NOT a write. The eager mark
+                    // that used to sit here credited the source the moment a
+                    // `ref mut` alias was created, so a `mut` local aliased
+                    // but never written still counted as written. An actual
+                    // write through the alias now travels the roots above.
                 case:
                 }
             }
@@ -6859,6 +6843,14 @@ priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Co
         collect_switch_case_bindings(ctx, program, program)
         process_throw_catch_in_func_body(ctx, program, unit_no_throws, "", OwnType.Shallow)
     }
+    // #344: settle which parameters each borrow-returning function hands
+    // back, before any body is typed. The bodies below read these summaries
+    // to decide where a write through a returned `ref` actually lands, and
+    // the redundant-`mut` verdict for a body is reached as that body is
+    // typed -- a summary computed afterwards would come too late. Runs
+    // after extend_throwing_func_sigs so the parameter indices it records
+    // are the post-extension ones the call sites will use.
+    compute_ref_return_summaries(program, scope)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     // #328: every batch the body loop queued has been flushed onto this
@@ -7209,13 +7201,9 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     // #164: record that this binding was written through. Done before
     // the ScopeFind.Found read below because get_binding returns a ref
     // so the write actually persists (find returns by-value semantics).
-    {
-        ab_w_o := scope.get_binding(aname)
-        if ab_w_o.is_some() {
-            ref mut ab_w : TypeBinding = ab_w_o.unwrap()
-            ab_w.written = true
-        }
-    }
+    // #344: `ref mut r : T = <borrow>` followed by `r = v` writes the
+    // storage `r` aliases, so the same walker credits its roots.
+    mark_name_written(scope, aname)
     sf_assign := scope.find(aname)
     mut is_ref_target := false
     mut is_payload_alias := false
@@ -7411,7 +7399,7 @@ literal_in_range := func(val_str: Str, target: Type) returns Bool {
 // type, ref/let decl explicit_type). Shares the single
 // scope.get_binding lookup with the priv check, so user-facing
 // callers don't pay for two Map traversals per declaration position.
-priv type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Context) returns Type {
+priv type_from_name_at := proc(name: Str, scope: TypeScope, e: Expr, ctx: Context) returns Type {
     pt := type_from_name(name, scope, ctx)
     if name.len() == 0 { return pt }
     if ctx.current_type_name == name { return pt }
@@ -7988,7 +7976,7 @@ priv check_is_null_arg_dynamic := proc(scope: TypeScope, e: Expr, ctx: Context) 
 //     own -- the same trust `returns ref` extends today. til has no origin
 //     checker; #147 tracks that general problem.
 // Only an OWNED local is certain to dangle, and that is what this flags.
-priv check_enum_borrow_of_local_return := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) {
+priv check_enum_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, ctx: Context) {
     ref ret_val : Expr = stmt.children[0]
     if is_enum_variant_ctor_with_payload(ret_val, scope).not() { return }
     ref ebl_callee : Expr = ret_val.children[0]
@@ -8250,7 +8238,7 @@ fact_bit_of := func(fi: FactIndex, name: Str) returns I64 {
 // row was sized for).
 fact_bit_record := func(mut mask: Vec(U64), base: USize, bit: USize) {
     w := base.add(bit / 64)
-    mut one : U64 = 1
+    one : U64 = 1
     // Stored through a ref, not Vec.unsafe_set: the setter takes its
     // value OWNED, so every recorded bit went through a malloc'd U64
     // box that adopt then freed -- a malloc/free pair per name per
@@ -8574,6 +8562,503 @@ priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
         return expr_is_stable_field_base(e.children[0], scope)
     }
     return false
+}
+
+// --- #344: borrow provenance -------------------------------------------
+//
+// #164's write tracking is one bit per binding, flipped only by a write
+// SPELLED on that binding. A write that goes through a borrow returned by
+// a call -- `inner_of(o).n = 1`, or the `ref` an #253 payload accessor
+// hands back -- credited nobody, so the honest `mut o` looked redundant
+// and the only shape that compiled was the one the two backends disagree
+// about. Two facts close that gap:
+//
+//   FunctionDef.ref_return_params: which PARAMETERS a function's returned
+//   borrow can reach. Computed once per unit, before any body is typed,
+//   so a call site can read it no matter where the callee is declared.
+//
+//   TypeBinding.borrow_roots: which caller storages a BINDING's value
+//   borrows. Resolved by mapping the callee summary's parameter positions
+//   onto the call's actual arguments.
+//
+// The write marker then credits the roots, not just the name that was
+// written. Both facts only ever ADD credit: an unresolved callee, a
+// summary round that ran out, or a root whose scope the walk cannot reach
+// all mean "no roots", which is exactly today's answer.
+
+// Bit `i` of a ref_return_params summary. A function with more than 64
+// parameters gets no bit -- 0 is the conservative answer, and the bitmap
+// keeps the same indexing as FCallData's own_args / ref_args.
+priv summary_param_bit := func(i: USize) returns U64 {
+    if i >= 64 { return 0 }
+    one : U64 = 1
+    return one.shl(i.to_u64())
+}
+
+// The FuncDef Expr a call site resolves to. Mirrors fcall_returns_ref's
+// resolution for all three callee shapes the typer sees -- a plain name, a
+// namespace-qualified `Type.method`, and a not-yet-rewritten UFCS
+// `recv.method` -- but hands back the def, so its summary and parameter
+// list are readable too.
+priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
+    if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if fcall.children.len() == 0 { return Option(ref Expr).None }
+    ref callee : Expr = fcall.children[0]
+    switch callee.node_type {
+    case .Ident(cn):
+        cb_o := scope.get_binding(cn.ident_name())
+        if cb_o.is_none() { return Option(ref Expr).None }
+        ref cb : TypeBinding = cb_o.unwrap()
+        return scope.lookup_func(cb.name)
+    case .FieldAccess(cfa):
+        if callee.children.len() == 0 { return Option(ref Expr).None }
+        if fa_is_ns(callee, scope) {
+            switch callee.children[0].node_type {
+            case .Ident(cti):
+                sdef_o := scope.get_struct(cti.ident_name())
+                if sdef_o.is_none() { return Option(ref Expr).None }
+                nd_o := def_ns_get(sdef_o.unwrap(), cfa.field_access_name())
+                if nd_o.is_none() { return Option(ref Expr).None }
+                ref nd : Declaration = nd_o.unwrap()
+                if nd.default_value.is_none() { return Option(ref Expr).None }
+                ref dv : Expr = nd.default_expr()
+                if dv.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(dv) }
+                return Option(ref Expr).None
+            case:
+                return Option(ref Expr).None
+            }
+        }
+        // UFCS before the rewrite: needs the receiver's type, so this only
+        // resolves once the receiver has been inferred.
+        rsname_o := expr_type_name_ref(callee.children[0])
+        if rsname_o.is_none() { return Option(ref Expr).None }
+        rsdef_o := scope.get_struct(rsname_o.unwrap())
+        if rsdef_o.is_none() { return Option(ref Expr).None }
+        return find_namespace_func(rsdef_o.unwrap(), cfa.field_access_name(), scope)
+    case:
+    }
+    return Option(ref Expr).None
+}
+
+// The argument expression bound to callee parameter `pi` at this call
+// site. Two layouts: with a plain or namespace-qualified callee (which is
+// also what the UFCS rewrite produces) parameter i sits at children[i+1];
+// before the rewrite, `recv.method(a)` keeps its receiver inside the
+// callee node and it fills parameter 0.
+priv fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope) returns Option(ref Expr) {
+    if fcall.children.len() == 0 { return Option(ref Expr).None }
+    ref callee : Expr = fcall.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).and(fa_is_ns(callee, scope).not()) {
+        if callee.children.len() == 0 { return Option(ref Expr).None }
+        if pi == 0 { return Option(ref Expr).Some(callee.children[0]) }
+        if pi < fcall.children.len() { return Option(ref Expr).Some(fcall.children[pi]) }
+        return Option(ref Expr).None
+    }
+    if pi + 1 < fcall.children.len() { return Option(ref Expr).Some(fcall.children[pi + 1]) }
+    return Option(ref Expr).None
+}
+
+// Does this binding denote STORAGE a write could land in? Type names,
+// function declarations and type aliases bind a name without binding a
+// value, so a borrow that reaches one of them borrows nothing writable.
+priv binding_is_storage := func(scope: TypeScope, b: TypeBinding) returns Bool {
+    if b.is_builtin { return false }
+    if b.is_type_alias { return false }
+    if b.is_func_decl { return false }
+    return scope.struct_def_of(b.name).is_none()
+}
+
+// The storage a compiler-created pointer operation borrows FROM.
+//
+// These four are bodyless `returns ref Dynamic` primitives whose whole
+// definition is "hand back a pointer INTO argument 0": ptr_add walks
+// inside a buffer, to_ptr addresses a value, deref loads through a slot,
+// get_payload opens an enum's payload (the `case .V(p):` binding
+// make_switch_case_condition emits, sometimes wrapped in a deref). They
+// are the "unless their compiler-created operation explicitly preserves
+// one" half of the raw-boundary rule -- without them every container
+// element access bottoms out in ptr_add and NO write to a Vec or Map
+// element could ever be credited to the container. What stays unchecked
+// is a raw pointer arriving from OUTSIDE the typed world (a malloc'd
+// buffer, an FFI handle, an integer): those root in whatever local holds
+// them, and nothing is invented for them.
+priv raw_borrow_source := func(rhs: Expr) returns Option(ref Expr) {
+    if rhs.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if rhs.children.len() < 2 { return Option(ref Expr).None }
+    switch rhs.children[0].node_type {
+    case .Ident(hid):
+        ref hn : Str = hid.ident_name()
+        if hn.eq("ptr_add").or(hn == "to_ptr").or(hn == "deref").or(hn == "get_payload") {
+            return Option(ref Expr).Some(rhs.children[1])
+        }
+    case:
+    }
+    return Option(ref Expr).None
+}
+
+priv borrow_root_of_binding := func(b: TypeBinding) returns BorrowRoot {
+    return BorrowRoot(name = b.name.clone(), path = b.path.clone(), line = b.line, col = b.col)
+}
+
+priv push_root_unique := func(mut out: Vec(BorrowRoot), r: BorrowRoot) {
+    for have : BorrowRoot in out {
+        if BorrowRoot.eq(have, r) { return }
+    }
+    out.push(own r.clone())
+}
+
+// Which storages does this expression's value borrow? The whole chain,
+// not just its far end: a write through an alias writes the alias too, and
+// the alias's own `mut` is what permits it. An alias forwards the roots it
+// resolved at its own declaration, so the set is always flat -- a write
+// never has to chase a second hop at marking time.
+priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Vec(BorrowRoot) {
+    mut out := Vec(BorrowRoot).new()
+    if depth > 16 { return out }
+    switch e.node_type {
+    case .Ident(id):
+        bo := scope.get_binding(id.ident_name())
+        if bo.is_none() { return out }
+        ref b : TypeBinding = bo.unwrap()
+        if binding_is_storage(scope, b) { push_root_unique(out, borrow_root_of_binding(b)) }
+        for r : BorrowRoot in b.borrow_roots { push_root_unique(out, r) }
+    case .FieldAccess:
+        if e.children.len() == 0 { return out }
+        if fa_is_ns(e, scope) { return out }
+        return expr_borrow_roots(scope, e.children[0], depth + 1)
+    case .FCall:
+        rso := raw_borrow_source(e)
+        if rso.is_some() { return expr_borrow_roots(scope, rso.unwrap(), depth + 1) }
+        fd_o := fcall_callee_fdef(e, scope)
+        if fd_o.is_none() { return out }
+        switch fd_o.unwrap().node_type {
+        case .FuncDef(cfd):
+            for pi in 0..cfd.params.len() {
+                if cfd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
+                arg_o := fcall_arg_for_param(e, pi, scope)
+                if arg_o.is_none() { continue }
+                sub := expr_borrow_roots(scope, arg_o.unwrap(), depth + 1)
+                for r : BorrowRoot in sub { push_root_unique(out, r) }
+            }
+        case:
+        }
+    case:
+    }
+    return out
+}
+
+// The binding a root names, matched by DECLARATION SITE and not just by
+// spelling: a nested block that rebinds the name is different storage, and
+// crediting it would leave the real root looking unwritten. A root the
+// walk cannot reach is left uncredited -- #164's diagnostics are
+// deliberately conservative on the write side.
+priv lookup_binding_at := func(scope: TypeScope, r: BorrowRoot) returns Option(ref TypeBinding) {
+    if scope.bindings.has(r.name) {
+        ref b : TypeBinding = scope.bindings[r.name]
+        if b.line.eq(r.line).and(b.col == r.col).and(b.path == r.path) {
+            return Option(ref TypeBinding).Some(b)
+        }
+    }
+    switch scope.parent {
+    case .Some(p): return lookup_binding_at(p, r)
+    case .None: return Option(ref TypeBinding).None
+    }
+}
+
+priv mark_roots_written := func(scope: TypeScope, roots: Vec(BorrowRoot)) {
+    for r : BorrowRoot in roots {
+        rb_o := lookup_binding_at(scope, r)
+        if rb_o.is_none() { continue }
+        ref mut rb : TypeBinding = rb_o.unwrap()
+        rb.written = true
+    }
+}
+
+priv mark_name_written := func(scope: TypeScope, name: Str) {
+    bo := scope.get_binding(name)
+    if bo.is_none() { return }
+    ref mut b : TypeBinding = bo.unwrap()
+    b.written = true
+    if b.borrow_roots.len() > 0 { mark_roots_written(scope, b.borrow_roots) }
+}
+
+// #344: the one write-credit walker. `obj` is the storage an assignment or
+// a `mut` argument writes to; walk it down to the binding the write lands
+// in, mark that binding written, and credit every terminal storage that
+// binding borrows -- so a write laundered through an accessor's returned
+// `ref` reaches the parameter it came from.
+//
+// Crediting is all this does. The `Dynamic` argument lint routes through
+// here too, and its guess about what a callee does with a raw pointer is
+// deliberately generous on the write side; it is NOT proof of a typed
+// mutable borrow, so a rejection must never be derived from it.
+priv mark_written_through := func(scope: TypeScope, obj: Expr) {
+    switch obj.node_type {
+    case .Ident(root_id):
+        mark_name_written(scope, root_id.ident_name())
+    case .FieldAccess:
+        if obj.children.len() > 0 { mark_written_through(scope, obj.children[0]) }
+    case .FCall:
+        // `inner_of(o).n = 1`, `adopt(T, self.unsafe_get(i), own v)`: no
+        // binding is involved at all, so the callee summary is the only
+        // record of where the write lands.
+        mark_roots_written(scope, expr_borrow_roots(scope, obj, 0))
+    case:
+    }
+}
+
+// --- #344: the per-unit return-borrow summary pass ---------------------
+
+// `case .Variant(p):` binds p to the scrutinee's payload, which is the
+// same storage the scrutinee names. Pattern shape mirrors
+// collect_one_case_binding's: FCall(FieldAccess(variant), Ident(binding)).
+priv summary_bind_case := func(cn: Expr, subj_bits: U64, mut roots: Map(Str, U64)) {
+    if cn.node_type.is(NodeType.Case).not() { return }
+    npat := case_pattern_count(cn)
+    for pi in 0..npat {
+        if pi >= cn.children.len() { return }
+        ref pat : Expr = cn.children[pi]
+        if pat.node_type.is(NodeType.FCall).not() { continue }
+        if pat.children.len() != 2 { continue }
+        if pat.children[0].node_type.is(NodeType.FieldAccess).not() { continue }
+        switch pat.children[1].node_type {
+        case .Ident(bid):
+            roots.set(bid.ident_name(), own subj_bits.clone())
+        case:
+        }
+    }
+}
+
+// A generic spelling reduced to the def it instantiates: `Vec(V)` ->
+// `Vec`. Summaries are PARAMETER-INDEXED, so a template and every
+// instantiation of it answer identically -- which is exactly what makes
+// the answer independent of when monomorphization happens.
+priv summary_base_type_name := func(tn: Str) returns Str {
+    at := tn.find("(")
+    if at < 0 { return tn.clone() }
+    return tn.substr(0, at.to_usize())
+}
+
+// The type name of a `self`-rooted receiver, read off DECLARATIONS rather
+// than off inference -- this pass runs before anything is typed. `self` is
+// the def being walked; `self.<field>` takes the field's declared type
+// from that def, which is what lets a container method that delegates to
+// its storage field (Map.get -> self.values.unsafe_get) be summarised.
+priv summary_receiver_type := func(recv: Expr, scope: TypeScope, self_type: Str, depth: I32) returns Str {
+    if depth > 8 { return "" }
+    switch recv.node_type {
+    case .Ident(rid):
+        if rid.ident_name() == "self" { return self_type.clone() }
+    case .FieldAccess(fad):
+        if recv.children.len() == 0 { return "" }
+        base := summary_receiver_type(recv.children[0], scope, self_type, depth + 1)
+        if base.len() == 0 { return "" }
+        bdef_o := scope.get_struct(base)
+        if bdef_o.is_none() { return "" }
+        switch bdef_o.unwrap().node_type {
+        case .StructDef(bsd):
+            fo := member_get(bsd.fields_index, bsd.fields, fad.field_access_name())
+            if fo.is_none() { return "" }
+            ref bfd : Declaration = fo.unwrap()
+            return summary_base_type_name(bfd.explicit_type)
+        case:
+        }
+    case:
+    }
+    return ""
+}
+
+// `self.helper(...)` / `self.field.helper(...)` inside a namespace method.
+// This pass runs before a single body is typed, so the receiver carries no
+// til_type and the ordinary UFCS resolution (which reads one) cannot fire
+// -- but the type being walked IS known, and `self` is by construction an
+// instance of it. Without this every `returns ref T` method that delegates
+// (Vec.get -> Vec.unsafe_get, Map.get -> self.values.unsafe_get) would
+// summarise as borrowing nothing, and no write to a container element
+// could ever be credited to the container.
+priv summary_self_method := func(e: Expr, scope: TypeScope, self_type: Str) returns Option(ref Expr) {
+    if self_type.len() == 0 { return Option(ref Expr).None }
+    ref callee : Expr = e.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return Option(ref Expr).None }
+    if callee.children.len() == 0 { return Option(ref Expr).None }
+    rtn := summary_receiver_type(callee.children[0], scope, self_type, 0)
+    if rtn.len() == 0 { return Option(ref Expr).None }
+    sdef_o := scope.get_struct(rtn)
+    if sdef_o.is_none() { return Option(ref Expr).None }
+    switch callee.node_type {
+    case .FieldAccess(cfa):
+        return find_namespace_func(sdef_o.unwrap(), cfa.field_access_name(), scope)
+    case:
+    }
+    return Option(ref Expr).None
+}
+
+// Which parameters does this expression's value borrow, in terms of the
+// enclosing function's parameter bits? `roots` maps every name already
+// known to carry a borrow (the parameters themselves, ref locals, switch
+// payload bindings) to its bits.
+priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, self_type: Str, depth: I32) returns U64 {
+    if depth > 16 { return 0 }
+    switch e.node_type {
+    case .Ident(id):
+        if roots.has(id.ident_name()) {
+            ref bits : U64 = roots[id.ident_name()]
+            return bits.clone()
+        }
+        return 0
+    case .FieldAccess:
+        if e.children.len() == 0 { return 0 }
+        if fa_is_ns(e, scope) { return 0 }
+        return summary_expr_bits(e.children[0], roots, scope, self_type, depth + 1)
+    case .FCall:
+        rso := raw_borrow_source(e)
+        if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, depth + 1) }
+        mut fd_o := fcall_callee_fdef(e, scope)
+        if fd_o.is_none() { fd_o = summary_self_method(e, scope, self_type) }
+        if fd_o.is_none() { return 0 }
+        mut bits : U64 = 0
+        switch fd_o.unwrap().node_type {
+        case .FuncDef(cfd):
+            // An enum constructor with a borrowed payload
+            // (`Option(ref T).Some(x)`) hands the borrow straight through;
+            // its auto-generated body has nothing to summarise.
+            if cfd.is_enum_variant_ctor {
+                edef_o := scope.get_struct(cfd.return_type)
+                if edef_o.is_none() { return 0 }
+                if enum_has_ref_payload(edef_o.unwrap()).not() { return 0 }
+                for ai in 1..e.children.len() {
+                    bits = bits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type, depth + 1))
+                }
+                return bits
+            }
+            for pi in 0..cfd.params.len() {
+                if cfd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
+                arg_o := fcall_arg_for_param(e, pi, scope)
+                if arg_o.is_none() { continue }
+                bits = bits.bor(summary_expr_bits(arg_o.unwrap(), roots, scope, self_type, depth + 1))
+            }
+        case:
+        }
+        return bits
+    case:
+    }
+    return 0
+}
+
+// Walk one body, collecting the parameter bits every `return` can hand
+// back. Nested FuncDefs are skipped: their returns belong to them.
+priv summary_walk := func(e: Expr, mut roots: Map(Str, U64), scope: TypeScope, self_type: Str, depth: I32) returns U64 {
+    if depth > 96 { return 0 }
+    switch e.node_type {
+    case .FuncDef:
+        return 0
+    case .Return:
+        if e.children.len() == 0 { return 0 }
+        return summary_expr_bits(e.children[0], roots, scope, self_type, 0)
+    case .Decl(d):
+        // Only a BORROW forwards roots. An owned local is a copy of the
+        // value; writing through it cannot reach the source.
+        if d.own_type.is(OwnType.Ref).and(e.children.len().gt(0)) {
+            db := summary_expr_bits(e.children[0], roots, scope, self_type, 0)
+            if db != 0 { roots.set(d.name, own db.clone()) }
+        }
+        return 0
+    case .Switch, .Match:
+        if e.children.len() > 0 {
+            subj := summary_expr_bits(e.children[0], roots, scope, self_type, 0)
+            if subj != 0 {
+                for ci in 1..e.children.len() { summary_bind_case(e.children[ci], subj, roots) }
+            }
+        }
+    case:
+    }
+    mut bits : U64 = 0
+    for c : Expr in e.children {
+        bits = bits.bor(summary_walk(c, roots, scope, self_type, depth + 1))
+    }
+    return bits
+}
+
+// OR this function's freshly computed summary into the recorded one.
+// Monotone by construction, so the fixed point below terminates; the
+// return value is its progress signal.
+priv update_ref_return_summary := func(fd_expr: Expr, scope: TypeScope, self_type: Str) returns Bool {
+    if fd_expr.children.len() == 0 { return false }
+    switch fd_expr.node_type {
+    case .FuncDef(fd):
+        // A bodyless raw / core / FFI ref has no typed root to hand back.
+        if fd.func_type.is_bodyless() { return false }
+        if fdef_return_carries_borrow(fd, scope).not() { return false }
+        mut roots := Map(Str, U64).new()
+        for pi in 0..fd.params.len() {
+            ref p : Declaration = fd.params[pi]
+            if p.name.len() == 0 { continue }
+            pbits := summary_param_bit(pi)
+            roots.set(p.name, own pbits.clone())
+        }
+        merged := fd.ref_return_params.bor(summary_walk(fd_expr.children[0], roots, scope, self_type, 0))
+        if merged == fd.ref_return_params { return false }
+        fd.ref_return_params = merged
+        return true
+    case:
+    }
+    return false
+}
+
+// One round over every definition in the unit. Namespace methods live in
+// the StructDef / EnumDef payload rather than in the node's children, so
+// they need their own descent; a FuncDef is never descended into, because
+// init_declarations_unit hoists nested definitions to file scope and
+// typer_lift_lambdas has already lifted the anonymous ones.
+priv summarize_unit_walk := func(e: Expr, scope: TypeScope, self_type: Str, depth: I32) returns Bool {
+    if depth > 96 { return false }
+    mut changed := false
+    switch e.node_type {
+    case .FuncDef:
+        return update_ref_return_summary(e, scope, self_type)
+    case .Decl(dd):
+        // A type definition names the `self` its namespace methods take;
+        // the name lives on the Decl, not on the def node.
+        if e.children.len() > 0 {
+            ref drhs : Expr = e.children[0]
+            if drhs.node_type.is(NodeType.StructDef).or(drhs.node_type.is(NodeType.EnumDef)) {
+                return summarize_unit_walk(drhs, scope, dd.name, depth + 1)
+            }
+        }
+    case .StructDef(sd):
+        for nd : Declaration in sd.ns_decls {
+            if nd.default_value.is_none() { continue }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type, depth + 1) { changed = true }
+        }
+    case .EnumDef(ed):
+        for nd : Declaration in ed.ns_decls {
+            if nd.default_value.is_none() { continue }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type, depth + 1) { changed = true }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if summarize_unit_walk(c, scope, self_type, depth + 1) { changed = true }
+    }
+    return changed
+}
+
+// Settle every borrow-returning function in the unit BEFORE a single body
+// is typed -- the redundant-`mut` verdict for a body is reached while that
+// body is being typed, so a summary that arrives later is useless to it.
+// Callees in imported files were summarised when their own unit ran (the
+// typer walks imports first), so only forward references inside this unit
+// start at zero; the rounds grow them monotonically. A chain deeper than
+// the round cap simply keeps the roots it proved: fewer roots means less
+// credit, never wrong credit. Instantiated generics need no separate pass
+// -- their FunctionDef is cloned from the template, summary included.
+priv compute_ref_return_summaries := func(program: Expr, scope: TypeScope) {
+    mut round : I32 = 0
+    mut changed := true
+    while changed.and(round < 8) {
+        changed = summarize_unit_walk(program, scope, "", 0)
+        round++
+    }
 }
 
 // Asap-destruction helpers (LocalInfo, alias_used_in_stmts,
@@ -9613,7 +10098,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, enum_def_o: Op
 // the enum name left blank, because only the switch subject knows it.
 // Returns the empty-Ident child of `pat` to fill in, or None. Sees through
 // the FCall wrapper a payload binding adds (`.Decl(dd)`).
-priv dotted_pattern_receiver := func(mut pat: Expr) returns Option(ref Expr) {
+priv dotted_pattern_receiver := func(pat: Expr) returns Option(ref Expr) {
     mut fa_o : Option(ref Expr) = Option(ref Expr).None
     if pat.node_type.is(NodeType.FieldAccess) {
         fa_o = Option(ref Expr).Some(pat)
@@ -9623,7 +10108,7 @@ priv dotted_pattern_receiver := func(mut pat: Expr) returns Option(ref Expr) {
         }
     }
     if fa_o.is_none() { return Option(ref Expr).None }
-    ref mut fa : Expr = fa_o.unwrap()
+    ref fa : Expr = fa_o.unwrap()
     if fa.children.len() == 0 { return Option(ref Expr).None }
     ref mut recv : Expr = fa.children[0]
     switch recv.node_type {
@@ -9641,7 +10126,7 @@ priv dotted_pattern_receiver := func(mut pat: Expr) returns Option(ref Expr) {
 // position's own type check reports the mismatch, and a dotted expression
 // with no enum to resolve against is caught by infer_ident_expr's "needs a
 // known enum type in this position".
-priv qualify_dotted_expr := func(mut e: Expr, expected: Type) {
+priv qualify_dotted_expr := func(e: Expr, expected: Type) {
     recv_o := dotted_pattern_receiver(e)
     if recv_o.is_none() { return }
     if expected.is(Type.Enum).not() { return }
@@ -9656,10 +10141,10 @@ priv qualify_dotted_expr := func(mut e: Expr, expected: Type) {
 // what it sees today. A dotted pattern over a non-enum subject has no enum
 // to resolve against and is rejected here rather than left to fail as a
 // baffling "no variant" further down.
-priv qualify_dotted_case_patterns := proc(mut stmt: Expr, sw_type: Type, ctx: Context) {
+priv qualify_dotted_case_patterns := proc(stmt: Expr, sw_type: Type, ctx: Context) {
     sname := til_type_name(sw_type)
     for ci in 1..stmt.children.len() {
-        ref mut cnode : Expr = stmt.children[ci]
+        ref cnode : Expr = stmt.children[ci]
         if cnode.node_type.is(NodeType.Case).not() { continue }
         for pi in 0..case_pattern_count(cnode) {
             recv_o := dotted_pattern_receiver(cnode.children[pi])
@@ -10348,7 +10833,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     // `mut coll` as "never written through", forcing the user to drop a
     // `mut` that actually reflects the loop's intent.
     if forin_is_mut {
-        mark_field_assign_root_written(scope, iter)
+        mark_written_through(scope, iter)
     }
     ref for_body : Expr = stmt.children[1]
     line := stmt.line
@@ -10580,7 +11065,7 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
     // binding written so check_unused_mut_locals doesn't later flag a
     // `mut map` whose only writer is this loop.
     if forin_is_mut.or(forin_is_mut2) {
-        mark_field_assign_root_written(scope, iter)
+        mark_written_through(scope, iter)
     }
 
     mut type_name := ""

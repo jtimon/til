@@ -53,7 +53,7 @@ test_array_subscript := test() {
     assert_eq(I64, z, 30)
 
     // Subscript with a computed index expression.
-    mut i : USize = 1
+    i : USize = 1
     assert_eq(I64, a[i.add(1)], 30)
 }
 

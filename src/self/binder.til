@@ -518,7 +518,7 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
                 code_end = trim_right(line, lead, code_end)
             }
         }
-        mut new_code_end := code_end
+        new_code_end := code_end
         if found_blk {
             mut m := comment_start
             while m + 1 < end {

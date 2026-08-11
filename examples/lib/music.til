@@ -34,7 +34,7 @@ calculate_nathex_step_ratio := macro() returns F32 {
 }
 
 calculate_nathex_freqs := macro() returns Array(I64) {
-    mut freqs := Array(I64).new(NATHEX_FREQ_COUNT)
+    freqs := Array(I64).new(NATHEX_FREQ_COUNT)
     mut freq := NATHEX_BASE_FREQ
     step_ratio := calculate_nathex_step_ratio()
     for i : USize in 0..NATHEX_FREQ_COUNT {
@@ -236,8 +236,8 @@ five_staff_pos := func(name_idx: I32, hextave: I32) returns I32 {
 
 five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
                              note_count: USize, use_nathex: Bool,
-                             mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_hextave: Array(I32),
-                             mut sc_acc: Array(I32), mut sc_freq: Array(I64)) {
+                             sc_chrom: Array(I32), sc_diat: Array(I32), sc_hextave: Array(I32),
+                             sc_acc: Array(I32), sc_freq: Array(I64)) {
     ref nat_c : I32 = FIVE_NATURALS[sel_diatonic]
     root_chromatic := (nat_c + sel_accidental + FIVE_CYCLE.to_i32()) % FIVE_CYCLE.to_i32()
     mut chrom_total := root_chromatic

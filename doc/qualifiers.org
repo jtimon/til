@@ -29,24 +29,55 @@ Complete mapping of til qualifiers to generated C, by context.
    Issue #164 adds the third leg: a ~mut~ local or ~mut~ parameter
    that the body never uses to write is also flagged. The detector
    counts these as writes: a direct assignment (~name = ...~), a
-   field-chain assignment (~name.f = ...~), a UFCS method call on
-   the name (~name.method(args)~), passing the name (or one of its
-   fields) to a callee parameter declared ~mut~/~own~ or typed
-   ~Dynamic~ (a raw pointer the callee may write through, e.g.
-   ~move~/~memcpy~/~write_ptr~), the name as the source of a
-   ~case V(p):~ ref-mut payload binding, and the name as the source
-   of a ~ref mut~ declaration (a launder use that requires the
-   source to be ~mut~).
+   field-chain assignment (~name.f = ...~), passing the name (or one
+   of its fields) to a callee parameter declared ~mut~ -- which
+   includes a UFCS method call whose resolved ~self~ is ~mut~, e.g.
+   ~s.push_str(...)~ -- or to one typed ~Dynamic~ (a raw pointer the
+   callee may write through, e.g. ~move~/~memcpy~/~write_ptr~), and
+   the collection of a ~for mut x in coll~ loop.
 
-   Note that ~mut~ only governs the binding and its direct fields
-   (~p = ...~, ~p.f = ...~). Mutating state reachable *through* a
-   non-mut binding -- a child element via a ~for x in p.children~
-   loop variable, or the buffer behind a pointer field -- does not
-   require ~mut~ on the binding, so such params are correctly
+   Issue #344 made the detector follow BORROWS. A write does not have
+   to be spelled on the binding it lands in: a ~returns ref T~
+   function hands back a borrow of one of its parameters, and writing
+   through that borrow writes the caller's storage. Two facts carry
+   this. ~FunctionDef.ref_return_params~ is a parameter-indexed
+   summary of which parameters a function's returned borrow can
+   reach; ~TypeBinding.borrow_roots~ records, per binding, which
+   storages its value borrows (a root is a name PLUS its declaration
+   site, so a nested block that shadows the name is a different
+   storage and cannot absorb the credit). So
+
+   #+begin_src til
+   inner_of := func(o: Outer) returns ref Inner { return o.inner }
+   bump := func(mut o: Outer) {
+       ref mut i : Inner = inner_of(o)
+       i.n = i.n + 1                     // credits `o`, not just `i`
+   }
+   #+end_src
+
+   keeps its honest ~mut o~. Before #344 it did not, and the only
+   form that compiled was the non-mut one -- the shape the two
+   backends disagree about.
+
+   Two things that USED to count as writes no longer do, because
+   neither is one: a UFCS call on the name regardless of what the
+   method does with its receiver (~name.len()~ is not a write), and
+   creating a ~ref mut~ alias of the name (taking a borrow is not
+   writing through it; the write itself now credits the source).
+
+   Note that ~mut~ only governs the binding, its direct fields, and
+   storage reached through a TYPED borrow of it (~p = ...~,
+   ~p.f = ...~, ~accessor(p).f = ...~). Mutating state reached any
+   other way through a non-mut binding -- a child element via a
+   ~for x in p.children~ loop variable, or the buffer behind a raw
+   pointer field, which is how ~Array~'s non-mut ~set~ writes -- does
+   not require ~mut~ on the binding, so such params are correctly
    flagged as redundant. The diagnostic is intentionally conservative
    on the write side: it would rather miss a redundant ~mut~ (e.g. a
    binding only passed to a read-only ~Dynamic~ param like ~is_null~)
-   than wrongly reject a ~mut~ that is actually needed.
+   than wrongly reject a ~mut~ that is actually needed. An unresolved
+   callee, or a borrow chain deeper than the summary settled, means
+   "no roots" -- less credit, never wrong credit.
 
    Globals -- top-level ~mut foo := ...~ at module scope AND
    namespace decls like ~mut Type.foo := ...~ -- are NOT flagged.
