@@ -7411,8 +7411,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                         if payload_hb.is_borrowed {
                             payload_size := raw_type_size(payload_expr.til_type(), ctx)
                             pdata = dispatch_result_alloc(payload_expr.til_type(), ctx)
-                            memcpy(pdata, payload_place, payload_size)
-                            memset(payload_place, 0, payload_size)
+                            adopt_from(pdata, payload_place, payload_size)
                         } else {
                             pdata = payload_place
                             payload_hb.ptr = bits_word(0)

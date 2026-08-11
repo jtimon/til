@@ -2001,6 +2001,7 @@ __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void expect(Bool cond, Array__Str * parts, Str * loc);
 void println(Array__Str * parts);
 void swap_bytes(void * a, void * b, UPtr size);
+void adopt_from(void * dest, void * src, UPtr size);
 Str * File_readfile(Str * path);
 void File_writefile(Str * path, Str * content);
 void File_remove(Str * path);
