@@ -8333,9 +8333,13 @@ priv emit_lib_init := proc(f: File, lp: LoadedProgram) {
     f.write("}\n\n")
 }
 
-priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns I32 {
-    is_lib := mode.is_library
-
+// Everything the emitters must agree on, settled once before the FIRST of
+// them writes a byte. It used to sit at the top of `build`, which made the
+// forward header -- written before `build` runs -- gate its prototypes on
+// an EMPTY site inventory: it omitted every lifecycle method the .c went
+// on to define. Only ext.c's callers noticed, and only once the gate
+// covered the struct they call (Str_clone, undeclared in til_forward.h).
+priv builder_prepare_emit := proc(lp: LoadedProgram) {
     // Every phase between init and here (lazy lowering, lifted lambdas,
     // monomorphization, garbager destructor insertion) may have APPENDED
     // top-level decls to a unit AST; an append that reallocs a children Vec
@@ -8352,17 +8356,18 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     build_register_func_symbols_lp(lp)
     build_register_funcsig_names_lp(lp)
     build_register_closure_values_lp(lp)
-    // #326: the C-emit reachability pass (scavenger.til). It is invoked
-    // HERE, not from scavenge_imported, because its lowering queries read
-    // the C-symbol aliases build_register_func_symbols_lp has just
-    // installed -- fcall_is_shallow_return resolves a callee through
+    // #326: the C-emit reachability pass. It is invoked HERE, not from
+    // scavenge_imported, because its lowering queries read the C-symbol
+    // aliases build_register_func_symbols_lp has just installed --
+    // fcall_is_shallow_return resolves a callee through
     // scope.lookup_func_symbol, and answering it before registration gets
     // a different, wrong answer (EvalHeap_clone and CtorArg_clone became
-    // implicit declarations in til's own output). The ANALYSIS belongs to
-    // the scavenger and lives there; only its trigger point is the
-    // builder's, because only the builder knows when its symbol table is
-    // complete.
+    // implicit declarations in til's own output).
     builder_fill_emit_inventory(lp)
+}
+
+priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns I32 {
+    is_lib := mode.is_library
     f := File.new(c_output_path, true)
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")
@@ -8535,6 +8540,7 @@ priv make_build_dirs := proc(paths: BuildPaths) {
 }
 
 priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
+    builder_prepare_emit(lp)
     mut result := build_forward_header_lp(paths.fwd_path, lp)
     if result == 0 {
         result = build(lp.cur_mode, lp.run_tests, paths.c_path, lp)
@@ -10256,6 +10262,23 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         }
     }
     if e.node_type.is(NodeType.Case) { has_skip = true skip_child = 0 }
+    // #302 stage 4: an Assign marked `is_move` CONSUMES the clone's
+    // argument -- emit_stmt's Assign arm substitutes `rhs =
+    // rhs.children[1]` and writes a bare move, so the `T.clone(x)` the
+    // AST still carries leaves no call in the C. This is the C half of
+    // the FieldAssign edge collect_refs already drops: the interpreter
+    // does NOT substitute on Assign, so the scavenger must keep the
+    // declaration and only the emitter may skip the site.
+    mut bvs_move_subst := false
+    switch e.node_type {
+    case .Assign(bvs_mad):
+        if bvs_mad.is_move.and(e.children.len().gt(0)) {
+            if rhs_is_clone_fcall(e.children[0]).and(e.children[0].children.len().gte(2)) {
+                bvs_move_subst = true
+            }
+        }
+    case:
+    }
     // Borrowed: the name lives in the Decl node, which outlives this
     // call, and `owner` is only read (by builder_ns_method_omitted).
     mut bvs_owner := ""
@@ -10268,6 +10291,10 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         cur_bvs := bvs_i
         bvs_i = bvs_i + 1
         if has_skip.and(cur_bvs == skip_child) { continue }
+        if bvs_move_subst.and(cur_bvs == 0) {
+            builder_collect_ns_member_sites(bvs_ch.children[1], sites, stack_names, dup_names, param_names, bvs_owner, in_body, ctx)
+            continue
+        }
         builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, in_body, ctx)
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
@@ -10340,19 +10367,22 @@ priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Cont
 }
 priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if member.eq("clone").or(member.eq("delete")).or(member.eq("eq")).not() { return false }
-    // Any ENUM, payload-carrying included: the site inventory is what
-    // decides, and the splice predicates only ever fire for the POD
-    // shapes, so a payload enum's sites always record and the definition
-    // stays whenever anything clones/deletes/compares one. POD STRUCTS
-    // join on the same terms: their clone splice depends on the
-    // argument's storage, which the collector mirrors through the #302
-    // gc_storage record and the enclosing function's params; their
-    // delete/eq are never spliced, so those sites always record.
+    // Any ENUM or STRUCT, payload-carrying and non-POD included: the site
+    // inventory is what decides, and the splice predicates only ever fire
+    // for the POD shapes, so a payload enum's sites always record and the
+    // definition stays whenever anything clones/deletes/compares one. The
+    // POD shapes are the only ones whose sites can VANISH -- a POD-enum
+    // clone is a value copy at every position, a stack local's POD delete
+    // is elided whole -- and the collector mirrors those elisions. A
+    // non-POD struct never splices, so every call it makes records, and
+    // gating it costs nothing but the definitions nobody calls
+    // (ErrorWithMessage_clone in test/errors.til, Vec__Str_clone in
+    // examples/tilminal.til). The name has to resolve to a definition:
+    // a primitive or an ext type has no generated body to omit.
     if_enum_o := find_struct_def(type_name, ctx)
     if if_enum_o.is_none() { return false }
     if if_enum_o.unwrap().node_type.is(NodeType.EnumDef).not() {
         if if_enum_o.unwrap().node_type.is(NodeType.StructDef).not() { return false }
-        if is_pod_struct(type_name, ctx).not() { return false }
     }
     if ctx.builder_keep_all_exports { return false }
     if ctx.builder_collection_elem_types.has(type_name) { return false }
@@ -10612,6 +10642,15 @@ priv builder_fill_emit_inventory := proc(lp: LoadedProgram) {
     mut inv_prev_sites : USize = 99999999
     while true {
         mut inv_round_sites := Set(Str).new()
+        // The hand-written C runtime (src/c/ext.c) is linked into every
+        // program and calls Str_clone directly -- the cwd, env and blob
+        // helpers each return an owned empty Str that way. That is a real
+        // call site, just one written in C instead of til, so it seeds the
+        // inventory rather than needing an exemption from the gates that
+        // read it. The scavenger roots the same symbol for the same reason
+        // (scavenge_visited_imported's three-symbol FFI boundary); the
+        // other two are globals, which no gate omits.
+        inv_round_sites.add(own Str.clone("Str.clone"))
         inv_stack_names = Set(Str).new()
         inv_dup_names = Set(Str).new()
         mut inv_param_names := Set(Str).new()
