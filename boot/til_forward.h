@@ -3881,7 +3881,7 @@ void priv___src_self_interpreter_til__write_enum_flat(void * data, Str * enum_na
 USize priv___src_self_interpreter_til__elem_size_for_type(Str * type_name, Context * ctx);
 void * priv___src_self_interpreter_til__parse_cli_arg(Str * s, Str * type_name, Context * ctx);
 Bool priv___src_self_interpreter_til__ext_fdef_copies_str(FunctionDef * fd);
-Bool priv___src_self_interpreter_til__resolved_call_result_is_ref(Expr * e, Expr * fn_def);
+Bool priv___src_self_interpreter_til__resolved_call_result_is_ref(Type result_type, Expr * fn_def);
 Bool raw_type_is_prim(Type t, Context * ctx);
 void * priv___src_self_interpreter_til__scalar_word_encode(Type t, U64 bits, Context * ctx);
 void * scalar_word_load(Type t, void * addr, Context * ctx);
@@ -3897,7 +3897,7 @@ void * priv___src_self_interpreter_til__word_ring_slot(Type t, void * w, Context
 void priv___src_self_interpreter_til__RawResultInfo_delete(priv___src_self_interpreter_til__RawResultInfo * self, Bool call_free);
 priv___src_self_interpreter_til__RawResultInfo * priv___src_self_interpreter_til__raw_result_info_new(void);
 Type * priv___src_self_interpreter_til__raw_result_source_type(priv___src_self_interpreter_til__RawResultInfo * info);
-void priv___src_self_interpreter_til__set_resolved_call_result_info(Expr * e, Expr * fn_def, void * destination, priv___src_self_interpreter_til__RawResultInfo * info, Context * ctx);
+void priv___src_self_interpreter_til__set_resolved_call_result_info(Type result_type, Expr * fn_def, void * destination, priv___src_self_interpreter_til__RawResultInfo * info, Context * ctx);
 void * priv___src_self_interpreter_til__scalar_word_of_raw(void * raw, Bool is_ref, Bool is_word, Type decode_type, Context * ctx);
 void * priv___src_self_interpreter_til__eval_scalar_arg_word_info(Scope * s, Expr * e, priv___src_self_interpreter_til__RawResultInfo * info, Context * ctx);
 Bool priv___src_self_interpreter_til__eval_bool_arg(Scope * s, Expr * e, Context * ctx);
@@ -3926,7 +3926,7 @@ void * priv___src_self_interpreter_til__context_return_take(Context * ctx);
 Str * priv___src_self_interpreter_til__field_access_sname(Expr * e);
 Option__ref_Declaration priv___src_self_interpreter_til__field_access_decl(Expr * e, Context * ctx);
 Option__ref_Dynamic priv___src_self_interpreter_til__field_access_base(Scope * scope, Expr * obj, Context * ctx);
-void * priv___src_self_interpreter_til__eval_expr_field_raw(Scope * scope, Expr * e, Context * ctx, priv___src_self_interpreter_til__RawResultInfo * info, void * destination);
+void * priv___src_self_interpreter_til__eval_expr_field_raw(Scope * scope, Expr * e, Type expr_type, Context * ctx, priv___src_self_interpreter_til__RawResultInfo * info, void * destination);
 void priv___src_self_interpreter_til__write_runtime_type(void * result, Type t, Context * ctx);
 void * priv___src_self_interpreter_til__eval_expr_raw_info(Scope * scope, Expr * e, Context * ctx, priv___src_self_interpreter_til__RawResultInfo * info, void * destination);
 void * eval_expr_raw(Scope * scope, Expr * e, Context * ctx, void * destination);

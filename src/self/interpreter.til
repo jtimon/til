@@ -656,11 +656,11 @@ priv ext_fdef_copies_str := func(fd: FunctionDef) returns Bool {
     return fd.return_type == "Str"
 }
 
-priv resolved_call_result_is_ref := func(e: Expr, fn_def: Expr) returns Bool {
+priv resolved_call_result_is_ref := func(shallow result_type: Type, fn_def: Expr) returns Bool {
     switch fn_def.node_type {
     case .FuncDef(fd):
         if fd.return_own_type.is(OwnType.Ref).not() { return false }
-        switch e.til_type() {
+        switch result_type {
         case .Struct(name):
             if (name == "Str").and(ext_fdef_copies_str(fd)) { return false }
         case:
@@ -875,9 +875,9 @@ priv raw_result_source_type := func(info: RawResultInfo) returns ref Type {
     return to_ptr(info.source_type_p)
 }
 
-priv set_resolved_call_result_info := func(e: Expr, fn_def: Expr, destination: Dynamic, mut info: RawResultInfo, ctx: Context) {
-    info.is_ref = resolved_call_result_is_ref(e, fn_def)
-    info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(e.til_type(), ctx))
+priv set_resolved_call_result_info := func(shallow result_type: Type, fn_def: Expr, destination: Dynamic, mut info: RawResultInfo, ctx: Context) {
+    info.is_ref = resolved_call_result_is_ref(result_type, fn_def)
+    info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(result_type, ctx))
 }
 
 // Collapse an already-evaluated raw for the scalar-typed expr `e` into an
@@ -1372,13 +1372,13 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
     }
 }
 
-priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_type: Type, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     info.is_ref = false
     info.is_word = false
     switch e.node_type {
     case .FieldAccess(fa):
         if interp_fa_is_ns(scope, e, ctx) {
-            info.is_word = destination.is_null().and(raw_type_is_prim(e.til_type(), ctx))
+            info.is_word = destination.is_null().and(raw_type_is_prim(expr_type, ctx))
             sname := field_access_sname(e)
             namespace_def_o := lookup_interp_type_def(sname, ctx)
             if namespace_def_o.is_some().and(namespace_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
@@ -1425,7 +1425,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, mut ctx: Context
         info.source_type_p = to_ptr(interp_intern_type(fdecl.til_type, ctx))
         info.is_ref = decl_is_funcsig(fdecl, ctx).not()
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
-        info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(e.til_type(), ctx))
+        info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
         sname := field_access_sname(e)
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
         if (fdecl.explicit_type == "USize").or(fdecl.explicit_type == "UPtr") {
@@ -1533,14 +1533,15 @@ priv write_runtime_type := func(result: Dynamic, shallow t: Type, ctx: Context) 
 }
 
 priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
-    info.source_type_p = to_ptr(interp_intern_type(e.til_type(), ctx))
+    ref expr_type : Type = e.til_type()
+    info.source_type_p = to_ptr(interp_intern_type(expr_type, ctx))
     info.is_ref = false
     info.is_word = false
     info.arg_deref = false
     switch e.node_type {
     case .Literal(Literal.Str(text)):
         mut result : Dynamic = destination
-        if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
+        if result.is_null() { result = dispatch_result_alloc(expr_type, ctx) }
         buf : I8 = malloc(text.count.add(1))
         mut j : USize = 0
         mut i : USize = 0
@@ -1623,12 +1624,12 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         // no allocation. A caller-provided destination gets the scalar
         // stored at its width instead.
         mut num_word : Dynamic = 0
-        switch e.til_type() {
+        switch expr_type {
         case .Primitive(Primitive.U8):  num_word = bits_word(num_str.to_u8().cast(U64))
-        case .Primitive(Primitive.I8):  num_word = scalar_word_encode(e.til_type(), num_str.to_i8().cast(U8).cast(U64), ctx)
-        case .Primitive(Primitive.I16): num_word = scalar_word_encode(e.til_type(), num_str.to_i16().cast(U16).cast(U64), ctx)
+        case .Primitive(Primitive.I8):  num_word = scalar_word_encode(expr_type, num_str.to_i8().cast(U8).cast(U64), ctx)
+        case .Primitive(Primitive.I16): num_word = scalar_word_encode(expr_type, num_str.to_i16().cast(U16).cast(U64), ctx)
         case .Primitive(Primitive.U16): num_word = bits_word(num_str.to_u16().cast(U64))
-        case .Primitive(Primitive.I32): num_word = scalar_word_encode(e.til_type(), num_str.to_i32().cast(U32).cast(U64), ctx)
+        case .Primitive(Primitive.I32): num_word = scalar_word_encode(expr_type, num_str.to_i32().cast(U32).cast(U64), ctx)
         case .Primitive(Primitive.U32): num_word = bits_word(num_str.to_u32().cast(U64))
         case .Primitive(Primitive.U64): num_word = bits_word(num_str.to_u64())
         case .Primitive(Primitive.F32): num_word = bits_word(f32_word(num_str.to_f32()))
@@ -1636,7 +1637,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         case: num_word = bits_word(num_str.to_i64().cast(U64))
         }
         if destination.is_null() { info.is_word = true; return num_word }
-        scalar_word_store(e.til_type(), destination, num_word, ctx)
+        scalar_word_store(expr_type, destination, num_word, ctx)
         return destination
     case .Literal(Literal.Bool(b)):
         if destination.is_null().not() {
@@ -1653,29 +1654,29 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         // block for it leaked 8 bytes per evaluation). Other classes
         // keep a zeroed block of the type's size (a zeroed aggregate).
         if destination.is_null().not() { return destination }
-        if raw_type_is_prim(e.til_type(), ctx).or(e.til_type().is(Type.Dynamic)) {
-            info.is_word = raw_type_is_prim(e.til_type(), ctx)
+        if raw_type_is_prim(expr_type, ctx).or(expr_type.is(Type.Dynamic)) {
+            info.is_word = raw_type_is_prim(expr_type, ctx)
             return bits_word(0)
         }
-        return raw_unit_result(e.til_type(), ctx)
+        return raw_unit_result(expr_type, ctx)
     case .Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
         if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
-        if hb_type(hb).is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()).not() {
+        if hb_type(hb).is(Type.Dynamic).and(expr_type.is(Type.Dynamic).not()).not() {
             info.source_type_p = hb.til_type_p
         }
         info.arg_deref = hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not())
-        mut expr_type := e.til_type().clone()
-        switch expr_type {
-        case .Custom(expr_type_name): expr_type = type_from_name_init(expr_type_name, ctx.scope)
+        mut resolved_type := expr_type.clone()
+        switch resolved_type {
+        case .Custom(expr_type_name): resolved_type = type_from_name_init(expr_type_name, ctx.scope)
         case:
         }
-        switch expr_type {
+        switch resolved_type {
         case .Enum(type_name):
             if (type_name == "Type").and(hb.is_static_callable) {
                 mut result : Dynamic = destination
-                if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
+                if result.is_null() { result = dispatch_result_alloc(expr_type, ctx) }
                 mut runtime_type_name := ident.ident_name().clone()
                 ref binding_scope : Scope = scope_get_binding_scope(scope, ident.ident_name())
                 if binding_scope.heap_aliases.has(ident.ident_name()) {
@@ -1699,7 +1700,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
     case .FuncDef(fd):
         if fd.captures.len().gt(0) {
             closure : Dynamic = make_interp_closure(e, scope, ctx)
-            return raw_result_finish(e.til_type(), closure, destination, false, ctx)
+            return raw_result_finish(expr_type, closure, destination, false, ctx)
         }
         mut result : Dynamic = destination
         if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
@@ -1707,18 +1708,18 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         return result
     case .BodyValue:
         closure : Dynamic = make_interp_closure(e, scope, ctx)
-        return raw_result_finish(e.til_type(), closure, destination, false, ctx)
+        return raw_result_finish(expr_type, closure, destination, false, ctx)
     case .StructDef, .EnumDef:
         mut result : Dynamic = destination
         if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
         write_ptr(result, e)
         return result
     case .FieldAccess:
-        return eval_expr_field_raw(scope, e, ctx, info, destination)
+        return eval_expr_field_raw(scope, e, expr_type, ctx, info, destination)
     case:
         interp_lang_error(e, "cannot evaluate node as expression", ctx)
         exit(1)
-        return raw_unit_result(e.til_type(), ctx)
+        return raw_unit_result(expr_type, ctx)
     }
 }
 
@@ -2794,8 +2795,9 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
 priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     ref c : Context = ctx
     ref mut callee_expr : Expr = e.children[0]
+    ref call_type : Type = e.til_type()
     info.is_ref = false
-    info.is_word = destination.is_null().and(raw_type_is_prim(e.til_type(), ctx))
+    info.is_word = destination.is_null().and(raw_type_is_prim(call_type, ctx))
 
     // Namespace method call: Struct.method(args)
     if callee_expr.node_type.is(NodeType.FieldAccess) {
@@ -2806,14 +2808,14 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
             if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
                 ref enum_def : Expr = enum_def_o.unwrap()
                 mut enum_raw : Dynamic = destination
-                if enum_raw.is_null() { enum_raw = dispatch_result_alloc(e.til_type(), ctx) }
+                if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
                 if enum_method_dispatch(callee_field.field_access_name(), scope, enum_def, enum_name, e, enum_raw, ctx) {
                     // A prim-stamped result (is() -> Bool) collapses to an
                     // inline word; enum values stay blocks. A caller-provided
                     // destination stays the caller's storage -- free only a
                     // block this call allocated itself.
-                    if raw_type_is_prim(e.til_type(), ctx) {
-                        prim_w : Dynamic = scalar_word_load(e.til_type(), enum_raw, ctx)
+                    if raw_type_is_prim(call_type, ctx) {
+                        prim_w : Dynamic = scalar_word_load(call_type, enum_raw, ctx)
                         if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
                         return prim_w
                     }
@@ -2827,13 +2829,13 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
         mut fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
         if callable_box_is(deref(fn_raw)) {
             ref boxed_func_def : Expr = callable_raw_func_def(fn_raw)
-            set_resolved_call_result_info(e, boxed_func_def, destination, info, ctx)
+            set_resolved_call_result_info(call_type, boxed_func_def, destination, info, ctx)
             result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
             if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
             return result
         }
         ref func_def : Expr = callable_raw_func_def(fn_raw)
-        set_resolved_call_result_info(e, func_def, destination, info, ctx)
+        set_resolved_call_result_info(call_type, func_def, destination, info, ctx)
 
             // FuncPtr field: stored function may be ext_func from another type
             if callee_expr.til_type().is_funcptr() {
@@ -2847,7 +2849,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
                         ref nsv_fdef : Expr = callable_raw_func_def(nsv)
                         if nsv_fdef.ptr_eq(func_def) {
                             fp_flat := qn.replace(".", "_")
-                            orig_result_type := e.til_type().clone()
+                            orig_result_type := call_type.clone()
                             mut concrete_result_type := Type.None
                             mut concrete_return_own_type := OwnType.Shallow
                             ref concrete_fd : FunctionDef = funcdef_of(nsv_fdef)
@@ -2902,13 +2904,13 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
                         if tc_edef.node_type.is(NodeType.EnumDef) {
                             ref callee_ident : FieldAccessData = fieldaccess_of(callee_expr)
                             mut enum_raw : Dynamic = destination
-                            if enum_raw.is_null() { enum_raw = dispatch_result_alloc(e.til_type(), ctx) }
+                            if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
                             if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
                                 if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                                 // A prim-stamped result (is() -> Bool)
                                 // collapses to an inline word.
-                                if raw_type_is_prim(e.til_type(), ctx) {
-                                    prim_w2 : Dynamic = scalar_word_load(e.til_type(), enum_raw, ctx)
+                                if raw_type_is_prim(call_type, ctx) {
+                                    prim_w2 : Dynamic = scalar_word_load(call_type, enum_raw, ctx)
                                     EvalHeap.heap_free(own enum_raw)
                                     return prim_w2
                                 }
@@ -2935,7 +2937,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
                 }
                 // If the receiver type is unknown (eg Dynamic), fall back to
                 // the unqualified top-level name. Required for and/or/not.
-                orig_direct_result_type := e.til_type().clone()
+                orig_direct_result_type := call_type.clone()
                 mut flat_ident2 := Expr.new(ident_node(flat_str), callee_expr.line, callee_expr.col)
                 flat_ident2.set_til_type(callee_expr.til_type())
                 swap(Expr, e.children[0], flat_ident2)
@@ -2969,13 +2971,13 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
             // expected miss. ext_cell stays NULL and the is_null guard below
             // skips return/param ownership checks.
         }
-        mut ext_result_type := e.til_type().clone()
+        mut ext_result_type := call_type.clone()
         mut ext_return_own_type := OwnType.Shallow
         mut ext_variadic_index : I32 = -1
         if ext_slot.is_null().not() {
             ref ext_binding_raw : Dynamic = ext_slot
             ref ext_def : Expr = callable_raw_func_def(ext_binding_raw)
-            set_resolved_call_result_info(e, ext_def, destination, info, ctx)
+            set_resolved_call_result_info(call_type, ext_def, destination, info, ctx)
             switch ext_def.node_type {
             case .FuncDef(ext_fd):
                 if ext_fd.return_type.len() == 0 { ext_result_type = Type.None }
@@ -2995,8 +2997,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
         // dependent return types; the typer places the concrete result on the
         // call expression. Allocate dispatch storage at that contextual type.
         contextual_dynamic_result := ext_return_own_type.is(OwnType.Shallow).or(name.ident_name() == "dyn_call_ret")
-        if ext_result_type.is(Type.Dynamic).and(contextual_dynamic_result).and(e.til_type().is(Type.Dynamic).not()) {
-            ext_result_type = e.til_type().clone()
+        if ext_result_type.is(Type.Dynamic).and(contextual_dynamic_result).and(call_type.is(Type.Dynamic).not()) {
+            ext_result_type = call_type.clone()
         }
         mut ext_storage_type := ext_result_type.clone()
         if ext_result_is_ref { ext_storage_type = Type.Dynamic }
@@ -3005,7 +3007,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
         ext_prim_result := raw_type_is_prim(ext_storage_type, ctx).or(ext_storage_type.is(Type.None))
         mut ext_raw : Dynamic = 0
         if ext_prim_result { ext_raw = dispatch_scratch_push() }
-        else if ext_result_is_ref.not().and(destination.is_null().not()).and(til_type_name_c(ext_result_type) == til_type_name_c(e.til_type())) {
+        else if ext_result_is_ref.not().and(destination.is_null().not()).and(til_type_name_c(ext_result_type) == til_type_name_c(call_type)) {
             ext_raw = destination
         } else {
             ext_raw = dispatch_result_alloc(ext_storage_type, ctx)
@@ -3038,7 +3040,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
                 // The scratch slot is borrowed storage: consume the local
                 // without freeing.
                 word_drop(own ext_raw)
-                ext_word = raw_coerce_value(ext_word, ext_result_type, e.til_type(), ctx, ext_return_own_type)
+                ext_word = raw_coerce_value(ext_word, ext_result_type, call_type, ctx, ext_return_own_type)
                 return ext_word
             }
             if ext_result_is_ref {
@@ -3047,8 +3049,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
                 EvalHeap.heap_free(own ext_raw)
                 return direct_ref_result
             }
-            ext_raw = raw_coerce_value(ext_raw, ext_result_type, e.til_type(), ctx, ext_return_own_type)
-            ext_raw = raw_result_finish(e.til_type(), ext_raw, destination, false, ctx)
+            ext_raw = raw_coerce_value(ext_raw, ext_result_type, call_type, ctx, ext_return_own_type)
+            ext_raw = raw_result_finish(call_type, ext_raw, destination, false, ctx)
             return ext_raw
         }
         if ext_prim_result { dispatch_scratch_pop(); word_drop(own ext_raw) }
@@ -3088,7 +3090,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
                     }
                     ctx.eval_aborted = true
                     if destination.is_null().not() { return destination }
-                    return raw_unit_result(e.til_type(), ctx)
+                    return raw_unit_result(call_type, ctx)
                 }
             case:
         }
@@ -3257,14 +3259,14 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
         // get the function pointer, then dispatch with the call's args.
         mut cast_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
         ref cast_func_def : Expr = callable_raw_func_def(cast_raw)
-        set_resolved_call_result_info(e, cast_func_def, destination, info, ctx)
+        set_resolved_call_result_info(call_type, cast_func_def, destination, info, ctx)
         result : Dynamic = eval_callable_call(scope, e, cast_raw, ctx, destination)
         callable_raw_free(cast_raw, ctx)
         return result
     case:
         UNREACHABLE("unexpected ", callee_expr.node_type.head_str())
         if destination.is_null().not() { return destination }
-        return raw_unit_result(e.til_type(), ctx)
+        return raw_unit_result(call_type, ctx)
     }
 }
 
