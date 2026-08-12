@@ -367,13 +367,51 @@ test_dyn_vec_capturing_funcsig_shallow_clone := test() {
     }
     ops.push(own op)
     copied := ops.clone()
-    ref original : UnaryOp = ops[0]
-    ref duplicate : UnaryOp = copied[0]
-    assert_eq(I64, original(5), 15)
+    ref original : Dynamic = ops[0]
+    ref duplicate : Dynamic = copied[0]
+    assert_eq(I64, cast(original, UnaryOp)(5), 15)
     assert_eq(I64, step, 2)
-    assert_eq(I64, duplicate(5), 15)
-    assert_eq(I64, duplicate(5), 20)
+    assert_eq(I64, cast(duplicate, UnaryOp)(5), 15)
+    assert_eq(I64, cast(duplicate, UnaryOp)(5), 20)
     assert_eq(I64, step, 2)
+}
+
+test_dyn_vec_capturing_funcsig_own_mut_clone := test() {
+    step : I64 = 2
+    mut ops := DynVec.new(UnaryOp)
+    op : UnaryOp = func(x: I64) returns I64 [own mut step] {
+        step = step.add(1)
+        return x.mul(step)
+    }
+    ops.push(own op)
+    copied := ops.clone()
+    ref original : Dynamic = ops[0]
+    ref duplicate : Dynamic = copied[0]
+    assert_eq(I64, cast(original, UnaryOp)(5), 15)
+    assert_eq(I64, cast(duplicate, UnaryOp)(5), 15)
+    assert_eq(I64, cast(duplicate, UnaryOp)(5), 20)
+}
+
+test_dyn_vec_body_shallow_mut_clone := test() {
+    step : I64 = 1
+    mut seen := 0
+    mut bodies := DynVec.new(Body)
+    b : Body = [shallow mut step, mut seen] {
+        step = step.add(1)
+        seen = step
+    }
+    bodies.push(own b)
+    copied := bodies.clone()
+    ref original : Dynamic = bodies[0]
+    cast(original, Body)()
+    assert_eq(I64, seen, 2)
+    assert_eq(I64, step, 1)
+    ref duplicate : Dynamic = copied[0]
+    cast(duplicate, Body)()
+    assert_eq(I64, seen, 2)
+    cast(duplicate, Body)()
+    assert_eq(I64, seen, 3)
+    assert_eq(I64, step, 1)
 }
 
 test_dyn_vec_capturing_body_clone := test() {

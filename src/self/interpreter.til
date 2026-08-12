@@ -1208,6 +1208,31 @@ priv eval_callable_callee_raw := proc(mut scope: Scope, mut callee: Expr,
     return eval_expr_raw(scope, callee, ctx)
 }
 
+priv eval_callable_cast_callee_raw := proc(mut scope: Scope, mut cast_expr: Expr,
+        mut owned: Bool, mut ctx: Context) returns Dynamic {
+    ref mut src_expr : Expr = cast_expr.children[1]
+    mut src_info := raw_result_info_new()
+    mut src : Dynamic = eval_expr_raw_info(scope, src_expr, ctx, src_info)
+    // Generated C calls through a ref Dynamic slot without cloning it. Borrow
+    // the same slot here so private closure state persists across calls.
+    if src_info.is_ref {
+        owned = false
+        return src
+    }
+    ref stored_ref : Dynamic = deref(src)
+    mut stored : Dynamic = stored_ref
+    if raw_result_source_type(src_info).is(Type.Dynamic) {
+        stored = callable_storage_clone(stored)
+    } else {
+        write_ptr(src, bits_word(0))
+    }
+    result : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    write_ptr(result, stored)
+    raw_result_drop(src_expr.til_type(), src, false, ctx)
+    owned = true
+    return result
+}
+
 priv init_field_raw := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, raw: Dynamic, shallow raw_type: Type, raw_is_ref: Bool, raw_is_place: Bool, ctx: Context) {
     ref dst : Dynamic = ptr_add(inst_data, field_offset)
     if decl_is_funcsig(dd, ctx) {
@@ -2198,12 +2223,12 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     new_raw = raw_coerce_value(new_raw, raw_result_source_type(new_info), hb_type(assign_hb), ctx, assign_hb.own_type)
                 }
             }
-            if raw_type_is_prim(hb_type(assign_hb), ctx).and(assign_hb.own_type.is(OwnType.Own).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
+            if raw_type_is_prim(hb_type(assign_hb), ctx).and(assign_hb.is_raw_alloc.not()).and(stmt.til_type().is(Type.Dynamic).not()) {
                 // Primitive assignment writes the scalar into the existing
                 // block in place (C's x = v) -- for a ref/borrowed binding
-                // the block IS the target storage, so this is write-through.
-                // No drop, no allocation. Own-primitives (#302 raw-alloc
-                // pointers) keep the pointer-transfer path below. A
+                // or an owned closure capture the block IS the target storage,
+                // so this is write-through. No drop, no allocation. Only
+                // #302 raw-allocation pointers keep the transfer path below. A
                 // consumed raw-alloc binding (own-arg freed + reassigned)
                 // has no block left -- give it a fresh one.
                 if assign_hb.ptr.is_null() {
@@ -3257,11 +3282,24 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
         // Issue #58: postfix call on a sub-expression callee, e.g.
         // `cast(raw, BinaryOp)(3, 4)`. Eval the callee (the cast) to
         // get the function pointer, then dispatch with the call's args.
-        mut cast_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
+        mut cast_raw_owned := true
+        mut cast_raw : Dynamic = 0
+        mut inline_callable_cast := false
+        switch callee_expr.children[0].node_type {
+        case .Ident(cast_name):
+            inline_callable_cast = cast_name.ident_name().eq("cast")
+                .and(callee_expr.til_type().is_funcptr().or(callee_expr.til_type().is(Type.Body)))
+        case:
+        }
+        if inline_callable_cast {
+            cast_raw = eval_callable_cast_callee_raw(scope, callee_expr, cast_raw_owned, ctx)
+        } else {
+            cast_raw = eval_expr_raw(scope, callee_expr, ctx)
+        }
         ref cast_func_def : Expr = callable_raw_func_def(cast_raw)
         set_resolved_call_result_info(call_type, cast_func_def, destination, info, ctx)
         result : Dynamic = eval_callable_call(scope, e, cast_raw, ctx, destination)
-        callable_raw_free(cast_raw, ctx)
+        if cast_raw_owned { callable_raw_free(cast_raw, ctx) }
         return result
     case:
         UNREACHABLE("unexpected ", callee_expr.node_type.head_str())
