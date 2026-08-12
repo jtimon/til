@@ -4645,9 +4645,18 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
 // latter for user functions. The divergence predicate stmt_always_diverges is
 // shared with that typer check (context.til), so terminator and error agree.
 priv emit_diverge_terminator := proc(f: File, ret: Str, body: Expr) {
-    if ret.eq("void").not().and(stmt_always_diverges(body)) {
-        f.write("    __builtin_unreachable();\n")
+    if ret.eq("void") { return }
+    if stmt_always_diverges(body).not() { return }
+    // #326: the mis-fire the terminator answers needs a CFG GCC cannot
+    // follow -- an exhaustive switch or if/else where every arm returns.
+    // A body whose LAST statement is a plain `return` has none of that:
+    // the `return` is the final line of the emitted function, GCC never
+    // warns, and the marker is a dead statement after an unconditional
+    // return. That was 5,240 of the corpus's 5,536.
+    if body.children.len() > 0 {
+        if body.children[body.children.len() - 1].node_type.is(NodeType.Return) { return }
     }
+    f.write("    __builtin_unreachable();\n")
 }
 
 priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, mut lp: LoadedProgram) {

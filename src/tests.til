@@ -749,6 +749,18 @@ main := proc(args: ..Str) {
     // four walks. One prototype, one definition, one mention at the call.
     add_count(tests, "hello_no_duplicate_prototypes", "build", "void println(Array__Str * parts)", 2,
         format(til_bin, " translate -c gen/c/hs_dp.c examples/hello_script.til '&&' cat gen/c/hs_dp.c"))
+    // The __builtin_unreachable terminator answers a GCC mis-fire that
+    // needs a CFG it cannot follow. A body whose LAST statement is a plain
+    // `return` has none: the marker there is a dead statement after an
+    // unconditional return, and every function in this fixture ends that
+    // way.
+    add_count(tests, "hello_no_unreachable_after_return", "build", "__builtin_unreachable", 0,
+        format(til_bin, " translate -c gen/c/hs_ur.c examples/hello_script.til '&&' cat gen/c/hs_ur.c"))
+    // ...and the bodies that DO need it keep it: test/option.til's
+    // Option arms return from every branch of an exhaustive switch, which
+    // is exactly the CFG GCC stops following under -finstrument-functions.
+    add_count(tests, "option_keeps_needed_unreachable", "build", "__builtin_unreachable", 12,
+        format(til_bin, " translate -c gen/c/opt_ur.c test/option.til '&&' cat gen/c/opt_ur.c"))
     // The lifecycle gate covers every struct now, not only the POD ones:
     // a non-POD struct never splices, so every call it makes records a
     // site and gating it costs nothing but the uncalled definitions.

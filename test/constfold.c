@@ -293,7 +293,6 @@ Str * format(Array__Str * parts) {
     }
     Array__Str_delete(parts, 1);
     return out;
-    __builtin_unreachable();
 }
 
 Bool Str_eq(Str * a, Str * b) {
@@ -311,7 +310,6 @@ Bool Str_eq(Str * a, Str * b) {
     I32 hoisted__I32_379 = 0;
     Bool hoisted__Bool_380 = ((Bool)(hoisted__I32_378 == hoisted__I32_379));
     return hoisted__Bool_380;
-    __builtin_unreachable();
 }
 
 Str * Str_with_capacity(USize n) {
@@ -333,7 +331,6 @@ Str * Str_with_capacity(USize n) {
     hoisted__Str_388->count = hoisted__I64_387;
     hoisted__Str_388->cap = n;
     return hoisted__Str_388;
-    __builtin_unreachable();
 }
 
 void Str_push_str(Str * self, Str * s) {
@@ -396,13 +393,11 @@ Str * Str_clone(Str * val) {
     hoisted__Str_414->count = val->count;
     hoisted__Str_414->cap = val->count;
     return hoisted__Str_414;
-    __builtin_unreachable();
 }
 
 Str * Str_to_str(Str * self) {
     Str *hoisted__Str_415 = Str_clone(self);
     return hoisted__Str_415;
-    __builtin_unreachable();
 }
 
 void Str_delete(Str * self, Bool call_free) {
@@ -421,7 +416,6 @@ Bool Str_neq(Str * a, Str * b) {
     Bool hoisted__Bool_802 = Str_eq(a, b);
     Bool hoisted__Bool_803 = ((Bool)(!(hoisted__Bool_802)));
     return hoisted__Bool_803;
-    __builtin_unreachable();
 }
 
 Array__Str * Array__Str_new(USize cap) {
@@ -430,7 +424,6 @@ Array__Str * Array__Str_new(USize cap) {
     hoisted__Array__Str_941->data = hoisted__v_940;
     hoisted__Array__Str_941->cap = cap;
     return hoisted__Array__Str_941;
-    __builtin_unreachable();
 }
 
 void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val) {
@@ -548,7 +541,6 @@ Array__Str * Array__Str_clone(Array__Str * self) {
     hoisted__Array__Str_1024->data = new_data;
     hoisted__Array__Str_1024->cap = self->cap;
     return hoisted__Array__Str_1024;
-    __builtin_unreachable();
 }
 
 void adopt__Str(void * dest, Str * src) {
@@ -561,7 +553,6 @@ Str * U64_to_str(U64 val) {
     /* TODO: nested func U64_to_str_ext */
     Str *hoisted__Str_1650 = U64_to_str_ext(val);
     return hoisted__Str_1650;
-    __builtin_unreachable();
 }
 
 Str * I64_to_str(I64 val) {
@@ -586,7 +577,6 @@ Str * I64_to_str(I64 val) {
     U64 hoisted__U64_2013 = (U64)(val);
     Str *hoisted__Str_2014 = U64_to_str(hoisted__U64_2013);
     return hoisted__Str_2014;
-    __builtin_unreachable();
 }
 
 void I64_delete(I64 * self, Bool call_free) {
@@ -878,7 +868,6 @@ void test_struct_fold_f32(void) {
 Bool Color_eq(Color * self, Color * other) {
     Bool hoisted__Bool_7188 = ((Bool)((((Color *)(self))->tag) == (((Color *)(other))->tag)));
     return hoisted__Bool_7188;
-    __builtin_unreachable();
 }
 
 
