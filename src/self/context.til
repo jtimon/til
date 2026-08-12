@@ -790,6 +790,9 @@ Sym := U32
 
 SymbolPool := struct {
     by_name := Map(Str, Sym).new()
+    // Index sym - 1 owns the spelling used by resolve. Keeping a separate
+    // insertion-order Vec makes IDs stable when by_name's sorted keys move.
+    names := Vec(Str).new()
     next : Sym = 1
 namespace:
     intern := func(mut self: SymbolPool, name: Str) returns Sym {
@@ -809,7 +812,15 @@ namespace:
         sym := self.next
         self.next++
         self.by_name.set(name, own sym.clone())
+        self.names.push(own name.clone())
         return sym
+    }
+
+    // Return a non-owning value view rather than a ref into names: Vec growth
+    // can move its Str wrappers, but the owned character buffers stay put.
+    resolve := func(self: SymbolPool, sym: Sym) returns Str {
+        if sym == 0 { panic("SymbolPool.resolve: symbol zero has no name") }
+        return self.names[sym.cast(USize) - 1].borrowed_view()
     }
 }
 

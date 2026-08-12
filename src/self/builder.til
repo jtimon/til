@@ -267,8 +267,14 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Cont
 // a non-freeing delete at scope end (call_free=false) so the cleanup
 // doesn't try to free a stack pointer.
 
+priv funcsig_sym := func(name: Str, mut ctx: Context) returns Sym {
+    sym := ctx.symbols.intern(name)
+    if ctx.funcsig_names.has(sym) { return sym }
+    return 0
+}
+
 priv is_funcsig_type := func(name: Str, mut ctx: Context) returns Bool {
-    return ctx.funcsig_names.has(ctx.symbols.intern(name))
+    return funcsig_sym(name, ctx) != 0
 }
 
 // Deliberately WITHOUT USize/UPtr, unlike is_primitive_type: those are
@@ -811,7 +817,8 @@ priv c_type_name := func(shallow t: Type, struct_name: Str, mut ctx: Context) re
     }
     if t.is_funcptr() {
         if struct_name.len() > 0 {
-            if is_funcsig_type(struct_name, ctx) { return struct_name }
+            sym := funcsig_sym(struct_name, ctx)
+            if sym != 0 { return ctx.symbols.resolve(sym) }
         }
     }
     if t.is(Type.Dynamic) { return "void" }
@@ -842,7 +849,8 @@ priv type_name_to_c := func(name: Str, mut ctx: Context) returns Str {
     case "Fn", "Body": return "TilClosure *"
     case:
     }
-    if is_funcsig_type(name, ctx) { return name }
+    sym := funcsig_sym(name, ctx)
+    if sym != 0 { return ctx.symbols.resolve(sym) }
     return name.format(" *")
 }
 
@@ -865,7 +873,8 @@ priv type_name_to_c_value := func(name: Str, mut ctx: Context) returns Str {
     case "Fn", "Body": return "TilClosure *"
     case:
     }
-    if is_funcsig_type(name, ctx) { return name }
+    sym := funcsig_sym(name, ctx)
+    if sym != 0 { return ctx.symbols.resolve(sym) }
     return name
 }
 

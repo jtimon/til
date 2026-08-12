@@ -41,3 +41,16 @@
   explicit clone. Best done in a fast LOCAL session -- it is a cascading,
   multi-build change -- and watch the interpreter/comptime paths that read
   these accessors (ident_name is used during comptime eval too).
+
+** Progress
+
+  - [X] Make identifier, field-access, numeric-literal, and expression
+    type-name reads borrow; clone only at ownership boundaries.
+  - [X] Reuse resolved scope entries and switch enum definitions instead of
+    repeating string-keyed lookups.
+  - [X] Add a Context-owned SymbolPool and migrate function-signature names
+    to Set(Sym).
+  - [X] Preserve insertion-order Sym -> Str resolution across Context clones.
+  - [ ] Migrate FieldAccessData.name, then IdentData.name, to Sym.
+  - [ ] Stage compiler Type-name payload migration after runtime reflection
+    and dyn_type_to_str no longer require Str payloads.

@@ -1627,6 +1627,7 @@ typedef struct TypeScope {
 
 typedef struct SymbolPool {
     Map__Str_U32 by_name;
+    Vec__Str names;
     U32 next;
 } SymbolPool;
 
@@ -2232,6 +2233,7 @@ void priv___src_self_context_til__interned_vec_free_pointees(Vec__Dynamic * v);
 InternedTypes * InternedTypes_clone(InternedTypes * _self);
 void InternedTypes_delete(InternedTypes * self, Bool call_free);
 U32 SymbolPool_intern(SymbolPool * self, Str * name);
+Str * SymbolPool_resolve(SymbolPool * self, U32 sym);
 SymbolPool * SymbolPool_clone(SymbolPool * self);
 void SymbolPool_delete(SymbolPool * self, Bool call_free);
 Context * Context_clone(Context * self);
@@ -3504,6 +3506,7 @@ Bool priv___src_self_builder_til__use_dot_access(Expr * obj, Context * ctx);
 void priv___src_self_builder_til__emit_pod_struct_user_clone_arg(File * f, Expr * e, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__is_pod_struct_user_clone(Expr * e, Context * ctx);
 void priv___src_self_builder_til__emit_pod_enum_clone_arg(File * f, Expr * e, I32 depth, Context * ctx);
+U32 priv___src_self_builder_til__funcsig_sym(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_funcsig_type(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ext_h_type(Str * name);
 Bool priv___src_self_builder_til__is_exported_top_level_global(Expr * stmt);
