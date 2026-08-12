@@ -26,44 +26,38 @@ Complete mapping of til qualifiers to generated C, by context.
    ~test/qualifier_mut_field_error.til~, and
    ~test/qualifier_mut_payload_error.til~.
 
-   Issue #164 adds the third leg: a ~mut~ local or ~mut~ parameter
-   that the body never uses to write is also flagged. The detector
-   counts these as writes: a direct assignment (~name = ...~), a
-   field-chain assignment (~name.f = ...~), passing the name (or one
-   of its fields) to a callee parameter declared ~mut~ -- which
-   includes a UFCS method call whose resolved ~self~ is ~mut~, e.g.
-   ~s.push_str(...)~ -- or to one typed ~Dynamic~ (a raw pointer the
-   callee may write through, e.g. ~move~/~memcpy~/~write_ptr~), and
-   the collection of a ~for mut x in coll~ loop.
+   A ~mut~ local or ~mut~ parameter that the body never writes
+   through is also flagged as redundant (#164). Writes are: a direct
+   assignment (~name = ...~), a field-chain assignment
+   (~name.f = ...~), passing the name (or one of its fields) to a
+   callee parameter declared ~mut~ -- which includes a UFCS method
+   call whose resolved ~self~ is ~mut~, e.g. ~s.push_str(...)~;
+   ~s.len()~ resolves to a non-mut ~self~ and is a read -- or to one
+   typed ~Dynamic~ (a raw pointer the callee may write through, e.g.
+   ~move~/~memcpy~/~write_ptr~), and the collection of a
+   ~for mut x in coll~ loop. Taking a ~ref mut~ alias of a name is
+   not by itself a write; a write through the alias is.
 
-   Issue #344 made the detector follow BORROWS. A write does not have
-   to be spelled on the binding it lands in: a ~returns ref T~
-   function hands back a borrow of one of its parameters, and writing
-   through that borrow writes the caller's storage. Two facts carry
-   this. ~FunctionDef.ref_return_params~ is a parameter-indexed
-   summary of which parameters a function's returned borrow can
-   reach; ~TypeBinding.borrow_roots~ records, per binding, which
-   storages its value borrows (a root is a name PLUS its declaration
-   site, so a nested block that shadows the name is a different
-   storage and cannot absorb the credit). So
+   Write tracking follows borrows (#344). A write does not have to
+   be spelled on the binding it lands in: a ~returns ref T~ function
+   hands back a borrow of one of its parameters, and writing through
+   that borrow writes the caller's storage. The typer records, per
+   binding, which storages its value borrows -- a root is a name
+   PLUS its declaration site, so a nested block that shadows the
+   name is a different storage -- and, per borrow-returning
+   function, which parameters its returned borrow can reach (a set:
+   a ref function may return either of several parameters). A write
+   through an alias credits every storage it reaches:
 
    #+begin_src til
    inner_of := func(o: Outer) returns ref Inner { return o.inner }
    bump := func(mut o: Outer) {
        ref mut i : Inner = inner_of(o)
-       i.n = i.n + 1                     // credits `o`, not just `i`
+       i.n = i.n + 1                     // a write to `o`, through `i`
    }
    #+end_src
 
-   keeps its honest ~mut o~. Before #344 it did not, and the only
-   form that compiled was the non-mut one -- the shape the two
-   backends disagree about.
-
-   Two things that USED to count as writes no longer do, because
-   neither is one: a UFCS call on the name regardless of what the
-   method does with its receiver (~name.len()~ is not a write), and
-   creating a ~ref mut~ alias of the name (taking a borrow is not
-   writing through it; the write itself now credits the source).
+   so ~bump~'s ~mut o~ is justified by the write through ~i~.
 
    Note that ~mut~ only governs the binding, its direct fields, and
    storage reached through a TYPED borrow of it (~p = ...~,
@@ -71,60 +65,13 @@ Complete mapping of til qualifiers to generated C, by context.
    other way through a non-mut binding -- a child element via a
    ~for x in p.children~ loop variable, or the buffer behind a raw
    pointer field -- does not require ~mut~ on the binding, so such
-   params are correctly flagged as redundant. The redundancy diagnostic
-   is intentionally conservative on the write side: it would rather
-   miss a redundant ~mut~ (e.g. a binding only passed to a read-only
-   ~Dynamic~ param like ~is_null~) than wrongly reject a ~mut~ that is
-   actually needed. An unresolved callee, or a borrow chain deeper than
-   the summary settled, means "no roots" -- less credit, never wrong
-   credit.
-
-** Writing through a borrow (#344)
-
-   The rule the table above states -- a plain parameter is a read-only
-   borrow, a ~mut~ parameter is a writable one -- is ENFORCED, not just
-   documented. A write is rejected when any storage it reaches is a
-   binding the writer may not change:
-
-   #+begin_src til
-   Flat := struct { n : I64 = 0 }
-   poke := func(f: Flat) {
-       f.n = f.n + 1     // error: 'f' is an immutable binding; declare it 'mut'
-   }
-   #+end_src
-
-   That program used to compile, and the two backends then disagreed
-   about what it meant: interpreted, the caller's local changed;
-   compiled, the write landed in a copy and vanished (auto-shallow,
-   #223, passes an eligible plain aggregate by value). Rejecting it
-   makes the storage difference unobservable in every accepted program
-   while leaving the value ABI alone.
-
-   The check runs at one place -- the write-credit walker -- so every
-   route to a write is covered, including the ones that used to launder
-   it past the qualifier: a nested field assignment, an argument bound
-   to a ~mut~ parameter (a ~mut self~ receiver included), a write
-   through a ~ref~ an accessor returned, the same borrow carried in an
-   ~Option(ref T)~ payload and unwrapped by a ~switch~, and
-   ~for mut x in coll~. Writable means ~mut~, or ~own~ (the callee owns
-   the value), or a global (see the carve-out above).
-
-   Two roots are deliberately not judged on a qualifier of their own,
-   because there is nowhere to write one: a ~case V(p):~ payload
-   binding, whose mutability the language inherits from the scrutinee,
-   and the typer's own temps. Both alias something that IS judged, so
-   the question is still asked -- one hop further up.
-
-   The conservative ~Dynamic~ argument lint stays a lint. Handing a raw
-   pointer to a callee is a guess about what the callee does with it,
-   so it still CREDITS a write (keeping a real ~mut~ from being called
-   redundant) but never produces a rejection.
-
-   Negative cases live in ~test/typer_errors.til~; the positive side --
-   an honest ~mut~ whose only write goes through an accessor, a
-   multi-root ~ref~ return, and a borrowed payload -- is in
-   ~test/ref.til~, run interpreted and compiled so the two backends
-   have to agree.
+   params are correctly flagged as redundant. The redundancy
+   diagnostic is intentionally conservative on the write side: it
+   would rather miss a redundant ~mut~ (e.g. a binding only passed
+   to a read-only ~Dynamic~ param like ~is_null~) than wrongly
+   reject a ~mut~ that is actually needed. An unresolved callee, or
+   a borrow chain deeper than the summary settled, means "no roots"
+   -- less credit, never wrong credit.
 
    Globals -- top-level ~mut foo := ...~ at module scope AND
    namespace decls like ~mut Type.foo := ...~ -- are NOT flagged.
@@ -137,6 +84,51 @@ Complete mapping of til qualifiers to generated C, by context.
    bloat every instance with a function-pointer slot (unacceptable
    for ~HashMap~). Same reasoning as ~mut~ on top-level globals,
    which we have always left alone.
+
+** Writing through a borrow
+
+   The rule the Arguments table below states -- a plain parameter is
+   a read-only borrow, a ~mut~ parameter is a writable one -- is
+   enforced at every write (#344): a write is rejected when any
+   storage it reaches is a binding the writer may not change.
+
+   #+begin_src til
+   Flat := struct { n : I64 = 0 }
+   poke := func(f: Flat) {
+       f.n = f.n + 1     // error: 'f' is an immutable binding; declare it 'mut'
+   }
+   #+end_src
+
+   Accepting such a write would make the argument-passing
+   representation observable: the interpreter shares the caller's
+   storage while the compiled auto-shallow form (#223) passes an
+   eligible plain aggregate by value, so the two backends would give
+   the same program different answers. Rejecting it keeps the
+   representation unobservable in every accepted program.
+
+   The check runs at the single write-credit walker, so every route
+   to a write is covered: a nested field assignment, an argument
+   bound to a ~mut~ parameter (a ~mut self~ receiver included), a
+   write through a ~ref~ an accessor returned, the same borrow
+   carried in an ~Option(ref T)~ payload and unwrapped by a
+   ~switch~, and ~for mut x in coll~. Writable means ~mut~, or ~own~
+   (the callee owns the value), or a global (the carve-out above).
+
+   A ~case V(p):~ payload binding and the typer's own temps are not
+   judged on a qualifier of their own -- there is no place to write
+   one; a payload binding inherits the scrutinee's mutability (see
+   doc/enums.org "Payload mutability"). Both alias storage that IS
+   judged.
+
+   Passing a binding to a ~Dynamic~ parameter counts as a write for
+   the redundancy check but never causes a rejection: what a callee
+   does behind a raw pointer is a guess, and the raw quarantine is
+   the explicit unchecked boundary.
+
+   Diagnostics are tested by ~test/typer_errors.til~ (rejections)
+   and ~test/ref.til~ (accepted writes through accessor borrows,
+   multi-root ~ref~ returns, and borrowed payloads, run interpreted
+   and compiled).
 
 ** Arguments (function/proc parameters)
 
