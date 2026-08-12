@@ -1,6 +1,66 @@
 # priority: high
 # category: bugs
-** WIP #344 One-sided mut enforcement: non-mut writes compile, backends disagree, accessors launder writes
+** FIXED #344 One-sided mut enforcement: non-mut writes compile, backends disagree, accessors launder writes
+
+*** Post-mortem
+
+Root cause: #164's write tracking was ONE BIT per binding, flipped only
+by a write SPELLED on that binding. Nothing modelled where a write
+actually landed, so the two halves of the contract in doc/qualifiers.org
+-- a plain parameter is a read-only borrow, a ~mut~ one is writable --
+had no enforcement between them. That produced all three probes at once:
+a write through a non-mut parameter was accepted (nothing checked the
+target's mutability), a write through a borrow RETURNED BY A CALL
+credited nobody (so the honest ~mut~ was reported redundant and authors
+were steered into the accepted-but-divergent form), and #253's payload
+accessors could not be used by any function that mutates its node,
+because the ~mut~ they need was exactly the one being rejected.
+
+Fixed in two commits, split at a master merge because doc/self.org
+requires it: the enforcement demands ~mut~ qualifiers that master's own
+~til_boot~ still calls redundant, so pass 1 cannot build them until the
+tracking is the boot. Verified rather than assumed -- master's compiler
+run over the finished source rejects 27 of them.
+
+A. "Write tracking follows the borrow". Two facts:
+   ~FunctionDef.ref_return_params~, a parameter-indexed summary of which
+   parameters a function's returned borrow can reach, settled per unit by
+   a monotone fixed point before any body is typed and refreshed once
+   each body IS typed, so neither source order nor late monomorphization
+   changes the answer; and ~TypeBinding.borrow_roots~, per binding, the
+   storages its value borrows, each identified by name PLUS declaration
+   site so a nested shadow cannot absorb the credit. The summary sees
+   through the four compiler-created pointer primitives (~ptr_add~,
+   ~to_ptr~, ~deref~, ~get_payload~) whose whole definition is "return a
+   pointer into argument 0" -- without them every container element
+   access bottoms out in ~ptr_add~ and no write to a ~Vec~ or ~Map~
+   element could ever reach its container. One walker
+   (~mark_written_through~) replaced the scattered marking, and the two
+   false marks went: every UFCS receiver counted as written whatever the
+   method did with it, and creating a ~ref mut~ alias counted as writing
+   its source.
+
+B. This commit. ~check_write_roots_mut~ rejects a write when a root it
+   reaches is a binding the writer may not change, reported at the write
+   with a note at the root's declaration. ~Array~ and ~DynArray~ were the
+   only containers whose setters took a non-mut ~self~ (~Vec~, ~Map~,
+   ~Set~ and ~Str~ all take ~mut self~), which is why
+   ~copy_board(dst: Array(I64))~ could overwrite every element of ~dst~
+   without saying so; their ~set~ / ~unsafe_set~ now match ~Vec~'s. The
+   source sweep that followed is the bulk of the diff. The 21 remaining
+   single-variant extraction switches became ~X_of(e)~ accessor lines,
+   which is what #253 was blocked on.
+
+Regression tests: ~test/typer_errors.til~ gains the negative side --
+probe 1's direct write, the same write through an accessor's returned
+~ref~, the borrow carried in an ~Option(ref T)~ payload and unwrapped by
+a ~switch~, an immutable argument passed to a ~mut~ parameter and to a
+~mut self~ receiver, and ~for mut~ over an immutable collection.
+~test/ref.til~ carries the positive side under ~add_both~, so
+interpreted and compiled output must agree: a write through a
+single-root accessor, a multi-root ~ref~ return where both ~mut~ roots
+are load-bearing, and a borrowed payload.
+
 
 Four probes, all run on master's own compiler (~til_boot~ built from
 HEAD's boot/), interpreted AND compiled. They show one gap from three
@@ -219,27 +279,3 @@ fails. After A lands, master's ~til_boot~ understands the propagated
 write and B is an ordinary single-pass use commit. These are the only
 two bootstrap stages; splitting B by subsystem would add history but
 no buildable state.
-
-*** Progress
-
-- [X] A. Preparation: make write tracking follow borrows.
-      ~TypeBinding.borrow_roots~ (name + declaration site, so a nested
-      shadow cannot absorb a write) and ~FunctionDef.ref_return_params~
-      (a parameter-indexed return-borrow summary) landed. The summary is
-      settled per unit by a monotone fixed point before any body is typed
-      and refreshed once each body IS typed, so neither source order nor
-      late monomorphization changes the answer. One write walker
-      (~mark_written_through~) now serves field assignment, assignment
-      through a ~ref mut~, resolved ~mut~ arguments and ~mut self~
-      receivers, the ~Dynamic~ lint, and both ~for mut~ paths, crediting
-      the roots a write really reaches. The two false marks -- every UFCS
-      receiver, and creating a ~ref mut~ alias -- are gone, and the
-      qualifiers that were surviving on them were dropped across
-      src/self, examples and tests.
-- [ ] B. Use: enforce the contract (reject a write whose typed terminal
-      root is non-mut), sweep core/std/self/examples/tests under the new
-      checker, convert the ~24 single-variant extraction switches #253
-      left, and add the negative cases to ~test/typer_errors.til~.
-      Needs A merged into master first: HEAD's ~til_boot~ must already
-      understand the propagated write before a body whose only write is
-      behind an accessor can be built (see doc/self.org).

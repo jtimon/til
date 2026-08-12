@@ -145,9 +145,9 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(St
     }
 }
 
-priv extract_imports := func(body: Expr, path: Str) returns Vec(Str) {
+priv extract_imports := func(mut body: Expr, path: Str) returns Vec(Str) {
     mut paths := Vec(Str).new()
-    for stmt : Expr in body.children {
+    for mut stmt : Expr in body.children {
         mut is_imp := false
         mut is_decl_rhs := false
         if stmt.node_type.is(NodeType.FCall) {
@@ -209,7 +209,7 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             tokens := tokenize(source, disp)
             mut sub_mode := ""
             mut parse_errors_sub_ast : I32 = 0
-            sub_ast := parse(tokens, source, disp, sub_mode, ctx.anon_type_counter, parse_errors_sub_ast)
+            mut sub_ast := parse(tokens, source, disp, sub_mode, ctx.anon_type_counter, parse_errors_sub_ast)
             // A syntax error in an imported file must stop the load: parse
             // reports it and returns a PARTIAL ast, and carrying on would bury
             // that message under downstream type errors. Reported as a failed
@@ -289,7 +289,7 @@ namespace:
     // wanted the ProgramUnit itself; every one of them immediately looked up
     // ctx.imported[u.path], so the sequence of paths is the whole interface.
     unit_paths := func(self: LoadedProgram) returns Vec(Str) {
-        paths := Vec(Str).new()
+        mut paths := Vec(Str).new()
         if self.skip_core.not() {
             for u : ProgramUnit in self.core_units { paths.push(own u.path.clone()) }
         }
@@ -375,15 +375,15 @@ priv target_int_alias_name := func(lp: LoadedProgram, alias_name: Str, target_fa
 }
 
 repl_clone_loaded_program := func(src: LoadedProgram) returns LoadedProgram {
-    cloned := src.clone()
+    mut cloned := src.clone()
     repl_reregister_scope_defs_loaded(cloned)
     return cloned
 }
 
 priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
-    alias_binding_o := scope.get_binding(alias_name)
+    mut alias_binding_o := scope.get_binding(alias_name)
     if alias_binding_o.is_none() { return }
-    ref alias_binding : TypeBinding = alias_binding_o.unwrap()
+    ref mut alias_binding : TypeBinding = alias_binding_o.unwrap()
     target_binding_o := scope.get_binding(target_name)
     if target_binding_o.is_none() { return }
     ref target_binding : TypeBinding = target_binding_o.unwrap()
@@ -400,7 +400,7 @@ priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, targe
     alias_binding.alias_target = target_name.clone()
 }
 
-retarget_loaded_aliases := func(lp: LoadedProgram) {
+retarget_loaded_aliases := func(mut lp: LoadedProgram) {
     retarget_alias_binding(lp.ctx.scope, "UPtr", target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
     retarget_alias_binding(lp.ctx.scope, "USize", target_int_alias_name(lp, "USize", target_usize_name(lp.target)))
 }
@@ -425,7 +425,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // (struct/enum/func defs + literal global constants). Name
     // classification is no longer done here -- it was shared from the
     // typer's walk and lives on Context.
-    global := scope_new(Option(ref Scope).None)
+    mut global := scope_new(Option(ref Scope).None)
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         constfolder_register_fold_scope(global, iu.ast, lp.ctx)
@@ -476,13 +476,13 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     scope_pool_drain()
 }
 
-priv repl_classify_foldables_program := func(ctx: Context, program: Expr) {
+priv repl_classify_foldables_program := func(mut ctx: Context, program: Expr) {
     for stmt : Expr in program.children {
         constfolder_classify_stmt(stmt, ctx)
     }
 }
 
-priv repl_classify_foldables_loaded := func(lp: LoadedProgram) {
+priv repl_classify_foldables_loaded := func(mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         repl_classify_foldables_program(lp.ctx, lp.ctx.imported[upath].ast)
     }
@@ -491,7 +491,7 @@ priv repl_classify_foldables_loaded := func(lp: LoadedProgram) {
     }
 }
 
-priv repl_reregister_scope_defs_loaded := func(lp: LoadedProgram) {
+priv repl_reregister_scope_defs_loaded := func(mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         reregister_repl_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
     }
@@ -500,7 +500,7 @@ priv repl_reregister_scope_defs_loaded := func(lp: LoadedProgram) {
     }
 }
 
-priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
+priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
     constfolder_clear_known(lp.ctx)
     lp.ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     for upath : Str in lp.unit_paths() {
@@ -508,7 +508,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
     }
     populate_cached_aggregate_defs(lp.ctx, delta)
 
-    global := scope_new(Option(ref Scope).None)
+    mut global := scope_new(Option(ref Scope).None)
     for upath : Str in lp.unit_paths() {
         ref iu2 : ImportUnit = lp.ctx.imported[upath]
         constfolder_register_fold_scope(global, iu2.ast, lp.ctx)
@@ -614,15 +614,15 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
 // a local shadowing a noreturn global cannot fool it. Same shape as the
 // extend_throwing_func_sigs sweep below, and idempotent for the same
 // reason: the typer redoes the stamping later and reaches the same answer.
-priv seed_noreturn_chain := proc(ast: Expr) {
+priv seed_noreturn_chain := proc(mut ast: Expr) {
     mut noreturn_names := Set(Str).new()
     // The one primitive that cannot be inferred: an ext_func with no til
     // body, bound to libc exit.
-    for stmt : Expr in ast.children {
+    for mut stmt : Expr in ast.children {
         if stmt.children.len() == 0 { continue }
         switch stmt.node_type {
         case .Decl(dd):
-            ref rhs : Expr = stmt.children[0]
+            ref mut rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case .FuncDef(fd):
                 if fd.func_type.is(FuncType.ExtFunc) {
@@ -640,17 +640,17 @@ priv seed_noreturn_chain := proc(ast: Expr) {
     mut changed := true
     while changed {
         changed = false
-        for stmt : Expr in ast.children {
+        for mut stmt : Expr in ast.children {
             if stmt.children.len() == 0 { continue }
             switch stmt.node_type {
             case .Decl(dd):
-                ref rhs : Expr = stmt.children[0]
+                ref mut rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case .FuncDef(fd):
                     if fd.func_type.is_plain().not() { continue }
                     if noreturn_names.has(dd.name) { continue }
                     if rhs.children.len() == 0 { continue }
-                    ref body : Expr = rhs.children[0]
+                    ref mut body : Expr = rhs.children[0]
                     stamp_noreturn_calls(body, noreturn_names)
                     if fn_never_returns(body) {
                         fd.noreturn = true
@@ -665,11 +665,11 @@ priv seed_noreturn_chain := proc(ast: Expr) {
     }
     // One last stamping pass so calls inside the functions that settled
     // early also carry the bit the typer would set later.
-    for stmt : Expr in ast.children {
+    for mut stmt : Expr in ast.children {
         if stmt.children.len() == 0 { continue }
         switch stmt.node_type {
         case .Decl:
-            ref rhs : Expr = stmt.children[0]
+            ref mut rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case .FuncDef:
                 if rhs.children.len() > 0 { stamp_noreturn_calls(rhs.children[0], noreturn_names) }
@@ -695,7 +695,7 @@ priv stamp_noreturn_calls := proc(mut e: Expr, noreturn_names: Set(Str)) {
         }
     case:
     }
-    for c : Expr in e.children {
+    for mut c : Expr in e.children {
         stamp_noreturn_calls(c, noreturn_names)
     }
 }
@@ -1193,7 +1193,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
     // and push_take kept stmts (no clone); old_children's garbager-inserted
     // delete after the loop drops the dropped link directives (#302).
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ref mut iu : ImportUnit = lp.ctx.imported[u.path]
         base_dir := dir_of(u.path)
         mut old_children := iu.ast.children.take()
         mut new_children := Vec(Expr).new()
@@ -1248,7 +1248,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     tokens := tokenize(source, disp)
     mut mode_str := ""
     mut parse_errors_ast : I32 = 0
-    ast := parse(tokens, source, disp, mode_str, lp.ctx.anon_type_counter, parse_errors_ast)
+    mut ast := parse(tokens, source, disp, mode_str, lp.ctx.anon_type_counter, parse_errors_ast)
     // A syntax error must stop the build here. parse reports it and returns
     // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
     // carried on would bury that message under downstream type errors.
@@ -1346,13 +1346,13 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
-    resolved := Set(Str).new()
-    resolve_stack := Vec(Expr).new()
+    mut resolved := Set(Str).new()
+    mut resolve_stack := Vec(Expr).new()
 
     // Resolve mode files' imports
-    core_units := Vec(ProgramUnit).new()
+    mut core_units := Vec(ProgramUnit).new()
     for mode_file : Str in lp.mode_files {
-        ref miu_temp : ImportUnit = lp.ctx.imported[mode_file]
+        ref mut miu_temp : ImportUnit = lp.ctx.imported[mode_file]
         mode_imports := extract_imports(miu_temp.ast, mode_file)
         mut auto_disp := ""
         if miu_temp.mode.auto_import.len() > 0 {
@@ -1370,7 +1370,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                     tokens_auto := tokenize(source_auto, disp_auto)
                     mut mode_auto := ""
                     mut parse_errors_ast_auto : I32 = 0
-                    ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto, lp.ctx.anon_type_counter, parse_errors_ast_auto)
+                    mut ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto, lp.ctx.anon_type_counter, parse_errors_ast_auto)
                     // A syntax error must stop the build here. parse reports it and returns
                     // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
                     // carried on would bury that message under downstream type errors.
@@ -1397,7 +1397,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
             if err > 0 {
                 panic("failed to resolve imports for mode file ", mode_file)
             }
-            ref miu : ImportUnit = lp.ctx.imported[mode_file]
+            ref mut miu : ImportUnit = lp.ctx.imported[mode_file]
             miu.imports = resolve_import_disps(mode_imports, mode_dir, "", cwd)
         }
         if auto_disp.len() > 0 {
@@ -1418,7 +1418,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     core_tokens := tokenize(core_source, core_disp)
     mut core_mode_str := ""
     mut parse_errors_core_ast : I32 = 0
-    core_ast := parse(core_tokens, core_source, core_disp, core_mode_str, lp.ctx.anon_type_counter, parse_errors_core_ast)
+    mut core_ast := parse(core_tokens, core_source, core_disp, core_mode_str, lp.ctx.anon_type_counter, parse_errors_core_ast)
     // A syntax error must stop the build here. parse reports it and returns
     // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
     // carried on would bury that message under downstream type errors.
@@ -1453,7 +1453,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     tokens := tokenize(source, path)
     mut mode_str := ""
     mut parse_errors_user_ast : I32 = 0
-    user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter, parse_errors_user_ast)
+    mut user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter, parse_errors_user_ast)
     // A syntax error must stop the load here. parse reports it and returns a
     // PARTIAL ast, and carrying on would bury that message under downstream
     // type errors. Recorded rather than exit(1): the entrypoint is the REPL's
@@ -1474,7 +1474,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     auto_import := cur_mode.auto_import
 
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
-    units := Vec(ProgramUnit).new()
+    mut units := Vec(ProgramUnit).new()
     lib_dir := format(bin_dir, "/lib")
     // An import is resolved relative to the importing FILE's directory. The
     // REPL's entrypoint is a scratch file under tmp/, which is an
@@ -1525,7 +1525,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         mode_tokens := tokenize(mode_source, mode_disp)
         mut mode_mode := ""
         mut parse_errors_mode_ast : I32 = 0
-        mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode, lp.ctx.anon_type_counter, parse_errors_mode_ast)
+        mut mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode, lp.ctx.anon_type_counter, parse_errors_mode_ast)
         // A syntax error must stop the build here. parse reports it and returns
         // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
         // carried on would bury that message under downstream type errors.
@@ -2252,7 +2252,7 @@ priv collect_case_pattern_binders := func(pat: Expr, mut out: Set(Str)) {
 // replace it with a direct `sym` Ident; a member outside the alias's
 // public set is a load-time error (same stage as the selective-import
 // symbol-not-found error). Anything else recurses.
-priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), ctx: Context) {
+priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), mut ctx: Context) {
     ref mut c : Expr = e.children[i]
     mut alias_name := ""
     mut member := ""
@@ -2298,7 +2298,7 @@ priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str)
 // params/captures, body locals (from their decl point onward), for-in
 // loop vars, switch-case payload binders, and catch vars -- so a local
 // that shadows the alias name is left alone.
-priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), ctx: Context) {
+priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), mut ctx: Context) {
     switch e.node_type {
     case .StructDef(sdd):
         for mut fd : Declaration in sdd.fields {
@@ -2410,7 +2410,7 @@ priv is_valid_import_call := func(imp_stmt_ref: Expr) returns Bool {
     return false
 }
 
-priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Context) {
+priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: Context) {
     mut old := iu.ast.children.take()
     mut new_ch := Vec(Expr).new()
     mut imp_idx : USize = 0
@@ -2419,7 +2419,7 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Conte
     mut ns_alias_paths := Map(Str, Str).new()
 
     for i in 0..old.len() {
-        ref stmt : Expr = old[i]
+        ref mut stmt : Expr = old[i]
 
         mut is_imp := false
         mut is_decl_rhs := false
@@ -2505,7 +2505,7 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Conte
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     for i in 0..e.children.len() {
-        ref c : Expr = e.children[i]
+        ref mut c : Expr = e.children[i]
         mut replaced := false
         switch c.node_type {
         case .Ident(idn):
@@ -3337,7 +3337,7 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, ctx: Contex
     mut old := body.children.take()
     mut new := Vec(Expr).new()
     for idx in 0..old.len() {
-        ref s : Expr = old[idx]
+        ref mut s : Expr = old[idx]
         slot_call_o := lazy_stmt_value_slot(s)
         mut handled := false
         if slot_call_o.is_some() {
@@ -3521,7 +3521,7 @@ priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns B
 priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
         shadowed: Set(Str), memo: Map(Str, Str), depth: I32) {
     if depth > 256 { return }
-    ref c : Expr = parent.children[idx]
+    ref mut c : Expr = parent.children[idx]
     switch c.node_type {
     case .FuncDef: return
     case .Ident(idn):
@@ -3603,7 +3603,7 @@ priv lazy_autoforce_match_switch := func(mut node: Expr, pnames: Set(Str),
         lazy_autoforce_node(node, 0, pnames, shadowed, memo, depth + 1)
     }
     for ci in 1..node.children.len() {
-        ref arm : Expr = node.children[ci]
+        ref mut arm : Expr = node.children[ci]
         if arm.node_type.is(NodeType.Case).not() { continue }
         mut arm_shadowed := shadowed.clone()
         if arm.children.len() >= 1 {
@@ -3833,7 +3833,7 @@ priv lazy_register_force_once := func(lp: LoadedProgram,
 // registrations, which the caller repairs via init_refresh_seeded_scope_defs.
 priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pending: Vec(Expr)) {
     if pending.len() == 0 { return }
-    ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
+    ref mut unit_ast : Expr = lp.ctx.imported[unit_path].ast
     for i in 0..pending.len() {
         mut name := ""
         line := pending[i].line
@@ -3881,7 +3881,7 @@ priv lazy_make_memo_decls := func(pname: Str, ret_type: Str, line: U32, col: U32
 priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
         name: Str, mut fdef: Expr, mut lowered: Set(Str), mut seen: Set(Str), mut seen_fo: Set(Str), mut pending: Vec(Expr)) {
     if fdef.children.len() == 0 { return }
-    ref body : Expr = fdef.children[0]
+    ref mut body : Expr = fdef.children[0]
     mut pnames := Set(Str).new()
     switch fdef.node_type {
     case .FuncDef(fd):
@@ -4301,7 +4301,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
     case:
     }
     for i in 0..e.children.len() {
-        ref c : Expr = e.children[i]
+        ref mut c : Expr = e.children[i]
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
             // First-class EXPRESSION callee: a struct-field call `recv.fn(...)`
             // where `fn` is a lazy-funcsig field (the field IS the funcptr, so
@@ -4442,10 +4442,10 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
 priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         mut lowered: Set(Str), mut lazy_sigs: Set(Str), mut seen: Set(Str), mut seen_fo: Set(Str)) {
     mut pending := Vec(Expr).new()
-    ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
+    ref mut unit_ast : Expr = lp.ctx.imported[unit_path].ast
     n := unit_ast.children.len()
     for i in 0..n {
-        ref stmt : Expr = unit_ast.children[i]
+        ref mut stmt : Expr = unit_ast.children[i]
         if is_func_decl(stmt).not() { continue }
         mut lname := ""
         switch stmt.node_type {
@@ -4453,7 +4453,7 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         case:
         }
         if lname.len() == 0 { continue }
-        ref fdef : Expr = stmt.children[0]
+        ref mut fdef : Expr = stmt.children[0]
         ft := func_def_type(fdef)
         if ft.is_lazy().not() { continue }
         // A bodyless lazy funcsig `Sig := lazy_func(T, ...) returns R` (#262
@@ -4623,7 +4623,7 @@ priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut en
 // `name := import(...)` alias needs no special case: its `name.sym`
 // uses are rewritten to direct references at desugar time, so they
 // produce ordinary cross-file use edges.
-priv check_unused_imports_collected := proc(entries: Vec(ImportCheckEntry), ctx: Context) returns I32 {
+priv check_unused_imports_collected := proc(entries: Vec(ImportCheckEntry), mut ctx: Context) returns I32 {
     mut found : I32 = 0
     for ent : ImportCheckEntry in entries {
         if ent.decl_name.starts_with("_") { continue }
@@ -4689,7 +4689,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // Global init steps: these generate methods/layouts that later phases
     // assume exist (e.g. comparison helpers on USize).
     for upath : Str in lp.unit_paths() {
-        ref iu : ImportUnit = lp.ctx.imported[upath]
+        ref mut iu : ImportUnit = lp.ctx.imported[upath]
         lp.ctx.mode = iu.mode.clone()
         context_enter_file(lp.ctx, upath)
         init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)

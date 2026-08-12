@@ -235,7 +235,7 @@ test_join := test() {
     assert_eq(Str, join(parts, ","), "a,b,c")
     assert_eq(Str, join(parts, " - "), "a - b - c")
 
-    single := Vec(Str).new()
+    mut single := Vec(Str).new()
     single.push(own "hello")
     assert_eq(Str, join(single, ","), "hello")
 
@@ -243,7 +243,7 @@ test_join := test() {
     assert_eq(Str, join(empty, ","), "")
 
     // Join with newline separator (escape sequence in literal)
-    lines := Vec(Str).new()
+    mut lines := Vec(Str).new()
     lines.push(own "aaa")
     lines.push(own "bbb")
     lines.push(own "ccc")

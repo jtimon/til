@@ -438,7 +438,7 @@ priv enum_name_is_niche := func(enum_name: Str, ctx: Context) returns Bool {
     return enum_is_niche(edef_o.unwrap())
 }
 
-priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context) {
+priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Context) {
     mut payload_type := ""
     switch enum_payload_type_ref(enum_name, data, ctx) {
     case .Some(pt): payload_type = pt.clone()
@@ -474,7 +474,7 @@ priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context)
         write_ptr(data, bits_word(0))
         return
     }
-    ref payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
+    ref mut payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
     switch payload_def.node_type {
     case .StructDef:
         heap_drop_struct(payload_type, payload_data, ctx)
@@ -524,7 +524,7 @@ priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context
 }
 
 // #286 Stage 2: drop nested heap owned by an enum payload.
-priv heap_drop_enum := func(enum_name: Str, data: Dynamic, ctx: Context) {
+priv heap_drop_enum := func(enum_name: Str, mut data: Dynamic, ctx: Context) {
     if data.is_null() { return }
     enum_payload_deep_free(enum_name, data, ctx)
 }
@@ -903,13 +903,13 @@ priv scalar_word_of_raw := func(raw: Dynamic, is_ref: Bool, is_word: Bool, shall
     return raw
 }
 
-priv eval_scalar_arg_word_info := proc(s: Scope, e: Expr, mut info: RawResultInfo, mut ctx: Context) returns Dynamic {
+priv eval_scalar_arg_word_info := proc(mut s: Scope, mut e: Expr, mut info: RawResultInfo, mut ctx: Context) returns Dynamic {
     raw : Dynamic = eval_expr_raw_info(s, e, ctx, info)
     return scalar_word_of_raw(raw, info.is_ref, info.is_word, raw_result_source_type(info), ctx)
 }
 
 // Evaluate a Bool-typed argument to a til-level truth value.
-priv eval_bool_arg := proc(s: Scope, e: Expr, mut ctx: Context) returns Bool {
+priv eval_bool_arg := proc(mut s: Scope, mut e: Expr, mut ctx: Context) returns Bool {
     mut info := raw_result_info_new()
     return word_bits(eval_scalar_arg_word_info(s, e, info, ctx)) != 0
 }
@@ -970,7 +970,7 @@ priv raw_result_finish := proc(shallow t: Type, raw: Dynamic, destination: Dynam
     return destination
 }
 
-priv raw_result_drop_nested := proc(shallow t: Type, raw: Dynamic, return_is_ref: Bool, ctx: Context) {
+priv raw_result_drop_nested := proc(shallow t: Type, mut raw: Dynamic, return_is_ref: Bool, ctx: Context) {
     switch t {
     case .Struct(name):
         if return_is_ref.not() { heap_drop_struct(name, raw, ctx) }
@@ -984,7 +984,7 @@ priv raw_result_drop_nested := proc(shallow t: Type, raw: Dynamic, return_is_ref
     }
 }
 
-raw_result_drop := proc(shallow t: Type, raw: Dynamic, return_is_ref: Bool, ctx: Context) {
+raw_result_drop := proc(shallow t: Type, mut raw: Dynamic, return_is_ref: Bool, ctx: Context) {
     if return_is_ref { return }
     // A non-ref primitive or None result is an inline word: nothing was
     // allocated, nothing to free.
@@ -1001,7 +1001,7 @@ priv raw_result_drop_ptr := proc(shallow t: Type, raw: Dynamic, return_is_ref: B
 
 // t_w is the canonical Type as a raw pointer word (interp_intern_type /
 // another binding's til_type_p): the binding will borrow it.
-scope_set_raw_owned := func(scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic, own_type: OwnType, ctx: Context, borrowed: Bool = false) {
+scope_set_raw_owned := func(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic, own_type: OwnType, ctx: Context, borrowed: Bool = false) {
     ref t : Type = to_ptr(t_w)
     if t.is(Type.Unknown) { panic("cannot bind raw value with unknown type: ", name) }
     scope_set_heap_owned(scope, name, raw, t_w, own_type, ctx, true, borrowed)
@@ -1184,13 +1184,13 @@ priv callable_raw_env := func(raw: Dynamic, fallback: Scope) returns ref Scope {
     return fallback
 }
 
-priv callable_raw_free := func(raw: Dynamic, ctx: Context) {
+priv callable_raw_free := func(mut raw: Dynamic, ctx: Context) {
     heap_drop_by_type(Type.FuncPtr, raw, ctx)
     raw_block_free(raw)
 }
 
-priv eval_callable_callee_raw := proc(scope: Scope, callee: Expr,
-        mut owned: Bool, ctx: Context) returns Dynamic {
+priv eval_callable_callee_raw := proc(mut scope: Scope, mut callee: Expr,
+        mut owned: Bool, mut ctx: Context) returns Dynamic {
     switch callee.node_type {
     case .Ident(id):
         hb_o := scope_lookup_heap_binding(scope, id.ident_name())
@@ -1339,7 +1339,7 @@ priv field_access_decl := func(e: Expr, ctx: Context) returns Option(ref Declara
 
 // Resolve storage for an identifier-rooted struct field chain without
 // evaluating or copying its intermediate aggregates.
-priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns Option(ref Dynamic) {
+priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context) returns Option(ref Dynamic) {
     switch obj.node_type {
     case .Ident: return resolve_field_assign_base(scope, obj)
     case .FieldAccess(fa):
@@ -1372,7 +1372,7 @@ priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns Op
     }
 }
 
-priv eval_expr_field_raw := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     info.is_ref = false
     info.is_word = false
     switch e.node_type {
@@ -1532,7 +1532,7 @@ priv write_runtime_type := func(result: Dynamic, shallow t: Type, ctx: Context) 
     write_i32(result, enum_variant_tag(type_def, variant).to_i32())
 }
 
-priv eval_expr_raw_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     info.source_type_p = to_ptr(interp_intern_type(e.til_type(), ctx))
     info.is_ref = false
     info.is_word = false
@@ -1722,12 +1722,12 @@ priv eval_expr_raw_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut inf
     }
 }
 
-eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
+eval_expr_raw := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
     mut info := raw_result_info_new()
     return eval_expr_raw_info(scope, e, ctx, info, destination)
 }
 
-priv lookup_type_def_helper := func(type_name: Str, scope: Scope, ctx: Context) returns Option(ref Expr) {
+priv lookup_type_def_helper := func(type_name: Str, mut scope: Scope, ctx: Context) returns Option(ref Expr) {
     // Probe: type_name is empty for a primitive scrutinee (switch on I64)
     // and unbound for a builtin; the absent case falls through to the
     // interp type-def registry, which answers None for those.
@@ -1738,7 +1738,7 @@ priv lookup_type_def_helper := func(type_name: Str, scope: Scope, ctx: Context) 
     return Option(ref Expr).Some(fd)
 }
 
-priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns Option(ref Dynamic) {
+priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr) returns Option(ref Dynamic) {
     switch obj_expr.node_type {
     case .Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
@@ -1756,7 +1756,7 @@ priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns Opt
     }
 }
 
-priv resolve_field_assign_sname := func(scope: Scope, obj_expr: Expr) returns Str {
+priv resolve_field_assign_sname := func(mut scope: Scope, obj_expr: Expr) returns Str {
     switch obj_expr.node_type {
     case .Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
@@ -1773,15 +1773,15 @@ priv resolve_field_assign_sname := func(scope: Scope, obj_expr: Expr) returns St
     }
 }
 
-priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr, ctx: Context) returns Option(ref Expr) {
+priv resolve_field_assign_sdef := func(mut scope: Scope, obj_expr: Expr, ctx: Context) returns Option(ref Expr) {
     sname := resolve_field_assign_sname(scope, obj_expr)
     if sname.len() == 0 { return Option(ref Expr).None }
     return lookup_interp_type_def(sname, ctx)
 }
 
-priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
+priv raw_switch_key := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) returns I64 {
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
+    mut raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
     mut raw_type := raw_result_source_type(info).clone()
     switch raw_type {
     case .Custom(name):
@@ -1834,7 +1834,7 @@ priv clike_case_variant_name := func(pat: Expr) returns Str {
     }
 }
 
-priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
+priv eval_switch := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     subj_i := raw_switch_key(scope, stmt.children[0], ctx)
     // For an enum scrutinee, resolve each case label by its variant TAG via the
     // enum def: a bare payload variant (`Type.V`) evaluates to its constructor,
@@ -1850,7 +1850,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     mut has_default := false
     mut default_idx : USize = 0
     for ci in 1..stmt.children.len() {
-        ref cn : Expr = stmt.children[ci]
+        ref mut cn : Expr = stmt.children[ci]
         pc := case_pattern_count(cn)
         if pc == 0 {
             has_default = true
@@ -1860,7 +1860,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         // #334: the arm matches when ANY of its patterns does.
         mut matched := false
         for pi in 0..pc {
-            ref pat : Expr = cn.children[pi]
+            ref mut pat : Expr = cn.children[pi]
             if is_enum_subj.and(enum_def_o.is_some()) {
                 matched = enum_variant_tag(enum_def_o.unwrap(), clike_case_variant_name(pat)) == subj_i
             } else if is_range_new_call(pat) {
@@ -1874,21 +1874,21 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
             if matched { break }
         }
         if matched {
-        case_scope := scope_new(Option(ref Scope).Some(scope))
+        mut case_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(case_scope, cn.children[cn.children.len() - 1], ctx)
             scope_free(own case_scope)
             return
         }
     }
     if has_default {
-        def_scope := scope_new(Option(ref Scope).Some(scope))
+        mut def_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(def_scope, stmt.children[default_idx].children[0], ctx)
         scope_free(own def_scope)
     }
 }
 
-priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx: Context) {
-    ref rhs : Expr = stmt.children[0]
+priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration, mut ctx: Context) {
+    ref mut rhs : Expr = stmt.children[0]
     if stmt.til_type().is(Type.None) {
         if rhs.node_type.is(NodeType.Ident) { return }
     }
@@ -1919,9 +1919,9 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     bind_type_w : Dynamic = interp_intern_type(decl_type, ctx)
     switch rhs.node_type {
     case .Ident(rhs_ident):
-        ref source_hb : HeapBinding = source_hb_o.unwrap()
+        ref mut source_hb : HeapBinding = source_hb_o.unwrap()
         if source_hb.moved_out { panic("declaration from moved binding: ", rhs_ident.ident_name()) }
-        ref source_scope : Scope = scope_get_binding_scope(scope, rhs_ident.ident_name())
+        ref mut source_scope : Scope = scope_get_binding_scope(scope, rhs_ident.ident_name())
         ref source_raw : Dynamic = to_ptr(source_hb.ptr)
         switch decl_type {
         case .Enum(type_name):
@@ -2073,14 +2073,14 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             raw = binding_block_from_word(decl_type, raw, rhs_is_pointer, ctx)
             scope_set_raw_owned(scope, dd.name, raw, bind_type_w, dd.own_type, ctx)
             if raw_type_is_prim(decl_type, ctx).and(rhs_is_pointer) {
-                    ref pointer_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name).unwrap()
+                    ref mut pointer_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name).unwrap()
                 pointer_hb.is_raw_alloc = true
             }
         }
     }
 }
 
-priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Context) {
+priv eval_fcall := proc(mut scope: Scope, mut stmt: Expr, fcd: FCallData, mut ctx: Context) {
     // #272 step 3: a swap_replace FCall is hoist_param_swap_assign's
     // lowering of `param = rhs` for a mut aggregate param. The
     // compiled backend emits delete-copy-free (a MOVE: delete the
@@ -2104,14 +2104,14 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
         case:
         }
         if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
-                sw_hb_o := scope_lookup_heap_binding(scope, sw_target)
-                sw_src_hb_o := scope_lookup_heap_binding(scope, sw_src)
+                mut sw_hb_o := scope_lookup_heap_binding(scope, sw_target)
+                mut sw_src_hb_o := scope_lookup_heap_binding(scope, sw_src)
                 if sw_hb_o.is_none().or(sw_src_hb_o.is_none()) { panic("swap_replace binding not found") }
-                ref sw_hb : HeapBinding = sw_hb_o.unwrap()
-                ref sw_src_hb : HeapBinding = sw_src_hb_o.unwrap()
+                ref mut sw_hb : HeapBinding = sw_hb_o.unwrap()
+                ref mut sw_src_hb : HeapBinding = sw_src_hb_o.unwrap()
             if sw_src_hb.moved_out { panic("swap_replace from moved source: ", sw_src) }
             if sw_src_hb.is_borrowed { panic("swap_replace from borrowed source: ", sw_src) }
-            ref sw_data : Dynamic = to_ptr(sw_hb.ptr)
+            ref mut sw_data : Dynamic = to_ptr(sw_hb.ptr)
             ref sw_src_data : Dynamic = to_ptr(sw_src_hb.ptr)
             _ := heap_move_ptr_into_slot(hb_type(sw_hb), sw_data, sw_src_data, sw_hb.ctx)
             sw_src_hb.ptr = bits_word(0)
@@ -2122,24 +2122,24 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
     if did_swap_replace { return }
     // A bare call-statement discards its typed raw result.
     mut discard_info := raw_result_info_new()
-    discard : Dynamic = eval_call_info(scope, stmt, ctx, discard_info)
+    mut discard : Dynamic = eval_call_info(scope, stmt, ctx, discard_info)
     raw_result_drop(stmt.til_type(), discard, discard_info.is_ref, ctx)
 }
 
-priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
+priv eval_if := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     cv := eval_bool_arg(scope, stmt.children[0], ctx)
     if cv {
-        then_scope := scope_new(Option(ref Scope).Some(scope))
+        mut then_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(then_scope, stmt.children[1], ctx)
         scope_free(own then_scope)
     } else if stmt.children.len() > 2 {
-        else_scope := scope_new(Option(ref Scope).Some(scope))
+        mut else_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(else_scope, stmt.children[2], ctx)
         scope_free(own else_scope)
     }
 }
 
-priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
+priv eval_while := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     while true {
         if c.has_return { break }
@@ -2148,7 +2148,7 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         if c.eval_aborted { break }
         cv := eval_bool_arg(scope, stmt.children[0], ctx)
         if cv.not() { break }
-        while_scope := scope_new(Option(ref Scope).Some(scope))
+        mut while_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(while_scope, stmt.children[1], ctx)
         scope_free(own while_scope)
         if c.has_break { c.has_break = false; break }
@@ -2156,7 +2156,7 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     }
 }
 
-priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
+priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
         if c.has_return { return }
@@ -2170,10 +2170,10 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         case .Decl(dd):
             eval_declaration(scope, stmt, dd, ctx)
         case .Assign(ad):
-            ref rhs : Expr = stmt.children[0]
-            assign_hb_o := scope_lookup_heap_binding(scope, ad.name)
+            ref mut rhs : Expr = stmt.children[0]
+            mut assign_hb_o := scope_lookup_heap_binding(scope, ad.name)
             if assign_hb_o.is_none() { panic("assignment binding not found: ", ad.name) }
-            ref assign_hb : HeapBinding = assign_hb_o.unwrap()
+            ref mut assign_hb : HeapBinding = assign_hb_o.unwrap()
             mut new_raw : Dynamic = 0
             if stmt.til_type().is(Type.Dynamic).and(rhs.node_type.is(NodeType.Ident)) {
                 switch rhs.node_type {
@@ -2215,7 +2215,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 // old value's teardown follows save_old_delete exactly as the
                 // owning path below does; without that the garbager's own
                 // delete and this drop both free it.
-                ref assign_data : Dynamic = to_ptr(assign_hb.ptr)
+                ref mut assign_data : Dynamic = to_ptr(assign_hb.ptr)
                 _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx, ad.save_old_delete)
             } else {
                 scope_drop_existing_heap_slot(scope_get_binding_scope(scope, ad.name), ad.name, ad.save_old_delete)
@@ -2375,14 +2375,14 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         case .FCall(fcd):
             eval_fcall(scope, stmt, fcd, ctx)
         case .Body:
-            block_scope := scope_new(Option(ref Scope).Some(scope))
+            mut block_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(block_scope, stmt, ctx)
             scope_free(own block_scope)
         case .CaptureBlock:
             // Issue #54: a capture block runs its body inline -- the typer
             // already enforced the capture restriction, so at runtime it
             // behaves exactly like a bare `{ ... }` block.
-            cb_scope := scope_new(Option(ref Scope).Some(scope))
+            mut cb_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(cb_scope, stmt.children[0], ctx)
             scope_free(own cb_scope)
         case .If:
@@ -2395,7 +2395,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             c.has_continue = true
         case .Return:
             if stmt.children.len() > 0 {
-                ref ret_expr : Expr = stmt.children[0]
+                ref mut ret_expr : Expr = stmt.children[0]
                 mut return_raw : Dynamic = 0
                 mut return_source_type := ret_expr.til_type().clone()
                 mut return_source_is_ref := false
@@ -2512,28 +2512,28 @@ priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, 
     }
 }
 
-priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, parent_scope: Scope, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_def: Expr, parent_scope: Scope, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
     ref mut c : Context = ctx
     if func_def.children.len() == 0 {
         interp_error(e, "cannot call an interface method through the interface: it has no implementation", ctx)
         exit(1)
     }
-    ref body : Expr = func_def.children[0]
+    ref mut body : Expr = func_def.children[0]
 
-    call_scope := scope_new(Option(ref Scope).Some(parent_scope))
+    mut call_scope := scope_new(Option(ref Scope).Some(parent_scope))
     call_scope.is_call_scope = true
     dynamic_type_w : Dynamic = interp_intern_type(Type.Dynamic, ctx)
     ref fdef_params : FunctionDef = funcdef_of(func_def)
     for pi in 0..fdef_params.params.len() {
         ref param : Declaration = fdef_params.params[pi]
-        ref arg_expr : Expr = e.children[pi + 1]
+        ref mut arg_expr : Expr = e.children[pi + 1]
         arg_transfers := get_own_arg(e, pi + 1).and(get_keep_outer_arg(e, pi + 1).not())
         is_variadic_param := fdef_params.variadic_index == pi.to_i32()
         switch arg_expr.node_type {
         case .Ident(arg_ident):
-            source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name())
+            mut source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name())
             if source_hb_o.is_none() { panic("argument binding not found: ", arg_ident.ident_name()) }
-            ref source_hb : HeapBinding = source_hb_o.unwrap()
+            ref mut source_hb : HeapBinding = source_hb_o.unwrap()
             if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name()) }
             ref source_raw : Dynamic = to_ptr(source_hb.ptr)
             if is_variadic_param.not().and(param.explicit_type.eq("Dynamic")).and(hb_type(source_hb).is(Type.Dynamic).not()) {
@@ -2599,7 +2599,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
                     scope_set_heap_owned(call_scope, param.name, pointed, bind_type_w, param.own_type, source_hb.ctx, false, true)
                 } else if heap_type_is_callable(hb_type(source_hb)).and(heap_type_is_callable(bind_type)) {
-                    ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
+                    ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
                     scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
                 } else if til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type) {
                     if raw_type_is_prim(hb_type(source_hb), ctx).and(raw_type_is_prim(bind_type, ctx)).and(source_hb.is_raw_alloc.not()) {
@@ -2616,7 +2616,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                         scope_set_raw_owned(call_scope, param.name, converted, bind_type_w, param.own_type, ctx)
                     }
                 } else {
-                    ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
+                    ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
                     scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
                 }
             }
@@ -2772,12 +2772,12 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     return result
 }
 
-priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Dynamic, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
-    ref func_def : Expr = callable_raw_func_def(callable)
+priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callable: Dynamic, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
+    ref mut func_def : Expr = callable_raw_func_def(callable)
     ref parent_scope : Scope = callable_raw_env(callable, caller_scope)
     switch func_def.node_type {
     case .BodyValue:
-        body_scope := scope_new(Option(ref Scope).Some(parent_scope))
+        mut body_scope := scope_new(Option(ref Scope).Some(parent_scope))
         eval_body(body_scope, func_def.children[0], ctx)
         scope_free(own body_scope)
         if destination.is_null().not() { return destination }
@@ -2791,9 +2791,9 @@ priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Dynamic,
     }
 }
 
-priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     ref c : Context = ctx
-    ref callee_expr : Expr = e.children[0]
+    ref mut callee_expr : Expr = e.children[0]
     info.is_ref = false
     info.is_word = destination.is_null().and(raw_type_is_prim(e.til_type(), ctx))
 
@@ -2824,7 +2824,7 @@ priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: R
         case:
         }
         mut fn_raw_owned := true
-        fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
+        mut fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
         if callable_box_is(deref(fn_raw)) {
             ref boxed_func_def : Expr = callable_raw_func_def(fn_raw)
             set_resolved_call_result_info(e, boxed_func_def, destination, info, ctx)
@@ -3016,9 +3016,9 @@ priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: R
                     if oi.sub(1).to_i32() == ext_variadic_index { continue }
                     switch e.children[oi].node_type {
                     case .Ident(oa_ident):
-                        arg_hb_o := scope_lookup_heap_binding(scope, oa_ident.ident_name())
+                        mut arg_hb_o := scope_lookup_heap_binding(scope, oa_ident.ident_name())
                         if arg_hb_o.is_some() {
-                            ref arg_hb : HeapBinding = arg_hb_o.unwrap()
+                            ref mut arg_hb : HeapBinding = arg_hb_o.unwrap()
                             // An own arg whose CALLEE PARAM is `own` was genuinely
                             // handed to C, which owns (and may free) its buffer:
                             // The typed AST's own-argument bit is the transfer
@@ -3065,7 +3065,7 @@ priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: R
             exit(1)
         }
         mut fn_raw_owned := true
-        fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
+        mut fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
         ref fn_def : Expr = callable_raw_func_def(fn_raw)
 
         // An ext_func reaching here did not dispatch above (not a builtin and
@@ -3115,7 +3115,7 @@ priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: R
                         cur_fpos := ctr
                         ctr = ctr + 1
                         cur_idx := arg_idx
-                        ref arg : Expr = e.children[cur_idx]
+                        ref mut arg : Expr = e.children[cur_idx]
                         arg_idx++
                         mut arg_raw : Dynamic = 0
                         mut arg_is_ref := false
@@ -3123,7 +3123,7 @@ priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: R
                         mut arg_source_type := arg.til_type().clone()
                         switch arg.node_type {
                         case .Ident(arg_ident):
-                            ref source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name()).unwrap()
+                            ref mut source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name()).unwrap()
                             if hb_type(source_hb).is(Type.Dynamic).and(arg.til_type().is(Type.Dynamic).not()).not() {
                                 arg_source_type = hb_type(source_hb).clone()
                             }
@@ -3255,7 +3255,7 @@ priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: R
         // Issue #58: postfix call on a sub-expression callee, e.g.
         // `cast(raw, BinaryOp)(3, 4)`. Eval the callee (the cast) to
         // get the function pointer, then dispatch with the call's args.
-        cast_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
+        mut cast_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
         ref cast_func_def : Expr = callable_raw_func_def(cast_raw)
         set_resolved_call_result_info(e, cast_func_def, destination, info, ctx)
         result : Dynamic = eval_callable_call(scope, e, cast_raw, ctx, destination)
@@ -3268,7 +3268,7 @@ priv eval_call_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: R
     }
 }
 
-priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_call := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
     mut info := raw_result_info_new()
     return eval_call_info(scope, e, ctx, info, destination)
 }
@@ -3361,9 +3361,9 @@ priv container_capacity := func(struct_name: Str, data: Dynamic, ctx: Context) r
     return n.clone()
 }
 
-priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Context) {
+priv container_elem_deep_free := func(elem_type: Str, mut slot: Dynamic, ctx: Context) {
     if type_name_is_callable_storage(elem_type, ctx) {
-        ref stored_callable : Dynamic = deref(slot)
+        ref mut stored_callable : Dynamic = deref(slot)
         if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
         return
     }
@@ -3413,11 +3413,11 @@ priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynami
     }
 }
 
-priv free_tuple_data := func(data: Dynamic, ctx: Context) {
+priv free_tuple_data := func(mut data: Dynamic, ctx: Context) {
     ref data_fl : FieldLayout = ctx_field_layout("Tuple", "data", ctx)
     ref type_names_fl : FieldLayout = ctx_field_layout("Tuple", "type_names", ctx)
     ref type_sizes_fl : FieldLayout = ctx_field_layout("Tuple", "type_sizes", ctx)
-    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset)
+    ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
     if hdr.p.is_null() { return }
     ref type_names : Vec(Str) = ptr_add(data, type_names_fl.offset)
     ref type_sizes : Vec(USize) = ptr_add(data, type_sizes_fl.offset)
@@ -3469,7 +3469,7 @@ priv clone_tuple_buffer := func(src_tuple: Dynamic, dst_tuple: Dynamic, ctx: Con
 // nested structs, and reclaims container data buffers. Enum
 // fields and own non-struct pointers stay shallow (their construction can
 // share a pointer, so freeing here would risk a double-free).
-priv heap_drop_struct := func(struct_name: Str, data: Dynamic, ctx: Context) {
+priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context) {
     if data.is_null() { return }
     if struct_name == "Str" {
         ref s_str : Str = to_ptr(data)
@@ -3509,7 +3509,7 @@ priv heap_drop_struct := func(struct_name: Str, data: Dynamic, ctx: Context) {
             ref type_fl : FieldLayout = ctx_field_layout(struct_name, "iface_type_name", ctx)
             ref type_name : Str = ptr_add(data, type_fl.offset)
             ref val_fl : FieldLayout = ctx_field_layout(struct_name, "iface_val", ctx)
-            ref iface_val : Dynamic = deref(ptr_add(data, val_fl.offset))
+            ref mut iface_val : Dynamic = deref(ptr_add(data, val_fl.offset))
             heap_drop_by_type(type_from_name_init(type_name, ctx.scope), iface_val, ctx)
             mut owned_iface_val : Dynamic = iface_val
             EvalHeap.heap_free(own owned_iface_val)
@@ -3521,7 +3521,7 @@ priv heap_drop_struct := func(struct_name: Str, data: Dynamic, ctx: Context) {
         if fl.own_type.is(OwnType.Ref) { continue }
         foff := fl.offset
         if fl.is_funcptr {
-            ref stored_callable : Dynamic = deref(ptr_add(data, foff))
+            ref mut stored_callable : Dynamic = deref(ptr_add(data, foff))
             if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
             continue
         }
@@ -3531,7 +3531,7 @@ priv heap_drop_struct := func(struct_name: Str, data: Dynamic, ctx: Context) {
                 continue
             }
             if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
-                ref own_hdr : DynPtrBox = ptr_add(data, foff)
+                ref mut own_hdr : DynPtrBox = ptr_add(data, foff)
                 if own_hdr.p.is_null().not() {
                     heap_drop_struct(fl.struct_name, own_hdr.p, ctx)
                     EvalHeap.heap_free(own own_hdr.p)
@@ -3570,11 +3570,11 @@ priv heap_drop_struct := func(struct_name: Str, data: Dynamic, ctx: Context) {
     }
 }
 
-priv free_container_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
+priv free_container_data := func(struct_name: Str, mut data: Dynamic, ctx: Context) {
     elem_type := container_elem_type(struct_name, ctx)
     if elem_type.len() == 0 { panic("free_container_data: not a container: ", struct_name) }
     ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
-    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset)
+    ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
     if hdr.p.is_null() { return }
     n := container_live_count(struct_name, data, ctx)
     esz := container_elem_size(elem_type, ctx)
@@ -3652,16 +3652,16 @@ priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Conte
     return ""
 }
 
-priv free_dyn_vec_buffer := func(data: Dynamic, ctx: Context) {
+priv free_dyn_vec_buffer := func(mut data: Dynamic, ctx: Context) {
     ref data_fl : FieldLayout = ctx_field_layout("DynVec", "data", ctx)
-    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset)
+    ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
     if hdr.p.is_null() { return }
     count := dyn_vec_count(data, ctx)
     elem_size := dyn_vec_elem_size(data, ctx)
     elem_kind := dyn_vec_elem_kind(data, ctx)
     if elem_kind == ELEM_FN {
         for i in 0..count {
-            ref stored : Dynamic = deref(ptr_add(hdr.p, i.mul(elem_size)))
+            ref mut stored : Dynamic = deref(ptr_add(hdr.p, i.mul(elem_size)))
             if stored.is_null().not() { callable_storage_free(stored) }
         }
     } else if elem_kind == ELEM_BOXED {
@@ -3673,9 +3673,9 @@ priv free_dyn_vec_buffer := func(data: Dynamic, ctx: Context) {
     EvalHeap.heap_free(own hdr.p)
 }
 
-priv free_dyn_array_buffer := func(data: Dynamic, ctx: Context) {
+priv free_dyn_array_buffer := func(mut data: Dynamic, ctx: Context) {
     ref data_fl : FieldLayout = ctx_field_layout("DynArray", "data", ctx)
-    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset)
+    ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
     if hdr.p.is_null() { return }
     ref cap_fl : FieldLayout = ctx_field_layout("DynArray", "cap", ctx)
     ref elem_size_fl : FieldLayout = ctx_field_layout("DynArray", "elem_size", ctx)
@@ -3684,7 +3684,7 @@ priv free_dyn_array_buffer := func(data: Dynamic, ctx: Context) {
     elem_kind := dyn_array_elem_kind(data, ctx)
     if elem_kind == ELEM_FN {
         for i in 0..cap {
-            ref stored : Dynamic = deref(ptr_add(hdr.p, i.mul(elem_size)))
+            ref mut stored : Dynamic = deref(ptr_add(hdr.p, i.mul(elem_size)))
             if stored.is_null().not() { callable_storage_free(stored) }
         }
     } else if elem_kind == ELEM_BOXED {
@@ -3696,9 +3696,9 @@ priv free_dyn_array_buffer := func(data: Dynamic, ctx: Context) {
     EvalHeap.heap_free(own hdr.p)
 }
 
-priv free_dyn_set_buffer := func(data: Dynamic, ctx: Context) {
+priv free_dyn_set_buffer := func(mut data: Dynamic, ctx: Context) {
     ref data_fl : FieldLayout = ctx_field_layout("DynSet", "data", ctx)
-    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset)
+    ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
     if hdr.p.is_null() { return }
     ref count_fl : FieldLayout = ctx_field_layout("DynSet", "count", ctx)
     ref elem_size_fl : FieldLayout = ctx_field_layout("DynSet", "elem_size", ctx)
@@ -3892,9 +3892,9 @@ scope_new := func(parent: Option(ref Scope)) returns Scope {
         // Steal the last parked box: decrementing count makes the slot dead
         // (its own p is never elem-deleted), so ownership moves to the
         // returned scope with no double-free.
-        ref e : DynPtrBox = scope_pool.unsafe_get(scope_pool.len() - 1)
+        ref mut e : DynPtrBox = scope_pool.unsafe_get(scope_pool.len() - 1)
         scope_pool.count = scope_pool.count - 1
-        ref s : Scope = to_ptr(e.p)
+        ref mut s : Scope = to_ptr(e.p)
         s.parent = parent
         return to_ptr(e.p)
     }
@@ -3932,7 +3932,7 @@ priv heap_slot_is_static_callable := func(shallow til_type: Type, ptr: Dynamic) 
     return callable_box_is(stored).not()
 }
 
-priv heap_drop_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Context) {
+priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Context) {
     if ptr.is_null() { return }
     switch til_type {
     case .Primitive:
@@ -3941,13 +3941,13 @@ priv heap_drop_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Contex
     case .Enum(ename):
         heap_drop_enum(ename, ptr, ctx)
     case .FuncPtr:
-        ref stored_callable : Dynamic = deref(ptr)
+        ref mut stored_callable : Dynamic = deref(ptr)
         if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
     case .FuncPtrSig:
-        ref stored_callable2 : Dynamic = deref(ptr)
+        ref mut stored_callable2 : Dynamic = deref(ptr)
         if stored_callable2.is_null().not() { callable_storage_free(stored_callable2) }
     case .Body:
-        ref stored_callable3 : Dynamic = deref(ptr)
+        ref mut stored_callable3 : Dynamic = deref(ptr)
         if stored_callable3.is_null().not() { callable_storage_free(stored_callable3) }
     case .Custom(name):
         heap_drop_by_type(type_from_name_init(name, ctx.scope), ptr, ctx)
@@ -4007,7 +4007,7 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
 // standalone delete for the old value, dropping here too frees its innards a
 // second time -- an interpreter-only double free, since the builder already
 // routes both cases through the same flag.
-priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: Dynamic, ctx: Context, drop_old: Bool = true) returns Bool {
+priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, src: Dynamic, ctx: Context, drop_old: Bool = true) returns Bool {
     switch til_type {
     case .Primitive(prim):
         mut sz : USize = 0
@@ -4032,7 +4032,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         EvalHeap.heap_free(own owned_src3)
         return true
     case .FuncPtr:
-        ref old_callable : Dynamic = deref(dst)
+        ref mut old_callable : Dynamic = deref(dst)
         if old_callable.is_null().not() { callable_storage_free(old_callable) }
         ref moved_callable : Dynamic = deref(src)
         write_ptr(dst, moved_callable)
@@ -4041,7 +4041,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         EvalHeap.heap_free(own owned_src4)
         return true
     case .FuncPtrSig:
-        ref old_callable2 : Dynamic = deref(dst)
+        ref mut old_callable2 : Dynamic = deref(dst)
         if old_callable2.is_null().not() { callable_storage_free(old_callable2) }
         ref moved_callable2 : Dynamic = deref(src)
         write_ptr(dst, moved_callable2)
@@ -4050,7 +4050,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         EvalHeap.heap_free(own owned_src5)
         return true
     case .Body:
-        ref old_callable3 : Dynamic = deref(dst)
+        ref mut old_callable3 : Dynamic = deref(dst)
         if old_callable3.is_null().not() { callable_storage_free(old_callable3) }
         ref moved_callable3 : Dynamic = deref(src)
         write_ptr(dst, moved_callable3)
@@ -4087,17 +4087,17 @@ priv scope_read_heap_binding_raw := func(hb: HeapBinding, name: Str, ctx: Contex
     return heap_clone_by_type(hb_type(hb), heap_data, ctx)
 }
 
-scope_read_bound_raw := func(scope: Scope, name: Str, ctx: Context) returns Dynamic {
+scope_read_bound_raw := func(mut scope: Scope, name: Str, ctx: Context) returns Dynamic {
     hb_o := scope_lookup_heap_binding(scope, name)
     if hb_o.is_none() { panic("scope read binding not found: ", name) }
     ref hb : HeapBinding = hb_o.unwrap()
     return scope_read_heap_binding_raw(hb, name, ctx)
 }
 
-priv scope_move_bound_raw := func(scope: Scope, name: Str, ctx: Context) returns Dynamic {
-    hb_o := scope_lookup_heap_binding(scope, name)
+priv scope_move_bound_raw := func(mut scope: Scope, name: Str, ctx: Context) returns Dynamic {
+    mut hb_o := scope_lookup_heap_binding(scope, name)
     if hb_o.is_none() { panic("scope move binding not found: ", name) }
-    ref hb : HeapBinding = hb_o.unwrap()
+    ref mut hb : HeapBinding = hb_o.unwrap()
     if hb.moved_out { panic("move of moved binding: ", name) }
     ref heap_data : Dynamic = to_ptr(hb.ptr)
     if heap_data.is_null() { panic("binding with null raw storage: ", name) }
@@ -4210,12 +4210,12 @@ interp_intern_type := func(shallow t: Type, mut ctx: Context) returns Dynamic {
 }
 
 priv scope_drop_existing_heap_slot := func(mut s: Scope, name: Str, drop_nested: Bool = true) {
-    ref hb : HeapBinding = s.heap_bindings.get(name)?
+    ref mut hb : HeapBinding = s.heap_bindings.get(name)?
     catch (e: KeyNotFound) { return }
     if hb.is_local.not() { return }
     if hb.is_borrowed { return }
     if hb.moved_out { return }
-    old_ptr : Dynamic = hb.ptr
+    mut old_ptr : Dynamic = hb.ptr
     if old_ptr.is_null() { return }
     if drop_nested.and(hb.is_static_callable.not()) { heap_drop_by_type(hb_type(hb), old_ptr, hb.ctx) }
     EvalHeap.heap_free(own old_ptr)
@@ -4241,9 +4241,9 @@ scope_set_heap_owned := func(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: 
 // Move sites need this separate from removing the map entry so later reads can
 // fail at the source instead of silently falling back to a stale parent binding.
 scope_set_heap_moved := func(mut s: Scope, name: Str, moved_out: Bool) {
-    b_o := scope_lookup_heap_binding(s, name)
+    mut b_o := scope_lookup_heap_binding(s, name)
     if b_o.is_none() { panic("scope_set_heap_moved: heap binding not found: ", name) }
-    ref b : HeapBinding = b_o.unwrap()
+    ref mut b : HeapBinding = b_o.unwrap()
     b.moved_out = moved_out
 }
 
@@ -4266,25 +4266,25 @@ scope_new_owned := func(parent: Option(ref Scope)) returns Scope {
 scope_new_boxed := func(parent: Option(ref Scope)) returns ref Scope {
     if scope_pool.len() > 0 {
         // Same steal-the-dead-slot recycle as scope_new above.
-        ref e : DynPtrBox = scope_pool.unsafe_get(scope_pool.len() - 1)
+        ref mut e : DynPtrBox = scope_pool.unsafe_get(scope_pool.len() - 1)
         scope_pool.count = scope_pool.count - 1
-        ref pooled : Scope = to_ptr(e.p)
+        ref mut pooled : Scope = to_ptr(e.p)
         pooled.parent = parent
         return pooled
     }
-    raw : Scope = malloc(Scope.size())
+    mut raw : Scope = malloc(Scope.size())
     memset(raw, 0, Scope.size())
-    ref s : Scope = to_ptr(raw)
+    ref mut s : Scope = to_ptr(raw)
     s.heap_bindings = Map(Str, HeapBinding).new()
     s.heap_aliases = Map(Str, Str).new()
     s.parent = parent
     return s
 }
 
-scope_drop_owned_bindings := func(s: Scope) {
-    for _, hb in s.heap_bindings {
+scope_drop_owned_bindings := func(mut s: Scope) {
+    for _, mut hb in s.heap_bindings {
         if hb.is_local.not().or(hb.is_borrowed).or(hb.moved_out).or(hb.ptr.is_null()) { continue }
-        owned_ptr : Dynamic = hb.ptr
+        mut owned_ptr : Dynamic = hb.ptr
         if hb.is_static_callable.not() { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
         EvalHeap.heap_free(own owned_ptr)
         hb.ptr = bits_word(0)
@@ -4355,12 +4355,12 @@ priv closure_env_clone := func(env: Scope) returns Scope {
     return cloned
 }
 
-priv capture_raw_binding := func(env: Scope, source: Scope, cap: Declaration, ctx: Context) {
-    hb_o := scope_lookup_heap_binding(source, cap.name)
+priv capture_raw_binding := func(mut env: Scope, mut source: Scope, cap: Declaration, ctx: Context) {
+    mut hb_o := scope_lookup_heap_binding(source, cap.name)
     if hb_o.is_none() { panic("closure capture binding not found: ", cap.name) }
-    ref hb : HeapBinding = hb_o.unwrap()
+    ref mut hb : HeapBinding = hb_o.unwrap()
     if hb.moved_out { panic("closure capture from moved binding: ", cap.name) }
-    ref source_scope : Scope = scope_get_binding_scope(source, cap.name)
+    ref mut source_scope : Scope = scope_get_binding_scope(source, cap.name)
     ref raw : Dynamic = to_ptr(hb.ptr)
     if raw.is_null() { panic("closure capture from null binding: ", cap.name) }
     if cap.own_type.is(OwnType.Ref) {
@@ -4377,7 +4377,7 @@ priv capture_raw_binding := func(env: Scope, source: Scope, cap: Declaration, ct
     hb.moved_out = true
 }
 
-priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) returns Dynamic {
+priv make_interp_closure := func(func_def: Expr, mut scope: Scope, ctx: Context) returns Dynamic {
     mut env := scope_new_owned(Option(ref Scope).Some(scope_root_ref(scope)))
     switch func_def.node_type {
     case .FuncDef(fd):
@@ -4391,8 +4391,8 @@ priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) ret
     case:
         UNREACHABLE("unexpected ", func_def.node_type.head_str())
     }
-    box : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
-    ref callable : InterpCallableBox = to_ptr(box)
+    mut box : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
+    ref mut callable : InterpCallableBox = to_ptr(box)
     callable.magic = CALLABLE_BOX_MAGIC
     callable.func_def = func_def
     callable.env = Option(Scope).Some(own env)
@@ -4420,21 +4420,21 @@ priv callable_box_is := func(ptr: Dynamic) returns Bool {
 priv callable_storage_clone := func(ptr: Dynamic) returns Dynamic {
     if callable_box_is(ptr).not() { return ptr }
     ref src : InterpCallableBox = to_ptr(ptr)
-    dst : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
-    ref cloned : InterpCallableBox = to_ptr(dst)
+    mut dst : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
+    ref mut cloned : InterpCallableBox = to_ptr(dst)
     cloned.magic = CALLABLE_BOX_MAGIC
     cloned.func_def = src.func_def
     cloned.env = Option(Scope).Some(own closure_env_clone(callable_env(src)))
     return dst
 }
 
-priv callable_storage_free := func(ptr: Dynamic) {
+priv callable_storage_free := func(mut ptr: Dynamic) {
     if callable_box_is(ptr) { callable_box_free(ptr) }
 }
 
-priv callable_box_free := func(ptr: Dynamic) {
+priv callable_box_free := func(mut ptr: Dynamic) {
     if callable_box_is(ptr).not() { return }
-    ref b : InterpCallableBox = to_ptr(ptr)
+    ref mut b : InterpCallableBox = to_ptr(ptr)
     scope_drop_owned_bindings(callable_env(b))
     mut env_old := Option(Scope).None
     swap(Option(Scope), b.env, env_old)
@@ -4505,7 +4505,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
     return false
 }
 
-priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str, ctx: Context) returns Bool {
+priv interp_fa_is_ns_inner := func(mut scope: Scope, e: Expr, sname: Str, ctx: Context) returns Bool {
     ref obj_expr : Expr = e.children[0]
     // The ctx type registry answers "is sname a struct/enum" in ONE map
     // get; the old scope_get(sname) walked the whole scope chain to
@@ -4537,7 +4537,7 @@ priv interp_fa_is_ns_def := func(obj_expr: Expr, e: Expr, sname: Str, sdef: Expr
     }
 }
 
-priv interp_fa_is_ns := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
+priv interp_fa_is_ns := func(mut scope: Scope, e: Expr, ctx: Context) returns Bool {
     ref obj_expr : Expr = e.children[0]
     switch obj_expr.node_type {
     case .Ident(type_ident):
@@ -4621,15 +4621,15 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
     }
 }
 
-interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
+interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Expr) {
     if ctx.ns_fields.is_none() {
         ctx.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     }
-    for stmt : Expr in program.children {
+    for mut stmt : Expr in program.children {
         switch stmt.node_type {
         case .Decl(dd):
             if stmt.children.len() == 0 { continue }
-            ref sdef : Expr = stmt.children[0]
+            ref mut sdef : Expr = stmt.children[0]
             if sdef.node_type.is(NodeType.StructDef).not() {
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
@@ -4649,9 +4649,9 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             // reference a sibling method (`MAX : U64 = U64.bnot(0)`);
             // register every function member first (their eval needs no
             // siblings), then evaluate the constants.
-            ref reg_ns : Vec(Declaration) = def_ns_decls(sdef)
+            ref mut reg_ns : Vec(Declaration) = def_ns_decls(sdef)
             mut nfi : USize = 0
-            for nsf : Declaration in reg_ns {
+            for mut nsf : Declaration in reg_ns {
                 cur_nfi := nfi
                 nfi = nfi + 1
                 if nsf.default_value.is_none() { continue }
@@ -4666,7 +4666,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             const_order := ns_const_eval_order(dd.name, sdef)
             for nci_pos : I64 in const_order {
                 cur_nci := nci_pos.to_usize()
-                ref nsd : Declaration = reg_ns.unsafe_get(cur_nci)
+                ref mut nsd : Declaration = reg_ns.unsafe_get(cur_nci)
                 mut info := raw_result_info_new()
                 mut raw : Dynamic = eval_expr_raw_info(global, nsd.default_expr(), ctx, info)
                 if info.is_ref {
@@ -4735,7 +4735,7 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dyna
 
 
 priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type: Type, mut ctx: Context) {
-    ref c : Context = ctx
+    ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
     hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
     // An existing binding's type is already canonical; a fresh one interns
@@ -4753,7 +4753,7 @@ priv ns_decl_raw_type := func(decl: Declaration) returns Type {
     return decl.default_expr().til_type().clone()
 }
 
-priv ns_field_type := func(sname: Str, fname: Str, ctx: Context) returns Type {
+priv ns_field_type := func(sname: Str, fname: Str, mut ctx: Context) returns Type {
     namespace_def_o := lookup_interp_type_def(sname, ctx)
     if namespace_def_o.is_some().and(namespace_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
         ref namespace_def : Expr = namespace_def_o.unwrap()
@@ -4897,27 +4897,27 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, fie
 priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context) {
     ref old_owned_ref : Dynamic = deref(ptr)
     if old_owned_ref.is_null() { return }
-    old_owned : Dynamic = old_owned_ref
+    mut old_owned : Dynamic = old_owned_ref
     heap_drop_struct(struct_name, old_owned, ctx)
     EvalHeap.heap_free(own old_owned)
 }
 
-priv free_inline_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context) {
+priv free_inline_struct_slot := func(mut ptr: Dynamic, struct_name: Str, ctx: Context) {
     heap_drop_struct(struct_name, ptr, ctx)
 }
 
 priv free_owned_enum_slot := func(ptr: Dynamic, enum_name: Str, ctx: Context) {
     ref old_data_ref : Dynamic = deref(ptr)
     if old_data_ref.is_null() { return }
-    old_data : Dynamic = old_data_ref
+    mut old_data : Dynamic = old_data_ref
     heap_drop_enum(enum_name, old_data, ctx)
     EvalHeap.heap_free(own old_data)
 }
 
-priv write_field := proc(inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, raw: Dynamic, shallow raw_type: Type, raw_is_ref: Bool, drop_old: Bool, ctx: Context) {
-    ref dst : Dynamic = ptr_add(inst_data, field_offset)
+priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, raw: Dynamic, shallow raw_type: Type, raw_is_ref: Bool, drop_old: Bool, ctx: Context) {
+    ref mut dst : Dynamic = ptr_add(inst_data, field_offset)
     if decl_is_funcsig(dd, ctx) {
-        ref old_callable : Dynamic = deref(dst)
+        ref mut old_callable : Dynamic = deref(dst)
         if drop_old.and(old_callable.is_null().not()) { callable_storage_free(old_callable) }
         mut source : Dynamic = raw
         ref stored : Dynamic = deref(source)
@@ -4989,7 +4989,7 @@ priv write_field := proc(inst_data: Dynamic, dd: Declaration, field_offset: USiz
     raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
 }
 
-priv interpret_register_defs := func(global: Scope, prog: Expr, mut ctx: Context) {
+priv interpret_register_defs := func(mut global: Scope, prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref decl_value : Expr = stmt.children[0]
@@ -5034,7 +5034,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
     }
 }
 
-priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
+priv interpret_copy_alias_ns := func(prog: Expr, mut global: Scope, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.til_type().is(Type.None).not() { }
@@ -5144,7 +5144,7 @@ priv interp_reset_control_flow := func(mut ctx: Context) {
     ctx.eval_aborted = false
 }
 
-interp_session_prepare_context := proc(session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32 {
+interp_session_prepare_context := proc(mut session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32 {
     // Every REPL turn interprets a freshly loaded/cloned program, so the flag
     // has to be restamped on each turn's Context.
     lp.ctx.repl_session = session.is_repl
@@ -5174,7 +5174,7 @@ interp_session_prepare_context := proc(session: InterpSession, mut lp: LoadedPro
     }
 
     for upath : Str in lp.unit_paths() {
-        ref iu6 : ImportUnit = lp.ctx.imported[upath]
+        ref mut iu6 : ImportUnit = lp.ctx.imported[upath]
         interpreter_init_ns(lp.ctx, session_global(session), iu6.ast)
     }
 
@@ -5194,7 +5194,7 @@ interp_session_eval_core_once := proc(mut session: InterpSession, mut lp: Loaded
     if session.core_evaluated { return }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            ref mut iu : ImportUnit = lp.ctx.imported[u.path]
             context_enter_file(lp.ctx, u.path)
             eval_body(session_global(session), iu.ast, lp.ctx)
         }
@@ -5203,9 +5203,9 @@ interp_session_eval_core_once := proc(mut session: InterpSession, mut lp: Loaded
     interp_reset_control_flow(lp.ctx)
 }
 
-interp_session_eval_user_units := proc(session: InterpSession, mut lp: LoadedProgram) {
+interp_session_eval_user_units := proc(mut session: InterpSession, mut lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ref mut iu : ImportUnit = lp.ctx.imported[u.path]
         context_enter_file(lp.ctx, u.path)
         eval_body(session_global(session), iu.ast, lp.ctx)
     }
@@ -5225,7 +5225,7 @@ interp_session_eval_imported_once := proc(mut session: InterpSession, mut lp: Lo
     for i in 0..lp.units.len().sub(1) {
         ref u : ProgramUnit = lp.units[i]
         if session.evaluated_units.has(u.path) { continue }
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ref mut iu : ImportUnit = lp.ctx.imported[u.path]
         context_enter_file(lp.ctx, u.path)
         eval_body(session_global(session), iu.ast, lp.ctx)
         session.evaluated_units.add(own u.path.clone())
@@ -5246,7 +5246,7 @@ priv interp_body_slice_clear := func(mut body: Expr) {
     body.children.cap = 0
 }
 
-priv interp_eval_program_slice := proc(session: InterpSession, mut lp: LoadedProgram, mut program: Expr, start_idx: USize, count: USize) {
+priv interp_eval_program_slice := proc(mut session: InterpSession, mut lp: LoadedProgram, mut program: Expr, start_idx: USize, count: USize) {
     if count == 0 { return }
     mut body := Expr.new(NodeType.Body, 0, 0)
     interp_body_slice(program, start_idx, count, body)
@@ -5263,7 +5263,7 @@ priv interp_first_stmt_at_line := func(program: Expr, min_line: U32) returns USi
     return program.children.len()
 }
 
-priv interp_eval_exact_line := proc(session: InterpSession, mut lp: LoadedProgram, mut program: Expr, line: U32) {
+priv interp_eval_exact_line := proc(mut session: InterpSession, mut lp: LoadedProgram, mut program: Expr, line: U32) {
     mut start : USize = program.children.len()
     mut count : USize = 0
     mut i : USize = 0
@@ -5313,9 +5313,9 @@ priv interp_lowering_preamble_count := func(program: Expr, limit: USize) returns
 // the process. The caller must not commit such a line to the accumulated
 // source -- replaying it would panic again on every later full load.
 // interp_reset_control_flow clears the flag, so read it before that.
-interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) returns Bool {
+interp_session_eval_current_root := proc(mut session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) returns Bool {
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
-    ref iu : ImportUnit = lp.ctx.imported[root.path]
+    ref mut iu : ImportUnit = lp.ctx.imported[root.path]
     start_idx := interp_first_stmt_at_line(iu.ast, block_start_line)
     interp_eval_program_slice(session, lp, iu.ast, 0, interp_lowering_preamble_count(iu.ast, start_idx))
     if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, doc_init_line) }
@@ -5325,9 +5325,9 @@ interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedP
     return aborted
 }
 
-interp_session_eval_current_tail := proc(session: InterpSession, mut lp: LoadedProgram, start_idx: USize, count: USize) returns Bool {
+interp_session_eval_current_tail := proc(mut session: InterpSession, mut lp: LoadedProgram, start_idx: USize, count: USize) returns Bool {
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
-    ref iu : ImportUnit = lp.ctx.imported[root.path]
+    ref mut iu : ImportUnit = lp.ctx.imported[root.path]
     interp_eval_program_slice(session, lp, iu.ast, start_idx, count)
     aborted := lp.ctx.eval_aborted
     interp_reset_control_flow(lp.ctx)
@@ -5357,8 +5357,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
         mut test_count : I32 = 0
         mut pass_count : I32 = 0
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
+            ref mut iu : ImportUnit = lp.ctx.imported[u.path]
+            for mut stmt : Expr in iu.ast.children {
                 if is_func_decl(stmt) {
                     switch stmt.children[0].node_type {
                     case .FuncDef(fd):
@@ -5366,7 +5366,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             switch stmt.node_type {
                             case .Decl(dd):
                                 test_count++
-                                test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
+                                mut test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
                                 scope_free(own test_scope)
@@ -5381,22 +5381,22 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     }
                 }
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                    ref rhs : Expr = stmt.children[0]
+                    ref mut rhs : Expr = stmt.children[0]
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         switch stmt.node_type {
                         case .Decl(sdd):
-                            ref tni_ns : Vec(Declaration) = def_ns_decls(rhs)
+                            ref mut tni_ns : Vec(Declaration) = def_ns_decls(rhs)
                             mut tni : USize = 0
-                            for nsd : Declaration in tni_ns {
+                            for mut nsd : Declaration in tni_ns {
                                 cur_tni := tni
                                 tni = tni + 1
                                 if nsd.default_value.is_none() { continue }
-                                ref nsfdef : Expr = nsd.default_expr()
+                                ref mut nsfdef : Expr = nsd.default_expr()
                                 switch nsfdef.node_type {
                                 case .FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
                                     test_count++
-                                    test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
+                                    mut test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.children[0], lp.ctx)
                                     scope_free(own test_scope)
@@ -5430,19 +5430,19 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
     // run_tests is set, tests are the entry points -- skip main() so a
     // mode cli/gui file with inline test() decls runs only its tests.
     if lp.run_tests.not() { if lp.cur_mode.needs_main {
-        ref main_slot : Dynamic = scope_get(session_global(session), "main")!
+        ref mut main_slot : Dynamic = scope_get(session_global(session), "main")!
         if main_slot.is_null() {
             eprint_single(lp.path)
             eprint_single(": error: this mode requires a 'main' proc\n")
             exit(1)
         }
-        ref main_raw : Dynamic = main_slot
-        ref func_def : Expr = callable_raw_func_def(main_raw)
+        ref mut main_raw : Dynamic = main_slot
+        ref mut func_def : Expr = callable_raw_func_def(main_raw)
             ref fd : FunctionDef = funcdef_of(func_def)
             nparam := fd.params.len()
             vi := fd.variadic_index
-            ref body : Expr = func_def.children[0]
-            main_scope := scope_new(Option(ref Scope).Some(session_global(session)))
+            ref mut body : Expr = func_def.children[0]
+            mut main_scope := scope_new(Option(ref Scope).Some(session_global(session)))
 
             if nparam > 0 {
                 mut fixed := nparam
@@ -5507,7 +5507,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
     return 0
 }
 
-cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
+cmd_interpret := proc(mut lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
     if lp.link_c_paths.len() > 0 {
@@ -5580,7 +5580,7 @@ namespace:
         }
         cif : Dynamic = malloc(ffi_cif.size())
         memcpy(cif, self.cif, ffi_cif.size())
-        entry := FFIEntry(fn = self.fn, cif = cif, arg_types = atypes,
+        mut entry := FFIEntry(fn = self.fn, cif = cif, arg_types = atypes,
             param_shallows = pshallows, param_dynamics = pdynamics,
             return_type = self.return_type, nparam = np,
             return_is_shallow = self.return_is_shallow,
@@ -5634,7 +5634,7 @@ namespace:
 }
 
 // Reset all FFI state so a fresh scan can run.
-ffi_reset := proc(ctx: Context) {
+ffi_reset := proc(mut ctx: Context) {
     if ctx.ffi_loaded.or(ctx.ffi_map_inited).or(ctx.ffi_type_cache_inited) {
         ffi_cleanup(ctx)
     }
@@ -5804,13 +5804,13 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     return 0
 }
 
-priv ffi_init_struct_defs := func(program: Expr, ctx: Context) {
+priv ffi_init_struct_defs := func(program: Expr, mut ctx: Context) {
     ctx.ffi_struct_defs = Map(Str, ExprPtrBox).new()
     ffi_init_struct_defs_append(program, ctx)
 }
 
 // Append struct defs found in program into ctx.ffi_struct_defs (does not reset).
-ffi_init_struct_defs_append := func(program: Expr, ctx: Context) {
+ffi_init_struct_defs_append := func(program: Expr, mut ctx: Context) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue
@@ -5850,17 +5850,17 @@ priv usize_ffi_type := func(ctx: Context) returns ref ffi_type {
     return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "USize"))
 }
 
-priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
+priv narrow_bool_arg := proc(mut s: Scope, mut e: Expr, mut ctx: Context) returns Bool {
     return eval_bool_arg(s, e, ctx)
 }
 
-priv eval_i64_arg := proc(s: Scope, e: Expr, ctx: Context) returns I64 {
+priv eval_i64_arg := proc(mut s: Scope, mut e: Expr, mut ctx: Context) returns I64 {
     mut info := raw_result_info_new()
     raw : Dynamic = eval_scalar_arg_word_info(s, e, info, ctx)
     return raw_to_i64(raw_result_source_type(info), raw, ctx)
 }
 
-priv eval_u64_arg := proc(s: Scope, e: Expr, ctx: Context) returns U64 {
+priv eval_u64_arg := proc(mut s: Scope, mut e: Expr, mut ctx: Context) returns U64 {
     mut info := raw_result_info_new()
     raw : Dynamic = eval_scalar_arg_word_info(s, e, info, ctx)
     return raw_to_u64(raw_result_source_type(info), raw, ctx)
@@ -5939,7 +5939,7 @@ priv dispatch_write_str := func(result: Dynamic, data: Dynamic, len: USize, ctx:
 // does not already decide the result. (Parse-time calls were spliced to
 // matches by the loader; what dispatches here are residual calls, e.g. the
 // desugarer's synthesized chains under the interpreter.)
-priv h_Bool_and := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_Bool_and := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.children[1], ctx)
     if av.not() {
         write_bool(r, false)
@@ -5949,7 +5949,7 @@ priv h_Bool_and := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
     return true
 }
 
-priv h_Bool_or := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_Bool_or := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.children[1], ctx)
     if av {
         write_bool(r, true)
@@ -5959,7 +5959,7 @@ priv h_Bool_or := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool
     return true
 }
 
-priv h_Bool_not := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_Bool_not := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     bv := narrow_bool_arg(s, e.children[1], ctx)
     write_bool(r, not(bv))
     return true
@@ -5969,39 +5969,39 @@ priv h_Bool_not := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
 // core_func is not FFI-registered, so the interpreter evaluates it here.
 // The inner .eq() is itself the core_func, lowered inline in this compiled
 // handler -- no handler recursion.
-priv h_Bool_eq := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_Bool_eq := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.children[1], ctx)
     bv := narrow_bool_arg(s, e.children[2], ctx)
     write_bool(r, av.eq(bv))
     return true
 }
 
-priv h_U8_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_U8_from_i64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_u8(r, eval_i64_arg(s, e.children[1], ctx).to_u8())
     return true
 }
 
-priv h_I16_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_I16_from_i64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_i16(r, eval_i64_arg(s, e.children[1], ctx).to_i16())
     return true
 }
 
-priv h_U16_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_U16_from_i64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_u16(r, eval_i64_arg(s, e.children[1], ctx).to_u16())
     return true
 }
 
-priv h_I32_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_I32_from_i64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_i32(r, eval_i64_arg(s, e.children[1], ctx).to_i32())
     return true
 }
 
-priv h_F32_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_F32_from_i64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_f32(r, eval_i64_arg(s, e.children[1], ctx).to_f32())
     return true
 }
 
-priv h_U32_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_U32_from_i64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_u32(r, eval_i64_arg(s, e.children[1], ctx).to_u32())
     return true
 }
@@ -6009,10 +6009,10 @@ priv h_U32_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns
 // Issue #212: integer reinterpret or same-signedness widening cast. The
 // typer set this FCall's til_type to the target type T; read the operand's
 // raw bits and write them at the target width.
-priv h_cast := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref src_expr : Expr = e.children[1]
+priv h_cast := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut src_expr : Expr = e.children[1]
     mut src_info := raw_result_info_new()
-    src : Dynamic = eval_expr_raw_info(s, src_expr, ctx, src_info)
+    mut src : Dynamic = eval_expr_raw_info(s, src_expr, ctx, src_info)
     tn := til_type_name_c(e.til_type())
     if (tn == "Fn").or(tn == "Body") {
         ref stored_ref : Dynamic = deref(src)
@@ -6044,7 +6044,7 @@ priv h_cast := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     return false
 }
 
-priv h_print_single := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
+priv h_print_single := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     arg := eval_str_owned(s, e.children[1], ctx)
     // A const-fold eval is speculative and must emit no program output: if a
     // fold candidate reaches a print (e.g. through panic's message on a
@@ -6059,7 +6059,7 @@ priv h_print_flush := proc(_s: Scope, _e: Expr, _r: Dynamic, ctx: Context) retur
     return true
 }
 
-priv h_exit := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
+priv h_exit := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     // exit is the single primitive that terminates the process, so it is the
     // single interception point for the const-folder. When a fold eval reaches
     // it (panic/TODO/UNREACHABLE all route here, as does a bare exit), don't
@@ -6086,20 +6086,20 @@ priv h_exit := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     return true
 }
 
-priv h_spawn_cmd := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_spawn_cmd := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     cmd := eval_str_owned(s, e.children[1], ctx)
     write_i64(r, spawn_cmd(cmd))
     return true
 }
 
-priv h_dyn_has_method := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_dyn_has_method := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
     write_bool(r, ns_get(type_name, method, ctx).is_some())
     return true
 }
 
-priv h_dyn_fn := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_dyn_fn := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
     stored_o := ns_get(type_name, method, ctx)
@@ -6110,7 +6110,7 @@ priv h_dyn_fn := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool 
     return true
 }
 
-priv h_dyn_size_of := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     // Resolve width aliases: USize/UPtr name a per-build primitive and have
     // no size() of their own, so dyn_size_of("USize") used to die with
     // "USize has no size() method" while every concrete name worked.
@@ -6148,7 +6148,7 @@ priv storage_kind_for_type_name := func(type_name: Str, ctx: Context) returns US
     return ELEM_POD
 }
 
-priv h_dyn_storage_kind := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_dyn_storage_kind := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     kind := storage_kind_for_type_name(type_name, ctx)
     tw := ctx.target_usize_bytes
@@ -6181,9 +6181,9 @@ str_copy_into := func(result: Dynamic, src: Str, ctx: Context) {
     str_write_count_cap(result, n, n, ctx)
 }
 
-priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
+priv eval_str_owned := proc(mut s: Scope, mut arg: Expr, mut ctx: Context) returns Str {
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     value_raw : Dynamic = raw_arg_pointer(raw, info, ctx)
     ref value : Str = to_ptr(value_raw)
     view := Str(c_str = value.c_str, count = str_count_at(value_raw, ctx), cap = CAP_VIEW)
@@ -6195,7 +6195,7 @@ priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
 // Look up a registered struct type's AST node by name, erroring out if
 // the name is unknown or not a struct. Shared by the struct_field_*
 // introspection handlers (issue #56/#58).
-priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_struct := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     // A miss means `who` asked to introspect a type name with no registered
     // def -- a not-found error. On success scope_get returns a non-null cell,
     // so no guard is needed past the catch.
@@ -6213,7 +6213,7 @@ priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, c
         return node
 }
 
-priv h_struct_field_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_struct_field_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
     ref sd : StructDef = structdef_of(node)
@@ -6225,11 +6225,11 @@ priv h_struct_field_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) r
 // / enum_variant_* / func_sig_* handler) as a USize. The arg is a
 // til-side integer value (commonly an I64 literal); take the low 32
 // bits as the slot index.
-priv eval_index_arg := proc(s: Scope, e: Expr, ctx: Context) returns USize {
+priv eval_index_arg := proc(mut s: Scope, mut e: Expr, mut ctx: Context) returns USize {
     return eval_u64_arg(s, e.children[2], ctx).to_u32()
 }
 
-priv h_struct_field_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_struct_field_name := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
@@ -6242,7 +6242,7 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
     return true
 }
 
-priv h_struct_field_is_mut := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_struct_field_is_mut := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
@@ -6256,7 +6256,7 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
     return true
 }
 
-priv h_struct_field_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
@@ -6273,7 +6273,7 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
 // Look up a registered enum type's AST node by name, erroring out if
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
-priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_enum := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     // A miss means `who` asked to introspect a type name with no registered
     // def -- a not-found error. On success scope_get returns a non-null cell,
     // so no guard is needed past the catch.
@@ -6291,7 +6291,7 @@ priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx
         return node
 }
 
-priv h_enum_variant_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_enum_variant_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
     ref ed : EnumDef = enumdef_of(node)
@@ -6299,7 +6299,7 @@ priv h_enum_variant_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) r
     return true
 }
 
-priv h_enum_variant_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_enum_variant_name := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
@@ -6313,7 +6313,7 @@ priv h_enum_variant_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
     return true
 }
 
-priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_enum_variant_has_payload := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
@@ -6327,7 +6327,7 @@ priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Cont
     return true
 }
 
-priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_enum_variant_payload_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
@@ -6341,7 +6341,7 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Con
     return true
 }
 
-priv h_enum_variant_tag_value := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_enum_variant_tag_value := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_tag_value", ctx)
@@ -6355,7 +6355,7 @@ priv h_enum_variant_tag_value := proc(s: Scope, e: Expr, r: Dynamic, ctx: Contex
     return true
 }
 
-priv h_enum_variant_payload_is_const := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_enum_variant_payload_is_const := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_const", ctx)
@@ -6369,7 +6369,7 @@ priv h_enum_variant_payload_is_const := proc(s: Scope, e: Expr, r: Dynamic, ctx:
     return true
 }
 
-priv h_enum_variant_payload_is_ref := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_enum_variant_payload_is_ref := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_ref", ctx)
@@ -6386,7 +6386,7 @@ priv h_enum_variant_payload_is_ref := proc(s: Scope, e: Expr, r: Dynamic, ctx: C
 // Look up a registered FuncSig type's bodyless FuncDef node by name,
 // erroring out if the name is unknown or not a function signature.
 // Shared by the func_sig_* introspection handlers (issue #58).
-priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_funcsig := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     // A miss means `who` asked to introspect a type name with no registered
     // def -- a not-found error. On success scope_get returns a non-null cell,
     // so no guard is needed past the catch.
@@ -6404,7 +6404,7 @@ priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, 
         return node
 }
 
-priv h_func_sig_param_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_func_sig_param_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     ref fd : FunctionDef = funcdef_of(node)
@@ -6412,7 +6412,7 @@ priv h_func_sig_param_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
     return true
 }
 
-priv h_func_sig_param_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
@@ -6426,7 +6426,7 @@ priv h_func_sig_param_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
     return true
 }
 
-priv h_func_sig_return_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_func_sig_return_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     ref fd : FunctionDef = funcdef_of(node)
@@ -6434,7 +6434,7 @@ priv h_func_sig_return_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context
     return true
 }
 
-priv h_func_sig_return_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_func_sig_return_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
@@ -6447,7 +6447,7 @@ priv h_func_sig_return_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
     return true
 }
 
-priv h_func_sig_throw_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_func_sig_throw_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
     ref fd : FunctionDef = funcdef_of(node)
@@ -6455,7 +6455,7 @@ priv h_func_sig_throw_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
     return true
 }
 
-priv h_func_sig_throw_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_func_sig_throw_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
@@ -6580,10 +6580,10 @@ priv dyn_type_to_str_raw := func(type_data: Dynamic, r: Dynamic, ctx: Context) r
         return false
 }
 
-priv h_dyn_type_to_str := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref arg : Expr = e.children[1]
+priv h_dyn_type_to_str := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut arg : Expr = e.children[1]
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     type_data : Dynamic = raw_arg_pointer(raw, info, ctx)
     result := dyn_type_to_str_raw(type_data, r, ctx)
     if result.not() {
@@ -6600,23 +6600,23 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) retu
     return result
 }
 
-priv h_check_cmd_status := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_check_cmd_status := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_i64(r, check_cmd_status(eval_i64_arg(s, e.children[1], ctx)))
     return true
 }
 
-priv h_sleep := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
+priv h_sleep := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     sleep_ms(eval_i64_arg(s, e.children[1], ctx))
     return true
 }
 
-priv h_file_mtime := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_file_mtime := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     path := eval_str_owned(s, e.children[1], ctx)
     write_i64(r, file_mtime(path))
     return true
 }
 
-priv h_str_parse_f64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_str_parse_f64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     arg : Str = eval_str_owned(s, e.children[1], ctx)
     // r takes the raw double bits (this source has no F64 type; see the
     // f64_bits_* bridge in eval_heap.til).
@@ -6624,12 +6624,12 @@ priv h_str_parse_f64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) return
     return true
 }
 
-priv h_F64_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_F64_from_i64 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     write_u64(r, f64_bits_from_i64(eval_i64_arg(s, e.children[1], ctx)))
     return true
 }
 
-priv h_str_parse_f32 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_str_parse_f32 := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     arg := eval_str_owned(s, e.children[1], ctx)
     write_f32(r, str_parse_f32(arg))
     return true
@@ -6645,7 +6645,7 @@ priv h_get_thread_count := proc(_s: Scope, _e: Expr, r: Dynamic, _ctx: Context) 
     return true
 }
 
-priv h_cfile_open := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_cfile_open := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     path := eval_str_owned(s, e.children[1], ctx)
     is_write := narrow_bool_arg(s, e.children[2], ctx)
     // FILE* handle: closed via cfile_close (fclose), never free()'d,
@@ -6658,7 +6658,7 @@ priv h_cfile_open := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns B
 // is neither a known primitive nor a registered struct.  Shared by
 // shallow_ffi_type and field_ffi_type, which differ only in the
 // fallback they pick for an unknown type.
-priv known_ffi_type := func(type_name: Str, ctx: Context) returns Option(ref ffi_type) {
+priv known_ffi_type := func(type_name: Str, mut ctx: Context) returns Option(ref ffi_type) {
     switch type_name {
     case "I64":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint64"))
     case "U8":    return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8"))
@@ -6692,13 +6692,13 @@ priv known_ffi_type := func(type_name: Str, ctx: Context) returns Option(ref ffi
 // type_name -> ffi_type. Inverse mapping in ffi_shallow_type_info; keep
 // the two in sync if a new shallow primitive type lands.  Unknown
 // types are passed as opaque pointers.
-priv shallow_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
+priv shallow_ffi_type := func(type_name: Str, mut ctx: Context) returns ref ffi_type {
     t_o := known_ffi_type(type_name, ctx)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_pointer")
 }
 
-priv field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type {
+priv field_ffi_type := func(dd: Declaration, mut ctx: Context) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.explicit_type.len() == 0 { return ffi_type_ref("ffi_type_sint64") }
     t_o := known_ffi_type(dd.explicit_type, ctx)
@@ -6706,7 +6706,7 @@ priv field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type 
     return ffi_type_ref("ffi_type_sint64")
 }
 
-priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_type {
+priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context) returns ref ffi_type {
     if ctx.ffi_type_cache_inited.not() {
         ctx.ffi_type_cache = Vec(FFITypePtrBox).new()
         ctx.ffi_type_cache_inited = true
@@ -6744,7 +6744,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
     }
 }
 
-priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
+priv h_free := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     switch e.children[1].node_type {
     case .Ident(ident):
         hb_o := scope_lookup_heap_binding(s, ident.ident_name())
@@ -6765,9 +6765,9 @@ priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
             EvalHeap.heap_free(own owned_heap_data)
         }
     case:
-        ref arg : Expr = e.children[1]
+        ref mut arg : Expr = e.children[1]
         mut info := raw_result_info_new()
-        raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+        mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ptr : Dynamic = raw_arg_pointer(raw, info, ctx)
         if ptr.is_null().not() {
             mut owned_ptr : Dynamic = ptr
@@ -6778,15 +6778,15 @@ priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     return true
 }
 
-priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
+priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     switch e.children[1].node_type {
     case .Ident(id):
-        hb_o := scope_lookup_heap_binding(s, id.ident_name())
+        mut hb_o := scope_lookup_heap_binding(s, id.ident_name())
         if hb_o.is_none() { panic("til_closure_delete: non-callable ", id.ident_name()) }
-        ref hb : HeapBinding = hb_o.unwrap()
+        ref mut hb : HeapBinding = hb_o.unwrap()
         if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
             if hb.moved_out.not() {
-                ref stored : Dynamic = deref(hb.ptr)
+                ref mut stored : Dynamic = deref(hb.ptr)
                 if stored.is_null().not() { callable_storage_free(stored) }
                 mut owned_slot : Dynamic = hb.ptr
                 EvalHeap.heap_free(own owned_slot)
@@ -6797,7 +6797,7 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
         }
         if heap_type_is_callable(hb_type(hb)).not() { panic("til_closure_delete: non-callable ", id.ident_name()) }
         if hb.moved_out.not() {
-            ref heap_data : Dynamic = to_ptr(hb.ptr)
+            ref mut heap_data : Dynamic = to_ptr(hb.ptr)
             if hb.is_borrowed.not() {
                 heap_drop_by_type(hb_type(hb), heap_data, hb.ctx)
                 mut owned_heap_data : Dynamic = heap_data
@@ -6811,9 +6811,9 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
             ref obj_expr : Expr = e.children[1].children[0]
             switch obj_expr.node_type {
             case .Ident:
-                base_o := resolve_field_assign_base(s, obj_expr)
+                mut base_o := resolve_field_assign_base(s, obj_expr)
                 if base_o.is_some() {
-                    ref base : Dynamic = base_o.unwrap()
+                    ref mut base : Dynamic = base_o.unwrap()
                     sdef_o := resolve_field_assign_sdef(s, obj_expr, ctx)
                     if sdef_o.is_some() {
                         ref sdef : Expr = sdef_o.unwrap()
@@ -6823,8 +6823,8 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
                             ref fdecl : Declaration = fdecl_o.unwrap()
                             if decl_is_funcsig(fdecl, ctx) {
                                 ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
-                                ref slot : Dynamic = ptr_add(base, fl.offset.cast(U64))
-                                ref stored : Dynamic = deref(slot)
+                                ref mut slot : Dynamic = ptr_add(base, fl.offset.cast(U64))
+                                ref mut stored : Dynamic = deref(slot)
                                 if stored.is_null().not() { callable_storage_free(stored) }
                                 write_ptr(slot, bits_word(0))
                                 return true
@@ -6835,29 +6835,29 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
             case:
             }
         }
-        ref arg : Expr = e.children[1]
+        ref mut arg : Expr = e.children[1]
         mut info := raw_result_info_new()
-        raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
-        ref stored : Dynamic = deref(raw)
+        mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+        ref mut stored : Dynamic = deref(raw)
         if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
         raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     case:
-        ref arg : Expr = e.children[1]
+        ref mut arg : Expr = e.children[1]
         mut info := raw_result_info_new()
-        raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
-        ref stored : Dynamic = deref(raw)
+        mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+        ref mut stored : Dynamic = deref(raw)
         if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
         raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     }
     return true
 }
 
-priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    ref arg : Expr = e.children[1]
+priv h_til_closure_slot_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut arg : Expr = e.children[1]
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
-    slot : Dynamic = raw_arg_pointer(raw, info, ctx)
-    ref stored : Dynamic = deref(slot)
+    mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    mut slot : Dynamic = raw_arg_pointer(raw, info, ctx)
+    ref mut stored : Dynamic = deref(slot)
     if stored.is_null().not() {
         callable_storage_free(stored)
         write_ptr(slot, bits_word(0))
@@ -6866,10 +6866,10 @@ priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Cont
     return true
 }
 
-priv h_til_closure_slot_clone := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref arg : Expr = e.children[1]
+priv h_til_closure_slot_clone := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut arg : Expr = e.children[1]
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     holder : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
     write_ptr(holder, callable_storage_clone(deref(slot)))
@@ -6878,10 +6878,10 @@ priv h_til_closure_slot_clone := proc(s: Scope, e: Expr, r: Dynamic, ctx: Contex
     return true
 }
 
-priv h_til_closure_slot_pop := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref arg : Expr = e.children[1]
+priv h_til_closure_slot_pop := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut arg : Expr = e.children[1]
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     write_ptr(r, deref(slot))
     write_ptr(slot, bits_word(0))
@@ -6889,17 +6889,17 @@ priv h_til_closure_slot_pop := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
     return true
 }
 
-priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    ref slot_expr : Expr = e.children[1]
+priv h_til_closure_slot_take := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut slot_expr : Expr = e.children[1]
     mut slot_info := raw_result_info_new()
-    slot_raw : Dynamic = eval_expr_raw_info(s, slot_expr, ctx, slot_info)
+    mut slot_raw : Dynamic = eval_expr_raw_info(s, slot_expr, ctx, slot_info)
     dst : Dynamic = raw_arg_pointer(slot_raw, slot_info, ctx)
     ref source_expr : Expr = e.children[2]
     switch source_expr.node_type {
     case .Ident(id):
-        source_hb_o := scope_lookup_heap_binding(s, id.ident_name())
+        mut source_hb_o := scope_lookup_heap_binding(s, id.ident_name())
         if source_hb_o.is_none() { panic("til_closure_slot_take: source binding not found: ", id.ident_name()) }
-        ref source_hb : HeapBinding = source_hb_o.unwrap()
+        ref mut source_hb : HeapBinding = source_hb_o.unwrap()
         if source_hb.moved_out { panic("til_closure_slot_take: source binding already moved: ", id.ident_name()) }
         if hb_type(source_hb).is(Type.Dynamic).not().or(source_hb.is_erased_dynamic) {
             panic("til_closure_slot_take: source is not an owned callable Dynamic: ", id.ident_name())
@@ -6918,29 +6918,29 @@ priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Contex
     return true
 }
 
-priv h_cfile_close := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_close := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_close(raw_arg_pointer(handle_raw, handle_info, ctx))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
-priv h_cfile_write_str := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_write_str := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     sv := eval_str_owned(s, e.children[2], ctx)
     cfile_write_str(raw_arg_pointer(handle_raw, handle_info, ctx), sv)
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
-priv h_ptr_add := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref buf_expr : Expr = e.children[1]
+priv h_ptr_add := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut buf_expr : Expr = e.children[1]
     mut buf_info := raw_result_info_new()
-    buf_raw : Dynamic = eval_expr_raw_info(s, buf_expr, ctx, buf_info)
+    mut buf_raw : Dynamic = eval_expr_raw_info(s, buf_expr, ctx, buf_info)
     write_ptr(r, ptr_add(raw_arg_pointer(buf_raw, buf_info, ctx), eval_u64_arg(s, e.children[2], ctx)))
     raw_result_drop(buf_expr.til_type(), buf_raw, buf_info.is_ref, ctx)
     return true
@@ -6953,10 +6953,10 @@ priv h_ptr_add := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool
 // wrongly report a NULL-holding ref field as non-null (test/ref.til,
 // test/aliases.til). The inner .is_null() is itself the core_func, lowered
 // inline in this compiled handler -- no handler recursion.
-priv h_is_null := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref arg : Expr = e.children[1]
+priv h_is_null := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut arg : Expr = e.children[1]
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     write_bool(r, raw_arg_pointer(raw, info, ctx).is_null())
     raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
@@ -6966,11 +6966,11 @@ priv h_is_null := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool
 // Comparing the first `size` raw bytes with memcmp is equivalent to ext.c's
 // width-switched typed compare: both read exactly the tag (offset 0,
 // `size` = tag width in bytes) of each operand for equality.
-priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref ae : Expr = e.children[1]
-    ref be : Expr = e.children[2]
+priv h_is_n := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut ae : Expr = e.children[1]
+    ref mut be : Expr = e.children[2]
     mut a_info := raw_result_info_new()
-    a : Dynamic = eval_expr_raw_info(s, ae, ctx, a_info)
+    mut a : Dynamic = eval_expr_raw_info(s, ae, ctx, a_info)
     switch be.node_type {
     case .FieldAccess(variant):
         enum_name := field_access_sname(be)
@@ -7011,7 +7011,7 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     case:
     }
     mut b_info := raw_result_info_new()
-    b : Dynamic = eval_expr_raw_info(s, be, ctx, b_info)
+    mut b : Dynamic = eval_expr_raw_info(s, be, ctx, b_info)
     write_bool(r, memcmp(raw_arg_pointer(a, a_info, ctx), raw_arg_pointer(b, b_info, ctx), eval_u64_arg(s, e.children[3], ctx)) == 0)
     raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
     raw_result_drop(be.til_type(), b, b_info.is_ref, ctx)
@@ -7028,7 +7028,7 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
 // the enum data buffer (tag at +0), or NULL when the shape doesn't
 // match (non-Ident receiver, non-enum field), letting the caller fall
 // back to the copying path.
-priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns Dynamic {
+priv get_payload_field_addr := func(mut s: Scope, arg: Expr, ctx: Context) returns Dynamic {
     if arg.node_type.is(NodeType.FieldAccess).not() { return bits_word(0) }
     if arg.children.len() != 1 { return bits_word(0) }
     mut fname := ""
@@ -7069,7 +7069,7 @@ priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns D
 // handler included), so compute the address the way the interp already does
 // for payload aliasing: the payload storage sits ENUM_PAYLOAD_OFFSET bytes
 // past the tag (see the #211 payload-alias machinery).
-priv h_get_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_get_payload := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     // #320 niche: the payload IS the whole value, at offset 0.
     mut gp_off : USize = ENUM_PAYLOAD_OFFSET
     mut gp_is_niche := false
@@ -7092,85 +7092,85 @@ priv h_get_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns 
         write_ptr(r, ptr_add(fa_payload, gp_off))
         return true
     }
-    ref arg : Expr = e.children[1]
+    ref mut arg : Expr = e.children[1]
     mut info := raw_result_info_new()
-    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     if gp_is_niche { write_ptr(r, deref(raw_arg_pointer(raw, info, ctx))) return true }
     write_ptr(r, ptr_add(raw_arg_pointer(raw, info, ctx), gp_off))
     raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
 }
 
-priv h_cfile_read_all := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_read_all := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     content := cfile_read_all(raw_arg_pointer(handle_raw, handle_info, ctx))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     dispatch_write_str(r, content.c_str, content.count, ctx)
     return true
 }
 
-priv h_cfile_open_update := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_cfile_open_update := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     path := eval_str_owned(s, e.children[1], ctx)
     // FILE* is closed via cfile_close (fclose), never free()'d here.
     write_ptr(r, cfile_open_update(path))
     return true
 }
 
-priv h_cfile_open_append := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_cfile_open_append := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     path := eval_str_owned(s, e.children[1], ctx)
     // FILE* is closed via cfile_close (fclose), never free()'d here.
     write_ptr(r, cfile_open_append(path))
     return true
 }
 
-priv h_cfile_exists := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_cfile_exists := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     path := eval_str_owned(s, e.children[1], ctx)
     write_bool(r, cfile_exists(path))
     return true
 }
 
-priv h_cfile_tell := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_tell := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     write_i64(r, cfile_tell(raw_arg_pointer(handle_raw, handle_info, ctx)))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
-priv h_cfile_seek := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_seek := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_seek(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
-priv h_cfile_seek_cur := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_seek_cur := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_seek_cur(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
-priv h_cfile_seek_end := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_seek_end := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     cfile_seek_end(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
-priv h_cfile_read_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    ref handle_expr : Expr = e.children[1]
+priv h_cfile_read_n := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
+    ref mut handle_expr : Expr = e.children[1]
     mut handle_info := raw_result_info_new()
-    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    mut handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     content := cfile_read_n(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
     raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     dispatch_write_str(r, content.c_str, content.count, ctx)
@@ -7179,13 +7179,13 @@ priv h_cfile_read_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns
 
 priv DispatchFn := proc(Scope, Expr, Dynamic, Context) returns Bool
 
-priv reg_dispatch := func(name: Str, handler: DispatchFn, ctx: Context) {
+priv reg_dispatch := func(name: Str, handler: DispatchFn, mut ctx: Context) {
     v : UPtr = malloc(UPtr.size())
     write_ptr(v, handler)
     ctx.dispatch_map.set(name, own v)
 }
 
-priv dispatch_init := func(ctx: Context) {
+priv dispatch_init := func(mut ctx: Context) {
     ctx.dispatch_map = Map(Str, Dynamic).new()
     reg_dispatch("print_single", h_print_single, ctx)
     reg_dispatch("print_flush", h_print_flush, ctx)
@@ -7276,7 +7276,7 @@ priv ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, result: Dyna
     return false
 }
 
-priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+priv h_dyn_call := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
 
@@ -7301,10 +7301,10 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
     }
     if method == "delete" {
         if nargs == 0 { panic("dyn_call delete without receiver") }
-        ref recv_expr : Expr = e.children[4]
+        ref mut recv_expr : Expr = e.children[4]
         mut recv_info := raw_result_info_new()
-        recv_raw : Dynamic = eval_expr_raw_info(s, recv_expr, ctx, recv_info)
-        recv_ptr : Dynamic = raw_arg_pointer(recv_raw, recv_info, ctx)
+        mut recv_raw : Dynamic = eval_expr_raw_info(s, recv_expr, ctx, recv_info)
+        mut recv_ptr : Dynamic = raw_arg_pointer(recv_raw, recv_info, ctx)
         mut call_free := true
         if nargs > 1 { call_free = narrow_bool_arg(s, e.children[5], ctx) }
         heap_drop_by_type(type_from_name_init(type_name, ctx.scope), recv_ptr, ctx)
@@ -7334,7 +7334,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
     return true
 }
 
-priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns USize {
+priv get_elem_size := proc(mut s: Scope, type_name: Str, src: Expr, mut ctx: Context) returns USize {
     if ns_get(type_name, "size", ctx).is_none() {
         interp_error(src, format(type_name, " has no size() method"), ctx)
         exit(1)
@@ -7351,7 +7351,7 @@ priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) re
     fake_call.set_til_type(type_from_name_init("USize", ctx.scope))
     fake_call.add_child(own field_access)
 
-    result : Dynamic = eval_call(s, fake_call, ctx)
+    mut result : Dynamic = eval_call(s, fake_call, ctx)
     // A prim-stamped call result is an inline word (canonical
     // zero-extended, so one decode covers both USize widths).
     size := word_bits(result).to_usize()
@@ -7359,13 +7359,13 @@ priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) re
     return size
 }
 
-priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Dynamic, ctx: Context) returns Bool {
+priv enum_method_dispatch := proc(method: Str, mut scope: Scope, enum_def: Expr, enum_name: Str, mut e: Expr, result: Dynamic, mut ctx: Context) returns Bool {
     if method == "is" {
         switch e.children[2].node_type {
         case .FieldAccess(variant):
-            ref subject : Expr = e.children[1]
+            ref mut subject : Expr = e.children[1]
             mut subject_info := raw_result_info_new()
-            subject_raw : Dynamic = eval_expr_raw_info(scope, subject, ctx, subject_info)
+            mut subject_raw : Dynamic = eval_expr_raw_info(scope, subject, ctx, subject_info)
             write_bool(result, enum_data_tag_key(raw_arg_pointer(subject_raw, subject_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
             raw_result_drop(subject.til_type(), subject_raw, subject_info.is_ref, ctx)
             return true
@@ -7383,7 +7383,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
             if has_payload.and(enum_variant_payload_ref(enum_def, ctor_idx)) {
                 // #320: ref payload -- the payload word is the SOURCE's
                 // address (a borrow): no clone, no move, no ownership.
-                ref borrow_expr : Expr = e.children[1]
+                ref mut borrow_expr : Expr = e.children[1]
                 mut borrow_info := raw_result_info_new()
                 borrow_raw : Dynamic = eval_expr_raw_info(scope, borrow_expr, ctx, borrow_info)
                 write_enum_flat(result, enum_name, ctor_tag, bits_word(0), 0, false, false, ctx)
@@ -7395,7 +7395,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 return true
             }
             if has_payload {
-                ref payload_expr : Expr = e.children[1]
+                ref mut payload_expr : Expr = e.children[1]
                 mut pdata : Dynamic = 0
                 mut pdata_is_ref := false
                 payload_transfers := get_own_arg(e, 1)
@@ -7403,9 +7403,9 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 if payload_transfers {
                     switch payload_expr.node_type {
                     case .Ident(payload_id):
-                        payload_hb_o := scope_lookup_heap_binding(scope, payload_id.ident_name())
+                        mut payload_hb_o := scope_lookup_heap_binding(scope, payload_id.ident_name())
                         if payload_hb_o.is_none() { panic("enum payload binding not found: ", payload_id.ident_name()) }
-                        ref payload_hb : HeapBinding = payload_hb_o.unwrap()
+                        ref mut payload_hb : HeapBinding = payload_hb_o.unwrap()
                         if payload_hb.moved_out { panic("enum payload binding already moved: ", payload_id.ident_name()) }
                         ref payload_place : Dynamic = to_ptr(payload_hb.ptr)
                         if payload_hb.is_borrowed {
@@ -7546,17 +7546,17 @@ priv ffi_write_shallow_arg := func(source: Dynamic, info: RawResultInfo, atype: 
     return true
 }
 
-priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic, ctx: Context) returns Bool {
+priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
     if ctx.ffi_loaded.not() { return false }
     if ctx.ffi_map.has(name).not() { return false }
 
-    ref fe : FFIEntry = ctx.ffi_map[name]
+    ref mut fe : FFIEntry = ctx.ffi_map[name]
     nargs := e.children.len() - 1
     mut alloc_n := nargs
     if alloc_n == 0 { alloc_n = 1 }
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
     args : UPtr = malloc(alloc_n.mul(UPtr.size()))
-    arg_ptrs : UPtr = malloc(alloc_n.mul(UPtr.size()))
+    mut arg_ptrs : UPtr = malloc(alloc_n.mul(UPtr.size()))
     // Per-arg flag: true when args[i] holds a scalar box WE malloc'd on
     // the deep path below. No ext callee takes `own` scalars (the C side
     // only borrows these boxes), so they must be freed after ffi_call --
@@ -7567,7 +7567,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
     arg_raws : UPtr = malloc(alloc_n.mul(UPtr.size()).mul(2))
 
     for i in 0..nargs {
-        ref arg_expr : Expr = e.children[i + 1]
+        ref mut arg_expr : Expr = e.children[i + 1]
         mut arg_info := raw_result_info_new()
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
         arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
@@ -7650,7 +7650,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
     ret_sdef_o := ffi_call_ret_struct_def(fe, ctx)
 
     // raw: 16-byte buffer for return value
-    raw : Dynamic = calloc(1, 16)
+    mut raw : Dynamic = calloc(1, 16)
     if ret_sdef_o.is_some() {
         ref ret_sdef : Expr = ret_sdef_o.unwrap()
         switch ret_sdef.node_type {
@@ -7738,7 +7738,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
         ref arg_expr : Expr = e.children[i + 1]
         arg_raw_off := i.mul(16)
         ref arg_raw : Dynamic = deref(ptr_add(arg_raws, arg_raw_off))
-        owned_arg_raw : Dynamic = arg_raw
+        mut owned_arg_raw : Dynamic = arg_raw
         ref arg_is_ref : Bool = ptr_add(arg_raws, arg_raw_off.add(8))
         ref raw_was_passed : Bool = ptr_add(arg_raws, arg_raw_off.add(9))
         if (name == "memcpy").and(i == 1).and(arg_is_ref.not()).and(raw_was_passed) {
@@ -7916,7 +7916,7 @@ priv scalar_write_raw := func(t: Str, result: Dynamic, v: I64) {
     }
 }
 
-priv scalar_read_arg := proc(scope: Scope, arg: Expr, shallow target_type: Type, ctx: Context) returns Dynamic {
+priv scalar_read_arg := proc(mut scope: Scope, mut arg: Expr, shallow target_type: Type, mut ctx: Context) returns Dynamic {
     mut info := raw_result_info_new()
     raw : Dynamic = eval_scalar_arg_word_info(scope, arg, info, ctx)
     return raw_coerce_value(raw, raw_result_source_type(info), target_type, ctx)
@@ -7931,8 +7931,8 @@ priv scalar_read_arg := proc(scope: Scope, arg: Expr, shallow target_type: Type,
 // `for x in a..b` desugaring, the only numeric inc/dec caller), so no ref-mut
 // or payload-alias mirror is needed. A
 // non-Ident receiver would be a compiler bug and fails loud.
-priv scalar_step_cell := proc(scope: Scope, e: Expr, type_str: Str, delta: I64, ctx: Context) {
-    ref arg : Expr = e.children[1]
+priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, delta: I64, mut ctx: Context) {
+    ref mut arg : Expr = e.children[1]
     scalar_type := type_from_name_init(type_str, ctx.scope)
     cur : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
     nv := raw_to_i64(scalar_type, cur, ctx).add(delta)
@@ -7950,7 +7950,7 @@ priv scalar_step_cell := proc(scope: Scope, e: Expr, type_str: Str, delta: I64, 
     }
 }
 
-priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynamic, ctx: Context) returns Bool {
+priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, result: Dynamic, mut ctx: Context) returns Bool {
     // Cheap reject: every scalar primitive type name starts with U, I or F.
     // This skips the find/substr parse for the common non-scalar dispatch
     // names (Str_*, Vec_*, Map_*, ...) before any allocation.
@@ -7972,8 +7972,8 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
     // for both signednesses; the ordering ops use the category's signed,
     // unsigned, or float comparison.
     if scalar_is_cmp(op_str) {
-        ref ae : Expr = e.children[1]
-        ref be : Expr = e.children[2]
+        ref mut ae : Expr = e.children[1]
+        ref mut be : Expr = e.children[2]
         av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx)
         bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx)
         mut cmp_result := false
@@ -7994,7 +7994,7 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
     // so the signed path is the unconditional tail, same shape as the cmp
     // arm; no dead cat guard).
     if op_str == "bnot" {
-        ref arg : Expr = e.children[1]
+        ref mut arg : Expr = e.children[1]
         av : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
         if cat == "u" { scalar_write_raw(type_str, result, raw_to_u64(scalar_type, av, ctx).bnot().cast(I64)) }
         else { scalar_write_raw(type_str, result, raw_to_i64(scalar_type, av, ctx).bnot()) }
@@ -8007,8 +8007,8 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
     if op_str == "dec" { scalar_step_cell(scope, e, type_str, -1, ctx); return true }
 
     if scalar_is_binop(op_str) {
-        ref ae : Expr = e.children[1]
-        ref be : Expr = e.children[2]
+        ref mut ae : Expr = e.children[1]
+        ref mut be : Expr = e.children[2]
         av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx)
         bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx)
         if cat == "u" {
@@ -8045,7 +8045,7 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
 // each operand -- the same equality h_is_n computes (the tag sits at
 // offset 0). Per-enum names cannot be reg_dispatch'd statically, hence
 // the name-shape parse, mirroring scalar_core_op_eval's approach.
-priv enum_core_is_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynamic, ctx: Context) returns Bool {
+priv enum_core_is_eval := proc(name: Str, mut scope: Scope, mut e: Expr, result: Dynamic, mut ctx: Context) returns Bool {
     if name.ends_with("_is").not() { return false }
     if e.children.len() != 3 { return false }
     tlen := name.len().sub(3)
@@ -8054,32 +8054,32 @@ priv enum_core_is_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynamic
     if edef_o.is_none() { return false }
     ref edef : Expr = edef_o.unwrap()
     if edef.node_type.is(NodeType.EnumDef).not() { return false }
-    ref ae : Expr = e.children[1]
-    ref be : Expr = e.children[2]
+    ref mut ae : Expr = e.children[1]
+    ref mut be : Expr = e.children[2]
     mut a_info := raw_result_info_new()
     mut b_info := raw_result_info_new()
-    a : Dynamic = eval_expr_raw_info(scope, ae, ctx, a_info)
-    b : Dynamic = eval_expr_raw_info(scope, be, ctx, b_info)
+    mut a : Dynamic = eval_expr_raw_info(scope, ae, ctx, a_info)
+    mut b : Dynamic = eval_expr_raw_info(scope, be, ctx, b_info)
     write_bool(result, memcmp(raw_arg_pointer(a, a_info, ctx), raw_arg_pointer(b, b_info, ctx), enum_tag_size(edef)) == 0)
     raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
     raw_result_drop(be.til_type(), b, b_info.is_ref, ctx)
     return true
 }
 
-priv ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, result: Dynamic, ctx: Context) returns Bool {
+priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
     if ctx.dispatch_inited.not() { dispatch_init(ctx) }
     if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
     if scalar_core_op_eval(name, scope, e, result, ctx) { return true }
     if enum_core_is_eval(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
-priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
+priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     np := fd.params.len()
     mut alloc_np := np
     if alloc_np == 0 { alloc_np = 1 }
     // Build ffi_type* array (each element is a pointer = 8 bytes)
-    atypes : Dynamic = malloc(alloc_np.mul(8))
+    mut atypes : Dynamic = malloc(alloc_np.mul(8))
     pdynamics : Dynamic = calloc(alloc_np, 1)
     mut pshallows : Dynamic = 0
     mut has_shallow := false
@@ -8103,7 +8103,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         }
     }
     ret_shallow := fd.return_own_type.is(OwnType.Shallow)
-    cif : Dynamic = ffi_alloc_cif()
+    mut cif : Dynamic = ffi_alloc_cif()
 
     // #324: resolve the return ffi_type and PREP before any of the four
     // allocations transfers into an entry -- the fields are `own` now, so
@@ -8181,7 +8181,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
 }
 
 
-ffi_init_scan_program := proc(program: Expr, ctx: Context) {
+ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
     if ctx.ffi_map_inited.not() {
         ctx.ffi_map = Map(Str, FFIEntry).new()
         ctx.ffi_map_inited = true
@@ -8260,7 +8260,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
     }
 }
 
-priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, ctx: Context) returns I32 {
+priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut ctx: Context) returns I32 {
     if ctx.ffi_loaded {
         ffi_cleanup(ctx)
         ctx.ffi_map_inited = false
@@ -8276,7 +8276,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     if so_path.len() > 0 { File.remove(so_path) }
     return 0
 }
-ffi_cleanup := proc(ctx: Context) {
+ffi_cleanup := proc(mut ctx: Context) {
     if ctx.ffi_loaded { ffi_close_user_so() }
     if ctx.ffi_map_inited {
         // The reset's drain runs FFIEntry.delete per entry, whose `own`

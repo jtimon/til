@@ -12,7 +12,7 @@ check(nng_listen(pub, url.c_str, nng_listener(id = 0), 0), "listen")
 // Give the subscriber a moment to connect
 nng_msleep(1000)
 
-publish := proc(sock: nng_socket, payload: Str) {
+publish := proc(sock: nng_socket, mut payload: Str) {
     check(nng_send(sock, payload.c_str, payload.len().add(1), 0), "send")
 }
 

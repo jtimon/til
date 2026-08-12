@@ -767,14 +767,14 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         }
         advance(p) // consume '='
         expect_token(p, TokenType.LParen)
-        ref sfd : FunctionDef = funcdef_of(def)
+        ref mut sfd : FunctionDef = funcdef_of(def)
         mut pi : USize = 0
         while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
             pn := expect_text(p, TokenType.Ident)
             if pi >= sfd.params.len() {
                 parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
             }
-            ref pp : Declaration = sfd.params[pi]
+            ref mut pp : Declaration = sfd.params[pi]
             pp.name = pn.clone()
             pi++
             if check(p, TokenType.Comma) { advance(p) }
@@ -902,9 +902,9 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     is_ext := c_tag.len() > 0
     if is_ext.not() { advance(p) }
 
-    def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
+    mut def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
     // The caller just built this node as a StructDef.
-    ref sdd : StructDef = structdef_of(def)
+    ref mut sdd : StructDef = structdef_of(def)
     if is_ext {
         sdd.c_tag = c_tag.clone()
     }
@@ -1031,7 +1031,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     advance(p) // consume 'interface'
 
-    def := Expr.new(NodeType.StructDef(StructDef(is_interface = true)), kw_line, kw_col)
+    mut def := Expr.new(NodeType.StructDef(StructDef(is_interface = true)), kw_line, kw_col)
     expect_token(p, TokenType.LBrace)
 
     saved_doc := p.pending_doc.clone()
@@ -1049,7 +1049,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             advance(p)
             expect_token(p, TokenType.Colon)
             p.pending_doc = ""
-            ref ns_sdd : StructDef = structdef_of(def)
+            ref mut ns_sdd : StructDef = structdef_of(def)
             ns_sdd.interface_ns_marker = true
             continue
         }
@@ -1083,7 +1083,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             doc = m_doc,
             is_priv = member_priv,
             default_value = Option(Expr).Some(own m_value))
-        ref sdd : StructDef = structdef_of(def)
+        ref mut sdd : StructDef = structdef_of(def)
         sdd.push_member(own m_dd)
     }
     expect_token(p, TokenType.RBrace)
@@ -1097,9 +1097,9 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     advance(p)
 
-    def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
+    mut def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     // The caller just built this node as an EnumDef.
-    ref edd : EnumDef = enumdef_of(def)
+    ref mut edd : EnumDef = enumdef_of(def)
 
     // #264: optional discriminant type, `enum(Type) { ... }`. Only the
     // paren form is accepted (symmetry with ext_struct("tag") and an
@@ -1254,30 +1254,18 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
 // boilerplate to one call. Parser-only, so they live here rather than in
 // ast.til (unlike set_own_arg, which the typer/initer also use).
 priv set_fcall_throw := func(mut fcall: Expr) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        fcd.does_throw = true
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-    }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    fcd.does_throw = true
 }
 
 priv set_fcall_bang := func(mut fcall: Expr) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        fcd.is_bang = true
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-    }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    fcd.is_bang = true
 }
 
 priv set_fcall_splat := func(mut fcall: Expr) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        fcd.is_splat = true
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-    }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    fcd.is_splat = true
 }
 
 // parse_named_arg: if the cursor is at `IDENT '='`, parse the named
@@ -1585,7 +1573,7 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
 priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr) returns Expr {
     mut callee := Expr.new(field_access_node(method), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
-    call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
+    mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
     Expr.add_child(call, own callee)
     Expr.add_child(call, own rhs)
     return call
@@ -2050,7 +2038,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     if stmt.children.len() > 0 {
                         ns_dd.default_value = Option(Expr).Some(own stmt.children[0].clone())
                     }
-                    ref sdd : StructDef = structdef_of(def)
+                    ref mut sdd : StructDef = structdef_of(def)
                     sdd.push_member(own ns_dd)
                 case:
                 }
@@ -2329,7 +2317,7 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
         advance(p)
         is_priv = true
     }
-    stmt := parse_statement_body(p)
+    mut stmt := parse_statement_body(p)
     if is_priv {
         switch stmt.node_type {
         case .Decl(dd):
@@ -2800,14 +2788,10 @@ field_access_node := func(name: Str) returns NodeType {
 }
 
 set_own_arg := func(mut fcall: Expr, arg_index: USize) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        fcd.own_args = fcd.own_args.bor(bit)
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-    }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    fcd.own_args = fcd.own_args.bor(bit)
 }
 
 get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
@@ -2821,14 +2805,10 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 // bit indexing as own_args.
 // #342: record WHICH argument carried `..`, beside is_splat's "some did".
 set_splat_arg := func(mut fcall: Expr, arg_index: USize) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        fcd.splat_args = fcd.splat_args.bor(bit)
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-    }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    fcd.splat_args = fcd.splat_args.bor(bit)
 }
 
 // #342: did the argument at `arg_index` carry `..`? Every pass that inserts,
@@ -2842,14 +2822,10 @@ get_splat_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 }
 
 set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        fcd.ref_args = fcd.ref_args.bor(bit)
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-    }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    fcd.ref_args = fcd.ref_args.bor(bit)
 }
 
 get_ref_arg := func(fcall: Expr, arg_index: USize) returns Bool {
@@ -2865,14 +2841,10 @@ fcall_has_ref_args := func(fcall: Expr) returns Bool {
 }
 
 set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        fcd.keep_outer_args = fcd.keep_outer_args.bor(bit)
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-    }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    fcd.keep_outer_args = fcd.keep_outer_args.bor(bit)
 }
 
 get_keep_outer_arg := func(fcall: Expr, arg_index: USize) returns Bool {

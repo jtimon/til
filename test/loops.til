@@ -238,7 +238,7 @@ test_while_continue := test() {
 
 // #160: 'for mut x : T in coll' makes the loop variable mutable
 test_for_in_mut_collection := test() {
-    v := vec(I64, 1, 2, 3)
+    mut v := vec(I64, 1, 2, 3)
     mut sum := 0
     for mut x : I64 in v {
         x = x.mul(10)

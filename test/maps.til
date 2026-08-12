@@ -1,7 +1,7 @@
 mode test
 
 test_i64_map := test() {
-    m := Map(I64, I64).new()
+    mut m := Map(I64, I64).new()
     m.set(3, own 30)
     m.set(1, own 10)
     m.set(2, own 20)
@@ -26,7 +26,7 @@ test_i64_map := test() {
 }
 
 test_str_map := test() {
-    sm := Map(Str, I64).new()
+    mut sm := Map(Str, I64).new()
     sm.set("banana", own 2)
     sm.set("apple", own 1)
     sm.set("cherry", own 3)
@@ -42,7 +42,7 @@ test_str_map := test() {
 }
 
 test_map_remove := test() {
-    m := Map(Str, I64).new()
+    mut m := Map(Str, I64).new()
     m.set("a", own 1)
     m.set("b", own 2)
     m.set("c", own 3)
@@ -100,7 +100,7 @@ test_map_literal_i64_str := test() {
 // `for k, v in map` visits every entry with the right key/value pairing.
 // Map iterates in sorted key order, so the concatenated keys are exact.
 test_map_for_in_kv := test() {
-    m := Map(Str, I64).new()
+    mut m := Map(Str, I64).new()
     m.set("b", own 2)
     m.set("a", own 1)
     m.set("c", own 3)
@@ -153,7 +153,7 @@ test_map_for_in_kv_mut_uses_key := test() {
 
 // The key binding may be `_` when only values are needed.
 test_map_for_in_kv_ignore_key := test() {
-    m := Map(I64, I64).new()
+    mut m := Map(I64, I64).new()
     m.set(1, own 100)
     m.set(2, own 200)
     m.set(3, own 300)
@@ -167,7 +167,7 @@ test_map_for_in_kv_ignore_key := test() {
 // Both bindings may be `_` (count-only walk). Each `_` is a discard that
 // emits no element decl, so the two do not collide as duplicate C locals.
 test_map_for_in_kv_ignore_both := test() {
-    m := Map(Str, I64).new()
+    mut m := Map(Str, I64).new()
     m.set("a", own 1)
     m.set("b", own 2)
     m.set("c", own 3)

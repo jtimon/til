@@ -172,7 +172,7 @@ priv use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
 // Emit the POD-struct user-clone arg as a struct value: dereference
 // pointer-typed FieldAccesses and pointer-shaped params, otherwise emit
 // as-is (stack-locals and shallow params render as values).
-priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref arg : Expr = e.children[1]
     if arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(arg, ctx)) {
         f.write("*"); emit_expr(f, arg, depth, ctx)
@@ -229,7 +229,7 @@ priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
     }
 }
 
-priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref pe_arg : Expr = e.children[1]
     if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.til_type().is(Type.Enum)) {
         switch pe_arg.node_type {
@@ -267,7 +267,7 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context)
 // a non-freeing delete at scope end (call_free=false) so the cleanup
 // doesn't try to free a stack pointer.
 
-priv is_funcsig_type := func(name: Str, ctx: Context) returns Bool {
+priv is_funcsig_type := func(name: Str, mut ctx: Context) returns Bool {
     return ctx.funcsig_names.has(ctx.symbols.intern(name))
 }
 
@@ -334,7 +334,7 @@ priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) retu
 // Substitute the callee's params with the call's argument expressions inside a
 // (cloned) body node: every Ident naming a param becomes a clone of the
 // matching argument. A replaced argument is not re-descended.
-priv inline_subst := proc(e: Expr, params: Vec(Declaration), call: Expr) {
+priv inline_subst := proc(mut e: Expr, params: Vec(Declaration), call: Expr) {
     for ci in 0..e.children.len() {
         mut matched := false
         switch e.children[ci].node_type {
@@ -356,7 +356,7 @@ priv inline_subst := proc(e: Expr, params: Vec(Declaration), call: Expr) {
 
 // Substitute every use of the Ident `name` inside `e` with a clone of `val`.
 // Used by the accessor inline to splice hoisted temps back into their use.
-priv subst_ident_expr := proc(e: Expr, name: Str, val: Expr) {
+priv subst_ident_expr := proc(mut e: Expr, name: Str, val: Expr) {
     for ci in 0..e.children.len() {
         mut matched := false
         switch e.children[ci].node_type {
@@ -403,9 +403,9 @@ priv subst_ident_expr := proc(e: Expr, name: Str, val: Expr) {
 // (oldest first, so a later init's reference to an earlier temp is expanded
 // by the time its own turn comes), reconstructing the pristine pre-hoist
 // expression; with no temps this is the original single-return splice.
-priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, ctx: Context) {
+priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
-    bodyc := fdef.children[0].clone()
+    mut bodyc := fdef.children[0].clone()
     n := bodyc.children.len()
     for si in 0..n.sub(1) {
         if builder_is_temp_delete(bodyc.children[si]) { continue }
@@ -419,7 +419,7 @@ priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, ctx:
             subst_ident_expr(bodyc.children[sj], sd.name, bodyc.children[si].children[0])
         }
     }
-    ref ret : Expr = bodyc.children[n.sub(1)]
+    ref mut ret : Expr = bodyc.children[n.sub(1)]
     inline_subst(ret, fd.params, e)
     ref rv : Expr = ret.children[0]
     f.write("(")
@@ -772,7 +772,7 @@ priv seed_primitive_names := func(mut emitted: Set(Str)) {
 // Resolve the C type for an `extern` global decl. Replaces the
 // `mut ctype := ""; if dyn { ... } else { ... }` reassign-leak
 // pattern in emit_header_global_decls / emit_funcsig_typedefs.
-priv extern_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, ctx: Context) returns Str {
+priv extern_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, mut ctx: Context) returns Str {
     if t.is(Type.Dynamic) { return til_type_to_c(t) }
     return c_type_name(t, til_type_name(rhs_t), ctx)
 }
@@ -781,7 +781,7 @@ priv extern_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, ctx: Contex
 // Skips the heap-allocated empty-Str dance from til_type_name when t isn't
 // Struct/Enum/FuncPtr (where the name actually matters) -- saves the Str_lit("")
 // leak per call.
-priv resolve_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, explicit: Str, ctx: Context) returns Str {
+priv resolve_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, explicit: Str, mut ctx: Context) returns Str {
     if t.is(Type.Struct).or(t.is(Type.Enum)).or(t.is_funcptr()) {
         sn := til_type_name(t)
         if sn.len() > 0 { return c_type_name(t, sn, ctx) }
@@ -803,7 +803,7 @@ priv field_emit_ctype := func(dd: Declaration) returns Str {
     return til_type_to_c(dd.til_type)
 }
 
-priv c_type_name := func(shallow t: Type, struct_name: Str, ctx: Context) returns Str {
+priv c_type_name := func(shallow t: Type, struct_name: Str, mut ctx: Context) returns Str {
     if t.is(Type.Struct).or(t.is(Type.Enum)) {
         if struct_name.len() > 0 {
             return struct_name
@@ -823,7 +823,7 @@ priv func_to_c := func(name: Str) returns Str {
     return name
 }
 
-priv type_name_to_c := func(name: Str, ctx: Context) returns Str {
+priv type_name_to_c := func(name: Str, mut ctx: Context) returns Str {
     switch name {
     case "I64":     return "I64 *"
     case "U8":      return "U8 *"
@@ -846,7 +846,7 @@ priv type_name_to_c := func(name: Str, ctx: Context) returns Str {
     return name.format(" *")
 }
 
-priv type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
+priv type_name_to_c_value := func(name: Str, mut ctx: Context) returns Str {
     switch name {
     case "I64":     return "I64"
     case "U8":      return "U8"
@@ -907,11 +907,11 @@ priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) return
     return concrete
 }
 
-priv builder_variadic_array_ctype := func(ctx: Context, elem_type: Str) returns Str {
+priv builder_variadic_array_ctype := func(mut ctx: Context, elem_type: Str) returns Str {
     return type_name_to_c(builder_variadic_array_type_name(ctx, elem_type), ctx)
 }
 
-priv builder_variadic_vec_ctype := func(ctx: Context, elem_type: Str) returns Str {
+priv builder_variadic_vec_ctype := func(mut ctx: Context, elem_type: Str) returns Str {
     return type_name_to_c(builder_variadic_vec_type_name(ctx, elem_type), ctx)
 }
 
@@ -1005,7 +1005,7 @@ priv emit_til_default := proc(f: File, shallow t: Type) {
 // Resolve the C parameter type for fd.params[i]. Avoids the
 // `mut ptype := ""` pre-init pattern in emit_param_list, whose empty
 // Str leaked once per parameter on each call.
-priv param_ctype := func(fd: FunctionDef, i: USize, ctx: Context) returns Str {
+priv param_ctype := func(fd: FunctionDef, i: USize, mut ctx: Context) returns Str {
     ii := i.to_i32()
     ref p : Declaration = fd.params[i]
     if ii == fd.variadic_index { return builder_variadic_array_ctype(ctx, p.explicit_type) }
@@ -1014,7 +1014,7 @@ priv param_ctype := func(fd: FunctionDef, i: USize, ctx: Context) returns Str {
     return type_name_to_c(p.explicit_type, ctx)
 }
 
-priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl: Bool, ctx: Context) {
+priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl: Bool, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     if fd.params.len() == 0 {
         f.write("void")
@@ -1119,7 +1119,7 @@ priv resolve_callee_name := func(fcall: Expr) returns Str {
     }
 }
 
-priv fcall_return_ctype := func(fcall: Expr, ctx: Context) returns Str {
+priv fcall_return_ctype := func(fcall: Expr, mut ctx: Context) returns Str {
     if fcall.node_type.is(NodeType.FCall).not() { return "" }
     callee := resolve_callee_name(fcall)
     if callee.len() == 0 { return "" }
@@ -1163,7 +1163,7 @@ priv emit_til_closure_cleanup := proc(f: File, name: Str) {
     f.fwrite("if (", name, " && ", name, "->drop) { ", name, "->drop(", name, "->env); free(", name, "); }")
 }
 
-priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32, ctx: Context, wrap_inline_closures: Bool) {
+priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32, mut ctx: Context, wrap_inline_closures: Bool) {
     for i in 1..e.children.len() {
         if i > 1 { f.write(", ") }
         ref arg : Expr = e.children[i]
@@ -1197,7 +1197,7 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
     }
 }
 
-priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, source_name: Str, cname: Str, depth: I32, ctx: Context) {
+priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, source_name: Str, cname: Str, depth: I32, mut ctx: Context) {
     f.write("({ ")
     for i in 1..e.children.len() {
         ref arg : Expr = e.children[i]
@@ -1230,7 +1230,7 @@ priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, sourc
     f.write("})")
 }
 
-priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
+priv check_fcall_mut_args := proc(mut ctx: Context, e: Expr) {
     // A `mut` capture is written THROUGH the closure env
     // (`(*til_env->x) = <value>`), exactly like a `mut` argument, so the
     // captured local needs the same treatment: it must own writable storage
@@ -1286,7 +1286,7 @@ priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
     }
 }
 
-priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
+priv collect_unsafe_to_hoist := proc(mut ctx: Context, body: Expr) {
     for stmt : Expr in body.children {
         check_fcall_mut_args(ctx, stmt)
         if stmt.node_type.is(NodeType.Decl) {
@@ -1580,7 +1580,7 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
     }
 }
 
-priv builder_register_dyn_type_to_str_lits := func(lp: LoadedProgram) {
+priv builder_register_dyn_type_to_str_lits := func(mut lp: LoadedProgram) {
     mut variant_names := Vec(Str).new()
     mut variant_types := Vec(Str).new()
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() { return }
@@ -1602,7 +1602,7 @@ priv builder_register_dyn_type_to_str_lits := func(lp: LoadedProgram) {
     builder_register_str_lit(lp.ctx, "?")
 }
 
-priv builder_register_str_lits := proc(lp: LoadedProgram) {
+priv builder_register_str_lits := proc(mut lp: LoadedProgram) {
     builder_reset_str_lit_pool(lp.ctx)
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -1707,7 +1707,7 @@ priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
 // pod_ctor_args_are_safe(ctor, ctx). Caller is responsible for trailing
 // punctuation -- this emits the `(...){...}` expression with no
 // semicolon.
-priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Context) {
+priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, mut ctx: Context) {
     ctor_sname_o := expr_type_name_ref(ctor)
     if ctor_sname_o.is_none() { return }
     ref ctor_sname : Str = ctor_sname_o.unwrap()
@@ -1741,7 +1741,7 @@ priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Con
 }
 
 // Emit layer
-priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     if e.children.len() == 0 { return }
     switch e.node_type {
     case .Decl(dd):
@@ -2073,7 +2073,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     }
 }
 
-priv emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
+priv emit_return_ctype := func(rv: Expr, mut ctx: Context) returns Str {
     switch ctx.current_fdef {
     case .Some(cf):
         switch cf.node_type {
@@ -2091,7 +2091,7 @@ priv emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
     return c_type_name(rv.til_type(), "", ctx)
 }
 
-priv emit_return_box := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+priv emit_return_box := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref rv : Expr = e.children[0]
     ctype := emit_return_ctype(rv, ctx)
     f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ")
@@ -2102,7 +2102,7 @@ priv emit_return_box := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     f.write("return _r; }\n")
 }
 
-priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     if e.children.len() == 0 {
         if ctx.in_main_func { f.write("return 0;\n") }
         else { f.write("return;\n") }
@@ -2282,7 +2282,7 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
 // would target the enclosing loop, so the typer keeps such switches out of the
 // C-like set (see switch_is_clike). A til `continue` maps to C `continue`,
 // which a C `switch` does not capture, so it reaches the enclosing loop.
-priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref scrut : Expr = e.children[0]
     is_enum := scrut.til_type().is(Type.Enum)
     mut enum_name := ""
@@ -2399,7 +2399,7 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     f.write("}\n")
 }
 
-priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     if is_noop_delete_stmt(e, ctx) { return }
     // #326: a pooled Str-literal Decl emits no statement, so it gets no
     // indent either. emit_stmt_decl still runs: its stack-local bookkeeping
@@ -3030,7 +3030,7 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
     }
 }
 
-emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, depth: I32, ctx: Context) {
+emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, depth: I32, mut ctx: Context) {
     // #262 first-class: when a call THROUGH a funcptr value passes capturing
     // thunk args, hoist each into til_closure_arg_<i>, run the call, then
     // drop+free them -- exactly like the direct-call path
@@ -3092,13 +3092,13 @@ emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, depth
     f.write("})")
 }
 
-emit_body_closure_call := proc(f: File, callee: Expr, depth: I32, ctx: Context) {
+emit_body_closure_call := proc(f: File, callee: Expr, depth: I32, mut ctx: Context) {
     f.write("({ TilClosure *til_closure = (TilClosure *)(")
     emit_expr(f, callee, depth, ctx)
     f.write("); ((void (*)(void *))til_closure->call)(til_closure->env); })")
 }
 
-priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ctx: Context, wrap_inline_closures: Bool) {
+priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mut ctx: Context, wrap_inline_closures: Bool) {
     ref sfd : FunctionDef = funcdef_of(sig)
     for i in 1..e.children.len() {
         if i > 1 { f.write(", ") }
@@ -3184,7 +3184,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
     return f
 }
 
-priv emit_str_lit_expr := proc(f: File, s: Str, ctx: Context) {
+priv emit_str_lit_expr := proc(f: File, s: Str, mut ctx: Context) {
     if ctx.builder_str_lit_symbols.has(s) {
         ref sym : Str = ctx.builder_str_lit_symbols[s]
         f.write("&").write(sym)
@@ -3285,7 +3285,7 @@ priv num_lit_to_c := func(text: Str) returns Str {
     return format("-", out)
 }
 
-priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
+priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
     switch e.node_type {
     case .Literal(Literal.Str(s)):
         emit_str_lit_expr(f, s, ctx)
@@ -4013,7 +4013,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
     return f
 }
 
-priv emit_body := proc(f: File, body: Expr, depth: I32, ctx: Context) {
+priv emit_body := proc(f: File, body: Expr, depth: I32, mut ctx: Context) {
     // #327: register the decls in THIS block that shadow a parameter, so
     // the name-keyed ident queries resolve to the local while the block is
     // open, then drop them so the parameter is visible again afterwards.
@@ -4036,7 +4036,7 @@ priv emit_body := proc(f: File, body: Expr, depth: I32, ctx: Context) {
         ctx.builder_func.shadowed_params.remove(done_name)
     }
 }
-priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context) {
+priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx: Context) {
     mut ecf_def_o := Option(ref Expr).None
     ctor_sname_o := expr_type_name_ref(ctor)
     if ctor_sname_o.is_some() {
@@ -4253,7 +4253,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
     }
 }
 
-priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
+priv emit_ns_inits := proc(f: File, depth: I32, mut lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -4309,7 +4309,7 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
     }
 }
 
-priv emit_body_scoped := proc(f: File, body: Expr, depth: I32, ctx: Context) {
+priv emit_body_scoped := proc(f: File, body: Expr, depth: I32, mut ctx: Context) {
     saved_sl := ctx.builder_func.stack_locals.clone()
     saved_lsl := ctx.builder_func.stack_lit_str_locals.clone()
     saved_rl := ctx.builder_func.ref_locals.clone()
@@ -4321,7 +4321,7 @@ priv emit_body_scoped := proc(f: File, body: Expr, depth: I32, ctx: Context) {
     ctx.builder_func.ref_dyn_locals = saved_rdl
 }
 
-priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
+priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
     switch e.node_type {
     case .Ident(ident):
         if ctx.closure_emit_captures.has(ident.ident_name()) {
@@ -4388,7 +4388,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
     return f
 }
 
-priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, ctx: Context) returns ref File {
+priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, mut ctx: Context) returns ref File {
     if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
         switch e.node_type {
         case .Ident(ident):
@@ -4650,7 +4650,7 @@ priv emit_diverge_terminator := proc(f: File, ret: Str, body: Expr) {
     }
 }
 
-priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, lp: LoadedProgram) {
+priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, mut lp: LoadedProgram) {
     // Issue #262: a recursive variadic lazy def (vand/vor) is fully consumed
     // by the loader's recursion-unroll -- every call site is expanded -- and
     // its ListPattern arms have no C lowering. Emit nothing.
@@ -4780,7 +4780,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // PRE-constfolder body, so a transform can erase the final read of a
         // non-underscore param; casting it here would hide the stale
         // signature. Leave that case to -Werror=unused-parameter.
-        body_refs := Set(Str).new()
+        mut body_refs := Set(Str).new()
         collect_ident_refs(body, body_refs)
         for p : Declaration in fd.params {
             if body_refs.has(p.name).not().and(p.name.starts_with("_")) {
@@ -4803,7 +4803,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
 }
 
 priv emit_closure_env_clone := proc(f: File, closure_name: Str, env_type: Str,
-        captures: Vec(Declaration), lp: LoadedProgram) {
+        captures: Vec(Declaration), mut lp: LoadedProgram) {
     f.write("static void *").write(closure_name).write("_clone(void *til_env_raw) {\n")
     f.write("    ").write(env_type).write(" *til_env = (").write(env_type).write(" *)til_env_raw;\n")
     f.write("    ").write(env_type).write(" *til_clone = malloc(sizeof(").write(env_type).write("));\n")
@@ -4828,7 +4828,7 @@ priv emit_closure_env_clone := proc(f: File, closure_name: Str, env_type: Str,
     f.write("}\n")
 }
 
-emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Set(Str), lp: LoadedProgram) {
+emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Set(Str), mut lp: LoadedProgram) {
     switch closure_expr.node_type {
     case .FuncDef(fd):
         if fd.captures.len().eq(0).or(fd.closure_name.len().eq(0)) { return }
@@ -4868,7 +4868,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         // convention -- so exactly one cast remains and a genuinely dead
         // non-underscore binding still trips -Werror.
         mut env_read := false
-        cl_refs := Set(Str).new()
+        mut cl_refs := Set(Str).new()
         collect_ident_refs(closure_expr.children[0], cl_refs)
         for cap_r : Declaration in fd.captures {
             if cl_refs.has(cap_r.name) { env_read = true }
@@ -4939,7 +4939,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         f.write("}\n")
         // #326: same conditional-env shape as the FuncDef closure above.
         mut env_read_b := false
-        cl_refs_b := Set(Str).new()
+        mut cl_refs_b := Set(Str).new()
         collect_ident_refs(closure_expr.children[0], cl_refs_b)
         for cap_rb : Declaration in bd.captures {
             if cl_refs_b.has(cap_rb.name) { env_read_b = true }
@@ -4985,7 +4985,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
 // __attribute__((unused)) kept that dead code compiling. Namespace
 // declarations are NOT defaults -- they are the methods themselves -- so
 // they stay.
-emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str), lp: LoadedProgram) {
+emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str), mut lp: LoadedProgram) {
     emit_capturing_closure_func(f, e, emitted, lp)
     switch e.node_type {
     case .FuncDef(fd):
@@ -5005,7 +5005,7 @@ emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str),
     for c : Expr in e.children { emit_capturing_closures_in_expr(f, c, emitted, lp) }
 }
 
-emit_capturing_closures_lp := proc(f: File, lp: LoadedProgram) {
+emit_capturing_closures_lp := proc(f: File, mut lp: LoadedProgram) {
     mut emitted := Set(Str).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -5122,7 +5122,7 @@ priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
 // library's exported ABI.
 
 
-priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, lp: LoadedProgram) {
+priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, mut lp: LoadedProgram) {
     mut is_auto_size := false
     ref fd : FunctionDef = funcdef_of(fdef)
     if fd.func_type.is_bodyless() { return }
@@ -5149,7 +5149,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: 
     f.write("\n")
 }
 
-priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, mode: Mode, lp: LoadedProgram) {
+priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, mode: Mode, mut lp: LoadedProgram) {
     // User-defined from ns_decls
     ref smi_ns : Vec(Declaration) = def_ns_decls(struct_def)
     mut smi : USize = 0
@@ -5163,7 +5163,7 @@ priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, mode: Mode,
     }
 }
 
-priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, lp: LoadedProgram) {
+priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut lp: LoadedProgram) {
     ref edd : EnumDef = enumdef_of(enum_def)
     hp := enum_has_payloads(enum_def)
     if hp.not() {
@@ -5249,7 +5249,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, lp: L
 // make_is_tag_check_fcall builds: `is_n(x, E.Variant, w)`) has no value to
 // materialise -- it IS the constant answer, 1 for the payload variant and
 // 0 for the payload-less one.
-priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_niche: Bool, depth: I32, ctx: Context) {
+priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_niche: Bool, depth: I32, mut ctx: Context) {
     ref operand : Expr = e.children[idx]
     if is_niche {
         mut vname := ""
@@ -5311,7 +5311,7 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
 // (recorded as a call, the definition stays).
 
 
-priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Context) {
+priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, mut ctx: Context) {
     f.write("struct ").write(ename).write(" {\n")
     // #320 niche: one pointer, no tag and no union. The payload-less
     // variant is the null bit pattern, so the whole enum is ABI-identical
@@ -5367,7 +5367,7 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
 }
 
 // Topologically emit struct/enum typedefs across all per-file units in ctx.
-priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: LoadedProgram) {
+priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut lp: LoadedProgram) {
     // C struct tags already emitted with a full body; repeats become
     // typedef aliases (see emit_struct_typedef).
     mut emitted_tags := Set(Str).new()
@@ -5390,7 +5390,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
     }
 
     mut remaining := items.len()
-    done := Array(Bool).new(items.len())
+    mut done := Array(Bool).new(items.len())
     for di in 0..items.len() {
         mut f_val := false
         done[di] = f_val
@@ -5487,13 +5487,13 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
 // has no return type. Avoids the `mut ret := "void"` reassign pattern
 // in emit_func_forward_decl / emit_funcsig_typedef whose default
 // "void" Str_lit leaked when reassigned.
-priv func_return_ctype := func(fd: FunctionDef, ctx: Context) returns Str {
+priv func_return_ctype := func(fd: FunctionDef, mut ctx: Context) returns Str {
     if fd.return_type.len() == 0 { return "void" }
     if fd.return_own_type.is(OwnType.Shallow) { return type_name_to_c_value(fd.return_type, ctx) }
     return type_name_to_c(fd.return_type, ctx)
 }
 
-priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: Bool, ctx: Context) {
+priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: Bool, mut ctx: Context) {
     // Issue #262: recursive variadic lazy defs are compile-time-only (see
     // emit_func_def); no prototype either.
     if lazy_recursive_variadic_def(fdef) { return }
@@ -5516,7 +5516,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
     f.write(");\n")
 }
 
-priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, ctx: Context) {
+priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     ret := func_return_ctype(fd, ctx)
     call_name := closure_call_name(name)
@@ -5530,7 +5530,7 @@ priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, ctx: Cont
     f.write("static TilClosure ").write(value_name).write(";\n")
 }
 
-priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, ctx: Context) {
+priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     ret := func_return_ctype(fd, ctx)
     call_name := closure_call_name(name)
@@ -5575,7 +5575,7 @@ emit_closure_runtime_types := proc(f: File) {
     f.write("};\n\n")
 }
 
-emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, ctx: Context) {
+emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -5597,7 +5597,7 @@ emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, ctx: Context) {
     }
 }
 
-priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
+priv emit_funcsig_typedefs_lp := proc(f: File, mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
@@ -5753,7 +5753,7 @@ priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
     f.fwrite(eq_ret, " ", enum_name, "_eq(", eq_param, ", ", eq_param, ");\n")
 }
 
-priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
+priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
     mut emitted_h := Set(Str).new()
     seed_primitive_names(emitted_h)
     topo_emit_struct_enum_defs_lp(f, emitted_h, lp)
@@ -5862,7 +5862,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     f.write("\n")
 }
 
-priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
+priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
@@ -5879,7 +5879,7 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
     f.write("\n")
 }
 
-build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns I32 {
+build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -5891,7 +5891,7 @@ build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns I32 {
     return 0
 }
 
-priv build_header_lp := proc(h_path: Str, lp: LoadedProgram) returns I32 {
+priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -6659,7 +6659,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     return 0
 }
 
-priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
+priv register_funcsig_prog := func(prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref dd : Declaration = decl_of(stmt)
@@ -6682,7 +6682,7 @@ priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
     }
 }
 
-priv emit_global_inits_prog := proc(f: File, prog: Expr, ctx: Context) {
+priv emit_global_inits_prog := proc(f: File, prog: Expr, mut ctx: Context) {
     for gs : Expr in prog.children {
         if gs.node_type.is(NodeType.Decl) {
             ref rhs : Expr = gs.children[0]
@@ -6698,7 +6698,7 @@ priv emit_global_inits_prog := proc(f: File, prog: Expr, ctx: Context) {
     }
 }
 
-priv emit_global_inits := proc(f: File, lp: LoadedProgram) {
+priv emit_global_inits := proc(f: File, mut lp: LoadedProgram) {
     if lp.ctx.script_globals.len() == 0 { return }
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -6706,7 +6706,7 @@ priv emit_global_inits := proc(f: File, lp: LoadedProgram) {
     }
 }
 
-priv build_register_funcsig_names_lp := func(lp: LoadedProgram) {
+priv build_register_funcsig_names_lp := func(mut lp: LoadedProgram) {
         lp.ctx.funcsig_names = Set(Sym).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -6714,7 +6714,7 @@ priv build_register_funcsig_names_lp := func(lp: LoadedProgram) {
     }
 }
 
-priv register_body_func_symbols := func(body: Expr, ctx: Context) {
+priv register_body_func_symbols := func(body: Expr, mut ctx: Context) {
     if body.node_type.is(NodeType.Body).not() { return }
     for nested : Expr in body.children {
         if is_func_decl(nested).not() { continue }
@@ -6731,7 +6731,7 @@ priv register_body_func_symbols := func(body: Expr, ctx: Context) {
     }
 }
 
-priv register_type_func_symbols := func(type_name: Str, def: Expr, ctx: Context) {
+priv register_type_func_symbols := func(type_name: Str, def: Expr, mut ctx: Context) {
     ref rsi_ns : Vec(Declaration) = def_ns_decls(def)
     mut rsi : USize = 0
     for nd : Declaration in rsi_ns {
@@ -6747,7 +6747,7 @@ priv register_type_func_symbols := func(type_name: Str, def: Expr, ctx: Context)
     }
 }
 
-priv register_func_symbols_prog := func(prog: Expr, ctx: Context) {
+priv register_func_symbols_prog := func(prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref dd : Declaration = decl_of(stmt)
@@ -6758,7 +6758,7 @@ priv register_func_symbols_prog := func(prog: Expr, ctx: Context) {
     }
 }
 
-priv build_register_func_symbols_lp := func(lp: LoadedProgram) {
+priv build_register_func_symbols_lp := func(mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         register_func_symbols_prog(iu.ast, lp.ctx)
@@ -6794,7 +6794,7 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
     }
 }
 
-build_register_closure_values_lp := proc(lp: LoadedProgram) {
+build_register_closure_values_lp := proc(mut lp: LoadedProgram) {
     lp.ctx.closure_value_names = Set(Str).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -6804,7 +6804,7 @@ build_register_closure_values_lp := proc(lp: LoadedProgram) {
 
 // A funcsig alias binding (`Name := SomeSig`) emitted as a C typedef. The
 // core-unit and program-unit loops both reach it with the same arguments.
-priv emit_funcsig_alias_typedef := proc(f: File, stmt: Expr, rhs: Expr, dd: Declaration, lp: LoadedProgram) {
+priv emit_funcsig_alias_typedef := proc(f: File, stmt: Expr, rhs: Expr, dd: Declaration, mut lp: LoadedProgram) {
     switch rhs.node_type {
     case .Ident(rhs_name):
         if stmt.til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
@@ -6821,7 +6821,7 @@ priv emit_funcsig_alias_typedef := proc(f: File, stmt: Expr, rhs: Expr, dd: Decl
 // The guards `return` where the loops used to `continue`: this switch is the
 // tail of both loop bodies, so skipping the rest of the iteration and
 // returning from here are the same thing.
-priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mode: Mode, lp: LoadedProgram) {
+priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mode: Mode, mut lp: LoadedProgram) {
     switch rhs.node_type {
     case .FuncDef(fd):
         if builder_is_type_gen_macro_def(rhs) { return }
@@ -6852,7 +6852,7 @@ priv builder_program_declares := func(name: Str, lp: LoadedProgram) returns Bool
     return false
 }
 
-priv emit_monolithic_header_lp := proc(f: File, lp: LoadedProgram) {
+priv emit_monolithic_header_lp := proc(f: File, mut lp: LoadedProgram) {
     f.write("#include \"ext.h\"\n\n")
     emit_closure_runtime_types(f)
     emit_header_forward_decls_lp(f, lp)
@@ -6870,7 +6870,7 @@ priv emit_monolithic_header_lp := proc(f: File, lp: LoadedProgram) {
     // prototypes have a single emitter now.
 }
 
-priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
+priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedProgram) {
     // Forward-declare struct/enum namespace methods and top-level functions
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -7110,7 +7110,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     if coll_infos.len() > 0 { f.write("\n") }
 }
 
-priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: FunctionDef, ctx: Context) {
+priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: FunctionDef, mut ctx: Context) {
     np := fd.params.len()
     ret_shallow := fd.return_own_type.is(OwnType.Shallow)
     has_return := fd.return_type.len() > 0
@@ -7203,7 +7203,7 @@ emit_dyn_fn_closure_value := proc(f: File, type_name: Str, method_name: Str, suf
     f.write("static TilClosure ").write(value_name).write(" = { (void *)").write(call_name).write(", NULL, NULL, NULL };\n")
 }
 
-priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
+priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
     // Emit wrapper functions that normalize calling convention
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -7367,7 +7367,7 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
     f.write("}\n\n")
 }
 
-priv emit_dyn_funcsig_storage_branches_prog := proc(f: File, prog: Expr, ctx: Context) {
+priv emit_dyn_funcsig_storage_branches_prog := proc(f: File, prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -7395,7 +7395,7 @@ priv emit_dyn_funcsig_storage_branches_prog := proc(f: File, prog: Expr, ctx: Co
     }
 }
 
-priv emit_dyn_storage_kind_body := proc(f: File, lp: LoadedProgram) {
+priv emit_dyn_storage_kind_body := proc(f: File, mut lp: LoadedProgram) {
     f.write("USize dyn_storage_kind(Str *type_name) {\n    (void)type_name;\n")
     emit_dyn_name_return_branch(f, "Dynamic", "0")
     emit_dyn_name_return_branch(f, "I64", "0")
@@ -7433,7 +7433,7 @@ priv emit_dyn_storage_kind_body := proc(f: File, lp: LoadedProgram) {
 
 // Issue #56/#58: emit one struct's branch for a struct_field_* function.
 // kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type.
-priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, ctx: Context) {
+priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
     if stmt.children[0].node_type.is(NodeType.StructDef).not() { return }
@@ -7468,7 +7468,7 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, c
     }
 }
 
-priv emit_struct_field_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
+priv emit_struct_field_branches := proc(f: File, kind: I32, mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
@@ -7480,7 +7480,7 @@ priv emit_struct_field_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
 // Issue #56/#58: emit the C bodies for the struct_field_* introspection
 // primitives, mirroring rstil's emit_introspection_metadata. Each is a
 // strcmp chain over every loaded struct type.
-priv emit_struct_introspection_bodies := proc(f: File, lp: LoadedProgram) {
+priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     f.write("I64 struct_field_count(Str *type_name) {\n    (void)type_name;\n")
     emit_struct_field_branches(f, 0, lp)
     f.write("    fprintf(stderr, \"struct_field_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
@@ -7501,7 +7501,7 @@ priv emit_struct_introspection_bodies := proc(f: File, lp: LoadedProgram) {
 // Issue #57/#58: emit one enum's branch for an enum_variant_* function.
 // kind 0 = count, 1 = name, 2 = has_payload, 3 = payload_type,
 // 4 = tag_value, 5 = payload_is_const, 6 = payload_is_ref (#307).
-priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, ctx: Context) {
+priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
     if stmt.children[0].node_type.is(NodeType.EnumDef).not() { return }
@@ -7542,7 +7542,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, c
     }
 }
 
-priv emit_enum_variant_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
+priv emit_enum_variant_branches := proc(f: File, kind: I32, mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
@@ -7553,7 +7553,7 @@ priv emit_enum_variant_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
 
 // Issue #57/#58: emit the C bodies for the enum_variant_* introspection
 // primitives. Each is a strcmp chain over every loaded enum type.
-priv emit_enum_introspection_bodies := proc(f: File, lp: LoadedProgram) {
+priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     f.write("I64 enum_variant_count(Str *type_name) {\n    (void)type_name;\n")
     emit_enum_variant_branches(f, 0, lp)
     f.write("    fprintf(stderr, \"enum_variant_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
@@ -7587,7 +7587,7 @@ priv emit_enum_introspection_bodies := proc(f: File, lp: LoadedProgram) {
 // FuncSig is a bodyless func/proc decl. kind 0 = param_count,
 // 1 = param_type, 2 = return_count, 3 = return_type, 4 = throw_count,
 // 5 = throw_type.
-priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, ctx: Context) {
+priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
     if stmt.children[0].node_type.is(NodeType.FuncDef).not() { return }
@@ -7631,7 +7631,7 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, ctx: C
     }
 }
 
-priv emit_funcsig_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
+priv emit_funcsig_branches := proc(f: File, kind: I32, mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
@@ -7642,7 +7642,7 @@ priv emit_funcsig_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
 
 // Issue #58: emit the C bodies for the func_sig_* introspection
 // primitives. Each is a strcmp chain over every loaded FuncSig type.
-priv emit_funcsig_introspection_bodies := proc(f: File, lp: LoadedProgram) {
+priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     f.write("I64 func_sig_param_count(Str *type_name) {\n    (void)type_name;\n")
     emit_funcsig_branches(f, 0, lp)
     f.write("    fprintf(stderr, \"func_sig_param_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
@@ -7716,7 +7716,7 @@ priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), 
 // replaces the previous hardcoded list of emit_tag_case calls so
 // migrating a primitive in/out of Type doesn't require editing
 // this function in lockstep.
-priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
+priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
     f.write("Str *dyn_type_to_str(Type *type) {\n")
     mut variant_names := Vec(Str).new()
     mut variant_types := Vec(Str).new()
@@ -7774,7 +7774,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     f.write("}\n\n")
 }
 
-priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
+priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
     mut dyn_methods := Vec(DynCallInfo).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -8003,7 +8003,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
     }
 }
 
-priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
+priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
     mut coll_infos := Vec(CollectionInfo).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -8074,7 +8074,7 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
     }
 }
 
-priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
+priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
     lp.ctx.script_globals = Set(Str).new()
     lp.ctx.ref_globals = Set(Str).new()
     if lp.skip_core.not() {
@@ -8165,7 +8165,7 @@ priv emit_ns_const_global_defs := proc(f: File, lp: LoadedProgram) {
     }
 }
 
-priv emit_test_main := proc(f: File, lp: LoadedProgram) {
+priv emit_test_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1, lp)
     emit_global_inits(f, lp)
@@ -8217,7 +8217,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
     f.write("}\n")
 }
 
-priv emit_script_main := proc(f: File, lp: LoadedProgram) {
+priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1, lp)
         lp.ctx.builder_func.unsafe_to_hoist = Set(Str).new()
@@ -8260,7 +8260,7 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
 // and program units in two loops that differ only in which unit list they
 // iterate, so both arms call this. `return` replaces the loops' `continue`:
 // the switch is the tail of both loop bodies.
-priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mode: Mode, lp: LoadedProgram) {
+priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mode: Mode, mut lp: LoadedProgram) {
     switch rhs.node_type {
     case .StructDef:
         emit_struct_funcs(f, dd.name, rhs, mode, lp)
@@ -8278,7 +8278,7 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
     }
 }
 
-priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
+priv emit_function_bodies := proc(f: File, mode: Mode, mut lp: LoadedProgram) {
     emit_capturing_closures_lp(f, lp)
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
@@ -8291,7 +8291,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
     }
 }
 
-priv emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
+priv emit_ext_func_declarations := proc(f: File, program: Expr, mut ctx: Context) {
     for stmt : Expr in program.children {
         if is_func_decl(stmt).not() { continue }
         ref fdef : Expr = stmt.children[0]
@@ -8333,7 +8333,7 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
     f.write("\n")
 }
 
-priv emit_lib_init := proc(f: File, lp: LoadedProgram) {
+priv emit_lib_init := proc(f: File, mut lp: LoadedProgram) {
     f.write("__attribute__((constructor))\nstatic void _til_lib_init(void) {\n")
     emit_ns_inits(f, 1, lp)
     emit_global_inits(f, lp)
@@ -8346,7 +8346,7 @@ priv emit_lib_init := proc(f: File, lp: LoadedProgram) {
 // an EMPTY site inventory: it omitted every lifecycle method the .c went
 // on to define. Only ext.c's callers noticed, and only once the gate
 // covered the struct they call (Str_clone, undeclared in til_forward.h).
-priv builder_prepare_emit := proc(lp: LoadedProgram) {
+priv builder_prepare_emit := proc(mut lp: LoadedProgram) {
     // Every phase between init and here (lazy lowering, lifted lambdas,
     // monomorphization, garbager destructor insertion) may have APPENDED
     // top-level decls to a unit AST; an append that reallocs a children Vec
@@ -8373,7 +8373,7 @@ priv builder_prepare_emit := proc(lp: LoadedProgram) {
     builder_fill_emit_inventory(lp)
 }
 
-priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns I32 {
+priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: LoadedProgram) returns I32 {
     is_lib := mode.is_library
     f := File.new(c_output_path, true)
 
@@ -8546,7 +8546,7 @@ priv make_build_dirs := proc(paths: BuildPaths) {
     }
 }
 
-priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
+priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths) returns I32 {
     builder_prepare_emit(lp)
     mut result := build_forward_header_lp(paths.fwd_path, lp)
     if result == 0 {
@@ -8585,7 +8585,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize64)
 }
 
-cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {
+cmd_translate := proc(mut lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {
     paths := derive_build_paths(lp, "", custom_c, target)
     make_build_dirs(paths)
     result := translate_ast(lp, paths)
@@ -8593,7 +8593,7 @@ cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns 
     return result
 }
 
-cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
@@ -8665,7 +8665,7 @@ priv print_install_success := proc(path: Str) {
     println(format("Installed: ", path))
 }
 
-cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     mut install_prefix := install_prefix_in
     if install_prefix.len() == 0 {
         install_prefix = default_install_prefix()
@@ -8733,7 +8733,7 @@ priv asan_child_prefix := proc(asan: Bool) returns Str {
     return ""
 }
 
-cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     if lp.cur_mode.is_library {
         panic("cannot run a library -- use translate or build")
     }
@@ -8754,7 +8754,7 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
 // Compile and run a test binary. Forces do_lib=false so library-mode
 // files still produce an executable -- emit_test_main is gated on
 // lp.run_tests, so the C output has a real main().
-cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+cmd_test_build_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
     paths.do_lib = false
     make_build_dirs(paths)
@@ -8955,7 +8955,7 @@ priv doc_expand_til_links := func(body: Str, catalog: DocCatalog, loc: Str) retu
 }
 
 priv expand_doc_catalog_links := func(mut catalog: DocCatalog) {
-    expanded := Vec(Str).new()
+    mut expanded := Vec(Str).new()
     for e : DocEntry in catalog.entries {
         expanded.push(own doc_expand_til_links(e.body, catalog, e.name))
     }
@@ -9104,7 +9104,7 @@ priv doc_index_add_group_if_present := func(mut groups: Vec(Str), catalog: DocCa
 }
 
 priv doc_index_collect_groups := func(catalog: DocCatalog) returns Vec(Str) {
-    groups := Vec(Str).new()
+    mut groups := Vec(Str).new()
     doc_index_add_group_if_present(groups, catalog, "Core")
     doc_index_add_group_if_present(groups, catalog, "Standard library")
     doc_index_add_group_if_present(groups, catalog, "Compiler frontend")
@@ -10603,7 +10603,7 @@ priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)
         collect_collection_builtins(e_ci, infos)
     }
 }
-priv builder_fill_emit_inventory := proc(lp: LoadedProgram) {
+priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     lp.ctx.builder_reflect_inventory = Set(Str).new()
     lp.ctx.builder_dyn_fn_targets = Set(Str).new()
     lp.ctx.builder_ns_member_sites = Set(Str).new()

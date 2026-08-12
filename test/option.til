@@ -226,12 +226,12 @@ opt_cell_pick_ref := func(c: OptCell) returns ref OptCell {
 }
 
 test_option_ref_return_param_not_shallowed := test() {
-    via_ref := OptCell(n = 1)
+    mut via_ref := OptCell(n = 1)
     ref mut r : OptCell = opt_cell_pick_ref(via_ref)
     r.n = 7
     assert_eq(I64, via_ref.n, 7)
 
-    via_opt := OptCell(n = 1)
+    mut via_opt := OptCell(n = 1)
     ref mut o : OptCell = opt_cell_pick(via_opt).unwrap()
     o.n = 42
     assert_eq(I64, via_opt.n, 42)

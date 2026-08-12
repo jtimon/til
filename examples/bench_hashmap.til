@@ -11,7 +11,7 @@ import("../src/std/hash")
 // overhead and would mask the algorithmic difference.
 
 bench_map_i64 := proc(n: I64) returns Vec(I64) {
-    m := Map(I64, I64).new()
+    mut m := Map(I64, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         m.set(i, own i.mul(2))
@@ -33,7 +33,7 @@ bench_map_i64 := proc(n: I64) returns Vec(I64) {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec(I64).new()
+    mut results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)
@@ -42,7 +42,7 @@ bench_map_i64 := proc(n: I64) returns Vec(I64) {
 }
 
 bench_hashmap_i64 := proc(n: I64) returns Vec(I64) {
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         m.set(i, own i.mul(2))
@@ -64,7 +64,7 @@ bench_hashmap_i64 := proc(n: I64) returns Vec(I64) {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec(I64).new()
+    mut results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)
@@ -74,12 +74,12 @@ bench_hashmap_i64 := proc(n: I64) returns Vec(I64) {
 
 bench_map_str := proc(n: I64) returns Vec(I64) {
     // Pre-build the key set so the timed sections only measure map ops.
-    keys := Vec(Str).new()
+    mut keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))
     }
 
-    m := Map(Str, I64).new()
+    mut m := Map(Str, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         ref k : Str = keys.get(i.to_usize())!
@@ -104,7 +104,7 @@ bench_map_str := proc(n: I64) returns Vec(I64) {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec(I64).new()
+    mut results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)
@@ -113,12 +113,12 @@ bench_map_str := proc(n: I64) returns Vec(I64) {
 }
 
 bench_hashmap_str := proc(n: I64) returns Vec(I64) {
-    keys := Vec(Str).new()
+    mut keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))
     }
 
-    m := HashMap(Str, I64).new()
+    mut m := HashMap(Str, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         ref k : Str = keys.get(i.to_usize())!
@@ -143,7 +143,7 @@ bench_hashmap_str := proc(n: I64) returns Vec(I64) {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec(I64).new()
+    mut results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)
@@ -162,7 +162,7 @@ bench_hashmap_str := proc(n: I64) returns Vec(I64) {
 // fixed and vary the table size, so the columns are comparable.
 
 bench_map_lookup_small := proc(n: I64, total: I64) returns I64 {
-    keys := Vec(Str).new()
+    mut keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))
     }
@@ -187,7 +187,7 @@ bench_map_lookup_small := proc(n: I64, total: I64) returns I64 {
 }
 
 bench_hashmap_lookup_small := proc(n: I64, total: I64) returns I64 {
-    keys := Vec(Str).new()
+    mut keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))
     }

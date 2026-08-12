@@ -77,7 +77,7 @@ piece_type := func(piece: I64) returns I64 {
 }
 
 // Copy board from src to dst
-copy_board := func(dst: Array(I64), src: Array(I64)) {
+copy_board := func(mut dst: Array(I64), src: Array(I64)) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = src[i.to_usize()]
@@ -220,7 +220,7 @@ in_check := func(board: Array(I64), side: I64) returns Bool {
 
 // Try a move on a temp board and check if own king is in check
 // Returns true if the move leaves the player in check (illegal)
-move_leaves_in_check := func(board: Array(I64), tmp: Array(I64), from: I64, to: I64, side: I64) returns Bool {
+move_leaves_in_check := func(board: Array(I64), mut tmp: Array(I64), from: I64, to: I64, side: I64) returns Bool {
     copy_board(tmp, board)
     ref p : I64 = tmp[from.to_usize()]
     pv := p.clone()
@@ -245,8 +245,8 @@ move_leaves_in_check := func(board: Array(I64), tmp: Array(I64), from: I64, to: 
 
 // Generate valid moves for a piece at position idx
 // Stores destination squares in moves array, returns count
-gen_moves := func(board: Array(I64), tmp: Array(I64), idx: I64, side: I64,
-                   moves: Array(I64), ep_col: I64,
+gen_moves := func(board: Array(I64), mut tmp: Array(I64), idx: I64, side: I64,
+                   mut moves: Array(I64), ep_col: I64,
                    castle_flags: Array(I64)) returns I64 {
     ref piece : I64 = board[idx.to_usize()]
     pt := piece_type(piece)
@@ -492,8 +492,8 @@ gen_moves := func(board: Array(I64), tmp: Array(I64), idx: I64, side: I64,
 }
 
 // Check if side has any legal moves
-has_legal_moves := func(board: Array(I64), tmp: Array(I64), side: I64,
-                         moves: Array(I64), ep_col: I64,
+has_legal_moves := func(board: Array(I64), mut tmp: Array(I64), side: I64,
+                         mut moves: Array(I64), ep_col: I64,
                          castle_flags: Array(I64)) returns Bool {
     mut i := 0
     while i.lt(64) {
@@ -508,8 +508,8 @@ has_legal_moves := func(board: Array(I64), tmp: Array(I64), side: I64,
 }
 
 // Execute a move on the board, update castle flags, return new ep_col
-execute_move := func(board: Array(I64), from: I64, to: I64, side: I64,
-                      castle_flags: Array(I64)) returns I64 {
+execute_move := func(mut board: Array(I64), from: I64, to: I64, side: I64,
+                      mut castle_flags: Array(I64)) returns I64 {
     ref mp : I64 = board[from.to_usize()]
     mpv := mp.clone()
     mpt := piece_type(mpv)
@@ -574,7 +574,7 @@ execute_move := func(board: Array(I64), from: I64, to: I64, side: I64,
 }
 
 // Copy castle flags
-copy_cf := func(dst: Array(I64), src: Array(I64)) {
+copy_cf := func(mut dst: Array(I64), src: Array(I64)) {
     mut i := 0
     while i.lt(6) {
         ref v : I64 = src[i.to_usize()]
@@ -625,7 +625,7 @@ chess_unpack_ep := func(b: Board) returns I64 {
 }
 
 chess_unpack_cf := func(b: Board) returns Array(I64) {
-    cf := Array(I64).new(6)
+    mut cf := Array(I64).new(6)
     mut i := 0
     while i.lt(6) {
         cf[i.to_usize()] = board_get_i64(b, CHESS_IDX_CF.add(i)).clone()
@@ -660,7 +660,7 @@ chess_heuristic : Heuristic = (b) {
 // Next boards: generate all legal moves
 chess_next_boards : NextBoardsFn = (b) {
     ref cb : Board = b
-    cells := Array(I64).new(64)
+    mut cells := Array(I64).new(64)
     mut ci := 0
     while ci.lt(64) {
         cells[ci.to_usize()] = board_get_i64(cb, ci).clone()
@@ -669,9 +669,9 @@ chess_next_boards : NextBoardsFn = (b) {
     side := chess_unpack_side(cb)
     ep_col := chess_unpack_ep(cb)
     cf := chess_unpack_cf(cb)
-    result := Vec(Board).new()
-    tmp := Array(I64).new(64)
-    moves := Array(I64).new(64)
+    mut result := Vec(Board).new()
+    mut tmp := Array(I64).new(64)
+    mut moves := Array(I64).new(64)
     mut i := 0
     while i.lt(64) {
         ref p : I64 = cells[i.to_usize()]
@@ -680,9 +680,9 @@ chess_next_boards : NextBoardsFn = (b) {
             mut j := 0
             while j.lt(mc) {
                 ref dest : I64 = moves[j.to_usize()]
-                child_cells := Array(I64).new(64)
+                mut child_cells := Array(I64).new(64)
                 copy_board(child_cells, cells)
-                child_cf := Array(I64).new(6)
+                mut child_cf := Array(I64).new(6)
                 copy_cf(child_cf, cf)
                 child_ep := execute_move(child_cells, i, dest, side, child_cf)
                 opp := 1.sub(side)
@@ -706,15 +706,15 @@ main := proc() {
     mut ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards, depth = 1)
 
     // Board state
-    board := Array(I64).new(64)
-    tmp_board := Array(I64).new(64)
+    mut board := Array(I64).new(64)
+    mut tmp_board := Array(I64).new(64)
 
     // Valid moves buffer (max 28 moves per piece is enough)
-    valid_moves := Array(I64).new(64)
+    mut valid_moves := Array(I64).new(64)
     mut valid_count := 0
 
     // Castle flags: [wk, wra, wrh, bk, bra, brh] (0=not moved, 1=moved)
-    castle_flags := Array(I64).new(6)
+    mut castle_flags := Array(I64).new(6)
 
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 1  // 0=white, 1=black (default black so AI starts as white)
@@ -800,10 +800,10 @@ main := proc() {
             ai_timer++
             if ai_timer.gt(30) {
                 ai_timer = 0
-                ai_pieces := Array(I64).new(64)
-                ai_dests := Array(I64).new(64)
+                mut ai_pieces := Array(I64).new(64)
+                mut ai_dests := Array(I64).new(64)
                 mut ai_total := 0
-                ai_moves := Array(I64).new(64)
+                mut ai_moves := Array(I64).new(64)
 
                 mut sq := 0
                 while sq.lt(64) {
@@ -829,9 +829,9 @@ main := proc() {
                         from_val := ai_pieces[mi.to_usize()].clone()
                         to_val := ai_dests[mi.to_usize()].clone()
 
-                        child := Array(I64).new(64)
+                        mut child := Array(I64).new(64)
                         copy_board(child, board)
-                        child_cf := Array(I64).new(6)
+                        mut child_cf := Array(I64).new(6)
                         copy_cf(child_cf, castle_flags)
 
                         child_ep := execute_move(child, from_val, to_val, ai_side, child_cf)

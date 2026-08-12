@@ -47,7 +47,7 @@ priv slot_default_index := func(code: I32) returns USize {
 // last diagnostic that can return false. That ordering is deliberate:
 // on an error path the call keeps its original children intact for the
 // passes that keep walking after a type error.
-desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: FunctionDef, implicit_arg_count: USize, ctx: Context) returns Bool {
+desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: FunctionDef, implicit_arg_count: USize, mut ctx: Context) returns Bool {
     nparam := fdef_data.params.len()
     vi := fdef_data.variadic_index
     kwi := fdef_data.kwargs_index
@@ -189,7 +189,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     return missing.not()
 }
 
-desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context) {
+desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, mut ctx: Context) {
     fdef_o := scope.lookup_func(callee_bind.name)
     ref fdef_data : FunctionDef = funcdef_of(fdef_o.unwrap())
     _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, 0, ctx)
@@ -332,7 +332,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
     }
 }
 
-typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
+typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, mut ctx: Context) {
     if prog.node_type.is(NodeType.Body).not() { return }
     mut top_level := Vec(Expr).new()
     // #328: the counter is per-CONTEXT, not per-call. A late concrete
@@ -625,7 +625,7 @@ priv annotate_throw_ident_expr_types := proc(scope: TypeScope, mut e: Expr, root
         case:
         }
     }
-    for c : Expr in e.children {
+    for mut c : Expr in e.children {
         annotate_throw_ident_expr_types(scope, c, root_body)
     }
 }
@@ -1564,7 +1564,7 @@ priv registry_suffix_key := func(ctx: Context, method: Str) returns Str {
 // type-qualified "Type.method" key, falling back to a bare/suffix
 // match when the receiver type can't be resolved. Returns the matching
 // throws_global key, or "" for not-found.
-priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) returns Str {
+priv find_callee_throws_key := func(mut ctx: Context, fcall: Expr, body: Expr) returns Str {
     if fcall.children.len() == 0 { return "" }
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
@@ -1665,7 +1665,7 @@ priv fcall_callee_is_dependent_throw_generic := func(ctx: Context, e: Expr) retu
 }
 
 priv validate_one_fcall_consolidated := proc(
-    ctx: Context,
+    mut ctx: Context,
     mut e: Expr,
     body: Expr,
     mut pending: Vec(Str),
@@ -1741,7 +1741,7 @@ priv validate_one_fcall_consolidated := proc(
 // Per-FCall: if does_throw is set and the callee is in the global
 // throws map, append _err_kind plus any payload-slot arg refs, then clear the
 // flag so the call reaches downstream stages as a plain FCall.
-priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr, body: Expr) {
+priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: Expr, body: Expr) {
     if e.node_type.is(NodeType.FCall).not() { return }
     mut does_throw := false
     switch e.node_type {
@@ -1774,7 +1774,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr
 // those are handled by the body-level walk and the typer's per
 // FuncDef visit, respectively.
 priv validate_and_inject_expr_consolidated := proc(
-    ctx: Context,
+    mut ctx: Context,
     mut e: Expr,
     body: Expr,
     mut pending: Vec(Str),
@@ -2361,7 +2361,7 @@ priv process_throw_catch_in_body := proc(
                     // throw v }`) crashed the compiler with OutOfBounds.
                     mut scan_decl : I32 = new_ch.len().to_i32() - 1
                     while scan_decl >= 0 {
-                        ref prior_stmt : Expr = new_ch[scan_decl.to_usize()]
+                        ref mut prior_stmt : Expr = new_ch[scan_decl.to_usize()]
                         switch prior_stmt.node_type {
                         case .Decl(prior_dd):
                             if prior_dd.name == idn.name {
@@ -2392,7 +2392,7 @@ priv process_throw_catch_in_body := proc(
                         }
                         scan_decl--
                     }
-                    for nstmt : Expr in new_ch {
+                    for mut nstmt : Expr in new_ch {
                         switch nstmt.node_type {
                         case .Decl(ndd):
                             if ndd.name == idn.name { ndd.used = true }
@@ -2917,7 +2917,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         if bind_is_mut {
                                             switch sw_ref.node_type {
                                             case .Ident(sw_idn2):
-                                                sw_b2_o := scope.get_binding(sw_idn2.ident_name())
+                                                mut sw_b2_o := scope.get_binding(sw_idn2.ident_name())
                                                 if sw_b2_o.is_some() {
                                                     ref mut sw_b2 : TypeBinding = sw_b2_o.unwrap()
                                                     sw_b2.written = true
@@ -3423,7 +3423,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, enum_def: Expr, sw_expr:
     // marked -- an immutable root can't be written and keeps its own checks.
     root_name := lvalue_root_name(sw_expr)
     if root_name.len() > 0 {
-        rb_o := scope.get_binding(root_name)
+        mut rb_o := scope.get_binding(root_name)
         if rb_o.is_some() {
             ref mut rb : TypeBinding = rb_o.unwrap()
             if rb.is_mut { rb.written = true }
@@ -3659,14 +3659,14 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
 priv build_kwargs_map_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     mut new_call := make_ns_call("KwargsMap", "new", Type.Struct("KwargsMap"), fcall)
     mut kw_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
-    ref dd : Declaration = decl_of(kw_decl)
+    ref mut dd : Declaration = decl_of(kw_decl)
     dd.name = kw_name.clone()
     kw_decl.set_til_type(Type.Struct("KwargsMap"))
     kw_decl.add_child(own new_call)
     return kw_decl
 }
 
-priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr, ctx: Context) returns Expr {
+priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr, mut ctx: Context) returns Expr {
     mut key_name := ""
     switch named_arg.node_type {
     case .NamedArg(kn):
@@ -3704,7 +3704,7 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     return set_call
 }
 
-priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: USize, ctx: Context) returns Expr {
+priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: USize, mut ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     mut new_call := make_ns_call(array_type, "new", Type.Struct(array_type.clone()), fcall)
 
@@ -3719,7 +3719,7 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
     new_call.add_child(own cap)
 
     mut va_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
-    ref dd : Declaration = decl_of(va_decl)
+    ref mut dd : Declaration = decl_of(va_decl)
     dd.name = va_name.clone()
     dd.own_type = OwnType.Own
     va_decl.set_til_type(Type.Struct(array_type.clone()))
@@ -3752,7 +3752,7 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
     // _ek : I64 = 0  -- receives the throwing set's `_err_kind` out-arg
     // (a value out-param, so the builder passes it as `&<va>_ek`).
     mut ek := Expr.new(NodeType.Decl(Declaration()), line, col)
-    ref ek_dd : Declaration = decl_of(ek)
+    ref mut ek_dd : Declaration = decl_of(ek)
     ek_dd.name = variadic_err_slot_name(va_name, "_ek")
     ek_dd.is_mut = true
     ek.set_til_type(Type.Primitive(Primitive.I64))
@@ -3779,7 +3779,7 @@ priv narrow_literal_to_elem := func(mut val: Expr, elem_t: Type) {
 // `src_idx` is the ABSOLUTE child index of the argument to store and `j` the
 // destination slot. They coincide only for a contiguous block; #342's mixed
 // splat fills a collector from a SUBSET of the block, so the two are separate.
-priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, src_idx: USize, j: USize, ctx: Context) returns Expr {
+priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, src_idx: USize, j: USize, mut ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     // Issue #225: the variadic-arg collector fills its temp Array with the
     // throwing `set`. This desugar runs after throws-lowering, so the call
@@ -3859,7 +3859,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
     mut new_call := make_ns_call(vec_type, "new", Type.Struct(vec_type.clone()), fcall)
 
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
-    ref dd : Declaration = decl_of(vec_decl)
+    ref mut dd : Declaration = decl_of(vec_decl)
     dd.name = vec_name.clone()
     dd.own_type = OwnType.Own
     dd.is_mut = true
@@ -3868,7 +3868,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
     return vec_decl
 }
 
-priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, j: USize, ctx: Context) returns Expr {
+priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, j: USize, mut ctx: Context) returns Expr {
     vec_type := format("Vec__", elem_type)
     mut push_call := make_ns_call(vec_type, "push", Type.None, fcall)
 
@@ -4032,7 +4032,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
 
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
-priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
+priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, mut ctx: Context) returns Bool {
     ref set_lit : Expr = stmt.children[0]
     mut var_name := ""
     ref stmt_decl : Declaration = decl_of(stmt)
@@ -4070,7 +4070,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
-    ref dd : Declaration = decl_of(decl)
+    ref mut dd : Declaration = decl_of(decl)
     dd.name = var_name.clone()
     dd.is_mut = true
     decl.set_til_type(Type.Struct(set_type.clone()))
@@ -4095,7 +4095,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
-priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
+priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, mut ctx: Context) returns Bool {
     ref map_lit : Expr = stmt.children[0]
     mut var_name := ""
     ref stmt_decl : Declaration = decl_of(stmt)
@@ -4155,7 +4155,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
-    ref dd : Declaration = decl_of(decl)
+    ref mut dd : Declaration = decl_of(decl)
     dd.name = var_name.clone()
     dd.is_mut = true
     decl.set_til_type(Type.Struct(map_type.clone()))
@@ -4248,7 +4248,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
     if e.node_type.is(NodeType.EnumDef) { return }
     if e.node_type.is(NodeType.Body) { return }
 
-    for e_i : Expr in e.children {
+    for mut e_i : Expr in e.children {
         process_call_desugars(ctx, e_i, new_ch, scope, has_array_vec, has_variadic, has_kwargs)
     }
 
@@ -4351,7 +4351,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
     // Lower bound: each old stmt lands in new_ch (some expand to more).
     mut new_ch := Vec(Expr).with_capacity(old.len())
     for i in 0..old.len() {
-        ref stmt : Expr = old[i]
+        ref mut stmt : Expr = old[i]
 
         // (1) Top-level desugar: may emit N replacement stmts. Each
         // emitted stmt can itself contain variadic/kwargs fcalls or
@@ -4380,7 +4380,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
 
         if stmt_handled {
             for j in 0..temp_ch.len() {
-                ref ts : Expr = temp_ch[j]
+                ref mut ts : Expr = temp_ch[j]
                 apply_call_hoist_delete(ctx, ts, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete)
                 new_ch.push_take(temp_ch, j)
             }
@@ -4438,7 +4438,7 @@ priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_c
         mut emitted := Vec(Expr).new()
         process_call_desugars(ctx, stmt, emitted, scope, has_array_vec, has_variadic, has_kwargs)
         for j in 0..emitted.len() {
-            ref es : Expr = emitted[j]
+            ref mut es : Expr = emitted[j]
             if do_hoist { apply_hoist_to_stmt(ctx, es, new_ch, scope) }
             new_ch.push_take(emitted, j)
         }
@@ -4475,11 +4475,11 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
         if ab.is_mut.not() { return }
         if is_aggregate(ab.type).not() { return }
 
-        call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+        mut call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
         call.set_til_type(Type.None)
         fn := Expr.new(ident_node("swap_bytes"), stmt.line, stmt.col)
         call.add_child(own fn)
-        a := Expr.new(ident_node(stmt_name), stmt.line, stmt.col)
+        mut a := Expr.new(ident_node(stmt_name), stmt.line, stmt.col)
         a.set_til_type(ab.type)
         call.add_child(own a)
         call.add_child(own stmt.children[0].clone())
@@ -4562,7 +4562,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     if expr.node_type.is(NodeType.EnumDef) { return }
     if expr.node_type.is(NodeType.Body) { return }
 
-    for e_i : Expr in expr.children {
+    for mut e_i : Expr in expr.children {
         hoist_expr(ctx, e_i, hoisted, scope)
     }
     // An FCall in FieldAccess BASE position (`f().field`, and the
@@ -4751,7 +4751,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     }
 }
 
-priv hoist_decl_rhs := proc(mut ctx: Context, stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
+priv hoist_decl_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     hoist_expr(ctx, stmt.children[0], hoisted, scope)
 }
 
@@ -4860,29 +4860,17 @@ priv hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
 }
 
 priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_type: Str, vi: I32, vc: USize) {
-    switch fcall.node_type {
-    case .FCall(fcall_data):
-        old_own := fcall_data.own_args
-        line := fcall.line
-        col := fcall.col
-        mut old_args := fcall.children.take()
-        mut fcall_new_ch := Vec(Expr).new()
-        mut va_inserted := false
-        mut new_own : U64 = 0
-        for j in 0..old_args.len() {
-            if j.to_i32().gte(vi).and(j.to_i32().lt(vi + vc.to_i32())) {
-                if va_inserted.not() {
-                    mut va_id := Expr.new(ident_node(va_name), line, col)
-                    va_id.set_til_type(Type.Struct(array_type.clone()))
-                    mut bit : U64 = 1
-                    for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
-                    new_own = new_own.bor(bit)
-                    fcall_new_ch.push(own va_id)
-                    va_inserted = true
-                }
-                continue
-            }
-            if j.to_i32().eq(vi).and(va_inserted.not()) {
+    ref mut fcall_data : FCallData = fcall_of(fcall)
+    old_own := fcall_data.own_args
+    line := fcall.line
+    col := fcall.col
+    mut old_args := fcall.children.take()
+    mut fcall_new_ch := Vec(Expr).new()
+    mut va_inserted := false
+    mut new_own : U64 = 0
+    for j in 0..old_args.len() {
+        if j.to_i32().gte(vi).and(j.to_i32().lt(vi + vc.to_i32())) {
+            if va_inserted.not() {
                 mut va_id := Expr.new(ident_node(va_name), line, col)
                 va_id.set_til_type(Type.Struct(array_type.clone()))
                 mut bit : U64 = 1
@@ -4891,29 +4879,37 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
                 fcall_new_ch.push(own va_id)
                 va_inserted = true
             }
-            // Transfer own bit from old position j to new position
-            mut old_bit : U64 = 1
-            for _ in 0..j { old_bit = old_bit * 2 }
-            if old_own.band(old_bit) > 0 {
-                mut nb : U64 = 1
-                for _ in 0..fcall_new_ch.len() { nb = nb * 2 }
-                new_own = new_own.bor(nb)
-            }
-            fcall_new_ch.push_take(old_args, j)
+            continue
         }
-        if va_inserted.not() {
+        if j.to_i32().eq(vi).and(va_inserted.not()) {
             mut va_id := Expr.new(ident_node(va_name), line, col)
             va_id.set_til_type(Type.Struct(array_type.clone()))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
             new_own = new_own.bor(bit)
             fcall_new_ch.push(own va_id)
+            va_inserted = true
         }
-        fcall.children.move_from(own fcall_new_ch)
-        fcall_data.own_args = new_own
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
+        // Transfer own bit from old position j to new position
+        mut old_bit : U64 = 1
+        for _ in 0..j { old_bit = old_bit * 2 }
+        if old_own.band(old_bit) > 0 {
+            mut nb : U64 = 1
+            for _ in 0..fcall_new_ch.len() { nb = nb * 2 }
+            new_own = new_own.bor(nb)
+        }
+        fcall_new_ch.push_take(old_args, j)
     }
+    if va_inserted.not() {
+        mut va_id := Expr.new(ident_node(va_name), line, col)
+        va_id.set_til_type(Type.Struct(array_type.clone()))
+        mut bit : U64 = 1
+        for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
+        new_own = new_own.bor(bit)
+        fcall_new_ch.push(own va_id)
+    }
+    fcall.children.move_from(own fcall_new_ch)
+    fcall_data.own_args = new_own
 }
 
 // A stmt can contain BOTH a variadic fcall and a kwargs fcall (rare,
@@ -5030,7 +5026,7 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
 priv build_collection_alias_decl := func(src: Expr, type_name: Str, name: Str,
         is_mut: Bool, own rhs: Expr) returns Expr {
     mut decl := Expr.new(NodeType.Decl(Declaration()), src.line, src.col)
-    ref dd : Declaration = decl_of(decl)
+    ref mut dd : Declaration = decl_of(decl)
     dd.name = name.clone()
     dd.own_type = OwnType.Own
     dd.is_mut = is_mut
@@ -5152,62 +5148,45 @@ priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
 }
 
 priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, vi: I32, vc: USize) returns Bool {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        if vc.eq(1).not() { return false }
-        if fcd.is_splat.not() { return false }
+    ref mut fcd : FCallData = fcall_of(fcall)
+    if vc.eq(1).not() { return false }
+    if fcd.is_splat.not() { return false }
 
-        mut old_args := fcall.children.take()
+    mut old_args := fcall.children.take()
 
-        ref splat_in : Expr = old_args[vi.to_usize()]
-        mut splat := splat_in.clone()
-        fcd.is_splat = false
-        if splat_in.node_type.is(NodeType.Ident) {
-            splat = make_clone_call(array_type, Type.Struct(array_type.clone()), splat_in, splat_in)
-        }
-        mut fcall_new_ch := Vec(Expr).new()
-        for j in 0..old_args.len() {
-            ji := j.to_i32()
-            if ji == vi {
-                fcall_new_ch.push(own splat)
-            } else {
-                fcall_new_ch.push_take(old_args, j)
-            }
-        }
-        fcall.children.move_from(own fcall_new_ch)
-        set_own_arg(fcall, vi.to_usize())
-        return true
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-        return false
+    ref splat_in : Expr = old_args[vi.to_usize()]
+    mut splat := splat_in.clone()
+    fcd.is_splat = false
+    if splat_in.node_type.is(NodeType.Ident) {
+        splat = make_clone_call(array_type, Type.Struct(array_type.clone()), splat_in, splat_in)
     }
+    mut fcall_new_ch := Vec(Expr).new()
+    for j in 0..old_args.len() {
+        ji := j.to_i32()
+        if ji == vi {
+            fcall_new_ch.push(own splat)
+        } else {
+            fcall_new_ch.push_take(old_args, j)
+        }
+    }
+    fcall.children.move_from(own fcall_new_ch)
+    set_own_arg(fcall, vi.to_usize())
+    return true
 }
 
 priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
-    switch fcall.node_type {
-    case .FCall(fcd):
-        kc := fcall_kwargs_count(fcall)
-        old_own := fcd.own_args
-        mut old_args := fcall.children.take()
-        mut fcall_new_ch := Vec(Expr).new()
-        mut kw_inserted := false
-        mut new_own : U64 = 0
+    ref mut fcd : FCallData = fcall_of(fcall)
+    kc := fcall_kwargs_count(fcall)
+    old_own := fcd.own_args
+    mut old_args := fcall.children.take()
+    mut fcall_new_ch := Vec(Expr).new()
+    mut kw_inserted := false
+    mut new_own : U64 = 0
 
-        for j in 0..old_args.len() {
-            ji := j.to_i32()
-            if ji.gte(ki).and(ji.lt(ki + kc.to_i32())) {
-                if kw_inserted.not() {
-                    mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
-                    kw_id.set_til_type(Type.Struct("KwargsMap"))
-                    mut bit : U64 = 1
-                    for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
-                    new_own = new_own.bor(bit)
-                    fcall_new_ch.push(own kw_id)
-                    kw_inserted = true
-                }
-                continue
-            }
-            if ji.eq(ki).and(kw_inserted.not()) {
+    for j in 0..old_args.len() {
+        ji := j.to_i32()
+        if ji.gte(ki).and(ji.lt(ki + kc.to_i32())) {
+            if kw_inserted.not() {
                 mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
                 kw_id.set_til_type(Type.Struct("KwargsMap"))
                 mut bit : U64 = 1
@@ -5216,30 +5195,38 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
                 fcall_new_ch.push(own kw_id)
                 kw_inserted = true
             }
-            // Transfer own bit from old position j to new position
-            mut old_bit : U64 = 1
-            for _ in 0..j { old_bit = old_bit * 2 }
-            if old_own.band(old_bit) > 0 {
-                mut nb : U64 = 1
-                for _ in 0..fcall_new_ch.len() { nb = nb * 2 }
-                new_own = new_own.bor(nb)
-            }
-            fcall_new_ch.push_take(old_args, j)
+            continue
         }
-        if kw_inserted.not() {
+        if ji.eq(ki).and(kw_inserted.not()) {
             mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
             kw_id.set_til_type(Type.Struct("KwargsMap"))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
             new_own = new_own.bor(bit)
             fcall_new_ch.push(own kw_id)
+            kw_inserted = true
         }
-
-        fcall.children.move_from(own fcall_new_ch)
-        fcd.own_args = new_own
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
+        // Transfer own bit from old position j to new position
+        mut old_bit : U64 = 1
+        for _ in 0..j { old_bit = old_bit * 2 }
+        if old_own.band(old_bit) > 0 {
+            mut nb : U64 = 1
+            for _ in 0..fcall_new_ch.len() { nb = nb * 2 }
+            new_own = new_own.bor(nb)
+        }
+        fcall_new_ch.push_take(old_args, j)
     }
+    if kw_inserted.not() {
+        mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
+        kw_id.set_til_type(Type.Struct("KwargsMap"))
+        mut bit : U64 = 1
+        for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
+        new_own = new_own.bor(bit)
+        fcall_new_ch.push(own kw_id)
+    }
+
+    fcall.children.move_from(own fcall_new_ch)
+    fcd.own_args = new_own
 }
 
 priv field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
@@ -5302,7 +5289,7 @@ priv finish_hoist_temp := func(mut ctx: Context, own decl: Expr, mut hoisted: Ve
     ident.set_til_type(val.til_type())
     scope.set(tname, val.til_type(), false, ctx.path, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname).unwrap()
-    ref dd : Declaration = decl_of(decl)
+    ref mut dd : Declaration = decl_of(decl)
     dd.name = tname.clone()
     dd.is_mut = false
     if val_is_ref {

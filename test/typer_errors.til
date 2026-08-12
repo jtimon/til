@@ -1055,3 +1055,75 @@ not_callable_struct_result := not_callable_struct(5)
 
 not_callable_str := "hi"
 not_callable_str_result := not_callable_str(5)
+
+// #344: a write must land in storage the writer may change. A plain
+// parameter is a READ-ONLY borrow of the caller's value (doc/qualifiers.org
+// "Arguments"), so writing through one was never a legal program -- the
+// typer just accepted it, and the two backends then disagreed about what
+// it meant: interpreted the caller's local changed, compiled the write
+// landed in a copy and vanished. Rejected at the write now, in every form
+// that used to launder it.
+
+// Probe 1: the direct write through a non-mut parameter.
+Terr344Flat := struct { n := 0 }
+terr344_poke := func(f: Terr344Flat) {
+    f.n = f.n + 1
+}
+
+// The same write reached through an accessor's returned `ref`. The borrow
+// carries provenance now, so the write is credited to `o` -- and rejected
+// for the same reason the direct one is.
+Terr344Inner := struct { n := 0 }
+Terr344Outer := struct { inner := Terr344Inner() }
+terr344_inner_of := func(o: Terr344Outer) returns ref Terr344Inner {
+    return o.inner
+}
+terr344_bump := func(o: Terr344Outer) {
+    ref mut i : Terr344Inner = terr344_inner_of(o)
+    i.n = i.n + 1
+}
+
+// Wrapping the borrow in an Option payload and unwrapping it in a switch
+// does not launder it either: the case binding inherits the scrutinee's
+// roots.
+terr344_maybe := func(o: Terr344Outer) returns Option(ref Terr344Inner) {
+    return Option(ref Terr344Inner).Some(o.inner)
+}
+terr344_bump_payload := func(o: Terr344Outer) {
+    switch terr344_maybe(o) {
+    case .Some(got):
+        got.n = got.n + 1
+    case .None:
+    }
+}
+
+// An immutable argument handed to a `mut` parameter, plainly and through a
+// method receiver: the callee's signature says it writes, the caller's
+// binding says it may not be written.
+terr344_takes_mut := func(mut f: Terr344Flat) {
+    f.n = 0
+}
+terr344_pass_immutable := func(f: Terr344Flat) {
+    terr344_takes_mut(f)
+}
+terr344_pass_immutable_local := func() returns I64 {
+    local := Terr344Flat()
+    terr344_takes_mut(local)
+    return local.n
+}
+Terr344Box := struct {
+    n := 0
+namespace:
+    bump := func(mut self: Terr344Box) { self.n = self.n + 1 }
+}
+terr344_immutable_receiver := func(b: Terr344Box) {
+    b.bump()
+}
+
+// `for mut x in coll` mutates the collection's elements through the
+// element ref, so an immutable collection cannot supply them.
+terr344_for_mut_immutable := func(v: Vec(Terr344Flat)) {
+    for mut e : Terr344Flat in v {
+        e.n = 0
+    }
+}

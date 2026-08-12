@@ -656,9 +656,9 @@ priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, 
 // solve. Bucket contents keep the same order (both fills visit
 // predecessors in increasing block id), so the fixpoint meets in the
 // same sequence.
-priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), pred_off: Array(USize), mut preds: Vec(USize)) {
+priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), mut preds: Vec(USize)) {
     n := blocks.len()
-    counts := Array(USize).new(n)
+    mut counts := Array(USize).new(n)
     for i in 0..n { counts[i] = 0 }
     for p in 0..n {
         ref pb : GcCfgBlock = blocks[p]
@@ -686,7 +686,7 @@ priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), pred_off: Array(USize), mut 
         preds.cap = acc
     }
     preds.count = acc
-    cursor := Array(USize).new(n)
+    mut cursor := Array(USize).new(n)
     for bi in 0..n {
         ref pb2 : USize = pred_off[bi]
         cursor[bi] = pb2.add(0)
@@ -707,7 +707,7 @@ priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), pred_off: Array(USize), mut 
 // The sweep itself, over precomputed predecessors and per-block
 // transfer functions. Split out so a caller solving MANY locals over
 // one body pays for the graph once (gc_flow_stmt_table).
-priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize), kill: Array(U8), entry_state: U8, ins: Array(U8), outs: Array(U8)) {
+priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize), kill: Array(U8), entry_state: U8, mut ins: Array(U8), mut outs: Array(U8)) {
     for i in 0..n {
         ins[i] = FLOW_UNREACHED
         outs[i] = FLOW_UNREACHED
@@ -741,11 +741,11 @@ priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize
     }
 }
 
-priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, ins: Array(U8), outs: Array(U8)) {
+priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, mut ins: Array(U8), mut outs: Array(U8)) {
     n := blocks.len()
-    kill := Array(U8).new(n)
+    mut kill := Array(U8).new(n)
     for i in 0..n { kill[i] = gc_flow_block_kill(blocks, i, name, scope, ctx) }
-    pred_off := Array(USize).new(n.add(1))
+    mut pred_off := Array(USize).new(n.add(1))
     mut preds := Vec(USize).new()
     gc_flow_preds(blocks, pred_off, preds)
     gc_flow_fixpoint(n, pred_off, preds, kill, entry_state, ins, outs)
@@ -772,7 +772,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
     // predecessor map and a name sweep per recursion level.
     if has_exit.not() { return Array(U8).new(0) }
     stmts := body.children.len()
-    table := Array(U8).new(locals.len().mul(stmts))
+    mut table := Array(U8).new(locals.len().mul(stmts))
     for t in 0..locals.len().mul(stmts) { table[t] = FLOW_UNREACHED }
     // No binding here can ever leave Owned, so no graph is needed: each
     // row is Uninit up to its Decl and Owned after, in closed form.
@@ -838,16 +838,16 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
     mut blocks := Vec(GcCfgBlock).new()
     cfg_build(blocks, body)
     n := blocks.len()
-    pred_off := Array(USize).new(n.add(1))
+    mut pred_off := Array(USize).new(n.add(1))
     mut preds := Vec(USize).new()
     gc_flow_preds(blocks, pred_off, preds)
-    kill := Array(U8).new(n)
-    ins := Array(U8).new(n)
-    outs := Array(U8).new(n)
+    mut kill := Array(U8).new(n)
+    mut ins := Array(U8).new(n)
+    mut outs := Array(U8).new(n)
     // Reachability is name-independent, so solve it once with the
     // identity transfer everywhere; the untransferred bindings ride it
     // instead of each running their own fixpoint.
-    reachable := Array(Bool).new(stmts)
+    mut reachable := Array(Bool).new(stmts)
     for s in 0..stmts { reachable[s] = false }
     for bi in 0..n { kill[bi] = FLOW_ID }
     gc_flow_fixpoint(n, pred_off, preds, kill, FLOW_OWNED, ins, outs)
@@ -937,8 +937,8 @@ priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScop
     cfg_build(blocks, body)
     mut entry := FLOW_UNINIT
     if local.decl_index < 0 { entry = FLOW_OWNED }
-    ins := Array(U8).new(blocks.len())
-    outs := Array(U8).new(blocks.len())
+    mut ins := Array(U8).new(blocks.len())
+    mut outs := Array(U8).new(blocks.len())
     gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
     mut may_owned := false
     mut may_moved := false
@@ -969,8 +969,8 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
     cfg_build(blocks, body)
     mut entry := FLOW_UNINIT
     if local.decl_index < 0 { entry = FLOW_OWNED }
-    ins := Array(U8).new(blocks.len())
-    outs := Array(U8).new(blocks.len())
+    mut ins := Array(U8).new(blocks.len())
+    mut outs := Array(U8).new(blocks.len())
     gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
     for bi in 0..blocks.len() {
         ref b : GcCfgBlock = blocks[bi]
@@ -1007,8 +1007,8 @@ priv gc_flow_dump := proc(ctx: Context, blocks: Vec(GcCfgBlock), locals: Vec(Loc
         if gc_audit_local_is_noise(local) { continue }
         mut entry := FLOW_UNINIT
         if local.decl_index < 0 { entry = FLOW_OWNED }
-        ins := Array(U8).new(blocks.len())
-        outs := Array(U8).new(blocks.len())
+        mut ins := Array(U8).new(blocks.len())
+        mut outs := Array(U8).new(blocks.len())
         gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
         mut ss := ""
         for j in 0..blocks.len() {
@@ -1823,7 +1823,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
     return edges
 }
 
-priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), locals: Vec(LocalInfo)) {
+priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(LocalInfo)) {
     mut changed := true
     while changed {
         changed = false
@@ -1836,7 +1836,7 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), locals: Vec(LocalI
                     }
                 }
             }
-            for local : LocalInfo in locals {
+            for mut local : LocalInfo in locals {
                 if local.name.eq(e.owner).and(local.last_use.lt(reach)) {
                     local.last_use = reach
                     changed = true
@@ -1846,7 +1846,7 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), locals: Vec(LocalI
     }
 }
 
-priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex) {
+priv extend_ref_local_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex) {
     edges := collect_borrow_edges(body, scope, facts, fi)
     propagate_borrow_edges(edges, locals)
 }
@@ -1869,7 +1869,7 @@ priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scop
 // such temp. Deferring an owned local's delete is always memory-safe, so the
 // (slightly over-eager) transitive taint -- which also follows clone results
 // that no longer alias the buffer -- only pushes the delete a touch later.
-priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo), facts: BodyFacts, fi: FactIndex) {
+priv extend_hoist_view_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo), facts: BodyFacts, fi: FactIndex) {
     // #302 stage 3: the taint rule expressed as borrow edges on the
     // same machinery as rules 1-3 (collect_borrow_edges). Discovery is
     // unchanged (collect_hoist_taint's transitive initializer-read
@@ -1977,7 +1977,7 @@ priv expr_reassigns_var := func(e: Expr, name: Str) returns Bool {
     return false
 }
 
-priv check_use_after_own_transfer := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
+priv check_use_after_own_transfer := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) {
     for mut local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             // #302 stage 3: path-sensitive. When every path reaching the
@@ -2049,7 +2049,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
 
     mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
-        ref stmt : Expr = old[i]
+        ref mut stmt : Expr = old[i]
         if is_compile_directive(stmt) { continue }
         if stmt.node_type.is(NodeType.If) {
             for c in 1..stmt.children.len() {
@@ -2127,7 +2127,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     body.children.move_from(own new_ch)
 }
 
-priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, scope: TypeScope, ctx: Context) {
+priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, scope: TypeScope, ctx: Context) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() {
@@ -2257,7 +2257,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
     }
 }
 
-priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
+priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -2520,10 +2520,10 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
     }
 }
 
-priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec(LocalInfo)) {
-    for local : LocalInfo in locals {
+priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals: Vec(LocalInfo)) {
+    for mut local : LocalInfo in locals {
         if local.decl_index < 0 { continue }
-        ref stmt : Expr = body.children[local.decl_index.to_usize()]
+        ref mut stmt : Expr = body.children[local.decl_index.to_usize()]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         // Skip LiteralStr-RHS decls (temp or user-visible): the builder
         // emits these as stack-allocated compound-literal Str values, so
@@ -2749,7 +2749,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // the local, which IS the Mixed verdict -- computed per path
         // instead of by statement order.
         if gc_flow_exit_is_mixed(body, local, scope, ctx).not() { continue }
-        ref tstmt : Expr = body.children[local.own_transfer.to_usize()]
+        ref mut tstmt : Expr = body.children[local.own_transfer.to_usize()]
         if tstmt.node_type.is(NodeType.If).or(tstmt.node_type.is(NodeType.Switch)) {
             sink_nontransfer_paths(tstmt, local, scope, ctx)
             grafted = true
@@ -2794,10 +2794,10 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
 // of their own. The builder's transition asserts (emit_stmt_decl)
 // compare their re-derived twin shape checks against this record and
 // panic loudly on disagreement.
-priv record_storage_decisions := func(body: Expr, locals: Vec(LocalInfo)) {
+priv record_storage_decisions := func(mut body: Expr, locals: Vec(LocalInfo)) {
     for local : LocalInfo in locals {
         if local.decl_index < 0 { continue }
-        ref stmt : Expr = body.children[local.decl_index.to_usize()]
+        ref mut stmt : Expr = body.children[local.decl_index.to_usize()]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         switch stmt.node_type {
         case .Decl(dd):
@@ -2814,8 +2814,8 @@ priv record_storage_decisions := func(body: Expr, locals: Vec(LocalInfo)) {
 
 // Stamp whether each field assignment consumes its RHS. The interpreter
 // cannot recover this from an Ident after the typer hoists an owning call.
-priv record_field_transfer_decisions := func(body: Expr, scope: TypeScope) {
-    for stmt : Expr in body.children {
+priv record_field_transfer_decisions := func(mut body: Expr, scope: TypeScope) {
+    for mut stmt : Expr in body.children {
         switch stmt.node_type {
         case .FieldAssign(fad):
             fad.transfers_own = stmt.fa_own_type(scope).is(OwnType.Own)
@@ -2850,7 +2850,7 @@ priv record_keep_outer_args_expr := proc(mut e: Expr, false_names: Set(Str)) {
 }
 
 priv record_keep_outer_args := proc(mut body: Expr) {
-    false_names := Set(Str).new()
+    mut false_names := Set(Str).new()
     for stmt : Expr in body.children {
         switch stmt.node_type {
         case .Decl(dd):
@@ -2994,7 +2994,7 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
     }
 }
 
-priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
+priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_none()
 
@@ -3095,7 +3095,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
 
     mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
-        ref stmt : Expr = old[i]
+        ref mut stmt : Expr = old[i]
         if is_compile_directive(stmt) { continue }
         insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
@@ -3122,7 +3122,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
 // deletes cover them). Returns true iff body.children changed, so the
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
-garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
+garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
     return insert_free_calls(ctx, body, scope, 1)
 }
 
@@ -3145,7 +3145,7 @@ garbager_destroy := proc(mut ctx: Context) {
     saved_path := ctx.path.clone()
     saved_in_shallow := ctx.typer_in_shallow_return
     ctx.typer_in_shallow_return = false
-    for path, iu in ctx.imported {
+    for path, mut iu in ctx.imported {
         ctx.path = path.clone()
         insert_free_calls(ctx, iu.ast, ctx.scope, 1)
     }

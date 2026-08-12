@@ -3,7 +3,7 @@ mode test
 import("../src/std/dyn_set")
 
 test_i64_set := test() {
-    s := DynSet.new(I64)
+    mut s := DynSet.new(I64)
     s.add(own 3)
     s.add(own 1)
     s.add(own 2)
@@ -19,7 +19,7 @@ test_i64_set := test() {
 }
 
 test_str_set := test() {
-    ss := DynSet.new(Str)
+    mut ss := DynSet.new(Str)
     ss.add(own "banana")
     ss.add(own "apple")
     ss.add(own "cherry")

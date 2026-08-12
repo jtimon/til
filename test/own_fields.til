@@ -38,7 +38,7 @@ test_own_field_clone := test() {
 
 # Test 4: field assignment through own field
 test_own_field_nested_assign := test() {
-    line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    mut line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     line.start.x = 10
     assert_eq(I64, line.start.x, 10)
     assert_eq(I64, line.start.y, 2)
@@ -46,7 +46,7 @@ test_own_field_nested_assign := test() {
 
 # Test 5: own field replacement
 test_own_field_replace := test() {
-    line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    mut line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     line.start = Point(x=100, y=200)
     assert_eq(I64, line.start.x, 100)
     assert_eq(I64, line.start.y, 200)
@@ -54,7 +54,7 @@ test_own_field_replace := test() {
 
 # Test 6: clone independence
 test_own_field_clone_independence := test() {
-    line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    mut line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     line2 := line.clone()
     line.start.x = 99
     assert_eq(I64, line2.start.x, 1)

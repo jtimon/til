@@ -2,11 +2,11 @@ mode gui
 
 import("../src/std/sys")
 
-push_line := func(lines: Vec(Str), text: Str) {
+push_line := func(mut lines: Vec(Str), text: Str) {
     lines.push(own text.clone())
 }
 
-push_output := func(lines: Vec(Str), output: Str) {
+push_output := func(mut lines: Vec(Str), output: Str) {
     if output.len() == 0 {
         push_line(lines, "")
         return
@@ -17,7 +17,7 @@ push_output := func(lines: Vec(Str), output: Str) {
     }
 }
 
-run_shell_command := proc(lines: Vec(Str), cmd: Str) {
+run_shell_command := proc(mut lines: Vec(Str), cmd: Str) {
     push_line(lines, format("$ ", cmd))
 
     if cmd == "help" {

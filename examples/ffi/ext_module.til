@@ -59,7 +59,7 @@ test_instantiation := func() {
 }
 
 test_field_mutation := func() {
-    p := Pair(a=1, b=2)
+    mut p := Pair(a=1, b=2)
     p.a = 10
     assert_eq(I64, p.a, 10)
     assert_eq(I64, p.b, 2)
@@ -92,7 +92,7 @@ test_mixed_methods := func() {
 
 test_clone := func() {
     p := Pair(a=3, b=7)
-    q := p.clone()
+    mut q := p.clone()
     assert_eq(I64, q.a, 3)
     assert_eq(I64, q.b, 7)
     q.a = 99

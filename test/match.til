@@ -173,7 +173,7 @@ pos_or_throw := func(x: I64) returns I64 throws MatchArmErr {
 }
 
 test_match_arm_throwing_calls := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     # subscript get! in an arm, guarded by the (false) scrutinee -> no OOB
     a := match v.len().gt(0) { case true: v[0].gt(0) case: false }
     expect(a.not(), "subscript arm short-circuited")
@@ -200,7 +200,7 @@ test_match_arm_propagates := test() {
 # throw/catch lowering it runs on each arm body, so depth is handled. The outer
 # guard means the inner subscript only runs when both arms are taken.
 test_nested_match_arm_throwing := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     a := match v.len().gt(0) {
         case true: match true { case true: v[0].gt(0) case: false }
         case: false

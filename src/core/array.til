@@ -43,7 +43,7 @@ namespace:
     /// Overwrite the element at index `i` without a bounds check, dropping
     /// the old value. Caller guarantees `i < self.cap`; the write-side
     /// mirror of unsafe_get (issue #284).
-    unsafe_set := func(self: Array(T), i: USize, own val: T) {
+    unsafe_set := func(mut self: Array(T), i: USize, own val: T) {
         T.delete(own self.unsafe_get(i), false)
         adopt(T, self.unsafe_get(i), own val)
     }
@@ -51,7 +51,7 @@ namespace:
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    set := func(self: Array(T), i: USize, own val: T) throws OutOfBounds {
+    set := func(mut self: Array(T), i: USize, own val: T) throws OutOfBounds {
         if i >= self.cap {
             throw OutOfBounds()
         }

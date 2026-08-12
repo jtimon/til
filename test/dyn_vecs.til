@@ -3,7 +3,7 @@ mode test
 import("../src/std/dyn_vec")
 
 test_dyn_vec_push_get := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     v.push(own 42)
     v.push(own 99)
     v.push(own 7)
@@ -19,7 +19,7 @@ test_dyn_vec_push_get := test() {
 }
 
 test_dyn_vec_grow := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     // default cap is 4, push 8 to force growth
     v.push(own 1)
     v.push(own 2)
@@ -38,7 +38,7 @@ test_dyn_vec_grow := test() {
 }
 
 test_dyn_vec_strings := test() {
-    v := DynVec.new(Str)
+    mut v := DynVec.new(Str)
     v.push(own "hello")
     v.push(own "world")
 
@@ -51,7 +51,7 @@ test_dyn_vec_strings := test() {
 }
 
 test_dyn_vec_set := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -72,7 +72,7 @@ test_dyn_vec_set := test() {
 }
 
 test_dyn_vec_set_str := test() {
-    v := DynVec.new(Str)
+    mut v := DynVec.new(Str)
     v.push(own "aaa")
     v.push(own "bbb")
 
@@ -86,7 +86,7 @@ test_dyn_vec_set_str := test() {
 // Issue #225 (Dyn* follow-up): subscript assignment now works on
 // DynVec too -- `v[i] = x` -> `v.set(i, own x)!`.
 test_dyn_vec_subscript_assign := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -104,7 +104,7 @@ test_dyn_vec_subscript_assign := test() {
 // OOB set throws; the bang form panics, the `?` form catches. Str
 // element so the owned value's throw-path cleanup runs under ASAN.
 test_dyn_vec_subscript_assign_oob := test() {
-    v := DynVec.new(Str)
+    mut v := DynVec.new(Str)
     v.push(own "a")
     mut caught := false
     v.set(5, own "unstored")?
@@ -115,7 +115,7 @@ test_dyn_vec_subscript_assign_oob := test() {
 }
 
 test_dyn_vec_get_oob := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     v.push(own 10)
     v.push(own 20)
     mut caught := false
@@ -138,7 +138,7 @@ test_dyn_vec_size := test() {
 }
 
 test_dyn_vec_dynamic := test() {
-    v := DynVec.new(Dynamic)
+    mut v := DynVec.new(Dynamic)
     // Use pointer-sized allocs so FFI DynVec.push reads valid memory.
     // Fill each with a distinct non-zero sentinel so the post-push
     // is(a, b) check verifies stored bytes really differ (ASAN's
@@ -160,7 +160,7 @@ test_dyn_vec_dynamic := test() {
 }
 
 test_dyn_vec_pop := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     v.push(own 11)
     v.push(own 22)
     v.push(own 33)
@@ -183,7 +183,7 @@ test_dyn_vec_pop := test() {
 }
 
 test_dyn_vec_take_prefix := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -206,7 +206,7 @@ test_dyn_vec_take_prefix := test() {
 }
 
 test_dyn_vec_take_prefix_str := test() {
-    v := DynVec.new(Str)
+    mut v := DynVec.new(Str)
     v.push(own "aa")
     v.push(own "bb")
     v.push(own "cc")
@@ -226,8 +226,8 @@ test_dyn_vec_take_prefix_str := test() {
 }
 
 test_dyn_vec_append := test() {
-    a := DynVec.new(I64)
-    b := DynVec.new(I64)
+    mut a := DynVec.new(I64)
+    mut b := DynVec.new(I64)
     a.push(own 1)
     a.push(own 2)
     b.push(own 3)
@@ -247,8 +247,8 @@ test_dyn_vec_append := test() {
 }
 
 test_dyn_vec_append_str := test() {
-    a := DynVec.new(Str)
-    b := DynVec.new(Str)
+    mut a := DynVec.new(Str)
+    mut b := DynVec.new(Str)
     a.push(own "aa")
     b.push(own "bb")
     b.push(own "cc")
@@ -265,13 +265,13 @@ test_dyn_vec_append_str := test() {
 }
 
 test_dyn_vec_take_prefix_append_roundtrip := test() {
-    v := DynVec.new(I64)
+    mut v := DynVec.new(I64)
     v.push(own 5)
     v.push(own 6)
     v.push(own 7)
     v.push(own 8)
 
-    prefix := v.take_prefix(2)
+    mut prefix := v.take_prefix(2)
     prefix.append(own v)
 
     assert_eq(USize, prefix.len(), 4)

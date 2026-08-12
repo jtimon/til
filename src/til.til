@@ -540,7 +540,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 ref committed_lp : LoadedProgram = to_ptr(committed_raw)
                 run_lp = repl_clone_loaded_program(committed_lp)
             }
-            run_raw : Dynamic = interp_program_to_heap(own run_lp)
+            mut run_raw : Dynamic = interp_program_to_heap(own run_lp)
             ref mut run_heap : LoadedProgram = to_ptr(run_raw)
             stdio_capture_begin(out_path)
             mut run_errs : I32 = 0
@@ -561,7 +561,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 mut delta_parse_errs : I32 = 0
                 mut delta := repl_delta_from_source(tmp_path, delta_source, trial_counter, delta_parse_errs)
                 ref run_root : ProgramUnit = run_heap.units[run_heap.units.len() - 1]
-                ref run_iu : ImportUnit = run_heap.ctx.imported[run_root.path]
+                ref mut run_iu : ImportUnit = run_heap.ctx.imported[run_root.path]
                 run_errs = delta_parse_errs
                 if run_errs == 0 { run_errs = repl_type_delta_program(run_heap, delta) }
                 if run_errs == 0 {
@@ -612,7 +612,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 ref committed_lp2 : LoadedProgram = to_ptr(committed_raw)
                 typed_lp = repl_clone_loaded_program(committed_lp2)
             }
-            typed_raw : Dynamic = interp_program_to_heap(own typed_lp)
+            mut typed_raw : Dynamic = interp_program_to_heap(own typed_lp)
             ref mut typed_heap : LoadedProgram = to_ptr(typed_raw)
             mut typer_errs : I32 = 0
             mut typed_tail_start : USize = 0
@@ -629,7 +629,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 mut delta2_parse_errs : I32 = 0
                 mut delta2 := repl_delta_from_source(tmp_path, delta_source2, trial_counter2, delta2_parse_errs)
                 ref typed_root : ProgramUnit = typed_heap.units[typed_heap.units.len() - 1]
-                ref typed_iu : ImportUnit = typed_heap.ctx.imported[typed_root.path]
+                ref mut typed_iu : ImportUnit = typed_heap.ctx.imported[typed_root.path]
                 typer_errs = delta2_parse_errs
                 if typer_errs == 0 { typer_errs = repl_type_delta_program(typed_heap, delta2) }
                 if typer_errs == 0 {

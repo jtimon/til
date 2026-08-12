@@ -803,7 +803,7 @@ test_lazy_proc_runs_when_needed := test() {
 #     panic with OutOfBounds. ---
 
 test_and_or_throwing_arg_short_circuits := test() {
-    v := Vec(I64).new()
+    mut v := Vec(I64).new()
     # guard is false / true-on-the-left: v[0] must NOT be evaluated (no OOB)
     expect(v.len().gt(0).and(v[0].gt(0)).not(), "and: empty guarded")
     expect(v.len().eq(0).or(v[0].gt(0)), "or: empty guarded")

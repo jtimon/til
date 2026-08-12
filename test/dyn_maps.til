@@ -3,7 +3,7 @@ mode test
 import("../src/std/dyn_map")
 
 test_i64_map := test() {
-    m := DynMap.new(I64, I64)
+    mut m := DynMap.new(I64, I64)
     m.set(3, own 30)
     m.set(1, own 10)
     m.set(2, own 20)
@@ -28,7 +28,7 @@ test_i64_map := test() {
 }
 
 test_str_map := test() {
-    sm := DynMap.new(Str, I64)
+    mut sm := DynMap.new(Str, I64)
     sm.set("banana", own 2)
     sm.set("apple", own 1)
     sm.set("cherry", own 3)

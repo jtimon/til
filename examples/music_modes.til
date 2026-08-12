@@ -255,8 +255,8 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
 
 recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
                               note_count: USize,
-                              sc_chrom: Array(I32), sc_diat: Array(I32), sc_span: Array(I32),
-                              sc_acc: Array(I32), sc_freq: Array(I64), sc_triad: Array(U32)) {
+                              mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_span: Array(I32),
+                              mut sc_acc: Array(I32), mut sc_freq: Array(I64), mut sc_triad: Array(U32)) {
     root_chromatic := (NATURALS[sel_diatonic] + sel_accidental + SEVEN_CYCLE) % SEVEN_CYCLE
     mut chrom_total := root_chromatic
     mut diat_pos := sel_diatonic.to_i32()
@@ -410,12 +410,12 @@ main := proc() {
     fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, Option(ref I32).None, 0)
 
     // Scale result arrays. Once uses the first 8/6 slots; full span uses 15/16.
-    sc_chrom := Array(I32).new(MAX_SCALE_NOTES)
-    sc_diat := Array(I32).new(MAX_SCALE_NOTES)
-    sc_span := Array(I32).new(MAX_SCALE_NOTES)
-    sc_acc := Array(I32).new(MAX_SCALE_NOTES)
-    sc_freq := Array(I64).new(MAX_SCALE_NOTES)
-    sc_triad := Array(U32).new(SEVEN_NATURAL_COUNT)
+    mut sc_chrom := Array(I32).new(MAX_SCALE_NOTES)
+    mut sc_diat := Array(I32).new(MAX_SCALE_NOTES)
+    mut sc_span := Array(I32).new(MAX_SCALE_NOTES)
+    mut sc_acc := Array(I32).new(MAX_SCALE_NOTES)
+    mut sc_freq := Array(I64).new(MAX_SCALE_NOTES)
+    mut sc_triad := Array(U32).new(SEVEN_NATURAL_COUNT)
 
     // State. Default is 7 Greek modes.
     mut use_five := false

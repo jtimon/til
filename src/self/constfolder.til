@@ -32,7 +32,7 @@ priv known_scope := func(ctx: Context) returns ref Scope {
     }
 }
 
-priv constfolder_known_has := func(ctx: Context, name: Str) returns Bool {
+priv constfolder_known_has := func(mut ctx: Context, name: Str) returns Bool {
     return scope_lookup_heap_binding(known_scope(ctx), name).is_some()
 }
 
@@ -456,7 +456,7 @@ priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bo
     }
 }
 
-priv is_known := func(ctx: Context, e: Expr) returns Dynamic {
+priv is_known := func(mut ctx: Context, e: Expr) returns Dynamic {
     switch e.node_type {
     case .Literal(Literal.Num):
         return expr_to_known_raw(e, ctx)
@@ -502,7 +502,7 @@ priv func_sig_has_dynamic := func(fdef: Expr) returns Bool {
 }
 
 // Cheap is_known check that doesn't clone a raw block.
-priv is_known_check := func(ctx: Context, e: Expr) returns Bool {
+priv is_known_check := func(mut ctx: Context, e: Expr) returns Bool {
     switch e.node_type {
     case .Literal(Literal.Num):  return true
     case .Literal(Literal.Str):  return true
@@ -543,7 +543,7 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set(Str), ctx: Context) returns Bool {
+priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, mut constfolder_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set(Str), mut ctx: Context) returns Bool {
     switch e.node_type {
     case .FuncDef:
         return false
@@ -669,7 +669,7 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns Option(ref Expr)
 // pair via ns_get. Returns the first match's payload pointer or NULL.
 // Lets the fast path resolve a typer/builder-flattened namespace
 // callee like "Str_size" back to ns_get("Str", "size", ctx).
-priv ns_lookup_flat := func(name: Str, ctx: Context) returns Option(ref Dynamic) {
+priv ns_lookup_flat := func(name: Str, mut ctx: Context) returns Option(ref Dynamic) {
     n := name.len()
     for i in 1..n {
         ref b : I8 = name.unsafe_get(i)
@@ -689,7 +689,7 @@ priv ns_lookup_flat := func(name: Str, ctx: Context) returns Option(ref Dynamic)
 // to dispatch on. If recv is an Ident that names a struct/enum (e.g.
 // `Str.size`), use the Ident text. Otherwise fall back to recv.til_type()
 // so method calls on values (`x.add(y)` where x: I64) still resolve.
-priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
+priv fa_recv_type_name := func(callee: Expr, mut ctx: Context) returns Str {
     if callee.children.len() == 0 { return "" }
     ref recv : Expr = callee.children[0]
     switch recv.node_type {
@@ -704,7 +704,7 @@ priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
 
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
-priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Option(Expr) {
+priv try_fast_fold_call := func(mut scope: Scope, fcall: Expr, mut ctx: Context) returns Option(Expr) {
     if fcall.children.len().eq(1).not() { return Option(Expr).None }
     ref fc_callee : Expr = fcall.children[0]
     mut fc_fp : Dynamic = 0
@@ -746,7 +746,7 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
     return Option(Expr).Some(own lit_clone)
 }
 
-priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Context) returns Option(Expr) {
+priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, mut ctx: Context) returns Option(Expr) {
     fast_o := try_fast_fold_call(scope, fcall, ctx)
     if fast_o.is_some() { return fast_o }
 
@@ -864,7 +864,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                     // the substitution for those.
                     scoped_own_prim := raw_type_is_prim(hb_type(scoped_hb), ctx).and(scoped_hb.own_type.is(OwnType.Own))
                     if scoped_own_prim.not() {
-                        scoped_raw : Dynamic = scope_read_bound_raw(scope, arg_id.ident_name(), ctx)
+                        mut scoped_raw : Dynamic = scope_read_bound_raw(scope, arg_id.ident_name(), ctx)
                         scoped_is_ref := scoped_hb.own_type.is(OwnType.Ref)
                         mut scoped_value_raw : Dynamic = scoped_raw
                         if scoped_is_ref.and(raw_type_is_prim(hb_type(scoped_hb), ctx)) {
@@ -947,7 +947,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // set ctx.eval_aborted and unwind instead of printing+exiting the
     // build -- til's analogue of rstil precomp inspecting a throw result.
     ctx.constfold_active = true
-    result : Dynamic = eval_expr_raw(scope, ec, ctx)
+    mut result : Dynamic = eval_expr_raw(scope, ec, ctx)
     ctx.constfold_active = false
 
     // The eval reached a panic/abort with these comptime inputs. Don't bake a
@@ -996,7 +996,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     return Option(Expr).Some(own lit_local)
 }
 
-priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
+priv track_literal := func(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Context) {
     raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().not() {
         bt_w : Dynamic = interp_intern_type(rhs.til_type(), ctx)
@@ -1013,14 +1013,14 @@ priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
 // the entire compilation). Without this split, freeing known's payloads
 // during the FuncDef save/restore would dangle the shared scope binding
 // and corrupt the heap on the next interpreter lookup that touched it.
-priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
+priv track_literal_known_only := func(name: Str, rhs: Expr, mut ctx: Context) {
     raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().not() {
         scope_set_raw_owned(known_scope(ctx), name, raw, interp_intern_type(rhs.til_type(), ctx), known_bind_own_type(rhs.til_type(), ctx), ctx)
     }
 }
 
-is_macro_call := func(e: Expr, ctx: Context) returns Bool {
+is_macro_call := func(e: Expr, mut ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
@@ -1036,7 +1036,7 @@ is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     }
 }
 
-priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
+priv is_func_call := func(e: Expr, mut ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
@@ -1107,7 +1107,7 @@ priv va_name_in := func(names: Vec(Str), name: Str) returns Bool {
 // elements reference runtime values (e.g. a generated `Mode.to_str` doing
 // format(self.field, ...)), and eval_expr would raise "undefined variable
 // 'self'". This mirrors the all_comptime gate the wrapper-form fold uses.
-priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Context) returns Bool {
+priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, mut ctx: Context) returns Bool {
     mut k := decl_idx + 1
     while k < body.children.len() {
         ref s : Expr = body.children[k]
@@ -1127,7 +1127,7 @@ priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Contex
 // Bind every comptime-known ident (the typer's hoisted__ element/count temps)
 // referenced in `e` into the fold scope as typed raw clones. Types / other
 // idents are left.
-priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
+priv bind_known_idents_in := proc(mut scope: Scope, e: Expr, mut ctx: Context) {
     switch e.node_type {
     case .Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
@@ -1146,7 +1146,7 @@ priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
 // (unrelated hoisted temps for sibling args, etc.) is SKIPPED -- evaluating
 // e.g. `hoisted__Bool_N := c.eq(x)` would make
 // eval_expr resolve the runtime `c` and raise "undefined variable 'c'".
-priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ctx: Context) {
+priv interp_va_build_stmt := proc(mut scope: Scope, mut stmt: Expr, va: Str, ek: Str, mut ctx: Context) {
     switch stmt.node_type {
     case .Decl(dd):
         if dd.name.eq(va).or(dd.name.eq(ek)) {
@@ -1160,7 +1160,7 @@ priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ct
     case .FCall:
         if is_va_set(stmt, va) {
             bind_known_idents_in(scope, stmt, ctx)
-            result : Dynamic = eval_expr_raw(scope, stmt, ctx)
+            mut result : Dynamic = eval_expr_raw(scope, stmt, ctx)
             raw_result_drop(stmt.til_type(), result, false, ctx)
         }
     case:
@@ -1170,13 +1170,13 @@ priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ct
 // Materialise the variadic array `va` (its Array.new decl is body.children
 // [decl_idx]) into the fold scope by interpreting its build region. Returns
 // true on success; false if interpreting it aborts (non-comptime element).
-priv materialize_va := proc(scope: Scope, body: Expr, decl_idx: USize, va: Str, ctx: Context) returns Bool {
+priv materialize_va := proc(mut scope: Scope, mut body: Expr, decl_idx: USize, va: Str, mut ctx: Context) returns Bool {
     ek := format(va, "_ek")
     ctx.constfold_active = true
     ctx.eval_aborted = false
     mut k := decl_idx
     while k < body.children.len() {
-        ref s : Expr = body.children[k]
+        ref mut s : Expr = body.children[k]
         // Stop at the consumer: a statement using `va` that is not one of its
         // build statements (its Array.new decl or an Array.set on it).
         if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va).not()).and(is_va_array_decl(s).not()) {
@@ -1200,7 +1200,7 @@ priv materialize_va := proc(scope: Scope, body: Expr, decl_idx: USize, va: Str, 
 // greet("X", va_opts, _kw15) -- and eval_expr would hit the unbound runtime
 // var (`c`, `_kw15`). Mirrors the all_comptime gate fold_subtree uses; the va
 // arg is exempt because materialize_va already bound it in `scope`.
-priv va_consumer_args_ok := func(call: Expr, va: Str, ctx: Context) returns Bool {
+priv va_consumer_args_ok := func(call: Expr, va: Str, mut ctx: Context) returns Bool {
     for ai in 1..call.children.len() {
         ref a : Expr = call.children[ai]
         if is_known_check(ctx, a) { continue }
@@ -1216,10 +1216,10 @@ priv va_consumer_args_ok := func(call: Expr, va: Str, ctx: Context) returns Bool
 
 // Recursively fold a foldable variadic call consuming the materialised array
 // `va` (e.g. format(va)) into a baked literal.
-priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
+priv fold_va_calls := proc(mut scope: Scope, mut e: Expr, va: Str, mut ctx: Context) {
     for i in 0..e.children.len() {
         fold_va_calls(scope, e.children[i], va, ctx)
-        ref child : Expr = e.children[i]
+        ref mut child : Expr = e.children[i]
         if child.node_type.is(NodeType.FCall).and(is_func_call(child, ctx)).and(expr_uses_var_p(child, va, ctx)).and(va_consumer_args_ok(child, va, ctx)) {
             // Bind the consumer's other comptime-known args (e.g. a positional
             // arg's hoist like `hoisted__I64 := 100` in prefix_sum(100, va))
@@ -1228,7 +1228,7 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
             bind_known_idents_in(scope, child, ctx)
             ctx.constfold_active = true
             ctx.eval_aborted = false
-            result : Dynamic = eval_expr_raw(scope, child, ctx)
+            mut result : Dynamic = eval_expr_raw(scope, child, ctx)
             ctx.constfold_active = false
             aborted := ctx.eval_aborted
             ctx.eval_aborted = false
@@ -1353,9 +1353,9 @@ priv restamp_folded_decl_storage := func(mut e: Expr, i: USize, ctx: Context) {
     }
 }
 
-priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
+priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     for i in 0..e.children.len() {
-        ref child : Expr = e.children[i]
+        ref mut child : Expr = e.children[i]
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
@@ -1441,7 +1441,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 // temporary inputs to this fold, not globals. Keep them in a
                 // child scope so its cache-owned values can be reclaimed
                 // immediately after the consumer is folded.
-                va_scope := scope_new(Option(ref Scope).Some(scope))
+                mut va_scope := scope_new(Option(ref Scope).Some(scope))
                 if materialize_va(va_scope, e, m, vn, ctx) {
                     for k in 0..e.children.len() {
                         fold_va_calls(va_scope, e.children[k], vn, ctx)
@@ -1458,7 +1458,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     }
 }
 
-process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
+process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_global: Bool) {
     // Record every assignment target in the whole unit up front so the
     // scope-read fold in try_eval_call never treats a reassigned variable
     // (e.g. a mut loop counter) as a comptime constant. Only done at the
@@ -1472,11 +1472,11 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
     // is what lets a later fold's eval-time invocation of Str.delete
     // resolve CAP_VIEW (which lives in str.til as a top-level const).
     for i in 0..body.children.len() {
-        ref stmt : Expr = body.children[i]
+        ref mut stmt : Expr = body.children[i]
         fold_subtree(scope, stmt, ctx)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
-        ref rhs : Expr = stmt.children[0]
+        ref mut rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FuncDef) {
             // fold_subtree(stmt) above already descended into this
             // FuncDef -- its own FuncDef branch folds the body under a
@@ -1487,8 +1487,8 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
             // Namespace method bodies live in StructDef/EnumDef ns_decls,
             // not in the AST children tree -- walk them here.
-            ref pb_ns : Vec(Declaration) = def_ns_decls(rhs)
-            for nsd : Declaration in pb_ns {
+            ref mut pb_ns : Vec(Declaration) = def_ns_decls(rhs)
+            for mut nsd : Declaration in pb_ns {
                 if nsd.default_value.is_none() { continue }
                 if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                 if nsd.default_expr().children.len() == 0 { continue }
@@ -1569,7 +1569,7 @@ priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
 // constfolder because the runtime Scope it builds has no upstream equivalent
 // (the typer builds a TypeScope; scavenge invalidates AST pointers before
 // the interpreter rebuilds its own).
-constfolder_register_fold_scope := func(global: Scope, prog: Expr, ctx: Context) {
+constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -1607,7 +1607,7 @@ constfolder_register_fold_scope := func(global: Scope, prog: Expr, ctx: Context)
 // Str.cap, which the interpreter decodes at the USize width. Build the
 // U64 forms with bnot to avoid out-of-I64-range literals.
 // 32-bit: CAP_VIEW = 0xFFFFFFFE = 4294967294, CAP_LIT = 0xFFFFFFFF = 4294967295.
-constfolder_register_core_constants := func(global: Scope, usize_name: Str, mut ctx: Context) {
+constfolder_register_core_constants := func(mut global: Scope, usize_name: Str, mut ctx: Context) {
     // Shallow, not Own: these are prim VALUES. An Own-prim binding means a
     // #302 raw-allocation POINTER datum, whose reads clone a BLOCK -- and
     // every word-assuming consumer would then use the block ADDRESS as the

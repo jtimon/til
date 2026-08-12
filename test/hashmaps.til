@@ -3,7 +3,7 @@ mode test
 import("../src/std/hashmap")
 
 test_hashmap_i64_basic := test() {
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     m.set(1, own 10)
     m.set(2, own 20)
     m.set(3, own 30)
@@ -22,7 +22,7 @@ test_hashmap_i64_basic := test() {
 }
 
 test_hashmap_i64_overwrite := test() {
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     m.set(5, own 50)
     m.set(5, own 500)
     assert_eq(USize, m.len(), 1)
@@ -31,7 +31,7 @@ test_hashmap_i64_overwrite := test() {
 }
 
 test_hashmap_str_keys := test() {
-    m := HashMap(Str, I64).new()
+    mut m := HashMap(Str, I64).new()
     m.set("apple", own 1)
     m.set("banana", own 2)
     m.set("cherry", own 3)
@@ -50,7 +50,7 @@ test_hashmap_str_keys := test() {
 }
 
 test_hashmap_str_value := test() {
-    m := HashMap(Str, Str).new()
+    mut m := HashMap(Str, Str).new()
     m.set("key1", own "value1")
     m.set("key2", own "value2")
     assert_eq(USize, m.len(), 2)
@@ -64,7 +64,7 @@ test_hashmap_grow_past_initial_buckets := test() {
     // Initial cap is 16; load factor 0.75 triggers rehash at count 13.
     // Insert 100 keys so we cross at least two rehashes and confirm
     // every key remains findable afterwards.
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     for i in 0..100 {
         m.set(i, own i.mul(10))
     }
@@ -82,7 +82,7 @@ test_hashmap_str_overwrite_releases_old_value := test() {
     // Overwriting a Str value must drop the old Str's c_str buffer.
     // ASAN-instrumented runs would flag a leak here if elem_delete on
     // the old value slot were skipped.
-    m := HashMap(Str, Str).new()
+    mut m := HashMap(Str, Str).new()
     m.set("k", own "first")
     m.set("k", own "second")
     assert_eq(USize, m.len(), 1)
@@ -91,7 +91,7 @@ test_hashmap_str_overwrite_releases_old_value := test() {
 }
 
 test_hashmap_remove_missing_is_noop := test() {
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     m.set(1, own 10)
     assert(m.remove(99).not())
     assert_eq(USize, m.len(), 1)
@@ -99,7 +99,7 @@ test_hashmap_remove_missing_is_noop := test() {
 }
 
 test_hashmap_remove_only_entry := test() {
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     m.set(5, own 50)
     assert(m.remove(5))
     assert_eq(USize, m.len(), 0)
@@ -107,7 +107,7 @@ test_hashmap_remove_only_entry := test() {
 }
 
 test_hashmap_remove_then_reinsert := test() {
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     m.set(7, own 70)
     assert(m.remove(7))
     m.set(7, own 700)
@@ -120,7 +120,7 @@ test_hashmap_remove_swap_keeps_others_findable := test() {
     // Insert enough keys to force chains, remove one from the middle of
     // the dense vectors, and verify everything else is still findable
     // -- catches a missed chain-pointer rewrite during the swap.
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     for i in 0..50 {
         m.set(i, own i.mul(10))
     }
@@ -142,7 +142,7 @@ test_hashmap_remove_swap_keeps_others_findable := test() {
 test_hashmap_remove_all := test() {
     // Drain the table one entry at a time, then refill -- exercises
     // the dense-vector reuse path after remove leaves slots dirty.
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     for i in 0..20 {
         m.set(i, own i.mul(10))
     }
@@ -162,7 +162,7 @@ test_hashmap_remove_all := test() {
 test_hashmap_remove_str_key_frees_c_str := test() {
     // ASAN-instrumented runs would flag a leak here if the Str key's
     // c_str buffer were dropped without being freed.
-    m := HashMap(Str, I64).new()
+    mut m := HashMap(Str, I64).new()
     m.set("apple", own 1)
     m.set("banana", own 2)
     assert(m.remove("apple"))
@@ -177,7 +177,7 @@ test_hashmap_remove_str_key_frees_c_str := test() {
 // HashMap iterates in dense insertion order; assert order-independent
 // aggregates plus correct per-key pairing.
 test_hashmap_for_in_kv := test() {
-    m := HashMap(Str, I64).new()
+    mut m := HashMap(Str, I64).new()
     m.set("a", own 1)
     m.set("b", own 2)
     m.set("c", own 3)
@@ -221,7 +221,7 @@ priv hashmap_lookup_or := func(m: HashMap(Str, I64), key: Str, fallback: I64) re
 }
 
 test_hashmap_get_throws_key_not_found := test() {
-    m := HashMap(Str, I64).new()
+    mut m := HashMap(Str, I64).new()
     m.set("hit", own 7)
     assert_eq(I64, hashmap_lookup_or(m, "hit", -1), 7)
     assert_eq(I64, hashmap_lookup_or(m, "miss", -1), -1)
@@ -229,7 +229,7 @@ test_hashmap_get_throws_key_not_found := test() {
 
 // remove reports whether it removed anything (core Map.remove contract).
 test_hashmap_remove_returns_bool := test() {
-    m := HashMap(I64, I64).new()
+    mut m := HashMap(I64, I64).new()
     m.set(1, own 10)
     assert(m.remove(1))
     assert(m.remove(1).not())
@@ -256,7 +256,7 @@ test_hashmap_clear := test() {
 test_hashmap_clone := test() {
     mut m := HashMap(Str, I64).new()
     for i in 0..40 { m.set(format("k", i.to_str()), own i) }
-    c := m.clone()
+    mut c := m.clone()
     assert_eq(USize, c.len(), 40)
     // Every entry survives the copy with its chain links intact.
     for i in 0..40 {
