@@ -2723,3 +2723,79 @@ qname_in_set := func(s: Set(Str), a: Str, sep: Str, b: Str) returns Bool {
     }
     return false
 }
+
+// #302 stage 4: the POD-struct shape queries, shared. The C backend
+// emits such a ctor Decl as a STACK value; the garbager has to record
+// that same answer, or its destructor's call_free contradicts the
+// storage the backend chose. One definition, both consumers -- the
+// precedent this file already sets for lowering queries.
+pod_struct_is := func(struct_name: Str, scope: TypeScope) returns Bool {
+    if struct_name.len() == 0 { return false }
+    if pod_primitive_name(struct_name) { return false }
+    sdef_o := scope.get_struct(struct_name)
+    if sdef_o.is_none() { return false }
+    ref sdef : Expr = sdef_o.unwrap()
+    switch sdef.node_type {
+    case .StructDef(sdd):
+        if sdd.fields.len() == 0 { return false }
+        for fd : Declaration in sdd.fields {
+            if fd.own_type.is(OwnType.Own) { return false }
+            if fd.own_type.is(OwnType.Ref) { return false }
+            if pod_primitive_name(fd.explicit_type) { continue }
+            if pod_struct_is(fd.explicit_type, scope) { continue }
+            return false
+        }
+        return true
+    case:
+    }
+    return false
+}
+
+priv pod_primitive_name := func(name: Str) returns Bool {
+    switch name {
+    case "I64", "U8", "I8", "I16", "U16", "I32", "U32", "U64", "USize", "UPtr", "F32", "F64",
+         "Bool": return true
+    case:
+    }
+    return false
+}
+
+// Every nested ctor argument is itself a POD-struct ctor: the compound
+// literal the backend emits can only nest compound literals.
+pod_ctor_args_safe := func(ctor: Expr, scope: TypeScope) returns Bool {
+    for i in 1..ctor.children.len() {
+        ref arg : Expr = ctor.children[i]
+        if arg.node_type.is(NodeType.FCall).not() { continue }
+        if pod_fcall_is_struct_ctor(arg).not() { return false }
+        arg_sname_o := expr_type_name_ref(arg)
+        if arg_sname_o.is_none() { return false }
+        ref arg_sname : Str = arg_sname_o.unwrap()
+        if pod_struct_is(arg_sname, scope).not() { return false }
+        if pod_ctor_args_safe(arg, scope).not() { return false }
+    }
+    return true
+}
+
+priv pod_fcall_is_struct_ctor := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() == 0 { return false }
+    sname_o := expr_type_name_ref(e)
+    if sname_o.is_none() { return false }
+    ref sname : Str = sname_o.unwrap()
+    switch e.children[0].node_type {
+    case .Ident(cid): return cid.ident_name() == sname
+    case: return false
+    }
+}
+
+// True when this Decl's RHS is the POD-struct ctor the backend turns
+// into a stack compound literal (`p := Point(x = 1)`), the shape whose
+// storage record used to say HeapBox while the emit said stack.
+pod_ctor_decl_is_stack := func(rhs: Expr, scope: TypeScope) returns Bool {
+    if rhs.node_type.is(NodeType.FCall).not() { return false }
+    sname_o := expr_type_name_ref(rhs)
+    if sname_o.is_none() { return false }
+    ref sname : Str = sname_o.unwrap()
+    if pod_fcall_is_struct_ctor(rhs).not() { return false }
+    return pod_struct_is(sname, scope).and(pod_ctor_args_safe(rhs, scope))
+}

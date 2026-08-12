@@ -1345,11 +1345,84 @@ priv restamp_folded_decl_storage := func(mut e: Expr, i: USize, ctx: Context) {
         // also stack-allocates. Same predicate the garbager uses.
         folded_stack = is_pod_enum_clone_wrap(e.children[0], ctx.scope)
     }
+    if folded_stack.not() {
+        // #302 stage 4: pure struct-returning calls fold to the POD-struct
+        // ctor shape (magic() -> CfVec2(42, 99)), which the builder emits
+        // as a stack compound literal. Same query the garbager records by.
+        folded_stack = pod_ctor_decl_is_stack(e.children[0], ctx.scope)
+    }
     if folded_stack.not() { return }
     switch e.node_type {
     case .Decl(dd):
         if dd.gc_storage.is(GcStorage.HeapBox) { dd.gc_storage = GcStorage.Stack }
     case:
+    }
+}
+
+// #302 stage 4: the deletes the record's flip above invalidates. When a
+// Decl's RHS folds into the POD-struct ctor shape, garbager_destroy has
+// already built that local's destructor from the pre-fold HeapBox
+// record: `T.delete(own v, call_free=true)`. The LiteralStr and
+// POD-enum folds leave such stale deletes to emit-time compensation
+// (the builder's Str override and is_noop_delete_stmt elision), but the
+// struct ctor's override was deleted by stage 4, so the stale call
+// would reach the generic own-arg path and box the stack value --
+// malloc + copy + free -- just to delete it. Rewrite the delete to what
+// make_delete_call builds for a Stack record: own bit off,
+// call_free=false. Direct siblings of the Decl only: a delete inserted
+// before an early return lives in a nested wrapper body, where the
+// boxed shape stays correct (merely wasteful) and where a nested
+// shadowing re-declaration could alias the name, which a same-level
+// re-declaration cannot.
+priv normalize_folded_ctor_deletes := func(mut e: Expr, i: USize, ctx: Context) {
+    ref decl : Expr = e.children[i]
+    if decl.node_type.is(NodeType.Decl).not() { return }
+    if decl.children.len() == 0 { return }
+    if pod_ctor_decl_is_stack(decl.children[0], ctx.scope).not() { return }
+    mut dname := ""
+    switch decl.node_type {
+    case .Decl(dd): dname = dd.name.clone()
+    case:
+    }
+    tname_o := expr_type_name_ref(decl.children[0])
+    if tname_o.is_none() { return }
+    ref tname : Str = tname_o.unwrap()
+    for k in i + 1..e.children.len() {
+        ref mut stmt : Expr = e.children[k]
+        if stmt.node_type.is(NodeType.FCall).not() { continue }
+        if stmt.children.len() < 3 { continue }
+        if get_own_arg(stmt, 1).not() { continue }
+        mut is_dtor := false
+        switch stmt.children[0].node_type {
+        case .FieldAccess(dfa):
+            if dfa.field_access_name().eq("delete").and(stmt.children[0].children.len().gt(0)) {
+                switch stmt.children[0].children[0].node_type {
+                case .Ident(drecv): is_dtor = drecv.ident_name() == tname
+                case:
+                }
+            }
+        case:
+        }
+        if is_dtor.not() { continue }
+        mut is_arg := false
+        switch stmt.children[1].node_type {
+        case .Ident(dai): is_arg = dai.ident_name() == dname
+        case:
+        }
+        if is_arg.not() { continue }
+        // Only the literal call_free make_delete_call builds; anything
+        // else is not the garbager's destructor for this local.
+        mut cf_true := false
+        switch stmt.children[2].node_type {
+        case .Literal(Literal.Bool(cfb)): cf_true = cfb
+        case:
+        }
+        if cf_true.not() { continue }
+        switch stmt.node_type {
+        case .FCall(dfcd): dfcd.own_args = 0
+        case:
+        }
+        stmt.children[2] = Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.children[2].line, stmt.children[2].col)
     }
 }
 
@@ -1408,6 +1481,7 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
             // Procs/ext_procs are intentionally never folded.
         }
         restamp_folded_decl_storage(e, i, ctx)
+        normalize_folded_ctor_deletes(e, i, ctx)
         // Forward-track Decl literals so siblings can fold calls through
         // them. Track ALL non-mut, non-ref Decls. Use the known-only
         // tracker so body-local payloads don't get aliased into `scope`

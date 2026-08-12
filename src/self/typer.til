@@ -1080,13 +1080,17 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, mut sdef: Exp
                                 infer_expr(scope, fld_box, in_func, ctx)
                                 field_vals[slot.to_usize()] = CtorArg.Filled(fld_box)
                             } else {
-                                field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
+                                field_vals[slot.to_usize()] = CtorArg.Filled(own take_expr(arg.children[0]))
                             }
                         } else {
-                            field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
+                            field_vals[slot.to_usize()] = CtorArg.Filled(own take_expr(arg.children[0]))
                         }
                     } else {
-                        field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
+                        // Moved, not copied: the NamedArg holding this value is
+                        // deleted a few lines below when e.children is replaced
+                        // by new_ch, so a clone here would be a copy of a node
+                        // that is about to be freed.
+                        field_vals[slot.to_usize()] = CtorArg.Filled(own take_expr(arg.children[0]))
                     }
                 }
             }
@@ -1118,10 +1122,13 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, mut sdef: Exp
     }
     mut new_ch := Vec(Expr).new()
     new_ch.push_take(e.children, 0)
-    for fv : CtorArg in field_vals {
+    for mut fv : CtorArg in field_vals {
         switch fv {
         case .Filled(filled_arg):
-            new_ch.push(own filled_arg.clone())
+            // Moved out of the payload: field_vals is a local that dies at the
+            // end of this call, so cloning here copied every argument subtree
+            // only to free the original a statement later.
+            new_ch.push(own take_expr(filled_arg))
         case:
             UNREACHABLE("expected CtorArg.Filled, got ", fv.to_str())
         }
@@ -2970,7 +2977,9 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
         owned.push(own kept)
         kept_splat : Bool = get_splat_arg(e, k)
         splatted.push(own kept_splat)
-        new_ch.push(own e.children[k].clone())
+        // Moved: the old children vector is dropped by move_from below, so a
+        // clone here would copy each argument and free the original at once.
+        new_ch.push(own take_expr(e.children[k]))
     }
     e.children.move_from(own new_ch)
     switch e.node_type {

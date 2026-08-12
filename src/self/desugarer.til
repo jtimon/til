@@ -522,82 +522,74 @@ priv guess_prior_local_type_in_vec := func(scope: TypeScope, stmts: Vec(Expr), u
     return ""
 }
 
-priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: USize) {
-    if stmts.len() == 0 { return }
-    mut limit := upto
-    if limit >= stmts.len() {
-        limit = stmts.len() - 1
-    }
-    mut i : USize = 0
-    while i <= limit {
-        ref stmt : Expr = stmts[i]
-        switch stmt.node_type {
-        case .Decl(dd):
-            mut tn := dd.explicit_type.clone()
-            if tn.len().eq(0).and(stmt.children.len().gt(0)) {
-                ref rhs : Expr = stmt.children[0]
-                switch rhs.node_type {
-                case .FCall:
-                    if rhs.children.len() > 0 {
-                        switch rhs.children[0].node_type {
-                        case .Ident(rhsn):
-                            if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
-                                et := resolve_type_alias_for_name(ctx.scope, array_vec_elem_type_name(rhs)).clone()
-                                if et.len() > 0 { tn = format("Array__", et) }
-                            } else if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
-                                et := resolve_type_alias_for_name(ctx.scope, array_vec_elem_type_name(rhs)).clone()
-                                if et.len() > 0 { tn = format("Vec__", et) }
-                            } else {
-                                fdef_expr_o := ctx.scope.lookup_func(rhsn.name)
-                                if fdef_expr_o.is_some() {
-                                    switch fdef_expr_o.unwrap().node_type {
-                                    case .FuncDef(fd): tn = fd.return_type.clone()
-                                    case:
-                                    }
+// Record one statement's local declaration type in ctx.lowering_param_types,
+// which only ever grows. The throws lowering calls this once per statement as
+// it walks a body, so the map holds every prior local by the time a Throw
+// needs it -- it used to re-scan statements 0..j from a snapshot at every j,
+// which is the same accumulation done n times over a cloned vector.
+priv seed_local_type_from_stmt := func(mut ctx: Context, stmt: Expr) {
+    switch stmt.node_type {
+    case .Decl(dd):
+        mut tn := dd.explicit_type.clone()
+        if tn.len().eq(0).and(stmt.children.len().gt(0)) {
+            ref rhs : Expr = stmt.children[0]
+            switch rhs.node_type {
+            case .FCall:
+                if rhs.children.len() > 0 {
+                    switch rhs.children[0].node_type {
+                    case .Ident(rhsn):
+                        if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
+                            et := resolve_type_alias_for_name(ctx.scope, array_vec_elem_type_name(rhs)).clone()
+                            if et.len() > 0 { tn = format("Array__", et) }
+                        } else if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
+                            et := resolve_type_alias_for_name(ctx.scope, array_vec_elem_type_name(rhs)).clone()
+                            if et.len() > 0 { tn = format("Vec__", et) }
+                        } else {
+                            fdef_expr_o := ctx.scope.lookup_func(rhsn.name)
+                            if fdef_expr_o.is_some() {
+                                switch fdef_expr_o.unwrap().node_type {
+                                case .FuncDef(fd): tn = fd.return_type.clone()
+                                case:
                                 }
                             }
-                        case .FieldAccess(fa):
-                            if rhs.children[0].children.len() > 0 {
-                                owner := resolve_value_type(ctx, rhs.children[0].children[0], stmt)
-                                if owner.len() > 0 {
-                                    sdef_o := ctx.scope.get_struct(owner)
-                                    if sdef_o.is_some() {
-                                        ref sdef : Expr = sdef_o.unwrap()
-                                        mdefo := find_namespace_func(sdef, fa.field_access_name(), ctx.scope)
-                                        if mdefo.is_some() {
-                                            ref mdef : Expr = mdefo.unwrap()
-                                            switch mdef.node_type {
-                                            case .FuncDef(fd): tn = fd.return_type.clone()
-                                            case:
-                                            }
+                        }
+                    case .FieldAccess(fa):
+                        if rhs.children[0].children.len() > 0 {
+                            owner := resolve_value_type(ctx, rhs.children[0].children[0], stmt)
+                            if owner.len() > 0 {
+                                sdef_o := ctx.scope.get_struct(owner)
+                                if sdef_o.is_some() {
+                                    ref sdef : Expr = sdef_o.unwrap()
+                                    mdefo := find_namespace_func(sdef, fa.field_access_name(), ctx.scope)
+                                    if mdefo.is_some() {
+                                        ref mdef : Expr = mdefo.unwrap()
+                                        switch mdef.node_type {
+                                        case .FuncDef(fd): tn = fd.return_type.clone()
+                                        case:
                                         }
                                     }
                                 }
                             }
-                        case:
                         }
+                    case:
                     }
-                case .Literal(Literal.Str): tn = "Str"
-                case .Literal(Literal.Num): tn = "I64"
-                case .Literal(Literal.MapLit):
-                    if rhs.children.len() >= 2 {
-                        key_type := resolve_type_alias_for_name(ctx.scope, guess_expr_type_name(rhs.children[0])).clone()
-                        val_type := resolve_type_alias_for_name(ctx.scope, guess_expr_type_name(rhs.children[1])).clone()
-                        if key_type.len().gt(0).and(val_type.len().gt(0)) {
-                            tn = format("Map__", key_type, "_", val_type)
-                        }
-                    }
-                case:
                 }
+            case .Literal(Literal.Str): tn = "Str"
+            case .Literal(Literal.Num): tn = "I64"
+            case .Literal(Literal.MapLit):
+                if rhs.children.len() >= 2 {
+                    key_type := resolve_type_alias_for_name(ctx.scope, guess_expr_type_name(rhs.children[0])).clone()
+                    val_type := resolve_type_alias_for_name(ctx.scope, guess_expr_type_name(rhs.children[1])).clone()
+                    if key_type.len().gt(0).and(val_type.len().gt(0)) {
+                        tn = format("Map__", key_type, "_", val_type)
+                    }
+                }
+            case:
             }
-            if tn.len() == 0 {
-                i++
-                continue
-            }
-            ctx.lowering_param_types.set(dd.name, own tn)
-        case:
         }
-        i++
+        if tn.len() == 0 { return }
+        ctx.lowering_param_types.set(dd.name, own tn)
+    case:
     }
 }
 
@@ -2091,7 +2083,18 @@ priv process_throw_catch_in_body := proc(
     if body.children.len() == 0 { return }
 
     mut old := body.children.take()
-    mut old_snapshot : Vec(Expr) = old.clone()
+    // The snapshot is a deep copy of every statement in the body, and the
+    // only readers are the Throw and Catch cases below: they look back at
+    // statements `old` has already handed to new_ch. A body with no Throw
+    // and no Catch statement never reads it, so it never pays for it.
+    mut needs_snapshot := false
+    for s : Expr in old {
+        if s.node_type.is(NodeType.Throw).or(s.node_type.is(NodeType.Catch)) {
+            needs_snapshot = true
+        }
+    }
+    mut old_snapshot := Vec(Expr).new()
+    if needs_snapshot { old_snapshot = old.clone() }
     // Pre-size to the known lower bound: every old stmt lands in new_ch
     // (possibly wrapped), avoiding the 1->2->...->n realloc churn per body.
     mut new_ch := Vec(Expr).with_capacity(old.len())
@@ -2101,7 +2104,7 @@ priv process_throw_catch_in_body := proc(
         ref mut stmt : Expr = old[j]
         stmt_line := stmt.line
         stmt_col := stmt.col
-        seed_prior_local_types(ctx, old_snapshot, j)
+        seed_local_type_from_stmt(ctx, stmt)
 
         // Once a prior statement may have set _err_kind, the rest of the
         // body runs only on the no-error path. Group ALL remaining
@@ -3776,6 +3779,33 @@ priv narrow_literal_to_elem := func(mut val: Expr, elem_t: Type) {
     }
 }
 
+// The value expression a variadic argument contributes to its collector Array.
+// A variadic arg is MOVED into the owned collector: unsafe_set memcpy's the
+// bytes into the slot and memsets the source to zero. An Ident or FieldAccess
+// is a borrow of a caller local/field, and a ref-returning call likewise
+// yields a borrow (into a caller local, or e.g. a scope binding's alias_target
+// field) -- moving either zeros/frees the referent and corrupts it. Clone-wrap
+// all three so the collector owns an independent copy. Missing the
+// ref-returning-call case double-freed args like
+// `format("Array__", resolve_type_alias(...))`: the borrowed Str was memset to
+// zero, shredding the source string. Deciding the shape BEFORE building the
+// expression is what keeps the wrap path from cloning the argument twice and
+// throwing the first copy away.
+priv build_variadic_arg_value := func(val_in: Expr, scope: TypeScope) returns Expr {
+    mut is_borrow_arg := val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess))
+    if val_in.node_type.is(NodeType.FCall).and(fcall_returns_ref(val_in, scope).neq(0)) {
+        is_borrow_arg = true
+    }
+    if is_borrow_arg {
+        tname := type_to_name(val_in.til_type())
+        // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
+        if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
+            return make_clone_call(tname, val_in.til_type(), val_in, val_in)
+        }
+    }
+    return val_in.clone()
+}
+
 // `src_idx` is the ABSOLUTE child index of the argument to store and `j` the
 // destination slot. They coincide only for a contiguous block; #342's mixed
 // splat fills a collector from a SUBSET of the block, so the two are separate.
@@ -3798,27 +3828,7 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     set_call.add_child(own idx)
 
     ref val_in : Expr = fcall.children[src_idx]
-    mut val := val_in.clone()
-    // A variadic arg is MOVED into the owned collector Array: unsafe_set
-    // memcpy's the bytes into the slot and memsets the source to zero. An
-    // Ident or FieldAccess is a borrow of a caller local/field, and a
-    // ref-returning call likewise yields a borrow (into a caller local, or
-    // e.g. a scope binding's alias_target field) -- moving either zeros/frees
-    // the referent and corrupts it. Clone-wrap all three so the collector
-    // owns an independent copy. Missing the ref-returning-call case
-    // double-freed args like `format("Array__", resolve_type_alias(...))`:
-    // the borrowed Str was memset to zero, shredding the source string.
-    mut is_borrow_arg := val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess))
-    if val_in.node_type.is(NodeType.FCall).and(fcall_returns_ref(val_in, scope).neq(0)) {
-        is_borrow_arg = true
-    }
-    if is_borrow_arg {
-        tname := type_to_name(val_in.til_type())
-        // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
-            val = make_clone_call(tname, val_in.til_type(), val_in, val_in)
-        }
-    }
+    mut val := build_variadic_arg_value(val_in, scope)
     elem_t := type_from_name(elem_type, scope, ctx)
     narrow_literal_to_elem(val, elem_t)
     set_call.add_child(own val)

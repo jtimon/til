@@ -802,7 +802,7 @@ void test_struct_fold_simple(void) {
     I64 hoisted__I64_7062 = 99;
     assert_eq__I64(v.y, hoisted__I64_7062, &_til_str_lits[28]);
     Str_delete(&_til_str_lits[28], (Bool){0});
-    CfVec2_delete(&v, (Bool){0});
+    CfVec2_delete(&v, 0);
 }
 
 void test_struct_fold_values(void) {
@@ -813,7 +813,7 @@ void test_struct_fold_values(void) {
     I64 hoisted__I64_7068 = 20;
     assert_eq__I64(p.y, hoisted__I64_7068, &_til_str_lits[30]);
     Str_delete(&_til_str_lits[30], (Bool){0});
-    CfVec2_delete(&p, (Bool){0});
+    CfVec2_delete(&p, 0);
 }
 
 void CfRect_delete(CfRect * self, Bool call_free) {
@@ -836,7 +836,7 @@ void test_struct_fold_nested(void) {
     I64 hoisted__I64_7123 = 200;
     assert_eq__I64(r.bottom_right.y, hoisted__I64_7123, &_til_str_lits[34]);
     Str_delete(&_til_str_lits[34], (Bool){0});
-    CfRect_delete(&r, (Bool){0});
+    CfRect_delete(&r, 0);
 }
 
 void CfVec3f_delete(CfVec3f * self, Bool call_free) {
@@ -862,7 +862,7 @@ void test_struct_fold_f32(void) {
     Str_delete(hoisted__Str_7185, 1);
     Str_delete(&_til_str_lits[39], (Bool){0});
     Str_delete(&_til_str_lits[40], (Bool){0});
-    CfVec3f_delete(&v, (Bool){0});
+    CfVec3f_delete(&v, 0);
 }
 
 Bool Color_eq(Color * self, Color * other) {
