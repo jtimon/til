@@ -1,0 +1,91 @@
+# priority: medium
+# category: bugs
+** OPEN #348 The installed til cannot build or interpret mode gui programs
+
+An installed til (~make install~, then running ~<prefix>/bin/til~ from
+anywhere) fails on every ~mode gui~ path -- REPL, interpret, and build
+-- while the same compiler run from the repo checkout handles all
+three. The failure is immediate and identical everywhere:
+
+  til 0.0.1-71b445da REPL -- Ctrl-D to exit
+  error: could not find import '../../vendor/bindings/raylib.til'
+      (from <prefix>/lib/til/src/modes/)
+  ./src/self/loader.til:1544:17: panic: failed to resolve mode
+      auto-import imports
+
+~mode gui~ desugars into ~src/modes/gui.til~, whose first lines import
+~../../vendor/bindings/raylib~ and ~../../vendor/bindings/tinyfd~ --
+and the installer does not ship ~vendor/bindings/~, so the mode cannot
+even load. The server modes (~examples/custom_modes.til~ -> nng) have
+the same shape one level further out.
+
+*** This never worked; it is not a regression
+
+Established by building the old compilers and testing (2026-08-08,
+during #345):
+
+- Until 2026-07-27 the gui REPL/interpreter worked NOWHERE -- the
+  interpreter could not reach raylib at all. b3fc2870 ("Make mode gui
+  work in the REPL: reach raylib from the interpreter") is what
+  introduced the archive-twin mechanism (each vendored ~libfoo.a~ gets
+  a dlopen-able ~libfoo.so~ built beside it, force-linked so every
+  member survives; the interpreter dlopens the twin of any archive a
+  program links). Verified on an actual build of c9547597 (2026-05-17):
+  the era when bindings WERE installed (under ~src/lib/~) resolves the
+  import and shows the ~[gui]~ prompt, but any real raylib call dies
+  inside the interpreter -- in the repo checkout of that era too.
+- 87fcddf6 (2026-05-17) moved the bindings ~src/lib/~ ->
+  ~vendor/bindings/~ without updating the installer, so from that day
+  the installed tree no longer contained them.
+- d3ba00f9 (2026-07-25) then broke ~make install~ outright (fixed in
+  #345, with ~test/install.til~ now guarding it).
+
+So the two halves never overlapped: by the time the interpreter could
+reach raylib (07-27), the bindings had been out of the installed tree
+for two months and install itself had been broken for two days.
+
+*** What a fix needs
+
+Three independent pieces, all required:
+
+1. Ship the bindings. ~install_compiler_support~
+   (src/self/builder.til) must install ~vendor/bindings/~ at
+   ~<prefix>/lib/til/vendor/bindings/~ -- the path has to mirror the
+   source tree because ~src/modes/gui.til~ reaches it by relative
+   import. This alone fixes the "could not find import" and lets the
+   mode LOAD.
+
+2. Resolve link() against the install root. ~src/modes/gui.til~ says
+   ~link("vendor/raylib/src/libraylib.a")~ and the builder resolves
+   that against the CWD -- which is the repo root when developing, and
+   the user's project directory once installed. Even with bindings
+   installed, a compiled gui build from an installed til fails with:
+
+     /usr/bin/ld: cannot find
+       <prefix>/lib/til/src/modes/vendor/raylib/src/libraylib.a
+
+   (the fallback after CWD is the mode file's directory). The
+   resolution needs a third candidate: the compiler root (~bin_dir~ /
+   ~<prefix>/lib/til~), where the archives from (3) live. The
+   interpreter derives the dlopen twin's path from the archive's, so
+   fixing resolution once fixes both backends.
+
+3. Ship the archives. The native ~libraylib.a~ + ~libraylib.so~,
+   ~libtinyfd.a~ + ~libtinyfd.so~ (and ~libnng.a~ for the server
+   modes) must be installed under ~<prefix>/lib/til/vendor/...~ at
+   their source-relative paths. Host-arch specific, a few MB. Open
+   question: whether ~install~ should require them prebuilt (fail
+   loudly when missing, pointing at ~bin/make vendor~) or build them
+   itself via the #345 steps.
+
+*** Acceptance
+
+- From a scratch prefix install, in a directory outside the repo:
+  ~til repl~ in mode gui evaluates a raylib call; ~til <file>~
+  interprets a mode-gui program; ~til build <file>~ links a runnable
+  gui binary.
+- ~test/install.til~ (from #345) grows a gui leg exercising exactly
+  that, so the gap cannot reopen silently -- it stayed invisible for
+  months precisely because nothing ever ran the installed compiler.
+- The in-repo behavior is unchanged: CWD resolution keeps winning when
+  it hits, so a checkout's ~vendor/~ still shadows any installed one.

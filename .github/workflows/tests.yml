@@ -696,7 +696,7 @@ jobs:
   # mac and NO Apple SDK. raylib's RGFW desktop backend drives Cocoa through
   # the objc runtime (objc_msgSend), so it cross-compiles against the
   # SDK-less framework-type shims (vendor/macos/frameworks-shim); the
-  # RAYLIB_MAC_*_LIB Makefile targets build the per-arch archives on linux
+  # build_mac_raylib steps in make.til build the per-arch archives on linux
   # and examples/gen_framework_stubs.til --linux-map emits the .tbd link stubs from
   # their external symbols (the real Cocoa/OpenGL/... dylibs bind at runtime
   # on the target mac, exactly like the vendored libSystem.tbd). This job
@@ -713,8 +713,14 @@ jobs:
         run: mkdir -p tmp
       - name: Build bin/til (native)
         run: make
+      # The one job that drives the build program DIRECTLY (issue #345):
+      # everywhere else `make <goals>` builds bin/make and hands the
+      # goals over, so this is what proves the direct interface -- the
+      # same multi-goal artifact request, one invocation, no Make.
       - name: Build mac raylib + tinyfd + framework stubs on linux (no SDK)
-        run: make vendor/macos/frameworks/.stamp vendor/tinyfiledialogs/libtinyfd-macos-arm64.a vendor/tinyfiledialogs/libtinyfd-macos-x64.a
+        run: |
+          make bin/make
+          ./bin/make vendor/macos/frameworks/.stamp vendor/tinyfiledialogs/libtinyfd-macos-arm64.a vendor/tinyfiledialogs/libtinyfd-macos-x64.a
       - name: Cross-compile a mode-gui example for both mac arches
         run: |
           ./bin/til build --target=macos-arm64 -o bin/hello_gui-macos-arm64 examples/hello_gui.til

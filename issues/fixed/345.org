@@ -1,6 +1,94 @@
 # priority: medium
 # category: cleanups
-** WIP #345 Move build orchestration from Makefile into make.til
+** FIXED #345 Move build orchestration from Makefile into make.til
+
+*** Post-mortem
+
+The Makefile was 825 lines of a second implementation language. Most of
+it was not bootstrap: it was policy -- which artifact depends on what,
+which command produces it, what differs per host -- expressed in a
+language with no functions, no records, and no way to say "run this
+argv". It is now 141 lines, and every one of them is bootstrap or goal
+delegation.
+
+What was actually in the way, and had to be built first: there was no
+way to run a program from til without a shell. ~spawn_cmd~ hands a
+STRING to /bin/sh (or cmd.exe), so a build program would have had to
+quote every path back out of a command line, differently per host, and
+one path with a space in it would have either broken or silently run
+something else. ~run_cmd~ additionally funnelled every capture through
+one ~tmp/_run_cmd_out~ file, which two commands cannot share. So the
+first commit added an argv-based command to the existing std/C
+boundary (~Cmd~ over ~ccmd_*~ in ~src/c/ext.c~) plus the filesystem
+operations the Makefile was reaching through the shell for: directory
+iteration, path types, ~rm -rf~, and the atomic rename a
+self-rebuilding program swaps itself in with (~Dir~, ~File.is_dir~,
+~File.is_file~, ~File.remove_tree~, ~File.rename~).
+
+On top of that, ~make.til~ -- compiled to ~bin/make~, a generated
+artifact under ~bin/~ that is never committed and never installed. It
+is a program, in the nob.h sense: functions that call the steps they
+depend on, mtime checks, and commands run in order. One ~Build~ per
+invocation memoizes finished steps, so a multi-goal request does shared
+work once; one command table drives dispatch, ~help~ and the alias
+list, so those cannot drift apart; artifact paths are entries in that
+same table, so ~make vendor/raylib/src/libraylib-x86.a~ still names
+something. It rebuilds and re-runs itself when ~make.til~ changes,
+keeping the previous executable until the replacement exists.
+
+Two things fell out of moving the policy into a language with
+functions. ~test_two_pass~ no longer needs the Makefile's ~$(MAKE) -o
+bin/til_boot -o bin/til~ trick: per-invocation memoization means pass 1
+cannot be re-entered to overwrite the pass-2 ~boot/~, so the target is
+just statements in order. And the bootstrap link turned out to be much
+smaller than it looked: ~bin/til_boot~ references libffi and nothing
+else vendored, so raylib, tinyfd, nng, their shared twins, ~-lrt~,
+~-latomic~ and the macOS desktop frameworks all left the Makefile for
+~make.til~, where ~bin/til~ -- which does link them -- is built.
+Verified by linking the bootstrap without them, not by assuming it.
+
+No behaviour changed. Every entry point works as before (~make~,
+~make test~, ~make test_two_pass~, ~make build_win_host win_server~,
+direct artifact goals, ~J~ and ~RISCV32_CC~ on the command line), and
+~make <goals>~ is now literally ~bin/make <goals>~ with a bootstrap in
+front of it.
+
+Regression coverage: ~test/process.til~ (argv execution: spaces, both
+quote characters, empty arguments, non-zero exits, signal deaths,
+stream separation and merging, redirection, cwd, environment
+overrides, concurrent captures, poll/status, rendering) and the
+directory/tree/rename tests in ~test/files.til~. The build program
+itself is covered the way a build is: ~make clean && make test~ and
+~bin/make clean~ + ~make bin/make~ + ~bin/make test~ both run the full
+suite, and CI exercises the delegation path in every job plus the
+direct ~bin/make~ interface in the macOS gui cross job.
+
+The verification also established that an INSTALLED til has never been
+able to load ~mode gui~ (REPL, interpret, or build): the bindings left
+the installed tree on 2026-05-17 and the interpreter could not reach
+raylib until 2026-07-27, so the two halves never overlapped. That gap
+is documented and scoped as issue #348; it is out of this issue's
+migration scope.
+
+One thing the migration surfaced, and fixed here: ~make install~ had
+been broken since 2026-07-25 (d3ba00f9 moved ~lib/~ to ~examples/lib/~
+and updated the Makefile, the tests and the examples, but not
+~install_compiler_support~, which kept copying a ~<root>/lib~ that no
+longer existed). Every install planted the binary and then died on
+"failed to install compiler library sources". Running each moved target
+once is what found it -- nothing in the suite had ever run ~install~,
+which is why two weeks passed. The stale copy is gone and
+~test/install.til~ now installs the compiler under ~tmp/~ and builds a
+program with the result.
+
+Deliberately not done (issue step 10): no build LIBRARY was extracted.
+The process and filesystem primitives are public std, which is where
+they belong -- any til program can run a command now. The rest of
+~make.til~ is this project's build, and nothing in it has been repeated
+by a second repository yet, so extracting a ~std.build~ from one data
+point would be inventing an abstraction rather than finding one. No
+cache, manifest or package format was added: the dependency
+description is recomputed on every run and mtimes answer it.
 
 The 825-line Makefile is now a second implementation language inside the
 project. It owns bootstrap isolation, native dependency builds, compiler
@@ -311,21 +399,21 @@ falling through to a later compiler/linker failure.
 3. [X] Add ~make.til~ and ~bin/make~ without changing the default build.
    Implement command registration/help, host detection, checked commands,
    mtime checks, per-run step memoization, and Nob-style self-rebuild.
-4. [ ] Establish the minimal Makefile bootstrap seam. Prove which native
+4. [X] Establish the minimal Makefile bootstrap seam. Prove which native
    libraries ~til_boot~ actually needs, preserve the Git ~HEAD~ extraction,
    and add one-shot multi-goal delegation while old recipes remain available
    for differential testing.
-5. [ ] Move native vendor artifacts and the one-pass/two-pass compiler
+5. [X] Move native vendor artifacts and the one-pass/two-pass compiler
    chain. Verify generated ~boot/~ is byte-identical for unchanged inputs.
-6. [ ] Move the full test/check chain and make every normal and two-pass
+6. [X] Move the full test/check chain and make every normal and two-pass
    pre-commit workflow green through both entry paths.
-7. [ ] Move project tools, install, cleanup, docs, bindings, and aliases.
-8. [ ] Move every cross-target recipe as structured target data; switch CI
+7. [X] Move project tools, install, cleanup, docs, bindings, and aliases.
+8. [X] Move every cross-target recipe as structured target data; switch CI
    jobs to exercise delegation/direct ~bin/make~ without reducing coverage.
-9. [ ] Remove migrated Make policy, leaving only bootstrap and delegation;
+9. [X] Remove migrated Make policy, leaving only bootstrap and delegation;
    update ~doc/self.org~, ~make help~, bot/build instructions, CI comments,
    and recovery documentation in the same final change.
-10. [ ] After the project build has settled, review which helpers are truly
+10. [X] After the project build has settled, review which helpers are truly
     generic. Keep process/filesystem primitives public; extract a small build
     library only for abstractions used by more than this repository. Do not
     add a persistent cache, manifest, or package format in this issue.
@@ -449,7 +537,9 @@ command-line / environment inputs that reach the recipe.
   outputs. Manual (~1 minute).
 - ~summary~ -- deps: tmp, bin/til. MUTATES issues/summary.org.
 - ~install~ -- deps: bin/til. Runs ~til install src/til.til~. env:
-  PREFIX (read by the til side, default /usr/local).
+  none. (~make help~ advertised a PREFIX variable, but the recipe never
+  passed one: the prefix is til's own ~--prefix=~ option and defaults
+  to /usr/local. The help text now says that instead.)
 - ~tmp~ -- phony mkdir -p tmp, an order-only prerequisite of several
   targets.
 - ~help~ -- echoes the target list. A second registry of names that has

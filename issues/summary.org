@@ -1,6 +1,7 @@
 * Bugs
 ** Medium
 *** [[./open/343.org][#343]] A view reaching a C string parameter reads past its end, unchecked
+*** [[./open/348.org][#348]] The installed til cannot build or interpret mode gui programs
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
@@ -21,7 +22,6 @@
 *** [[./open/338.org][#338]] Unify type inference: fields use real inference, typer stamps inferred types into the AST
 *** [[./open/346.org][#346]] Keep owned aggregates in place instead of heap-boxing locals and returns
 ** Medium
-*** [[./open/345.org][#345]] Move build orchestration from Makefile into make.til
 *** [[./open/347.org][#347]] The Windows REPL has never been run
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
