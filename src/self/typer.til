@@ -8039,18 +8039,38 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
                     ref sdef : Expr = sdef_o.unwrap()
                     switch sdef.node_type {
                     case .StructDef(fhoa_sdd):
-                        mut fi : USize = 0
-                        for fld_decl : Declaration in fhoa_sdd.fields {
-                            arg_idx := fi + 1
-                            fi = fi + 1
-                            if arg_idx < fcall.children.len() {
-                                ref arg : Expr = fcall.children[arg_idx]
-                                an_o := arg_addressed_ident(arg)
-                                if an_o.is_some().and(an_o.unwrap().eq(var_name)).and(fld_decl.own_type.is(OwnType.Ref).not()) {
-                                    if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
-                                        return true
-                                    }
-                                }
+                        // Ctor args are NamedArg-wrapped (`Type(field =
+                        // val)`), so unwrap the value and resolve the
+                        // receiving field BY NAME, with the positional
+                        // index as the bare-arg fallback -- the same
+                        // mapping transfer_is_shallow_field_value_copy
+                        // uses. The old loop zipped fields against raw
+                        // children positionally: arg_addressed_ident hit
+                        // the NamedArg wrapper, never the value, so no
+                        // kwargs ctor ever registered a transfer -- and
+                        // an adopt like `Str(c_str = to_ptr(buf), ...)`
+                        // kept buf's cleanup scheduled while the Str
+                        // pointed at the block (ASAN double-free,
+                        // fixture shape 15).
+                        for ci in 1..fcall.children.len() {
+                            ref arg : Expr = fcall.children[ci]
+                            ref inner : Expr = named_arg_inner(arg)
+                            an_o := arg_addressed_ident(inner)
+                            if an_o.is_none() { continue }
+                            if an_o.unwrap().eq(var_name).not() { continue }
+                            mut fd_idx : I32 = ci.sub(1).to_i32()
+                            switch arg.node_type {
+                            case .NamedArg(fhoa_nan):
+                                fd_idx = -1
+                                if fhoa_sdd.fields_index.has(fhoa_nan) { fd_idx = fhoa_sdd.fields_index[fhoa_nan].to_i32() }
+                            case:
+                            }
+                            if fd_idx < 0 { continue }
+                            if fd_idx.to_usize() >= fhoa_sdd.fields.len() { continue }
+                            ref fld_decl : Declaration = fhoa_sdd.field_at(fd_idx.to_usize())
+                            if fld_decl.own_type.is(OwnType.Ref) { continue }
+                            if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
+                                return true
                             }
                         }
                     case:
@@ -8318,19 +8338,29 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, fi: Fact
                     ref sdef : Expr = sdef_o.unwrap()
                     switch sdef.node_type {
                     case .StructDef(fcoa_sdd):
-                        mut fld_i : USize = 0
-                        for fld_decl : Declaration in fcoa_sdd.fields {
-                            arg_idx := fld_i + 1
-                            fld_i = fld_i + 1
-                            if arg_idx < fcall.children.len() {
-                                ref arg : Expr = fcall.children[arg_idx]
-                                an_o := arg_addressed_ident(arg)
-                                if an_o.is_some().and(fld_decl.own_type.is(OwnType.Ref).not()) {
-                                    ref an : Str = an_o.unwrap()
-                                    if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
-                                        fact_record_name(fi, an, base, out)
-                                    }
-                                }
+                        // NamedArg-aware, by-name field mapping -- see
+                        // fcall_has_own_arg's ctor branch for why the
+                        // positional zip recorded nothing for kwargs
+                        // ctors.
+                        for ci in 1..fcall.children.len() {
+                            ref arg : Expr = fcall.children[ci]
+                            ref inner : Expr = named_arg_inner(arg)
+                            an_o := arg_addressed_ident(inner)
+                            if an_o.is_none() { continue }
+                            mut fd_idx : I32 = ci.sub(1).to_i32()
+                            switch arg.node_type {
+                            case .NamedArg(fcoa_nan):
+                                fd_idx = -1
+                                if fcoa_sdd.fields_index.has(fcoa_nan) { fd_idx = fcoa_sdd.fields_index[fcoa_nan].to_i32() }
+                            case:
+                            }
+                            if fd_idx < 0 { continue }
+                            if fd_idx.to_usize() >= fcoa_sdd.fields.len() { continue }
+                            ref fld_decl : Declaration = fcoa_sdd.field_at(fd_idx.to_usize())
+                            if fld_decl.own_type.is(OwnType.Ref) { continue }
+                            if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
+                                ref an : Str = an_o.unwrap()
+                                fact_record_name(fi, an, base, out)
                             }
                         }
                     case:

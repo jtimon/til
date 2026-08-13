@@ -546,10 +546,13 @@ priv gc_cfg_dump := proc(ctx: Context, body: Expr, blocks: Vec(GcCfgBlock)) {
 // block's settled state is the per-body verdict: Moved everywhere is a
 // completed transfer, Owned everywhere is an ordinary scope-end
 // cleanup, Mixed at exit is a conditional-transfer path problem --
-// exactly the class the sink covers for if/switch and misses for the
-// desugared switch-with-break (fixture shape 12 pins that miss as
-// exit=X in the golden). Dump-only for now: nothing consumes the
-// states yet.
+// exactly the class the sink repairs per path (its Body gate covers
+// the desugared switch-with-break, fixture shape 12, whose
+// non-transfer arms leaked under the pure index gate). Consumed at
+// every migrated decision site: the three exit-delete sites test
+// Owned exactly (gc_flow_stmt_table), the sink gates on Mixed at exit
+// (gc_flow_exit_is_mixed), and the use-after-transfer check clears
+// diverged transfers with owned-at-statement (gc_flow_owned_at_stmt).
 
 priv FLOW_UNREACHED : U8 = 0
 priv FLOW_UNINIT : U8 = 1
@@ -1019,6 +1022,145 @@ priv gc_flow_dump := proc(ctx: Context, blocks: Vec(GcCfgBlock), locals: Vec(Loc
             " entry=", gc_flow_letter(entry),
             " exit=", gc_flow_letter(outs[0]),
             " out=", ss)
+    }
+}
+
+// --- #272 step 4, slice 1: backward liveness over the same CFG --------------
+//
+// The forward flow above answers "does some path still OWN the binding
+// here"; the index model's last_use answers a different question --
+// "is the binding read again after this statement" -- and answers it
+// positionally, as one max over every path at once. Backward liveness
+// is that question per path: a binding is live out of a block iff some
+// successor reads it before killing it. Dump-only under TIL_GC_AUDIT
+// (GC-LIVE rows), exactly like the forward flow when it landed:
+// consumers migrate one at a time against the pass-diff referee before
+// any last_use reader is retired.
+//
+// Uses are TEXTUAL here (expr_uses_var), deliberately. The borrow and
+// view-taint extensions (collect_borrow_edges, collect_hoist_taint)
+// today widen last_use before any consumer reads it; when a consumer
+// migrates, those edges join this solve as extra per-statement uses.
+// Until then the dump shows the raw textual answer, so the golden
+// makes every place the extensions diverge from it reviewable.
+
+priv LIVE_ID : U8 = 0
+priv LIVE_DEAD : U8 = 1
+priv LIVE_USE : U8 = 2
+
+// A statement's backward transfer function, identity-or-constant like
+// gc_flow_stmt_const. Use is checked FIRST: `s = f(own s)` reads the
+// old value in its RHS before rebinding, so the binding is live above
+// the statement. A Decl, or a reassign whose RHS never reads the name,
+// kills liveness instead: above it the binding's current value either
+// does not exist yet (Decl) or is replaced unread (Assign -- its
+// save_old_delete cleanup is the assign's own business, not a use).
+priv gc_live_stmt_const := func(stmt: Expr, name: Str) returns U8 {
+    if expr_uses_var(stmt, name) { return LIVE_USE }
+    if expr_contains_decl(stmt, name) { return LIVE_DEAD }
+    if expr_reassigns_var(stmt, name) { return LIVE_DEAD }
+    return LIVE_ID
+}
+
+// The block's composed backward transfer function. Composing
+// identity-or-constant functions backward makes the EARLIEST
+// non-identity statement in the span win -- it is applied last on the
+// way up, the mirror image of gc_flow_block_kill's last-constant-wins.
+// The tail-compound rule is shared: a compound statement closing a
+// block contributes only its condition/subject; its branch bodies are
+// separate blocks.
+priv gc_live_block_gen := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str) returns U8 {
+    ref b : GcCfgBlock = blocks[bid]
+    switch b.body {
+    case .None:
+        // Synthetic exit block: no statements, liveness passes through.
+        return LIVE_ID
+    case .Some(bbody):
+        mut j := b.start
+        while j < b.end {
+            ref stmt : Expr = bbody.children[j.to_usize()]
+            if is_compile_directive(stmt) { j = j.add(1); continue }
+            mut tail_compound := false
+            if j.add(1).eq(b.end) {
+                tail_compound = stmt.node_type.is(NodeType.If)
+                    .or(stmt.node_type.is(NodeType.While))
+                    .or(stmt.node_type.is(NodeType.Switch))
+                    .or(stmt.node_type.is(NodeType.Body))
+            }
+            if tail_compound {
+                // Only the condition/subject evaluates here; a bare Body
+                // contributes nothing at the tail.
+                if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
+                    c := gc_live_stmt_const(stmt.children[0], name)
+                    if c.neq(LIVE_ID) { return c }
+                }
+            } else {
+                c := gc_live_stmt_const(stmt, name)
+                if c.neq(LIVE_ID) { return c }
+            }
+            j = j.add(1)
+        }
+        return LIVE_ID
+    }
+}
+
+// Naive fixpoint like gc_flow_fixpoint, but BACKWARD: a block's out is
+// the OR of its successors' ins, and its in applies the block's own
+// composed function. Bits only flip 0 -> 1, so this converges; the
+// guard is a loud backstop, not control flow. No predecessor lists
+// needed -- the successor edges the blocks already carry are exactly
+// what a backward sweep reads.
+priv gc_live_solve := func(blocks: Vec(GcCfgBlock), name: Str, mut ins: Array(U8), mut outs: Array(U8)) {
+    n := blocks.len()
+    mut gen := Array(U8).new(n)
+    for i in 0..n { gen[i] = gc_live_block_gen(blocks, i, name) }
+    for i in 0..n {
+        ins[i] = 0
+        outs[i] = 0
+    }
+    mut changed := true
+    mut guard := 0
+    while changed {
+        changed = false
+        for bi in 0..n {
+            ref b : GcCfgBlock = blocks[bi]
+            mut o : U8 = 0
+            for k in 0..b.succs.len() {
+                if ins[b.succs[k].to_usize()] == 1 { o = 1 }
+            }
+            mut lv := o
+            if gen[bi] == LIVE_USE { lv = 1 }
+            if gen[bi] == LIVE_DEAD { lv = 0 }
+            if o.neq(outs[bi]) {
+                outs[bi] = o
+                changed = true
+            }
+            if lv.neq(ins[bi]) {
+                ins[bi] = lv
+                changed = true
+            }
+        }
+        guard++
+        if guard > 1000 { panic(__LOC__, ": garbager liveness: no fixpoint after 1000 sweeps") }
+    }
+}
+
+priv gc_live_dump := proc(blocks: Vec(GcCfgBlock), locals: Vec(LocalInfo)) {
+    mut names := Map(Str, Str).new()
+    mut counts := Map(Str, I64).new()
+    for local : LocalInfo in locals {
+        if gc_audit_local_is_noise(local) { continue }
+        mut ins := Array(U8).new(blocks.len())
+        mut outs := Array(U8).new(blocks.len())
+        gc_live_solve(blocks, local.name, ins, outs)
+        mut ss := ""
+        for j in 0..blocks.len() {
+            if j > 0 { ss = format(ss, ",") }
+            ss = format(ss, ins[j].to_str())
+        }
+        println("GC-LIVE local ", gc_audit_name(local.name, names, counts),
+            " entry=", ins[1].to_str(),
+            " in=", ss)
     }
 }
 
@@ -2631,7 +2773,15 @@ priv stmt_is_conditional_container := func(stmt: Expr) returns Bool {
 }
 
 priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr, scope: TypeScope, ctx: Context) returns Bool {
-    del_o := gc_make_delete(local, src)
+    // Same emission split as the exit-delete inserters: a raw-allocator
+    // local is a bare heap block (free, never a deep delete); everything
+    // else typed goes through gc_make_delete.
+    mut del_o := Option(Expr).None
+    if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+        del_o = gc_make_delete(local, src)
+    } else if local.is_heap {
+        del_o = Option(Expr).Some(make_free_call(local.name, local.type, src))
+    }
     if del_o.is_none() { return false }
     del := Option(Expr).take(own del_o)
     // #302 stage 3: the graft lands at the END of the branch body, so any
@@ -2749,7 +2899,18 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // index read below, and -1 would index out of bounds.
         if local.own_transfer < 0 { continue }
         if local.is_heap.not() { continue }
-        if is_aggregate(local.type).not() { continue }
+        // Aggregates AND heap-promoted primitives: a scalar with a
+        // recorded own transfer was promoted to a decl-site box
+        // (promote_own_transferred_locals), and when the transfer is
+        // conditional the non-transfer path leaks that box exactly like
+        // an aggregate's -- the shape gc_live_solve's own `mut o : U8 =
+        // 0` fixpoint scratch hit first (3575 one-byte leaks on a
+        // gc_audit translate). Ident-RHS scalar decls never get here:
+        // the typer clone-wraps them, the shallow-FCall force keeps
+        // them on the stack, and the builder's inline box at the
+        // transfer call is consumed by the callee on every path.
+        // Callables and other unnamed types still stand down.
+        if is_aggregate(local.type).not().and(local.type.is(Type.Primitive).not()) { continue }
         if type_to_name(local.type).len() == 0 { continue }
         if local.own_transfer >= body.children.len().to_i32() { continue }
         // #302 stage 3: the DATAFLOW decides whether a graft is needed,
@@ -3074,6 +3235,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
         cfg_build(cfg_blocks, body)
         gc_cfg_dump(ctx, body, cfg_blocks)
         gc_flow_dump(ctx, cfg_blocks, locals_vec, scope)
+        gc_live_dump(cfg_blocks, locals_vec)
     }
 
     // #302 stage 3: the root body's per-statement ownership states,

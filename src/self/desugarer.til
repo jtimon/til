@@ -4566,6 +4566,21 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: USize, scope: TypeScop
     return false
 }
 
+// A bare address-of arg: `to_ptr(<ident>)`, the shape
+// arg_addressed_ident resolves to its backing binding. to_ptr of
+// anything more complex still hoists (the subexpression may be
+// effectful, and the detectors could not attribute it anyway).
+priv arg_is_bare_to_ptr := func(arg: Expr) returns Bool {
+    if arg.node_type.is(NodeType.FCall).not() { return false }
+    if arg.children.len() != 2 { return false }
+    switch arg.children[0].node_type {
+    case .Ident(cn):
+        if cn.ident_name().eq("to_ptr").not() { return false }
+    case: return false
+    }
+    return arg.children[1].node_type.is(NodeType.Ident)
+}
+
 priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     if expr.node_type.is(NodeType.FuncDef) { return }
     if expr.node_type.is(NodeType.StructDef) { return }
@@ -4699,6 +4714,17 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         case:
         }
         if needs_hoist.not() { continue }
+        // A struct-ctor arg that is a bare address-of -- `to_ptr(x)` --
+        // is NOT hoisted. It is pure (reads a binding's address, owns
+        // nothing), so a temp buys neither cleanup nor evaluation
+        // order; and naming it SEVERS the address-to-owner link the
+        // ownership detectors read through. arg_addressed_ident sees
+        // through to_ptr, but only while the call is still inline: with
+        // a hoisted view temp in between, an own-field adopt like
+        // `Str(c_str = to_ptr(buf), ...)` consumed the TEMP by name,
+        // buf kept its scheduled free, and the constructed Str pointed
+        // at freed storage (gc_audit fixture shape 15).
+        if is_ctor_call.and(hoist_sdef_o.is_some()).and(arg_is_bare_to_ptr(arg)) { continue }
 
         mut slot_is_own := false
         if is_ctor_call.and(hoist_sdef_o.is_some()) {
