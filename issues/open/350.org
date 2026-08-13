@@ -1,0 +1,89 @@
+# priority: medium
+# category: bugs
+** OPEN #350 A view argument's base Str is freed before the enclosing call reads it
+
+A Str view (trim / substr / strip_prefix / ... -- any borrowing method)
+used as an argument inside a format()/varargs expression reads freed
+memory when that expression is the base Str's last use. The garbager
+places the base's delete immediately after the view-PRODUCING call,
+before the enclosing call consumes the array the view was stored into.
+
+Minimal reproducer (compiled path; found while writing #345's process
+tests, reproduced identically with til_boot from d35f6d2, so it long
+predates the build migration):
+
+    mode cli
+
+    import("../src/std/file")
+
+    main := proc() returns I64 {
+        File.writefile("tmp/_viewbug.txt", "/home/user/til/tmp/_test\n")
+        s := File.readfile("tmp/_viewbug.txt")
+        println(format("[", s, "]"))
+        println(format("trimmed=[", s.trim(), "]"))
+        return 0
+    }
+
+Prints garbage for the second line, e.g.:
+
+    [/home/user/til/tmp/_test
+    ]
+    trimmed=[trimmed=[       mp/_test]
+
+An --asan build reports the defect precisely: heap-use-after-free
+(verified 2026-08-08 on master 23eca03e -- current, including the
+backward-liveness work). The emitted C shows the exact shape:
+
+    Str *hoisted__Str_6486 = Str_trim(s);          // view INTO s's bytes
+    Array__Str_set(_va_Array_185, ..., hoisted__Str_6486, ...);
+    Str_delete(s, 1);                              // s freed here
+    ...
+    Str *hoisted__Str_6491 = format(_va_Array_185); // reads the dangling view
+
+*** Analysis
+
+The liveness the garbager computes is SYNTACTIC: ~s.trim()~ is the last
+place ~s~ is named, so the delete goes right after that call. But
+trim's result is a CAP_VIEW borrowing s's storage, and it stays alive
+inside the hoisted varargs array until the enclosing format() consumes
+it -- the borrow outlives the base's last mention. The invariant that
+is missing: a binding whose value is (or may contain) a view of ~s~
+extends ~s~'s live range to its own.
+
+Notes from narrowing it down:
+
+- The typer is not the gap for this shape: when format() would take
+  ownership of a bare ~s~ argument it either clones it (as here:
+  ~Str_clone(s)~ feeds the first format) or reports "use of 's' after
+  ownership transfer". The escape is specifically the borrowed view as
+  a NESTED argument at the base's last syntactic use.
+- It is not about File.readfile: ~s := format("  padded value  ")~
+  followed by the same two printlns emits the identical dangling shape
+  (Str_trim, then Str_delete(&s), then format). That variant happens to
+  PRINT correctly because the freed chunk is not reused in time --
+  silent latent corruption, strictly worse than the visible garbage.
+- Distinct from #343: that is about a view reaching a C string
+  parameter without NUL termination; this one dangles -- the bytes are
+  freed, not merely unterminated.
+- The same program INTERPRETED prints correctly but then dies with
+  "./src/self/interpreter.til:3838: return type read outside a call" --
+  possibly a second, interpreter-side manifestation of the same
+  lifetime confusion around the nested view argument; diagnose while
+  fixing rather than assuming either way.
+- Why the ASAN suite never caught it: no test uses a borrowing view of
+  a local as a nested varargs argument at the base's last use. The fix
+  needs exactly that as a regression test, compiled under --asan, plus
+  the interpreted run once the panic above is understood.
+
+*** Acceptance
+
+- The reproducer prints ~trimmed=[/home/user/til/tmp/_test]~ compiled
+  (plain and --asan, ASAN-clean) and interpreted, with no panic.
+- A regression test pins the pattern on both backends: view-of-local as
+  a nested format/varargs argument at the base's last use, for at least
+  trim and substr.
+- The delete placement follows the view's lifetime, not the base's last
+  syntactic mention -- or the emitted code clones the view into the
+  array when extending the base is not provable. Loud over silent:
+  whichever fix, no configuration may leave the dangling shape
+  compilable.

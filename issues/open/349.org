@@ -1,0 +1,67 @@
+# priority: medium
+# category: bugs
+** OPEN #349 Cmd's Windows argument quoting has never been executed
+
+The argv-based process API from #345 (~ccmd_*~ in ~src/c/ext.c~, the
+~Cmd~ struct in ~src/std/sys.til~) has a Windows side: ~win_quote_arg~
+implements CommandLineToArgvW's backslash rules (a backslash run is
+literal unless a quote follows, in which case the run doubles and the
+quote is escaped; an argument quotes when empty or holding space, tab
+or quote), and ~cmd_start_impl~ builds the command line and environment
+block for CreateProcessA. All of it compiles under mingw headers -- and
+none of it has ever RUN. The container #345 was built in has neither
+wine nor mingw, and no CI lane executes til-driven process spawning on
+Windows.
+
+#345's own acceptance list says the quoting needs a native or wine
+regression test "before the API is called multiplatform", so until this
+issue closes, Cmd is verified on POSIX only. Getting Windows quoting
+wrong is not cosmetic: a trailing backslash in a path (~C:\path\~)
+silently becomes ~C:\path"~ and swallows the next argument.
+
+*** What the test needs to prove
+
+test/process.til already pins the POSIX behavior: spaces, both quote
+characters, empty arguments, no $VAR/glob expansion, exit codes,
+stream separation/merging, redirection, cwd, environment overrides,
+concurrent captures. The Windows test must cover the same claims plus
+the quoting-specific corners:
+
+- arguments containing spaces, tabs, embedded double quotes
+- trailing single and doubled backslashes, backslash runs before quotes
+- the empty argument
+- case-insensitive environment override (an override of ~path~ must
+  displace the inherited ~Path~ -- ~win_env_block~ uses ~_strnicmp~ for
+  this and nothing has ever exercised it)
+- capture spool files via GetTempPath/GetTempFileName, and
+  stderr_to_stdout sharing one handle
+
+The natural shape: an echo-argv til program (print each of its argv
+elements on its own line) cross-compiled to windows-x64, driven by a
+til test that spawns it THROUGH Cmd with the corner-case arguments and
+compares the round trip. Self-contained -- the round trip through
+CreateProcessA + the CRT's parser is exactly the property under test.
+
+*** Where it can run
+
+- The existing windows-native CI jobs already download and execute
+  cross-built .exe artifacts on windows runners; a quoting fixture can
+  join that flow (build in the linux mingw job, execute in the
+  windows job).
+- Or wine in the linux mingw job, which #345's acceptance text
+  explicitly allows; wine's CRT startup uses the same argv parsing
+  rules, and the repo already notes where wine was too permissive
+  (the dual-CRT nng lesson), so a wine pass is necessary-not-yet-
+  sufficient evidence -- prefer the real-runner variant when both are
+  reachable.
+- Local sessions and remote bot containers have neither, which is
+  exactly why this cannot be a suite-only test and did not happen in
+  #345.
+
+*** Acceptance
+
+- A windows execution (native runner or wine) of the quoting corner
+  cases above, wired into CI so it runs on every master push, fails
+  loudly on any quoting change, and does not reduce existing coverage.
+- Until then, doc comments on Cmd keep saying the Windows side is
+  untested rather than implying parity.
