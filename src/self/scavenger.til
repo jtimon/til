@@ -626,6 +626,16 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
 priv match_trivial_delete := func(stmt: Expr) returns Str {
     if stmt.node_type.is(NodeType.FCall).not() { return "" }
     if stmt.children.len() != 3 { return "" }
+    // An `own` arg is CONSUMING: the delete destroys the pointee (the
+    // old element in Array.unsafe_set's `T.delete(own self.unsafe_get(i),
+    // false)`), which is real program semantics, not a temp cleanup. The
+    // generated cleanups this matcher exists for never mark the arg own
+    // -- make_delete_call passes arg_is_own=is_heap, and a hoisted
+    // primitive / LiteralStr temp is never heap. This went unseen while
+    // the desugarer hoisted every call_free literal into an Ident (the
+    // Ident failed the literal-bool check below), and matching the
+    // consuming delete would prune it and orphan its receiver temp.
+    if get_own_arg(stmt, 1) { return "" }
     ref callee : Expr = stmt.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""

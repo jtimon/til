@@ -768,6 +768,22 @@ main := proc(args: ..Str) {
     // is exactly the CFG GCC stops following under -finstrument-functions.
     add_count(tests, "option_keeps_needed_unreachable", "build", "__builtin_unreachable", 12,
         format(til_bin, " translate -c gen/c/opt_ur.c test/option.til '&&' cat gen/c/opt_ur.c"))
+    // A delete's call_free Bool literal is read by value in both back
+    // ends, and the C emitter overrides it for a stack local -- so
+    // hoisting it manufactured a dead `Bool hoisted__Bool_N` binding at
+    // every overridden site, cast away with the `(void)hoisted__` this
+    // issue's invariant forbids (structs.til had the corpus's last 5).
+    add_count(tests, "structs_no_void_hoisted_cast", "build", "(void)hoisted__", 0,
+        format(til_bin, " translate -c gen/c/structs_vh.c test/structs.til '&&' cat gen/c/structs_vh.c"))
+    // The literal exposed DCE's trivial-delete matcher to CONSUMING
+    // deletes: Array.unsafe_set's `T.delete(own self.unsafe_get(i),
+    // false)` hoists its receiver into a ref temp, and with call_free a
+    // literal the matcher saw `Str.delete(<ident>, false)` and pruned the
+    // old-element drop -- an `own` arg is real semantics, never a temp
+    // cleanup, and the matcher rejects it now. The three survivors here
+    // are unsafe_set's drop plus Array.delete's two per-element loops.
+    add_count(tests, "flow_keeps_consuming_deletes", "build", "Str_delete(hoisted__", 3,
+        format(til_bin, " translate -c gen/c/flow_cd.c test/flow.til '&&' cat gen/c/flow_cd.c"))
     // The lifecycle gate covers every struct now, not only the POD ones:
     // a non-POD struct never splices, so every call it makes records a
     // site and gating it costs nothing but the uncalled definitions.

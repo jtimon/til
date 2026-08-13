@@ -4633,6 +4633,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     mut is_ctor_call := false
     mut is_tag_check := false
     mut is_raw_alloc := false
+    mut is_delete_call := false
     if expr.children.len() > 0 {
         ref callee : Expr = expr.children[0]
         switch callee.node_type {
@@ -4654,6 +4655,8 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
             case "calloc":         is_raw_alloc = true
             case:
             }
+        case .FieldAccess(hoist_fan):
+            if hoist_fan.field_access_name().eq("delete") { is_delete_call = true }
         case:
         }
     }
@@ -4699,6 +4702,19 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         // becomes a bare `I64 out;`). Hoisting left the size binding with
         // no reader in the emitted C.
         if is_raw_alloc { continue }
+        // #326: `T.delete(x, call_free)`'s Bool literal is read by value in
+        // both back ends -- the interpreter evaluates it in place, and the
+        // C emitter either passes it through or OVERRIDES it for a stack
+        // local (`Point_delete(&p, (Bool){0})`, whatever the AST says),
+        // because storage is an emit-time fact. Hoisting it manufactured a
+        // `Bool hoisted__Bool_N = 0;` binding with no reader wherever the
+        // override fired, papered over by a `(void)` cast this file's own
+        // temp-naming comment forbids. Literals only: a computed call_free
+        // keeps its hoist, and a forwarded param is an Ident that never
+        // hoisted anyway.
+        if is_delete_call.and(i == 2) {
+            if expr.children[i].node_type.is_literal_bool() { continue }
+        }
 
         ref arg : Expr = expr.children[i]
         hoist_fi := fi

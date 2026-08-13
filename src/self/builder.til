@@ -2871,9 +2871,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         // `Str_delete(&name, (Bool){0});` (no malloc, no
                         // free on a stack pointer). cap=CAP_LIT means the
                         // c_str data isn't freed either -- delete becomes
-                        // a no-op at runtime. Also `(void)` the hoisted
-                        // call_free temp if present, so -Wunused-variable
-                        // doesn't trip.
+                        // a no-op at runtime. The override used to leave a
+                        // hoisted call_free temp unread and `(void)` it;
+                        // the literal is not hoisted at all now (see
+                        // hoist_expr's is_delete_call), so there is
+                        // nothing left to cast away.
                         if is_stack_local(del_arg.ident_name(), ctx).and(c1.til_type().is(Type.Struct)) {
                             // Str only. A POD-STRUCT stack local used to
                             // need the same override, because the garbager
@@ -2890,13 +2892,6 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                             }
                             if del_ct_is_str {
                                 ref del_ct : Str = del_ct_o.unwrap()
-                                if e.children.len() >= 3 {
-                                    switch e.children[2].node_type {
-                                    case .Ident(cf_name):
-                                        f.write("(void)").write(builder_resolve_c_ident_name(cf_name.ident_name(), ctx)).write("; ")
-                                    case:
-                                    }
-                                }
                                 f.write(del_ct).write("_delete(&").write(builder_resolve_c_ident_name(del_arg.ident_name(), ctx)).write(", ").write(delete_call_free_lit(del_ct, false, ctx)).write(");\n"); return
                             }
                         }
