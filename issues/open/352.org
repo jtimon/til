@@ -1,0 +1,47 @@
+# priority: medium
+# category: cleanups
+** OPEN #352 Drop the defensive caps in the borrow-provenance walks
+
+The #344 tracking machinery in src/self/typer.til carries four
+recursion caps and a round clamp that protect against nothing and can
+only lose information:
+
+- ~expr_borrow_roots~ / ~summary_expr_bits~: depth cap 16
+- ~summary_walk~: depth cap 96
+- ~summary_receiver_type~: depth cap 8
+- ~compute_ref_return_summaries~: ~while changed.and(round < 8)~
+
+None is needed for termination:
+
+- The depth-capped walks recurse over expression/statement TREES --
+  finite and acyclic, terminating structurally, exactly like
+  ~infer_expr~ and every other uncapped typer walk over the same AST.
+  A cycle cannot form through the provenance data either:
+  ~borrow_roots~ are flattened to terminal roots at declaration time,
+  and a declaration's RHS can only name earlier bindings, so the
+  points-to graph is a DAG by construction.
+- The fixed point is monotone on a finite lattice (summary bits are
+  only ever ORed in; 64 bits per function, finitely many functions),
+  so ~while changed~ terminates on its own: every round that continues
+  must set at least one new bit. Real units converge in 2-3 rounds.
+
+What the caps DO do is fail silently past the limit: a borrow chain or
+in-unit forward-reference chain deeper than the cap loses roots, which
+either rejects an honest ~mut~ as redundant (a loud error on valid
+code) or accepts a laundered write (silent unsoundness, #344's bug
+class). Nothing in-tree hits the caps -- the suite is green -- but a
+user program can. This is the "no defensive guards" rule applied to
+the typer's own code: the guard hides the failure instead of
+preventing one.
+
+Fix: delete the ~depth~ parameters from the four walks and delete the
+~round < 8~ clamp (keep ~while changed~). No behavior change on any
+in-tree program; regression coverage is a deep borrow/forward chain
+(deeper than the old caps) in test/ref.til proving the roots still
+arrive.
+
+NOT in scope: the 64-bit width of ~ref_return_params~. That mirrors
+the established call bitmaps (~own_args~ / ~ref_args~ / ~splat_args~)
+on purpose -- same width, same indexing -- and a >64-parameter
+function does not occur in practice. Widening it alone would fix
+nothing; if ever needed, all the call bitmaps move together.
