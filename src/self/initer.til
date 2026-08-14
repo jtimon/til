@@ -3072,9 +3072,47 @@ priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope
     return imported_macro_o
 }
 
+// Is this call argument a TYPE, as opposed to a value? A name that
+// resolves to a builtin type, a type alias, a struct/enum or a FuncSig
+// is; so is a NESTED type application `TVec(I64)`, which is a call whose
+// callee is itself a type template. Anything else -- a literal, an
+// operator expression, an unbound name, and notably a struct CONSTRUCTOR
+// call `APoint(x = 3)`, whose callee names a concrete type rather than a
+// template -- is a value.
+priv init_arg_is_type_token := func(arg: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) returns Bool {
+    switch arg.node_type {
+    case .Ident(an):
+        mut bt := Type.Unknown
+        if builtin_type_from_name(an.ident_name(), bt) { return true }
+        // #192: the width aliases are types resolved per target, and the
+        // loader retargets their bindings, so name them directly.
+        if an.ident_name().eq("USize").or(an.ident_name().eq("UPtr")) { return true }
+        b_o := scope.get_binding(an.ident_name())
+        if b_o.is_none() { return false }
+        return type_binding_is_type_token(scope, b_o.unwrap())
+    case .FCall:
+        if arg.children.len() == 0 { return false }
+        switch arg.children[0].node_type {
+        case .Ident(cn):
+            return init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx).is_some()
+        case:
+        }
+    case:
+    }
+    return false
+}
+
 // Issue #267 (caveat 2): inline instantiation of a type-gen macro. `e` is a
 // macro-instantiation call `MACRO(arg1, ...)` when its callee is an Ident
 // naming a local or imported StructDef/EnumDef/FuncDef-returning macro.
+//
+// #328 follow-up: `func<T>` desugars to a macro returning FuncDef (#58's
+// angle-bracket sugar), so EVERY call through that name looked like a type
+// application here -- including the omitted-type-argument form `gid(7)`,
+// which then instantiated the macro with the VALUE as its type argument
+// and reported "undefined type 'n1_7'". A FuncDef macro call whose
+// arguments are values is NOT a type application; it is left alone for
+// the typer's inference.
 priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() < 1 { return false }
@@ -3085,7 +3123,51 @@ priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: Typ
     case .Ident(cn): nm = Str.clone(cn.ident_name())
     case:
     }
-    return init_lookup_type_gen_macro(nm, macros, scope, ctx).is_some()
+    macro_o := init_lookup_type_gen_macro(nm, macros, scope, ctx)
+    if macro_o.is_none() { return false }
+    return init_macro_call_is_type_application(e, macro_o.unwrap(), macros, scope, ctx)
+}
+
+// Is this call an application of TYPE arguments to `macro_fdef`, or the
+// omitted-type-argument call of an all-Type-param function generator? Only the
+// function flavour can be called with values at all, so a struct/enum
+// template is always a type application. Consulted by BOTH macro entry
+// points -- the inline hoist and the top-level expansion loop -- because
+// a `p := gid(7)` at file scope reaches the second one directly.
+priv init_macro_call_is_type_application := func(e: Expr, macro_fdef: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) returns Bool {
+    if init_macro_returns_func_def(macro_fdef).not() { return true }
+    // A HAND-WRITTEN function generator may take value params -- issue
+    // #57's `make_adder := macro(N: I64) returns FuncDef` bakes the literal
+    // into the generated body, and `macro(T: Type, N: I64)` mixes both. Its
+    // value arguments are arguments to the MACRO, and expanding it here is
+    // the whole point. Only the shape `func<T>` desugars to -- every param a
+    // `: Type` -- can have its type arguments omitted at the call site.
+    switch macro_fdef.node_type {
+    case .FuncDef(mfd):
+        if mfd.params.len() == 0 { return true }
+        for p : Declaration in mfd.params {
+            if p.explicit_type.eq("Type").not() { return true }
+        }
+    case:
+        return true
+    }
+    // A no-arg call applies nothing, so there is nothing to misread.
+    if e.children.len() < 2 { return true }
+    for i in 1..e.children.len() {
+        if init_arg_is_type_token(e.children[i], macros, scope, ctx).not() { return false }
+    }
+    return true
+}
+
+// Does this type-gen macro generate a FUNCTION (as opposed to a struct or
+// an enum)? Only the function flavour can be called with value arguments.
+priv init_macro_returns_func_def := func(macro_fdef: Expr) returns Bool {
+    switch macro_fdef.node_type {
+    case .FuncDef(fd):
+        return fd.return_type.eq("FuncDef").or(fd.return_type.eq("FunctionDef"))
+    case:
+    }
+    return false
 }
 
 // A top-level `Name := MACRO(args)` decl whose RHS is directly a macro
@@ -4337,6 +4419,11 @@ priv init_expand_type_gen_macros := func(mut program: Expr, mut scope: TypeScope
             macro_fdef_o := init_lookup_type_gen_macro(callee_name, macros, scope, ctx)
             if macro_fdef_o.is_none() { continue }
             ref macro_fdef : Expr = macro_fdef_o.unwrap()
+            // #328 follow-up: a file-scope `p := gid(7)` on a function generator
+            // reaches this loop without passing the inline hoist, so the
+            // same rule has to gate it -- otherwise the VALUE is substituted
+            // for the type parameter and names a type that never existed.
+            if init_macro_call_is_type_application(rhs, macro_fdef, macros, scope, ctx).not() { continue }
             if macro_fdef.children.len() == 0 { continue }
             ref body : Expr = macro_fdef.children[0]
             if body.node_type.is(NodeType.Body).not() { continue }

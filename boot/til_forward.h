@@ -1671,6 +1671,7 @@ typedef struct Context {
     Set__Str generic_func_synths;
     Expr *generic_pending;
     I64 lambda_counter;
+    Expr *func_gen_twins;
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
@@ -2584,7 +2585,10 @@ I32 priv___src_self_initer_til__init_macro_cond_eval(Expr * cond);
 Option__ref_Expr priv___src_self_initer_til__init_macro_pick_return(Expr * body, Map__Str_Expr * subs);
 Bool priv___src_self_initer_til__init_is_type_gen_macro_def(Expr * fdef);
 Option__ref_Expr priv___src_self_initer_til__init_lookup_type_gen_macro(Str * name, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
+Bool priv___src_self_initer_til__init_arg_is_type_token(Expr * arg, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_is_macro_inst_call(Expr * e, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
+Bool priv___src_self_initer_til__init_macro_call_is_type_application(Expr * e, Expr * macro_fdef, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
+Bool priv___src_self_initer_til__init_macro_returns_func_def(Expr * macro_fdef);
 Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_macro_inst_uses_own_type_param(Expr * rhs, Expr * macro_fdef, TypeScope * scope);
 Str * priv___src_self_initer_til__init_macro_inst_name_byte(I8 b);
@@ -2754,6 +2758,8 @@ Bool priv___src_self_typer_til__generic_infer_subs(TypeScope * scope, Expr * e, 
 void priv___src_self_typer_til__generic_rewrite_call_in_place(Expr * e, Str * mono, Vec__I64 * arg_pos);
 void priv___src_self_typer_til__generic_normalize_concrete_sig(TypeScope * scope, Expr * fdef_expr, Context * ctx);
 void priv___src_self_typer_til__generic_finish_fcall(TypeScope * scope, Expr * e, Str * src_name, Map__Str_Expr * subs, Set__Str * ref_params, Bool explicit, I32 in_func, Context * ctx);
+Option__ref_Expr priv___src_self_typer_til__func_gen_macro_template(Expr * fd);
+Expr * priv___src_self_typer_til__make_direct_generic_twin(Expr * macro_fd, Expr * tmpl);
 void priv___src_self_typer_til__infer_generic_fcall(TypeScope * scope, Expr * e, Str * src_name, Str * display_name, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);

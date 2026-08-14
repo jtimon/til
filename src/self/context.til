@@ -963,6 +963,14 @@ Context := struct {
     // Monotonic across a unit's INITIAL lambda lift and every later flush,
     // so a late concrete body's lambdas cannot collide with `_lambda_0`.
     lambda_counter : I64 = 0
+    // #328 follow-up: per-unit holder for the DIRECT-generic twins the
+    // typer synthesizes from all-Type-param function generators (the
+    // macros #58's `func<T>` sugar desugars to), so their omitted type
+    // arguments infer through the same path direct generics use. A twin
+    // is registered into the scope by pointer, so it has to outlive the
+    // call that built it -- this holder owns it for the unit. Reset
+    // alongside generic_pending at type_check_unit entry.
+    own func_gen_twins : Expr = Expr.new(NodeType.Body, 0, 0)
 
     scope := TypeScope()
     is_repl := false

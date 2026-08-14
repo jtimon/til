@@ -1687,6 +1687,59 @@ gswap_angle := func<T: Type>(mut a: T, mut b: T) {
 test_generic_func_angle_identity := test() {
     assert_eq(I64, gid_angle(I64)(7), 7)
 }
+
+// #328 follow-up: the sugar form infers an OMITTED type argument from its
+// value arguments, exactly as the direct `func(T: Type, v: T)` form does.
+// Before, every call through the name read as a type application, so
+// `gid_angle(7)` instantiated the macro with the VALUE as its type and
+// reported "undefined type 'n1_7'". The inferred and the explicit call
+// name the SAME instance (`gid_angle__I64`), so the two coexist.
+APoint328 := struct { x := 0 }
+MyI328 := I64
+ATempl328 := struct<T: Type> {
+    n : T = 0
+namespace:
+    to_str := func(self: ATempl328(T)) returns Str { return self.n.to_str() }
+}
+gpair_angle := func<K: Type, V: Type>(k: K, _v: V) returns K { return k }
+gproc_angle := proc<T: Type>(mut xs: Vec(Str), v: T) {
+    xs.push(own v.to_str())
+    print_flush()
+}
+// A file-scope decl reaches init's top-level expansion loop directly,
+// without passing the inline hoist -- the second place the rule is needed.
+gangle_toplevel := gid_angle(APoint328(x = 3))
+
+test_generic_func_angle_inferred := test() {
+    assert_eq(I64, gid_angle(7), 7)
+    assert_eq(I64, gid_angle(I64)(8), 8)
+    assert_eq(Str, gid_angle("hi"), "hi")
+    p := gid_angle(APoint328(x = 5))
+    assert_eq(I64, p.x, 5)
+    assert_eq(I64, gangle_toplevel.x, 3)
+    assert_eq(I64, gpair_angle(4, "s"), 4)
+    // The proc flavour infers the same way the func flavour does.
+    mut xs := Vec(Str).new()
+    gproc_angle(xs, 6)
+    assert_eq(Str, xs[0], "6")
+}
+
+// Telling a TYPE argument from a VALUE one is the whole of the rule, and
+// the two shapes that are neither a bare name nor a literal decide it: a
+// NESTED type application `ATempl328(I64)` is a type, while a struct
+// CONSTRUCTOR `APoint328(x = 3)` is a value even though its callee also
+// names a type. Reading the constructor as a type argument is what the
+// bug did; reading the nested application as a value breaks the explicit
+// form that has always worked, so both directions are pinned here.
+test_generic_func_angle_nested_type_arg := test() {
+    v := gid_angle(ATempl328(I64))(ATempl328(I64)(n = 4))
+    assert_eq(I64, v.n, 4)
+    // A type ALIAS names a type, and a value declared through it infers
+    // to the alias target rather than to the alias name.
+    assert_eq(I64, gid_angle(MyI328)(9), 9)
+    aliased : MyI328 = 11
+    assert_eq(I64, gid_angle(aliased), 11)
+}
 test_generic_func_angle_swap := test() {
     mut x := 1
     mut y := 2
