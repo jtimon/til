@@ -673,8 +673,22 @@ include paths into vendor sub-makes. Nothing else reaches a recipe.
     linux-x64: ~bin/make clean~ (which deletes the running program),
     then ~make bin/make~ to bootstrap again, then ~bin/make test~ --
     242/242, the same as ~make clean && make test~.
-- [ ] Steps 4 onwards: not started. Note that steps 5-7 are only
-  PARTLY anticipated by the command list above -- the native vendor
-  artifacts (raylib, tinyfd, nng, libffi and the .so twins),
-  ~bin/til_debug~, ~update_c_libs~, ~clean_vendor~ and every cross
-  target are still Makefile-only, and no Make recipe has been removed.
+- [X] Steps 4-10: the closing commit. The Makefile shrinks to 141
+  lines of bootstrap (libffi, the git-HEAD extraction + ~bin/til_boot~
+  link, ~bin/make~ compilation) plus ~MAKECMDGOALS~-driven one-shot
+  delegation; the bootstrap link drops raylib/tinyfd/nng and their
+  system flags after proving ~til_boot~ references only libffi. The
+  native vendor artifacts, both compiler passes, ~bin/til_debug~, the
+  whole test/check chain, project tools (~doc~, ~summary~, ~install~,
+  ~update_c_libs~, ~clean~, ~clean_vendor~) and every cross target
+  (windows x64/x86, linux x86/arm32/riscv32, SDK-less macOS with tool
+  preflight and framework stubs, emscripten) move into ~make.til~ as
+  structured target data. Artifact paths join the command table so
+  direct path goals keep working; ~doc/self.org~, ~make help~, the
+  build skill and the CI comments follow in the same change. Suite
+  green through both entry paths on linux-x64, and the post-merge CI
+  runs on masters 23eca03e and 3d688259 came back green across every
+  job -- the cross targets this container could only translate are
+  proven on the runners. The details, including the ~make install~
+  breakage this step surfaced and fixed, are in the post-mortem at the
+  top of this file; the follow-ups live in #348, #349 and #350.
