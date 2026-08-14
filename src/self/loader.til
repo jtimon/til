@@ -3309,7 +3309,7 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr), mut 
     if tail_expr_o.is_none() { return Option(Expr).None }
     tail_expr := Option(Expr).take(own tail_expr_o)
 
-    name := format("_lzr_", ctx.lazy_stmt_temp_counter.to_str())
+    name := format("_lzr_", synth_suffix(ctx, ctx.lazy_stmt_temp_counter.to_str()))
     ctx.lazy_stmt_temp_counter++
 
     // The block: substituted prelude [0, sp) + `_lzr_N = tail`.
@@ -3360,9 +3360,37 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, mut ctx: Co
 
 priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, mut ctx: Context) {
     if depth > 256 { return }
+    // #101: a top-level function definition opens the `_lzr_` window --
+    // this pass runs before the typer, so the typer's synth_owner windows
+    // do not exist yet and the walk opens its own. Inside one the counter
+    // restarts and lazy_build_prelude mints the bare per-definition
+    // `_lzr_<n>` (a C local of that function); module-level mints keep the
+    // outer never-restarted sequence with its `g` marker. Guarded on an
+    // EMPTY owner so nested named defs keep sharing the enclosing
+    // definition's sequence, like every other temp family.
+    mut lzr_window := false
+    mut saved_lzr_ctr : I64 = 0
+    if ctx.synth_owner.len() == 0 {
+        switch e.node_type {
+        case .Decl(dd):
+            if e.children.len() > 0 {
+                if e.children[0].node_type.is(NodeType.FuncDef) {
+                    ctx.synth_owner = dd.name.clone()
+                    saved_lzr_ctr = ctx.lazy_stmt_temp_counter
+                    ctx.lazy_stmt_temp_counter = 0
+                    lzr_window = true
+                }
+            }
+        case:
+        }
+    }
     if e.node_type.is(NodeType.Body) { lazy_stmt_inline_body(e, scope, ctx) }
     for i in 0..e.children.len() {
         lazy_stmt_inline_walk(e.children[i], scope, depth.add(1), ctx)
+    }
+    if lzr_window {
+        ctx.synth_owner = ""
+        ctx.lazy_stmt_temp_counter = saved_lzr_ctr
     }
 }
 

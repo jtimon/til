@@ -960,9 +960,10 @@ Context := struct {
     // returned to the top-level loop. Reset at type_check_unit entry and
     // asserted empty at unit exit.
     own generic_pending : Expr = Expr.new(NodeType.Body, 0, 0)
-    // Monotonic across a unit's INITIAL lambda lift and every later flush,
-    // so a late concrete body's lambdas cannot collide with `_lambda_0`.
-    lambda_counter : I64 = 0
+    // (#328's lambda_counter lived here; #101 replaced it with the
+    // per-owner synth_symbol_seq below -- a late concrete body lifts under
+    // its own unique mono name, so it cannot collide with the initial
+    // sweep's symbols.)
     // #328 follow-up: per-unit holder for the DIRECT-generic twins the
     // typer synthesizes from all-Type-param function generators (the
     // macros #58's `func<T>` sugar desugars to), so their omitted type
@@ -1035,10 +1036,11 @@ Context := struct {
     // validate_fcall_arg. Saved+restored around each func body.
     typer_return_type_name : Str = ""
 
-    // Monotonically-increasing builder counter for synthesised
-    // constructor temp names (`_ctor_<N>`). The codegen never
-    // resets this -- it just needs unique names across the whole
-    // emission, so a single ctx-owned counter is sufficient.
+    // Builder counter for synthesised constructor temp names
+    // (`_ctor_<N>`, `_cs<N>`, `_sc<N>`, `_lit<N>`). #101: reset by
+    // builder_reset_func_scratch at each function-body emission -- the
+    // names are C locals of the emitting function, so the number is an
+    // ordinal within that function, not a whole-emission sequence.
     ctor_seq : I32 = 0
 
     // Builder emission-state flags. in_func_def is true while
@@ -1105,12 +1107,18 @@ Context := struct {
     // namespace member uses `<Type>_<member>`, its own C symbol.
     synth_owner := ""
 
-    // Issue #101: NOT part of the per-body reset above. `body_<N>` is a
-    // file-scope C function plus a `body_<N>_env` struct type, so its
-    // suffix must be unique across the whole program. It used to draw
-    // from hoist_counter, which the reset would have made collide
-    // between two functions that each hold one body value.
-    body_value_counter : I32 = 0
+    // Issue #101: per-owner ordinals for FILE-SCOPE synthesized symbols
+    // (`_lambda_<owner>_<n>`, `closure_<owner>_<n>`, `body_<owner>_<n>`).
+    // Unlike the body temps above these become C symbols and `_env`
+    // struct types, so they need program-unique names -- the owner
+    // provides that -- while the per-owner ordinal keeps them stable
+    // (editing one definition cannot renumber another's lambdas). A Map
+    // rather than a save/reset window because the same owner can open
+    // more than one window per Context: a REPL session redefining `f`
+    // must not mint a second `_lambda_f_0` while the first is still
+    // registered. Keys are owner tags ("g" for module level); mint order
+    // follows the AST walk, so a fresh Context reproduces the same names.
+    synth_symbol_seq := Map(Str, I64).new()
 
     // Issue #101: loader counter for the `_lzr_<N>` result temp that
     // lazy_build_prelude mints when statement-inlining a lazy body
@@ -1118,8 +1126,11 @@ Context := struct {
     // LoadedProgram built in the same process kept counting from the
     // first program's last name -- the last generated-name state leak
     // outside Context. Minted by the loader's lazy pass, which runs
-    // before the typer, so the per-body reset above does not reach it:
-    // `_lzr_<N>` is still a whole-program ordinal.
+    // before the typer's windows, so lazy_stmt_inline_walk opens its own
+    // synth_owner window per top-level definition: inside one the counter
+    // restarts and the temp is the bare per-definition `_lzr_<n>` (a C
+    // local); module-level mints keep this outer sequence with the same
+    // `g` marker as the other module-level temps.
     lazy_stmt_temp_counter : I64 = 0
 
     // Remaining typer-phase scratch, moved off module globals. errors is
@@ -1308,6 +1319,22 @@ synth_owner_name := func(path: Str, name: Str, orig_name: Str) returns Str {
     if tag.starts_with("src/") { tag = tag.strip_prefix("src/").clone() }
     if tag.ends_with(".til") { tag = tag.strip_suffix(".til").clone() }
     return format(tag.replace("/", "_"), "_", orig_name)
+}
+
+// Issue #101: the full suffix for a FILE-SCOPE synthesized symbol
+// (`_lambda_`, `closure_`, `body_`): `<owner>_<n>` where n is that owner's
+// own ordinal from ctx.synth_symbol_seq. The owner makes the symbol
+// program-unique (it becomes a C function and an `_env` struct type); the
+// per-owner ordinal makes it stable, so editing one definition cannot
+// renumber another's lambdas. See the field comment for why this is a Map
+// and not a save/reset window.
+synth_symbol_suffix := func(mut ctx: Context) returns Str {
+    mut tag := ctx.synth_owner.clone()
+    if tag.len() == 0 { tag = "g" }
+    mut n : I64 = 0
+    if ctx.synth_symbol_seq.has(tag) { n = ctx.synth_symbol_seq[tag] }
+    ctx.synth_symbol_seq.set(tag, own n.add(1))
+    return format(tag, "_", n.to_str())
 }
 
 // --- Helpers moved from initer.til ---

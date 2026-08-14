@@ -209,12 +209,11 @@ priv typer_is_lambda_target := func(e: Expr) returns Bool {
     return true
 }
 
-priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Vec(Expr), mut counter: I64) returns I64 {
-    if dd.default_value.is_none() { return counter }
+priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Vec(Expr), mut ctx: Context) {
+    if dd.default_value.is_none() { return }
     if typer_is_lambda_target(dd.default_expr()) {
-        counter = typer_lift_lambdas_in_expr(dd.default_expr(), top_level, counter)
-        lname := format("_lambda_", counter.to_str())
-        counter++
+        typer_lift_lambdas_in_expr(dd.default_expr(), top_level, ctx)
+        lname := format("_lambda_", synth_symbol_suffix(ctx))
         mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), dd.default_expr().line, dd.default_expr().col)
         decl.add_child(own dd.default_expr().clone())
         top_level.push(own decl)
@@ -222,12 +221,11 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
         ident.set_til_type(dd.default_expr().til_type())
         dd.default_value = Option(Expr).Some(own ident)
     } else {
-        counter = typer_lift_lambdas_in_expr(dd.default_expr(), top_level, counter)
+        typer_lift_lambdas_in_expr(dd.default_expr(), top_level, ctx)
     }
-    return counter
 }
 
-priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), mut counter: I64) returns I64 {
+priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), mut ctx: Context) {
     // Issue #57: don't descend into template macro bodies -- a func literal
     // inside `macro(T: Type) returns FuncDef { return func(x: T) ... }` is
     // a template that initer's pre-pass substitutes and lifts at each call
@@ -237,12 +235,11 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
     // its body still names the unbound `T`, so a lambda lifted out of it
     // would be typed as an ordinary function against an undefined type.
     // The concrete monomorphizations get their lambdas lifted instead.
-    if init_func_is_generic(e) { return counter }
+    if init_func_is_generic(e) { return }
     switch e.node_type {
     case .FuncDef(lift_fd_check):
         if lift_fd_check.captures.len().gt(0).and(lift_fd_check.closure_name.len().eq(0)) {
-            lift_fd_check.closure_name = format("closure_", counter.to_str())
-            counter++
+            lift_fd_check.closure_name = format("closure_", synth_symbol_suffix(ctx))
         }
         if lift_fd_check.func_type.is(FuncType.Macro) {
             mtg_ret_lift := lift_fd_check.return_type.eq("StructDef")
@@ -257,7 +254,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
                     }
                 }
             }
-            if is_template_lift { return counter }
+            if is_template_lift { return }
         }
     case:
     }
@@ -270,21 +267,21 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
     switch e.node_type {
     case .FuncDef(fd):
         for mut pd : Declaration in fd.params {
-            counter = typer_lift_one_default_value(pd, top_level, counter)
+            typer_lift_one_default_value(pd, top_level, ctx)
         }
     case .StructDef(sdd):
         for mut sf : Declaration in sdd.fields {
-            counter = typer_lift_one_default_value(sf, top_level, counter)
+            typer_lift_one_default_value(sf, top_level, ctx)
         }
         for mut nd : Declaration in sdd.ns_decls {
             if nd.default_value.is_some() {
-                counter = typer_lift_lambdas_in_expr(nd.default_expr(), top_level, counter)
+                typer_lift_lambdas_in_expr(nd.default_expr(), top_level, ctx)
             }
         }
     case .EnumDef(edd):
         for mut nd2 : Declaration in edd.ns_decls {
             if nd2.default_value.is_some() {
-                counter = typer_lift_lambdas_in_expr(nd2.default_expr(), top_level, counter)
+                typer_lift_lambdas_in_expr(nd2.default_expr(), top_level, ctx)
             }
         }
     case:
@@ -296,19 +293,17 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
         // nested INSIDE that named function's body.
         is_decl_rhs := e.node_type.is(NodeType.Decl).and(i.eq(0))
         if typer_is_lambda_target(c).and(is_decl_rhs.not()) {
-            counter = typer_lift_lambdas_in_expr(c, top_level, counter)
-            lname := format("_lambda_", counter.to_str())
-            counter++
+            typer_lift_lambdas_in_expr(c, top_level, ctx)
+            lname := format("_lambda_", synth_symbol_suffix(ctx))
             mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), c.line, c.col)
             decl.add_child(own c.clone())
             top_level.push(own decl)
             mut ident := Expr.new(ident_node(lname), c.line, c.col)
             e.children[i] = ident
         } else {
-            counter = typer_lift_lambdas_in_expr(c, top_level, counter)
+            typer_lift_lambdas_in_expr(c, top_level, ctx)
         }
     }
-    return counter
 }
 
 // Pre-register a lifted lambda decl in scope so references to its
@@ -335,12 +330,33 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
 typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, mut ctx: Context) {
     if prog.node_type.is(NodeType.Body).not() { return }
     mut top_level := Vec(Expr).new()
-    // #328: the counter is per-CONTEXT, not per-call. A late concrete
-    // generic body is lifted after this initial sweep, so restarting at
-    // `_lambda_0` would collide with a name this sweep already emitted.
-    mut ctr : I64 = ctx.lambda_counter
-    ctr = typer_lift_lambdas_in_expr(prog, top_level, ctr)
-    ctx.lambda_counter = ctr
+    // #101 (formerly #328's per-Context counter): each top-level
+    // definition opens its owner window, so a lifted symbol's suffix is
+    // `<owner>_<n>` with n from that owner's own sequence
+    // (ctx.synth_symbol_seq). Late concrete generic bodies flushed after
+    // this initial sweep lift under their OWN unique mono names, and a
+    // REPL turn redefining a name continues that owner's sequence via the
+    // Map, so neither can collide with a symbol an earlier lift emitted.
+    saved_lift_owner := ctx.synth_owner.clone()
+    for pci in 0..prog.children.len() {
+        ref mut pchild : Expr = prog.children[pci]
+        mut lift_owner := ""
+        switch pchild.node_type {
+        case .Decl(pdd):
+            if pchild.children.len() > 0 {
+                ref prhs : Expr = pchild.children[0]
+                if prhs.node_type.is(NodeType.FuncDef)
+                    .or(prhs.node_type.is(NodeType.StructDef))
+                    .or(prhs.node_type.is(NodeType.EnumDef)) {
+                    lift_owner = synth_owner_name(ctx.path, pdd.name, pdd.orig_name)
+                }
+            }
+        case:
+        }
+        ctx.synth_owner = lift_owner
+        typer_lift_lambdas_in_expr(pchild, top_level, ctx)
+    }
+    ctx.synth_owner = saved_lift_owner
     for l : Expr in top_level {
         // Push the lifted decl into the AST FIRST, then register the
         // scope's func_def pointer against the PUSHED copy. set_func_def

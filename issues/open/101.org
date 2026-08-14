@@ -148,22 +148,37 @@
     latent on this branch as on master (reachable only if some future
     change again inflates known-ness); a clean fix would resolve func-ness
     through the type scope without opening the wrong-fold hole above.
-  - [ ] Anonymous lambdas and body values are still numbered
-    program-globally: ~_lambda_<N>~ (~lambda_counter~), ~body_<N>~
-    (~body_value_counter~) and the parser's anonymous types
-    (~anon_type_counter~) become file-scope C symbols and types, so they
-    need a program-unique name -- but they should take it from their
-    enclosing definition the way the temps above now do, not from a
-    whole-program ordinal.
-  - [ ] ~ctor_seq~ (the builder's ~_cs<N>~ / ~_sc<N>~ / ~_ctor_<N>~) is
-    still a whole-program ordinal advanced during emission. It accounted
-    for 104 lines of the ~repl_prompt~ probe's churn. It should restart per
-    emitted function, which is a builder-side change rather than a typer
-    one.
-  - [ ] ~_lzr_<N>~ is minted by the loader's lazy pass, which runs before
-    the typer, so the per-definition window does not reach it. It is still
-    a whole-program ordinal (0 lines of churn in the probe, but the same
-    class of problem).
+  - [X] Lifted lambdas, capturing closures, and body values are owner-named:
+    ~_lambda_<owner>_<n>~, ~closure_<owner>_<n>~, ~body_<owner>_<n>~. They
+    become file-scope C symbols and ~_env~ struct types, so unlike the body
+    temps they DO carry the owner; the per-owner ordinal comes from
+    ~ctx.synth_symbol_seq~, a Map rather than a save/reset window because
+    the same owner can open more than one window per Context -- a REPL
+    session redefining ~f~ must not mint a second ~_lambda_f_0~ while the
+    first is still registered. ~typer_lift_lambdas~ walks top-level
+    definitions and opens an owner window per Decl; #328's ~lambda_counter~
+    is gone (a late concrete generic body lifts under its own unique mono
+    name, so it cannot collide with the initial sweep). The parser's
+    anonymous types (~anon_type_counter~) are NOT covered and stay below.
+  - [X] ~ctor_seq~ (the builder's ~_ctor_<N>~ / ~_cs<N>~ / ~_sc<N>~ /
+    ~_lit<N>~) restarts with the rest of the per-function scratch in
+    ~builder_reset_func_scratch~ -- the names are C locals (and
+    function-scoped statics) of the emitting function, and nothing
+    context-wide keys on them. The closure/body emitters run NESTED inside
+    another function's emission and already save/restore ~builder_func~;
+    ~ctor_seq~ is saved/restored there too, or the enclosing function's
+    later ids would restart and collide. Was 104 lines of the
+    ~repl_prompt~ probe's churn; now 0.
+  - [X] ~_lzr_<N>~: ~lazy_stmt_inline_walk~ runs before the typer's
+    windows, so it opens its own ~synth_owner~ window per top-level
+    function definition -- inside one the counter restarts and the temp is
+    the bare per-definition ~_lzr_<n>~; module-level mints keep the outer
+    sequence with the ~g~ marker like every other module-level temp.
+  - [ ] The parser's anonymous types (~anon_type_counter~,
+    ~AnonStruct<N>~ / ~AnonEnum<N>~ / ~__anon_<N>~) are still a
+    whole-program ordinal. The parser runs before any owner window exists
+    and does not carry Context, so this needs its own threading; rstil
+    left these program-global too.
   - [ ] The string pool. ~_til_str_lits[<n>]~ indexes are positions in an
     ordered first-use walk, so inserting one literal shifts every index
     after it -- 238 lines of the original ~repl_prompt~ probe, 4 after the
@@ -174,3 +189,9 @@
     shifts every one below it in the same file (24 lines in the probe).
     This is inherent to what ~__LOC__~ means; it is listed for completeness
     as the floor the other items cannot go below.
+
+  Probe state after the counter items (2026-08-14, the same 3-line
+  ~repl_prompt~ refactor): 103 changed lines of ~til.c~ -- 26 ~__LOC__~
+  shifts, 4 string-pool indexes, 19 the edited function's own temps, 0
+  from any other function's names. What remains above the ~__LOC__~ floor
+  is the string pool and the parser's anonymous types.

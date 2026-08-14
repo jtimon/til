@@ -1433,6 +1433,14 @@ priv builder_needs_unused_cast := func(name: Str, ctx: Context) returns Bool {
 }
 
 priv builder_reset_func_scratch := func(mut ctx: Context) {
+    // #101: the `_ctor_<N>` / `_cs<N>` / `_sc<N>` / `_lit<N>` temps this
+    // counter numbers are C locals (and function-scoped statics) of the
+    // function being emitted, so the sequence restarts with the rest of
+    // the per-function scratch: their number is an ordinal within the
+    // emitting function, and editing one function cannot renumber
+    // another's constructor temps. Nothing context-wide keys on these
+    // names -- they are formatted at the emission site and never stored.
+    ctx.ctor_seq = 0
     ctx.builder_func.body_refs = Set(Str).new()
     ctx.builder_func.body_multi_decls = Set(Str).new()
     ctx.builder_func.stack_locals = Set(Str).new()
@@ -4916,6 +4924,11 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         saved_in_func_def := lp.ctx.in_func_def
         saved_current_fdef := lp.ctx.current_fdef
         saved_builder_func := lp.ctx.builder_func.clone()
+        // #101: ctor_seq is per-function scratch too, but lives outside
+        // builder_func; this emitter runs NESTED inside another function's
+        // emission, so restore the enclosing sequence afterwards or its
+        // later _cs/_sc ids would restart and collide.
+        saved_ctor_seq := lp.ctx.ctor_seq
         lp.ctx.closure_emit_env = "til_env"
         lp.ctx.closure_emit_captures = Set(Str).new()
         for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own cap2.name.clone()) }
@@ -4930,6 +4943,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.in_func_def = saved_in_func_def
         lp.ctx.current_fdef = saved_current_fdef
         lp.ctx.builder_func = saved_builder_func
+        lp.ctx.ctor_seq = saved_ctor_seq
         emit_diverge_terminator(f, ret, closure_expr.children[0])
         f.write("}\n\n")
     case .BodyValue(bd):
@@ -4983,6 +4997,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         saved_in_func_def_b := lp.ctx.in_func_def
         saved_current_fdef_b := lp.ctx.current_fdef
         saved_builder_func_b := lp.ctx.builder_func.clone()
+        saved_ctor_seq_b := lp.ctx.ctor_seq
         lp.ctx.closure_emit_env = "til_env"
         lp.ctx.closure_emit_captures = Set(Str).new()
         for cap_b3 : Declaration in bd.captures { lp.ctx.closure_emit_captures.add(own cap_b3.name.clone()) }
@@ -4997,6 +5012,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.in_func_def = saved_in_func_def_b
         lp.ctx.current_fdef = saved_current_fdef_b
         lp.ctx.builder_func = saved_builder_func_b
+        lp.ctx.ctor_seq = saved_ctor_seq_b
         f.write("}\n\n")
     case:
     }

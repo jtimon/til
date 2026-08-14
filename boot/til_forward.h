@@ -285,6 +285,7 @@ typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Set__U32 Set__U32;
+typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
 enum {
     Option__ref_Expr_TAG_None,
@@ -316,7 +317,6 @@ enum {
 };
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
-typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
 typedef struct Vec__GenericFuncSource Vec__GenericFuncSource;
 enum {
@@ -898,12 +898,6 @@ typedef struct Vec__ExprPtrBox {
 struct Option__ref_Mode {
     Mode *data;
 };
-
-typedef struct Map__Str_I64 {
-    Vec__Str keys;
-    Vec__I64 values;
-} Map__Str_I64;
-
 
 typedef struct Vec__GenericFuncSource {
     U8 *data;
@@ -1535,6 +1529,12 @@ typedef struct Map__Str_StructLayout {
 } Map__Str_StructLayout;
 
 
+typedef struct Map__Str_I64 {
+    Vec__Str keys;
+    Vec__I64 values;
+} Map__Str_I64;
+
+
 typedef struct Map__Str_call_Vec_Str {
     Vec__Str keys;
     Vec__call_Vec_Str values;
@@ -1670,7 +1670,6 @@ typedef struct Context {
     Map__Str_Expr generic_funcs;
     Set__Str generic_func_synths;
     Expr *generic_pending;
-    I64 lambda_counter;
     Expr *func_gen_twins;
     TypeScope scope;
     Bool is_repl;
@@ -1698,7 +1697,7 @@ typedef struct Context {
     I32 kw_counter;
     I32 coll_counter;
     Str synth_owner;
-    I32 body_value_counter;
+    Map__Str_I64 synth_symbol_seq;
     I64 lazy_stmt_temp_counter;
     I32 errors;
     Str current_type_name;
@@ -2246,6 +2245,7 @@ void Context_delete(Context * self, Bool call_free);
 Str * synth_suffix(Context * ctx, Str * n);
 Str * synth_suffix_unique(Context * ctx, Str * n);
 Str * synth_owner_name(Str * path, Str * name, Str * orig_name);
+Str * synth_symbol_suffix(Context * ctx);
 void context_register_target_int_alias_types(Context * ctx, Str * usize_name, Str * uptr_name);
 void context_reset_type_scope(Context * ctx);
 void note_cross_file_use(Context * ctx, Str * decl_path);
@@ -2406,6 +2406,12 @@ Bool Set__U32_has(Set__U32 * self, U32 val);
 void Set__U32_add(Set__U32 * self, U32 * val);
 void Set__U32_delete(Set__U32 * self, Bool call_free);
 Set__U32 * Set__U32_clone(Set__U32 * self);
+Map__Str_I64 * Map__Str_I64_new(void);
+Bool Map__Str_I64_has(Map__Str_I64 * self, Str * key);
+I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind);
+void Map__Str_I64_set(Map__Str_I64 * self, Str * key, I64 * val);
+void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
+Map__Str_I64 * Map__Str_I64_clone(Map__Str_I64 * self);
 Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_new(void);
 Bool Map__Str_call_Vec_Str_has(Map__Str_call_Vec_Str * self, Str * key);
 Vec__Str * Map__Str_call_Vec_Str_get(Map__Str_call_Vec_Str * self, Str * key, I64 * _err_kind);
@@ -2455,6 +2461,7 @@ void Vec__I64_push(Vec__I64 * self, I64 * val);
 I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
 void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
 void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Vec__I64 * Vec__I64_clone(Vec__I64 * self);
 Vec__TypeBinding * Vec__TypeBinding_new(void);
 void Vec__TypeBinding_clear(Vec__TypeBinding * self);
 void Vec__TypeBinding_remove_at(Vec__TypeBinding * self, USize i, I64 * _err_kind);
@@ -2509,11 +2516,11 @@ void adopt__Mode(void * dest, Mode * src);
 void adopt__FuncType(void * dest, FuncType * src);
 void adopt__ImportUnit(void * dest, ImportUnit * src);
 void adopt__StructLayout(void * dest, StructLayout * src);
+void adopt__I64(void * dest, I64 * src);
 void adopt__Vec__Str(void * dest, Vec__Str * src);
 void adopt__FFIEntry(void * dest, FFIEntry * src);
 void adopt__ExprPtrBox(void * dest, ExprPtrBox * src);
 void adopt__FFITypePtrBox(void * dest, FFITypePtrBox * src);
-void adopt__I64(void * dest, I64 * src);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);
@@ -2651,11 +2658,6 @@ I32 init_repl_delta(Str * path, Expr * program, Context * ctx);
 Bool priv___src_self_initer_til__enum_variant_is_payload_less(Expr * enum_def, Str * variant_name);
 Str * clone_call_type_name(Expr * e);
 Bool is_pod_enum_clone_of(Expr * e, Option__ref_Expr edef_o);
-Map__Str_I64 * Map__Str_I64_new(void);
-Bool Map__Str_I64_has(Map__Str_I64 * self, Str * key);
-I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind);
-void Map__Str_I64_set(Map__Str_I64 * self, Str * key, I64 * val);
-void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
 Map__Str_GenericFuncSource * Map__Str_GenericFuncSource_new(void);
 GenericFuncSource * Map__Str_GenericFuncSource_get(Map__Str_GenericFuncSource * self, Str * key, I64 * _err_kind);
 void Map__Str_GenericFuncSource_set(Map__Str_GenericFuncSource * self, Str * key, GenericFuncSource * val);
@@ -2991,8 +2993,8 @@ USize priv___src_self_desugarer_til__slot_default_index(I32 code);
 Bool desugar_fcall_args_for_fdef(Expr * e, Str * display_name, FunctionDef * fdef_data, USize implicit_arg_count, Context * ctx);
 void desugar_user_func_fcall_args(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, Context * ctx);
 Bool priv___src_self_desugarer_til__typer_is_lambda_target(Expr * e);
-I64 priv___src_self_desugarer_til__typer_lift_one_default_value(Declaration * dd, Vec__Expr * top_level, I64 * counter);
-I64 priv___src_self_desugarer_til__typer_lift_lambdas_in_expr(Expr * e, Vec__Expr * top_level, I64 * counter);
+void priv___src_self_desugarer_til__typer_lift_one_default_value(Declaration * dd, Vec__Expr * top_level, Context * ctx);
+void priv___src_self_desugarer_til__typer_lift_lambdas_in_expr(Expr * e, Vec__Expr * top_level, Context * ctx);
 void priv___src_self_desugarer_til__typer_register_lifted_lambda(TypeScope * scope, Expr * lifted, Context * ctx);
 void typer_lift_lambdas(TypeScope * scope, Expr * prog, Context * ctx);
 void priv___src_self_desugarer_til__seed_guard_receiver_types(Context * ctx, Expr * e, TypeScope * scope);

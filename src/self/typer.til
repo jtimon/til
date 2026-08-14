@@ -6363,12 +6363,11 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Co
     switch expr.node_type {
     case .BodyValue(bd):
         if bd.closure_name.len().eq(0) {
-            // #101: body_value_counter, not hoist_counter -- this name
+            // #101: synth_symbol_suffix, not hoist_counter -- this name
             // becomes a file-scope C function and a `_env` struct type,
-            // so it must be unique program-wide, while hoist_counter now
-            // restarts at 0 in every function body.
-            bd.closure_name = format("body_", ctx.body_value_counter.to_str())
-            ctx.body_value_counter++
+            // so it needs the program-unique owner-qualified suffix,
+            // while hoist_counter restarts at 0 in every function body.
+            bd.closure_name = format("body_", synth_symbol_suffix(ctx))
         }
         captures = bd.captures.clone()
     case:
