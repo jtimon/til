@@ -803,6 +803,24 @@ main := proc(args: ..Str) {
     // issue's invariant forbids (structs.til had the corpus's last 5).
     add_count(tests, "structs_no_void_hoisted_cast", "build", "(void)hoisted__", 0,
         format(til_bin, " translate -c gen/c/structs_vh.c test/structs.til '&&' cat gen/c/structs_vh.c"))
+    // The reflection stubs opened with a blanket `(void)` on every
+    // parameter -- casting names their own dispatch arms and error exits
+    // READ, which is the Str_size mis-cast from the post-mortem all over
+    // again. The exits already read type_name; the index-taking ones now
+    // report the offending index too, so every parameter is genuinely
+    // read and no cast survives. first_class.til emits the widest stub
+    // set (struct_field_*, enum_variant_*, func_sig_*).
+    add_count(tests, "first_class_no_stub_param_casts", "build", "(void)type_name", 0,
+        format(til_bin, " translate -c gen/c/fc_vc.c test/first_class.til '&&' cat gen/c/fc_vc.c"))
+    add_count(tests, "first_class_index_in_range_error", "build", "index %lld out of range", 12,
+        format(til_bin, " translate -c gen/c/fc_ir.c test/first_class.til '&&' cat gen/c/fc_ir.c"))
+    // An interface's ABSTRACT method has no definition anywhere --
+    // implementers copy the defaults and supply their own bodies, and
+    // dispatch goes to the copies -- so its prototype was a
+    // declared-never-defined name, the corpus's last one that is not a
+    // genuine external (ext.c / vendor).
+    add_count(tests, "interfaces_no_abstract_prototype", "build", "Drawable_draw", 0,
+        format(til_bin, " translate -c gen/c/if_ap.c test/interfaces.til '&&' cat gen/c/if_ap.c"))
     // The literal exposed DCE's trivial-delete matcher to CONSUMING
     // deletes: Array.unsafe_set's `T.delete(own self.unsafe_get(i),
     // false)` hoists its receiver into a ref temp, and with call_free a
