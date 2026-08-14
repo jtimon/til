@@ -102,6 +102,23 @@ test_stmt_inline_short_circuits := test() {
     assert_eq(I64, eval_count, 2)         # costly(a) + bump()
 }
 
+# Issue #101: two statement-inlined calls in ONE body, so two `_lzr_<N>`
+# result temps are minted from ctx.lazy_stmt_temp_counter back to back. The
+# counter used to be a module global in loader.til, initialized once per
+# compiler PROCESS instead of once per LoadedProgram; this witness pins the
+# property that survived the move -- consecutive sites get DISTINCT names
+# (a collision is a duplicate declaration in the same block, which the typer
+# rejects outright) and each `p := _lzr_i` reads back its own call's tail,
+# not the other one's.
+test_stmt_inline_two_results := test() {
+    eval_count = 0
+    p := stmt_and(false, true)
+    q := stmt_and(true, true)
+    expect(p.not(), "first stmt result is false")
+    expect(q, "second stmt result is true")
+    assert_eq(I64, eval_count, 2)         # one costly(a) per call, no more
+}
+
 # --- if/else-body lazy funcs: same results and same short-circuit as match ---
 
 test_if_body_funcs := test() {

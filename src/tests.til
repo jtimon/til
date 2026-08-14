@@ -496,8 +496,36 @@ main := proc(args: ..Str) {
     // deliberately EXCLUDED from wall_ms (run_all_parallel marks the suite end
     // from the last non-"self" test), so the benchmark does not inflate wall.
     // Exit must be 0: the compiler has to be able to translate itself.
+    //
+    // Issue #101: it is also the determinism guard, and ONE translation buys
+    // both halves of it, so self_ms stays a single self-translate. The
+    // comparison is against the pass-1 boot/ artifacts the build just
+    // produced, which were written by a DIFFERENT compiler binary in a
+    // DIFFERENT process (til_boot under `make test`, the self-applied
+    // bin/til under two_pass):
+    //   - REPEATABILITY falls out of that. Byte-identical output from two
+    //     processes is exactly the property a second run of this compiler
+    //     would test, and it tests it across a process boundary rather than
+    //     within one. Every synthesized name (`hoisted__<T>_<N>`,
+    //     `_lzr_<N>`, `_sw_<T>_<N>`, ...) comes from a Context counter
+    //     advanced by an ordered AST/Vec walk, so a fresh LoadedProgram has
+    //     to reproduce the bytes. This used to be checked by hand with
+    //     occasional self-build diffs (#77).
+    //   - SELF-APPLICATION is the other half: the compiler BUILT from pass
+    //     1's output must re-emit pass 1's bytes -- the bootstrap fixed
+    //     point. Both artifacts come from the same HEAD, which matters
+    //     because VERSION embeds the current git commit.
+    // A second translation would only re-test one process against itself,
+    // for the price of doubling the suite's single slowest job.
+    // A unique tmp/ path so the parallel suite cannot race another
+    // translation, and so gen/til/til.c (pass 1's artifact) is left alone.
+    // The '&&' tokens are quoted for the OUTER shell: test_runner joins its
+    // post-`--` argv with spaces and re-runs the result under sh, which is
+    // where they take effect.
     add_single(tests, "self_translate", "self", 0, "",
-        format(til_bin, " translate src/til.til"))
+        format(til_bin, " translate -c tmp/self_det.c src/til.til",
+            " '&&' cmp tmp/self_det.c boot/til.c",
+            " '&&' cmp tmp/self_det_forward.h boot/til_forward.h"))
 
     // The two REPL drivers, registered EARLY for the same reason
     // self_translate is: run_all_parallel dispatches strictly in

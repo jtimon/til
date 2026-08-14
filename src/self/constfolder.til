@@ -1426,28 +1426,44 @@ priv normalize_folded_ctor_deletes := func(mut e: Expr, i: USize, ctx: Context) 
     }
 }
 
+// Fold `e` under a fresh `known` view, so body-local knowns tracked inside
+// it die with it instead of polluting sibling bodies. Move the real known
+// out and park an owned VIEW in the field: body-local knowns shadow an
+// immutable parent snapshot (copying the full map here made nested folding
+// quadratic). The view's parent borrows the moved-out scope -- the box
+// address is stable across the swap; only the pointer moved.
+//
+// #101: EVERY function body must fold through here, including namespace
+// member bodies, which process_body reaches directly rather than through
+// fold_subtree's FuncDef branch. They used to fold with NO view, so their
+// locals were tracked into the program-wide known scope and stayed there.
+// With whole-program name ordinals that leak was unobservable (no two
+// bodies shared a temp name); with per-definition ordinals it made
+// is_known_check hit one body's tracked literal from another body --
+// I64_to_str's `format("-", U64_to_str(mag))` folded to the constant
+// "-18446744073709551615" because a sibling's leaked `hoisted__U64_<n>`
+// matched its own.
+priv fold_body_scoped := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
+    mut snapshot_fd := Option(Scope).None
+    swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
+    switch snapshot_fd {
+    case .Some(real_known):
+        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).Some(real_known)))
+    case .None:
+        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+    }
+    fold_subtree(scope, e, ctx)
+    constfolder_clear_known(ctx)
+    swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
+}
+
 priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     for i in 0..e.children.len() {
         ref mut child : Expr = e.children[i]
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
-            // Move the real known out and park an owned VIEW in the field:
-            // body-local knowns shadow an immutable parent snapshot (copying
-            // the full map here made nested folding quadratic). The view's
-            // parent borrows the moved-out scope -- the box address is
-            // stable across the swap; only the pointer moved.
-            mut snapshot_fd := Option(Scope).None
-            swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
-            switch snapshot_fd {
-            case .Some(real_known):
-                ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).Some(real_known)))
-            case .None:
-                ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
-            }
-            fold_subtree(scope, child, ctx)
-            constfolder_clear_known(ctx)
-            swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
+            fold_body_scoped(scope, child, ctx)
             continue
         }
         fold_subtree(scope, child, ctx)
@@ -1566,7 +1582,10 @@ process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_glob
                 if nsd.default_value.is_none() { continue }
                 if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                 if nsd.default_expr().children.len() == 0 { continue }
-                fold_subtree(scope, nsd.default_expr().children[0], ctx)
+                // #101: through the scoped wrapper, like every other body --
+                // folding these directly leaked their tracked locals into
+                // the program-wide known scope (see fold_body_scoped).
+                fold_body_scoped(scope, nsd.default_expr().children[0], ctx)
             }
             continue
         }
