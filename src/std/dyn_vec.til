@@ -52,6 +52,21 @@ namespace:
         return v
     }
 
+    /// Create an empty DynVec with room for `n` elements, taking its
+    /// element metadata from a container that already has it instead of
+    /// from a Type or a type name. DynArray.to_vec is why this exists: a
+    /// DynArray carries the element size / kind / clone / delete fns but
+    /// not the type name `new_type_name` wants, and a DynVec record can
+    /// only be built directly inside this file.
+    new_like := func(elem_size: USize, elem_kind: USize, elem_clone: CloneFn,
+                     elem_delete: DeleteFn, n: USize) returns DynVec {
+        mut c : USize = 1
+        if n > 0 { c = n }
+        return DynVec(data = malloc(c.mul(elem_size)), cap = c,
+                    elem_size = elem_size, elem_kind = elem_kind,
+                    elem_clone = elem_clone, elem_delete = elem_delete)
+    }
+
     len := func(self: DynVec) returns USize { return self.count }
 
     /// Drop all live elements via elem_delete but keep the allocated
@@ -183,6 +198,15 @@ namespace:
         other.count = 0
     }
 
+    /// Give self's contents to `dest`, which drops whatever it held.
+    /// Vec.move_to's counterpart, and the argument-flipped spelling of
+    /// `dest.move_from(self)`. Both sides are `mut` here rather than one
+    /// of them `own`, because the values these moves exist for are struct
+    /// FIELDS, and a field cannot be an owned argument or receiver.
+    move_to := func(mut self: DynVec, mut dest: DynVec) {
+        dest.move_from(self)
+    }
+
     /// Unchecked ref to the element at index `i`. Caller guarantees
     /// `i < self.count`; bypasses get's throwing bounds check. for-in
     /// and the DynMap binary search use this directly (issue #284/#287).
@@ -278,6 +302,17 @@ namespace:
         return DynVec(data = prefix_data, count = n, cap = prefix_cap,
                    elem_size = self.elem_size, elem_kind = self.elem_kind,
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+    }
+
+    /// Take the contents out: the returned DynVec holds self's elements
+    /// and self is left empty. Vec.take hands its BUFFER over and blanks
+    /// itself; a DynVec cannot, because elem_size/elem_kind/elem_clone/
+    /// elem_delete are runtime values rather than type parameters, and a
+    /// blanked DynVec would no longer know how to grow or free itself.
+    /// The elements move as bytes into a fresh buffer instead -- which is
+    /// take_prefix of the whole vec.
+    take := func(mut self: DynVec) returns DynVec {
+        return self.take_prefix(self.count)
     }
 
     /// Overwrite the element at index `i` without a bounds check, dropping

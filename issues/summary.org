@@ -6,6 +6,7 @@
 *** [[./open/348.org][#348]] The installed til cannot build or interpret mode gui programs
 *** [[./open/349.org][#349]] Cmd's Windows argument quoting has never been executed
 *** [[./open/350.org][#350]] A view argument's base Str is freed before the enclosing call reads it
+*** [[./open/353.org][#353]] Interpreter binds by-value prim arguments as borrows of the caller's storage
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

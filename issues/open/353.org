@@ -1,0 +1,53 @@
+# priority: medium
+# category: bugs
+** OPEN #353 Interpreter binds by-value prim arguments as borrows of the caller's storage
+
+  A by-value prim parameter is a COPY in the emitted C: scalars travel
+  by value, only structs go as pointers. The interpreter's argument
+  binder instead borrows the caller's storage for them in some paths,
+  so a write to the source binding DURING the call changes what the
+  callee's parameter reads -- a silent interpreter/compiler divergence
+  that produces different values, not a crash.
+
+  Two arms in the binder (src/self/interpreter.til, the param loop in
+  the call evaluator):
+
+  1. The eval'd-argument arm (arg_info.is_ref: field access, element
+     ref). FIXED in the commit that added DynVec.take, where
+     `self.take_prefix(self.count)` read n = 0 interpreted (take_prefix
+     zeroes self.count before building its result) and n = 2 compiled.
+     The binder now copies the scalar for a Shallow prim parameter and
+     only borrows non-prims.
+
+  2. The Ident arm: an argument passed as a plain name whose type
+     matches the parameter's goes through scope_set_borrowed, prims
+     included. STILL OPEN. Repro, interpreted vs compiled:
+
+       mut g : USize = 7
+       poke := func(k: USize) returns USize {
+           g = 0
+           return k
+       }
+       print("got ", poke(g).to_str())   // interp: 0, compiled: 7
+
+     Verified divergent right before this issue was filed. A plain
+     LOCAL passed by name cannot be reached by the callee, so the
+     observable cases are globals (above) and any other name both
+     borrowable at the call site and writable during the call.
+
+  The fix for (2) is the same shape as (1): copy the scalar into the
+  parameter binding (scalar_word_load + scalar_block_from_word at the
+  param's width) instead of scope_set_borrowed when the bind type is
+  prim. Watch two things while doing it:
+
+  - `mut` prim params: the suite passed with (1) copying Shallow prims
+    regardless of is_mut, which says mut prim params are mutable local
+    copies in C too, not in/out pointers. Re-confirm on the Ident path.
+  - The borrow was also the cheap path: every prim arg now pays a box
+    per call in the interpreter. If interp time regresses noticeably,
+    the copy can be limited to writable sources, but plain "copy all
+    prims" is the correct-first default.
+
+  Regression tests should cover the global repro above in both interp
+  and compiled runs, plus the already-fixed field-access shape
+  (test_dyn_vec_take exercises it indirectly through take_prefix).

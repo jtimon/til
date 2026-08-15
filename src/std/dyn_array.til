@@ -1,5 +1,7 @@
 mode lib
 
+import("dyn_vec")
+
 /// Fixed-capacity array of typed elements.
 DynArray := struct {
     own data : U8 = 0
@@ -102,6 +104,56 @@ namespace:
         }
         free(own self.data)
         if call_free { free(own self) }
+    }
+
+    /// Clone every element of `self` into `dst` starting at element index
+    /// `dst_index`. `dst` must have room for self.cap elements from there.
+    priv clone_into := func(self: DynArray, dst: Dynamic, dst_index: USize) {
+        base := dst_index.mul(self.elem_size)
+        if self.elem_kind == ELEM_POD {
+            memcpy(ptr_add(dst, base), self.data, self.cap.mul(self.elem_size))
+            return
+        }
+        for i in 0..self.cap {
+            off := base.add(i.mul(self.elem_size))
+            if self.elem_kind == ELEM_BOXED {
+                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
+                memcpy(ptr_add(dst, off), cloned, self.elem_size)
+                free(own cloned)
+            } else {
+                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.mul(self.elem_size)))
+                memcpy(ptr_add(dst, off), cloned_fn, self.elem_size)
+                free(own cloned_fn)
+            }
+        }
+    }
+
+    /// A fresh DynArray holding `self`'s elements followed by `other`'s.
+    /// Both sources keep theirs -- every element is cloned, exactly as
+    /// `clone` does. Array.concat's counterpart; the element type is
+    /// runtime data here, so mismatched operands panic instead of being
+    /// rejected by the typer.
+    concat := func(self: DynArray, other: DynArray) returns DynArray {
+        if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
+            panic("DynArray.concat: incompatible arrays")
+        }
+        total : USize = self.cap.add(other.cap)
+        new_data : U8 = malloc(total.mul(self.elem_size))
+        self.clone_into(new_data, 0)
+        other.clone_into(new_data, self.cap)
+        return DynArray(data = new_data, cap = total,
+                     elem_size = self.elem_size, elem_kind = self.elem_kind,
+                     elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+    }
+
+    /// A fresh DynVec holding a clone of every element, `self` intact.
+    /// Array.to_vec's counterpart.
+    to_vec := func(self: DynArray) returns DynVec {
+        mut out := DynVec.new_like(self.elem_size, self.elem_kind,
+                                   self.elem_clone, self.elem_delete, self.cap)
+        self.clone_into(out.data, 0)
+        out.count = self.cap
+        return out
     }
 
     clone := func(self: DynArray) returns DynArray {

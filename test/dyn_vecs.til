@@ -349,3 +349,52 @@ test_dyn_vec_delete_marked := test() {
     assert_eq(Str, k0, "e0")
     assert_eq(Str, k1, "e2")
 }
+
+// DynVec.take -- self's elements move into the returned DynVec and self is
+// left empty, keeping the element metadata that lets it be pushed to again
+// (Vec.take's counterpart).
+test_dyn_vec_take := test() {
+    mut v := DynVec.new(Str)
+    v.push(own "a")
+    v.push(own "b")
+
+    taken := v.take()
+
+    assert_eq(USize, taken.len(), 2)
+    assert_eq(USize, v.len(), 0)
+    ref t0 : Str = taken[0]
+    ref t1 : Str = taken[1]
+    assert_eq(Str, t0, "a")
+    assert_eq(Str, t1, "b")
+
+    v.push(own "c")
+    assert_eq(USize, v.len(), 1)
+    ref v0 : Str = v[0]
+    assert_eq(Str, v0, "c")
+}
+
+test_dyn_vec_take_empty := test() {
+    mut v := DynVec.new(I64)
+    taken := v.take()
+    assert_eq(USize, taken.len(), 0)
+    assert_eq(USize, v.len(), 0)
+}
+
+// DynVec.move_to -- dest drops whatever it held and takes self's contents,
+// leaving self empty. The argument-flipped spelling of move_from.
+test_dyn_vec_move_to := test() {
+    mut src := DynVec.new(Str)
+    mut dest := DynVec.new(Str)
+    src.push(own "x")
+    src.push(own "y")
+    dest.push(own "old")
+
+    src.move_to(dest)
+
+    assert_eq(USize, dest.len(), 2)
+    assert_eq(USize, src.len(), 0)
+    ref d0 : Str = dest[0]
+    ref d1 : Str = dest[1]
+    assert_eq(Str, d0, "x")
+    assert_eq(Str, d1, "y")
+}

@@ -105,3 +105,75 @@ test_dyn_array_body_call_set := test() {
     cast(raw2, Body)()
     assert_eq(I64, x, 3)
 }
+
+// DynArray.concat -- a fresh DynArray with self's elements then other's,
+// every element cloned so both sources stay intact (Array.concat's
+// counterpart, with the element type checked at runtime).
+test_dyn_array_concat := test() {
+    mut a := DynArray.new(Str, 2)
+    a.set(0, own "a")!
+    a.set(1, own "b")!
+    mut b := DynArray.new(Str, 1)
+    b.set(0, own "c")!
+
+    c := a.concat(b)
+
+    assert_eq(USize, c.len(), 3)
+    ref c0 : Str = c[0]
+    ref c1 : Str = c[1]
+    ref c2 : Str = c[2]
+    assert_eq(Str, c0, "a")
+    assert_eq(Str, c1, "b")
+    assert_eq(Str, c2, "c")
+    // sources keep their own elements
+    ref a0 : Str = a[0]
+    ref b0 : Str = b[0]
+    assert_eq(Str, a0, "a")
+    assert_eq(Str, b0, "c")
+    assert_eq(USize, a.len(), 2)
+}
+
+test_dyn_array_concat_empty := test() {
+    mut a := DynArray.new(I64, 2)
+    a.set(0, own 1)!
+    a.set(1, own 2)!
+    e := DynArray.new(I64, 0)
+    c := a.concat(e)
+    assert_eq(USize, c.len(), 2)
+    d := e.concat(a)
+    assert_eq(USize, d.len(), 2)
+    ref d1 : I64 = d[1]
+    assert_eq(I64, d1, 2)
+}
+
+// DynArray.to_vec -- a fresh DynVec with a clone of every element, self
+// intact (Array.to_vec's counterpart).
+test_dyn_array_to_vec := test() {
+    mut a := DynArray.new(Str, 2)
+    a.set(0, own "a")!
+    a.set(1, own "b")!
+
+    mut v := a.to_vec()
+
+    assert_eq(USize, v.len(), 2)
+    ref v0 : Str = v[0]
+    ref v1 : Str = v[1]
+    assert_eq(Str, v0, "a")
+    assert_eq(Str, v1, "b")
+    ref a0 : Str = a[0]
+    assert_eq(Str, a0, "a")
+    assert_eq(USize, a.len(), 2)
+    // the result is a real DynVec, so it still grows
+    v.push(own "c")
+    ref v2 : Str = v[2]
+    assert_eq(Str, v2, "c")
+}
+
+test_dyn_array_to_vec_empty := test() {
+    e := DynArray.new(I64, 0)
+    mut v := e.to_vec()
+    assert_eq(USize, v.len(), 0)
+    v.push(own 7)
+    ref v0 : I64 = v[0]
+    assert_eq(I64, v0, 7)
+}

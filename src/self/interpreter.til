@@ -2681,7 +2681,20 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                 ref bind_type : Type = to_ptr(bind_type_w)
                 mut borrowed := false
                 if arg_info.is_ref {
-                    borrowed = true
+                    // A by-value PRIM parameter is a copy in C -- only
+                    // structs travel as pointers, scalars go by value.
+                    // Borrowing the source storage for one lets a later
+                    // write through the caller's binding change the
+                    // parameter mid-call: `self.take_prefix(self.count)`
+                    // read 0 for `n` because take_prefix zeroes
+                    // self.count before building its result, while the
+                    // compiled build read 2. Copy the scalar instead.
+                    if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
+                        src_w : Dynamic = scalar_word_load(arg_source_type, arg_raw, ctx)
+                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.explicit_type, ctx), ctx)
+                    } else {
+                        borrowed = true
+                    }
                 } else {
                     arg_raw = raw_coerce_value(arg_raw, arg_source_type, bind_type, ctx, param.own_type)
                     if param.own_type.is(OwnType.Ref) {
