@@ -1,6 +1,65 @@
 # priority: low
 # category: cleanups
-** WIP #101 Deterministic temp variable names in generated C
+** FIXED #101 Deterministic temp variable names in generated C
+
+Post-mortem (2026-08-15): fixed across four commits, closing with the
+string-pool commit. The issue split into two properties, and recognizing
+the split was most of the work. REPRODUCIBILITY (same input, same bytes)
+had been reached incrementally by earlier cleanups and #77's byte-identical
+self-build -- the issue was even briefly closed on that basis, wrongly.
+STABILITY (small source edit, small generated diff) is what the original
+noisy-diff symptom was about, and every name family had to move from
+whole-program ordinals to per-scope ones to get it:
+
+- Body temps (hoist/va/kw/coll/bang families): counters restart per
+  top-level definition, emitted as bare 1-2 digit ordinals; module-level
+  temps keep a never-restarted `g`-marked sequence. Two program-wide
+  tables had to stop keying on bare names first: the constfolder's known
+  table leaked ns-member body locals (fold_body_scoped closed it -- a real
+  latent bug unique names had been hiding), and the builder's pooled
+  literal ident map still does, so `hoisted__Str_` alone carries a short
+  owner (`<unit>_<orig_name>` via synth_owner_name; the initer's
+  priv__<path>__ mangling spelled into every temp had cost 8.7MB).
+- lazy `_lzr_` temps: the loader pass opens its own owner windows.
+- Builder ctor temps (`_ctor_`/`_cs`/`_sc`/`_lit`): reset with the
+  per-function scratch, save/restored around the NESTED closure emitters.
+- File-scope symbols (`_lambda_`/`closure_`/`body_`): owner-qualified with
+  per-owner ordinals from synth_symbol_seq (a Map, so a REPL redefinition
+  cannot re-mint an existing symbol); replaced #328's lambda_counter.
+- The string pool: two-phase registration lays out `_til_str_lits` as
+  block 0 = literals used by more than one unit sorted by CONTENT, then
+  one block per unit for its exclusive literals; use sites reference
+  `_tl<block>(<rel>)` macros. One array still, so TIL_LIT_GUARD keeps its
+  O(1) range test, and the C shrinks (the macro is shorter than the old
+  absolute index). The common block exists because dedup made a shared
+  literal live in whichever unit used it first: deleting loader.til's one
+  use of "'" re-homed the literal and renumbered 1,297 use sites.
+
+Regression coverage: self_translate cmps the fresh self-translation
+against pass-1 boot/ (repeatability across processes AND the bootstrap
+fixed point, every make test run); test_stmt_inline_two_results and
+test_mixed_fold pin the moved counters' semantics; the gc_audit golden
+pins garbager-visible names.
+
+Measured arc (the same 3-line repl_prompt refactor in src/til.til):
+4,737 changed lines of til.c before any of this; 103 after -- 26 __LOC__
+line shifts (the floor), 4 pool lines, 19 the edited function's own
+temps, 0 from anything else. An early-unit literal insertion went from
+whole-program index churn to that unit's own block plus one #define line
+per later block. til.c ended smaller than where master stood at each
+step (names lost their 4-5 digit ordinals).
+
+Accepted residuals, documented rather than fixed: within-unit pool
+density (a literal added at the top of a big unit shifts that unit's own
+block -- inherent to any dense array); parser anonymous types
+(AnonStruct<N>, zero occurrences in the self-build, would need owner
+threading through the parser, which runs before Context exists; rstil
+accepted the same); the __LOC__ line-number floor (inherent to what
+__LOC__ means); the hoisted__Str_ owner qualifier (~0.2MB, removable by
+keying the builder's ident map by (definition, name)); and the
+constfolder's deref-of-a-scope-slot-as-Expr in func_uses_unknown_globals,
+which predates this issue, is unreachable at current known-ness, and
+deserves its own issue.
 
 :DEPENDENCY_OF: [[../fixed/77.org][#77]]
   The original symptom was generated names such as ~_t4253~,

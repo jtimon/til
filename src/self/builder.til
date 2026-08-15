@@ -1463,6 +1463,20 @@ priv builder_reset_str_lit_pool := func(mut ctx: Context) {
     ctx.builder_str_lit_symbols = Map(Str, Str).new()
     ctx.builder_str_lit_values = Vec(Str).new()
     ctx.builder_str_lit_ident_symbols = Map(Str, Str).new()
+    ctx.builder_str_lit_block_bases = Vec(USize).new()
+    ctx.builder_str_lit_blocks_open = 0
+    ctx.builder_str_lit_order = Vec(Str).new()
+    ctx.builder_str_lit_first_block = Map(Str, USize).new()
+    ctx.builder_str_lit_multi = Set(Str).new()
+    ctx.builder_str_lit_ident_contents = Map(Str, Str).new()
+}
+
+// #101: start a new pool block (one per unit in the registration walk).
+// Registrations record against the current block; the finalize step lays
+// the blocks out so a literal added to one unit cannot renumber another
+// unit's use sites.
+priv builder_str_lit_begin_block := func(mut ctx: Context) {
+    ctx.builder_str_lit_blocks_open = ctx.builder_str_lit_blocks_open + 1
 }
 
 // The shared literals live in ONE array rather than N separate statics, so
@@ -1470,17 +1484,27 @@ priv builder_reset_str_lit_pool := func(mut ctx: Context) {
 // The symbol is the indexed element itself, which reads exactly like the old
 // per-literal name at every use site: `&_til_str_lits[16]` takes its address,
 // `(void)_til_str_lits[16]` discards it, `*p = _til_str_lits[16]` copies it.
-priv builder_register_str_lit := func(mut ctx: Context, s: Str) returns Str {
-    if ctx.builder_str_lit_symbols.has(s) { return ctx.builder_str_lit_symbols[s].clone() }
-    sym := format("_til_str_lits[", ctx.builder_str_lit_values.len().to_str(), "]")
-    ctx.builder_str_lit_symbols.set(s, own sym.clone())
-    ctx.builder_str_lit_values.push(own s.clone())
-    return sym
+// #101 phase 1, the recorder: note the literal's first-use order and first
+// block, and whether a SECOND block ever registers it. No symbol exists
+// yet -- builder_finalize_str_lit_pool assigns them once every unit has
+// been walked, because a literal's placement depends on whether it stays
+// exclusive to its first unit.
+priv builder_register_str_lit := func(mut ctx: Context, s: Str) {
+    if ctx.builder_str_lit_blocks_open == 0 { builder_str_lit_begin_block(ctx) }
+    cur := ctx.builder_str_lit_blocks_open - 1
+    if ctx.builder_str_lit_first_block.has(s).not() {
+        ctx.builder_str_lit_order.push(own s.clone())
+        ctx.builder_str_lit_first_block.set(s, own cur.clone())
+        return
+    }
+    if ctx.builder_str_lit_first_block[s] != cur {
+        if ctx.builder_str_lit_multi.has(s).not() { ctx.builder_str_lit_multi.add(own s.clone()) }
+    }
 }
 
 priv builder_register_str_lit_ident := func(mut ctx: Context, name: Str, s: Str) {
-    sym := builder_register_str_lit(ctx, s)
-    if ctx.builder_str_lit_ident_symbols.has(name).not() { ctx.builder_str_lit_ident_symbols.set(name, own sym) }
+    builder_register_str_lit(ctx, s)
+    if ctx.builder_str_lit_ident_contents.has(name).not() { ctx.builder_str_lit_ident_contents.set(name, own s.clone()) }
 }
 
 priv builder_resolve_c_ident_name := func(name: Str, ctx: Context) returns Str {
@@ -1627,9 +1651,77 @@ priv builder_register_str_lits := proc(mut lp: LoadedProgram) {
     builder_reset_str_lit_pool(lp.ctx)
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
+        // #101: one pool block per unit, so a unit's literal insertions
+        // stay inside its own block.
+        builder_str_lit_begin_block(lp.ctx)
         builder_register_str_lits_for_expr(iu.ast, lp.ctx)
     }
+    // The dyn/reflection extras get their own trailing block.
+    builder_str_lit_begin_block(lp.ctx)
     builder_register_dyn_type_to_str_lits(lp)
+    builder_finalize_str_lit_pool(lp.ctx)
+}
+
+// #101 phase 2, the layout. Block 0 holds every literal used by MORE THAN
+// ONE unit, sorted by CONTENT; blocks 1..N hold each walk block's
+// exclusive literals in first-use order. Why this split: literals are
+// deduplicated program-wide, so with plain first-use placement a shared
+// literal lives in whichever unit happens to use it first, and an edit to
+// THAT unit re-homes it -- removing loader.til's one use of "'" moved the
+// literal to a later unit's block and renumbered 1,297 use sites across
+// the whole program. In the common block a shared literal's position
+// depends only on its own bytes: editing any unit's USE of it moves
+// nothing, and the block only changes when a literal genuinely enters or
+// leaves shared life. Exclusive literals stay with their unit, where
+// insertions were already local. Emitted symbols: `_tl<block>(<rel>)`,
+// expanded by the per-block defines the pool emission writes; a symbol
+// reads exactly like the raw element it expands to (`&_tl3(7)` takes its
+// address, `(void)_tl3(7)` discards it, `*p = _tl3(7)` copies it).
+priv builder_finalize_str_lit_pool := func(mut ctx: Context) {
+    // Common block: collect and insertion-sort by bytewise Str.cmp --
+    // deterministic, and every compiler string is ASCII.
+    mut commons := Vec(Str).new()
+    for s : Str in ctx.builder_str_lit_order {
+        if ctx.builder_str_lit_multi.has(s) { commons.push(own s.clone()) }
+    }
+    mut ci : USize = 1
+    while ci < commons.len() {
+        mut cj := ci
+        while cj > 0 {
+            if Str.cmp(commons[cj - 1], commons[cj]) > 0 {
+                swap(Str, commons[cj - 1], commons[cj])
+                cj--
+            } else {
+                break
+            }
+        }
+        ci++
+    }
+    ctx.builder_str_lit_block_bases.push(own ctx.builder_str_lit_values.len())
+    for cs : Str in commons {
+        sym0 := format("_tl0(", ctx.builder_str_lit_values.len().to_str(), ")")
+        ctx.builder_str_lit_symbols.set(cs, own sym0)
+        ctx.builder_str_lit_values.push(own cs.clone())
+    }
+    // Unit blocks, in walk order; block k of the walk emits as _tl<k+1>.
+    for bk in 0..ctx.builder_str_lit_blocks_open {
+        base := ctx.builder_str_lit_values.len()
+        ctx.builder_str_lit_block_bases.push(own base.clone())
+        for os : Str in ctx.builder_str_lit_order {
+            if ctx.builder_str_lit_multi.has(os) { continue }
+            if ctx.builder_str_lit_first_block[os] != bk { continue }
+            symk := format("_tl", bk.add(1).to_str(), "(", ctx.builder_str_lit_values.len().sub(base).to_str(), ")")
+            ctx.builder_str_lit_symbols.set(os, own symk)
+            ctx.builder_str_lit_values.push(own os.clone())
+        }
+    }
+    // Hoisted-ident names resolve to their content's final symbol.
+    for iname : Str in ctx.builder_str_lit_ident_contents.keys {
+        ref icontent : Str = ctx.builder_str_lit_ident_contents[iname]
+        if ctx.builder_str_lit_ident_symbols.has(iname).not() {
+            ctx.builder_str_lit_ident_symbols.set(iname, own ctx.builder_str_lit_symbols[icontent].clone())
+        }
+    }
 }
 
 // TIL_LIT_GUARD(p) fails loudly when `p` points INTO the shared literal pool.
@@ -1663,6 +1755,17 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
         builder_emit_str_lit_elem(f, val)
     }
     f.write("};\n")
+    // #101: the per-block accessor macros the use-site symbols reference
+    // (`_tl<k>(i)` -> the block's slice of the one array). These lines are
+    // the ONLY thing that moves when a literal is added to a unit: every
+    // use site is block-relative, and the array elements are positional.
+    for bi in 0..ctx.builder_str_lit_block_bases.len() {
+        f.write("#define _tl")
+        emit_usize(f, bi)
+        f.write("(i) (_til_str_lits[")
+        emit_usize(f, ctx.builder_str_lit_block_bases[bi])
+        f.write(" + (i)])\n")
+    }
     if ctx.builder_lit_guard_used.not() {
         f.write("\n")
         return

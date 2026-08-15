@@ -1165,6 +1165,26 @@ Context := struct {
     builder_str_lit_symbols := Map(Str, Str).new()
     builder_str_lit_values := Vec(Str).new()
     builder_str_lit_ident_symbols := Map(Str, Str).new()
+    // #101: pool layout state. A use site references its literal as
+    // `_tl<block>(<rel>)`, a function-like macro the pool emission defines
+    // as `(_til_str_lits[<base>+(i)])`, so a literal added to one unit
+    // rewrites that unit's block plus ~50 one-line `#define`s instead of
+    // every use site in every later unit. The pool stays ONE array, so
+    // TIL_LIT_GUARD keeps its O(1) contiguous-range test.
+    //
+    // Registration is two-phase (builder_finalize_str_lit_pool has the
+    // layout rationale): the walk RECORDS first-use order, each literal's
+    // first block, which literals more than one block uses, and the
+    // hoisted-ident -> content pairs; the finalize step then lays out
+    // block 0 = the multi-unit literals sorted by CONTENT, blocks 1..N =
+    // each unit's exclusive literals in first-use order, and fills the
+    // symbol maps the emitters read.
+    builder_str_lit_block_bases := Vec(USize).new()
+    builder_str_lit_blocks_open : USize = 0
+    builder_str_lit_order := Vec(Str).new()
+    builder_str_lit_first_block := Map(Str, USize).new()
+    builder_str_lit_multi := Set(Str).new()
+    builder_str_lit_ident_contents := Map(Str, Str).new()
     // #326: which dyn/reflection builtins the SURVIVING AST actually names.
     // Filled once per emission (builder_collect_reflect_inventory) and read
     // by the gates on the generated dyn dispatch table, its per-method
