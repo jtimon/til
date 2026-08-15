@@ -6046,6 +6046,24 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 }
             }
         }
+        // #351: an OWNED binding whose value carries a borrow -- a struct
+        // with a ref field, or an enum with a ref payload, built by a
+        // constructor or returned by a call -- records the storages that
+        // value reaches, so a later write through the carried borrow can
+        // be credited to them. Only call results are recorded: a plain
+        // copy of another binding arrives clone-wrapped and contributes
+        // no summary, which is the conservative no-roots answer.
+        if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)) {
+            tname_351 := type_to_name(stmt.til_type())
+            if tname_351.len().gt(0).and(type_carries_borrow(scope, tname_351)) {
+                mut carried_roots := expr_borrow_roots(scope, rhs, 0)
+                for cri in 0..carried_roots.len() {
+                    ref mut crr : BorrowRoot = carried_roots[cri]
+                    crr.carried = true
+                }
+                decl_b.borrow_roots = carried_roots
+            }
+        }
         if sdecl.own_type.is(OwnType.Ref) {
             decl_b.own_type = OwnType.Ref
             // #211: payload binding `ref T = get_payload(<ident>)` is the
@@ -8815,6 +8833,101 @@ priv fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope) retur
 // Does this binding denote STORAGE a write could land in? Type names,
 // function declarations and type aliases bind a name without binding a
 // value, so a borrow that reaches one of them borrows nothing writable.
+// #351: does a VALUE of this type carry a borrow -- a struct with a ref
+// field (directly or through an inline/own field of a carrying type), or
+// an enum with a ref payload? Such a value smuggles a pointer to storage
+// it does not own, so writes reached through it must be credited to that
+// storage. The visited set is real control flow, not a guard: the type
+// graph has cycles through own/ref fields (a list node's next), and a
+// type already being tested carries nothing new.
+priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Set(Str)) returns Bool {
+    if tname.len() == 0 { return false }
+    ref resolved : Str = resolve_type_alias(scope, tname)
+    if visited.has(resolved) { return false }
+    visited.add(own resolved.clone())
+    tdef_o := scope.get_struct(resolved)
+    if tdef_o.is_none() { return false }
+    ref tdef : Expr = tdef_o.unwrap()
+    switch tdef.node_type {
+    case .StructDef(sdd):
+        for fd : Declaration in sdd.fields {
+            if fd.own_type.is(OwnType.Ref) { return true }
+            if type_carries_borrow_v(scope, fd.explicit_type, visited) { return true }
+        }
+    case .EnumDef:
+        if enum_has_ref_payload(tdef) { return true }
+    case:
+    }
+    return false
+}
+
+priv type_carries_borrow := func(scope: TypeScope, tname: Str) returns Bool {
+    mut visited := Set(Str).new()
+    return type_carries_borrow_v(scope, tname, visited)
+}
+
+// The field Declaration a FieldAccess crosses, resolved from the base
+// expression's type. None when the base type or the field is unknown --
+// the conservative answer, which keeps the walk on the base binding.
+priv fieldaccess_field_decl := func(scope: TypeScope, fa: Expr) returns Option(ref Declaration) {
+    if fa.node_type.is(NodeType.FieldAccess).not() { return Option(ref Declaration).None }
+    if fa.children.len() == 0 { return Option(ref Declaration).None }
+    base_tn_o := expr_type_name_ref(fa.children[0])
+    if base_tn_o.is_none() { return Option(ref Declaration).None }
+    sdef_o := scope.get_struct(base_tn_o.unwrap())
+    if sdef_o.is_none() { return Option(ref Declaration).None }
+    switch sdef_o.unwrap().node_type {
+    case .StructDef(sdd):
+        switch fa.node_type {
+        case .FieldAccess(fad):
+            return member_get(sdd.fields_index, sdd.fields, fad.field_access_name())
+        case:
+        }
+    case:
+    }
+    return Option(ref Declaration).None
+}
+
+// Does crossing this FieldAccess step through a borrow? True for a ref
+// field and for an inline/own field whose type itself carries one.
+priv fieldaccess_crosses_borrow := func(scope: TypeScope, fa: Expr) returns Bool {
+    fd_o := fieldaccess_field_decl(scope, fa)
+    if fd_o.is_none() { return false }
+    ref fd : Declaration = fd_o.unwrap()
+    if fd.own_type.is(OwnType.Ref) { return true }
+    return type_carries_borrow(scope, fd.explicit_type)
+}
+
+// The struct definition a constructor call instantiates, or None when the
+// callee is not a plain struct name.
+priv fcall_struct_ctor_def := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
+    if fcall.children.len() == 0 { return Option(ref Expr).None }
+    switch fcall.children[0].node_type {
+    case .Ident(cn):
+        sdef_o := scope.get_struct(cn.ident_name())
+        if sdef_o.is_none() { return Option(ref Expr).None }
+        if sdef_o.unwrap().node_type.is(NodeType.StructDef) { return sdef_o }
+    case:
+    }
+    return Option(ref Expr).None
+}
+
+// The field a constructor argument populates: by name for a NamedArg, by
+// declaration order for a positional one.
+priv ctor_arg_field_decl := func(sdd_e: Expr, arg: Expr, pos: USize) returns Option(ref Declaration) {
+    switch sdd_e.node_type {
+    case .StructDef(sdd):
+        switch arg.node_type {
+        case .NamedArg(nm):
+            return member_get(sdd.fields_index, sdd.fields, nm)
+        case:
+        }
+        if pos < sdd.fields.len() { return Option(ref Declaration).Some(sdd.fields[pos]) }
+    case:
+    }
+    return Option(ref Declaration).None
+}
+
 priv binding_is_storage := func(scope: TypeScope, b: TypeBinding) returns Bool {
     if b.is_builtin { return false }
     if b.is_type_alias { return false }
@@ -8875,7 +8988,18 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Ve
         if bo.is_none() { return out }
         ref b : TypeBinding = bo.unwrap()
         if binding_is_storage(scope, b) { push_root_unique(out, borrow_root_of_binding(b)) }
-        for r : BorrowRoot in b.borrow_roots { push_root_unique(out, r) }
+        // #351: an owned binding's stored roots are CARRIED -- what its
+        // value's ref fields point at -- not storage the binding aliases.
+        // A ref binding's stored roots are the alias itself.
+        if b.own_type.is(OwnType.Ref) {
+            for r : BorrowRoot in b.borrow_roots { push_root_unique(out, r) }
+        } else {
+            for r : BorrowRoot in b.borrow_roots {
+                mut cr := r.clone()
+                cr.carried = true
+                push_root_unique(out, cr)
+            }
+        }
     case .FieldAccess:
         if e.children.len() == 0 { return out }
         if fa_is_ns(e, scope) { return out }
@@ -8884,7 +9008,36 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Ve
         rso := raw_borrow_source(e)
         if rso.is_some() { return expr_borrow_roots(scope, rso.unwrap(), depth + 1) }
         fd_o := fcall_callee_fdef(e, scope)
-        if fd_o.is_none() { return out }
+        if fd_o.is_none() {
+            // #351: a struct constructor whose argument populates a ref
+            // field (or a borrow-carrying one) hands the borrow to the
+            // built value; the result CARRIES the argument's roots.
+            ctor_o := fcall_struct_ctor_def(e, scope)
+            if ctor_o.is_some() {
+                for ai in 1..e.children.len() {
+                    ref arg : Expr = e.children[ai]
+                    fld_o := ctor_arg_field_decl(ctor_o.unwrap(), arg, ai - 1)
+                    if fld_o.is_none() { continue }
+                    ref fld : Declaration = fld_o.unwrap()
+                    mut crosses := fld.own_type.is(OwnType.Ref)
+                    if crosses.not() { crosses = type_carries_borrow(scope, fld.explicit_type) }
+                    if crosses.not() { continue }
+                    mut sub := Vec(BorrowRoot).new()
+                    switch arg.node_type {
+                    case .NamedArg:
+                        if arg.children.len() > 0 { sub = expr_borrow_roots(scope, arg.children[0], depth + 1) }
+                    case:
+                        sub = expr_borrow_roots(scope, e.children[ai], depth + 1)
+                    }
+                    for r : BorrowRoot in sub {
+                        mut cr := r.clone()
+                        cr.carried = true
+                        push_root_unique(out, cr)
+                    }
+                }
+            }
+            return out
+        }
         switch fd_o.unwrap().node_type {
         case .FuncDef(cfd):
             for pi in 0..cfd.params.len() {
@@ -8896,6 +9049,57 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Ve
             }
         case:
         }
+    case:
+    }
+    return out
+}
+
+// #351: the storages WRITING this lvalue can touch, which is narrower
+// than what its value can reach. Writing an owned field stays on the
+// base binding; writing through a ref field (or a field whose type
+// carries a borrow) lands in the storage the borrow points at -- the
+// base's carried roots -- and does not write the base itself.
+priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, depth: I32) returns Vec(BorrowRoot) {
+    mut out := Vec(BorrowRoot).new()
+    if depth > 16 { return out }
+    switch obj.node_type {
+    case .Ident(id):
+        bo := scope.get_binding(id.ident_name())
+        if bo.is_none() { return out }
+        ref b : TypeBinding = bo.unwrap()
+        if binding_is_storage(scope, b) { push_root_unique(out, borrow_root_of_binding(b)) }
+        // A ref binding IS a window onto its roots: writing through it
+        // writes them. An owned binding's carried roots are only reached
+        // by crossing a ref field, handled at the FieldAccess arm.
+        if b.own_type.is(OwnType.Ref) {
+            for r : BorrowRoot in b.borrow_roots { push_root_unique(out, r) }
+        }
+    case .FieldAccess:
+        if obj.children.len() == 0 { return out }
+        if fa_is_ns(obj, scope) { return out }
+        if fieldaccess_crosses_borrow(scope, obj) {
+            // The write lands in whatever the borrow points at: every
+            // root the base's value carries.
+            base_roots := expr_borrow_roots(scope, obj.children[0], depth + 1)
+            for r : BorrowRoot in base_roots {
+                if r.carried {
+                    push_root_unique(out, r)
+                } else {
+                    br_o := lookup_binding_at(scope, r)
+                    if br_o.is_none() { continue }
+                    ref brb : TypeBinding = br_o.unwrap()
+                    for cr : BorrowRoot in brb.borrow_roots {
+                        mut ccr := cr.clone()
+                        ccr.carried = true
+                        push_root_unique(out, ccr)
+                    }
+                }
+            }
+            return out
+        }
+        return lvalue_write_roots(scope, obj.children[0], depth + 1)
+    case .FCall:
+        return expr_borrow_roots(scope, obj, depth)
     case:
     }
     return out
@@ -8978,8 +9182,15 @@ priv check_write_roots_mut := proc(scope: TypeScope, site: Expr, obj: Expr, what
     // signatures the user cannot edit, so a diagnostic on them is not
     // actionable -- the same carve-out check_unused_mut_params makes.
     if ctx.auto_gen_depth > 0 { return }
-    roots := expr_borrow_roots(scope, obj, 0)
+    roots := lvalue_write_roots(scope, obj, 0)
     for r : BorrowRoot in roots {
+        // #351 staged migration: a root reached through a CARRIED borrow
+        // (a ref field, or a borrow-carrying value) is credited as
+        // written but not yet rejected -- the `mut` qualifiers this
+        // rejection forces are ones the committed boot still calls
+        // redundant, so they cannot be spelled until this tracking IS
+        // the boot. The use commit removes this skip and sweeps.
+        if r.carried { continue }
         rb_o := lookup_binding_at(scope, r)
         if rb_o.is_none() { continue }
         ref rb : TypeBinding = rb_o.unwrap()
@@ -9133,7 +9344,31 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
         if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, depth + 1) }
         mut fd_o := fcall_callee_fdef(e, scope)
         if fd_o.is_none() { fd_o = summary_self_method(e, scope, self_type) }
-        if fd_o.is_none() { return 0 }
+        if fd_o.is_none() {
+            // #351: a struct constructor carries the borrows of the
+            // arguments feeding its ref (or borrow-carrying) fields, so
+            // the built value reaches those parameters.
+            mut cbits : U64 = 0
+            ctor_o := fcall_struct_ctor_def(e, scope)
+            if ctor_o.is_some() {
+                for ai in 1..e.children.len() {
+                    ref arg : Expr = e.children[ai]
+                    fld_o := ctor_arg_field_decl(ctor_o.unwrap(), arg, ai - 1)
+                    if fld_o.is_none() { continue }
+                    ref fld : Declaration = fld_o.unwrap()
+                    mut crosses := fld.own_type.is(OwnType.Ref)
+                    if crosses.not() { crosses = type_carries_borrow(scope, fld.explicit_type) }
+                    if crosses.not() { continue }
+                    switch arg.node_type {
+                    case .NamedArg:
+                        if arg.children.len() > 0 { cbits = cbits.bor(summary_expr_bits(arg.children[0], roots, scope, self_type, depth + 1)) }
+                    case:
+                        cbits = cbits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type, depth + 1))
+                    }
+                }
+            }
+            return cbits
+        }
         mut bits : U64 = 0
         switch fd_o.unwrap().node_type {
         case .FuncDef(cfd):
@@ -9206,7 +9441,13 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
     case .FuncDef(fd):
         // A bodyless raw / core / FFI ref has no typed root to hand back.
         if fd.func_type.is_bodyless() { return false }
-        if fdef_return_carries_borrow(fd, scope).not() { return false }
+        // #351: summaries also cover a function returning a VALUE that
+        // carries a borrow (a struct with a ref field). Deliberately a
+        // wider gate than fdef_return_carries_borrow, which also steers
+        // auto-shallow and must keep the ABI it implies.
+        mut carries := fdef_return_carries_borrow(fd, scope)
+        if carries.not() { carries = type_carries_borrow(scope, fd.return_type) }
+        if carries.not() { return false }
         mut roots := Map(Str, U64).new()
         for pi in 0..fd.params.len() {
             ref p : Declaration = fd.params[pi]

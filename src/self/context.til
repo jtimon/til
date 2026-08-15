@@ -14,6 +14,14 @@ BorrowRoot := struct {
     path := ""
     line : U32 = 0
     col : U32 = 0
+    // #351: true when the root was reached through a CARRIED borrow -- a
+    // ref field or a borrow-carrying value -- rather than by aliasing the
+    // storage directly. Both kinds are credited as written; only direct
+    // roots are enforced for now (the staged-migration seam in
+    // check_write_roots_mut, removed by #351's use commit once this
+    // tracking is the boot). Appended at the END so the committed boot's
+    // layout stays stable.
+    carried := false
 namespace:
     eq := func(a: BorrowRoot, b: BorrowRoot) returns Bool {
         return a.line.eq(b.line).and(a.col == b.col).and(a.name == b.name).and(a.path == b.path)

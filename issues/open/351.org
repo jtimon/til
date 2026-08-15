@@ -1,6 +1,6 @@
 # priority: high
 # category: bugs
-** OPEN #351 A ref field launders the #344 write check; backends diverge again
+** WIP #351 A ref field launders the #344 write check; backends diverge again
 
 #344 rejects a write whose typed terminal root is a non-mut binding, and
 its tracking follows borrows through ref returns, Option(ref T) payloads
@@ -60,3 +60,25 @@ doc/qualifiers.org's "mut only governs the binding and its direct
 fields" carve-out is about reachable state behind RAW pointer fields;
 ~ref r : Inner~ is a typed borrow, so it belongs on the checked side of
 that line.
+
+*** Progress
+
+- [X] Preparation: the tracking follows carried borrows. A struct
+      constructor maps the arguments feeding its ref (or borrow-carrying)
+      fields into the built value's roots; an owned binding built by such
+      a call records them (BorrowRoot.carried); function summaries cover
+      callees returning borrow-carrying values (a summary-only widening
+      -- fdef_return_carries_borrow keeps steering auto-shallow
+      unchanged); and the write walk is field-aware
+      (lvalue_write_roots): writing through a ref field lands in the
+      base's carried roots, writing an owned field stays on the base.
+      Writes through carried roots are CREDITED (the honest `mut`
+      survives the redundancy check, and interpreted/compiled agree --
+      test_borrow_root_through_ref_field) but not yet rejected: the
+      staged-migration skip in check_write_roots_mut, because the `mut`
+      qualifiers the rejection forces are ones the committed boot still
+      calls redundant.
+- [ ] Use: remove the carried skip in check_write_roots_mut, sweep the
+      sources the rejection flags, add the issue's probe as a negative
+      case to test/typer_errors.til, and close this issue. Needs the
+      preparation merged first, same ladder as #344's own two commits.

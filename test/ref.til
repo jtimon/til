@@ -225,3 +225,31 @@ test_borrow_root_through_payload := test() {
     assert_eq(I64, o.other.n, 5)
     assert_eq(I64, o.inner.n, 0)
 }
+
+# --- #351: a write through a ref FIELD credits the borrow's root ---
+#
+# The borrow is parked in a struct's ref field by the constructor, then
+# written through. The root's `mut` is credited across that hop (so the
+# redundancy check accepts it), and both backends agree the caller's
+# storage was written. The rejection of the non-mut form lands with
+# #351's use commit.
+
+Bp351Held := struct { n := 0 }
+Bp351Src := struct { held := Bp351Held() }
+Bp351Holder := struct { ref r : Bp351Held }
+
+bp351_held_of := func(s: Bp351Src) returns ref Bp351Held {
+    return s.held
+}
+
+bp351_poke := func(mut s: Bp351Src) {
+    mut h := Bp351Holder(r = bp351_held_of(s))
+    h.r.n = h.r.n + 1
+}
+
+test_borrow_root_through_ref_field := test() {
+    mut s := Bp351Src()
+    bp351_poke(s)
+    bp351_poke(s)
+    assert_eq(I64, s.held.n, 2)
+}

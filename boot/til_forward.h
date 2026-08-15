@@ -746,6 +746,7 @@ typedef struct BorrowRoot {
     Str path;
     U32 line;
     U32 col;
+    Bool carried;
 } BorrowRoot;
 
 
@@ -2335,6 +2336,7 @@ Bool pod_ctor_decl_is_stack(Expr * rhs, TypeScope * scope);
 Vec__BorrowRoot * Vec__BorrowRoot_new(void);
 void Vec__BorrowRoot_clear(Vec__BorrowRoot * self);
 void Vec__BorrowRoot_push(Vec__BorrowRoot * self, BorrowRoot * val);
+BorrowRoot * Vec__BorrowRoot_get(Vec__BorrowRoot * self, USize * i, I64 * _err_kind);
 void Vec__BorrowRoot_delete(Vec__BorrowRoot * self, Bool call_free);
 Vec__BorrowRoot * Vec__BorrowRoot_clone(Vec__BorrowRoot * self);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
@@ -2899,11 +2901,18 @@ Bool priv___src_self_typer_til__expr_is_ref_decl_source(Expr * e, TypeScope * sc
 U64 priv___src_self_typer_til__summary_param_bit(USize i);
 Option__ref_Expr priv___src_self_typer_til__fcall_callee_fdef(Expr * fcall, TypeScope * scope);
 Option__ref_Expr priv___src_self_typer_til__fcall_arg_for_param(Expr * fcall, USize * pi, TypeScope * scope);
+Bool priv___src_self_typer_til__type_carries_borrow_v(TypeScope * scope, Str * tname, Set__Str * visited);
+Bool priv___src_self_typer_til__type_carries_borrow(TypeScope * scope, Str * tname);
+Option__ref_Declaration priv___src_self_typer_til__fieldaccess_field_decl(TypeScope * scope, Expr * fa);
+Bool priv___src_self_typer_til__fieldaccess_crosses_borrow(TypeScope * scope, Expr * fa);
+Option__ref_Expr priv___src_self_typer_til__fcall_struct_ctor_def(Expr * fcall, TypeScope * scope);
+Option__ref_Declaration priv___src_self_typer_til__ctor_arg_field_decl(Expr * sdd_e, Expr * arg, USize * pos);
 Bool priv___src_self_typer_til__binding_is_storage(TypeScope * scope, TypeBinding * b);
 Option__ref_Expr priv___src_self_typer_til__raw_borrow_source(Expr * rhs);
 BorrowRoot * priv___src_self_typer_til__borrow_root_of_binding(TypeBinding * b);
 void priv___src_self_typer_til__push_root_unique(Vec__BorrowRoot * out, BorrowRoot * r);
 Vec__BorrowRoot * priv___src_self_typer_til__expr_borrow_roots(TypeScope * scope, Expr * e, I32 depth);
+Vec__BorrowRoot * priv___src_self_typer_til__lvalue_write_roots(TypeScope * scope, Expr * obj, I32 depth);
 Option__ref_TypeBinding priv___src_self_typer_til__lookup_binding_at(TypeScope * scope, BorrowRoot * r);
 void priv___src_self_typer_til__mark_roots_written(TypeScope * scope, Vec__BorrowRoot * roots);
 Bool priv___src_self_typer_til__root_is_writable(TypeScope * scope, TypeBinding * b, BorrowRoot * r);
