@@ -1173,25 +1173,17 @@ Context := struct {
     builder_str_lit_symbols := Map(Str, Str).new()
     builder_str_lit_values := Vec(Str).new()
     builder_str_lit_ident_symbols := Map(Str, Str).new()
-    // #101: pool layout state. A use site references its literal as
-    // `_tl<block>(<rel>)`, a function-like macro the pool emission defines
-    // as `(_til_str_lits[<base>+(i)])`, so a literal added to one unit
-    // rewrites that unit's block plus ~50 one-line `#define`s instead of
-    // every use site in every later unit. The pool stays ONE array, so
-    // TIL_LIT_GUARD keeps its O(1) contiguous-range test.
-    //
-    // Registration is two-phase (builder_finalize_str_lit_pool has the
-    // layout rationale): the walk RECORDS first-use order, each literal's
-    // first block, which literals more than one block uses, and the
-    // hoisted-ident -> content pairs; the finalize step then lays out
-    // block 0 = the multi-unit literals sorted by CONTENT, blocks 1..N =
-    // each unit's exclusive literals in first-use order, and fills the
-    // symbol maps the emitters read.
-    builder_str_lit_block_bases := Vec(USize).new()
-    builder_str_lit_blocks_open : USize = 0
-    builder_str_lit_order := Vec(Str).new()
-    builder_str_lit_first_block := Map(Str, USize).new()
-    builder_str_lit_multi := Set(Str).new()
+    // #101: pool registration state, two-phase. The walk RECORDS how many
+    // times each literal occurs (and the hoisted-ident -> content pairs);
+    // builder_finalize_str_lit_pool then pools ONLY the literals used
+    // MORE THAN ONCE, laid out in content-sorted order, and fills the
+    // symbol maps the emitters read. A single-use literal gets no symbol
+    // at all: every emitter already falls back to a per-site inline
+    // form for an unpooled literal, which has no index and so cannot be
+    // renumbered by any other edit -- rstil's model, which is what made
+    // its generated C diffs local. See the finalize comment for why the
+    // dense-index alternatives all failed.
+    builder_str_lit_counts := Map(Str, USize).new()
     builder_str_lit_ident_contents := Map(Str, Str).new()
     // #326: which dyn/reflection builtins the SURVIVING AST actually names.
     // Filled once per emission (builder_collect_reflect_inventory) and read

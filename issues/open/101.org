@@ -1,9 +1,41 @@
 # priority: low
 # category: cleanups
-** FIXED #101 Deterministic temp variable names in generated C
+** WIP #101 Deterministic temp variable names in generated C
 
-Post-mortem (2026-08-15): fixed across four commits, closing with the
-string-pool commit. The issue split into two properties, and recognizing
+Reopened (2026-08-15): the pool-block close below was premature -- its
+probe changed no line COUNTS, so it never saw the __LOC__ cascade. A
+7-line insertion at the top of loader.til shifted the line numbers in
+~350 of that unit's __LOC__ strings; each shifted loc is a NEW pool
+content, every one re-keyed the unit block, and 3,147 use-site lines
+churned for a 7-line edit. Any dense index shared with loc-bearing
+literals inherits their volatility.
+
+rstil is the reference for the fix (per Jorge): it POOLS NOTHING -- every
+literal is a self-contained compound literal at its use site, so a
+literal has no index and no edit elsewhere can renumber it (its temps are
+`_tmp_<func>_<n>`, equivalent to our per-definition ordinals; its diffs
+were local for exactly this reason). The pool now follows that model
+where it matters: only literals used MORE THAN ONCE are pooled (dedup and
+TIL_LIT_GUARD exist for sharing; a single-use literal has no other user
+to corrupt), laid out in CONTENT-sorted order so an index is a function
+of the literal's own bytes; loc-shaped strings (".til:<line>") never pool
+at all, multi-use or not, because their content embeds line numbers.
+Single-use and loc literals emit through the fallback per-site inline
+forms that always existed.
+
+Re-measured with a probe the old one missed (new 5-line function at the
+top of loader.til + a cross-unit call): 3,972 changed lines before, 1,052
+after -- 100 the probe's own compiled code, 952 loc strings whose line
+numbers genuinely moved (the same floor rstil pays; the information is
+real), and ZERO lines of index churn anywhere. Cost: til.c 14.94MB ->
+15.95MB (+6.7%), text only -- the binary is unchanged because cc merges
+the duplicated string constants; pool 5,593 -> 951 entries.
+
+The earlier close's post-mortem follows; its per-scope counter work all
+stands, only the pool layout was redone.
+
+Post-mortem of the first close (2026-08-15, superseded above on the pool
+item): The issue split into two properties, and recognizing
 the split was most of the work. REPRODUCIBILITY (same input, same bytes)
 had been reached incrementally by earlier cleanups and #77's byte-identical
 self-build -- the issue was even briefly closed on that basis, wrongly.
