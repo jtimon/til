@@ -253,3 +253,62 @@ test_borrow_root_through_ref_field := test() {
     bp351_poke(s)
     assert_eq(I64, s.held.n, 2)
 }
+
+# --- #352: borrow chains have no depth or round limits ---
+#
+# Both shapes are deeper than the caps the tracking used to carry. The
+# `mut` qualifiers are the proof: if the walks dropped roots past a
+# limit, the redundancy check would reject every one of them as "never
+# written through", and this file would not compile.
+
+Bp352In := struct { n := 0 }
+Bp352Out := struct { inner := Bp352In() }
+
+# Twelve forward-referenced hops: each wrapper is declared BEFORE the
+# one it calls, so each summary round can settle only one more level.
+# The old 8-round clamp lost the roots past the eighth.
+bp352_w12 := func(o: Bp352Out) returns ref Bp352In { return bp352_w11(o) }
+bp352_w11 := func(o: Bp352Out) returns ref Bp352In { return bp352_w10(o) }
+bp352_w10 := func(o: Bp352Out) returns ref Bp352In { return bp352_w9(o) }
+bp352_w9 := func(o: Bp352Out) returns ref Bp352In { return bp352_w8(o) }
+bp352_w8 := func(o: Bp352Out) returns ref Bp352In { return bp352_w7(o) }
+bp352_w7 := func(o: Bp352Out) returns ref Bp352In { return bp352_w6(o) }
+bp352_w6 := func(o: Bp352Out) returns ref Bp352In { return bp352_w5(o) }
+bp352_w5 := func(o: Bp352Out) returns ref Bp352In { return bp352_w4(o) }
+bp352_w4 := func(o: Bp352Out) returns ref Bp352In { return bp352_w3(o) }
+bp352_w3 := func(o: Bp352Out) returns ref Bp352In { return bp352_w2(o) }
+bp352_w2 := func(o: Bp352Out) returns ref Bp352In { return bp352_w1(o) }
+bp352_w1 := func(o: Bp352Out) returns ref Bp352In { return o.inner }
+
+bp352_deep_chain := func(mut o: Bp352Out) {
+    ref mut i : Bp352In = bp352_w12(o)
+    i.n = i.n + 1
+}
+
+test_borrow_chain_12_forward_hops := test() {
+    mut o := Bp352Out()
+    bp352_deep_chain(o)
+    bp352_deep_chain(o)
+    assert_eq(I64, o.inner.n, 2)
+}
+
+# An 18-deep nested call expression, past the old per-expression walk
+# cap of 16. Both parameters can reach the returned borrow, so both
+# `mut` qualifiers are load-bearing.
+bp352_pick := func(a: Bp352In, b: Bp352In) returns ref Bp352In {
+    if a.n.lt(b.n) { return a }
+    return b
+}
+
+bp352_deep_expr := func(mut a: Bp352In, mut b: Bp352In) {
+    ref mut i : Bp352In = bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(bp352_pick(a, b), b), b), b), b), b), b), b), b), b), b), b), b), b), b), b), b), b)
+    i.n = i.n + 1
+}
+
+test_borrow_expr_18_deep := test() {
+    mut a := Bp352In()
+    mut b := Bp352In(n = 5)
+    bp352_deep_expr(a, b)
+    assert_eq(I64, a.n, 1)
+    assert_eq(I64, b.n, 5)
+}

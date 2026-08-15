@@ -6056,7 +6056,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)) {
             tname_351 := type_to_name(stmt.til_type())
             if tname_351.len().gt(0).and(type_carries_borrow(scope, tname_351)) {
-                mut carried_roots := expr_borrow_roots(scope, rhs, 0)
+                mut carried_roots := expr_borrow_roots(scope, rhs)
                 for cri in 0..carried_roots.len() {
                     ref mut crr : BorrowRoot = carried_roots[cri]
                     crr.carried = true
@@ -6084,7 +6084,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             // #351: the WRITE walk, not the value walk: a `ref` into one
             // field aliases that field's storage, not every borrow the
             // whole value happens to carry through its other fields.
-            decl_b.borrow_roots = lvalue_write_roots(scope, rhs, 0)
+            decl_b.borrow_roots = lvalue_write_roots(scope, rhs)
             if sdecl.is_mut {
                 switch rhs.node_type {
                 case .Ident(rid):
@@ -8757,9 +8757,16 @@ priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
 //   onto the call's actual arguments.
 //
 // The write marker then credits the roots, not just the name that was
-// written. Both facts only ever ADD credit: an unresolved callee, a
-// summary round that ran out, or a root whose scope the walk cannot reach
-// all mean "no roots", which is exactly today's answer.
+// written. Both facts only ever ADD credit: an unresolved callee, or a
+// root whose scope the walk cannot reach, means "no roots", which is
+// exactly the pre-#344 answer. The walks below carry no depth or
+// iteration bounds: they recurse over expression and statement TREES,
+// which are finite and acyclic, and the roots they record are flattened
+// to terminals at declaration time over a graph that is a DAG by
+// construction (a declaration's RHS can only name earlier bindings). A
+// bound there would not prevent anything -- it would only drop roots
+// past the limit, which is a loud false "redundant mut" on one side and
+// a silently accepted laundered write on the other (#352).
 
 // Bit `i` of a ref_return_params summary. A function with more than 64
 // parameters gets no bit -- 0 is the conservative answer, and the bitmap
@@ -8986,9 +8993,8 @@ priv push_root_unique := func(mut out: Vec(BorrowRoot), r: BorrowRoot) {
 // the alias's own `mut` is what permits it. An alias forwards the roots it
 // resolved at its own declaration, so the set is always flat -- a write
 // never has to chase a second hop at marking time.
-priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Vec(BorrowRoot) {
+priv expr_borrow_roots := func(scope: TypeScope, e: Expr) returns Vec(BorrowRoot) {
     mut out := Vec(BorrowRoot).new()
-    if depth > 16 { return out }
     switch e.node_type {
     case .Ident(id):
         bo := scope.get_binding(id.ident_name())
@@ -9010,10 +9016,10 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Ve
     case .FieldAccess:
         if e.children.len() == 0 { return out }
         if fa_is_ns(e, scope) { return out }
-        return expr_borrow_roots(scope, e.children[0], depth + 1)
+        return expr_borrow_roots(scope, e.children[0])
     case .FCall:
         rso := raw_borrow_source(e)
-        if rso.is_some() { return expr_borrow_roots(scope, rso.unwrap(), depth + 1) }
+        if rso.is_some() { return expr_borrow_roots(scope, rso.unwrap()) }
         fd_o := fcall_callee_fdef(e, scope)
         if fd_o.is_none() {
             // #351: a struct constructor whose argument populates a ref
@@ -9032,9 +9038,9 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Ve
                     mut sub := Vec(BorrowRoot).new()
                     switch arg.node_type {
                     case .NamedArg:
-                        if arg.children.len() > 0 { sub = expr_borrow_roots(scope, arg.children[0], depth + 1) }
+                        if arg.children.len() > 0 { sub = expr_borrow_roots(scope, arg.children[0]) }
                     case:
-                        sub = expr_borrow_roots(scope, e.children[ai], depth + 1)
+                        sub = expr_borrow_roots(scope, e.children[ai])
                     }
                     for r : BorrowRoot in sub {
                         mut cr := r.clone()
@@ -9051,7 +9057,7 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Ve
                 if cfd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
                 arg_o := fcall_arg_for_param(e, pi, scope)
                 if arg_o.is_none() { continue }
-                sub := expr_borrow_roots(scope, arg_o.unwrap(), depth + 1)
+                sub := expr_borrow_roots(scope, arg_o.unwrap())
                 for r : BorrowRoot in sub { push_root_unique(out, r) }
             }
         case:
@@ -9066,9 +9072,8 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, depth: I32) returns Ve
 // base binding; writing through a ref field (or a field whose type
 // carries a borrow) lands in the storage the borrow points at -- the
 // base's carried roots -- and does not write the base itself.
-priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, depth: I32) returns Vec(BorrowRoot) {
+priv lvalue_write_roots := func(scope: TypeScope, obj: Expr) returns Vec(BorrowRoot) {
     mut out := Vec(BorrowRoot).new()
-    if depth > 16 { return out }
     switch obj.node_type {
     case .Ident(id):
         bo := scope.get_binding(id.ident_name())
@@ -9087,7 +9092,7 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, depth: I32) returns
         if fieldaccess_crosses_borrow(scope, obj) {
             // The write lands in whatever the borrow points at: every
             // root the base's value carries.
-            base_roots := expr_borrow_roots(scope, obj.children[0], depth + 1)
+            base_roots := expr_borrow_roots(scope, obj.children[0])
             for r : BorrowRoot in base_roots {
                 if r.carried {
                     push_root_unique(out, r)
@@ -9104,7 +9109,7 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, depth: I32) returns
             }
             return out
         }
-        return lvalue_write_roots(scope, obj.children[0], depth + 1)
+        return lvalue_write_roots(scope, obj.children[0])
     case .FCall:
         // A compiler-created pointer op returns a pointer INTO argument 0,
         // so writing through it writes whatever writing argument 0 writes
@@ -9112,8 +9117,8 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, depth: I32) returns
         // back to the whole VALUE's roots, which would credit every borrow
         // the value carries no matter which field the pointer came from.
         rso := raw_borrow_source(obj)
-        if rso.is_some() { return lvalue_write_roots(scope, rso.unwrap(), depth + 1) }
-        return expr_borrow_roots(scope, obj, depth)
+        if rso.is_some() { return lvalue_write_roots(scope, rso.unwrap()) }
+        return expr_borrow_roots(scope, obj)
     case:
     }
     return out
@@ -9196,7 +9201,7 @@ priv check_write_roots_mut := proc(scope: TypeScope, site: Expr, obj: Expr, what
     // signatures the user cannot edit, so a diagnostic on them is not
     // actionable -- the same carve-out check_unused_mut_params makes.
     if ctx.auto_gen_depth > 0 { return }
-    roots := lvalue_write_roots(scope, obj, 0)
+    roots := lvalue_write_roots(scope, obj)
     for r : BorrowRoot in roots {
         rb_o := lookup_binding_at(scope, r)
         if rb_o.is_none() { continue }
@@ -9238,7 +9243,7 @@ priv mark_written_through := func(mut scope: TypeScope, obj: Expr) {
         // `inner_of(o).n = 1`, `adopt(T, self.unsafe_get(i), own v)`: no
         // binding is involved at all, so the callee summary is the only
         // record of where the write lands.
-        mark_roots_written(scope, expr_borrow_roots(scope, obj, 0))
+        mark_roots_written(scope, expr_borrow_roots(scope, obj))
     case:
     }
 }
@@ -9280,14 +9285,13 @@ priv summary_base_type_name := func(tn: Str) returns Str {
 // the def being walked; `self.<field>` takes the field's declared type
 // from that def, which is what lets a container method that delegates to
 // its storage field (Map.get -> self.values.unsafe_get) be summarised.
-priv summary_receiver_type := func(recv: Expr, scope: TypeScope, self_type: Str, depth: I32) returns Str {
-    if depth > 8 { return "" }
+priv summary_receiver_type := func(recv: Expr, scope: TypeScope, self_type: Str) returns Str {
     switch recv.node_type {
     case .Ident(rid):
         if rid.ident_name() == "self" { return self_type.clone() }
     case .FieldAccess(fad):
         if recv.children.len() == 0 { return "" }
-        base := summary_receiver_type(recv.children[0], scope, self_type, depth + 1)
+        base := summary_receiver_type(recv.children[0], scope, self_type)
         if base.len() == 0 { return "" }
         bdef_o := scope.get_struct(base)
         if bdef_o.is_none() { return "" }
@@ -9317,7 +9321,7 @@ priv summary_self_method := func(e: Expr, scope: TypeScope, self_type: Str) retu
     ref callee : Expr = e.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return Option(ref Expr).None }
     if callee.children.len() == 0 { return Option(ref Expr).None }
-    rtn := summary_receiver_type(callee.children[0], scope, self_type, 0)
+    rtn := summary_receiver_type(callee.children[0], scope, self_type)
     if rtn.len() == 0 { return Option(ref Expr).None }
     sdef_o := scope.get_struct(rtn)
     if sdef_o.is_none() { return Option(ref Expr).None }
@@ -9333,8 +9337,7 @@ priv summary_self_method := func(e: Expr, scope: TypeScope, self_type: Str) retu
 // enclosing function's parameter bits? `roots` maps every name already
 // known to carry a borrow (the parameters themselves, ref locals, switch
 // payload bindings) to its bits.
-priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, self_type: Str, depth: I32) returns U64 {
-    if depth > 16 { return 0 }
+priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, self_type: Str) returns U64 {
     switch e.node_type {
     case .Ident(id):
         if roots.has(id.ident_name()) {
@@ -9345,10 +9348,10 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
     case .FieldAccess:
         if e.children.len() == 0 { return 0 }
         if fa_is_ns(e, scope) { return 0 }
-        return summary_expr_bits(e.children[0], roots, scope, self_type, depth + 1)
+        return summary_expr_bits(e.children[0], roots, scope, self_type)
     case .FCall:
         rso := raw_borrow_source(e)
-        if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, depth + 1) }
+        if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type) }
         mut fd_o := fcall_callee_fdef(e, scope)
         if fd_o.is_none() { fd_o = summary_self_method(e, scope, self_type) }
         if fd_o.is_none() {
@@ -9368,9 +9371,9 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
                     if crosses.not() { continue }
                     switch arg.node_type {
                     case .NamedArg:
-                        if arg.children.len() > 0 { cbits = cbits.bor(summary_expr_bits(arg.children[0], roots, scope, self_type, depth + 1)) }
+                        if arg.children.len() > 0 { cbits = cbits.bor(summary_expr_bits(arg.children[0], roots, scope, self_type)) }
                     case:
-                        cbits = cbits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type, depth + 1))
+                        cbits = cbits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type))
                     }
                 }
             }
@@ -9387,7 +9390,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
                 if edef_o.is_none() { return 0 }
                 if enum_has_ref_payload(edef_o.unwrap()).not() { return 0 }
                 for ai in 1..e.children.len() {
-                    bits = bits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type, depth + 1))
+                    bits = bits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type))
                 }
                 return bits
             }
@@ -9395,7 +9398,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
                 if cfd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
                 arg_o := fcall_arg_for_param(e, pi, scope)
                 if arg_o.is_none() { continue }
-                bits = bits.bor(summary_expr_bits(arg_o.unwrap(), roots, scope, self_type, depth + 1))
+                bits = bits.bor(summary_expr_bits(arg_o.unwrap(), roots, scope, self_type))
             }
         case:
         }
@@ -9407,25 +9410,24 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
 
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
-priv summary_walk := func(e: Expr, mut roots: Map(Str, U64), scope: TypeScope, self_type: Str, depth: I32) returns U64 {
-    if depth > 96 { return 0 }
+priv summary_walk := func(e: Expr, mut roots: Map(Str, U64), scope: TypeScope, self_type: Str) returns U64 {
     switch e.node_type {
     case .FuncDef:
         return 0
     case .Return:
         if e.children.len() == 0 { return 0 }
-        return summary_expr_bits(e.children[0], roots, scope, self_type, 0)
+        return summary_expr_bits(e.children[0], roots, scope, self_type)
     case .Decl(d):
         // Only a BORROW forwards roots. An owned local is a copy of the
         // value; writing through it cannot reach the source.
         if d.own_type.is(OwnType.Ref).and(e.children.len().gt(0)) {
-            db := summary_expr_bits(e.children[0], roots, scope, self_type, 0)
+            db := summary_expr_bits(e.children[0], roots, scope, self_type)
             if db != 0 { roots.set(d.name, own db.clone()) }
         }
         return 0
     case .Switch, .Match:
         if e.children.len() > 0 {
-            subj := summary_expr_bits(e.children[0], roots, scope, self_type, 0)
+            subj := summary_expr_bits(e.children[0], roots, scope, self_type)
             if subj != 0 {
                 for ci in 1..e.children.len() { summary_bind_case(e.children[ci], subj, roots) }
             }
@@ -9434,7 +9436,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, U64), scope: TypeScope, s
     }
     mut bits : U64 = 0
     for c : Expr in e.children {
-        bits = bits.bor(summary_walk(c, roots, scope, self_type, depth + 1))
+        bits = bits.bor(summary_walk(c, roots, scope, self_type))
     }
     return bits
 }
@@ -9462,7 +9464,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
             pbits := summary_param_bit(pi)
             roots.set(p.name, own pbits.clone())
         }
-        merged := fd.ref_return_params.bor(summary_walk(fd_expr.children[0], roots, scope, self_type, 0))
+        merged := fd.ref_return_params.bor(summary_walk(fd_expr.children[0], roots, scope, self_type))
         if merged == fd.ref_return_params { return false }
         fd.ref_return_params = merged
         return true
@@ -9476,8 +9478,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
 // they need their own descent; a FuncDef is never descended into, because
 // init_declarations_unit hoists nested definitions to file scope and
 // typer_lift_lambdas has already lifted the anonymous ones.
-priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, depth: I32) returns Bool {
-    if depth > 96 { return false }
+priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str) returns Bool {
     mut changed := false
     switch e.node_type {
     case .FuncDef:
@@ -9488,23 +9489,23 @@ priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, 
         if e.children.len() > 0 {
             ref mut drhs : Expr = e.children[0]
             if drhs.node_type.is(NodeType.StructDef).or(drhs.node_type.is(NodeType.EnumDef)) {
-                return summarize_unit_walk(drhs, scope, dd.name, depth + 1)
+                return summarize_unit_walk(drhs, scope, dd.name)
             }
         }
     case .StructDef(sd):
         for mut nd : Declaration in sd.ns_decls {
             if nd.default_value.is_none() { continue }
-            if summarize_unit_walk(nd.default_expr(), scope, self_type, depth + 1) { changed = true }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type) { changed = true }
         }
     case .EnumDef(ed):
         for mut nd : Declaration in ed.ns_decls {
             if nd.default_value.is_none() { continue }
-            if summarize_unit_walk(nd.default_expr(), scope, self_type, depth + 1) { changed = true }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type) { changed = true }
         }
     case:
     }
     for mut c : Expr in e.children {
-        if summarize_unit_walk(c, scope, self_type, depth + 1) { changed = true }
+        if summarize_unit_walk(c, scope, self_type) { changed = true }
     }
     return changed
 }
@@ -9514,16 +9515,17 @@ priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, 
 // body is being typed, so a summary that arrives later is useless to it.
 // Callees in imported files were summarised when their own unit ran (the
 // typer walks imports first), so only forward references inside this unit
-// start at zero; the rounds grow them monotonically. A chain deeper than
-// the round cap simply keeps the roots it proved: fewer roots means less
-// credit, never wrong credit. Instantiated generics need no separate pass
-// -- their FunctionDef is cloned from the template, summary included.
+// start at zero; the rounds grow them monotonically. The loop needs no
+// iteration bound: the summaries are a monotone function on a finite
+// lattice (bits are only ever ORed in, 64 per function, finitely many
+// functions), so a round that reports a change has set at least one bit
+// that can never be unset -- `changed` is the termination proof.
+// Instantiated generics need no separate pass -- their FunctionDef is
+// cloned from the template, summary included.
 priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope) {
-    mut round : I32 = 0
     mut changed := true
-    while changed.and(round < 8) {
-        changed = summarize_unit_walk(program, scope, "", 0)
-        round++
+    while changed {
+        changed = summarize_unit_walk(program, scope, "")
     }
 }
 

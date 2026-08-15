@@ -1,6 +1,44 @@
 # priority: medium
 # category: cleanups
-** OPEN #352 Drop the defensive caps in the borrow-provenance walks
+** FIXED #352 Drop the defensive caps in the borrow-provenance walks
+
+*** Post-mortem
+
+Root cause: the defensive-guard habit this repo's CLAUDE.md bans,
+applied by the bot to its own #344 machinery. None of the bounds
+protected against anything: the capped walks recurse over expression
+and statement TREES (finite, acyclic, terminating structurally like
+every other typer walk), the recorded roots are flattened to terminals
+at declaration time over a points-to graph that is a DAG by
+construction, and the summary fixed point is monotone on a finite
+lattice, so `while changed` is its own termination proof -- every round
+that continues has set at least one bit that can never be unset. What
+the caps DID do was drop roots past the limit: a loud false "redundant
+'mut'" on the redundancy side, a silently accepted laundered write on
+the enforcement side.
+
+The fix is deletion. Six walks lost their depth parameter -- the four
+the issue named (expr_borrow_roots, summary_expr_bits, summary_walk,
+summary_receiver_type) plus lvalue_write_roots and summarize_unit_walk,
+added with the same habit after the issue was filed -- and
+compute_ref_return_summaries lost its `round < 8` clamp, keeping
+`while changed`. The prose in typer.til and doc/qualifiers.org that
+described chains "deeper than the summary settled" is corrected: chains
+are followed to their end, and length never changes the answer.
+
+Regression tests, both in test/ref.til under add_both and both
+self-verifying (dropped roots would make the `mut` qualifiers redundant
+and the file would not compile): test_borrow_chain_12_forward_hops, a
+twelve-level forward-reference chain where each summary round can
+settle only one level, past the old 8-round clamp; and
+test_borrow_expr_18_deep, an 18-deep nested call expression past the
+old per-expression cap of 16, with both multi-root `mut` qualifiers
+load-bearing.
+
+Out of scope, as filed: the 64-bit width of ref_return_params, which
+mirrors the established call bitmaps (own_args / ref_args / splat_args)
+by design.
+
 
 The #344 tracking machinery in src/self/typer.til carries four
 recursion caps and a round clamp that protect against nothing and can

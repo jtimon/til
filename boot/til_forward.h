@@ -2907,8 +2907,8 @@ Bool priv___src_self_typer_til__binding_is_storage(TypeScope * scope, TypeBindin
 Option__ref_Expr priv___src_self_typer_til__raw_borrow_source(Expr * rhs);
 BorrowRoot * priv___src_self_typer_til__borrow_root_of_binding(TypeBinding * b);
 void priv___src_self_typer_til__push_root_unique(Vec__BorrowRoot * out, BorrowRoot * r);
-Vec__BorrowRoot * priv___src_self_typer_til__expr_borrow_roots(TypeScope * scope, Expr * e, I32 depth);
-Vec__BorrowRoot * priv___src_self_typer_til__lvalue_write_roots(TypeScope * scope, Expr * obj, I32 depth);
+Vec__BorrowRoot * priv___src_self_typer_til__expr_borrow_roots(TypeScope * scope, Expr * e);
+Vec__BorrowRoot * priv___src_self_typer_til__lvalue_write_roots(TypeScope * scope, Expr * obj);
 Option__ref_TypeBinding priv___src_self_typer_til__lookup_binding_at(TypeScope * scope, BorrowRoot * r);
 void priv___src_self_typer_til__mark_roots_written(TypeScope * scope, Vec__BorrowRoot * roots);
 Bool priv___src_self_typer_til__root_is_writable(TypeScope * scope, TypeBinding * b, BorrowRoot * r);
@@ -2918,12 +2918,12 @@ void priv___src_self_typer_til__mark_name_written(TypeScope * scope, Str * name)
 void priv___src_self_typer_til__mark_written_through(TypeScope * scope, Expr * obj);
 void priv___src_self_typer_til__summary_bind_case(Expr * cn, U64 subj_bits, Map__Str_U64 * roots);
 Str * priv___src_self_typer_til__summary_base_type_name(Str * tn);
-Str * priv___src_self_typer_til__summary_receiver_type(Expr * recv, TypeScope * scope, Str * self_type, I32 depth);
+Str * priv___src_self_typer_til__summary_receiver_type(Expr * recv, TypeScope * scope, Str * self_type);
 Option__ref_Expr priv___src_self_typer_til__summary_self_method(Expr * e, TypeScope * scope, Str * self_type);
-U64 priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type, I32 depth);
-U64 priv___src_self_typer_til__summary_walk(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type, I32 depth);
+U64 priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type);
+U64 priv___src_self_typer_til__summary_walk(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type);
 Bool priv___src_self_typer_til__update_ref_return_summary(Expr * fd_expr, TypeScope * scope, Str * self_type);
-Bool priv___src_self_typer_til__summarize_unit_walk(Expr * e, TypeScope * scope, Str * self_type, I32 depth);
+Bool priv___src_self_typer_til__summarize_unit_walk(Expr * e, TypeScope * scope, Str * self_type);
 void priv___src_self_typer_til__compute_ref_return_summaries(Expr * program, TypeScope * scope);
 void priv___src_self_typer_til__infer_literal_expr(Expr * expr);
 void priv___src_self_typer_til__narrow_dynamic(Expr * expr, Type * target);

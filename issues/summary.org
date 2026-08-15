@@ -24,7 +24,6 @@
 *** [[./open/346.org][#346]] Keep owned aggregates in place instead of heap-boxing locals and returns
 ** Medium
 *** [[./open/347.org][#347]] The Windows REPL has never been run
-*** [[./open/352.org][#352]] Drop the defensive caps in the borrow-provenance walks
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs

@@ -69,9 +69,10 @@ Complete mapping of til qualifiers to generated C, by context.
    diagnostic is intentionally conservative on the write side: it
    would rather miss a redundant ~mut~ (e.g. a binding only passed
    to a read-only ~Dynamic~ param like ~is_null~) than wrongly
-   reject a ~mut~ that is actually needed. An unresolved callee, or
-   a borrow chain deeper than the summary settled, means "no roots"
-   -- less credit, never wrong credit.
+   reject a ~mut~ that is actually needed. An unresolved callee
+   means "no roots" -- less credit, never wrong credit. Borrow
+   chains are followed to their end: the tracking carries no depth
+   or round limits, so a chain's length never changes the answer.
 
    Globals -- top-level ~mut foo := ...~ at module scope AND
    namespace decls like ~mut Type.foo := ...~ -- are NOT flagged.
