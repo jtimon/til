@@ -866,6 +866,31 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
 // - script:   the executable top-level statements alone.
 // Core units root only their executable non-Decl statements; every core
 // decl, defs and values alike, is an ordinary graph node.
+
+// #326: a generic type's template (`Vec := struct<T: Type>`, parsed as a
+// type-gen MACRO returning a StructDef) is not a reachability blob. Reaching
+// the NAME keeps the decl -- instantiation substitutes from it -- but the
+// body is walked per METHOD, exactly like a concrete type's: a call site
+// roots "Vec.push", and the BFS tail resolves that qualified name into the
+// template's member FuncDef (find_ns_decl_fdef_imported) and walks just that
+// body. Walking the whole template body on top of that re-rooted every
+// method's callees for every program that touched the type at all --
+// Array.to_vec's `Vec` reference kept Vec, and Vec's body kept adopt_from,
+// in programs that never build a Vec (a 5-line uncalled definition in 147
+// generated files).
+priv scav_is_type_gen_template := func(fdef: Expr) returns Bool {
+    switch fdef.node_type {
+    case .FuncDef(tg_fd):
+        if tg_fd.func_type.is(FuncType.Macro).not() { return false }
+        return tg_fd.return_type.eq("StructDef")
+            .or(tg_fd.return_type.eq("EnumDef"))
+            .or(tg_fd.return_type.eq("FuncDef"))
+            .or(tg_fd.return_type.eq("FunctionDef"))
+    case:
+    }
+    return false
+}
+
 priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
     if lp.cur_mode.needs_main {
@@ -1024,7 +1049,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
                 }
             } else {
-                collect_refs(decl.children[0], worklist)
+                if scav_is_type_gen_template(decl.children[0]).not() {
+                    collect_refs(decl.children[0], worklist)
+                }
             }
         }
         if core_top.has(name) {
@@ -1052,7 +1079,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
                 }
             } else {
-                collect_refs(decl.children[0], worklist)
+                if scav_is_type_gen_template(decl.children[0]).not() {
+                    collect_refs(decl.children[0], worklist)
+                }
             }
         }
 

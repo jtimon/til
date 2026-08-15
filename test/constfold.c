@@ -16,10 +16,8 @@ struct TilClosure {
 };
 
 typedef struct Str Str;
-typedef struct OutOfBounds OutOfBounds;
 typedef struct Array__Str Array__Str;
 typedef struct Dynamic Dynamic;
-typedef struct Range Range;
 typedef struct CfVec2 CfVec2;
 typedef struct CfRect CfRect;
 typedef struct CfVec3f CfVec3f;
@@ -44,11 +42,6 @@ typedef struct Str {
 } Str;
 
 
-typedef struct OutOfBounds {
-    char _;
-} OutOfBounds;
-
-
 typedef struct Array__Str {
     U8 *data;
     USize cap;
@@ -66,12 +59,6 @@ typedef struct Dynamic {
 
 
 
-
-
-typedef struct Range {
-    U64 start;
-    U64 end;
-} Range;
 
 
 typedef struct CfVec2 {
@@ -132,7 +119,6 @@ __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void assert(Bool cond, Str * loc);
 void expect(Bool cond, Array__Str * parts, Str * loc);
 void println(Array__Str * parts);
-void adopt_from(void * dest, void * src, UPtr size);
 void test_simple_add(void);
 void test_nested_arithmetic(void);
 void test_deeply_nested(void);
@@ -678,12 +664,6 @@ void println(Array__Str * parts) {
     }
     Array__Str_delete(parts, 1);
     print_flush();
-}
-
-void adopt_from(void * dest, void * src, UPtr size) {
-    memcpy(dest, src, size);
-    I32 hoisted__I32_0 = 0;
-    memset(src, hoisted__I32_0, size);
 }
 
 void test_simple_add(void) {

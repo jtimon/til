@@ -12,8 +12,6 @@ struct TilClosure {
 typedef struct Mode Mode;
 typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Str Str;
-typedef struct OutOfBounds OutOfBounds;
-typedef struct KeyNotFound KeyNotFound;
 typedef struct Array__Str Array__Str;
 typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
@@ -441,16 +439,6 @@ typedef struct Str {
     USize count;
     USize cap;
 } Str;
-
-
-typedef struct OutOfBounds {
-    char _;
-} OutOfBounds;
-
-
-typedef struct KeyNotFound {
-    char _;
-} KeyNotFound;
 
 
 typedef struct Array__Str {
@@ -3375,6 +3363,7 @@ void priv___src_self_loader_til__seed_cli_main_arg_roots(LoadedProgram * lp, Vec
 void priv___src_self_loader_til__seed_library_roots(LoadedProgram * lp, Vec__Str * worklist);
 void priv___src_self_loader_til__seed_executable_stmt_roots(LoadedProgram * lp, Vec__Str * worklist);
 void priv___src_self_loader_til__seed_test_roots(LoadedProgram * lp, Vec__Str * worklist);
+Bool priv___src_self_loader_til__scav_is_type_gen_template(Expr * fdef);
 Set__Str * priv___src_self_loader_til__scavenge_visited_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
 void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);
