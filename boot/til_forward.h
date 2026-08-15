@@ -3682,6 +3682,7 @@ Str * priv___src_self_builder_til__type_name_to_ctypes_return(Str * name, Bool i
 I32 priv___src_self_builder_til__build_python_binding(LoadedProgram * lp, Str * py_path, Str * lib_name);
 I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Bool asan, Bool usize64);
 Bool priv___src_self_builder_til__is_gui_auto_import(Str * auto_import);
+Str * priv___src_self_builder_til__resolve_target_archives(Str * flags, Str * ext_c_path);
 I32 priv___src_self_builder_til__compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Str * mode_auto_import, Bool asan, Bool prof, Bool usize64);
 void priv___src_self_builder_til__register_funcsig_prog(Expr * prog, Context * ctx);
 void priv___src_self_builder_til__emit_global_inits_prog(File * f, Expr * prog, Context * ctx);
@@ -3751,6 +3752,7 @@ I32 priv___src_self_builder_til__install_file(Str * src, Str * dst, Str * what);
 I32 priv___src_self_builder_til__install_tree(Str * src, Str * dst, Str * what);
 Bool priv___src_self_builder_til__is_compiler_install(LoadedProgram * lp, priv___src_self_builder_til__BuildPaths * paths);
 I32 priv___src_self_builder_til__install_compiler_support(LoadedProgram * lp, Str * prefix);
+Vec__Str * priv___src_self_builder_til__gui_link_artifacts(void);
 void priv___src_self_builder_til__print_install_success(Str * path);
 I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, Str * cc_override, Bool asan, Bool prof);
 Str * priv___src_self_builder_til__asan_child_prefix(Bool asan);

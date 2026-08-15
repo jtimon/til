@@ -41,10 +41,18 @@ main := proc() returns I64 {
 
     // The binary, and every source tree an installed compiler needs to
     // build a program: til sources it type-checks against, the C
-    // runtime and the generated compiler C it links.
+    // runtime and the generated compiler C it links. Plus what mode gui
+    // stands on (issue #348): the FFI bindings the mode imports, and
+    // each linked archive with the .so twin the interpreter dlopens.
     require(format(PREFIX, "/bin/til"))
     require(format(PREFIX, "/lib/til/src/core/core.til"))
     require(format(PREFIX, "/lib/til/src/std/file.til"))
+    require(format(PREFIX, "/lib/til/vendor/bindings/raylib.til"))
+    require(format(PREFIX, "/lib/til/vendor/bindings/tinyfd.til"))
+    require(format(PREFIX, "/lib/til/vendor/raylib/src/libraylib.a"))
+    require(format(PREFIX, "/lib/til/vendor/raylib/src/libraylib.so"))
+    require(format(PREFIX, "/lib/til/vendor/tinyfiledialogs/libtinyfd.a"))
+    require(format(PREFIX, "/lib/til/vendor/tinyfiledialogs/libtinyfd.so"))
     require(format(PREFIX, "/lib/til/src/modes/gui.til"))
     require(format(PREFIX, "/lib/til/src/c/ext.c"))
     require(format(PREFIX, "/lib/til/boot/til.c"))
@@ -75,6 +83,48 @@ main := proc() returns I64 {
     }
     if run.out() != "installed til works" {
         panic("the program built by the installed til printed '", run.out(), "'")
+    }
+
+    // The gui leg (issue #348): mode gui from OUTSIDE the repo, both
+    // backends, deliberately windowless (like test/gui_interp.til --
+    // what #348 broke is import/link/dlopen resolution, not rendering,
+    // and windowless keeps this leg green on display-less hosts and in
+    // --no-gui runs). GetRandomValue is pure CPU but only answers
+    // through real FFI dispatch: interpreted it needs the installed
+    // libraylib.so twin, compiled it needs the installed archive.
+    File.writefile(format(WORK, "/installed_gui.til"), format(
+        "mode gui\n\n",
+        "main := proc() {\n",
+        "    SetRandomSeed(7)\n",
+        "    v := GetRandomValue(3, 3)\n",
+        "    if v != 3 { panic(\"GetRandomValue(3, 3) gave \", v.to_str()) }\n",
+        "    println(\"installed gui works\")\n",
+        "}\n"))
+
+    interp := Cmd.new(installed_til, "installed_gui.til")
+    interp.cwd(WORK)
+    interp.capture_out()
+    interp_status := interp.run()
+    if interp_status != 0 {
+        panic("the installed til could not interpret mode gui, exited with ", interp_status.to_str())
+    }
+    if interp.out().contains("installed gui works").not() {
+        panic("interpreted mode gui printed '", interp.out(), "'")
+    }
+
+    gui_build := Cmd.new(installed_til, "build", "installed_gui.til")
+    gui_build.cwd(WORK)
+    gui_build.run_checked()
+
+    gui_run := Cmd.new("./bin/installed_gui")
+    gui_run.cwd(WORK)
+    gui_run.capture_out()
+    gui_status := gui_run.run()
+    if gui_status != 0 {
+        panic("the gui program built by the installed til exited with ", gui_status.to_str())
+    }
+    if gui_run.out().contains("installed gui works").not() {
+        panic("the gui program built by the installed til printed '", gui_run.out(), "'")
     }
 
     println("install PASS")

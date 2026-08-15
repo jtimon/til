@@ -1,6 +1,52 @@
 # priority: medium
 # category: bugs
-** OPEN #348 The installed til cannot build or interpret mode gui programs
+** FIXED #348 The installed til cannot build or interpret mode gui programs
+
+*** Post-mortem
+
+Root cause, in two halves -- one anticipated, one not:
+
+1. The installer shipped nothing mode gui stands on. src/modes/gui.til
+   imports ../../vendor/bindings/{raylib,tinyfd} and links the vendored
+   archives, and none of that was installed (the bindings left the
+   installed tree on 2026-05-17, the archives never were in it). Fixed
+   in install_compiler_support: vendor/bindings/ installs whole, and
+   each gui-linked archive installs with the .so twin the interpreter
+   dlopens -- all at their source-relative paths under <prefix>/lib/til,
+   which is what the resolution below looks for. The archives are build
+   products, so a missing one fails the install loudly, pointing at the
+   build, instead of planting a compiler whose gui mode cannot load.
+
+2. The issue predicted link() resolution would need an install-root
+   candidate -- it already had one: resolve_link_path has tried
+   base-dir, then compiler root (from ext_c_path) all along, and the
+   interpreter dlopens twins from those RESOLVED paths, so interpret
+   and repl worked the moment the files were installed. What actually
+   failed was compiled mode gui: compile_c appends target_gui_libs()
+   -- targets.til's per-target archive table -- and those tokens are
+   spelled cwd-relative, a real place only inside a repo checkout.
+   From the user project directory they reached the linker unresolved.
+   resolve_target_archives now runs the same candidate order over the
+   target-data flags (cwd wins, so a checkout keeps shadowing any
+   install; then the compiler root; an archive in neither keeps its
+   name and fails loudly at link), applied to target_gui_libs and
+   target_ffi_lib. Only ".a" tokens are touched.
+
+Verified from a scratch prefix, in a directory outside the repo: the
+gui REPL evaluates a raylib call through the installed twin,
+interpreting a mode-gui program works, and a built one links, runs and
+answers through the installed archive. nng stays uninstalled on
+purpose: the server modes are --extra-modes user files
+(examples/custom_modes.til), not installed built-ins.
+
+Regression test: test/install.til grew the gui leg -- requires the
+bindings, archives and twins in the installed tree, then interprets
+AND builds+runs a mode-gui program from outside the repo with the
+installed compiler. Windowless like test/gui_interp.til, and for the
+same reason: what #348 broke is import/link/dlopen resolution, not
+rendering, so the leg stays green on display-less hosts and --no-gui
+runs, and it cannot go silently unexercised the way install itself did
+for two weeks.
 
 An installed til (~make install~, then running ~<prefix>/bin/til~ from
 anywhere) fails on every ~mode gui~ path -- REPL, interpret, and build

@@ -6568,6 +6568,36 @@ priv is_gui_auto_import := func(auto_import: Str) returns Bool {
     return auto_import.eq("gui").or(auto_import.eq("src/modes/gui")).or(auto_import.ends_with("/gui"))
 }
 
+// Resolve the archive paths in a target-data flag string (issue #348).
+// targets.til spells its archives cwd-relative ("vendor/raylib/src/
+// libraylib.a"), which is only a real place inside a repo checkout; an
+// INSTALLED til runs from the user's project directory, where those
+// tokens reach the linker unresolved. Same candidate order as the
+// loader's resolve_link_path: the cwd spelling wins when it exists (a
+// checkout's vendor/ keeps shadowing any installed one), then the
+// compiler root (<prefix>/lib/til, derived from ext_c_path exactly like
+// the loader's root_dir), and an archive found in neither keeps its
+// name and fails loudly at link. Only ".a" tokens are touched: -l /
+// -framework / -s flags and the shell-expanded *.tbd glob pass through.
+priv resolve_target_archives := proc(flags: Str, ext_c_path: Str) returns Str {
+    if flags.find(".a").lt(0) { return flags }
+    root := ext_c_path.strip_suffix("/src/c/ext.c")
+    mut out := ""
+    for tok : Str in flags.split(" ") {
+        if tok.len() == 0 { continue }
+        mut resolved := tok.clone()
+        if tok.ends_with(".a").and(tok.starts_with("/").not()) {
+            if realpath_str(tok).len() == 0 {
+                root_candidate := format(root, "/", tok)
+                if realpath_str(root_candidate).len() > 0 { resolved = root_candidate }
+            }
+        }
+        if out.len() > 0 { out = format(out, " ") }
+        out = format(out, resolved)
+    }
+    return out
+}
+
 priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool, usize64: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
@@ -6771,10 +6801,12 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // DO use ext_func against a target with no vendored libffi still
     // fail loudly at link on the missing ffi_* symbols -- the same
     // behavior as before the table had entries for those targets.
-    mut ffi_lib := target_ffi_lib(target)
+    mut ffi_lib := resolve_target_archives(target_ffi_lib(target), ext_c_path)
     if ffi_lib.len().gt(0).and(realpath_str(ffi_lib).len().eq(0)) { ffi_lib = "" }
     mut gui_part := ""
-    if is_gui_auto_import(mode_auto_import) { gui_part = format(" ", target_gui_libs(target)) }
+    if is_gui_auto_import(mode_auto_import) {
+        gui_part = format(" ", resolve_target_archives(target_gui_libs(target), ext_c_path))
+    }
 
     cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, prof_link_flags, target_link_extra_args(target), " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
@@ -8828,7 +8860,44 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
     if rc != 0 { return rc }
+    // What `mode gui` stands on (issue #348). src/modes/gui.til imports
+    // ../../vendor/bindings/{raylib,tinyfd} and links the vendored
+    // archives, and resolve_link_path's compiler-root candidate already
+    // finds both under dst_root -- IF they are installed at their
+    // source-relative paths. The bindings are the whole directory (small
+    // text, and a custom mode may import any of them); the archives are
+    // exactly the two gui links, each with the .so twin the interpreter
+    // dlopens for repl/interpreted FFI. The archives are build products,
+    // so require them prebuilt and fail loudly pointing at the build --
+    // installing a compiler whose gui mode cannot load is how this issue
+    // happened.
+    rc = install_tree(format(root, "/vendor/bindings"), format(dst_root, "/vendor/bindings"), "install compiler FFI bindings")
+    if rc != 0 { return rc }
+    for lib : Str in gui_link_artifacts() {
+        src_path := format(root, "/", lib)
+        if cfile_exists(src_path).not() {
+            println(format("error: '", src_path, "' is missing -- mode gui needs it; build the vendored libraries first (make, or bin/make vendor)"))
+            return 1
+        }
+        rc = install_file(src_path, format(dst_root, "/", lib), format("install ", lib))
+        if rc != 0 { return rc }
+    }
     return 0
+}
+
+// The vendored artifacts an installed `mode gui` build/interpret needs,
+// at their source-relative paths: each linked archive plus its
+// dlopen-able twin (see ffi_load_archive_twin -- the twin sits beside
+// the archive, and resolve_link_path finds both under the install
+// root). nng stays out: the server modes are --extra-modes user files
+// (examples/custom_modes.til), not installed built-ins.
+priv gui_link_artifacts := func() returns Vec(Str) {
+    mut out := Vec(Str).new()
+    out.push(own "vendor/raylib/src/libraylib.a")
+    out.push(own "vendor/raylib/src/libraylib.so")
+    out.push(own "vendor/tinyfiledialogs/libtinyfd.a")
+    out.push(own "vendor/tinyfiledialogs/libtinyfd.so")
+    return out
 }
 
 priv print_install_success := proc(path: Str) {

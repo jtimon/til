@@ -1,7 +1,6 @@
 * Bugs
 ** Medium
 *** [[./open/343.org][#343]] A view reaching a C string parameter reads past its end, unchecked
-*** [[./open/348.org][#348]] The installed til cannot build or interpret mode gui programs
 *** [[./open/349.org][#349]] Cmd's Windows argument quoting has never been executed
 *** [[./open/350.org][#350]] A view argument's base Str is freed before the enclosing call reads it
 * Cleanups
