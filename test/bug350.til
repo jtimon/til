@@ -1,0 +1,49 @@
+mode test
+
+// Issue #350: a borrowing view (trim/substr/... -- cap == CAP_VIEW,
+// aliasing its base Str's bytes) used as a NESTED format/varargs
+// argument, in the statement that is the base's last syntactic use.
+//
+// The varargs desugaring hoists the view into a temp and moves it into
+// a _va_Array via Array.set -- a statement that defines nothing, so the
+// garbager's def-only taint walk (collect_hoist_taint) stopped there:
+// the ARRAY carrying the borrow until format() consumes it was never
+// tainted, view_last landed on the set, and the base's delete was
+// emitted BETWEEN the set and the format -- the view then read freed
+// bytes (heap-use-after-free under ASAN, garbage output without it).
+// extend_hoist_view_lifetimes now closes the taint over use-sites, so
+// the borrow follows the view into whatever container receives it.
+//
+// Both backends on purpose: the compiled path is where the garbager
+// emits the deletes; the interpreter models lifetimes its own way and
+// must agree on the output.
+
+// The format(...) base reproduces the bug without file I/O: its result
+// is an owned heap Str exactly like File.readfile's, and the emitted
+// dangling shape was identical -- it just happened to PRINT correctly
+// sometimes because the freed chunk was not always reused in time.
+// Comparing through assert_eq, not eyeballs, closes that luck.
+test_view_arg_outlives_base_last_use_trim := test() {
+    s := format("  padded value  ")
+    first := format("[", s, "]")
+    assert_eq(Str, first, "[  padded value  ]")
+    // s's last syntactic use: its trim view travels through the
+    // hoisted temp into the varargs array, and s must stay alive until
+    // the format call reads it back out.
+    trimmed := format("t=[", s.trim(), "]")
+    assert_eq(Str, trimmed, "t=[padded value]")
+}
+
+test_view_arg_outlives_base_last_use_substr := test() {
+    s := format("0123456789")
+    kept := format("mid=[", s.substr(3, 4), "]")
+    assert_eq(Str, kept, "mid=[3456]")
+}
+
+// Two views of the same base in one call: both borrows ride the same
+// varargs array, and the base must survive them both.
+test_two_views_of_one_base := test() {
+    s := format("  abc  ")
+    both := format("[", s.trim(), "|", s.substr(2, 3), "]")
+    assert_eq(Str, both, "[abc|abc]")
+}

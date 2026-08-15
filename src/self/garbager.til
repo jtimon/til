@@ -2034,6 +2034,35 @@ priv extend_hoist_view_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo),
         mut tmask := zeroed_words(facts.words)
         tainted := collect_hoist_taint(fact_bit_req(fi, local.name).to_i64(), facts, facts.n_stmts, tmask)
         if tainted.len() == 0 { continue }
+        // #350: a borrow can move INTO a binding a def-less statement
+        // mutates. The varargs desugaring is the canonical shape: the
+        // hoisted view lands in its _va_Array via Array.set, which
+        // defines nothing, so collect_hoist_taint's def-only walk
+        // stopped at the set and view_last below missed that the ARRAY
+        // now carries the borrow until format() consumes it -- the
+        // owner's delete landed between the two, and the emitted C
+        // read the view out of freed storage. Close the mask over
+        // use-sites instead: any statement touching a tainted binding
+        // taints everything it touches. Over-taint stays in this
+        // design's safe direction (it can only defer the owner's
+        // delete), same argument as the clone-following note on
+        // collect_hoist_taint.
+        mut spreading := true
+        while spreading {
+            spreading = false
+            for j in 0..body.children.len() {
+                if facts.directives.unsafe_get(j) { continue }
+                base := j.mul(facts.words)
+                if fact_row_intersects(facts.uses, base, tmask, facts.words).not() { continue }
+                for w in 0..facts.words {
+                    merged : U64 = facts.uses.unsafe_get(base + w).bor(tmask.unsafe_get(w))
+                    if merged != tmask.unsafe_get(w) {
+                        tmask.unsafe_set(w, own merged)
+                        spreading = true
+                    }
+                }
+            }
+        }
         mut view_last : I32 = -1
         for j in 0..body.children.len() {
             if facts.directives.unsafe_get(j) { continue }

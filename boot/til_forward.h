@@ -2903,6 +2903,7 @@ Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope, Expr *
 Vec__U64 * Vec__U64_new(void);
 Vec__U64 * Vec__U64_with_capacity(USize n);
 void Vec__U64_clear(Vec__U64 * self);
+void Vec__U64_unsafe_set(Vec__U64 * self, USize i, U64 * val);
 void Vec__U64_delete(Vec__U64 * self, Bool call_free);
 Vec__CtorArg * Vec__CtorArg_new(void);
 void Vec__CtorArg_clear(Vec__CtorArg * self);
@@ -2925,6 +2926,7 @@ Vec__RootBits * Vec__RootBits_new(void);
 void Vec__RootBits_clear(Vec__RootBits * self);
 void Vec__RootBits_unsafe_set(Vec__RootBits * self, USize i, RootBits * val);
 void Vec__RootBits_delete(Vec__RootBits * self, Bool call_free);
+void adopt__U64(void * dest, U64 * src);
 void adopt__priv___src_self_typer_til__CtorArg(void * dest, priv___src_self_typer_til__CtorArg * src);
 void adopt__RootBits(void * dest, RootBits * src);
 void adopt__priv___src_self_typer_til__CoverageNode(void * dest, priv___src_self_typer_til__CoverageNode * src);

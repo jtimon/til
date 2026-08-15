@@ -566,8 +566,8 @@ __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     U32 hoisted__U32_6 = 2;
     Str *hoisted__Str_panic_7 = format(hoisted__Array__Str_5);
     Array__Str_set(_va_Array_0, hoisted__U32_6, hoisted__Str_panic_7, &_va_Array_0_ek);
-    Array__Str_delete(parts, 1);
     println(_va_Array_0);
+    Array__Str_delete(parts, 1);
     I64 hoisted__I64_8 = 1;
     exit(hoisted__I64_8);
 }

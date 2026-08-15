@@ -1026,6 +1026,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug256.til", flags)
     add_both(tests, "test/bug258.til", flags)
     add_both(tests, "test/bug315.til", flags)
+    add_both(tests, "test/bug350.til", flags)
     add_both(tests, "test/dead_temps.til", flags)
     add_both(tests, "test/minimal_reach.til", flags)
     add_both(tests, "test/dyn_literal.til", flags)

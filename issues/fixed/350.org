@@ -1,6 +1,53 @@
 # priority: medium
 # category: bugs
-** OPEN #350 A view argument's base Str is freed before the enclosing call reads it
+** FIXED #350 A view argument's base Str is freed before the enclosing call reads it
+
+*** Post-mortem
+
+Root cause: the garbager's view-taint machinery stopped at a def-less
+statement. extend_hoist_view_lifetimes already knew that a binding
+whose initializer reads ~s~ may hold a view of ~s~'s bytes
+(collect_hoist_taint), and already extended ~s~'s life to the last
+statement using a tainted binding. But the taint walk propagates only
+through DEFINITIONS, and the varargs desugaring moves the hoisted view
+into its ~_va_Array~ through ~Array.set~ -- a statement that defines
+nothing. The array carrying the borrow until ~format()~ consumes it was
+never tainted, ~view_last~ landed on the set, and ~s~'s delete was
+emitted between the two. The view then read freed bytes: garbage when
+the allocator reused the chunk, silently intact when it did not,
+heap-use-after-free under ASAN either way.
+
+Fix, in the same machinery: after the def-walk, close the taint mask
+over USE-sites -- any statement touching a tainted binding taints
+everything it touches, to fixpoint. The borrow now follows the view
+into whatever container receives it, and the container's consumers
+count for ~view_last~. Over-taint stays in this design's declared safe
+direction (it can only defer the owner's delete), the same argument
+collect_hoist_taint already makes for following clone results.
+
+Consequences, all reviewed: test/gc_audit.expected moved by 11 rows --
+owners whose views enter containers now live to the container's last
+use. The commit is "Two-pass: " -- delete placement is emit-side, so
+the committed boot/til.c must be the new compiler self-applied or
+self_translate's byte-compare fails (it did, on pass 1: 263/264).
+
+The interpreter panic the issue told us to diagnose rather than
+assume: NOT this bug. Any interpreted ~main := proc() returns I64~
+panics on its ~return~ -- including ~{ return 0 }~ with no views
+anywhere -- with "return type read outside a call"
+(interp_ret_type_name's #321 invariant; ctx.interp_ret_type is never
+set for main itself). Pre-existing (reproduces with HEAD's til_boot),
+and uncovered: the only value-returning main in the tree is
+test/install.til's, which never interprets. Needs its own issue. The
+reproducer expressed as test() functions interprets cleanly, which is
+how the regression test covers both backends.
+
+Regression test: test/bug350.til, in the both-backends list -- trim
+and substr views as nested format arguments at the base's last use,
+plus two views of one base riding the same call. The format-produced
+base is used on purpose: it emitted the identical dangling shape as
+the File.readfile original and only printed correctly by allocator
+luck, and assert_eq closes that luck.
 
 A Str view (trim / substr / strip_prefix / ... -- any borrowing method)
 used as an argument inside a format()/varargs expression reads freed
