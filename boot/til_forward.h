@@ -1631,11 +1631,11 @@ typedef struct Context {
     Map__Str_StructLayout struct_layouts;
     Bool typing_namespace_member;
     Str closure_emit_env;
-    Set__Str closure_emit_captures;
+    Set__U32 closure_emit_captures;
     Set__U32 funcsig_names;
-    Set__Str closure_value_names;
-    Set__Str script_globals;
-    Set__Str ref_globals;
+    Set__U32 closure_value_names;
+    Set__U32 script_globals;
+    Set__U32 ref_globals;
     Vec__Str throw_type_registry;
     Map__Str_call_Vec_Str throws_global;
     I64 bang_counter;
@@ -3660,7 +3660,7 @@ void priv___src_self_builder_til__register_body_func_symbols(Expr * body, Contex
 void priv___src_self_builder_til__register_type_func_symbols(Str * type_name, Expr * def, Context * ctx);
 void priv___src_self_builder_til__register_func_symbols_prog(Expr * prog, Context * ctx);
 void priv___src_self_builder_til__build_register_func_symbols_lp(LoadedProgram * lp);
-void collect_closure_value_names(Expr * e, Set__Str * names, Context * ctx);
+void collect_closure_value_names(Expr * e, Set__U32 * names, Context * ctx);
 void build_register_closure_values_lp(LoadedProgram * lp);
 void priv___src_self_builder_til__emit_funcsig_alias_typedef(File * f, Expr * stmt, Expr * rhs, Declaration * dd, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_top_level_func_forward(File * f, Expr * rhs, Declaration * dd, Mode * mode, LoadedProgram * lp);

@@ -51,6 +51,8 @@
   - [X] Add a Context-owned SymbolPool and migrate function-signature names
     to Set(Sym).
   - [X] Preserve insertion-order Sym -> Str resolution across Context clones.
+  - [X] Migrate the remaining Context name registries (closure_emit_captures,
+    closure_value_names, script_globals, ref_globals) to Set(Sym).
   - [ ] Migrate FieldAccessData.name, then IdentData.name, to Sym.
   - [ ] Stage compiler Type-name payload migration after runtime reflection
     and dyn_type_to_str no longer require Str payloads.

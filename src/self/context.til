@@ -998,12 +998,12 @@ Context := struct {
     typing_namespace_member := false
 
     closure_emit_env := ""
-    closure_emit_captures := Set(Str).new()
+    closure_emit_captures := Set(Sym).new()
 
     funcsig_names := Set(Sym).new()
-    closure_value_names := Set(Str).new()
-    script_globals := Set(Str).new()
-    ref_globals := Set(Str).new()
+    closure_value_names := Set(Sym).new()
+    script_globals := Set(Sym).new()
+    ref_globals := Set(Sym).new()
 
     // Issue #198: typer-owned error-type registries, moved off
     // module-level globals so they live on the same Context that

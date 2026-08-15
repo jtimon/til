@@ -106,7 +106,7 @@ priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
     }
 }
 
-priv is_value_global := func(name: Str, ctx: Context) returns Bool {
+priv is_value_global := func(name: Str, mut ctx: Context) returns Bool {
     if is_current_func_param(name, ctx) { return false }
     // A local (loop var, decl) inside the current function shadows a
     // script global of the same name. Without this guard a library
@@ -117,25 +117,25 @@ priv is_value_global := func(name: Str, ctx: Context) returns Bool {
     if is_stack_local(name, ctx) { return false }
     if ctx.builder_func.ref_locals.has(name) { return false }
     if ctx.builder_func.ptr_locals.has(name) { return false }
-    return ctx.script_globals.has(name)
+    return ctx.script_globals.has(ctx.symbols.intern(name))
 }
 
-priv is_ref_global := func(name: Str, ctx: Context) returns Bool {
+priv is_ref_global := func(name: Str, mut ctx: Context) returns Bool {
     if is_current_func_param(name, ctx) { return false }
     // Same shadowing rule as is_value_global: a current-function local
     // beats a script-level ref global of the same name.
     if is_stack_local(name, ctx) { return false }
     if ctx.builder_func.ref_locals.has(name) { return false }
     if ctx.builder_func.ptr_locals.has(name) { return false }
-    return ctx.ref_globals.has(name)
+    return ctx.ref_globals.has(ctx.symbols.intern(name))
 }
 
-priv is_ref_local := func(name: Str, ctx: Context) returns Bool {
+priv is_ref_local := func(name: Str, mut ctx: Context) returns Bool {
     if ctx.builder_func.ref_locals.has(name) { return true }
     return is_ref_global(name, ctx)
 }
 
-priv use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
+priv use_dot_access := func(obj: Expr, mut ctx: Context) returns Bool {
     if obj.node_type.is(NodeType.FieldAccess) {
         if builder_fa_is_ptr(obj, ctx).not() { return true }
     }
@@ -1095,7 +1095,7 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
 
 
 
-priv emit_field := proc(f: File, var: Str, field: Str, ctx: Context) {
+priv emit_field := proc(f: File, var: Str, field: Str, mut ctx: Context) {
     f.write(var)
     // Issue #223 step 3: shallow (value) params join stack locals / value
     // globals on the dot-access path.
@@ -1498,7 +1498,7 @@ priv builder_resolve_c_ident_name := func(name: Str, ctx: Context) returns Str {
 // `(void)_til_str_lits[n];` placeholder suppressed no warning (there is no
 // binding to be unused), it just added a statement per literal. Mirrors the
 // branch conditions in emit_stmt_decl that reach the pooled emission.
-priv builder_is_pooled_str_lit_decl := func(e: Expr, ctx: Context) returns Bool {
+priv builder_is_pooled_str_lit_decl := func(e: Expr, mut ctx: Context) returns Bool {
     if e.node_type.is(NodeType.Decl).not() { return false }
     if e.children.len() == 0 { return false }
     if e.til_type().is_funcptr().or(e.til_type().is(Type.Dynamic)) { return false }
@@ -2330,7 +2330,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                             // the storage).
                             if is_stack_local(rv_name.ident_name(), ctx).not().and(
                                 is_value_global(rv_name.ident_name(), ctx).not()).and(
-                                ctx.closure_emit_captures.has(rv_name.ident_name()).not()).and(
+                                ctx.closure_emit_captures.has(ctx.symbols.intern(rv_name.ident_name())).not()).and(
                                 is_current_func_param(rv_name.ident_name(), ctx).not()).and(
                                 rv.til_type().is(Type.Dynamic).not()) {
                                 ctype := emit_return_ctype(rv, ctx)
@@ -2593,7 +2593,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         if ad.is_move.and(rhs_is_clone_fcall(rhs)).and(rhs.children.len().gte(2)) {
             rhs = rhs.children[1]
         }
-        if ctx.closure_emit_captures.has(aname) {
+        if ctx.closure_emit_captures.has(ctx.symbols.intern(aname)) {
             // Writes THROUGH the env pointer into the captured local's
             // storage, so this arm owes the same two things the `mut`-param
             // write-back does: run the OLD value's destructor before
@@ -3472,12 +3472,12 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
     case .Literal(Literal.Null):
         f.write("NULL")
     case .Ident(ident):
-        if ctx.closure_emit_captures.has(ident.ident_name()) {
+        if ctx.closure_emit_captures.has(ctx.symbols.intern(ident.ident_name())) {
             f.write("(*").write(ctx.closure_emit_env).write("->").write(ident.ident_name()).write(")")
             return f
         }
         if e.til_type().is_funcptr() {
-            if find_callee_fdef(ident.ident_name(), ctx).is_some().and(ctx.closure_value_names.has(ident.ident_name())).and(is_stack_local(ident.ident_name(), ctx).not()).and(is_ref_local(ident.ident_name(), ctx).not()).and(ctx.builder_func.ptr_locals.has(ident.ident_name()).not()) {
+            if find_callee_fdef(ident.ident_name(), ctx).is_some().and(ctx.closure_value_names.has(ctx.symbols.intern(ident.ident_name()))).and(is_stack_local(ident.ident_name(), ctx).not()).and(is_ref_local(ident.ident_name(), ctx).not()).and(ctx.builder_func.ptr_locals.has(ident.ident_name()).not()) {
                 f.write("&")
                 f.write(closure_value_name(ident.ident_name()))
             } else {
@@ -4493,7 +4493,7 @@ priv emit_body_scoped := proc(f: File, body: Expr, depth: I32, mut ctx: Context)
 priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
     switch e.node_type {
     case .Ident(ident):
-        if ctx.closure_emit_captures.has(ident.ident_name()) {
+        if ctx.closure_emit_captures.has(ctx.symbols.intern(ident.ident_name())) {
             emit_expr(f, e, depth, ctx)
             return f
         }
@@ -4570,7 +4570,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
     }
     switch e.node_type {
     case .Ident(ident):
-        if ctx.closure_emit_captures.has(ident.ident_name()) {
+        if ctx.closure_emit_captures.has(ctx.symbols.intern(ident.ident_name())) {
             f.write(ctx.closure_emit_env).write("->").write(ident.ident_name())
             return f
         }
@@ -5074,8 +5074,8 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         // later _cs/_sc ids would restart and collide.
         saved_ctor_seq := lp.ctx.ctor_seq
         lp.ctx.closure_emit_env = "til_env"
-        lp.ctx.closure_emit_captures = Set(Str).new()
-        for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own cap2.name.clone()) }
+        lp.ctx.closure_emit_captures = Set(Sym).new()
+        for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own lp.ctx.symbols.intern(cap2.name)) }
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
@@ -5143,8 +5143,8 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         saved_builder_func_b := lp.ctx.builder_func.clone()
         saved_ctor_seq_b := lp.ctx.ctor_seq
         lp.ctx.closure_emit_env = "til_env"
-        lp.ctx.closure_emit_captures = Set(Str).new()
-        for cap_b3 : Declaration in bd.captures { lp.ctx.closure_emit_captures.add(own cap_b3.name.clone()) }
+        lp.ctx.closure_emit_captures = Set(Sym).new()
+        for cap_b3 : Declaration in bd.captures { lp.ctx.closure_emit_captures.add(own lp.ctx.symbols.intern(cap_b3.name)) }
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
@@ -6988,11 +6988,11 @@ priv build_register_func_symbols_lp := func(mut lp: LoadedProgram) {
     }
 }
 
-collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) {
+collect_closure_value_names := proc(e: Expr, mut names: Set(Sym), mut ctx: Context) {
     switch e.node_type {
     case .Ident(ident):
         if e.til_type().is_funcptr() {
-            if find_callee_fdef(ident.ident_name(), ctx).is_some() { names.add(own Str.clone(ident.ident_name())) }
+            if find_callee_fdef(ident.ident_name(), ctx).is_some() { names.add(own ctx.symbols.intern(ident.ident_name())) }
         }
     case .FuncDef(fd):
         for p : Declaration in fd.params {
@@ -7018,7 +7018,7 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
 }
 
 build_register_closure_values_lp := proc(mut lp: LoadedProgram) {
-    lp.ctx.closure_value_names = Set(Str).new()
+    lp.ctx.closure_value_names = Set(Sym).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_closure_value_names(iu.ast, lp.ctx.closure_value_names, lp.ctx)
@@ -7055,7 +7055,7 @@ priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mo
         fc := func_to_c(dd.name)
         if fd.func_type.is_bodyless() { return }
         emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
-        if lp.ctx.closure_value_names.has(dd.name) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
+        if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
     case:
     }
 }
@@ -8321,8 +8321,8 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
 }
 
 priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
-    lp.ctx.script_globals = Set(Str).new()
-    lp.ctx.ref_globals = Set(Str).new()
+    lp.ctx.script_globals = Set(Sym).new()
+    lp.ctx.ref_globals = Set(Sym).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -8338,10 +8338,10 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
                 // memset/ptr_add on it write past a one-byte object.
                 if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
                     f.write(ctype).write(" *").write(dd.name).write(";\n")
-                    lp.ctx.ref_globals.add(own dd.name.clone())
+                    lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
                 } else {
                     f.write(ctype).write(" ").write(dd.name).write(";\n")
-                    lp.ctx.script_globals.add(own dd.name.clone())
+                    lp.ctx.script_globals.add(own lp.ctx.symbols.intern(dd.name))
                 }
             }
         }
@@ -8355,10 +8355,10 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
             // Same raw-allocator pointer rule as the core-unit loop above.
             if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
                 f.write(ctype).write(" *").write(dd.name).write(";\n")
-                lp.ctx.ref_globals.add(own dd.name.clone())
+                lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
             } else {
                 f.write(ctype).write(" ").write(dd.name).write(";\n")
-                lp.ctx.script_globals.add(own dd.name.clone())
+                lp.ctx.script_globals.add(own lp.ctx.symbols.intern(dd.name))
             }
         }
     }
@@ -8499,7 +8499,7 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     }
     f.write("    return 0;\n")
     f.write("}\n")
-    lp.ctx.script_globals = Set(Str).new()
+    lp.ctx.script_globals = Set(Sym).new()
 }
 
 // One top-level binding's definitions. emit_function_bodies walks core units
@@ -8518,7 +8518,7 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
         if fd.func_type.is_bodyless() { return }
         if rhs.children.len() == 0 { return }
         emit_func_def(f, dd.name, rhs, mode, false, lp)
-        if lp.ctx.closure_value_names.has(dd.name) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
+        if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
         f.write("\n")
     case:
     }
