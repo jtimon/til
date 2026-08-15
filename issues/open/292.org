@@ -53,6 +53,10 @@
   - [X] Preserve insertion-order Sym -> Str resolution across Context clones.
   - [X] Migrate the remaining Context name registries (closure_emit_captures,
     closure_value_names, script_globals, ref_globals) to Set(Sym).
+  - [X] Migrate the BuilderFunc per-function scratch registries (stack_locals,
+    stack_local_types, ref_locals, ptr_locals, ref_dyn_locals,
+    stack_lit_str_locals, unsafe_to_hoist, shadowed_params, body_refs,
+    body_multi_decls) to Sym keys.
   - [ ] Migrate FieldAccessData.name, then IdentData.name, to Sym.
   - [ ] Stage compiler Type-name payload migration after runtime reflection
     and dyn_type_to_str no longer require Str payloads.

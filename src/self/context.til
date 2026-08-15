@@ -696,21 +696,21 @@ BuilderFuncScratch := struct {
     // next to a read on the very next line. A name declared twice in one
     // body (sibling scopes) always gets the cast: this set is name-keyed,
     // so it cannot tell those two bindings apart.
-    body_refs := Set(Str).new()
-    body_multi_decls := Set(Str).new()
-    stack_locals := Set(Str).new()
-    stack_local_types := Map(Str, Str).new()
-    stack_lit_str_locals := Set(Str).new()
+    body_refs := Set(Sym).new()
+    body_multi_decls := Set(Sym).new()
+    stack_locals := Set(Sym).new()
+    stack_local_types := Map(Sym, Str).new()
+    stack_lit_str_locals := Set(Sym).new()
     force_heap_stack_lit_str_own : Bool = false
-    unsafe_to_hoist := Set(Str).new()
-    ref_locals := Set(Str).new()
+    unsafe_to_hoist := Set(Sym).new()
+    ref_locals := Set(Sym).new()
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
     // separately so emit_deref can typed-cast a Dynamic-declared
     // local when the typer's narrow_dynamic has retyped a use of it
     // to a concrete primitive (`not(x)`, `y.add(x)`, etc.). Without
     // the cast the codegen would emit `DEREF(x)` on a `void *`,
     // which is invalid C.
-    ref_dyn_locals := Set(Str).new()
+    ref_dyn_locals := Set(Sym).new()
     // #220: names of decls made inside the current function body. Inside a
     // function every `:=` decl is a local (is_global/is_rg are gated on
     // in_func_def.not()), but stack_locals/ref_locals only capture a subset
@@ -721,7 +721,7 @@ BuilderFuncScratch := struct {
     // pointer. Recorded for every in-function decl; consulted only by
     // is_value_global/is_ref_global so the effect is limited to the
     // global-vs-local decision.
-    ptr_locals := Set(Str).new()
+    ptr_locals := Set(Sym).new()
     // #327: parameter names that a NESTED block currently re-binds. The
     // builder's ident queries match by name, so inside such a block
     // `is_shallow_param` would otherwise report the parameter's shape for
@@ -730,7 +730,7 @@ BuilderFuncScratch := struct {
     // emit_body adds a block's shadowing decls on entry and drops them on
     // exit, so the parameter's shape is restored once the block closes.
     // Same-scope re-binding cannot reach here: the typer rejects it.
-    shadowed_params := Set(Str).new()
+    shadowed_params := Set(Sym).new()
 }
 
 // #286 follow-up: canonical heap Type blocks that HeapBinding.til_type

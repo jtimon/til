@@ -246,6 +246,7 @@ typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 typedef struct Option__ref_TypeScope Option__ref_TypeScope;
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
+typedef struct Map__U32_Str Map__U32_Str;
 typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
@@ -1383,22 +1384,6 @@ typedef struct ImportUnit {
 } ImportUnit;
 
 
-typedef struct BuilderFuncScratch {
-    Map__Str_Dynamic local_fn_sigs;
-    Set__Str body_refs;
-    Set__Str body_multi_decls;
-    Set__Str stack_locals;
-    Map__Str_Str stack_local_types;
-    Set__Str stack_lit_str_locals;
-    Bool force_heap_stack_lit_str_own;
-    Set__Str unsafe_to_hoist;
-    Set__Str ref_locals;
-    Set__Str ref_dyn_locals;
-    Set__Str ptr_locals;
-    Set__Str shadowed_params;
-} BuilderFuncScratch;
-
-
 typedef struct InternedTypes {
     Vec__Dynamic simples;
     Vec__Dynamic prims;
@@ -1413,6 +1398,12 @@ typedef struct Map__Str_TypeBinding {
     Vec__Str keys;
     Vec__TypeBinding values;
 } Map__Str_TypeBinding;
+
+
+typedef struct Map__U32_Str {
+    Vec__U32 keys;
+    Vec__Str values;
+} Map__U32_Str;
 
 
 typedef struct Map__Str_U32 {
@@ -1540,6 +1531,22 @@ typedef struct TypeScope {
     U64 func_defs_filt;
     U64 struct_defs_filt;
 } TypeScope;
+
+
+typedef struct BuilderFuncScratch {
+    Map__Str_Dynamic local_fn_sigs;
+    Set__U32 body_refs;
+    Set__U32 body_multi_decls;
+    Set__U32 stack_locals;
+    Map__U32_Str stack_local_types;
+    Set__U32 stack_lit_str_locals;
+    Bool force_heap_stack_lit_str_own;
+    Set__U32 unsafe_to_hoist;
+    Set__U32 ref_locals;
+    Set__U32 ref_dyn_locals;
+    Set__U32 ptr_locals;
+    Set__U32 shadowed_params;
+} BuilderFuncScratch;
 
 
 typedef struct SymbolPool {
@@ -2084,7 +2091,6 @@ Set__Str * Set__Str_new(void);
 void Set__Str_clear(Set__Str * self);
 Bool Set__Str_has(Set__Str * self, Str * val);
 void Set__Str_add(Set__Str * self, Str * val);
-Bool Set__Str_remove(Set__Str * self, Str * val);
 void Set__Str_delete(Set__Str * self, Bool call_free);
 Set__Str * Set__Str_clone(Set__Str * self);
 Map__Str_Str * Map__Str_Str_new(void);
@@ -2283,6 +2289,12 @@ Bool Option__ref_TypeBinding_is_none(Option__ref_TypeBinding self);
 TypeBinding * Option__ref_TypeBinding_unwrap(Option__ref_TypeBinding * self);
 Option__ref_TypeBinding Option__ref_TypeBinding_Some(TypeBinding * val);
 void Option__ref_TypeBinding_delete(Option__ref_TypeBinding * self, Bool call_free);
+Map__U32_Str * Map__U32_Str_new(void);
+Bool Map__U32_Str_has(Map__U32_Str * self, U32 key);
+Str * Map__U32_Str_get(Map__U32_Str * self, U32 * key, I64 * _err_kind);
+void Map__U32_Str_set(Map__U32_Str * self, U32 key, Str * val);
+void Map__U32_Str_delete(Map__U32_Str * self, Bool call_free);
+Map__U32_Str * Map__U32_Str_clone(Map__U32_Str * self);
 Map__Str_U32 * Map__Str_U32_new(void);
 void Map__Str_U32_set(Map__Str_U32 * self, Str * key, U32 * val);
 void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free);
@@ -2327,6 +2339,7 @@ Set__U32 * Set__U32_new(void);
 void Set__U32_clear(Set__U32 * self);
 Bool Set__U32_has(Set__U32 * self, U32 val);
 void Set__U32_add(Set__U32 * self, U32 * val);
+Bool Set__U32_remove(Set__U32 * self, U32 val);
 void Set__U32_delete(Set__U32 * self, Bool call_free);
 Set__U32 * Set__U32_clone(Set__U32 * self);
 Map__Str_I64 * Map__Str_I64_new(void);
@@ -3535,9 +3548,9 @@ void priv___src_self_builder_til__emit_user_fcall_with_inline_closure_cleanup(Fi
 void priv___src_self_builder_til__check_fcall_mut_args(Context * ctx, Expr * e);
 void priv___src_self_builder_til__collect_unsafe_to_hoist(Context * ctx, Expr * body);
 void priv___src_self_builder_til__builder_collect_body_liveness(Context * ctx, Expr * body);
-void priv___src_self_builder_til__builder_collect_body_reads(Expr * e, Set__Str * refs);
+void priv___src_self_builder_til__builder_collect_body_reads(Expr * e, Set__U32 * refs, Context * ctx);
 Bool priv___src_self_builder_til__builder_is_delete_call(Expr * e);
-void priv___src_self_builder_til__builder_collect_decl_names(Expr * e, Set__Str * seen, Set__Str * dupes);
+void priv___src_self_builder_til__builder_collect_decl_names(Expr * e, Set__U32 * seen, Set__U32 * dupes, Context * ctx);
 Bool priv___src_self_builder_til__builder_needs_unused_cast(Str * name, Context * ctx);
 void priv___src_self_builder_til__builder_reset_func_scratch(Context * ctx);
 Bool priv___src_self_builder_til__builder_is_hoisted_str_lit_ident(Str * name);
