@@ -1213,6 +1213,15 @@ Context := struct {
     // by direct call, outside any AST walk, so a POD lifecycle gate must
     // stand down for these types.
     builder_collection_elem_types := Set(Str).new()
+    // #326: every struct/enum type name the emitted C will MENTION -- in a
+    // kept signature, a kept body's expression types, an emitted struct's
+    // field layout (transitively), or a reflection stub's sizeof arms. The
+    // typedef emitters gate on it: a definition the scavenger correctly
+    // kept in the AST (the type is named by til code) can still be a
+    // typedef no emitted C spells out, because its every value position
+    // lowered away (Dynamic -> void*) or every function referencing it was
+    // omitted (an unused vendor binding struct).
+    builder_used_ctypes := Set(Str).new()
     // #326: library output keeps its exported ABI whether or not anything
     // internal uses it, so the two site-driven gates above stand down there
     // -- a consumer can call any exported constructor or `size`, and no

@@ -5584,6 +5584,11 @@ cmd_interpret := proc(mut lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
     if lp.link_c_paths.len() > 0 {
         system_cmd("mkdir -p tmp")
         interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
+        // The header's emitters gate on the inventories builder_prepare_emit
+        // settles (#326); translate_ast runs it before ITS header for the
+        // same reason. Without it every typedef gates out and the linked C
+        // fails on unknown type names.
+        builder_prepare_emit(lp)
         result = build_forward_header_lp(interpret_fwd_path, lp)
     }
     if result == 0 {

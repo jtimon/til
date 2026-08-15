@@ -14,7 +14,6 @@ typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Str Str;
 typedef struct Array__Str Array__Str;
 typedef struct Vec__Str Vec__Str;
-typedef struct Dynamic Dynamic;
 enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
@@ -146,10 +145,6 @@ typedef struct Vec__FieldLayout Vec__FieldLayout;
 typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
 typedef struct Vec__USize Vec__USize;
-typedef struct KwargsMap KwargsMap;
-typedef struct Map__Str_Tuple Map__Str_Tuple;
-typedef struct Vec__Tuple Vec__Tuple;
-typedef struct Range Range;
 typedef struct File File;
 enum {
     TokenType_TAG_Eof,
@@ -454,11 +449,6 @@ typedef struct Vec__Str {
 } Vec__Str;
 
 
-typedef struct Dynamic {
-    char _;
-} Dynamic;
-
-
 
 
 
@@ -667,19 +657,6 @@ typedef struct Vec__USize {
     USize count;
     USize cap;
 } Vec__USize;
-
-
-typedef struct Vec__Tuple {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__Tuple;
-
-
-typedef struct Range {
-    U64 start;
-    U64 end;
-} Range;
 
 
 typedef struct File {
@@ -1392,12 +1369,6 @@ typedef struct Map__Str_USize {
 } Map__Str_USize;
 
 
-typedef struct Map__Str_Tuple {
-    Vec__Str keys;
-    Vec__Tuple values;
-} Map__Str_Tuple;
-
-
 typedef struct Map__Str_TokenType {
     Vec__Str keys;
     Vec__TokenType values;
@@ -1595,11 +1566,6 @@ typedef struct Map__Str_HeapBinding {
 } Map__Str_HeapBinding;
 
 
-typedef struct KwargsMap {
-    Map__Str_Tuple items;
-} KwargsMap;
-
-
 typedef struct TypeScope {
     Map__Str_TypeBinding bindings;
     Str target_usize_pname;
@@ -1704,6 +1670,7 @@ typedef struct Context {
     Set__Str builder_dyn_fn_targets;
     Set__Str builder_ns_member_sites;
     Set__Str builder_collection_elem_types;
+    Set__Str builder_used_ctypes;
     Bool builder_keep_all_exports;
     Bool builder_lit_guard_used;
     Option__ref_Expr current_fdef;
@@ -3734,7 +3701,11 @@ void priv___src_self_builder_til__emit_top_level_definitions(File * f, Expr * rh
 void priv___src_self_builder_til__emit_function_bodies(File * f, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_ext_func_declarations(File * f, Expr * program, Context * ctx);
 void priv___src_self_builder_til__emit_lib_init(File * f, LoadedProgram * lp);
-void priv___src_self_builder_til__builder_prepare_emit(LoadedProgram * lp);
+void priv___src_self_builder_til__builder_used_ctype_add(Str * tname, Set__Str * used);
+void priv___src_self_builder_til__builder_collect_used_ctypes_expr(Expr * e, Set__Str * used);
+void priv___src_self_builder_til__builder_fill_used_ctypes(LoadedProgram * lp);
+Bool priv___src_self_builder_til__builder_ctype_def_kept(Str * name, Context * ctx);
+void builder_prepare_emit(LoadedProgram * lp);
 I32 priv___src_self_builder_til__build(Mode * mode, Bool run_tests, Str * c_output_path, LoadedProgram * lp);
 void priv___src_self_builder_til__BuildPaths_delete(priv___src_self_builder_til__BuildPaths * self, Bool call_free);
 priv___src_self_builder_til__BuildPaths * priv___src_self_builder_til__derive_build_paths(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target);

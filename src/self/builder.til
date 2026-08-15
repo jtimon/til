@@ -5511,6 +5511,9 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                 ref decl_value : Expr = stmt.children[0]
                 if decl_value.node_type.is(NodeType.StructDef).or(decl_value.node_type.is(NodeType.EnumDef)) {
+                    // #326: a definition no emitted C mentions is skipped
+                    // whole (see builder_fill_used_ctypes).
+                    if builder_ctype_def_kept(decl_of(stmt).name, lp.ctx).not() { continue }
                     tmp : UPtr = malloc(UPtr.size())
                     write_ptr(tmp, stmt)
                     items.push(own tmp)
@@ -5755,6 +5758,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len() == 0 { continue }
                 ref dd : Declaration = decl_of(stmt)
+                if is_struct_or_enum(stmt).and(builder_ctype_def_kept(dd.name, lp.ctx).not()) { continue }
                 switch stmt.children[0].node_type {
                 case .StructDef(fwd_sdd):
                     if is_ext_h_type(dd.name) { continue }
@@ -5794,6 +5798,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len() == 0 { continue }
             ref dd : Declaration = decl_of(stmt)
+            if is_struct_or_enum(stmt).and(builder_ctype_def_kept(dd.name, lp.ctx).not()) { continue }
             switch stmt.children[0].node_type {
             case .StructDef(fwd_sdd):
                 if is_ext_h_type(dd.name) { continue }
@@ -8531,7 +8536,196 @@ priv emit_lib_init := proc(f: File, mut lp: LoadedProgram) {
 // an EMPTY site inventory: it omitted every lifecycle method the .c went
 // on to define. Only ext.c's callers noticed, and only once the gate
 // covered the struct they call (Str_clone, undeclared in til_forward.h).
-priv builder_prepare_emit := proc(mut lp: LoadedProgram) {
+// --- #326: which typedefs will the emitted C actually mention? ------------
+//
+// The scavenger keeps a type whenever til code NAMES it; the C emitters
+// mention its typedef only when some emitted construct spells it out -- a
+// kept signature, a kept body's expression types, an emitted struct's
+// field layout, a reflection stub's sizeof arm. The two can differ two
+// ways: Dynamic's every value position lowers to `void *`, and a vendor
+// binding struct survives while every ext prototype referencing it was
+// swept. Both left typedefs no emitted line uses -- Dynamic's in 121 of
+// the corpus's 139 files. This inventory walks exactly what the emitters
+// will emit (same gates, same skips) and the typedef emitters gate on it.
+
+priv builder_used_ctype_add := func(tname: Str, mut used: Set(Str)) {
+    if tname.len() == 0 { return }
+    // Every Dynamic value position lowers to void*; only the reflection
+    // stubs' sizeof arms mention the typedef, and the reflect rule in
+    // builder_fill_used_ctypes contributes it explicitly for that case.
+    if tname.eq("Dynamic") { return }
+    if used.has(tname).not() { used.add(own tname.clone()) }
+}
+
+priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str)) {
+    // A NAMESPACE receiver (`FwdConst.b`, `Color.Red`) is a type-position
+    // Ident: it carries the type as its til_type but lowers to a name
+    // prefix (`FwdConst_b`) or a spliced value, never to the typedef.
+    // Contribute nothing for it; a VALUE of the type contributes at its
+    // own node.
+    mut uct_ns_recv := false
+    if e.node_type.is(NodeType.FieldAccess).and(e.children.len().gt(0)) {
+        switch e.children[0].node_type {
+        case .Ident(uct_rid):
+            uct_ro := expr_type_name_ref(e.children[0])
+            if uct_ro.is_some() {
+                ref uct_rtn : Str = uct_ro.unwrap()
+                uct_ns_recv = uct_rtn.eq(uct_rid.ident_name())
+            }
+        case:
+        }
+    }
+    uct_o := expr_type_name_ref(e)
+    if uct_o.is_some() {
+        ref uct_tn : Str = uct_o.unwrap()
+        builder_used_ctype_add(uct_tn, used)
+    }
+    switch e.node_type {
+    case .Decl(uct_dd):
+        if uct_dd.explicit_type.len() > 0 { builder_used_ctype_add(uct_dd.explicit_type, used) }
+    case .FuncDef(uct_fd):
+        for uct_p : Declaration in uct_fd.params {
+            if uct_p.explicit_type.len() > 0 { builder_used_ctype_add(uct_p.explicit_type, used) }
+            builder_used_ctype_add(til_type_name(uct_p.til_type), used)
+        }
+        if uct_fd.return_type.len() > 0 { builder_used_ctype_add(uct_fd.return_type, used) }
+    case:
+    }
+    mut uct_ci : USize = 0
+    for uct_c : Expr in e.children {
+        cur_uct_ci := uct_ci
+        uct_ci = uct_ci + 1
+        if uct_ns_recv.and(cur_uct_ci == 0) { continue }
+        builder_collect_used_ctypes_expr(uct_c, used)
+    }
+}
+
+priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
+    mut used := Set(Str).new()
+    // The two names emission always spells out: the literal pool's element
+    // type, and Str again as the ext.c boundary (Str_clone's prototype).
+    used.add(own Str.clone("Str"))
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() {
+                // Executable top-level statement: becomes main()'s body.
+                builder_collect_used_ctypes_expr(stmt, used)
+                continue
+            }
+            if stmt.children.len() == 0 { continue }
+            ref dd : Declaration = decl_of(stmt)
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                // Only the members the emitters keep contribute; an omitted
+                // body's types are exactly the mentions that never happen.
+                ref uct_ns : Vec(Declaration) = def_ns_decls(rhs)
+                mut uct_mi : USize = 0
+                for uct_nsd : Declaration in uct_ns {
+                    cur_uct_mi := uct_mi
+                    uct_mi = uct_mi + 1
+                    if uct_nsd.default_value.is_none() { continue }
+                    ref uct_mname : Str = def_ns_name_at(rhs, cur_uct_mi)
+                    switch uct_nsd.default_expr().node_type {
+                    case .FuncDef(uct_mfd):
+                        if uct_mfd.func_type.is_ext().and(def_is_interface(rhs)) { continue }
+                        if builder_ns_method_lowered_inline(uct_nsd.default_expr()) { continue }
+                        if builder_ns_method_omitted(dd.name, uct_mname, lp.ctx) { continue }
+                        // The auto-size body is `return sizeof(Owner);` --
+                        // generated at emission, not in this AST.
+                        if uct_mname.eq("size") { builder_used_ctype_add(dd.name, used) }
+                        builder_collect_used_ctypes_expr(uct_nsd.default_expr(), used)
+                    case:
+                        builder_collect_used_ctypes_expr(uct_nsd.default_expr(), used)
+                    }
+                }
+                // A kept variant constructor returns the enum by name.
+                if rhs.node_type.is(NodeType.EnumDef) {
+                    ref uct_edd : EnumDef = enumdef_of(rhs)
+                    for uct_vd : VariantDef in uct_edd.variants {
+                        if builder_variant_ctor_kept(dd.name, rhs, uct_vd.name, lp.ctx) {
+                            builder_used_ctype_add(dd.name, used)
+                            if uct_vd.payload_type.len() > 0 { builder_used_ctype_add(uct_vd.payload_type, used) }
+                        }
+                    }
+                    if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { builder_used_ctype_add(dd.name, used) }
+                }
+                continue
+            }
+            switch rhs.node_type {
+            case .FuncDef:
+                // A type-gen template is never emitted; the folded concrete
+                // instantiation is its own top-level def and walks here on
+                // its own. A lazy recursive variadic def emits nothing.
+                if builder_is_type_gen_macro_def(rhs) { continue }
+                if lazy_recursive_variadic_def(rhs) { continue }
+                builder_collect_used_ctypes_expr(stmt, used)
+            case:
+                // A type ALIAS (`Quaternion := Vector4`: value Decl, bare
+                // Ident RHS, type None) emits no C of its own -- walking it
+                // kept every aliased vendor struct. A real value global's
+                // type and initializer both emit.
+                mut uct_is_alias := false
+                if stmt.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { uct_is_alias = true }
+                if uct_is_alias.not() { builder_collect_used_ctypes_expr(stmt, used) }
+            }
+        }
+    }
+    // dyn_size_of / dyn_storage_kind emit a sizeof arm for EVERY loaded
+    // struct/enum (and Dynamic itself); when either is reflected, every
+    // definition is mentioned. That is the only generated family with
+    // mentions beyond the walked AST: a dyn_call wrapper's cast type is
+    // contributed by its own kept method's self param, and a collection
+    // helper's element type by the literal site's expression types.
+    uct_all_types := lp.ctx.builder_reflect_inventory.has("dyn_size_of")
+        .or(lp.ctx.builder_reflect_inventory.has("dyn_storage_kind"))
+    if uct_all_types {
+        if used.has("Dynamic").not() { used.add(own Str.clone("Dynamic")) }
+        for upath2 : Str in lp.unit_paths() {
+            ref iu2 : ImportUnit = lp.ctx.imported[upath2]
+            for stmt2 : Expr in iu2.ast.children {
+                if is_struct_or_enum(stmt2) { builder_used_ctype_add(decl_of(stmt2).name, used) }
+            }
+        }
+    }
+    // Layout closure: emitting a struct mentions its field types; emitting
+    // an enum mentions its payload types. Iterate to a fixpoint (a field's
+    // struct has fields of its own).
+    mut uct_prev : USize = 0
+    while uct_prev != used.len() {
+        uct_prev = used.len()
+        for upath3 : Str in lp.unit_paths() {
+            ref iu3 : ImportUnit = lp.ctx.imported[upath3]
+            for stmt3 : Expr in iu3.ast.children {
+                if is_struct_or_enum(stmt3).not() { continue }
+                ref uct_sdd : Declaration = decl_of(stmt3)
+                if used.has(uct_sdd.name).not() { continue }
+                ref uct_def : Expr = stmt3.children[0]
+                switch uct_def.node_type {
+                case .StructDef(uct_sd2):
+                    for uct_fd2 : Declaration in uct_sd2.fields {
+                        if uct_fd2.explicit_type.len() > 0 { builder_used_ctype_add(uct_fd2.explicit_type, used) }
+                        builder_used_ctype_add(til_type_name(uct_fd2.til_type), used)
+                    }
+                case .EnumDef(uct_ed2):
+                    for uct_vd2 : VariantDef in uct_ed2.variants {
+                        if uct_vd2.payload_type.len() > 0 { builder_used_ctype_add(uct_vd2.payload_type, used) }
+                    }
+                case:
+                }
+            }
+        }
+    }
+    lp.ctx.builder_used_ctypes = used.clone()
+}
+
+// True when the typedef emitters should spell out this definition.
+priv builder_ctype_def_kept := func(name: Str, ctx: Context) returns Bool {
+    if ctx.builder_keep_all_exports { return true }
+    return ctx.builder_used_ctypes.has(name)
+}
+
+builder_prepare_emit := proc(mut lp: LoadedProgram) {
     // Every phase between init and here (lazy lowering, lifted lambdas,
     // monomorphization, garbager destructor insertion) may have APPENDED
     // top-level decls to a unit AST; an append that reallocs a children Vec
@@ -8556,6 +8750,10 @@ priv builder_prepare_emit := proc(mut lp: LoadedProgram) {
     // a different, wrong answer (EvalHeap_clone and CtorArg_clone became
     // implicit declarations in til's own output).
     builder_fill_emit_inventory(lp)
+    // After the emit inventory: the used-ctype walk asks the same gates
+    // (omission, variant ctors, dyn targets, collection elem types) the
+    // emitters will, and those answer from the inventory just filled.
+    builder_fill_used_ctypes(lp)
 }
 
 priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: LoadedProgram) returns I32 {

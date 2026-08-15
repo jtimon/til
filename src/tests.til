@@ -834,6 +834,18 @@ main := proc(args: ..Str) {
     // entries nothing indexed).
     add_count(tests, "interfaces_pool_no_dead_metadata", "build", "(void *)\"StructDef\"", 0,
         format(til_bin, " translate -c gen/c/if_pm.c test/interfaces.til '&&' cat gen/c/if_pm.c"))
+    // A typedef no emitted C mentions is not emitted: Dynamic's every
+    // value position lowers to void*, so a program with no reflection
+    // never spells the typedef out -- and one WITH reflection needs it
+    // for the sizeof arms, both directions pinned here. The vendor
+    // binding structs follow the same rule (a gui program that uses no
+    // Vector4-taking function carries no Vector4 typedef).
+    add_count(tests, "hello_no_dead_dynamic_typedef", "build", "} Dynamic;", 0,
+        format(til_bin, " translate -c gen/c/hs_dy.c examples/hello_script.til '&&' cat gen/c/hs_dy.c"))
+    add_count(tests, "dynamic_keeps_dynamic_typedef", "build", "} Dynamic;", 1,
+        format(til_bin, " translate -c gen/c/dyn_dy.c test/dynamic.til '&&' cat gen/c/dyn_dy.c"))
+    add_count(tests, "gui_no_dead_vendor_typedef", "build", "} Vector4;", 0,
+        format(til_bin, " translate -c gen/c/hg_v4.c examples/hello_gui.til '&&' cat gen/c/hg_v4.c"))
     // The literal exposed DCE's trivial-delete matcher to CONSUMING
     // deletes: Array.unsafe_set's `T.delete(own self.unsafe_get(i),
     // false)` hoists its receiver into a ref temp, and with call_free a

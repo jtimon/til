@@ -17,7 +17,6 @@ struct TilClosure {
 
 typedef struct Str Str;
 typedef struct Array__Str Array__Str;
-typedef struct Dynamic Dynamic;
 typedef struct CfVec2 CfVec2;
 typedef struct CfRect CfRect;
 typedef struct CfVec3f CfVec3f;
@@ -46,11 +45,6 @@ typedef struct Array__Str {
     U8 *data;
     USize cap;
 } Array__Str;
-
-
-typedef struct Dynamic {
-    char _;
-} Dynamic;
 
 
 
