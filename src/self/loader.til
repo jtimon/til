@@ -4214,9 +4214,11 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     if lp.ctx.errors > 0 { return lp.ctx.errors }
 
     // Issue #158: the typer populates the foldable-name sets via
-    // constfolder_classify_stmt (a pre-pass in infer_body_unit, before it walks
-    // each unit's bodies -- see #315); clear any stale state up front so a
-    // fresh build (or REPL re-eval reusing this Context) starts clean.
+    // constfolder_classify_stmt, called inline from type_decls_file's
+    // per-decl walk (and the lifted-lambda tail in type_check_unit), which
+    // finish for the whole import graph before any body is typed -- see
+    // #315. Clear any stale state up front so a fresh build (or REPL
+    // re-eval reusing this Context) starts clean.
     constfolder_reset_state(lp.ctx)
 
     // Init phase (rstil-style): recursive imports per file.

@@ -50,12 +50,34 @@
    name classification (and the interpreter's def/alias/ns registration)
    re-derive facts the typer already computed. The storage half of that
    is done -- [[./178.org][#178]] / [[./147.org][#147]] moved the per-phase symbol/cache state
-   onto Context. What remains is to *populate* the foldable-name set
-   during the typer's existing walk so constfolder can drop its scan step
-   entirely. The typer is the correct capture point because initer runs
-   before the typer lifts lambdas and generates derived methods that
-   constfolder must also see. That is the natural next step and is tracked
-   here.
+   onto Context.
+
+   The foldable-name half is now done too. ~constfolder_classify_stmt~ no
+   longer runs as a dedicated pre-walk over each unit's top level in
+   ~infer_body_unit~; it is called inline from the per-decl loops that
+   already existed:
+   - ~type_decls_file~ (the normal path) -- after the layout /
+     size-methodgen / cmp / unity work for that decl, so classify sees
+     the ns methods those helpers just added;
+   - ~type_check_unit~ -- for the lifted ~_lambda_<N>~ tail only, which
+     is appended after ~type_decls_file~ ran;
+   - ~type_repl_delta_decls_from~ -- the REPL delta path, which never
+     goes through ~type_decls_file~;
+   - ~flush_generic_pending~ -- late concrete generics, as before.
+
+   The [[./315.org][#315]] forward-reference guarantee still holds:
+   ~type_decls_file~ completes for the whole transitive import graph
+   before ~type_bodies_file~ types any body, so every top-level foldable
+   is recorded before ~body_pre_passes~ asks ~is_macro_call~ whether to
+   skip hoisting a macro call's args.
+
+   What remains under this issue is the per-body garbager work: lifting
+   the inline ~garbager_destroy_body~ calls (function / if / while /
+   block / catch scopes) into the single ~garbager_destroy(ctx)~ walk.
+   The blocker is per-body scope ownership -- those TypeScopes are locals
+   of the typer functions and are gone once ~infer_body~ returns -- which
+   needs either a per-body scope cache on Context or an on-the-fly scope
+   rebuild in garbager. See [[../fixed/204.org][#204]] step 3b.
 
 ** Original report (kept for reference)
 

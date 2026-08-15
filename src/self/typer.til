@@ -6829,8 +6829,8 @@ priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, mut ctx
     for mut tstmt : Expr in ctx.generic_pending.children {
         extend_throwing_func_sigs(ctx, tstmt)
     }
-    // Late declarations miss infer_body_unit's initial classification
-    // sweep, so classify each one before it enters the body loop.
+    // Late declarations are created after type_decls_file classified this
+    // unit's top level, so classify each one before it enters the body loop.
     for cstmt : Expr in ctx.generic_pending.children {
         constfolder_classify_stmt(cstmt, ctx)
     }
@@ -6860,26 +6860,13 @@ priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, mut ctx
 
 priv infer_body_unit := proc(mut scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context) {
     body.set_til_type(Type.None)
-    // Issue #158: record foldable macro/func names so constfolder reuses
-    // ctx.constfolder_foldables instead of re-scanning. Issue #315: classify
-    // ALL top-level defs BEFORE the walk. infer_body_stmt type-checks each
-    // nested body mid-walk (via infer_body -> body_pre_passes), and that
-    // desugar/hoist pass asks is_macro_call (constfolder_foldables) whether to
-    // skip hoisting a macro call's args. A foldable macro used by an earlier
-    // body but declared LATER at the top level must already be recorded, or
-    // its arg is hoisted into a temp and the constfolder then folds the macro
-    // against the temp (e.g. `til_type_name(hoisted__Type_N)` -> a bogus type
-    // name). Classifying per-statement during the walk left forward-referenced
-    // macros invisible until too late. Lambdas are lifted and struct/enum
-    // methods generated before this sweep (type_decls_file runs before
-    // type_bodies_file), so body.children already holds every top-level def.
-    // Doing this as a pre-walk pass (rather than reading body.children[i]
-    // inside the walk) also sidesteps the issue #312 OutOfBounds: a top-level
-    // `for i in 0..N` desugars its single ForIn at index 0, where
-    // infer_body_stmt rewinds `i` (i--) and underflows the USize.
-    for stmt : Expr in body.children {
-        constfolder_classify_stmt(stmt, ctx)
-    }
+    // Issue #158: the foldable-name set (ctx.constfolder_foldables) is
+    // populated by type_decls_file's existing per-decl walk, plus the
+    // lifted-lambda tail in type_check_unit -- both of which complete
+    // before this body walk starts. The dedicated pre-walk that used to
+    // live here is gone; see type_decls_file for why the #315
+    // forward-reference guarantee still holds (decls for the whole
+    // import graph are classified before any body is typed).
     mut i : USize = 0
     while i < body.children.len() {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
@@ -6962,7 +6949,15 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     // ordinary named functions through the normal walk below. Doing
     // this in the typer (rather than as a pre-typer pass in init_file)
     // keeps the parser dumb and avoids adding a #158-style extra walk.
+    pre_lift_len := program.children.len()
     typer_lift_lambdas(scope, program, ctx)
+    // Issue #158: the lifted `_lambda_<N>` decls are APPENDED after
+    // type_decls_file already classified this unit's source-level top
+    // level, so classify just that new tail -- not the whole body, which
+    // would reinstate the full pre-walk this change removes.
+    for li in pre_lift_len..program.children.len() {
+        constfolder_classify_stmt(program.children[li], ctx)
+    }
     // Issue #198: extend signatures of throwing functions BEFORE
     // any body type-checking so call-site rewrites in
     // inject_throw_args_in_body see the post-extension param list.
@@ -7056,11 +7051,14 @@ priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut
             case:
             }
             gen_enum_size_method_for_stmt(stmt, ctx.scope, ctx)
-        } else {
-            continue
         }
         gen_cmp_derived_for_stmt(stmt)
         gen_unity_derived_for_stmt(stmt)
+        // Issue #158: same inline classify as type_decls_file. The REPL
+        // delta path does not go through type_decls_file, so this is
+        // where its top-level decls enter ctx.constfolder_foldables now
+        // that infer_body_unit no longer pre-walks for them.
+        constfolder_classify_stmt(stmt, ctx)
     }
     return total
 }
@@ -7170,11 +7168,25 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
             case:
             }
             gen_enum_size_method_for_stmt(stmt, ctx.scope, ctx)
-        } else {
-            continue
         }
+        // gen_cmp_derived_for_stmt / gen_unity_derived_for_stmt self-guard
+        // on is_struct_or_enum, so calling them for FuncDef stmts is a
+        // cheap no-op. Removing the earlier `else { continue }` lets #158's
+        // classify below run for every top-level decl (FuncDef included)
+        // without a second walk.
         gen_cmp_derived_for_stmt(stmt)
         gen_unity_derived_for_stmt(stmt)
+        // Issue #158: populate the constfolder foldable-name set inline.
+        // Runs after gen_*_size_method / gen_cmp / gen_unity so classify
+        // sees the ns methods those helpers just added. type_decls_file
+        // completes for every imported file before type_bodies_file
+        // starts on any of them (topo-ordered recursion above), so by
+        // the time any body is type-checked -- and body_pre_passes reads
+        // is_macro_call for hoist decisions -- every top-level foldable
+        // in the transitive import graph is already recorded. That is
+        // what the old pre-walk in infer_body_unit had to guarantee
+        // for the forward-reference case flagged by #315.
+        constfolder_classify_stmt(stmt, ctx)
     }
     return total
 }
