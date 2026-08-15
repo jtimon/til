@@ -1185,6 +1185,15 @@ Context := struct {
     // dense-index alternatives all failed.
     builder_str_lit_counts := Map(Str, USize).new()
     builder_str_lit_ident_contents := Map(Str, Str).new()
+    // #101: the pooled literals' struct-field names (parallel to
+    // builder_str_lit_values) and the collision counter behind them. The
+    // pool is a struct with content-hash-named FIELDS, not an array: an
+    // array index is dense, so promoting one new literal into the pool
+    // renumbered every content-later reference in the program; a field
+    // name derives from the literal's own bytes and moves for nothing
+    // else.
+    builder_str_lit_members := Vec(Str).new()
+    builder_str_lit_member_seq := Map(Str, USize).new()
     // #326: which dyn/reflection builtins the SURVIVING AST actually names.
     // Filled once per emission (builder_collect_reflect_inventory) and read
     // by the gates on the generated dyn dispatch table, its per-method

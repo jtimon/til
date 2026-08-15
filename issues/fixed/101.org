@@ -2,6 +2,21 @@
 # category: cleanups
 ** FIXED #101 Deterministic temp variable names in generated C
 
+Follow-up (2026-08-15, same day as the close): one dense index survived
+the close -- the pool ARRAY. Its content-sorted indexes were stable
+against edits to a literal's USES, but not against the shared set itself
+changing: a string gaining its second use is promoted into the pool at
+its sorted position, and every content-later index shifts -- measured
+12,747 scattered reference lines for ONE new shared literal. The pool is
+now a struct whose FIELDS are named by a hash of the literal's own bytes
+(`_til_str_lits.h<djb2-12hex>`, collisions resolved deterministically in
+sorted order): references are name-stable, adding or removing a pooled
+literal touches its own two struct lines and its own use sites, and the
+object stays contiguous so TIL_LIT_GUARD keeps its O(1) range test. The
+same probe now churns 819 lines: 790 loc region (real line shifts), the
+rest the probe's own code. With this, NOTHING in til.c is referenced by
+a dense index anymore.
+
 Post-mortem (2026-08-15, final): the goal, per Jorge, was always that a
 til.c diff be USEFUL FOR REVIEW -- the C changes in it related to the til
 edit, not label reorganizations rippling through the file. Landed across

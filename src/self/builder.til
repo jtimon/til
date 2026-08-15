@@ -1465,6 +1465,8 @@ priv builder_reset_str_lit_pool := func(mut ctx: Context) {
     ctx.builder_str_lit_ident_symbols = Map(Str, Str).new()
     ctx.builder_str_lit_counts = Map(Str, USize).new()
     ctx.builder_str_lit_ident_contents = Map(Str, Str).new()
+    ctx.builder_str_lit_members = Vec(Str).new()
+    ctx.builder_str_lit_member_seq = Map(Str, USize).new()
 }
 
 // The shared literals live in ONE array rather than N separate statics, so
@@ -1516,7 +1518,7 @@ priv builder_is_pooled_str_lit_decl := func(e: Expr, mut ctx: Context) returns B
 }
 
 priv builder_emit_str_lit_elem := proc(f: File, s: Str) {
-    f.write("    (Str){.c_str = (void *)\"")
+    f.write("(Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
     emit_usize(f, c_lit_byte_count(s))
@@ -1715,12 +1717,42 @@ priv builder_str_lit_is_loc := func(s: Str) returns Bool {
     return d.gte('0').and(d.lte('9'))
 }
 
+// #101: a pooled literal's C name, derived from its own bytes (djb2 over
+// the content, 12 hex digits). The pool members are struct FIELDS named
+// this way rather than array elements, because an array INDEX is dense:
+// promoting one new literal into the pool (a string gaining its second
+// use) shifted every content-later index -- 12,747 reference lines
+// across til.c for one new shared literal. A content-derived field name
+// moves for no edit except one that changes the literal itself.
+priv builder_str_lit_member := func(s: Str) returns Str {
+    mut h : U64 = 5381
+    for i in 0..s.len() {
+        ref c : I8 = s.unsafe_get(i)
+        h = h.mul(33).add(c.to_u64())
+    }
+    hexd := "0123456789abcdef"
+    mut name := ""
+    for _ in 0..12 {
+        name = format(hexd.substr(h.mod(16).to_usize(), 1), name)
+        h = h.div(16)
+    }
+    return format("h", name)
+}
+
 priv builder_finalize_str_lit_pool := func(mut ctx: Context) {
     for s : Str in ctx.builder_str_lit_counts.keys {
         if ctx.builder_str_lit_counts[s] < 2 { continue }
         if builder_str_lit_is_loc(s) { continue }
-        sym := format("_til_str_lits[", ctx.builder_str_lit_values.len().to_str(), "]")
+        // Contents iterate key-sorted, so a hash collision resolves
+        // deterministically: later colliding contents take _2, _3, ...
+        mut member := builder_str_lit_member(s)
+        mut seen : USize = 0
+        if ctx.builder_str_lit_member_seq.has(member) { seen = ctx.builder_str_lit_member_seq[member] }
+        ctx.builder_str_lit_member_seq.set(member, own seen.add(1))
+        if seen > 0 { member = format(member, "_", seen.add(1).to_str()) }
+        sym := format("_til_str_lits.", member)
         ctx.builder_str_lit_symbols.set(s, own sym)
+        ctx.builder_str_lit_members.push(own member)
         ctx.builder_str_lit_values.push(own s.clone())
     }
     // Hoisted-ident names resolve to their content's final symbol; an
@@ -1773,12 +1805,19 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
         if ctx.builder_lit_guard_used { f.write("#define TIL_LIT_GUARD(p) ((void)0)\n\n") }
         return
     }
-    f.write("static Str _til_str_lits[")
-    emit_usize(f, n)
-    f.write("] = {\n")
+    // #101: a struct with content-hash-named fields, not an array --
+    // references are by field name, so adding or removing a pooled
+    // literal touches its own two lines here and its own use sites,
+    // never a neighbor's. Still ONE contiguous object, so TIL_LIT_GUARD
+    // keeps its O(1) address-range test.
+    f.write("static struct {\n")
     for i in 0..n {
-        ref val : Str = ctx.builder_str_lit_values[i]
-        builder_emit_str_lit_elem(f, val)
+        f.write("    Str ").write(ctx.builder_str_lit_members[i]).write(";\n")
+    }
+    f.write("} _til_str_lits = {\n")
+    for i in 0..n {
+        f.write("    .").write(ctx.builder_str_lit_members[i]).write(" = ")
+        builder_emit_str_lit_elem(f, ctx.builder_str_lit_values[i])
     }
     f.write("};\n")
     if ctx.builder_lit_guard_used.not() {
@@ -1786,8 +1825,7 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
         return
     }
     f.write("#define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); ")
-    f.write("if (_g >= (UPtr)(const void *)_til_str_lits && _g < (UPtr)(const void *)(_til_str_lits + ")
-    emit_usize(f, n)
+    f.write("if (_g >= (UPtr)(const void *)&_til_str_lits && _g < (UPtr)(const void *)(&_til_str_lits + 1")
     f.write(")) { fprintf(stderr, \"panic: write through a shared string literal\\n\"); exit(1); } } while (0)\n\n")
 }
 

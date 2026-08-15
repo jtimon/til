@@ -1610,6 +1610,8 @@ typedef struct Context {
     Map__Str_Str builder_str_lit_ident_symbols;
     Map__Str_USize builder_str_lit_counts;
     Map__Str_Str builder_str_lit_ident_contents;
+    Vec__Str builder_str_lit_members;
+    Map__Str_USize builder_str_lit_member_seq;
     Set__Str builder_reflect_inventory;
     Set__Str builder_dyn_fn_targets;
     Set__Str builder_ns_member_sites;
@@ -3519,6 +3521,7 @@ void priv___src_self_builder_til__builder_register_str_lits_for_expr(Expr * e, C
 void priv___src_self_builder_til__builder_register_dyn_type_to_str_lits(LoadedProgram * lp);
 void priv___src_self_builder_til__builder_register_str_lits(LoadedProgram * lp);
 Bool priv___src_self_builder_til__builder_str_lit_is_loc(Str * s);
+Str * priv___src_self_builder_til__builder_str_lit_member(Str * s);
 void priv___src_self_builder_til__builder_finalize_str_lit_pool(Context * ctx);
 void priv___src_self_builder_til__builder_emit_str_lit_pool(File * f, Context * ctx);
 void priv___src_self_builder_til__builder_emit_loc_region(File * f, Context * ctx);
