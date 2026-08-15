@@ -655,6 +655,73 @@ it (~is_pod_struct_user_clone~) reads emit-time state -- ~stack_locals~,
 which only exists once the body is being walked -- so no earlier pass has
 anything to record from.
 
+*** The follow-up arc (closed 2026-08-15)
+
+The close left the invariant holding but the corpus not yet clean; the
+follow-up commits finished the sweep, each one a survey finding. In
+landing order:
+
+- Every prototype was emitted twice (the monolithic header ended with a
+  drifted copy of the forward-declaration walks); one emitter now.
+  print_single/print_flush emit only when the surviving AST declares
+  them.
+- A marked move CONSUMES its clone's argument: the FieldAssign edge is
+  dropped by collect_refs (both back ends substitute), the Assign edge
+  by the C site collector alone (the interpreter still evaluates it).
+  Node_clone, ErrorWithMessage_clone, Vec__Str_clone.
+- The C-emit lifecycle gate covers every struct, not only POD shapes; a
+  non-POD struct never splices, so its sites always record.  Widening it
+  surfaced two hidden dependencies: ext.c calls Str_clone from
+  hand-written C (a real call site no AST walk can see -- it seeds the
+  inventory), and the forward header was gating on an inventory that did
+  not exist yet (builder_prepare_emit now settles everything before the
+  first emitter writes a byte; the interpreter's FFI header path runs it
+  too).
+- ~__builtin_unreachable()~ after a body whose last statement is a plain
+  ~return~ is a dead statement (5,240 of 5,536 across the corpus); only
+  the CFGs GCC actually loses under -finstrument-functions keep it.
+- A delete's call_free Bool literal is not an argument to hoist -- the C
+  emitter overrides it per storage, so the temp had no reader (3,192
+  dead Bool bindings, the last 5 (void)hoisted__ casts).  The literal
+  exposed body DCE's trivial-delete matcher to CONSUMING deletes
+  (Array.unsafe_set's old-element drop); an ~own~ arg is real semantics
+  and the matcher rejects it now -- unsafe_set's correctness had been
+  riding on the Ident call_free failing the literal check.
+- The reflection stubs cast parameters their own arms and error exits
+  READ; the exits already read type_name, the index exits now report the
+  offending index, and only dyn_has's zero-arm shape keeps a sanctioned
+  ~_type_name~ cast.  An interface's abstract method no longer gets a
+  prototype (nothing defines or calls it; implementers copy).
+- A generic template's body is not a reachability blob: methods root per
+  qualified name (the BFS tail resolves them into the template), so the
+  whole-body walk only added edges nothing calls -- adopt_from sat
+  uncalled in all 147 generated files because println's varargs touch
+  Array and Array.to_vec names Vec.
+- The scavenge phase moved into scavenger.til whole (root policy, seeds,
+  BFS, entry); the loader keeps only the call, in phase order.
+- The literal pool is registered by the rules it is spent by:
+  dyn_type_to_str's 18 metadata strings pool only when that declaration
+  survives, and a dyn_call/dyn_has_method METHOD literal (spliced into
+  the C symbol name) never pools.
+- A typedef no emitted C mentions is not emitted:
+  builder_fill_used_ctypes walks what the emitters will emit (same
+  gates), plus a layout fixpoint and the sizeof-arm rule; namespace
+  receivers and type aliases contribute nothing.  Dynamic's typedef left
+  121 of 139 files; the aliased vendor structs left every gui fixture.
+- A niche enum emits no tag enumerators -- it has no tag field to name
+  (121 dead blocks).
+
+End state, measured across test/ + examples/ + til itself: never-called
+functions only in exported library ABI and the Str_clone ext.c boundary;
+declared-never-defined names only for genuine externals; (void) casts
+only on sanctioned ~_~ names; unreachable markers only where needed;
+zero dead typedefs, niche tag blocks, or template-rooted dead code
+outside the libraries' deliberate keep-everything policy.  The known
+residue: 13 unused-but-ABI-defining tag blocks on non-niche
+compiler-model enums, and examples/custom_modes.til compiled AS a
+program (a misuse of a mode-definition file; the suite exercises it
+correctly via --extra-modes).
+
 *** Related issues
 
 - #86 defines the user-visible underscore escape hatch.
