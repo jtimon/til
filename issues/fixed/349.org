@@ -1,6 +1,51 @@
 # priority: medium
 # category: bugs
-** OPEN #349 Cmd's Windows argument quoting has never been executed
+** FIXED #349 Cmd's Windows argument quoting has never been executed
+
+*** Post-mortem
+
+The shape the issue asked for, built as two portable programs run on
+both sides of the fence:
+
+- test/echo_argv.til: the far end of the round trip -- prints argc,
+  each argument bracketed on its own line, one env probe, one stderr
+  line, and an --exit-7 mode for exact status propagation.
+- test/win_quoting.til: the driver. Spawns the echo binary THROUGH Cmd
+  with every shape from this issue's list -- spaces, tab, the empty
+  argument, an embedded quote, literal backslashes, trailing single and
+  doubled backslashes (bare and inside a quoted argument), a backslash
+  run before an embedded quote, and %PATH%/$HOME staying literal -- and
+  compares what the child's C runtime parsed against what was passed.
+  Also: exact-case env override displaces on every host; stderr stays
+  separate under capture(); stderr_to_stdout merges (content + total
+  size, not byte order -- stream interleaving is buffering, not
+  contract); exit 7 comes back as 7. Output is \r-normalized so the
+  windows CRT's text mode cannot fail the comparison.
+
+Two hosts, one driver, three legs:
+
+- The suite's win_quoting single test builds and runs the pair on
+  linux, pinning the driver itself and the execvp path.
+- The windows-x64 host CI job cross-builds both to .exes beside
+  til.exe; the windows runner job executes them -- the first-ever
+  execution of win_quote_arg's CommandLineToArgvW rules, the
+  CreateProcessA command line, win_env_block, and the GetTempPath
+  capture spools, on real Windows rather than wine (the dual-CRT nng
+  lesson: wine passes things Windows refuses).
+
+One semantic split surfaced while writing it, now pinned per host: env
+NAMES are case-insensitive on Windows and case-sensitive on POSIX, so
+a lowercase override of an inherited uppercase variable must DISPLACE
+it on Windows (win_env_block's _strnicmp) and must NOT touch it on
+POSIX. The driver asserts each host's own contract; TIL_QUOTE_CASE=
+parent in the runner's environment feeds the probe on both.
+
+Verified here: the linux leg end to end (suite green), and both
+programs emit windows-target C cleanly. The windows execution itself
+happens on the CI runner at merge -- this container has neither mingw
+nor wine, which is the whole reason this issue existed. If that leg
+disagrees with the linux one, the quoting is wrong on the windows
+side, and the driver's panic says which case.
 
 The argv-based process API from #345 (~ccmd_*~ in ~src/c/ext.c~, the
 ~Cmd~ struct in ~src/std/sys.til~) has a Windows side: ~win_quote_arg~

@@ -1,0 +1,35 @@
+mode cli
+
+import("../src/std/sys")
+
+// The far end of test/win_quoting.til's round trip (issue #349): print
+// back exactly what the C runtime handed this process, so the driver
+// can compare it against what it passed to Cmd. Each argument gets its
+// own bracketed line -- brackets, not spaces, because arguments
+// containing spaces (or nothing at all) are the point of the exercise.
+//
+// The one env probe covers Cmd.env: on Windows the override must
+// DISPLACE the inherited variable case-insensitively (win_env_block
+// matches names with _strnicmp), so the driver sets a lowercase
+// spelling and this reads the canonical one.
+//
+// The stderr line covers stream separation and stderr_to_stdout: it is
+// the only line not on stdout, so whether it shows up in out() or
+// err() is decided entirely by the redirection under test.
+main := proc(args: ..Str) {
+    if args.len().gt(0) {
+        ref first : Str = args[0]
+        // Exact exit-status propagation, reported by Cmd.run on the
+        // other side. 7 is arbitrary and asserted verbatim.
+        if first == "--exit-7" { exit(7) }
+    }
+    println(format("argc=", args.len().to_str()))
+    mut i : USize = 0
+    while i < args.len() {
+        ref a : Str = args[i]
+        println(format("arg=[", a, "]"))
+        i++
+    }
+    println(format("env=[", get_env("TIL_QUOTE_CASE"), "]"))
+    eprint_single("echoed-to-err\n")
+}

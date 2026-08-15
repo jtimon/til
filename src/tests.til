@@ -560,6 +560,19 @@ main := proc(args: ..Str) {
     // examples/lib/ and the installer kept copying the old path.
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
 
+    // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
+    // binary through Cmd with the argument shapes a quoted command
+    // line gets wrong and compare what the child's C runtime parsed.
+    // This linux leg pins the driver and the execvp path; the SAME two
+    // programs cross-compile to .exes in the windows-x64 host CI job
+    // and run on a real windows runner, where they are the only
+    // execution of win_quote_arg / CreateProcessA / win_env_block.
+    // TIL_QUOTE_CASE feeds the case-insensitive env displacement probe.
+    add_single(tests, "win_quoting", "build", 0, "",
+        format(til_bin, " build", asan_flag, " test/echo_argv.til '&&' ",
+            til_bin, " build", asan_flag, " -o bin/win_quoting test/win_quoting.til '&&' ",
+            "TIL_QUOTE_CASE=parent bin/win_quoting bin/echo_argv"))
+
     // Issue #302 stage 0: the garbager decision-audit golden. Translating
     // the frozen fixture with TIL_GC_AUDIT set dumps the asap pass's
     // per-binding decisions and destructor sites; the byte-exact compare

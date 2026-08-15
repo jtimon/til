@@ -1,0 +1,143 @@
+mode cli
+
+import("../src/std/sys")
+
+// Cmd's argument round trip, host-independently (issue #349). Spawns
+// test/echo_argv.til's binary THROUGH Cmd with every argument shape
+// that a quoted command line historically gets wrong, and compares
+// what the child's C runtime parsed against what was passed. On POSIX
+// this pins the execvp path the suite already trusts; on Windows it is
+// the FIRST execution of win_quote_arg's CommandLineToArgvW rules, the
+// CreateProcessA command line, win_env_block's case-insensitive
+// override, and the GetTempPath capture spools -- the round trip
+// through the CRT's parser is exactly the property under test, so the
+// test is self-contained on any host.
+//
+// Run as: win_quoting <path-to-echo-argv-binary>
+// (the caller builds/ships the fixture: the suite compiles it beside
+// this driver on linux; the windows CI job downloads both as cross-
+// built .exes and runs them on a real windows runner).
+
+// Windows text-mode stdio turns \n into \r\n on the way out, so the
+// captured bytes differ per host in a way that has nothing to do with
+// quoting. Strip the \r before comparing.
+normalize := func(s: Str) returns Str {
+    return s.replace("\r", "")
+}
+
+check := func(what: Str, got: Str, want: Str) {
+    if normalize(got) != want {
+        panic(what, ": got '", normalize(got), "', expected '", want, "'")
+    }
+}
+
+main := proc(args: ..Str) {
+    if args.len() != 1 {
+        println("Usage: win_quoting <path-to-echo-argv-binary>")
+        exit(1)
+    }
+    ref echo : Str = args[0]
+
+    // The case-displacement probe below needs an inherited variable to
+    // displace, and its expectation depends on it: demand the runner
+    // provide it rather than silently asserting against luck.
+    if get_env("TIL_QUOTE_CASE") != "parent" {
+        println("win_quoting: run with TIL_QUOTE_CASE=parent in the environment")
+        exit(1)
+    }
+
+    // Every shape from #349's list. What each one breaks when quoting
+    // is wrong:
+    //   "a b", tab      -- re-split into two arguments
+    //   ""              -- vanishes entirely
+    //   c"d             -- unbalances the command line
+    //   back\slash      -- literal backslash (no quoting needed)
+    //   C:\path\        -- trailing backslash, unquoted path shape
+    //   C:\path with \  -- trailing backslash INSIDE quotes: the run
+    //                      must double or it swallows the closing quote
+    //   pre\"mid        -- backslash run before an embedded quote
+    //   %PATH%, $HOME   -- must stay literal: no shell, no expansion
+    mut awkward := Vec(Str).new()
+    awkward.push(own "plain")
+    awkward.push(own "a b")
+    awkward.push(own "a\tb")
+    awkward.push(own "")
+    awkward.push(own "c\"d")
+    awkward.push(own "back\\slash")
+    awkward.push(own "C:\\path\\")
+    awkward.push(own "C:\\path with space\\")
+    awkward.push(own "pre\\\"mid")
+    awkward.push(own "ends\\\\")
+    awkward.push(own "%PATH%")
+    awkward.push(own "$HOME")
+
+    round_trip := Cmd.new(echo)
+    for a : Str in awkward {
+        round_trip.arg(a)
+    }
+    round_trip.env("TIL_QUOTE_CASE", "child")
+    round_trip.capture()
+    status := round_trip.run()
+    if status != 0 {
+        panic("echo child exited with ", status.to_str())
+    }
+
+    mut want := Str.with_capacity(256)
+    want.push_str(format("argc=", awkward.len().to_str(), "\n"))
+    for a : Str in awkward {
+        want.push_str(format("arg=[", a, "]\n"))
+    }
+    // The exact-case override must displace the inherited value on
+    // every host.
+    want.push_str("env=[child]\n")
+    check("round trip", round_trip.out(), want)
+    check("stderr stayed separate", round_trip.err(), "echoed-to-err\n")
+
+    // The case-INSENSITIVE half, which is where the two hosts must
+    // differ: a lowercase override of an uppercase inherited name. On
+    // Windows environment names are case-insensitive, so win_env_block
+    // must DISPLACE the inherited spelling (a block carrying both would
+    // answer "parent" -- the inherited entry comes first). On POSIX the
+    // names are distinct variables and the inherited one must survive
+    // untouched.
+    case_probe := Cmd.new(echo)
+    case_probe.env("til_quote_case", "lower")
+    case_probe.capture()
+    if case_probe.run() != 0 { panic("case probe child failed") }
+    mut case_want := "argc=0\nenv=[parent]\n"
+    if host_os() == "windows" {
+        case_want = "argc=0\nenv=[lower]\n"
+    }
+    check("case-insensitive env displacement", case_probe.out(), case_want)
+
+    // The same child with stderr merged into stdout: the err line must
+    // land in out(), on top of the full stdout text. The ORDER of the
+    // two streams in the shared handle is buffering, not contract
+    // (stderr is unbuffered, stdout flushes later), so assert content
+    // and total size rather than a byte sequence.
+    merged := Cmd.new(echo, "solo")
+    merged.env("TIL_QUOTE_CASE", "child")
+    merged.capture_out()
+    merged.stderr_to_stdout()
+    if merged.run() != 0 { panic("merged echo child failed") }
+    merged_out := normalize(merged.out())
+    stdout_part := "argc=1\narg=[solo]\nenv=[child]\n"
+    err_part := "echoed-to-err\n"
+    if merged_out.contains(stdout_part).not() {
+        panic("merged output lost stdout: '", merged_out, "'")
+    }
+    if merged_out.contains(err_part).not() {
+        panic("merged output lost stderr: '", merged_out, "'")
+    }
+    if merged_out.len() != stdout_part.len() + err_part.len() {
+        panic("merged output carries more than its two streams: '", merged_out, "'")
+    }
+
+    // Exact exit-status propagation, no shell in between.
+    failing := Cmd.new(echo, "--exit-7")
+    if failing.run() != 7 {
+        panic("--exit-7 child's status did not come back as 7")
+    }
+
+    println("win_quoting PASS")
+}

@@ -305,6 +305,16 @@ jobs:
           file bin/til.exe | grep -q "PE32+"
           file bin/sender.exe | grep -q "PE32+"
           file bin/receiver.exe | grep -q "PE32+"
+      # Issue #349: the Cmd quoting round trip, cross-built here and
+      # EXECUTED on the real windows runner below -- the only place
+      # win_quote_arg / CreateProcessA / win_env_block ever run (the
+      # linux leg of the same pair is the suite's win_quoting test).
+      - name: Cross-build the Cmd quoting round trip
+        run: |
+          ./bin/til build --target=windows-x64 -o bin/echo_argv.exe test/echo_argv.til
+          ./bin/til build --target=windows-x64 -o bin/win_quoting.exe test/win_quoting.til
+          file bin/echo_argv.exe | grep -q "PE32+"
+          file bin/win_quoting.exe | grep -q "PE32+"
       - name: Upload windows-host artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -313,6 +323,8 @@ jobs:
             bin/til.exe
             bin/sender.exe
             bin/receiver.exe
+            bin/echo_argv.exe
+            bin/win_quoting.exe
 
   windows-x64-host-run:
     name: windows-x64 host (run til.exe + nng on windows)
@@ -332,6 +344,20 @@ jobs:
           ./winhost/til.exe interpret examples/hello_script.til | grep -q "Hello World"
           ./winhost/til.exe translate -c tmp_hello.c examples/hello_script.til
           test -s tmp_hello.c
+      # Issue #349: first-ever execution of Cmd's windows side. The
+      # driver spawns echo_argv.exe THROUGH Cmd (win_quote_arg's
+      # CommandLineToArgvW rules, the CreateProcessA command line,
+      # win_env_block's case-insensitive override, GetTempPath capture
+      # spools) and compares what the child's CRT parsed against what
+      # was passed. TIL_QUOTE_CASE feeds the displacement probe.
+      - name: Cmd quoting round trip on windows
+        shell: bash
+        env:
+          TIL_QUOTE_CASE: parent
+        run: |
+          cd winhost
+          ./win_quoting.exe echo_argv.exe
+          ./win_quoting.exe echo_argv.exe | grep -q "win_quoting PASS"
       - name: Run nng sender+receiver over real winsock on windows
         shell: bash
         run: |
