@@ -826,6 +826,14 @@ main := proc(args: ..Str) {
     // Vec -- nor Vec's adopt_from -- in a program that never builds one.
     add_count(tests, "hello_no_template_blanket_root", "build", "adopt_from", 0,
         format(til_bin, " translate -c gen/c/hs_tb.c examples/hello_script.til '&&' cat gen/c/hs_tb.c"))
+    // The literal pool is registered by the same rules the emitters spend
+    // it by: dyn_type_to_str's 18 metadata strings pool only when that
+    // declaration survives the scavenge, and a dyn_call/dyn_has_method
+    // METHOD literal -- spliced into the C symbol name at every site --
+    // never pools at all. interfaces.til exercises both (its pool held 20
+    // entries nothing indexed).
+    add_count(tests, "interfaces_pool_no_dead_metadata", "build", "(void *)\"StructDef\"", 0,
+        format(til_bin, " translate -c gen/c/if_pm.c test/interfaces.til '&&' cat gen/c/if_pm.c"))
     // The literal exposed DCE's trivial-delete matcher to CONSUMING
     // deletes: Array.unsafe_set's `T.delete(own self.unsafe_get(i),
     // false)` hoists its receiver into a ref temp, and with call_free a

@@ -1596,16 +1596,38 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
     if e.node_type.is(NodeType.Decl).and(e.children.len().gt(0)) {
         skip_base = e.children[0].node_type.is_literal_str()
     }
+    // #326: dyn_call / dyn_call_ret / dyn_has_method splice their METHOD
+    // literal into the C symbol they call (`dyn_call_draw(...)`), so that
+    // argument never emits through the pool. dyn_fn is the exception: its
+    // dispatcher takes the method at runtime, so its literal args DO pool.
+    mut skip_method := false
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gt(2)) {
+        switch e.children[0].node_type {
+        case .Ident(rsl_cn):
+            skip_method = rsl_cn.ident_name().eq("dyn_call")
+                .or(rsl_cn.ident_name().eq("dyn_call_ret"))
+                .or(rsl_cn.ident_name().eq("dyn_has_method"))
+        case:
+        }
+    }
     mut rsl_i : USize = 0
     for child : Expr in e.children {
         cur_rsl := rsl_i
         rsl_i = rsl_i + 1
         if cur_rsl.eq(0).and(skip_base) { continue }
+        if cur_rsl.eq(2).and(skip_method) { continue }
         builder_register_str_lits_for_expr(child, ctx)
     }
 }
 
 priv builder_register_dyn_type_to_str_lits := func(mut lp: LoadedProgram) {
+    // These strings are what dyn_type_to_str's arms RETURN, and that body
+    // is emitted only when the declaration survives the scavenge (the
+    // has_dyn_type_to_str probe before its prototype). A program that
+    // never names it -- test/interfaces.til, test/kwargs.til -- was still
+    // registering all 18: the Type variant displays, the payload variant
+    // names, and the "?" fallback, every one a pool entry nothing indexes.
+    if builder_program_declares("dyn_type_to_str", lp).not() { return }
     mut variant_names := Vec(Str).new()
     mut variant_types := Vec(Str).new()
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() { return }
