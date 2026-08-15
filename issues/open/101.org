@@ -34,6 +34,34 @@ the duplicated string constants; pool 5,593 -> 951 entries.
 The earlier close's post-mortem follows; its per-scope counter work all
 stands, only the pool layout was redone.
 
+*** Probe battery (2026-08-15, after the shared-only pool landed)
+
+  Five edit shapes against the same baseline, every changed til.c line
+  categorized. "Own" = the compiled form of the edited/added code itself;
+  "loc floor" = __LOC__ strings whose embedded line numbers genuinely
+  moved (one line per affected call site below the edit; rstil's inline
+  locs pay the identical floor); "unrelated" = anything else.
+
+  - Line-neutral local rename mid-loader.til: 20 lines, all own.
+    UNRELATED: 0.
+  - New struct type + use at the top of loader.til (exercises the
+    cross-unit topo-sort): 845 lines = 55 own + 790 loc floor.
+    UNRELATED: 0.
+  - First-ever generic instantiation (Vec(I16)) at the top of
+    loader.til (exercises monomorph emission placement): 984 lines =
+    194 own (the new Vec__I16 family included) + 790 loc floor.
+    UNRELATED: 0.
+  - New function + cross-unit call (loader.til -> builder.til): 1,052
+    lines = 100 own + 952 loc floor. UNRELATED: 0.
+  - Three comment lines inserted near the top of core/str.til (the
+    earliest-unit worst case): 20 lines, all loc floor. UNRELATED: 0.
+
+  What remains in a diff is therefore the edited code's own C and the
+  line-number floor. Shrinking the floor below one line per shifted loc
+  site would need __LOC__ to stop embedding pre-formatted line numbers
+  (e.g. panic taking path/line/col separately) -- an ABI/semantic change
+  outside this issue's scope unless explicitly wanted.
+
 Post-mortem of the first close (2026-08-15, superseded above on the pool
 item): The issue split into two properties, and recognizing
 the split was most of the work. REPRODUCIBILITY (same input, same bytes)
