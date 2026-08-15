@@ -312,3 +312,23 @@ test_borrow_expr_18_deep := test() {
     assert_eq(I64, a.n, 1)
     assert_eq(I64, b.n, 5)
 }
+
+# --- #354: a clone routes borrows without joining the roots ---
+#
+# h2's ref field points at s's storage; h was only the value the pointer
+# was copied out of. The write through the clone must credit s alone, so
+# `mut s` survives the redundancy check, h needs NO mut, and both
+# backends agree the caller's storage was written twice.
+
+bp354_poke := func(mut s: Bp351Src) {
+    h := Bp351Holder(r = bp351_held_of(s))
+    h2 := h.clone()
+    h2.r.n = h2.r.n + 1
+}
+
+test_borrow_root_through_clone := test() {
+    mut s := Bp351Src()
+    bp354_poke(s)
+    bp354_poke(s)
+    assert_eq(I64, s.held.n, 2)
+}

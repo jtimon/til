@@ -1157,3 +1157,13 @@ terr351_owned_field := func(s: Terr351Src) {
     h := Terr351Holder(r = terr351_held_of(s))
     h.tag = 1
 }
+
+// #354: the clone hop neither launders the write past the source NOR
+// drags the intermediate holder into the verdict. Exactly one error,
+// naming `s`: h2.r points at s's storage, and h -- the value the pointer
+// was copied out of -- is not written by writing through it.
+terr354_clone_poke := func(s: Terr351Src) {
+    h := Terr351Holder(r = terr351_held_of(s))
+    h2 := h.clone()
+    h2.r.n = h2.r.n + 1
+}

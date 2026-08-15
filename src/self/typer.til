@@ -9054,11 +9054,34 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr) returns Vec(BorrowRoot
         switch fd_o.unwrap().node_type {
         case .FuncDef(cfd):
             for pi in 0..cfd.params.len() {
-                if cfd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
+                pb := summary_param_bit(pi)
+                mut relevant := cfd.ref_return_params.band(pb)
+                relevant = relevant.bor(cfd.ref_return_into_params.band(pb))
+                relevant = relevant.bor(cfd.ref_return_carried_params.band(pb))
+                if relevant == 0 { continue }
                 arg_o := fcall_arg_for_param(e, pi, scope)
                 if arg_o.is_none() { continue }
-                sub := expr_borrow_roots(scope, arg_o.unwrap())
-                for r : BorrowRoot in sub { push_root_unique(out, r) }
+                // #354: each relation maps to what it actually reaches.
+                // alias: the return IS (part of) the argument's value --
+                // its full roots. into: the return carries a pointer INTO
+                // the argument's own storage -- the lvalue roots. carried:
+                // the return reaches only what the argument carries.
+                if cfd.ref_return_params.band(pb) != 0 {
+                    sub := expr_borrow_roots(scope, arg_o.unwrap())
+                    for r : BorrowRoot in sub { push_root_unique(out, r) }
+                }
+                if cfd.ref_return_into_params.band(pb) != 0 {
+                    sub := lvalue_write_roots(scope, arg_o.unwrap())
+                    for r : BorrowRoot in sub {
+                        mut cr := r.clone()
+                        cr.carried = true
+                        push_root_unique(out, cr)
+                    }
+                }
+                if cfd.ref_return_carried_params.band(pb) != 0 {
+                    subc := carried_roots_of(scope, expr_borrow_roots(scope, arg_o.unwrap()))
+                    for r : BorrowRoot in subc { push_root_unique(out, r) }
+                }
             }
         case:
         }
@@ -9092,22 +9115,7 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr) returns Vec(BorrowR
         if fieldaccess_crosses_borrow(scope, obj) {
             // The write lands in whatever the borrow points at: every
             // root the base's value carries.
-            base_roots := expr_borrow_roots(scope, obj.children[0])
-            for r : BorrowRoot in base_roots {
-                if r.carried {
-                    push_root_unique(out, r)
-                } else {
-                    br_o := lookup_binding_at(scope, r)
-                    if br_o.is_none() { continue }
-                    ref brb : TypeBinding = br_o.unwrap()
-                    for cr : BorrowRoot in brb.borrow_roots {
-                        mut ccr := cr.clone()
-                        ccr.carried = true
-                        push_root_unique(out, ccr)
-                    }
-                }
-            }
-            return out
+            return carried_roots_of(scope, expr_borrow_roots(scope, obj.children[0]))
         }
         return lvalue_write_roots(scope, obj.children[0])
     case .FCall:
@@ -9253,7 +9261,56 @@ priv mark_written_through := func(mut scope: TypeScope, obj: Expr) {
 // `case .Variant(p):` binds p to the scrutinee's payload, which is the
 // same storage the scrutinee names. Pattern shape mirrors
 // collect_one_case_binding's: FCall(FieldAccess(variant), Ident(binding)).
-priv summary_bind_case := func(cn: Expr, subj_bits: U64, mut roots: Map(Str, U64)) {
+// #354: the three relations a summarized value can have to a parameter,
+// tracked separately so the call site can map each to what it actually
+// reaches. alias: the value IS (part of) the parameter's storage. into:
+// the value carries a pointer INTO the parameter's storage. carried: the
+// value carries pointers to what the parameter itself carries.
+RootBits := struct {
+    alias : U64 = 0
+    into : U64 = 0
+    carried : U64 = 0
+namespace:
+    eq := func(a: RootBits, b: RootBits) returns Bool {
+        return a.alias.eq(b.alias).and(a.into == b.into).and(a.carried == b.carried)
+    }
+    to_str := func(_self: RootBits) returns Str { return "RootBits" }
+    bor := func(self: RootBits, other: RootBits) returns RootBits {
+        return RootBits(alias = self.alias.bor(other.alias),
+            into = self.into.bor(other.into),
+            carried = self.carried.bor(other.carried))
+    }
+    all := func(self: RootBits) returns U64 {
+        return self.alias.bor(self.into).bor(self.carried)
+    }
+    is_zero := func(self: RootBits) returns Bool { return self.all() == 0 }
+}
+
+// #354: reduce a value's roots to the storages IT CARRIES: keep roots
+// already marked carried, and for a directly-rooted binding chase what
+// that binding's own value carries. Shared by the lvalue walk's ref-field
+// crossing and the carried-bit call mapping -- both ask the same
+// question, "where do this value's smuggled pointers point?".
+priv carried_roots_of := func(scope: TypeScope, roots: Vec(BorrowRoot)) returns Vec(BorrowRoot) {
+    mut out := Vec(BorrowRoot).new()
+    for r : BorrowRoot in roots {
+        if r.carried {
+            push_root_unique(out, r)
+        } else {
+            br_o := lookup_binding_at(scope, r)
+            if br_o.is_none() { continue }
+            ref brb : TypeBinding = br_o.unwrap()
+            for cr : BorrowRoot in brb.borrow_roots {
+                mut ccr := cr.clone()
+                ccr.carried = true
+                push_root_unique(out, ccr)
+            }
+        }
+    }
+    return out
+}
+
+priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, RootBits)) {
     if cn.node_type.is(NodeType.Case).not() { return }
     npat := case_pattern_count(cn)
     for pi in 0..npat {
@@ -9264,7 +9321,13 @@ priv summary_bind_case := func(cn: Expr, subj_bits: U64, mut roots: Map(Str, U64
         if pat.children[0].node_type.is(NodeType.FieldAccess).not() { continue }
         switch pat.children[1].node_type {
         case .Ident(bid):
-            roots.set(bid.ident_name(), own subj_bits.clone())
+            // Unwrapping reaches the pointer the subject CARRIES: an
+            // into-bit becomes a direct alias of that parameter's
+            // storage; a carried-bit stays carried; an alias-bit is the
+            // conservative pass-through (the payload lives inside the
+            // parameter's own storage and its target is unknown).
+            roots.set(bid.ident_name(), own RootBits(
+                alias = subj.alias.bor(subj.into), carried = subj.carried))
         case:
         }
     }
@@ -9337,18 +9400,53 @@ priv summary_self_method := func(e: Expr, scope: TypeScope, self_type: Str) retu
 // enclosing function's parameter bits? `roots` maps every name already
 // known to carry a borrow (the parameters themselves, ref locals, switch
 // payload bindings) to its bits.
-priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, self_type: Str) returns U64 {
+// A constructor stores its borrow-feeding arguments' pointers in the
+// built value: an argument that IS parameter storage (alias) becomes a
+// pointer INTO that parameter; one that already carries pointers keeps
+// carrying them.
+priv summary_ctor_wrap := func(arg_bits: RootBits) returns RootBits {
+    return RootBits(into = arg_bits.alias.bor(arg_bits.into), carried = arg_bits.carried)
+}
+
+priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeScope, self_type: Str) returns RootBits {
     switch e.node_type {
     case .Ident(id):
         if roots.has(id.ident_name()) {
-            ref bits : U64 = roots[id.ident_name()]
+            ref bits : RootBits = roots[id.ident_name()]
             return bits.clone()
         }
-        return 0
+        return RootBits()
     case .FieldAccess:
-        if e.children.len() == 0 { return 0 }
-        if fa_is_ns(e, scope) { return 0 }
-        return summary_expr_bits(e.children[0], roots, scope, self_type)
+        if e.children.len() == 0 { return RootBits() }
+        if fa_is_ns(e, scope) { return RootBits() }
+        base := summary_expr_bits(e.children[0], roots, scope, self_type)
+        // #354: crossing a REF field steps out of the base's storage into
+        // what it carries -- resolvable pre-typing only for self-rooted
+        // chains; anywhere else the alias pass-through is the
+        // conservative answer (over-credit, as before).
+        btn := summary_receiver_type(e.children[0], scope, self_type)
+        if btn.len() > 0 {
+            bdef_o := scope.get_struct(btn)
+            if bdef_o.is_some() {
+                switch bdef_o.unwrap().node_type {
+                case .StructDef(bsd):
+                    switch e.node_type {
+                    case .FieldAccess(fad):
+                        fo := member_get(bsd.fields_index, bsd.fields, fad.field_access_name())
+                        if fo.is_some() {
+                            ref bfd : Declaration = fo.unwrap()
+                            if bfd.own_type.is(OwnType.Ref) {
+                                return RootBits(alias = base.into,
+                                    carried = base.alias.bor(base.carried))
+                            }
+                        }
+                    case:
+                    }
+                case:
+                }
+            }
+        }
+        return base
     case .FCall:
         rso := raw_borrow_source(e)
         if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type) }
@@ -9358,7 +9456,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
             // #351: a struct constructor carries the borrows of the
             // arguments feeding its ref (or borrow-carrying) fields, so
             // the built value reaches those parameters.
-            mut cbits : U64 = 0
+            mut cbits := RootBits()
             ctor_o := fcall_struct_ctor_def(e, scope)
             if ctor_o.is_some() {
                 for ai in 1..e.children.len() {
@@ -9371,15 +9469,15 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
                     if crosses.not() { continue }
                     switch arg.node_type {
                     case .NamedArg:
-                        if arg.children.len() > 0 { cbits = cbits.bor(summary_expr_bits(arg.children[0], roots, scope, self_type)) }
+                        if arg.children.len() > 0 { cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(arg.children[0], roots, scope, self_type))) }
                     case:
-                        cbits = cbits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type))
+                        cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type)))
                     }
                 }
             }
             return cbits
         }
-        mut bits : U64 = 0
+        mut bits := RootBits()
         switch fd_o.unwrap().node_type {
         case .FuncDef(cfd):
             // An enum constructor with a borrowed payload
@@ -9387,54 +9485,77 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, U64), scope: TypeScope, 
             // its auto-generated body has nothing to summarise.
             if cfd.is_enum_variant_ctor {
                 edef_o := scope.get_struct(cfd.return_type)
-                if edef_o.is_none() { return 0 }
-                if enum_has_ref_payload(edef_o.unwrap()).not() { return 0 }
+                if edef_o.is_none() { return RootBits() }
+                if enum_has_ref_payload(edef_o.unwrap()).not() { return RootBits() }
                 for ai in 1..e.children.len() {
-                    bits = bits.bor(summary_expr_bits(e.children[ai], roots, scope, self_type))
+                    bits = bits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type)))
                 }
                 return bits
             }
             for pi in 0..cfd.params.len() {
-                if cfd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
+                pb := summary_param_bit(pi)
+                mut relevant := cfd.ref_return_params.band(pb)
+                relevant = relevant.bor(cfd.ref_return_into_params.band(pb))
+                relevant = relevant.bor(cfd.ref_return_carried_params.band(pb))
+                if relevant == 0 { continue }
                 arg_o := fcall_arg_for_param(e, pi, scope)
                 if arg_o.is_none() { continue }
-                bits = bits.bor(summary_expr_bits(arg_o.unwrap(), roots, scope, self_type))
+                ab := summary_expr_bits(arg_o.unwrap(), roots, scope, self_type)
+                if cfd.ref_return_params.band(pb) != 0 { bits = bits.bor(ab) }
+                if cfd.ref_return_into_params.band(pb) != 0 {
+                    // The callee's return carries a pointer into the
+                    // argument's own storage.
+                    bits.into = bits.into.bor(ab.alias).bor(ab.into)
+                    bits.carried = bits.carried.bor(ab.carried)
+                }
+                if cfd.ref_return_carried_params.band(pb) != 0 {
+                    // The callee's return reaches what the argument
+                    // carries: its into-pointers' targets, its carried
+                    // set, and conservatively what its aliased params
+                    // carry (settled by the chase at the real call site).
+                    bits.into = bits.into.bor(ab.into)
+                    bits.carried = bits.carried.bor(ab.carried).bor(ab.alias)
+                }
             }
         case:
         }
         return bits
     case:
     }
-    return 0
+    return RootBits()
 }
 
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
-priv summary_walk := func(e: Expr, mut roots: Map(Str, U64), scope: TypeScope, self_type: Str) returns U64 {
+priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str) returns RootBits {
     switch e.node_type {
     case .FuncDef:
-        return 0
+        return RootBits()
     case .Return:
-        if e.children.len() == 0 { return 0 }
+        if e.children.len() == 0 { return RootBits() }
         return summary_expr_bits(e.children[0], roots, scope, self_type)
     case .Decl(d):
-        // Only a BORROW forwards roots. An owned local is a copy of the
-        // value; writing through it cannot reach the source.
+        // Only a BORROW forwards roots. An owned intermediate inside a
+        // summarized body deliberately does NOT -- propagating it would
+        // grow summaries the committed boot cannot reproduce, forcing a
+        // bootstrap ladder for credit no in-tree write needs. The cost is
+        // under-crediting through such intermediates, the documented
+        // conservative direction.
         if d.own_type.is(OwnType.Ref).and(e.children.len().gt(0)) {
             db := summary_expr_bits(e.children[0], roots, scope, self_type)
-            if db != 0 { roots.set(d.name, own db.clone()) }
+            if db.is_zero().not() { roots.set(d.name, own db.clone()) }
         }
-        return 0
+        return RootBits()
     case .Switch, .Match:
         if e.children.len() > 0 {
             subj := summary_expr_bits(e.children[0], roots, scope, self_type)
-            if subj != 0 {
+            if subj.is_zero().not() {
                 for ci in 1..e.children.len() { summary_bind_case(e.children[ci], subj, roots) }
             }
         }
     case:
     }
-    mut bits : U64 = 0
+    mut bits := RootBits()
     for c : Expr in e.children {
         bits = bits.bor(summary_walk(c, roots, scope, self_type))
     }
@@ -9457,16 +9578,20 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         mut carries := fdef_return_carries_borrow(fd, scope)
         if carries.not() { carries = type_carries_borrow(scope, fd.return_type) }
         if carries.not() { return false }
-        mut roots := Map(Str, U64).new()
+        mut roots := Map(Str, RootBits).new()
         for pi in 0..fd.params.len() {
             ref p : Declaration = fd.params[pi]
             if p.name.len() == 0 { continue }
-            pbits := summary_param_bit(pi)
-            roots.set(p.name, own pbits.clone())
+            roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
-        merged := fd.ref_return_params.bor(summary_walk(fd_expr.children[0], roots, scope, self_type))
-        if merged == fd.ref_return_params { return false }
-        fd.ref_return_params = merged
+        rb := summary_walk(fd_expr.children[0], roots, scope, self_type)
+        merged_a := fd.ref_return_params.bor(rb.alias)
+        merged_i := fd.ref_return_into_params.bor(rb.into)
+        merged_c := fd.ref_return_carried_params.bor(rb.carried)
+        if merged_a.eq(fd.ref_return_params).and(merged_i == fd.ref_return_into_params).and(merged_c == fd.ref_return_carried_params) { return false }
+        fd.ref_return_params = merged_a
+        fd.ref_return_into_params = merged_i
+        fd.ref_return_carried_params = merged_c
         return true
     case:
     }

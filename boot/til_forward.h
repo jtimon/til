@@ -299,11 +299,13 @@ enum {
 typedef struct Target Target;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct FactIndex FactIndex;
+typedef struct RootBits RootBits;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__U64 Vec__U64;
 typedef struct Vec__CtorArg Vec__CtorArg;
-typedef struct Map__Str_U64 Map__Str_U64;
+typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
+typedef struct Vec__RootBits Vec__RootBits;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct Vec__I32 Vec__I32;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
@@ -828,6 +830,13 @@ struct priv___src_self_typer_til__CtorArg {
     Expr *data;
 };
 
+typedef struct RootBits {
+    U64 alias;
+    U64 into;
+    U64 carried;
+} RootBits;
+
+
 typedef struct Vec__U64 {
     U8 *data;
     USize count;
@@ -842,17 +851,18 @@ typedef struct Vec__CtorArg {
 } Vec__CtorArg;
 
 
-typedef struct Map__Str_U64 {
-    Vec__Str keys;
-    Vec__U64 values;
-} Map__Str_U64;
-
-
 typedef struct Vec__CoverageNode {
     U8 *data;
     USize count;
     USize cap;
 } Vec__CoverageNode;
+
+
+typedef struct Vec__RootBits {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__RootBits;
 
 
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds {
@@ -1250,6 +1260,8 @@ typedef struct FunctionDef {
     Str closure_name;
     Bool noreturn;
     U64 ref_return_params;
+    U64 ref_return_into_params;
+    U64 ref_return_carried_params;
 } FunctionDef;
 
 
@@ -1474,6 +1486,12 @@ typedef struct priv___src_self_typer_til__CoverageNode {
     Vec__Str sub_names;
     Vec__CoverageNode sub_nodes;
 } priv___src_self_typer_til__CoverageNode;
+
+
+typedef struct Map__Str_RootBits {
+    Vec__Str keys;
+    Vec__RootBits values;
+} Map__Str_RootBits;
 
 
 typedef struct Map__Str_DeclRef {
@@ -2829,12 +2847,19 @@ Bool priv___src_self_typer_til__root_carries_own_qualifier(TypeBinding * b, Borr
 void priv___src_self_typer_til__check_write_roots_mut(TypeScope * scope, Expr * site, Expr * obj, Str * what, Context * ctx);
 void priv___src_self_typer_til__mark_name_written(TypeScope * scope, Str * name);
 void priv___src_self_typer_til__mark_written_through(TypeScope * scope, Expr * obj);
-void priv___src_self_typer_til__summary_bind_case(Expr * cn, U64 subj_bits, Map__Str_U64 * roots);
+RootBits * RootBits_bor(RootBits * self, RootBits * other);
+U64 RootBits_all(RootBits * self);
+Bool RootBits_is_zero(RootBits * self);
+RootBits * RootBits_clone(RootBits * self);
+void RootBits_delete(RootBits * self, Bool call_free);
+Vec__BorrowRoot * priv___src_self_typer_til__carried_roots_of(TypeScope * scope, Vec__BorrowRoot * roots);
+void priv___src_self_typer_til__summary_bind_case(Expr * cn, RootBits * subj, Map__Str_RootBits * roots);
 Str * priv___src_self_typer_til__summary_base_type_name(Str * tn);
 Str * priv___src_self_typer_til__summary_receiver_type(Expr * recv, TypeScope * scope, Str * self_type);
 Option__ref_Expr priv___src_self_typer_til__summary_self_method(Expr * e, TypeScope * scope, Str * self_type);
-U64 priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type);
-U64 priv___src_self_typer_til__summary_walk(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type);
+RootBits * priv___src_self_typer_til__summary_ctor_wrap(RootBits * arg_bits);
+RootBits * priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_RootBits * roots, TypeScope * scope, Str * self_type);
+RootBits * priv___src_self_typer_til__summary_walk(Expr * e, Map__Str_RootBits * roots, TypeScope * scope, Str * self_type);
 Bool priv___src_self_typer_til__update_ref_return_summary(Expr * fd_expr, TypeScope * scope, Str * self_type);
 Bool priv___src_self_typer_til__summarize_unit_walk(Expr * e, TypeScope * scope, Str * self_type);
 void priv___src_self_typer_til__compute_ref_return_summaries(Expr * program, TypeScope * scope);
@@ -2878,7 +2903,6 @@ Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope, Expr *
 Vec__U64 * Vec__U64_new(void);
 Vec__U64 * Vec__U64_with_capacity(USize n);
 void Vec__U64_clear(Vec__U64 * self);
-void Vec__U64_unsafe_set(Vec__U64 * self, USize i, U64 * val);
 void Vec__U64_delete(Vec__U64 * self, Bool call_free);
 Vec__CtorArg * Vec__CtorArg_new(void);
 void Vec__CtorArg_clear(Vec__CtorArg * self);
@@ -2887,18 +2911,22 @@ priv___src_self_typer_til__CtorArg * Vec__CtorArg_get(Vec__CtorArg * self, USize
 void Vec__CtorArg_unsafe_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val);
 void Vec__CtorArg_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val, I64 * _err_kind);
 void Vec__CtorArg_delete(Vec__CtorArg * self, Bool call_free);
-Map__Str_U64 * Map__Str_U64_new(void);
-Bool Map__Str_U64_has(Map__Str_U64 * self, Str * key);
-U64 * Map__Str_U64_get(Map__Str_U64 * self, Str * key, I64 * _err_kind);
-void Map__Str_U64_set(Map__Str_U64 * self, Str * key, U64 * val);
-void Map__Str_U64_delete(Map__Str_U64 * self, Bool call_free);
+Map__Str_RootBits * Map__Str_RootBits_new(void);
+Bool Map__Str_RootBits_has(Map__Str_RootBits * self, Str * key);
+RootBits * Map__Str_RootBits_get(Map__Str_RootBits * self, Str * key, I64 * _err_kind);
+void Map__Str_RootBits_set(Map__Str_RootBits * self, Str * key, RootBits * val);
+void Map__Str_RootBits_delete(Map__Str_RootBits * self, Bool call_free);
 Vec__CoverageNode * Vec__CoverageNode_new(void);
 void Vec__CoverageNode_clear(Vec__CoverageNode * self);
 void Vec__CoverageNode_push(Vec__CoverageNode * self, priv___src_self_typer_til__CoverageNode * val);
 priv___src_self_typer_til__CoverageNode * Vec__CoverageNode_get(Vec__CoverageNode * self, USize * i, I64 * _err_kind);
 void Vec__CoverageNode_delete(Vec__CoverageNode * self, Bool call_free);
-void adopt__U64(void * dest, U64 * src);
+Vec__RootBits * Vec__RootBits_new(void);
+void Vec__RootBits_clear(Vec__RootBits * self);
+void Vec__RootBits_unsafe_set(Vec__RootBits * self, USize i, RootBits * val);
+void Vec__RootBits_delete(Vec__RootBits * self, Bool call_free);
 void adopt__priv___src_self_typer_til__CtorArg(void * dest, priv___src_self_typer_til__CtorArg * src);
+void adopt__RootBits(void * dest, RootBits * src);
 void adopt__priv___src_self_typer_til__CoverageNode(void * dest, priv___src_self_typer_til__CoverageNode * src);
 I32 priv___src_self_desugarer_til__slot_default_code(USize defaults_index);
 USize priv___src_self_desugarer_til__slot_default_index(I32 code);

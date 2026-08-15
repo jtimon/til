@@ -1,0 +1,68 @@
+# priority: medium
+# category: bugs
+** FIXED #354 Borrow root sets conflate the storage a write reaches with the bindings it was routed through
+
+*** Post-mortem
+
+Root cause: one summary bit per parameter ("the return can reach it")
+flattened three different relations, so the call site could only map a
+bit to the argument's FULL value roots. A clone whose ref fields copy a
+holder's pointers reaches what the holder CARRIES, never the holder --
+but the holder landed in the root set and its `mut` was demanded for a
+write that never touched it.
+
+Fix: the summary is now the three relations, each mapped to what it
+actually reaches. ref_return_params (alias: the return is part of the
+parameter's storage) maps to the argument's full roots, as before.
+ref_return_into_params (the return carries a pointer INTO the
+parameter's storage -- get_binding wrapping a map ref in an Option) maps
+to the argument's own-storage roots, via lvalue_write_roots. NEW
+ref_return_carried_params (the return carries pointers to what the
+parameter itself carries -- clone) maps to the argument's carried roots
+only, via the carried_roots_of chase, which the lvalue walk's ref-field
+crossing now shares. Inside summarized bodies, a constructor storing a
+borrow converts its argument's alias bits to into bits
+(summary_ctor_wrap), a self-rooted ref-field access converts alias to
+carried, and a switch payload extraction converts into back to alias --
+each conversion is the pointer physically changing hands.
+
+Deliberately NOT included: owned intermediates inside summarized bodies
+do not forward roots. A first cut propagated them and surfaced 11 real
+but boot-invisible rejections in src/self (writes through
+scope.get_struct results), which would have forced another #344-style
+bootstrap ladder for credit no in-tree write needs. Under-crediting
+through such intermediates is the documented conservative direction; the
+sites compile today precisely because nothing credits them.
+
+Regression tests: test/ref.til's test_borrow_root_through_clone (the
+honest form: `mut s` only, h and h2 non-mut, both backends agree twice);
+test/typer_errors.til's terr354_clone_poke (exactly one rejection,
+naming the source and not the holder; count 200 -> 201).
+
+
+The #344/#351 summaries record ONE fact per parameter: "the return can
+reach it". But a returned value can relate to a parameter three ways --
+alias its storage (Map.get returning ref into self's map), carry a
+pointer INTO its storage (get_binding wrapping that ref in an Option),
+or carry pointers to what IT carries (clone copying a holder's ref
+fields). Conflating them makes the call-site mapping take the full
+value roots of the argument every time, so intermediate holders land in
+root sets for writes that never touch them:
+
+#+begin_src til
+h := Holder(r = inner_of(o))
+h2 := h.clone()
+h2.r.n = h2.r.n + 1
+#+end_src
+
+demands ~mut h~ as well as ~mut o~. Only ~o~ is written: ~h2.r~ points
+at ~o.inner~, and ~h~ was merely the value the pointer was copied out
+of. Over-crediting only -- a laundered write is never accepted -- but
+the spurious ~mut~ is a wrong requirement on the user.
+
+Fix: split the summary into the three relations (alias / into /
+carried) and map each at the call site to what it actually reaches:
+alias -> the argument's full roots; into -> the argument's own storage
+(the lvalue roots); carried -> the argument's carried roots only. The
+crossing of a ref field inside a summarized body (clone's ~self.r~)
+moves bits from alias to carried, which is what drops the holder.

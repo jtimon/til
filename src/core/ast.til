@@ -295,6 +295,18 @@ FunctionDef := struct {
     // can carry one), and zero is also the conservative answer for a
     // callee the summary pass could not resolve.
     ref_return_params : U64 = 0
+    // #354: the two sibling relations ref_return_params conflated. Bit i
+    // of ref_return_into_params: the returned value CARRIES a pointer
+    // INTO parameter i's own storage (get_binding wrapping a map ref in
+    // an Option). Bit i of ref_return_carried_params: the returned value
+    // carries pointers to what parameter i itself CARRIES (clone copying
+    // a holder's ref fields). ref_return_params keeps meaning the return
+    // can alias parameter i's storage directly. The call site maps each
+    // to what it actually reaches: full roots / own storage / carried
+    // roots. Appended at the END so the committed boot's layout stays
+    // stable.
+    ref_return_into_params : U64 = 0
+    ref_return_carried_params : U64 = 0
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type == b.return_type }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
