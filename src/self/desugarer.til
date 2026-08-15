@@ -2823,7 +2823,7 @@ priv make_nested_subject := func(own subj: Expr, shallow payload_t: Type, in_slo
     return deref_call
 }
 
-make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, sw_line: U32, sw_col: U32) returns Expr {
+make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, sw_line: U32, sw_col: U32) returns Expr {
     mut condition := Expr.new(NodeType.Body, sw_line, sw_col)
     mut has_condition := false
     if match_expr.node_type.is(NodeType.FCall) {
@@ -3402,7 +3402,7 @@ priv lvalue_root_name := func(e: Expr) returns Str {
 // without reading the pointee. When that leaves the binding with no readers
 // at all, emitting it would produce a dead C local -- which #326 deliberately
 // keeps as -Werror=unused-variable -- so skip it entirely.
-prepend_clike_payload_binding := func(scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, binding_is_dead: Bool = false) {
+prepend_clike_payload_binding := func(mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, binding_is_dead: Bool = false) {
     if binding_is_dead { return }
     ref pat : Expr = case_node.children[0]
     if pat.node_type.is(NodeType.FCall).not() { return }
@@ -3685,7 +3685,7 @@ priv build_kwargs_map_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     return kw_decl
 }
 
-priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr, mut ctx: Context) returns Expr {
+priv build_kwargs_map_set := func(fcall: Expr, mut scope: TypeScope, kw_name: Str, named_arg: Expr, mut ctx: Context) returns Expr {
     mut key_name := ""
     switch named_arg.node_type {
     case .NamedArg(kn):
@@ -3723,7 +3723,7 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     return set_call
 }
 
-priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: USize, mut ctx: Context) returns Expr {
+priv build_variadic_array_decl := func(fcall: Expr, mut scope: TypeScope, elem_type: Str, va_name: Str, vc: USize, mut ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     mut new_call := make_ns_call(array_type, "new", Type.Struct(array_type.clone()), fcall)
 
@@ -3825,7 +3825,7 @@ priv build_variadic_arg_value := func(val_in: Expr, scope: TypeScope) returns Ex
 // `src_idx` is the ABSOLUTE child index of the argument to store and `j` the
 // destination slot. They coincide only for a contiguous block; #342's mixed
 // splat fills a collector from a SUBSET of the block, so the two are separate.
-priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, src_idx: USize, j: USize, mut ctx: Context) returns Expr {
+priv build_variadic_array_set := func(fcall: Expr, mut scope: TypeScope, elem_type: Str, va_name: Str, src_idx: USize, j: USize, mut ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     // Issue #225: the variadic-arg collector fills its temp Array with the
     // throwing `set`. This desugar runs after throws-lowering, so the call
@@ -3894,7 +3894,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
     return vec_decl
 }
 
-priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, j: USize, mut ctx: Context) returns Expr {
+priv build_builtin_vec_push := func(fcall: Expr, mut scope: TypeScope, elem_type: Str, vec_name: Str, j: USize, mut ctx: Context) returns Expr {
     vec_type := format("Vec__", elem_type)
     mut push_call := make_ns_call(vec_type, "push", Type.None, fcall)
 

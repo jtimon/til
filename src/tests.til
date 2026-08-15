@@ -1129,7 +1129,7 @@ main := proc(args: ..Str) {
         format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 198,
+    add_count(tests, "typer_errors", "typer", "error:", 200,
         format(til_bin, " interpret test/typer_errors.til"))
     parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
     add_count(tests, "fcall_arg_parity_total", "typer", "error:", 12, parity_cmd)

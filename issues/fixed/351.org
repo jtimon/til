@@ -1,0 +1,126 @@
+# priority: high
+# category: bugs
+** FIXED #351 A ref field launders the #344 write check; backends diverge again
+
+*** Post-mortem
+
+Root cause: #344's borrow provenance was recorded per BINDING and read
+per VALUE, and a struct field sits between the two. A constructor
+feeding an accessor's borrow into a ~ref~ field was not summarized at
+all, so the built value carried no roots; and the write walk resolved
+~h.r.n~ to its base binding ~h~, never asking what crossing ~r~ reached.
+Both halves had to change before a ref field stopped being a hole.
+
+Fixed in two commits, split at a master merge for the reason #344's own
+pair was: the rejection forces ~mut~ qualifiers the committed boot still
+calls redundant, so pass 1 cannot build them until the tracking is the
+boot.
+
+A. "Borrow tracking sees through ref fields". Constructors map the
+   arguments feeding ref (or borrow-carrying) fields into the built
+   value's roots; an owned binding built by such a call records them,
+   flagged ~BorrowRoot.carried~ to keep "storage my value points at"
+   distinct from "storage I alias"; summaries extend to callees
+   returning borrow-carrying values (a summary-only widening --
+   ~fdef_return_carries_borrow~ keeps steering auto-shallow and the ABI
+   it implies); and the write walk became field-aware
+   (~lvalue_write_roots~). Carried roots were credited but not rejected.
+
+B. This commit. The carried skip in ~check_write_roots_mut~ is gone, so
+   a write through a ref field is rejected against the storage it really
+   reaches. The sweep it forced was small (~mut scope~ on the typer's own
+   scope-mutating helpers, the honest reading of
+   ~scope.get_binding(n)~ handing back a borrow into ~scope~'s own map).
+
+Two precision bugs surfaced during the sweep, both mine from A, both
+fixed here rather than papered over -- each was crediting a write to
+storage it never touched, which is the same class of wrongness as the
+hole being closed:
+
+- ~lvalue_write_roots~ fell back to the whole-value roots at a raw
+  pointer op, so ~to_ptr(entry.cif)~ credited every borrow ~entry~ held.
+  It now keeps the field-aware walk across that hop: the op returns a
+  pointer INTO argument 0, so writing through it writes whatever writing
+  argument 0 writes.
+- ~fieldaccess_crosses_borrow~ treated "field whose TYPE contains a
+  borrow" as "reaching this field goes through a borrow". Only a ~ref~
+  field steps out of the base's storage; an owned or inline field is the
+  base's own state, and reaching a borrow nested inside it means
+  crossing THAT ref field, which the recursive walk sees at its own
+  step. Both bugs made ~FFIEntry.clone~ -- which never writes ~self~ --
+  demand ~mut self~.
+
+A ref binding now records what WRITING through it reaches
+(~lvalue_write_roots~) rather than what its value can reach, for the
+same reason: a ~ref~ into one field aliases that field, not its
+siblings.
+
+Regression tests: ~test/typer_errors.til~ rejects the write through the
+ref field, and -- the mirror image that pins the precision -- reports an
+owned-field write against the HOLDER without implicating the borrowed
+source. ~test/ref.til~ carries the accepted form under ~add_both~, so
+interpreted and compiled must agree on it.
+
+Known limit, unchanged: carried roots are not per-field, so a struct
+with two ref fields fed from different sources credits both on a write
+through either. Over-crediting only, and no in-tree code has that shape.
+
+
+#344 rejects a write whose typed terminal root is a non-mut binding, and
+its tracking follows borrows through ref returns, Option(ref T) payloads
+and switch payload bindings. Storing the borrow in a struct's ~ref~
+FIELD, however, erases the provenance, and the original one-sided-write
+divergence comes back one hop removed:
+
+#+begin_src til
+Inner := struct { n := 0 }
+Outer := struct { inner := Inner() }
+Holder := struct { ref r : Inner }
+
+inner_of := func(o: Outer) returns ref Inner { return o.inner }
+
+poke := func(o: Outer) {
+    mut h := Holder(r = inner_of(o))
+    h.r.n = h.r.n + 1
+}
+
+go := proc() {
+    o := Outer()
+    poke(o)
+    poke(o)
+    println(o.inner.n.to_str())
+}
+go()
+#+end_src
+
+On the #344-merged compiler this is ACCEPTED, and: interpreted prints
+~2~ (the write aliases the caller's storage), compiled prints ~0~ (the
+auto-shallow copy of ~o~ absorbs it). Same divergent class #344 closed
+for the direct and accessor forms; only the parking spot for the borrow
+is new.
+
+Why the check misses it:
+
+- Borrow provenance lives on BINDINGS (~TypeBinding.borrow_roots~).
+  ~Holder(r = inner_of(o))~ is a constructor call, and the return-borrow
+  summary (~FunctionDef.ref_return_params~) only recognizes a callee
+  whose return IS a borrow: ~returns ref T~, or an enum with a ref
+  payload (~fdef_return_carries_borrow~). A struct that CARRIES a
+  borrow in a ref field is not summarized, so ~h~ gets no roots.
+- The write walk (~expr_borrow_roots~ / ~mark_written_through~) resolves
+  ~h.r.n~ to its base binding ~h~, which is ~mut~ -- accepted. The
+  borrow the field carries is never consulted.
+
+The fix is to treat "this value carries a borrow" uniformly, the way
+the Option(ref T) payload already is: a function or constructor whose
+returned struct has a ref field populated from a parameter's storage
+contributes that parameter to its summary, and reading a ref FIELD off
+a binding surfaces the binding's field-carried roots the same way a
+payload binding inherits the scrutinee's. Until then, the honest ~mut~
+on ~poke~'s parameter is also unearnable: writing it makes #164's
+redundancy check reject it, since no write is ever credited to ~o~.
+
+doc/qualifiers.org's "mut only governs the binding and its direct
+fields" carve-out is about reachable state behind RAW pointer fields;
+~ref r : Inner~ is a typed borrow, so it belongs on the checked side of
+that line.

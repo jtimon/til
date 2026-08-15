@@ -1581,7 +1581,7 @@ gen_struct_size_method_for_stmt := func(mut stmt: Expr, ctx: Context) {    if st
     sz_sdd.push_member(own Declaration(name = "size", default_value = Option(Expr).Some(own func_def)))
 }
 
-gen_enum_size_method_for_stmt := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context) {
+gen_enum_size_method_for_stmt := proc(mut stmt: Expr, mut scope: TypeScope, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref mut def : Expr = stmt.children[0]
     if def.node_type.is(NodeType.EnumDef).not() { return }
@@ -1913,7 +1913,7 @@ priv set_ftype_from_call_callee := func(call: Expr, mut ftype: Str) {
     }
 }
 
-compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope, mut ctx: Context) {
+compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeScope, mut ctx: Context) {
     if ctx.struct_layouts.has(name) { return }
     // Set sentinel so nested recursion into self-referential types
     // (e.g. linked-list-style struct with a ref field of its own type)
@@ -2149,7 +2149,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 
 // Compute size and alignment for a TIL type name.
 // For struct/enum payloads, recurses into compute_struct_layout / compute_enum_layout.
-priv type_size_align := proc(ftype: Str, scope: TypeScope, mut ctx: Context, mut sz: USize, mut al: USize) {
+priv type_size_align := proc(ftype: Str, mut scope: TypeScope, mut ctx: Context, mut sz: USize, mut al: USize) {
     // Layout twin of the USize/UPtr handling in compute_struct_layout:
     // this sizing feeds ctx.struct_layouts, whose only consumer is the
     // HOST-side constfold interpreter, so width-alias payloads must be
@@ -2196,7 +2196,7 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, mut ctx: Context, mut
     }
 }
 
-compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, mut ctx: Context) returns USize {
+compute_enum_layout := proc(name: Str, enum_def: Expr, mut scope: TypeScope, mut ctx: Context) returns USize {
     if ctx.struct_layouts.has(name) { return ctx_total_size(name, ctx) }
     // #320: a niche enum IS a bare pointer -- no tag, no union, the
     // payload-less variant is the null bit pattern.

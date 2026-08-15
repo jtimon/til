@@ -1127,3 +1127,33 @@ terr344_for_mut_immutable := func(v: Vec(Terr344Flat)) {
         e.n = 0
     }
 }
+
+// #351: a ref FIELD is a borrow out of the value that holds it, so a
+// write through it lands in the storage the borrow points at -- not in
+// the holder. Parking an accessor's result there was the last typed
+// route around a parameter's read-only qualifier: the write reached the
+// caller's local, the two backends disagreed about whether it stuck
+// (interpreted yes, compiled no), and nothing rejected it.
+Terr351Held := struct { n := 0 }
+Terr351Src := struct { held := Terr351Held() }
+Terr351Holder := struct {
+    ref r : Terr351Held
+    tag := 0
+}
+
+terr351_held_of := func(s: Terr351Src) returns ref Terr351Held {
+    return s.held
+}
+terr351_poke := func(s: Terr351Src) {
+    mut h := Terr351Holder(r = terr351_held_of(s))
+    h.r.n = h.r.n + 1
+}
+
+// The mirror image, which pins the precision: `tag` is an OWNED field,
+// so writing it is the holder's own state. It needs `mut h` and must NOT
+// implicate `s` -- crediting every borrow a value happens to hold to a
+// write that never crossed one is what made this check unusable.
+terr351_owned_field := func(s: Terr351Src) {
+    h := Terr351Holder(r = terr351_held_of(s))
+    h.tag = 1
+}
