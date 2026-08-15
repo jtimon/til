@@ -5831,6 +5831,13 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     // by its explicit width, `U8 tag;`), so the old
                     // `typedef enum {...} E_tag;` left a never-used typedef
                     // name per enum, one more dead declaration per type.
+                    // A NICHE enum goes further: it has no tag field at all
+                    // -- the emitted code tests the pointer against NULL --
+                    // so its enumerators are constants nothing can name.
+                    if enum_is_niche(stmt.children[0]) {
+                        f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
+                        continue
+                    }
                     f.write("enum {\n")
                     for j in 0..fwd_edd.variants.len() {
                         ref vd : VariantDef = fwd_edd.variants[j]
@@ -5866,6 +5873,12 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                 }
             case .EnumDef(fwd_edd):
+                // Same as the core loop: a NICHE enum has no tag field, so
+                // its enumerators are constants nothing can name.
+                if enum_is_niche(stmt.children[0]) {
+                    f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
+                    continue
+                }
                 f.write("enum {\n")
                 for j in 0..fwd_edd.variants.len() {
                     ref vd : VariantDef = fwd_edd.variants[j]

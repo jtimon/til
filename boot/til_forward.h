@@ -70,10 +70,6 @@ enum {
     GcStorage_TAG_HeapBox
 };
 typedef struct GcStorage GcStorage;
-enum {
-    Option__Expr_TAG_None,
-    Option__Expr_TAG_Some
-};
 typedef struct Option__Expr Option__Expr;
 typedef struct Declaration Declaration;
 typedef struct FunctionDef FunctionDef;
@@ -134,10 +130,6 @@ enum {
 };
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
-enum {
-    Option__ref_Str_TAG_None,
-    Option__ref_Str_TAG_Some
-};
 typedef struct Option__ref_Str Option__ref_Str;
 typedef struct Map__Str_USize Map__Str_USize;
 typedef struct Vec__VariantDef Vec__VariantDef;
@@ -242,10 +234,6 @@ typedef struct Vec__Bool Vec__Bool;
 typedef struct EvalHeap EvalHeap;
 typedef struct BorrowRoot BorrowRoot;
 typedef struct TypeBinding TypeBinding;
-enum {
-    ScopeFind_TAG_NotFound,
-    ScopeFind_TAG_Found
-};
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct GenericFuncSource GenericFuncSource;
@@ -256,23 +244,11 @@ typedef struct SymbolPool SymbolPool;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
-enum {
-    Option__ref_TypeScope_TAG_None,
-    Option__ref_TypeScope_TAG_Some
-};
 typedef struct Option__ref_TypeScope Option__ref_TypeScope;
-enum {
-    Option__ref_TypeBinding_TAG_None,
-    Option__ref_TypeBinding_TAG_Some
-};
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
-enum {
-    Option__Scope_TAG_None,
-    Option__Scope_TAG_Some
-};
 typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
@@ -280,19 +256,11 @@ typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Set__U32 Set__U32;
 typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
-enum {
-    Option__ref_Expr_TAG_None,
-    Option__ref_Expr_TAG_Some
-};
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
-enum {
-    Option__ref_Declaration_TAG_None,
-    Option__ref_Declaration_TAG_Some
-};
 typedef struct Option__ref_Declaration Option__ref_Declaration;
 typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
@@ -304,10 +272,6 @@ typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
-enum {
-    Option__ref_Mode_TAG_None,
-    Option__ref_Mode_TAG_Some
-};
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
 typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
@@ -333,10 +297,6 @@ enum {
     Target_TAG_TempleosX86
 };
 typedef struct Target Target;
-enum {
-    priv___src_self_typer_til__CtorArg_TAG_Unfilled,
-    priv___src_self_typer_til__CtorArg_TAG_Filled
-};
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct FactIndex FactIndex;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
@@ -356,15 +316,7 @@ typedef struct Array__U8 Array__U8;
 typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
 typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
-enum {
-    Option__ref_Dynamic_TAG_None,
-    Option__ref_Dynamic_TAG_Some
-};
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
-enum {
-    Option__ref_Scope_TAG_None,
-    Option__ref_Scope_TAG_Some
-};
 typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
 typedef struct Map__Str_DeclRef Map__Str_DeclRef;
@@ -395,16 +347,8 @@ typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
-enum {
-    Option__ref_HeapBinding_TAG_None,
-    Option__ref_HeapBinding_TAG_Some
-};
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Vec__DynPtrBox Vec__DynPtrBox;
-enum {
-    Option__ref_ffi_type_TAG_None,
-    Option__ref_ffi_type_TAG_Some
-};
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;

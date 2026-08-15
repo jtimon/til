@@ -859,6 +859,11 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/dyn_dy.c test/dynamic.til '&&' cat gen/c/dyn_dy.c"))
     add_count(tests, "gui_no_dead_vendor_typedef", "build", "} Vector4;", 0,
         format(til_bin, " translate -c gen/c/hg_v4.c examples/hello_gui.til '&&' cat gen/c/hg_v4.c"))
+    // A NICHE enum has no tag field -- the emitted code tests the pointer
+    // against NULL -- so its E_TAG_* enumerators are constants nothing can
+    // name; the block is not emitted (121 of them across the corpus).
+    add_count(tests, "option_no_niche_tag_enumerators", "build", "Option__ref_OptSrc_TAG_None", 0,
+        format(til_bin, " translate -c gen/c/opt_nt.c test/option.til '&&' cat gen/c/opt_nt.c"))
     // The literal exposed DCE's trivial-delete matcher to CONSUMING
     // deletes: Array.unsafe_set's `T.delete(own self.unsafe_get(i),
     // false)` hoists its receiver into a ref temp, and with call_free a
