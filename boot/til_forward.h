@@ -371,15 +371,15 @@ enum {
     Option__ref_Scope_TAG_Some
 };
 typedef struct Option__ref_Scope Option__ref_Scope;
+typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
+typedef struct Map__Str_DeclRef Map__Str_DeclRef;
+typedef struct Vec__DeclRef Vec__DeclRef;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
-typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
 typedef struct DocMeta DocMeta;
 typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
-typedef struct Map__Str_DeclRef Map__Str_DeclRef;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__ImportCheckEntry Vec__ImportCheckEntry;
-typedef struct Vec__DeclRef Vec__DeclRef;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
@@ -1039,10 +1039,17 @@ struct Option__ref_Scope {
     Scope *data;
 };
 
-typedef struct priv___src_self_loader_til__DeclRef {
+typedef struct priv___src_self_scavenger_til__DeclRef {
     Str path;
     USize idx;
-} priv___src_self_loader_til__DeclRef;
+} priv___src_self_scavenger_til__DeclRef;
+
+
+typedef struct Vec__DeclRef {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__DeclRef;
 
 
 typedef struct DocMeta {
@@ -1076,13 +1083,6 @@ typedef struct Vec__ImportCheckEntry {
     USize count;
     USize cap;
 } Vec__ImportCheckEntry;
-
-
-typedef struct Vec__DeclRef {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__DeclRef;
 
 
 typedef struct priv___src_self_builder_til__BuildPaths {
@@ -1560,17 +1560,17 @@ typedef struct priv___src_self_typer_til__CoverageNode {
 } priv___src_self_typer_til__CoverageNode;
 
 
+typedef struct Map__Str_DeclRef {
+    Vec__Str keys;
+    Vec__DeclRef values;
+} Map__Str_DeclRef;
+
+
 typedef struct ProgramUnit {
     Str path;
     Mode mode;
     Vec__Str imports;
 } ProgramUnit;
-
-
-typedef struct Map__Str_DeclRef {
-    Vec__Str keys;
-    Vec__DeclRef values;
-} Map__Str_DeclRef;
 
 
 typedef struct DocCatalog {
@@ -3328,6 +3328,27 @@ void priv___src_self_scavenger_til__fix_stale_litstr_in_body(Expr * body);
 void priv___src_self_scavenger_til__body_dce_walk(Expr * e, Bool at_top_level);
 void priv___src_self_scavenger_til__body_dce_ns(Expr * rhs);
 void dce_program_bodies(Expr * program);
+void priv___src_self_scavenger_til__DeclRef_delete(priv___src_self_scavenger_til__DeclRef * self, Bool call_free);
+Str * priv___src_self_scavenger_til__alias_target_imported(Context * ctx, Map__Str_DeclRef * tbl, Str * base);
+Option__ref_Expr priv___src_self_scavenger_til__find_ns_decl_fdef_imported(Context * ctx, Map__Str_DeclRef * top, Str * name);
+void priv___src_self_scavenger_til__seed_cli_arg_helpers(Str * tname, Vec__Str * worklist);
+void priv___src_self_scavenger_til__seed_cli_main_arg_roots(LoadedProgram * lp, Vec__Str * worklist);
+void priv___src_self_scavenger_til__seed_library_roots(LoadedProgram * lp, Vec__Str * worklist);
+void priv___src_self_scavenger_til__seed_executable_stmt_roots(LoadedProgram * lp, Vec__Str * worklist);
+void priv___src_self_scavenger_til__seed_test_roots(LoadedProgram * lp, Vec__Str * worklist);
+Bool priv___src_self_scavenger_til__scav_is_type_gen_template(Expr * fdef);
+Set__Str * priv___src_self_scavenger_til__scavenge_visited_imported(LoadedProgram * lp);
+void scavenge_imported(LoadedProgram * lp);
+Map__Str_DeclRef * Map__Str_DeclRef_new(void);
+Bool Map__Str_DeclRef_has(Map__Str_DeclRef * self, Str * key);
+priv___src_self_scavenger_til__DeclRef * Map__Str_DeclRef_get(Map__Str_DeclRef * self, Str * key, I64 * _err_kind);
+void Map__Str_DeclRef_set(Map__Str_DeclRef * self, Str * key, priv___src_self_scavenger_til__DeclRef * val);
+void Map__Str_DeclRef_delete(Map__Str_DeclRef * self, Bool call_free);
+Vec__DeclRef * Vec__DeclRef_new(void);
+void Vec__DeclRef_clear(Vec__DeclRef * self);
+void Vec__DeclRef_unsafe_set(Vec__DeclRef * self, USize i, priv___src_self_scavenger_til__DeclRef * val);
+void Vec__DeclRef_delete(Vec__DeclRef * self, Bool call_free);
+void adopt__priv___src_self_scavenger_til__DeclRef(void * dest, priv___src_self_scavenger_til__DeclRef * src);
 Str * priv___src_self_loader_til__normalize_mode_name(Str * mode_name);
 Str * priv___src_self_loader_til__display_path(Str * p, Str * cwd);
 Mode * priv___src_self_loader_til__require_mode(Context * ctx, Str * path, Str * mode_name);
@@ -3353,20 +3374,9 @@ void priv___src_self_loader_til__repl_classify_foldables_program(Context * ctx, 
 void priv___src_self_loader_til__repl_classify_foldables_loaded(LoadedProgram * lp);
 void priv___src_self_loader_til__repl_reregister_scope_defs_loaded(LoadedProgram * lp);
 void priv___src_self_loader_til__constfolder_repl_delta(LoadedProgram * lp, Expr * delta);
-void priv___src_self_loader_til__DeclRef_delete(priv___src_self_loader_til__DeclRef * self, Bool call_free);
-Str * priv___src_self_loader_til__alias_target_imported(Context * ctx, Map__Str_DeclRef * tbl, Str * base);
-Option__ref_Expr priv___src_self_loader_til__find_ns_decl_fdef_imported(Context * ctx, Map__Str_DeclRef * top, Str * name);
 void priv___src_self_loader_til__seed_noreturn_chain(Expr * ast);
 void priv___src_self_loader_til__stamp_noreturn_calls(Expr * e, Set__Str * noreturn_names);
-void priv___src_self_loader_til__seed_cli_arg_helpers(Str * tname, Vec__Str * worklist);
-void priv___src_self_loader_til__seed_cli_main_arg_roots(LoadedProgram * lp, Vec__Str * worklist);
-void priv___src_self_loader_til__seed_library_roots(LoadedProgram * lp, Vec__Str * worklist);
-void priv___src_self_loader_til__seed_executable_stmt_roots(LoadedProgram * lp, Vec__Str * worklist);
-void priv___src_self_loader_til__seed_test_roots(LoadedProgram * lp, Vec__Str * worklist);
-Bool priv___src_self_loader_til__scav_is_type_gen_template(Expr * fdef);
-Set__Str * priv___src_self_loader_til__scavenge_visited_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
-void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__extract_link_info(LoadedProgram * lp);
 void priv___src_self_loader_til__load_mode_file(LoadedProgram * lp, Str * path, Str * cwd);
 LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec__Str * extra_modes, Str * import_base);
@@ -3487,11 +3497,6 @@ I32 repl_type_delta_program(LoadedProgram * lp, Expr * delta);
 void repl_prepare_delta_program(LoadedProgram * lp, Expr * delta);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
-Map__Str_DeclRef * Map__Str_DeclRef_new(void);
-Bool Map__Str_DeclRef_has(Map__Str_DeclRef * self, Str * key);
-priv___src_self_loader_til__DeclRef * Map__Str_DeclRef_get(Map__Str_DeclRef * self, Str * key, I64 * _err_kind);
-void Map__Str_DeclRef_set(Map__Str_DeclRef * self, Str * key, priv___src_self_loader_til__DeclRef * val);
-void Map__Str_DeclRef_delete(Map__Str_DeclRef * self, Bool call_free);
 Vec__ProgramUnit * Vec__ProgramUnit_new(void);
 void Vec__ProgramUnit_clear(Vec__ProgramUnit * self);
 void Vec__ProgramUnit_push(Vec__ProgramUnit * self, ProgramUnit * val);
@@ -3502,11 +3507,6 @@ Vec__ImportCheckEntry * Vec__ImportCheckEntry_new(void);
 void Vec__ImportCheckEntry_clear(Vec__ImportCheckEntry * self);
 void Vec__ImportCheckEntry_push(Vec__ImportCheckEntry * self, priv___src_self_loader_til__ImportCheckEntry * val);
 void Vec__ImportCheckEntry_delete(Vec__ImportCheckEntry * self, Bool call_free);
-Vec__DeclRef * Vec__DeclRef_new(void);
-void Vec__DeclRef_clear(Vec__DeclRef * self);
-void Vec__DeclRef_unsafe_set(Vec__DeclRef * self, USize i, priv___src_self_loader_til__DeclRef * val);
-void Vec__DeclRef_delete(Vec__DeclRef * self, Bool call_free);
-void adopt__priv___src_self_loader_til__DeclRef(void * dest, priv___src_self_loader_til__DeclRef * src);
 void adopt__ProgramUnit(void * dest, ProgramUnit * src);
 void adopt__priv___src_self_loader_til__ImportCheckEntry(void * dest, priv___src_self_loader_til__ImportCheckEntry * src);
 Str * closure_call_name(Str * name);

@@ -941,3 +941,526 @@ dce_program_bodies := proc(mut program: Expr) {
         }
     }
 }
+
+// --- Roots, reachability, and the phase entry (#326) ------------------------
+//
+// Everything below decides WHAT is reachable; everything above decides how
+// to sweep what is not. It lived in loader.til -- the loader drives the
+// pipeline, so the phase entry was called from there and the policy grew
+// beside the call -- but the root policy, the BFS and the sweep are one
+// phase, and they read nothing of the loader beyond the LoadedProgram
+// handle every phase gets. The loader keeps exactly two things: the CALL
+// to scavenge_imported (it still owns phase order) and validate_cli_main
+// (a CLI-shape diagnostic that runs beside the call, not a scavenging
+// decision).
+
+// Scavenge across per-file units (rstil-style): compute a single visited set
+// from merged views, then filter each file's canonical AST in ctx.imported.
+priv DeclRef := struct {
+    path := ""
+    idx : USize = 0
+}
+
+// #326: the target of a type ALIAS declaration (`UPtr := U64`), or "" when
+// `base` is not one. An alias emits no C of its own, so a qualified name on
+// it -- `UPtr.size()`, which the builder lowers to `U64_size()` -- must be
+// forwarded to the target's namespace or the target's method is never
+// rooted. Same shape the builder and scavenger use to recognize an alias:
+// a value Decl whose RHS is a bare Ident and whose type is None.
+priv alias_target_imported := func(ctx: Context, tbl: Map(Str, DeclRef), base: Str) returns Str {
+    if tbl.has(base).not() { return "" }
+    ref dr : DeclRef = tbl[base]
+    ref iu : ImportUnit = ctx.imported[dr.path]
+    ref decl : Expr = iu.ast.children[dr.idx]
+    if decl.node_type.is(NodeType.Decl).not() { return "" }
+    if decl.children.len() == 0 { return "" }
+    if decl.til_type().is(Type.None).not() { return "" }
+    switch decl.children[0].node_type {
+    case .Ident(alias_id): return Str.clone(alias_id.ident_name())
+    case:
+    }
+    return ""
+}
+
+priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns Option(ref Expr) {
+    dot := name.find(".")
+    if dot < 0 { return Option(ref Expr).None }
+    type_part := name.substr(0, dot.to_usize())
+    if top.has(type_part).not() { return Option(ref Expr).None }
+    ref dr : DeclRef = top[type_part]
+    ref iu : ImportUnit = ctx.imported[dr.path]
+    ref tdecl : Expr = iu.ast.children[dr.idx]
+    if tdecl.node_type.is(NodeType.Decl).not() { return Option(ref Expr).None }
+    if is_struct_or_enum(tdecl).not() { return Option(ref Expr).None }
+    dot_u := dot.to_usize()
+    method_part := name.substr(dot_u + 1, name.len().sub(dot_u) - 1)
+    nsd_o := def_ns_get(tdecl.children[0], method_part)
+    if nsd_o.is_some() {
+        ref nsd : Declaration = nsd_o.unwrap()
+        if nsd.default_value.is_some() {
+            return Option(ref Expr).Some(nsd.default_expr())
+        }
+    }
+    return Option(ref Expr).None
+}
+
+// #326: the argv-parsing helper a CLI parameter of type `tname` needs.
+// This mirrors cli_box_expr in builder.til, which picks exactly ONE
+// conversion per parameter type; keep the two in sync when adding a type
+// (validate_cli_main already rejects any type neither of them handles).
+priv seed_cli_arg_helpers := func(tname: Str, mut worklist: Vec(Str)) {
+    // Str parses inline to a Str_clone of a CAP_LIT view; clone is already
+    // an unconditional root because ext.c calls it. Every OTHER type goes
+    // through the from_c_str pipeline -- `({ Str *_cv = Str_from_c_str(a);
+    // T _v = <conv>; Str_delete(_cv, true); _v; })` (cli_view_value /
+    // cli_view_box) -- so those two come with any scalar parameter.
+    if tname == "Str" { return }
+    push_qn(worklist, "Str", "from_c_str")
+    push_qn(worklist, "Str", "delete")
+    if tname == "I64" { push_qn(worklist, "Str", "to_i64") return }
+    if tname == "U8" { push_qn(worklist, "Str", "to_u8") return }
+    if tname == "I32" { push_qn(worklist, "Str", "to_i32") return }
+    if tname == "U32" { push_qn(worklist, "Str", "to_u32") return }
+    if tname == "F32" { push_qn(worklist, "Str", "to_f32") return }
+    if tname == "F64" { push_qn(worklist, "Str", "to_f64") return }
+    // The narrow signed/unsigned widths go through I64 first.
+    if tname == "I8" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_i8") return }
+    if tname == "I16" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_i16") return }
+    if tname == "U16" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_u16") return }
+    if or(tname.eq("U64"), tname.eq("USize"), tname.eq("UPtr")) { push_qn(worklist, "Str", "to_u64") return }
+    // Bool compares the argument against the "true"/"false" literals.
+    if tname == "Bool" { push_qn(worklist, "Str", "cmp") return }
+}
+
+// #326: root EXACTLY the helpers main's own signature needs. The whole
+// Str.to_* / I64.to_* family used to be seeded for every CLI or GUI
+// program, so a no-argument `mode gui` main carried seven dead converters
+// -- plus Str.from_c_str, which nothing has emitted since the Str case
+// became an inline Str_clone. A variadic main also deletes each parsed
+// element, so the element type's delete is a root too (the BFS forwards
+// USize.delete to U32.delete through the alias).
+priv seed_cli_main_arg_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len() == 0 { continue }
+            mut is_main_decl := false
+            switch stmt.node_type {
+            case .Decl(d):
+                if d.name == "main" { is_main_decl = true }
+            case:
+            }
+            if is_main_decl.not() { continue }
+            switch stmt.children[0].node_type {
+            case .FuncDef(fdef):
+                mut pi : I32 = 0
+                for p : Declaration in fdef.params {
+                    seed_cli_arg_helpers(p.explicit_type, worklist)
+                    if pi == fdef.variadic_index { push_qn(worklist, p.explicit_type, "delete") }
+                    pi++
+                }
+            case:
+            }
+        }
+    }
+}
+
+// #326: a library exports its non-priv top-level declarations, and a
+// consumer can call any of them -- including any non-priv member of an
+// exported type -- so those are the roots. There is no main to reach them
+// from, which is why library mode used to skip scavenging altogether.
+// Executable top-level statements are roots too, exactly as in script mode.
+priv seed_library_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() {
+                collect_refs(stmt, worklist)
+                continue
+            }
+            switch stmt.node_type {
+            case .Decl(d):
+                if d.is_priv { continue }
+                vec_push_str(worklist, d.name)
+                if is_struct_or_enum(stmt).not() { continue }
+                ref sdef : Expr = stmt.children[0]
+                ref lib_ns : Vec(Declaration) = def_ns_decls(sdef)
+                mut lib_i : USize = 0
+                for nsd : Declaration in lib_ns {
+                    cur_lib_i := lib_i
+                    lib_i = lib_i + 1
+                    if nsd.is_priv { continue }
+                    push_qn(worklist, d.name, def_ns_name_at(sdef, cur_lib_i))
+                }
+            case:
+            }
+        }
+    }
+}
+
+// #326: the executable top-level statements of the user units are roots in
+// every non-library mode -- they ARE the program in script mode, and its
+// global initializers in cli/test mode. Defs are ordinary graph nodes, and
+// so are the value decls scav_value_decl_sweepable proves effect-free (the
+// BFS walks an initializer only once its name is reached; scavenge_filter
+// sweeps the rest).
+priv seed_executable_stmt_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl) {
+                if is_def(stmt) { continue }
+                if scav_value_decl_sweepable(stmt) { continue }
+            }
+            collect_refs(stmt, worklist)
+        }
+    }
+}
+
+// Test mode roots every selected test: top-level `test` funcs by name, and
+// namespace test() members as "Type.test_name" so emit_test_main's
+// Type_test_name() calls don't get scavenged out.
+priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len() == 0 { continue }
+            switch stmt.children[0].node_type {
+            case .FuncDef(fdef):
+                if fdef.func_type.is(FuncType.Test) {
+                    switch stmt.node_type {
+                    case .Decl(d):
+                        vec_push_str(worklist, d.name)
+                    case:
+                    }
+                }
+            case:
+            }
+            ref decl_value : Expr = stmt.children[0]
+            is_type_decl := decl_value.node_type.is(NodeType.StructDef)
+                .or(decl_value.node_type.is(NodeType.EnumDef))
+            if is_type_decl.not() { continue }
+            ref sdecl : Declaration = decl_of(stmt)
+            ref tvi_ns : Vec(Declaration) = def_ns_decls(stmt.children[0])
+            mut tvi : USize = 0
+            for nsd : Declaration in tvi_ns {
+                cur_tvi := tvi
+                tvi = tvi + 1
+                if nsd.default_value.is_none() { continue }
+                ref nsfdef : Expr = nsd.default_expr()
+                if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
+                ref nsfd : FunctionDef = funcdef_of(nsfdef)
+                if nsfd.func_type.is(FuncType.Test) {
+                    push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
+                }
+            }
+        }
+    }
+}
+
+// #326 root policy, defined centrally per mode. Every mode roots `Str`,
+// the ext.c FFI boundary, and (when the program can be interpreted) the
+// `*.size` wildcard. On top of that:
+// - library: every exported (non-priv) top-level decl and exported member
+//   of an exported type, plus executable top-level statements
+//   (seed_library_roots) -- a consumer can call any of them and there is
+//   no main to reach them from.
+// - cli/gui:  main, the exact argv converters main's own signature needs
+//   (seed_cli_main_arg_roots), and the executable top-level statements.
+// - test:     every selected test func (seed_test_roots) and the
+//   executable top-level statements.
+// - script:   the executable top-level statements alone.
+// Core units root only their executable non-Decl statements; every core
+// decl, defs and values alike, is an ordinary graph node.
+
+// #326: a generic type's template (`Vec := struct<T: Type>`, parsed as a
+// type-gen MACRO returning a StructDef) is not a reachability blob. Reaching
+// the NAME keeps the decl -- instantiation substitutes from it -- but the
+// body is walked per METHOD, exactly like a concrete type's: a call site
+// roots "Vec.push", and the BFS tail resolves that qualified name into the
+// template's member FuncDef (find_ns_decl_fdef_imported) and walks just that
+// body. Walking the whole template body on top of that re-rooted every
+// method's callees for every program that touched the type at all --
+// Array.to_vec's `Vec` reference kept Vec, and Vec's body kept adopt_from,
+// in programs that never build a Vec (a 5-line uncalled definition in 147
+// generated files).
+priv scav_is_type_gen_template := func(fdef: Expr) returns Bool {
+    switch fdef.node_type {
+    case .FuncDef(tg_fd):
+        if tg_fd.func_type.is(FuncType.Macro).not() { return false }
+        return tg_fd.return_type.eq("StructDef")
+            .or(tg_fd.return_type.eq("EnumDef"))
+            .or(tg_fd.return_type.eq("FuncDef"))
+            .or(tg_fd.return_type.eq("FunctionDef"))
+    case:
+    }
+    return false
+}
+
+priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
+    mut is_cli := false
+    if lp.cur_mode.needs_main {
+        if lp.run_tests.not() {
+            is_cli = true
+        }
+    }
+    is_library := lp.cur_mode.is_library
+
+    // 1) Build top-level decl maps: name -> (path, idx)
+    mut core_top := Map(Str, DeclRef).new()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            for i in 0..iu.ast.children.len() {
+                ref stmt : Expr = iu.ast.children[i]
+                switch stmt.node_type {
+                case .Decl(decl):
+                    core_top.set(decl.name, own DeclRef(path = u.path.clone(), idx = i.clone()))
+                case:
+                }
+            }
+        }
+    }
+    mut top := Map(Str, DeclRef).new()
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for i in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.children[i]
+            switch stmt.node_type {
+            case .Decl(decl):
+                top.set(decl.name, own DeclRef(path = u.path.clone(), idx = i.clone()))
+            case:
+            }
+        }
+    }
+
+    // 2) Seed worklist from the concatenated user-unit stream
+    mut worklist := Vec(Str).new()
+    vec_push_str(worklist, "Str")
+    // #326: `T.size()` is resolved by RUNTIME NAME -- get_elem_size builds
+    // the call from a type name it only learns at runtime, for element
+    // widths of Array/Vec/Tuple/Map/Set and for dyn_size_of -- so no static
+    // walk can see those uses. That makes it a real reachability edge, and
+    // an unconditional root: the scavenger answers "is this declaration
+    // used", once, for every backend, and does not ask which backend is
+    // coming. (It used to skip the root when ctx.compile_mode said "C
+    // only", on the grounds that emitted C reads widths from sizeof. That
+    // is a fact about the C emitter, and it belongs to the C emitter --
+    // builder_size_method_omitted drops the function there, where a future
+    // backend can make its own call.)
+    vec_push_str(worklist, "*.size")
+    // #326: the hand-written C runtime (src/c/ext.c) is linked into every
+    // program, so whatever IT needs from til is an unconditional root. That
+    // set is exactly three symbols -- `nm -u` on ext.o resolves everything
+    // else to libc or libffi: Str_clone (the cwd, env and blob helpers each
+    // return an owned empty Str that way) and the two capacity sentinels the
+    // Str writers stamp. The blanket lifecycle rooting and the blanket core
+    // value rooting used to supply them by accident.
+    push_qn(worklist, "Str", "clone")
+    vec_push_str(worklist, "CAP_LIT")
+    vec_push_str(worklist, "CAP_VIEW")
+    if is_library {
+        seed_library_roots(lp, worklist)
+    } else if is_cli {
+        vec_push_str(worklist, "main")
+        // The generated CLI entry wrapper parses typed argv into main()'s
+        // params inline, by raw-C name. Those calls are emitted after this
+        // reachability prune, so the names never appear in the user stream
+        // -- seed them here or the wrapper fails to link.
+        seed_cli_main_arg_roots(lp, worklist)
+        seed_executable_stmt_roots(lp, worklist)
+    } else if lp.run_tests {
+        seed_test_roots(lp, worklist)
+        seed_executable_stmt_roots(lp, worklist)
+    } else {
+        seed_executable_stmt_roots(lp, worklist)
+    }
+
+    // #326: core top-level VALUE decls used to be blanket roots -- every one
+    // of their initializers was walked whether or not anything read the
+    // value. That is why a dead `TYPE_STRUCTDEF = Type.Struct("StructDef")`
+    // kept the compiler's StructDef/EnumDef/Expr data model (and its
+    // Map/Vec dependency graph) alive in ordinary user output. They are
+    // ordinary graph nodes now: scavenge_filter sweeps the unreached ones,
+    // and the BFS below walks a core value's initializer only once the
+    // value itself is reached. Non-Decl core top-level statements are still
+    // executable program text, so they stay roots.
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+                if stmt.node_type.is(NodeType.Decl) { continue }
+                collect_refs(stmt, worklist)
+            }
+        }
+    }
+
+    // 3) BFS
+    mut visited := Set(Str).new()
+    mut cursor : USize = 0
+    while cursor < worklist.len() {
+        name := Str.clone(worklist[cursor])
+        cursor++
+        if visited.has(name) { continue }
+        visited.add(own name.clone())
+
+        // #269: "*.m" wildcard from collect_refs -- a dyn_call whose type
+        // name is a runtime expression (interface dispatch). The target
+        // type is only known at runtime, so keep method m alive on every
+        // top-level type by expanding to concrete Type.m names; the BFS
+        // then walks each kept method's body normally.
+        if name.starts_with("*.") {
+            wc_method := name.substr(2, name.len() - 2)
+            for wk, _ in top {
+                push_qn(worklist, wk, wc_method)
+            }
+            for wk2, _ in core_top {
+                push_qn(worklist, wk2, wc_method)
+            }
+            continue
+        }
+
+        // #326: `cast` is declared `ext_func(e: Dynamic, T: Type)` but there
+        // is no such symbol -- the builder reads the target type NAME off
+        // children[2] and emits a bare C cast, so nothing ever calls it and
+        // no runtime value of its parameter types exists. Its `T: Type` slot
+        // is a comptime type argument, the same shape the macro rule below
+        // already excludes; walking the signature rooted the `Type` enum and,
+        // through its payload, `Primitive`. `I64.to_str` casts, so EVERY
+        // program that prints a number carried both struct definitions and
+        // both tag enums with nothing referencing them.
+        if name == "cast" { continue }
+
+        if top.has(name) {
+            ref dr : DeclRef = top[name]
+            ref iu : ImportUnit = lp.ctx.imported[dr.path]
+            ref decl : Expr = iu.ast.children[dr.idx]
+            if is_struct_or_enum(decl) {
+                switch decl.children[0].node_type {
+                case .StructDef(bfs_sdd):
+                    for bfs_fd : Declaration in bfs_sdd.fields {
+                        // #326: a field DEFAULT is not a reachability edge --
+                        // see collect_refs. Only the field's type is, because
+                        // that is the struct's layout.
+                        if bfs_fd.explicit_type.len() > 0 {
+                            vec_push_str(worklist, bfs_fd.explicit_type)
+                        }
+                    }
+                case .EnumDef(bfs_edd):
+                    for bfs_vd : VariantDef in bfs_edd.variants {
+                        if bfs_vd.payload_type.len() > 0 {
+                            vec_push_str(worklist, bfs_vd.payload_type)
+                        }
+                    }
+                case:
+                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
+                }
+            } else {
+                if scav_is_type_gen_template(decl.children[0]).not() {
+                    collect_refs(decl.children[0], worklist)
+                }
+            }
+        }
+        if core_top.has(name) {
+            ref dr : DeclRef = core_top[name]
+            ref iu : ImportUnit = lp.ctx.imported[dr.path]
+            ref decl : Expr = iu.ast.children[dr.idx]
+            if is_struct_or_enum(decl) {
+                switch decl.children[0].node_type {
+                case .StructDef(bfs_sdd2):
+                    for bfs_fd2 : Declaration in bfs_sdd2.fields {
+                        // #326: a field DEFAULT is not a reachability edge --
+                        // see collect_refs. Only the field's type is, because
+                        // that is the struct's layout.
+                        if bfs_fd2.explicit_type.len() > 0 {
+                            vec_push_str(worklist, bfs_fd2.explicit_type)
+                        }
+                    }
+                case .EnumDef(bfs_edd2):
+                    for bfs_vd2 : VariantDef in bfs_edd2.variants {
+                        if bfs_vd2.payload_type.len() > 0 {
+                            vec_push_str(worklist, bfs_vd2.payload_type)
+                        }
+                    }
+                case:
+                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
+                }
+            } else {
+                if scav_is_type_gen_template(decl.children[0]).not() {
+                    collect_refs(decl.children[0], worklist)
+                }
+            }
+        }
+
+        // A "Type.member" qualified name on the worklist can resolve to
+        // a FuncDef (namespace method) or to a plain Ident / FCall /
+        // other Expr (namespace data decl like `HashMap.hasher : HashFn
+        // = fnv1a`). Walk whatever the default_value is so the free
+        // identifiers it references stay reachable -- otherwise
+        // `fnv1a` gets pruned and the init `HashMap_hasher = (void
+        // *)fnv1a` in main() references an undeclared symbol.
+        // #326: follow a type alias before the namespace lookups below --
+        // `UPtr.size` has to reach `U64.size`, and the width aliases stay
+        // correct at any built USize width rather than through a hardcoded
+        // pair. BOTH maps are consulted, not the user's first: one name can
+        // denote two aliases at once, and the qualified name on the
+        // worklist does not say which scope it came from. test/aliases.til
+        // is the case -- it declares its own `USize := U64` while core's
+        // `USize := U32` is what the typer resolved `v.len()` through, so
+        // the monomorphized `assert_eq__USize` body emits `U32_to_str`.
+        // Rooting both targets costs at most one extra method; rooting the
+        // wrong one alone is a link error.
+        alias_dot := name.find(".")
+        if alias_dot >= 0 {
+            alias_dot_u := alias_dot.to_usize()
+            alias_base := name.substr(0, alias_dot_u)
+            alias_member := name.substr(alias_dot_u + 1, name.len().sub(alias_dot_u) - 1)
+            user_alias_to := alias_target_imported(lp.ctx, top, alias_base)
+            if user_alias_to.len() > 0 { push_qn(worklist, user_alias_to, alias_member) }
+            core_alias_to := alias_target_imported(lp.ctx, core_top, alias_base)
+            if core_alias_to.len() > 0 { push_qn(worklist, core_alias_to, alias_member) }
+        }
+
+        ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)
+        if ns_fdef_o.is_some() {
+            collect_refs(ns_fdef_o.unwrap(), worklist)
+        }
+        core_ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, core_top, name)
+        if core_ns_fdef_o.is_some() {
+            collect_refs(core_ns_fdef_o.unwrap(), worklist)
+        }
+    }
+    return visited
+}
+
+scavenge_imported := proc(mut lp: LoadedProgram) {
+    visited := scavenge_visited_imported(lp)
+
+    mut swept_names := Vec(Str).new()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            scavenge_filter(lp.ctx.imported[u.path].ast, visited, true, swept_names)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        scavenge_filter(lp.ctx.imported[u.path].ast, visited, false, swept_names)
+    }
+    // #326: the sweep freed those declarations' AST nodes, and the
+    // func_defs / struct_defs registries hold pointers INTO them. Erase
+    // the swept names so a later by-name lookup misses instead of reading
+    // a freed Expr -- the builder's check_fcall_mut_args resolving a
+    // spliced swap_replace callee was the ASAN-proven case, and #328 fixed
+    // the identical hazard for retired generic templates. BINDINGS stay:
+    // a TypeBinding is type data, not an AST pointer (#147 moved the
+    // func_def pointer out into func_defs), and the interpreter still
+    // resolves types through them at runtime -- erasing them broke
+    // test/hashes.til's funcptr-typed global.
+    for swept_n : Str in swept_names {
+        lp.ctx.scope.erase_ast_decl(swept_n, false)
+    }
+    if swept_names.len() > 0 { lp.ctx.scope.refresh_lookup_filters() }
+
+    // Body-level DCE: drop unreferenced hoisted temps left behind by
+    // constfolder's constant folding. Runs over every imported unit (cores
+    // included) so the codegen no longer needs `(void)<name>;` guards.
+    for upath : Str in lp.unit_paths() {
+        dce_program_bodies(lp.ctx.imported[upath].ast)
+    }
+}

@@ -122,12 +122,14 @@ Two modules sit underneath every phase below:
 
 7. Scavenge
 
-- `scavenge(ast, mode, run_tests)`
+- `scavenge_imported(lp)`
 - Implemented in til: [[file:../src/self/scavenger.til][src/self/scavenger.til]]
 - Removes declarations unreachable from the mode's roots, defined
   centrally per mode in ~scavenge_visited_imported~ (#326). Libraries
   are scavenged like every other mode, with their exported ABI as
-  roots.
+  roots. The whole phase -- root policy, reachability BFS, sweep and
+  body DCE -- lives in scavenger.til; the loader only calls
+  ~scavenge_imported~ in phase order, like every other phase.
 - BACKEND-AGNOSTIC, deliberately: it answers "is this declaration
   used" once, for whoever consumes the AST afterwards, and never asks
   which back end is coming. A reference made by RUNTIME NAME counts as
