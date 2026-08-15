@@ -3577,6 +3577,7 @@ void priv___src_self_builder_til__builder_register_str_lits(LoadedProgram * lp);
 Bool priv___src_self_builder_til__builder_str_lit_is_loc(Str * s);
 void priv___src_self_builder_til__builder_finalize_str_lit_pool(Context * ctx);
 void priv___src_self_builder_til__builder_emit_str_lit_pool(File * f, Context * ctx);
+void priv___src_self_builder_til__builder_emit_loc_region(File * f, Context * ctx);
 void priv___src_self_builder_til__collect_dyn_has_methods(Expr * e, Vec__Str * methods);
 void priv___src_self_builder_til__emit_pod_compound_literal(File * f, Expr * ctor, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_stmt_decl(File * f, Expr * e, I32 depth, Context * ctx);

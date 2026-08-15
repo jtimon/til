@@ -1,6 +1,43 @@
 # priority: low
 # category: cleanups
-** WIP #101 Deterministic temp variable names in generated C
+** FIXED #101 Deterministic temp variable names in generated C
+
+Post-mortem (2026-08-15, final): the goal, per Jorge, was always that a
+til.c diff be USEFUL FOR REVIEW -- the C changes in it related to the til
+edit, not label reorganizations rippling through the file. Landed across
+six commits; the last piece was presentational and mattered as much as
+the counters:
+
+- Every synthesized-name family is per-scope (post-mortems below): body
+  temps restart per definition as bare ordinals, builder ctor temps per
+  emitted function, _lzr_ per definition via loader windows, file-scope
+  symbols (_lambda_/closure_/body_) owner-qualified with per-owner
+  ordinals, hoisted Str idents owner-qualified (their names are now
+  file-scope symbols, so the qualifier is load-bearing).
+- The pool holds ONLY multi-use non-loc literals in content-sorted order;
+  single-use literals emit inline at their sites (rstil's model -- it
+  pools nothing, which is why its diffs stayed local).
+- The __LOC__ REGION, the finishing move: all 3,980 loc statics
+  (`hoisted__Str_<owner>_<n> = "path:line:col"`) are defined in ONE
+  contiguous file-scope block after the pool instead of inline in their
+  functions -- same bytes, same names, different address for review. The
+  registration walk also had to learn to descend into namespace member
+  bodies (ns_decls are not AST children), which 52 loc statics and every
+  other ns-body literal had been silently escaping.
+
+Final probe shape (new function at the top of loader.til + a cross-unit
+call): 31 diff hunks -- 9 are the probe's own compiled C (its forward
+decl, its body, the function it modified), 22 land inside the loc region
+block, which a reviewer skips wholesale. Zero unrelated hunks anywhere in
+the file. The probe battery below (rename / new struct / new generic
+instantiation / earliest-unit insertion) already showed zero unrelated
+churn for every other edit shape.
+
+Accepted residuals: the loc region's contents rewrite when line numbers
+shift (real information, quarantined); parser anonymous types (zero
+occurrences in the self-build); the constfolder's deref-of-a-scope-slot
+as Expr in func_uses_unknown_globals predates this issue and deserves its
+own issue.
 
 Reopened (2026-08-15): the pool-block close below was premature -- its
 probe changed no line COUNTS, so it never saw the __LOC__ cascade. A

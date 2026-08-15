@@ -1557,6 +1557,15 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                         rlr = rlr + 1
                     }
                 }
+                // #101: namespace member BODIES live in ns_decls, not in
+                // the AST children this walk recurses through, so their
+                // literals -- loc statics included -- were never
+                // registered and always fell back to inline emission.
+                for ns_d : Declaration in sd.ns_decls {
+                    if ns_d.default_value.is_some() {
+                        builder_register_str_lits_for_expr(ns_d.default_expr(), ctx)
+                    }
+                }
             case .EnumDef(ed):
                 if builder_needs_reflect("enum_variant_", ctx) {
                     for vd : VariantDef in ed.variants {
@@ -1564,6 +1573,11 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                         if vd.payload_type.len() > 0 { builder_register_str_lit(ctx, vd.payload_type) }
                     }
                     builder_register_str_lit(ctx, "")
+                }
+                for ens_d : Declaration in ed.ns_decls {
+                    if ens_d.default_value.is_some() {
+                        builder_register_str_lits_for_expr(ens_d.default_expr(), ctx)
+                    }
                 }
             case .FuncDef(fd):
                 if rhs.children.len().eq(0).and(builder_needs_reflect("func_sig_", ctx)) {
@@ -1712,9 +1726,25 @@ priv builder_finalize_str_lit_pool := func(mut ctx: Context) {
     // Hoisted-ident names resolve to their content's final symbol; an
     // ident over a single-use literal stays unmapped and its Decl emits
     // through the ordinary static-local branch.
+    //
+    // #101: a LOC-shaped ident maps to ITSELF. Its hoisted name
+    // (`hoisted__Str_<owner>_<n>`) is already program-unique and stable,
+    // so the pool emission defines it as a file-scope static in one
+    // contiguous __LOC__ region instead of letting the Decl define it
+    // inline in the function body. Same bytes either way -- but a source
+    // edit that shifts line numbers then rewrites lines in that one
+    // skippable region, not lines interleaved through every function
+    // below the edit, which is what made til.c diffs unreviewable
+    // (3,979 loc statics in til.c, ~950 of them rewritten by one 7-line
+    // insertion near the top of loader.til).
     for iname : Str in ctx.builder_str_lit_ident_contents.keys {
         ref icontent : Str = ctx.builder_str_lit_ident_contents[iname]
-        if ctx.builder_str_lit_symbols.has(icontent).and(ctx.builder_str_lit_ident_symbols.has(iname).not()) {
+        if ctx.builder_str_lit_ident_symbols.has(iname) { continue }
+        if builder_str_lit_is_loc(icontent) {
+            ctx.builder_str_lit_ident_symbols.set(iname, own iname.clone())
+            continue
+        }
+        if ctx.builder_str_lit_symbols.has(icontent) {
             ctx.builder_str_lit_ident_symbols.set(iname, own ctx.builder_str_lit_symbols[icontent].clone())
         }
     }
@@ -1759,6 +1789,32 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
     f.write("if (_g >= (UPtr)(const void *)_til_str_lits && _g < (UPtr)(const void *)(_til_str_lits + ")
     emit_usize(f, n)
     f.write(")) { fprintf(stderr, \"panic: write through a shared string literal\\n\"); exit(1); } } while (0)\n\n")
+}
+
+// #101: the __LOC__ region -- every loc-shaped hoisted literal, defined at
+// file scope in one contiguous block instead of inline in its function.
+// The names are the hoisted idents themselves (`hoisted__Str_<owner>_<n>`,
+// program-unique and stable per definition), so a source edit that shifts
+// line numbers rewrites lines HERE, where a reviewer skips the block
+// wholesale, instead of scattering one-line hunks through every function
+// below the edit. Map iteration is key-sorted, so the region is grouped
+// by owner and deterministic.
+priv builder_emit_loc_region := proc(f: File, ctx: Context) {
+    mut wrote := false
+    for iname : Str in ctx.builder_str_lit_ident_contents.keys {
+        ref icontent : Str = ctx.builder_str_lit_ident_contents[iname]
+        if builder_str_lit_is_loc(icontent).not() { continue }
+        if wrote.not() {
+            f.write("/* til source locations: line numbers shift with source edits; the code hunks are above */\n")
+            wrote = true
+        }
+        f.write("static Str ").write(iname).write(" = (Str){.c_str = (void *)\"")
+        f.write(icontent)
+        f.write("\", .count = ")
+        emit_usize(f, c_lit_byte_count(icontent))
+        f.write("ULL, .cap = TIL_CAP_LIT};\n")
+    }
+    if wrote { f.write("\n") }
 }
 
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
@@ -8806,6 +8862,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
 
     builder_register_str_lits(lp)
     builder_emit_str_lit_pool(f, lp.ctx)
+    builder_emit_loc_region(f, lp.ctx)
 
     emit_global_declarations(f, lp)
     emit_function_bodies(f, mode, lp)
