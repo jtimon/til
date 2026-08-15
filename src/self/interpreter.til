@@ -2641,6 +2641,24 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         converted = raw_coerce_value(converted, hb_type(source_hb), bind_type, ctx, param.own_type)
                         scope_set_raw_owned(call_scope, param.name, converted, bind_type_w, param.own_type, ctx)
                     }
+                } else if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(bind_type, ctx)) {
+                    // Issue #353: a by-value prim parameter is a COPY in
+                    // the emitted C, so borrowing the caller's storage
+                    // here let a write to the source DURING the call (a
+                    // global the callee assigns) change what the callee's
+                    // parameter reads. Copy the scalar instead. `mut`
+                    // prim params never reach this arm: auto-shallow
+                    // (#223) skips them, so they stay OwnType.Ref and
+                    // keep the borrow that makes them in/out, matching
+                    // the pointer the C emit passes for them.
+                    if source_hb.is_raw_alloc {
+                        // #302 raw-alloc storage: clone the block as-is,
+                        // the word load is for plain scalar blocks.
+                        scope_set_raw_owned(call_scope, param.name, heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx), bind_type_w, param.own_type, ctx)
+                    } else {
+                        src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
+                        scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, src_w, ctx), bind_type_w, param.own_type, ctx)
+                    }
                 } else {
                     ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
                     scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)

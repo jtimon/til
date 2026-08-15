@@ -524,3 +524,30 @@ test_bug302_path_shapes := test() {
     assert(bug302_paths_two_transfers(2) == 9)
     assert(bug302_paths_two_transfers(3) == 13)
 }
+
+// Issue #353: a by-value prim argument passed as a plain name was bound
+// as a BORROW of the caller's storage in the interpreter, so a write to
+// the source during the call changed what the parameter read. In the
+// emitted C a scalar parameter is a copy, so interp and compiled
+// diverged silently: this read 0 interpreted and 7 compiled. The
+// field-access shape of the same bug was fixed alongside DynVec.take
+// (test_dyn_vec_take exercises it through take_prefix).
+mut bug353_global : USize = 0
+
+bug353_read_after_clobber := func(k: USize) returns USize {
+    bug353_global = 0
+    return k
+}
+
+bug353_bump := func(mut k: USize) {
+    k = k + 1
+}
+
+test_bug353_prim_arg_is_a_copy := test() {
+    bug353_global = 7
+    assert_eq(USize, bug353_read_after_clobber(bug353_global), 7)
+    // mut prim params stay in/out: the callee's write reaches the source.
+    bug353_global = 5
+    bug353_bump(bug353_global)
+    assert_eq(USize, bug353_global, 6)
+}

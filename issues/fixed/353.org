@@ -1,6 +1,22 @@
 # priority: medium
 # category: bugs
-** OPEN #353 Interpreter binds by-value prim arguments as borrows of the caller's storage
+** FIXED #353 Interpreter binds by-value prim arguments as borrows of the caller's storage
+
+  POST-MORTEM: the root cause was the interpreter's argument binder
+  treating "types match, no transfer" as license to borrow the caller's
+  storage for ANY argument passed as a plain name, prims included --
+  while the emitted C copies scalars by value. The fix mirrors the
+  ref-evaluated arm's: when the parameter is OwnType.Shallow and the
+  bind type is prim, the Ident arm now copies the scalar into the
+  parameter binding (scalar_word_load + scalar_block_from_word, or
+  heap_clone_by_type for #302 raw-alloc storage) instead of
+  scope_set_borrowed. `mut` prim params are untouched by construction:
+  auto-shallow (#223, typer.til) only demotes Ref -> Shallow for
+  is_mut.not() prims, so mut prims stay Ref, keep the borrow, and
+  remain in/out -- verified against the C emit before the fix (a mut
+  USize param writes through to the caller in both backends).
+  Regression test: test_bug353_prim_arg_is_a_copy in
+  test/regression.til, covering both the copy and the mut in/out case.
 
   A by-value prim parameter is a COPY in the emitted C: scalars travel
   by value, only structs go as pointers. The interpreter's argument
