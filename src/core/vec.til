@@ -24,11 +24,11 @@ namespace:
         return Vec(T)(cap = 0)
     }
 
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// ~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
     /// no allocation (the grow sites seed cap 0->1 on the first insert).
     with_capacity := func(n: USize) returns Vec(T) {
         if n == 0 { return Vec(T)(cap = 0) }
@@ -46,7 +46,7 @@ namespace:
         self.count = 0
     }
 
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// Drop the elements flagged in ~marks~ (a byte-per-element buffer,
     /// nonzero = drop, at least self.count entries) via elem_delete, then
     /// compact the survivors forward and update count. This is the
     /// container home for the scavenger's mark/sweep/compact, which used
@@ -77,7 +77,7 @@ namespace:
         self.count = w
     }
 
-    /// Append an element to the end. `val` is owned: after this call the
+    /// Append an element to the end. ~val~ is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec(T), own val: T) {
         if self.count == self.cap {
@@ -92,8 +92,8 @@ namespace:
         self.count = self.count + 1
     }
 
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
+    /// Consume the contents of ~other~ by appending them to ~self~.
+    /// ~other~ is taken by ownership and will be empty after the call.
     append := func(mut self: Vec(T), own other: Vec(T)) {
         if other.count == 0 {
             return
@@ -117,7 +117,7 @@ namespace:
     /// self is left lazy-empty. No element is copied or cloned.
     ///
     /// This is how a struct FIELD hands its contents over
-    /// (`mut old := body.children.take()`): a field cannot be an `own`
+    /// (~mut old := body.children.take()~): a field cannot be an ~own~
     /// argument or receiver, because the callee would then free the
     /// ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
     /// pointer" compiling itself. Everything the caller can give away
@@ -133,13 +133,13 @@ namespace:
         return out
     }
 
-    /// Give self's contents to `dest`, which drops whatever it held.
+    /// Give self's contents to ~dest~, which drops whatever it held.
     /// SELF is consumed, so the receiver is the owned one and the call
-    /// spells the type out: `Vec(T).move_to(own src, dest)`.
+    /// spells the type out: ~Vec(T).move_to(own src, dest)~.
     ///
-    /// The three fields move as BYTES on purpose: `dest.data =
-    /// self.data` drops dest's old pointer (right) and then
-    /// `self.data = 0` drops the pointer dest just adopted -- a double
+    /// The three fields move as BYTES on purpose:
+    /// ~dest.data = self.data~ drops dest's old pointer (right) and then
+    /// ~self.data = 0~ drops the pointer dest just adopted -- a double
     /// free, which is what the emitted C does with field assignment.
     /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
     /// a later push on it allocates afresh instead of reallocating a
@@ -152,9 +152,9 @@ namespace:
         adopt_from(dest, self, Vec(T).size())
     }
 
-    /// Take `other`'s contents, dropping whatever self held. OTHER is
+    /// Take ~other~'s contents, dropping whatever self held. OTHER is
     /// consumed -- it is the value being emptied, so it is the owned
-    /// argument: `dest.move_from(own src)`.
+    /// argument: ~dest.move_from(own src)~.
     move_from := func(mut self: Vec(T), own other: Vec(T)) {
         // Spelled out because the owned side is the RECEIVER, and UFCS
         // has nowhere to put `own` for it.
@@ -162,16 +162,16 @@ namespace:
     }
 
     /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i < len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi < len()` termination test already
+    /// index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+    /// This is the unchecked core that ~get~ wraps; for-in uses it
+    /// directly because its ~_fi < len()~ termination test already
     /// proves the index in bounds (issue #284).
     unsafe_get := func(self: Vec(T), i: USize) returns ref T {
         return ptr_add(self.data, i.mul(T.size()))
     }
 
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// Return a reference to the element at index ~i~. Throws
+    /// OutOfBounds if ~i~ is past the end; call as ~vec[i]~
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
     get := func(self: Vec(T), shallow i: USize) returns ref T throws OutOfBounds {
@@ -201,7 +201,7 @@ namespace:
         return out
     }
 
-    /// Remove and drop the element at `i`, shifting later elements left.
+    /// Remove and drop the element at ~i~, shifting later elements left.
     remove_at := func(mut self: Vec(T), i: USize) throws OutOfBounds {
         if i >= self.count {
             throw OutOfBounds()
@@ -215,7 +215,7 @@ namespace:
         memset(self.unsafe_get(self.count), 0, T.size())
     }
 
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// Split off the first ~n~ elements into a new Vec. Panics if ~n~
     /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: Vec(T), n: USize) returns Vec(T) {
         if n > self.count {
@@ -240,9 +240,9 @@ namespace:
         return Vec(T)(data = prefix_data, count = n, cap = prefix_cap)
     }
 
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// Drop the elements from index ~n~ to the end, freeing each via
+    /// elem_delete, and set count to ~n~ (the survivors [0, n) are left
+    /// untouched). Panics if ~n~ exceeds len. This is the container home
     /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
     truncate := func(mut self: Vec(T), n: USize) {
         if n > self.count {
@@ -254,17 +254,17 @@ namespace:
         self.count = n
     }
 
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// Overwrite the element at index ~i~ without a bounds check, dropping
+    /// the old value. Caller guarantees ~i < self.count~; the write-side
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(mut self: Vec(T), i: USize, own val: T) {
         T.delete(own self.unsafe_get(i), false)
         adopt(T, self.unsafe_get(i), own val)
     }
 
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    /// Overwrite the element at index ~i~. ~val~ is owned. Throws
+    /// OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+    /// (or ~vec.set(i, own val)!~) to panic on a bad index.
     set := func(mut self: Vec(T), i: USize, own val: T) throws OutOfBounds {
         if i >= self.count {
             throw OutOfBounds()
@@ -291,7 +291,7 @@ namespace:
     }
 
     /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
+    /// unless ~call_free~ is false.
     delete := func(own self: Vec(T), call_free: Bool = true) {
         self.clear()
         free(own self.data)

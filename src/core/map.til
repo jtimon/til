@@ -12,13 +12,13 @@ Map := struct<K: Type, V: Type> {
 
 namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
-    /// The key type must implement `cmp`.
+    /// The key type must implement ~cmp~.
     new := func() returns Map(K, V) {
         return Map(K, V)(keys = Vec(K).new(), values = Vec(V).new())
     }
 
-    /// Create an empty Map pre-sized for `n` entries, so inserting up to
-    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// Create an empty Map pre-sized for ~n~ entries, so inserting up to
+    /// ~n~ reallocs neither backing Vec (Vec.with_capacity's
     /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
     with_capacity := func(n: USize) returns Map(K, V) {
         return Map(K, V)(keys = Vec(K).with_capacity(n),
@@ -49,8 +49,8 @@ namespace:
         return false
     }
 
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// Return a ref to the value for ~key~. Throws KeyNotFound if
+    /// ~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
     /// on a missing key.
     get := func(self: Map(K, V), key: K) returns ref V throws KeyNotFound {
         mut lo : USize = 0
@@ -67,7 +67,7 @@ namespace:
         throw KeyNotFound()
     }
 
-    /// Insert or overwrite the value for `key`. The value is owned.
+    /// Insert or overwrite the value for ~key~. The value is owned.
     set := func(mut self: Map(K, V), key: K, own val: V) {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
@@ -110,7 +110,7 @@ namespace:
         }
     }
 
-    /// Remove `key`, dropping its key and value. Returns false if absent.
+    /// Remove ~key~, dropping its key and value. Returns false if absent.
     remove := func(mut self: Map(K, V), key: K) returns Bool {
         mut lo : USize = 0
         mut hi : USize = self.keys.count

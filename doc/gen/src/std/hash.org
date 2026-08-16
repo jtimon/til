@@ -1,0 +1,103 @@
+#+TITLE: src/std/hash.til
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+OPTIONS: toc:t
+
+* KNUTH_MULT
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.KNUTH_MULT
+:group: Standard library
+:END:
+
+#+begin_src til
+KNUTH_MULT is a U64
+#+end_src
+
+* FNV_OFFSET
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.FNV_OFFSET
+:group: Standard library
+:END:
+
+#+begin_src til
+FNV_OFFSET is a U64
+#+end_src
+
+* FNV_PRIME
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.FNV_PRIME
+:group: Standard library
+:END:
+
+#+begin_src til
+FNV_PRIME is a U64
+#+end_src
+
+* hash_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.hash_i64
+:group: Standard library
+:END:
+
+#+begin_src til
+func hash_i64(shallow x: I64) returns shallow U64
+#+end_src
+
+* hash_u64
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.hash_u64
+:group: Standard library
+:END:
+
+#+begin_src til
+func hash_u64(shallow x: U64) returns shallow U64
+#+end_src
+
+* hash_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.hash_str
+:group: Standard library
+:END:
+
+#+begin_src til
+func hash_str(s: Str) returns shallow U64
+#+end_src
+
+* fnv1a
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.fnv1a
+:group: Standard library
+:END:
+
+#+begin_src til
+func fnv1a(data: Dynamic, shallow n: USize) returns shallow U64
+#+end_src
+
+* djb2
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.djb2
+:group: Standard library
+:END:
+
+#+begin_src til
+func djb2(data: Dynamic, shallow n: USize) returns shallow U64
+#+end_src
+
+* knuth_bytes
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.knuth_bytes
+:group: Standard library
+:END:
+
+#+begin_src til
+func knuth_bytes(data: Dynamic, shallow n: USize) returns shallow U64
+#+end_src
+
+* bucket
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.bucket
+:group: Standard library
+:END:
+
+#+begin_src til
+func bucket(shallow h: U64, shallow cap: USize) returns shallow USize
+#+end_src

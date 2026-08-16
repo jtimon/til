@@ -40,9 +40,9 @@ namespace:
         return DynVec.new_type_name_kind(elem_type, type_storage_kind(T))
     }
 
-    /// Create an empty DynVec with room for `n` elements, so filling it
+    /// Create an empty DynVec with room for ~n~ elements, so filling it
     /// with n items reallocs zero times (Vec.with_capacity's counterpart;
-    /// the element type is a runtime argument here, as for `new`).
+    /// the element type is a runtime argument here, as for ~new~).
     with_capacity := func(T: Type, n: USize) returns DynVec {
         mut v := DynVec.new(T)
         if n > v.cap {
@@ -52,11 +52,11 @@ namespace:
         return v
     }
 
-    /// Create an empty DynVec with room for `n` elements, taking its
+    /// Create an empty DynVec with room for ~n~ elements, taking its
     /// element metadata from a container that already has it instead of
     /// from a Type or a type name. DynArray.to_vec is why this exists: a
     /// DynArray carries the element size / kind / clone / delete fns but
-    /// not the type name `new_type_name` wants, and a DynVec record can
+    /// not the type name ~new_type_name~ wants, and a DynVec record can
     /// only be built directly inside this file.
     new_like := func(elem_size: USize, elem_kind: USize, elem_clone: CloneFn,
                      elem_delete: DeleteFn, n: USize) returns DynVec {
@@ -84,7 +84,7 @@ namespace:
         self.count = 0
     }
 
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// Drop the elements flagged in ~marks~ (a byte-per-element buffer,
     /// nonzero = drop, at least self.count entries), then compact the
     /// survivors forward and update count. Vec.delete_marked's
     /// counterpart.
@@ -120,7 +120,7 @@ namespace:
         self.count = w
     }
 
-    /// Append an element to the end. `val` is owned: after this call the
+    /// Append an element to the end. ~val~ is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: DynVec, own val: Dynamic) {
         if self.count == self.cap {
@@ -140,8 +140,8 @@ namespace:
         self.count = self.count + 1
     }
 
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
+    /// Consume the contents of ~other~ by appending them to ~self~.
+    /// ~other~ is taken by ownership and will be empty after the call.
     append := func(mut self: DynVec, own other: DynVec) {
         if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
             panic("DynVec.append: incompatible vecs")
@@ -164,8 +164,8 @@ namespace:
     }
 
     /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// Avoids the Vec_clone + extra Vec_delete that plain ~self = other~ emits.
+    /// Takes ~mut~ (not ~own~) so caller retains ownership of other; its
     /// natural scope-end auto-delete frees other.data. Setting other.count = 0
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
@@ -198,24 +198,24 @@ namespace:
         other.count = 0
     }
 
-    /// Give self's contents to `dest`, which drops whatever it held.
+    /// Give self's contents to ~dest~, which drops whatever it held.
     /// Vec.move_to's counterpart, and the argument-flipped spelling of
-    /// `dest.move_from(self)`. Both sides are `mut` here rather than one
-    /// of them `own`, because the values these moves exist for are struct
+    /// ~dest.move_from(self)~. Both sides are ~mut~ here rather than one
+    /// of them ~own~, because the values these moves exist for are struct
     /// FIELDS, and a field cannot be an owned argument or receiver.
     move_to := func(mut self: DynVec, mut dest: DynVec) {
         dest.move_from(self)
     }
 
-    /// Unchecked ref to the element at index `i`. Caller guarantees
-    /// `i < self.count`; bypasses get's throwing bounds check. for-in
+    /// Unchecked ref to the element at index ~i~. Caller guarantees
+    /// ~i < self.count~; bypasses get's throwing bounds check. for-in
     /// and the DynMap binary search use this directly (issue #284/#287).
     unsafe_get := func(self: DynVec, i: USize) returns ref Dynamic {
         return ptr_add(self.data, i.mul(self.elem_size))
     }
 
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// Return a reference to the element at index ~i~. Throws
+    /// OutOfBounds if ~i~ is past the end; call as ~vec[i]~
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
     get := func(self: DynVec, i: USize) returns ref Dynamic throws OutOfBounds {
@@ -242,7 +242,7 @@ namespace:
         return out
     }
 
-    /// Remove and drop the element at `i`, shifting later elements left.
+    /// Remove and drop the element at ~i~, shifting later elements left.
     /// Vec.remove_at's counterpart.
     remove_at := func(mut self: DynVec, i: USize) throws OutOfBounds {
         if i >= self.count {
@@ -261,8 +261,8 @@ namespace:
         memset(self.unsafe_get(self.count), 0, self.elem_size)
     }
 
-    /// Drop the elements from index `n` to the end and set count to `n`
-    /// (the survivors [0, n) are left untouched). Panics if `n` exceeds
+    /// Drop the elements from index ~n~ to the end and set count to ~n~
+    /// (the survivors [0, n) are left untouched). Panics if ~n~ exceeds
     /// len. Vec.truncate's counterpart.
     truncate := func(mut self: DynVec, n: USize) {
         if n > self.count {
@@ -280,7 +280,7 @@ namespace:
         self.count = n
     }
 
-    /// Split off the first `n` elements into a new DynVec. Panics if `n`
+    /// Split off the first ~n~ elements into a new DynVec. Panics if ~n~
     /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: DynVec, n: USize) returns DynVec {
         if n > self.count {
@@ -315,8 +315,8 @@ namespace:
         return self.take_prefix(self.count)
     }
 
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// Overwrite the element at index ~i~ without a bounds check, dropping
+    /// the old value. Caller guarantees ~i < self.count~; the write-side
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(mut self: DynVec, i: USize, own val: Dynamic) {
         if self.elem_kind == ELEM_BOXED {
@@ -330,9 +330,9 @@ namespace:
         free(own val)
     }
 
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `dynvec[i] = val`
-    /// (or `dynvec.set(i, own val)!`) to panic on a bad index.
+    /// Overwrite the element at index ~i~. ~val~ is owned. Throws
+    /// OutOfBounds if ~i~ is past the end; call as ~dynvec[i] = val~
+    /// (or ~dynvec.set(i, own val)!~) to panic on a bad index.
     set := func(mut self: DynVec, i: USize, own val: Dynamic) throws OutOfBounds {
         if i >= self.count {
             // val is not stored on the error path: drop its element
@@ -373,7 +373,7 @@ namespace:
     }
 
     /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
+    /// unless ~call_free~ is false.
     delete := func(own self: DynVec, call_free: Bool = true) {
         DynVec.clear(self)
         free(own self.data)

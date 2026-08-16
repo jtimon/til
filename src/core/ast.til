@@ -323,7 +323,7 @@ namespace:
 ///     (derive_fcall_kwargs_index).
 ///   - variadic_count : children layout + nparam + has-kwargs
 ///     (fcall_variadic_count).
-///   - variadic_index : implicit at `1 + fdef_data.variadic_index`
+///   - variadic_index : implicit at ~1 + fdef_data.variadic_index~
 ///     post-desugar. Step 7 of #147 closes here: the trailing typer
 ///     resolution artifact is gone.
 FCallData := struct {
@@ -529,7 +529,7 @@ namespace:
 }
 
 /// Reverse index lookup shared by every *_name_at accessor: the name whose
-/// stored position is `pos`, None for a position no entry points at (one
+/// stored position is ~pos~, None for a position no entry points at (one
 /// shadowed by a later duplicate name). The three *_name_at wrappers
 /// unwrap it: their call sites all walk positions the def itself reports
 /// and use the name unchecked, so a miss means the index and the decl Vec
@@ -537,7 +537,7 @@ namespace:
 ///
 /// Instantiating Option in this unit needed two prerequisites: the #303
 /// noreturn seed made order-independent (seed_noreturn_chain, loader.til),
-/// since Option.unwrap ends in `case: panic` and core.til imports ast
+/// since Option.unwrap ends in ~case: panic~ and core.til imports ast
 /// before exit; and the borrowed-Str call-shape fix, since
 /// this is the first Option(ref Str) interpreted code calls.
 member_name_of := func(idx: Map(Str, USize), pos: USize) returns Option(ref Str) {
@@ -701,8 +701,8 @@ namespace:
     to_str := func(self: FieldAssignData) returns Str { return self.name }
 }
 
-/// Payload for `for name in range` loop nodes. The two-variable
-/// key/value form `for k, v in map` fills name2/is_mut2; name2 is
+/// Payload for ~for name in range~ loop nodes. The two-variable
+/// key/value form ~for k, v in map~ fills name2/is_mut2; name2 is
 /// empty for the ordinary single-variable form.
 ForInData := struct {
     name := ""
@@ -727,7 +727,7 @@ Literal := enum {
     SetLit,
 }
 
-/// Payload for NodeType.Match: a `match` expression yields a value, so
+/// Payload for NodeType.Match: a ~match~ expression yields a value, so
 /// the typer records the common arm type here (mirrors FCallData.til_type).
 MatchData := struct {
     til_type := Type.Unknown
@@ -742,7 +742,7 @@ namespace:
 
 /// Payload for NodeType.Case (issue #334): how many patterns precede the
 /// guard/body children. Child layout: [pattern x N, guard?, body]. The body
-/// is always the LAST child; pattern_count == 0 is the default `case:` arm
+/// is always the LAST child; pattern_count == 0 is the default ~case:~ arm
 /// ([body] alone); a guard exists iff children.len() > pattern_count + 1.
 /// Only pattern_count is stored -- everything else derives from it and the
 /// child count, so there is no second copy of the shape to drift.
@@ -753,7 +753,7 @@ namespace:
     to_str := func(_self: CaseData) returns Str { return "" }
 }
 
-/// Payload for NodeType.CaptureBlock (issue #54): a bare `[a, mut b] { ... }`
+/// Payload for NodeType.CaptureBlock (issue #54): a bare ~[a, mut b] { ... }~
 /// block carrying an explicit capture list. The captures restrict which
 /// outer-scope locals the block body may reference -- a compile-time
 /// "insurance policy". Each capture is a Declaration (name + is_mut);
@@ -958,10 +958,10 @@ Expr := struct {
     col : U32 = 0
 
 namespace:
-    /// Null-safe delete. The auto-generated version dereferences `self`
+    /// Null-safe delete. The auto-generated version dereferences ~self~
     /// unconditionally, so the asap pass deleting an owned-but-null Expr
     /// (e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
-    /// here lets functions return owned `Expr` that may be null without
+    /// here lets functions return owned ~Expr~ that may be null without
     /// the caller having to clone-and-leak to dodge the deep delete.
     delete := func(own self: Expr, call_free: Bool = true) {
         // Raw-address probe through the to_ptr launder (#321 step 3):
@@ -986,11 +986,11 @@ namespace:
         self.error(path, msg)
         println("  note: this is a bug in the language, please report it")
     }
-    /// Take ownership of `child` and append it to the children list.
+    /// Take ownership of ~child~ and append it to the children list.
     add_child := func(mut self: Expr, own child: Expr) {
         self.children.push(own child)
     }
-    /// Clone `child` and append the clone to the children list.
+    /// Clone ~child~ and append the clone to the children list.
     push_child_clone := func(mut self: Expr, child: Expr) {
         self.children.push(own child.clone())
     }

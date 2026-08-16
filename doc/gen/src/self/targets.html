@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,6 +43,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -55,7 +57,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
 </ul>
 <h2>Compiler backend</h2><ul>
-<li><a class="current" href="../../src/self/targets.html">src/self/targets.til</a><ul><li><a href="#til.src.self.targets.Lang">Lang</a></li><li><a href="#til.src.self.targets.Target">Target</a></li><li><a href="#til.src.self.targets.target_from_str">target_from_str</a></li><li><a href="#til.src.self.targets.is_windows_target">is_windows_target</a></li><li><a href="#til.src.self.targets.target_uptr_name">target_uptr_name</a></li><li><a href="#til.src.self.targets.target_usize_name">target_usize_name</a></li><li><a href="#til.src.self.targets.toolchain_command">toolchain_command</a></li><li><a href="#til.src.self.targets.target_link_extra_args">target_link_extra_args</a></li><li><a href="#til.src.self.targets.toolchain_extra_args">toolchain_extra_args</a></li><li><a href="#til.src.self.targets.executable_extension">executable_extension</a></li><li><a href="#til.src.self.targets.shared_lib_extension">shared_lib_extension</a></li><li><a href="#til.src.self.targets.target_system_libs">target_system_libs</a></li><li><a href="#til.src.self.targets.target_ffi_lib">target_ffi_lib</a></li><li><a href="#til.src.self.targets.target_gui_libs">target_gui_libs</a></li><li><a href="#til.src.self.targets.detect_current_target">detect_current_target</a></li></ul></li>
+<li><a class="current" href="../../src/self/targets.html">src/self/targets.til</a><ul><li><a href="#til.src.self.targets.Lang">Lang</a></li><li><a href="#til.src.self.targets.Target">Target</a></li><li><a href="#til.src.self.targets.target_from_str">target_from_str</a></li><li><a href="#til.src.self.targets.is_windows_target">is_windows_target</a></li><li><a href="#til.src.self.targets.target_uptr_name">target_uptr_name</a></li><li><a href="#til.src.self.targets.target_usize_name">target_usize_name</a></li><li><a href="#til.src.self.targets.toolchain_command">toolchain_command</a></li><li><a href="#til.src.self.targets.target_link_extra_args">target_link_extra_args</a></li><li><a href="#til.src.self.targets.toolchain_extra_args">toolchain_extra_args</a></li><li><a href="#til.src.self.targets.executable_extension">executable_extension</a></li><li><a href="#til.src.self.targets.shared_lib_extension">shared_lib_extension</a></li><li><a href="#til.src.self.targets.target_system_libs">target_system_libs</a></li><li><a href="#til.src.self.targets.target_ffi_lib">target_ffi_lib</a></li><li><a href="#til.src.self.targets.target_ffi_build_hint">target_ffi_build_hint</a></li><li><a href="#til.src.self.targets.target_gui_libs">target_gui_libs</a></li><li><a href="#til.src.self.targets.detect_current_target">detect_current_target</a></li></ul></li>
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
@@ -215,6 +217,12 @@ namespace:
 </article>
 <article class="doc-entry" id="til.src.self.targets.target_ffi_lib">
 <h2>target_ffi_lib</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func (target: Target) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.target_ffi_build_hint">
+<h2>target_ffi_build_hint</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">func (target: Target) returns Str
 </code></pre>

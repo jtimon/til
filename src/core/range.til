@@ -9,7 +9,7 @@ Range := struct {
     const end : U64 = 0
 
 namespace:
-    /// Create a Range from `start` (inclusive) to `end` (exclusive).
+    /// Create a Range from ~start~ (inclusive) to ~end~ (exclusive).
     new := func(start: U64, end: U64) returns Range {
         return Range(start = start, end = end)
     }

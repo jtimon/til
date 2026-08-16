@@ -22,17 +22,17 @@ namespace:
 
     len := func(self: Array(T)) returns USize { return self.cap }
 
-    /// Unchecked element access: ref to the element at index `i` with
-    /// NO bounds check. The caller must prove `i < len()`. This is the
-    /// unchecked core that `get` wraps; for-in uses it directly because
-    /// its `_fi < len()` termination test already proves the index in
+    /// Unchecked element access: ref to the element at index ~i~ with
+    /// NO bounds check. The caller must prove ~i < len()~. This is the
+    /// unchecked core that ~get~ wraps; for-in uses it directly because
+    /// its ~_fi < len()~ termination test already proves the index in
     /// bounds (issue #284).
     unsafe_get := func(self: Array(T), i: USize) returns ref T {
         return ptr_add(self.data, i.mul(T.size()))
     }
 
-    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
-    /// past the end; call as `arr.get(i)!` to panic on a bad index.
+    /// Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
+    /// past the end; call as ~arr.get(i)!~ to panic on a bad index.
     get := func(self: Array(T), shallow i: USize) returns ref T throws OutOfBounds {
         // Throw LAST, so the throws lowering has no following statement to
         // wrap in its `if _err_kind == 0` re-check. Same shape as Vec.get.
@@ -42,17 +42,17 @@ namespace:
         throw OutOfBounds()
     }
 
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.cap`; the write-side
+    /// Overwrite the element at index ~i~ without a bounds check, dropping
+    /// the old value. Caller guarantees ~i < self.cap~; the write-side
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(mut self: Array(T), i: USize, own val: T) {
         T.delete(own self.unsafe_get(i), false)
         adopt(T, self.unsafe_get(i), own val)
     }
 
-    /// Overwrite the element at index `i`. Drops the old value. `val` is
-    /// owned. Throws OutOfBounds if `i` is past the end; call as
-    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
+    /// Overwrite the element at index ~i~. Drops the old value. ~val~ is
+    /// owned. Throws OutOfBounds if ~i~ is past the end; call as
+    /// ~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
     set := func(mut self: Array(T), i: USize, own val: T) throws OutOfBounds {
         if i >= self.cap {
             throw OutOfBounds()
@@ -68,9 +68,9 @@ namespace:
         if call_free { free(own self) }
     }
 
-    /// #342: a fresh Array holding `self`'s elements followed by `other`'s.
+    /// #342: a fresh Array holding ~self~'s elements followed by ~other~'s.
     /// Both sources keep theirs -- every element is cloned, exactly as
-    /// `clone` does -- so neither is moved out from under its owner. The
+    /// ~clone~ does -- so neither is moved out from under its owner. The
     /// mixed-splat variadic lowering builds its collector with this: the
     /// fixed arguments become one Array, the splatted Array is the other,
     /// and the call is then the pure-splat form the desugar already handles.
@@ -90,10 +90,10 @@ namespace:
         return Array(T)(data = new_data, cap = total)
     }
 
-    /// #342: a fresh Vec holding a clone of every element, `self` intact.
-    /// The `vec(T, x, ..arr)` lowering ends here: a splat's length is a
+    /// #342: a fresh Vec holding a clone of every element, ~self~ intact.
+    /// The ~vec(T, x, ..arr)~ lowering ends here: a splat's length is a
     /// runtime value, so the literal's block is folded into one Array with
-    /// `concat` and converted, instead of the desugar hand-building a push
+    /// ~concat~ and converted, instead of the desugar hand-building a push
     /// loop whose nodes no later pass would infer.
     to_vec := func(self: Array(T)) returns Vec(T) {
         mut out : Vec(T) = Vec(T).with_capacity(self.cap)

@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,6 +43,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -59,7 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
-<li><a class="current" href="../../src/self/builder.html">src/self/builder.til</a><ul><li><a href="#til.src.self.builder.closure_call_name">closure_call_name</a></li><li><a href="#til.src.self.builder.closure_value_name">closure_value_name</a></li><li><a href="#til.src.self.builder.emit_fcall_closure_call">emit_fcall_closure_call</a></li><li><a href="#til.src.self.builder.emit_body_closure_call">emit_body_closure_call</a></li><li><a href="#til.src.self.builder.emit_capturing_closure_value">emit_capturing_closure_value</a></li><li><a href="#til.src.self.builder.emit_capturing_closure_func">emit_capturing_closure_func</a></li><li><a href="#til.src.self.builder.emit_capturing_closures_in_expr">emit_capturing_closures_in_expr</a></li><li><a href="#til.src.self.builder.emit_capturing_closures_lp">emit_capturing_closures_lp</a></li><li><a href="#til.src.self.builder.emit_closure_runtime_types">emit_closure_runtime_types</a></li><li><a href="#til.src.self.builder.emit_funcsig_typedefs_prog">emit_funcsig_typedefs_prog</a></li><li><a href="#til.src.self.builder.build_forward_header_lp">build_forward_header_lp</a></li><li><a href="#til.src.self.builder.collect_closure_value_names">collect_closure_value_names</a></li><li><a href="#til.src.self.builder.build_register_closure_values_lp">build_register_closure_values_lp</a></li><li><a href="#til.src.self.builder.emit_dyn_fn_closure_value">emit_dyn_fn_closure_value</a></li><li><a href="#til.src.self.builder.cmd_translate">cmd_translate</a></li><li><a href="#til.src.self.builder.cmd_build">cmd_build</a></li><li><a href="#til.src.self.builder.cmd_install">cmd_install</a></li><li><a href="#til.src.self.builder.cmd_run">cmd_run</a></li><li><a href="#til.src.self.builder.cmd_test_build_run">cmd_test_build_run</a></li><li><a href="#til.src.self.builder.DocEntry">DocEntry</a></li><li><a href="#til.src.self.builder.DocCatalog">DocCatalog</a></li><li><a href="#til.src.self.builder.cmd_doc">cmd_doc</a></li><li><a href="#til.src.self.builder.Vec__DocEntry">Vec__DocEntry</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.new">Vec__DocEntry.new</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.with_capacity">Vec__DocEntry.with_capacity</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.clear">Vec__DocEntry.clear</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.delete_marked">Vec__DocEntry.delete_marked</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.push">Vec__DocEntry.push</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.append">Vec__DocEntry.append</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.take">Vec__DocEntry.take</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.move_to">Vec__DocEntry.move_to</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.move_from">Vec__DocEntry.move_from</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.unsafe_get">Vec__DocEntry.unsafe_get</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.get">Vec__DocEntry.get</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.pop">Vec__DocEntry.pop</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.remove_at">Vec__DocEntry.remove_at</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.take_prefix">Vec__DocEntry.take_prefix</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.truncate">Vec__DocEntry.truncate</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.unsafe_set">Vec__DocEntry.unsafe_set</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.set">Vec__DocEntry.set</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.push_take">Vec__DocEntry.push_take</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.delete">Vec__DocEntry.delete</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.clone">Vec__DocEntry.clone</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo">Vec__CollectionInfo</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.new">Vec__CollectionInfo.new</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.with_capacity">Vec__CollectionInfo.with_capacity</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.clear">Vec__CollectionInfo.clear</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.delete_marked">Vec__CollectionInfo.delete_marked</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.push">Vec__CollectionInfo.push</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.append">Vec__CollectionInfo.append</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.take">Vec__CollectionInfo.take</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.move_to">Vec__CollectionInfo.move_to</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.move_from">Vec__CollectionInfo.move_from</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.unsafe_get">Vec__CollectionInfo.unsafe_get</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.get">Vec__CollectionInfo.get</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.pop">Vec__CollectionInfo.pop</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.remove_at">Vec__CollectionInfo.remove_at</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.take_prefix">Vec__CollectionInfo.take_prefix</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.truncate">Vec__CollectionInfo.truncate</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.unsafe_set">Vec__CollectionInfo.unsafe_set</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.set">Vec__CollectionInfo.set</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.push_take">Vec__CollectionInfo.push_take</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.delete">Vec__CollectionInfo.delete</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.clone">Vec__CollectionInfo.clone</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo">Vec__DynCallInfo</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.new">Vec__DynCallInfo.new</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.with_capacity">Vec__DynCallInfo.with_capacity</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.clear">Vec__DynCallInfo.clear</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.delete_marked">Vec__DynCallInfo.delete_marked</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.push">Vec__DynCallInfo.push</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.append">Vec__DynCallInfo.append</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.take">Vec__DynCallInfo.take</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.move_to">Vec__DynCallInfo.move_to</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.move_from">Vec__DynCallInfo.move_from</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.unsafe_get">Vec__DynCallInfo.unsafe_get</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.get">Vec__DynCallInfo.get</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.pop">Vec__DynCallInfo.pop</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.remove_at">Vec__DynCallInfo.remove_at</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.take_prefix">Vec__DynCallInfo.take_prefix</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.truncate">Vec__DynCallInfo.truncate</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.unsafe_set">Vec__DynCallInfo.unsafe_set</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.set">Vec__DynCallInfo.set</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.push_take">Vec__DynCallInfo.push_take</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.delete">Vec__DynCallInfo.delete</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.clone">Vec__DynCallInfo.clone</a></li><li><a href="#til.src.self.builder.adopt__DocEntry">adopt__DocEntry</a></li><li><a href="#til.src.self.builder.adopt__priv___src_self_builder_til__CollectionInfo">adopt__priv___src_self_builder_til__CollectionInfo</a></li><li><a href="#til.src.self.builder.adopt__priv___src_self_builder_til__DynCallInfo">adopt__priv___src_self_builder_til__DynCallInfo</a></li></ul></li>
+<li><a class="current" href="../../src/self/builder.html">src/self/builder.til</a><ul><li><a href="#til.src.self.builder.closure_call_name">closure_call_name</a></li><li><a href="#til.src.self.builder.closure_value_name">closure_value_name</a></li><li><a href="#til.src.self.builder.emit_fcall_closure_call">emit_fcall_closure_call</a></li><li><a href="#til.src.self.builder.emit_body_closure_call">emit_body_closure_call</a></li><li><a href="#til.src.self.builder.emit_capturing_closure_value">emit_capturing_closure_value</a></li><li><a href="#til.src.self.builder.emit_capturing_closure_func">emit_capturing_closure_func</a></li><li><a href="#til.src.self.builder.emit_capturing_closures_in_expr">emit_capturing_closures_in_expr</a></li><li><a href="#til.src.self.builder.emit_capturing_closures_lp">emit_capturing_closures_lp</a></li><li><a href="#til.src.self.builder.emit_closure_runtime_types">emit_closure_runtime_types</a></li><li><a href="#til.src.self.builder.emit_funcsig_typedefs_prog">emit_funcsig_typedefs_prog</a></li><li><a href="#til.src.self.builder.build_forward_header_lp">build_forward_header_lp</a></li><li><a href="#til.src.self.builder.collect_closure_value_names">collect_closure_value_names</a></li><li><a href="#til.src.self.builder.build_register_closure_values_lp">build_register_closure_values_lp</a></li><li><a href="#til.src.self.builder.emit_dyn_fn_closure_value">emit_dyn_fn_closure_value</a></li><li><a href="#til.src.self.builder.builder_prepare_emit">builder_prepare_emit</a></li><li><a href="#til.src.self.builder.cmd_translate">cmd_translate</a></li><li><a href="#til.src.self.builder.cmd_build">cmd_build</a></li><li><a href="#til.src.self.builder.cmd_install">cmd_install</a></li><li><a href="#til.src.self.builder.cmd_run">cmd_run</a></li><li><a href="#til.src.self.builder.cmd_test_build_run">cmd_test_build_run</a></li><li><a href="#til.src.self.builder.DocEntry">DocEntry</a></li><li><a href="#til.src.self.builder.DocCatalog">DocCatalog</a></li><li><a href="#til.src.self.builder.cmd_doc">cmd_doc</a></li><li><a href="#til.src.self.builder.Map__Sym_Str">Map__Sym_Str</a></li><li><a href="#til.src.self.builder.Set__Sym">Set__Sym</a></li><li><a href="#til.src.self.builder.Vec__DocEntry">Vec__DocEntry</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.new">Vec__DocEntry.new</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.with_capacity">Vec__DocEntry.with_capacity</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.clear">Vec__DocEntry.clear</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.delete_marked">Vec__DocEntry.delete_marked</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.push">Vec__DocEntry.push</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.append">Vec__DocEntry.append</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.take">Vec__DocEntry.take</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.move_to">Vec__DocEntry.move_to</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.move_from">Vec__DocEntry.move_from</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.unsafe_get">Vec__DocEntry.unsafe_get</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.get">Vec__DocEntry.get</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.pop">Vec__DocEntry.pop</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.remove_at">Vec__DocEntry.remove_at</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.take_prefix">Vec__DocEntry.take_prefix</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.truncate">Vec__DocEntry.truncate</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.unsafe_set">Vec__DocEntry.unsafe_set</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.set">Vec__DocEntry.set</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.push_take">Vec__DocEntry.push_take</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.delete">Vec__DocEntry.delete</a></li><li><a href="#til.src.self.builder.Vec__DocEntry.clone">Vec__DocEntry.clone</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo">Vec__CollectionInfo</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.new">Vec__CollectionInfo.new</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.with_capacity">Vec__CollectionInfo.with_capacity</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.clear">Vec__CollectionInfo.clear</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.delete_marked">Vec__CollectionInfo.delete_marked</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.push">Vec__CollectionInfo.push</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.append">Vec__CollectionInfo.append</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.take">Vec__CollectionInfo.take</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.move_to">Vec__CollectionInfo.move_to</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.move_from">Vec__CollectionInfo.move_from</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.unsafe_get">Vec__CollectionInfo.unsafe_get</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.get">Vec__CollectionInfo.get</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.pop">Vec__CollectionInfo.pop</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.remove_at">Vec__CollectionInfo.remove_at</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.take_prefix">Vec__CollectionInfo.take_prefix</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.truncate">Vec__CollectionInfo.truncate</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.unsafe_set">Vec__CollectionInfo.unsafe_set</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.set">Vec__CollectionInfo.set</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.push_take">Vec__CollectionInfo.push_take</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.delete">Vec__CollectionInfo.delete</a></li><li><a href="#til.src.self.builder.Vec__CollectionInfo.clone">Vec__CollectionInfo.clone</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo">Vec__DynCallInfo</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.new">Vec__DynCallInfo.new</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.with_capacity">Vec__DynCallInfo.with_capacity</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.clear">Vec__DynCallInfo.clear</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.delete_marked">Vec__DynCallInfo.delete_marked</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.push">Vec__DynCallInfo.push</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.append">Vec__DynCallInfo.append</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.take">Vec__DynCallInfo.take</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.move_to">Vec__DynCallInfo.move_to</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.move_from">Vec__DynCallInfo.move_from</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.unsafe_get">Vec__DynCallInfo.unsafe_get</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.get">Vec__DynCallInfo.get</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.pop">Vec__DynCallInfo.pop</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.remove_at">Vec__DynCallInfo.remove_at</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.take_prefix">Vec__DynCallInfo.take_prefix</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.truncate">Vec__DynCallInfo.truncate</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.unsafe_set">Vec__DynCallInfo.unsafe_set</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.set">Vec__DynCallInfo.set</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.push_take">Vec__DynCallInfo.push_take</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.delete">Vec__DynCallInfo.delete</a></li><li><a href="#til.src.self.builder.Vec__DynCallInfo.clone">Vec__DynCallInfo.clone</a></li><li><a href="#til.src.self.builder.adopt__DocEntry">adopt__DocEntry</a></li><li><a href="#til.src.self.builder.adopt__priv___src_self_builder_til__CollectionInfo">adopt__priv___src_self_builder_til__CollectionInfo</a></li><li><a href="#til.src.self.builder.adopt__priv___src_self_builder_til__DynCallInfo">adopt__priv___src_self_builder_til__DynCallInfo</a></li></ul></li>
 </ul>
 <h2>Compiler tools</h2><ul>
 <li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
@@ -152,7 +154,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.builder.collect_closure_value_names">
 <h2>collect_closure_value_names</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc (e: Expr, mut names: Set__Str, ctx: Context)
+<pre><code class="language-til">proc (e: Expr, mut names: Set__U32, mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.build_register_closure_values_lp">
@@ -165,6 +167,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>emit_dyn_fn_closure_value</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">proc (f: File, type_name: Str, method_name: Str, suffix: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.builder_prepare_emit">
+<h2>builder_prepare_emit</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc (mut lp: LoadedProgram)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.cmd_translate">
@@ -245,6 +253,18 @@ namespace:
 <pre><code class="language-til">proc (lp: LoadedProgram, version: Str) returns shallow I32
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.builder.Map__Sym_Str">
+<h2>Map__Sym_Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.Set__Sym">
+<h2>Set__Sym</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry">
 <h2>Vec__DocEntry</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
@@ -264,7 +284,7 @@ namespace:
     func move_to(own self: Vec__DocEntry, mut dest: Vec__DocEntry)
     func move_from(mut self: Vec__DocEntry, own other: Vec__DocEntry)
     func unsafe_get(self: Vec__DocEntry, i: USize) returns ref DocEntry
-    func get(self: Vec__DocEntry, i: USize, mut _err_kind: I64) returns ref DocEntry
+    func get(self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64) returns ref DocEntry
     func pop(mut self: Vec__DocEntry) returns DocEntry
     func remove_at(mut self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DocEntry, shallow n: USize) returns Vec__DocEntry
@@ -295,11 +315,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__DocEntry.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__DocEntry
@@ -319,7 +339,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__DocEntry.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -332,7 +352,7 @@ to reach into data/count directly.</p>
 <h2>Vec__DocEntry.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, own val: DocEntry)
@@ -342,8 +362,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__DocEntry.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, own other: Vec__DocEntry)
 </code></pre>
@@ -355,7 +375,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -368,12 +388,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__DocEntry.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -386,9 +406,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__DocEntry.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, own other: Vec__DocEntry)
 </code></pre>
@@ -398,9 +418,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__DocEntry, i: USize) returns ref DocEntry
@@ -410,12 +430,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__DocEntry.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DocEntry, i: USize, mut _err_kind: I64) returns ref DocEntry
+<pre><code class="language-til">func (self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64) returns ref DocEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.pop">
@@ -432,7 +452,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__DocEntry.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -441,7 +461,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__DocEntry.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, shallow n: USize) returns Vec__DocEntry
@@ -451,9 +471,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__DocEntry.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, shallow n: USize)
@@ -463,8 +483,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__DocEntry.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, shallow i: USize, own val: DocEntry)
@@ -474,9 +494,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__DocEntry.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DocEntry, shallow i: USize, own val: DocEntry, mut _err_kind: I64)
 </code></pre>
@@ -497,7 +517,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__DocEntry, shallow call_free: Bool)
 </code></pre>
@@ -530,7 +550,7 @@ namespace:
     func move_to(own self: Vec__CollectionInfo, mut dest: Vec__CollectionInfo)
     func move_from(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
     func unsafe_get(self: Vec__CollectionInfo, i: USize) returns ref priv___src_self_builder_til__CollectionInfo
-    func get(self: Vec__CollectionInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
+    func get(self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
     func pop(mut self: Vec__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
     func remove_at(mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__CollectionInfo, shallow n: USize) returns Vec__CollectionInfo
@@ -561,11 +581,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__CollectionInfo.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__CollectionInfo
@@ -585,7 +605,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__CollectionInfo.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -598,7 +618,7 @@ to reach into data/count directly.</p>
 <h2>Vec__CollectionInfo.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, own val: priv___src_self_builder_til__CollectionInfo)
@@ -608,8 +628,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__CollectionInfo.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
 </code></pre>
@@ -621,7 +641,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -634,12 +654,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__CollectionInfo.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -652,9 +672,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__CollectionInfo.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
 </code></pre>
@@ -664,9 +684,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__CollectionInfo, i: USize) returns ref priv___src_self_builder_til__CollectionInfo
@@ -676,12 +696,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__CollectionInfo.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__CollectionInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
+<pre><code class="language-til">func (self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__CollectionInfo.pop">
@@ -698,7 +718,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__CollectionInfo.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -707,7 +727,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__CollectionInfo.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, shallow n: USize) returns Vec__CollectionInfo
@@ -717,9 +737,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__CollectionInfo.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, shallow n: USize)
@@ -729,8 +749,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__CollectionInfo.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, shallow i: USize, own val: priv___src_self_builder_til__CollectionInfo)
@@ -740,9 +760,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__CollectionInfo.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__CollectionInfo, shallow i: USize, own val: priv___src_self_builder_til__CollectionInfo, mut _err_kind: I64)
 </code></pre>
@@ -763,7 +783,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__CollectionInfo, shallow call_free: Bool)
 </code></pre>
@@ -796,7 +816,7 @@ namespace:
     func move_to(own self: Vec__DynCallInfo, mut dest: Vec__DynCallInfo)
     func move_from(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
     func unsafe_get(self: Vec__DynCallInfo, i: USize) returns ref priv___src_self_builder_til__DynCallInfo
-    func get(self: Vec__DynCallInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
+    func get(self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
     func pop(mut self: Vec__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
     func remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DynCallInfo, shallow n: USize) returns Vec__DynCallInfo
@@ -827,11 +847,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__DynCallInfo.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__DynCallInfo
@@ -851,7 +871,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__DynCallInfo.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -864,7 +884,7 @@ to reach into data/count directly.</p>
 <h2>Vec__DynCallInfo.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, own val: priv___src_self_builder_til__DynCallInfo)
@@ -874,8 +894,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__DynCallInfo.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
 </code></pre>
@@ -887,7 +907,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -900,12 +920,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__DynCallInfo.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -918,9 +938,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__DynCallInfo.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
 </code></pre>
@@ -930,9 +950,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__DynCallInfo, i: USize) returns ref priv___src_self_builder_til__DynCallInfo
@@ -942,12 +962,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__DynCallInfo.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DynCallInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
+<pre><code class="language-til">func (self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DynCallInfo.pop">
@@ -964,7 +984,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__DynCallInfo.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -973,7 +993,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__DynCallInfo.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, shallow n: USize) returns Vec__DynCallInfo
@@ -983,9 +1003,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__DynCallInfo.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, shallow n: USize)
@@ -995,8 +1015,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__DynCallInfo.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, shallow i: USize, own val: priv___src_self_builder_til__DynCallInfo)
@@ -1006,9 +1026,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__DynCallInfo.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynCallInfo, shallow i: USize, own val: priv___src_self_builder_til__DynCallInfo, mut _err_kind: I64)
 </code></pre>
@@ -1029,7 +1049,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__DynCallInfo, shallow call_free: Bool)
 </code></pre>

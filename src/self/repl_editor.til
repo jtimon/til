@@ -90,7 +90,7 @@ EditAction := enum { Continue, Submit, Eof, Bell, ClearScreen }
 /// Everything one interactive REPL owns: the line being edited, the
 /// history it recalls from, and the reverse-search sub-mode. Constructed
 /// once in run_repl and passed by mutation through every session, so a
-/// `mode X` restart keeps both the file's entries and this session's.
+/// ~mode X~ restart keeps both the file's entries and this session's.
 ReplEditor := struct {
     // True once the REPL decided both standard streams are a usable
     // console. False keeps the whole in_read_line path.
@@ -336,7 +336,7 @@ priv history_persist := proc(mut ed: ReplEditor) {
 /// Record one ACCEPTED physical line. Empty lines and consecutive
 /// duplicates are ignored. Called the moment Enter accepts a line --
 /// before parsing or evaluation -- so a syntax error or a typed
-/// `exit(0)` is still remembered.
+/// ~exit(0)~ is still remembered.
 repl_editor_history_add := proc(mut ed: ReplEditor, line: Str) {
     if line.len() == 0 { return }
     if ed.history.len() > 0 {
@@ -616,7 +616,7 @@ priv clip := func(s: Str, n: USize) returns Str {
     return s.substr(0, n).clone()
 }
 
-/// Slide the horizontal viewport until `cursor` is visible in `avail`
+/// Slide the horizontal viewport until ~cursor~ is visible in ~avail~
 /// input columns, returning the new leftmost byte. Split out of the
 /// renderer so the scrolling arithmetic is testable at narrow widths
 /// without a terminal.
@@ -706,7 +706,7 @@ repl_editor_start := proc(mut ed: ReplEditor) {
     if rc == 0 { repl_editor_history_load_str(ed, data) }
 }
 
-/// Read one PHYSICAL line with editing and history. `eof` distinguishes
+/// Read one PHYSICAL line with editing and history. ~eof~ distinguishes
 /// end of input from an empty line, exactly as in_read_line's Bool does.
 /// Terminal mode is entered here and left before returning, so nothing
 /// the REPL evaluates inherits raw console settings.

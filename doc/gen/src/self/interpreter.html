@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,6 +43,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -63,7 +65,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Compiler tools</h2><ul>
 <li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
-<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.hb_type">hb_type</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.raw_type_is_prim">raw_type_is_prim</a></li><li><a href="#til.src.self.interpreter.scalar_word_load">scalar_word_load</a></li><li><a href="#til.src.self.interpreter.field_word_type">field_word_type</a></li><li><a href="#til.src.self.interpreter.scalar_block_from_word">scalar_block_from_word</a></li><li><a href="#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a></li><li><a href="#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a></li><li><a href="#til.src.self.interpreter.raw_result_drop">raw_result_drop</a></li><li><a href="#til.src.self.interpreter.scope_set_raw_owned">scope_set_raw_owned</a></li><li><a href="#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_pool_drain">scope_pool_drain</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a></li><li><a href="#til.src.self.interpreter.interp_intern_type">interp_intern_type</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_new_owned">scope_new_owned</a></li><li><a href="#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a></li><li><a href="#til.src.self.interpreter.scope_drop_owned_bindings">scope_drop_owned_bindings</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.dispatch_result_alloc">dispatch_result_alloc</a></li><li><a href="#til.src.self.interpreter.str_copy_into">str_copy_into</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.new">Map__Str_HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.with_capacity">Map__Str_HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.clear">Map__Str_HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.has">Map__Str_HeapBinding.has</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.get">Map__Str_HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.set">Map__Str_HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.remove">Map__Str_HeapBinding.remove</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding">Option__ref_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.unwrap">Option__ref_HeapBinding.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.take">Option__ref_HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox">Vec__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.new">Vec__DynPtrBox.new</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.with_capacity">Vec__DynPtrBox.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.clear">Vec__DynPtrBox.clear</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.delete_marked">Vec__DynPtrBox.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.push">Vec__DynPtrBox.push</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.append">Vec__DynPtrBox.append</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.take">Vec__DynPtrBox.take</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.move_to">Vec__DynPtrBox.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.move_from">Vec__DynPtrBox.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.unsafe_get">Vec__DynPtrBox.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.get">Vec__DynPtrBox.get</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.pop">Vec__DynPtrBox.pop</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.remove_at">Vec__DynPtrBox.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.take_prefix">Vec__DynPtrBox.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.truncate">Vec__DynPtrBox.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.unsafe_set">Vec__DynPtrBox.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.set">Vec__DynPtrBox.set</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.push_take">Vec__DynPtrBox.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.delete">Vec__DynPtrBox.delete</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.clone">Vec__DynPtrBox.clone</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type">Option__ref_ffi_type</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.unwrap">Option__ref_ffi_type.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.take">Option__ref_ffi_type.take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.new">Vec__HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.with_capacity">Vec__HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clear">Vec__HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete_marked">Vec__HeapBinding.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push">Vec__HeapBinding.push</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.append">Vec__HeapBinding.append</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take">Vec__HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_to">Vec__HeapBinding.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_from">Vec__HeapBinding.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_get">Vec__HeapBinding.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.get">Vec__HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.pop">Vec__HeapBinding.pop</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.remove_at">Vec__HeapBinding.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take_prefix">Vec__HeapBinding.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.truncate">Vec__HeapBinding.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_set">Vec__HeapBinding.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.set">Vec__HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push_take">Vec__HeapBinding.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete">Vec__HeapBinding.delete</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clone">Vec__HeapBinding.clone</a></li><li><a href="#til.src.self.interpreter.adopt__HeapBinding">adopt__HeapBinding</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__DynPtrBox">adopt__priv___src_self_interpreter_til__DynPtrBox</a></li></ul></li>
+<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.hb_type">hb_type</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.raw_type_is_prim">raw_type_is_prim</a></li><li><a href="#til.src.self.interpreter.scalar_word_load">scalar_word_load</a></li><li><a href="#til.src.self.interpreter.field_word_type">field_word_type</a></li><li><a href="#til.src.self.interpreter.scalar_block_from_word">scalar_block_from_word</a></li><li><a href="#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a></li><li><a href="#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a></li><li><a href="#til.src.self.interpreter.raw_result_drop">raw_result_drop</a></li><li><a href="#til.src.self.interpreter.scope_set_raw_owned">scope_set_raw_owned</a></li><li><a href="#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_pool_drain">scope_pool_drain</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.hb_func_def">hb_func_def</a></li><li><a href="#til.src.self.interpreter.ns_func_def">ns_func_def</a></li><li><a href="#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a></li><li><a href="#til.src.self.interpreter.interp_intern_type">interp_intern_type</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_new_owned">scope_new_owned</a></li><li><a href="#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a></li><li><a href="#til.src.self.interpreter.scope_drop_owned_bindings">scope_drop_owned_bindings</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.dispatch_result_alloc">dispatch_result_alloc</a></li><li><a href="#til.src.self.interpreter.str_copy_into">str_copy_into</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.new">Map__Str_HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.with_capacity">Map__Str_HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.clear">Map__Str_HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.has">Map__Str_HeapBinding.has</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.get">Map__Str_HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.set">Map__Str_HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.remove">Map__Str_HeapBinding.remove</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding">Option__ref_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.unwrap">Option__ref_HeapBinding.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.take">Option__ref_HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic">Option__ref_Dynamic</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic.unwrap">Option__ref_Dynamic.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic.take">Option__ref_Dynamic.take</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox">Vec__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.new">Vec__DynPtrBox.new</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.with_capacity">Vec__DynPtrBox.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.clear">Vec__DynPtrBox.clear</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.delete_marked">Vec__DynPtrBox.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.push">Vec__DynPtrBox.push</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.append">Vec__DynPtrBox.append</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.take">Vec__DynPtrBox.take</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.move_to">Vec__DynPtrBox.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.move_from">Vec__DynPtrBox.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.unsafe_get">Vec__DynPtrBox.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.get">Vec__DynPtrBox.get</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.pop">Vec__DynPtrBox.pop</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.remove_at">Vec__DynPtrBox.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.take_prefix">Vec__DynPtrBox.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.truncate">Vec__DynPtrBox.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.unsafe_set">Vec__DynPtrBox.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.set">Vec__DynPtrBox.set</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.push_take">Vec__DynPtrBox.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.delete">Vec__DynPtrBox.delete</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox.clone">Vec__DynPtrBox.clone</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias">Vec__InterpAlias</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.new">Vec__InterpAlias.new</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.with_capacity">Vec__InterpAlias.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.clear">Vec__InterpAlias.clear</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.delete_marked">Vec__InterpAlias.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.push">Vec__InterpAlias.push</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.append">Vec__InterpAlias.append</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.take">Vec__InterpAlias.take</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.move_to">Vec__InterpAlias.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.move_from">Vec__InterpAlias.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.unsafe_get">Vec__InterpAlias.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.get">Vec__InterpAlias.get</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.pop">Vec__InterpAlias.pop</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.remove_at">Vec__InterpAlias.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.take_prefix">Vec__InterpAlias.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.truncate">Vec__InterpAlias.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.unsafe_set">Vec__InterpAlias.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.set">Vec__InterpAlias.set</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.push_take">Vec__InterpAlias.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.delete">Vec__InterpAlias.delete</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias.clone">Vec__InterpAlias.clone</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type">Option__ref_ffi_type</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.unwrap">Option__ref_ffi_type.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.take">Option__ref_ffi_type.take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.new">Vec__HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.with_capacity">Vec__HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clear">Vec__HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete_marked">Vec__HeapBinding.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push">Vec__HeapBinding.push</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.append">Vec__HeapBinding.append</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take">Vec__HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_to">Vec__HeapBinding.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_from">Vec__HeapBinding.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_get">Vec__HeapBinding.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.get">Vec__HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.pop">Vec__HeapBinding.pop</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.remove_at">Vec__HeapBinding.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take_prefix">Vec__HeapBinding.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.truncate">Vec__HeapBinding.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_set">Vec__HeapBinding.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.set">Vec__HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push_take">Vec__HeapBinding.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete">Vec__HeapBinding.delete</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clone">Vec__HeapBinding.clone</a></li><li><a href="#til.src.self.interpreter.adopt__HeapBinding">adopt__HeapBinding</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__DynPtrBox">adopt__priv___src_self_interpreter_til__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__InterpAlias">adopt__priv___src_self_interpreter_til__InterpAlias</a></li></ul></li>
 <li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
 <h2>CLI</h2><ul>
@@ -239,13 +241,25 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.scope_new">
 <h2>scope_new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (shallow parent: Option__ref_Scope) returns Scope
+<pre><code class="language-til">func (parent: Option__ref_Scope) returns Scope
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_lookup_heap_binding">
 <h2>scope_lookup_heap_binding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">func (mut s: Scope, name: Str) returns shallow Option__ref_HeapBinding
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.hb_func_def">
+<h2>hb_func_def</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func (hb: HeapBinding) returns shallow Option__ref_Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.ns_func_def">
+<h2>ns_func_def</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func (sname: Str, fname: Str, mut ctx: Context) returns shallow Option__ref_Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_read_bound_raw">
@@ -275,7 +289,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.scope_new_owned">
 <h2>scope_new_owned</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (shallow parent: Option__ref_Scope) returns Scope
+<pre><code class="language-til">func (parent: Option__ref_Scope) returns Scope
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_new_boxed">
@@ -565,7 +579,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.</p>
+The key type must implement <code>cmp</code>.</p>
 </div>
 <pre><code class="language-til">func () returns Map__Str_HeapBinding
 </code></pre>
@@ -574,8 +588,8 @@ The key type must implement `cmp`.</p>
 <h2>Map__Str_HeapBinding.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+<p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
+<code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Map__Str_HeapBinding
@@ -603,8 +617,8 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <h2>Map__Str_HeapBinding.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+<p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
+<code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
 on a missing key.</p>
 </div>
 <pre><code class="language-til">func (self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64) returns ref HeapBinding
@@ -614,7 +628,7 @@ on a missing key.</p>
 <h2>Map__Str_HeapBinding.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Insert or overwrite the value for `key`. The value is owned.</p>
+<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)
 </code></pre>
@@ -623,7 +637,7 @@ on a missing key.</p>
 <h2>Map__Str_HeapBinding.remove</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Remove `key`, dropping its key and value. Returns false if absent.</p>
+<p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_HeapBinding, key: Str) returns shallow Bool
 </code></pre>
@@ -654,9 +668,9 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
 <p>The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.</p>
@@ -673,10 +687,61 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.</p>
 </div>
 <pre><code class="language-til">func (own self: Option__ref_HeapBinding) returns ref HeapBinding
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Option__ref_Dynamic">
+<h2>Option__ref_Dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">enum {
+    None
+    Some: Dynamic
+namespace:
+    func is_some(shallow self: Option__ref_Dynamic) returns shallow Bool
+    func is_none(shallow self: Option__ref_Dynamic) returns shallow Bool
+    func unwrap_or(self: Option__ref_Dynamic, default_v: Dynamic) returns ref Dynamic
+    func unwrap(self: Option__ref_Dynamic) returns ref Dynamic
+    func take(own self: Option__ref_Dynamic) returns ref Dynamic
+    ext_func None() returns shallow Option__ref_Dynamic
+    ext_func Some(val: Dynamic) returns shallow Option__ref_Dynamic
+    core_func is(self: Option__ref_Dynamic, other: Option__ref_Dynamic) returns shallow Bool
+    func delete(own self: Option__ref_Dynamic, shallow call_free: Bool)
+    func clone(self: Option__ref_Dynamic) returns shallow Option__ref_Dynamic
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Option__ref_Dynamic.unwrap">
+<h2>Option__ref_Dynamic.unwrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__ref_Dynamic) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Option__ref_Dynamic.take">
+<h2>Option__ref_Dynamic.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__ref_Dynamic) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__DynPtrBox">
@@ -698,7 +763,7 @@ namespace:
     func move_to(own self: Vec__DynPtrBox, mut dest: Vec__DynPtrBox)
     func move_from(mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
     func unsafe_get(self: Vec__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
-    func get(self: Vec__DynPtrBox, i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+    func get(self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
     func pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
     func remove_at(mut self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DynPtrBox, shallow n: USize) returns Vec__DynPtrBox
@@ -729,11 +794,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__DynPtrBox.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__DynPtrBox
@@ -753,7 +818,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__DynPtrBox.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -766,7 +831,7 @@ to reach into data/count directly.</p>
 <h2>Vec__DynPtrBox.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
@@ -776,8 +841,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__DynPtrBox.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
 </code></pre>
@@ -789,7 +854,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -802,12 +867,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__DynPtrBox.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -820,9 +885,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__DynPtrBox.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
 </code></pre>
@@ -832,9 +897,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
@@ -844,12 +909,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__DynPtrBox.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DynPtrBox, i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+<pre><code class="language-til">func (self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__DynPtrBox.pop">
@@ -866,7 +931,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__DynPtrBox.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -875,7 +940,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__DynPtrBox.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, shallow n: USize) returns Vec__DynPtrBox
@@ -885,9 +950,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__DynPtrBox.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, shallow n: USize)
@@ -897,8 +962,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__DynPtrBox.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox)
@@ -908,9 +973,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__DynPtrBox.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
 </code></pre>
@@ -931,7 +996,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__DynPtrBox, shallow call_free: Bool)
 </code></pre>
@@ -943,6 +1008,272 @@ unless `call_free` is false.</p>
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
 <pre><code class="language-til">func (self: Vec__DynPtrBox) returns Vec__DynPtrBox
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias">
+<h2>Vec__InterpAlias</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__InterpAlias
+    func with_capacity(shallow n: USize) returns Vec__InterpAlias
+    func len(self: Vec__InterpAlias) returns shallow USize
+    func clear(mut self: Vec__InterpAlias)
+    func delete_marked(mut self: Vec__InterpAlias, marks: Dynamic)
+    func push(mut self: Vec__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
+    func append(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+    func take(mut self: Vec__InterpAlias) returns Vec__InterpAlias
+    func move_to(own self: Vec__InterpAlias, mut dest: Vec__InterpAlias)
+    func move_from(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+    func unsafe_get(self: Vec__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
+    func get(self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+    func pop(mut self: Vec__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
+    func remove_at(mut self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__InterpAlias, shallow n: USize) returns Vec__InterpAlias
+    func truncate(mut self: Vec__InterpAlias, shallow n: USize)
+    func unsafe_set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
+    func set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
+    func push_take(mut self: Vec__InterpAlias, mut src: Vec__InterpAlias, shallow i: USize)
+    func delete(own self: Vec__InterpAlias, shallow call_free: Bool)
+    func clone(self: Vec__InterpAlias) returns Vec__InterpAlias
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.new">
+<h2>Vec__InterpAlias.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__InterpAlias
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.with_capacity">
+<h2>Vec__InterpAlias.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__InterpAlias
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.clear">
+<h2>Vec__InterpAlias.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.delete_marked">
+<h2>Vec__InterpAlias.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.push">
+<h2>Vec__InterpAlias.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. <code>val</code> is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.append">
+<h2>Vec__InterpAlias.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.take">
+<h2>Vec__InterpAlias.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias) returns Vec__InterpAlias
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.move_to">
+<h2>Vec__InterpAlias.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__InterpAlias, mut dest: Vec__InterpAlias)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.move_from">
+<h2>Vec__InterpAlias.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: <code>dest.move_from(own src)</code>.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.unsafe_get">
+<h2>Vec__InterpAlias.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.get">
+<h2>Vec__InterpAlias.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.pop">
+<h2>Vec__InterpAlias.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.remove_at">
+<h2>Vec__InterpAlias.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.take_prefix">
+<h2>Vec__InterpAlias.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow n: USize) returns Vec__InterpAlias
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.truncate">
+<h2>Vec__InterpAlias.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.unsafe_set">
+<h2>Vec__InterpAlias.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.set">
+<h2>Vec__InterpAlias.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.push_take">
+<h2>Vec__InterpAlias.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, mut src: Vec__InterpAlias, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.delete">
+<h2>Vec__InterpAlias.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless <code>call_free</code> is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__InterpAlias, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Vec__InterpAlias.clone">
+<h2>Vec__InterpAlias.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__InterpAlias) returns Vec__InterpAlias
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Option__ref_ffi_type">
@@ -971,9 +1302,9 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
 <p>The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.</p>
@@ -990,7 +1321,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.</p>
 </div>
 <pre><code class="language-til">func (own self: Option__ref_ffi_type) returns ref ffi_type
@@ -1015,7 +1346,7 @@ namespace:
     func move_to(own self: Vec__HeapBinding, mut dest: Vec__HeapBinding)
     func move_from(mut self: Vec__HeapBinding, own other: Vec__HeapBinding)
     func unsafe_get(self: Vec__HeapBinding, i: USize) returns ref HeapBinding
-    func get(self: Vec__HeapBinding, i: USize, mut _err_kind: I64) returns ref HeapBinding
+    func get(self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64) returns ref HeapBinding
     func pop(mut self: Vec__HeapBinding) returns HeapBinding
     func remove_at(mut self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__HeapBinding, shallow n: USize) returns Vec__HeapBinding
@@ -1046,11 +1377,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__HeapBinding.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__HeapBinding
@@ -1070,7 +1401,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__HeapBinding.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -1083,7 +1414,7 @@ to reach into data/count directly.</p>
 <h2>Vec__HeapBinding.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, own val: HeapBinding)
@@ -1093,8 +1424,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__HeapBinding.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, own other: Vec__HeapBinding)
 </code></pre>
@@ -1106,7 +1437,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -1119,12 +1450,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__HeapBinding.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -1137,9 +1468,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__HeapBinding.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, own other: Vec__HeapBinding)
 </code></pre>
@@ -1149,9 +1480,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__HeapBinding, i: USize) returns ref HeapBinding
@@ -1161,12 +1492,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__HeapBinding.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__HeapBinding, i: USize, mut _err_kind: I64) returns ref HeapBinding
+<pre><code class="language-til">func (self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64) returns ref HeapBinding
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.pop">
@@ -1183,7 +1514,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__HeapBinding.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -1192,7 +1523,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__HeapBinding.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, shallow n: USize) returns Vec__HeapBinding
@@ -1202,9 +1533,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__HeapBinding.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, shallow n: USize)
@@ -1214,8 +1545,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__HeapBinding.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, shallow i: USize, own val: HeapBinding)
@@ -1225,9 +1556,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__HeapBinding.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__HeapBinding, shallow i: USize, own val: HeapBinding, mut _err_kind: I64)
 </code></pre>
@@ -1248,7 +1579,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__HeapBinding, shallow call_free: Bool)
 </code></pre>
@@ -1272,6 +1603,12 @@ unless `call_free` is false.</p>
 <h2>adopt__priv___src_self_interpreter_til__DynPtrBox</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_interpreter_til__DynPtrBox)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.adopt__priv___src_self_interpreter_til__InterpAlias">
+<h2>adopt__priv___src_self_interpreter_til__InterpAlias</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_interpreter_til__InterpAlias)
 </code></pre>
 </article>
 </main></div>

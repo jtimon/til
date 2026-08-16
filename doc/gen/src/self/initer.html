@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,13 +43,15 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
-<li><a class="current" href="../../src/self/initer.html">src/self/initer.til</a><ul><li><a href="#til.src.self.initer.collect_enum_variants">collect_enum_variants</a></li><li><a href="#til.src.self.initer.register_funcsig_alias_for_stmt">register_funcsig_alias_for_stmt</a></li><li><a href="#til.src.self.initer.register_function_def_for_stmt">register_function_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_struct_size_method_for_stmt">gen_struct_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_size_method_for_stmt">gen_enum_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_unity_derived_for_stmt">gen_unity_derived_for_stmt</a></li><li><a href="#til.src.self.initer.gen_cmp_derived_for_stmt">gen_cmp_derived_for_stmt</a></li><li><a href="#til.src.self.initer.compute_struct_layout">compute_struct_layout</a></li><li><a href="#til.src.self.initer.compute_enum_layout">compute_enum_layout</a></li><li><a href="#til.src.self.initer.ctx_total_size">ctx_total_size</a></li><li><a href="#til.src.self.initer.EMPTY_FIELD_LAYOUT">EMPTY_FIELD_LAYOUT</a></li><li><a href="#til.src.self.initer.ctx_field_layout">ctx_field_layout</a></li><li><a href="#til.src.self.initer.init_lift_in_body">init_lift_in_body</a></li><li><a href="#til.src.self.initer.init_refresh_seeded_scope_defs">init_refresh_seeded_scope_defs</a></li><li><a href="#til.src.self.initer.GenericSources">GenericSources</a></li><li><a href="#til.src.self.initer.generic_instantiate">generic_instantiate</a></li><li><a href="#til.src.self.initer.init_scan_unresolved_generic_calls">init_scan_unresolved_generic_calls</a></li><li><a href="#til.src.self.initer.init_retire_generic_sources">init_retire_generic_sources</a></li><li><a href="#til.src.self.initer.init_declarations_global">init_declarations_global</a></li><li><a href="#til.src.self.initer.count_ast_imports">count_ast_imports</a></li><li><a href="#til.src.self.initer.init_file">init_file</a></li><li><a href="#til.src.self.initer.init_repl_delta">init_repl_delta</a></li><li><a href="#til.src.self.initer.clone_call_type_name">clone_call_type_name</a></li><li><a href="#til.src.self.initer.is_pod_enum_clone_of">is_pod_enum_clone_of</a></li><li><a href="#til.src.self.initer.Map__Str_I64">Map__Str_I64</a></li><li><a href="#til.src.self.initer.Map__Str_I64.new">Map__Str_I64.new</a></li><li><a href="#til.src.self.initer.Map__Str_I64.with_capacity">Map__Str_I64.with_capacity</a></li><li><a href="#til.src.self.initer.Map__Str_I64.clear">Map__Str_I64.clear</a></li><li><a href="#til.src.self.initer.Map__Str_I64.has">Map__Str_I64.has</a></li><li><a href="#til.src.self.initer.Map__Str_I64.get">Map__Str_I64.get</a></li><li><a href="#til.src.self.initer.Map__Str_I64.set">Map__Str_I64.set</a></li><li><a href="#til.src.self.initer.Map__Str_I64.remove">Map__Str_I64.remove</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.new">Map__Str_GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.with_capacity">Map__Str_GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.clear">Map__Str_GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.has">Map__Str_GenericFuncSource.has</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.get">Map__Str_GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.set">Map__Str_GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.remove">Map__Str_GenericFuncSource.remove</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource">Vec__GenericFuncSource</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.new">Vec__GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.with_capacity">Vec__GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clear">Vec__GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete_marked">Vec__GenericFuncSource.delete_marked</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push">Vec__GenericFuncSource.push</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.append">Vec__GenericFuncSource.append</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take">Vec__GenericFuncSource.take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_to">Vec__GenericFuncSource.move_to</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_from">Vec__GenericFuncSource.move_from</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_get">Vec__GenericFuncSource.unsafe_get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.get">Vec__GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.pop">Vec__GenericFuncSource.pop</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.remove_at">Vec__GenericFuncSource.remove_at</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take_prefix">Vec__GenericFuncSource.take_prefix</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.truncate">Vec__GenericFuncSource.truncate</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_set">Vec__GenericFuncSource.unsafe_set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.set">Vec__GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push_take">Vec__GenericFuncSource.push_take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete">Vec__GenericFuncSource.delete</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clone">Vec__GenericFuncSource.clone</a></li><li><a href="#til.src.self.initer.adopt__GenericFuncSource">adopt__GenericFuncSource</a></li></ul></li>
+<li><a class="current" href="../../src/self/initer.html">src/self/initer.til</a><ul><li><a href="#til.src.self.initer.collect_enum_variants">collect_enum_variants</a></li><li><a href="#til.src.self.initer.register_funcsig_alias_for_stmt">register_funcsig_alias_for_stmt</a></li><li><a href="#til.src.self.initer.register_function_def_for_stmt">register_function_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_struct_size_method_for_stmt">gen_struct_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_size_method_for_stmt">gen_enum_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_unity_derived_for_stmt">gen_unity_derived_for_stmt</a></li><li><a href="#til.src.self.initer.gen_cmp_derived_for_stmt">gen_cmp_derived_for_stmt</a></li><li><a href="#til.src.self.initer.compute_struct_layout">compute_struct_layout</a></li><li><a href="#til.src.self.initer.compute_enum_layout">compute_enum_layout</a></li><li><a href="#til.src.self.initer.ctx_total_size">ctx_total_size</a></li><li><a href="#til.src.self.initer.EMPTY_FIELD_LAYOUT">EMPTY_FIELD_LAYOUT</a></li><li><a href="#til.src.self.initer.ctx_field_layout">ctx_field_layout</a></li><li><a href="#til.src.self.initer.init_lift_in_body">init_lift_in_body</a></li><li><a href="#til.src.self.initer.init_refresh_seeded_scope_defs">init_refresh_seeded_scope_defs</a></li><li><a href="#til.src.self.initer.GenericSources">GenericSources</a></li><li><a href="#til.src.self.initer.generic_instantiate">generic_instantiate</a></li><li><a href="#til.src.self.initer.init_scan_unresolved_generic_calls">init_scan_unresolved_generic_calls</a></li><li><a href="#til.src.self.initer.init_retire_generic_sources">init_retire_generic_sources</a></li><li><a href="#til.src.self.initer.init_declarations_global">init_declarations_global</a></li><li><a href="#til.src.self.initer.count_ast_imports">count_ast_imports</a></li><li><a href="#til.src.self.initer.init_file">init_file</a></li><li><a href="#til.src.self.initer.init_repl_delta">init_repl_delta</a></li><li><a href="#til.src.self.initer.clone_call_type_name">clone_call_type_name</a></li><li><a href="#til.src.self.initer.is_pod_enum_clone_of">is_pod_enum_clone_of</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.new">Map__Str_GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.with_capacity">Map__Str_GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.clear">Map__Str_GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.has">Map__Str_GenericFuncSource.has</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.get">Map__Str_GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.set">Map__Str_GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.remove">Map__Str_GenericFuncSource.remove</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource">Vec__GenericFuncSource</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.new">Vec__GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.with_capacity">Vec__GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clear">Vec__GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete_marked">Vec__GenericFuncSource.delete_marked</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push">Vec__GenericFuncSource.push</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.append">Vec__GenericFuncSource.append</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take">Vec__GenericFuncSource.take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_to">Vec__GenericFuncSource.move_to</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_from">Vec__GenericFuncSource.move_from</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_get">Vec__GenericFuncSource.unsafe_get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.get">Vec__GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.pop">Vec__GenericFuncSource.pop</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.remove_at">Vec__GenericFuncSource.remove_at</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take_prefix">Vec__GenericFuncSource.take_prefix</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.truncate">Vec__GenericFuncSource.truncate</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_set">Vec__GenericFuncSource.unsafe_set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.set">Vec__GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push_take">Vec__GenericFuncSource.push_take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete">Vec__GenericFuncSource.delete</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clone">Vec__GenericFuncSource.clone</a></li><li><a href="#til.src.self.initer.adopt__GenericFuncSource">adopt__GenericFuncSource</a></li></ul></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
 <li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
@@ -110,7 +112,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.initer.gen_enum_size_method_for_stmt">
 <h2>gen_enum_size_method_for_stmt</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (mut stmt: Expr, scope: TypeScope, mut ctx: Context)
+<pre><code class="language-til">proc (mut stmt: Expr, mut scope: TypeScope, mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.gen_unity_derived_for_stmt">
@@ -128,13 +130,13 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.initer.compute_struct_layout">
 <h2>compute_struct_layout</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (name: Str, mut struct_def: Expr, scope: TypeScope, mut ctx: Context)
+<pre><code class="language-til">proc (name: Str, mut struct_def: Expr, mut scope: TypeScope, mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.compute_enum_layout">
 <h2>compute_enum_layout</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (name: Str, enum_def: Expr, scope: TypeScope, mut ctx: Context) returns shallow USize
+<pre><code class="language-til">proc (name: Str, enum_def: Expr, mut scope: TypeScope, mut ctx: Context) returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.ctx_total_size">
@@ -236,96 +238,6 @@ namespace:
 <pre><code class="language-til">func (e: Expr, shallow edef_o: Option__ref_Expr) returns shallow Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64">
-<h2>Map__Str_I64</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">struct {
-    mut keys : Vec__Str
-    mut values : Vec__I64
-namespace:
-    func new() returns Map__Str_I64
-    func with_capacity(shallow n: USize) returns Map__Str_I64
-    func len(self: Map__Str_I64) returns shallow USize
-    func clear(mut self: Map__Str_I64)
-    func has(self: Map__Str_I64, key: Str) returns shallow Bool
-    func get(self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
-    func set(mut self: Map__Str_I64, key: Str, own val: I64)
-    func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_I64, shallow call_free: Bool)
-    func clone(self: Map__Str_I64) returns Map__Str_I64
-    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64.new">
-<h2>Map__Str_I64.new</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.</p>
-</div>
-<pre><code class="language-til">func () returns Map__Str_I64
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64.with_capacity">
-<h2>Map__Str_I64.with_capacity</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
-counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
-</div>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_I64
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64.clear">
-<h2>Map__Str_I64.clear</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
-</div>
-<pre><code class="language-til">func (mut self: Map__Str_I64)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64.has">
-<h2>Map__Str_I64.has</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>True if a value exists for the given key.</p>
-</div>
-<pre><code class="language-til">func (self: Map__Str_I64, key: Str) returns shallow Bool
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64.get">
-<h2>Map__Str_I64.get</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
-on a missing key.</p>
-</div>
-<pre><code class="language-til">func (self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64.set">
-<h2>Map__Str_I64.set</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>Insert or overwrite the value for `key`. The value is owned.</p>
-</div>
-<pre><code class="language-til">func (mut self: Map__Str_I64, key: Str, own val: I64)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.initer.Map__Str_I64.remove">
-<h2>Map__Str_I64.remove</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>Remove `key`, dropping its key and value. Returns false if absent.</p>
-</div>
-<pre><code class="language-til">func (mut self: Map__Str_I64, key: Str) returns shallow Bool
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.initer.Map__Str_GenericFuncSource">
 <h2>Map__Str_GenericFuncSource</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -353,7 +265,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.</p>
+The key type must implement <code>cmp</code>.</p>
 </div>
 <pre><code class="language-til">func () returns Map__Str_GenericFuncSource
 </code></pre>
@@ -362,8 +274,8 @@ The key type must implement `cmp`.</p>
 <h2>Map__Str_GenericFuncSource.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+<p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
+<code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Map__Str_GenericFuncSource
@@ -391,8 +303,8 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <h2>Map__Str_GenericFuncSource.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+<p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
+<code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
 on a missing key.</p>
 </div>
 <pre><code class="language-til">func (self: Map__Str_GenericFuncSource, key: Str, mut _err_kind: I64) returns ref GenericFuncSource
@@ -402,7 +314,7 @@ on a missing key.</p>
 <h2>Map__Str_GenericFuncSource.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Insert or overwrite the value for `key`. The value is owned.</p>
+<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_GenericFuncSource, key: Str, own val: GenericFuncSource)
 </code></pre>
@@ -411,7 +323,7 @@ on a missing key.</p>
 <h2>Map__Str_GenericFuncSource.remove</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Remove `key`, dropping its key and value. Returns false if absent.</p>
+<p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
 </code></pre>
@@ -435,7 +347,7 @@ namespace:
     func move_to(own self: Vec__GenericFuncSource, mut dest: Vec__GenericFuncSource)
     func move_from(mut self: Vec__GenericFuncSource, own other: Vec__GenericFuncSource)
     func unsafe_get(self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
-    func get(self: Vec__GenericFuncSource, i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+    func get(self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
     func pop(mut self: Vec__GenericFuncSource) returns GenericFuncSource
     func remove_at(mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
@@ -466,11 +378,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__GenericFuncSource.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__GenericFuncSource
@@ -490,7 +402,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__GenericFuncSource.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -503,7 +415,7 @@ to reach into data/count directly.</p>
 <h2>Vec__GenericFuncSource.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, own val: GenericFuncSource)
@@ -513,8 +425,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__GenericFuncSource.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, own other: Vec__GenericFuncSource)
 </code></pre>
@@ -526,7 +438,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -539,12 +451,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__GenericFuncSource.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -557,9 +469,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__GenericFuncSource.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, own other: Vec__GenericFuncSource)
 </code></pre>
@@ -569,9 +481,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
@@ -581,12 +493,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__GenericFuncSource.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GenericFuncSource, i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+<pre><code class="language-til">func (self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.pop">
@@ -603,7 +515,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__GenericFuncSource.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -612,7 +524,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__GenericFuncSource.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
@@ -622,9 +534,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__GenericFuncSource.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow n: USize)
@@ -634,8 +546,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__GenericFuncSource.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource)
@@ -645,9 +557,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__GenericFuncSource.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource, mut _err_kind: I64)
 </code></pre>
@@ -668,7 +580,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__GenericFuncSource, shallow call_free: Bool)
 </code></pre>

@@ -1,5 +1,5 @@
 #+TITLE: src/self/targets.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * Lang
@@ -188,6 +188,16 @@ func target_system_libs(target: Target) returns Str
 
 #+begin_src til
 func target_ffi_lib(target: Target) returns Str
+#+end_src
+
+* target_ffi_build_hint
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_ffi_build_hint
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func target_ffi_build_hint(target: Target) returns Str
 #+end_src
 
 * target_gui_libs

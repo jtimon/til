@@ -56,11 +56,11 @@ namespace:
         return DynHashMap.new_type_names(key_type, val_type)
     }
 
-    /// Create an empty DynHashMap pre-sized for `n` entries
+    /// Create an empty DynHashMap pre-sized for ~n~ entries
     /// (HashMap.with_capacity's counterpart; the key/value types are
-    /// runtime arguments here, as for `new`). Sizes the dense
+    /// runtime arguments here, as for ~new~). Sizes the dense
     /// keys/values/nexts arrays and grows the bucket array by doubling
-    /// until `n` fits under the 0.75 load factor, so inserting up to `n`
+    /// until ~n~ fits under the 0.75 load factor, so inserting up to ~n~
     /// never rehashes.
     with_capacity := func(K: Type, V: Type, n: USize) returns DynHashMap {
         mut m := DynHashMap.new(K, V)
@@ -144,8 +144,8 @@ namespace:
         return self.find(key) >= 0
     }
 
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` to panic on a missing
+    /// Return a ref to the value for ~key~. Throws KeyNotFound if
+    /// ~key~ is absent; call as ~map.get(k)!~ to panic on a missing
     /// key. Same contract as DynMap.get.
     get := func(self: DynHashMap, key: Dynamic) returns ref Dynamic throws KeyNotFound {
         idx := self.find(key)
@@ -153,9 +153,9 @@ namespace:
         return self.values.unsafe_get(idx.to_usize())
     }
 
-    /// The map's own stored hash of `key` -- the exact value hash_key
+    /// The map's own stored hash of ~key~ -- the exact value hash_key
     /// computed when the entry was inserted, retrieved rather than
-    /// recomputed. Throws KeyNotFound if `key` is absent.
+    /// recomputed. Throws KeyNotFound if ~key~ is absent.
     stored_hash := func(self: DynHashMap, key: Dynamic) returns U64 throws KeyNotFound {
         idx := self.find(key)
         if idx < 0 { throw KeyNotFound() }
@@ -245,7 +245,7 @@ namespace:
         if call_free { free(own self) }
     }
 
-    /// Remove `key`, dropping its key and value. Returns false if
+    /// Remove ~key~, dropping its key and value. Returns false if
     /// absent (same contract as DynMap.remove / core Map.remove).
     remove := func(mut self: DynHashMap, key: Dynamic) returns Bool {
         if self.keys.count == 0 { return false }

@@ -1,5 +1,5 @@
 #+TITLE: src/self/repl_editor.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * repl_term_is_interactive
@@ -423,7 +423,7 @@ namespace:
 Everything one interactive REPL owns: the line being edited, the
 history it recalls from, and the reverse-search sub-mode. Constructed
 once in run_repl and passed by mutation through every session, so a
-`mode X` restart keeps both the file's entries and this session's.
+~mode X~ restart keeps both the file's entries and this session's.
 
 #+begin_src til
 struct ReplEditor {
@@ -533,7 +533,7 @@ func repl_editor_history_load_str(mut ed: ReplEditor, data: Str)
 Record one ACCEPTED physical line. Empty lines and consecutive
 duplicates are ignored. Called the moment Enter accepts a line --
 before parsing or evaluation -- so a syntax error or a typed
-`exit(0)` is still remembered.
+~exit(0)~ is still remembered.
 
 #+begin_src til
 proc repl_editor_history_add(mut ed: ReplEditor, line: Str)
@@ -557,7 +557,7 @@ func repl_editor_apply_key(mut ed: ReplEditor, shallow key: I64) returns EditAct
 :CUSTOM_ID: til.src.self.repl_editor.repl_editor_viewport
 :END:
 
-Slide the horizontal viewport until `cursor` is visible in `avail`
+Slide the horizontal viewport until ~cursor~ is visible in ~avail~
 input columns, returning the new leftmost byte. Split out of the
 renderer so the scrolling arithmetic is testable at narrow widths
 without a terminal.
@@ -584,7 +584,7 @@ proc repl_editor_start(mut ed: ReplEditor)
 :CUSTOM_ID: til.src.self.repl_editor.repl_editor_read_line
 :END:
 
-Read one PHYSICAL line with editing and history. `eof` distinguishes
+Read one PHYSICAL line with editing and history. ~eof~ distinguishes
 end of input from an empty line, exactly as in_read_line's Bool does.
 Terminal mode is entered here and left before returning, so nothing
 the REPL evaluates inherits raw console settings.

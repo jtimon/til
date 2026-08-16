@@ -34,14 +34,14 @@ namespace:
     mut hasher : HashFn = fnv1a
 
     /// Create an empty HashMap. Allocates NOTHING: the bucket array is
-    /// seeded on the first insert (see `set`), so an empty table costs
+    /// seeded on the first insert (see ~set~), so an empty table costs
     /// what an empty Map costs. #323: eagerly pushing HASHMAP_INIT_BUCKETS
-    /// here made an empty HashMap ~9x an empty Map to build, which is
+    /// here made an empty HashMap about 9x an empty Map to build, which is
     /// what disqualified every per-scope candidate for a Map -> HashMap
     /// swap -- the tables built per function/block are mostly empty.
-    /// Every reader already guards on `keys.count == 0` before touching
-    /// `buckets`, so zero buckets is a valid state for find/has/get/
-    /// remove/clear/clone; only `set` must seed.
+    /// Every reader already guards on ~keys.count == 0~ before touching
+    /// ~buckets~, so zero buckets is a valid state for find/has/get/
+    /// remove/clear/clone; only ~set~ must seed.
     new := func() returns HashMap(K, V) {
         return HashMap(K, V)(
             keys = Vec(K).new(),
@@ -51,12 +51,12 @@ namespace:
             hashes = Vec(U64).new())
     }
 
-    /// Create an empty HashMap pre-sized for `n` entries
+    /// Create an empty HashMap pre-sized for ~n~ entries
     /// (Map.with_capacity's counterpart). Unlike the ordered containers
     /// this has two things to size: the dense keys/values/nexts arrays,
     /// and the bucket array. Buckets are grown by doubling from
-    /// HASHMAP_INIT_BUCKETS until `n` entries fit under the 0.75 load
-    /// factor `set` enforces, so inserting up to `n` never rehashes.
+    /// HASHMAP_INIT_BUCKETS until ~n~ entries fit under the 0.75 load
+    /// factor ~set~ enforces, so inserting up to ~n~ never rehashes.
     /// n=0 behaves like new(): lazy-empty, no allocation at all.
     with_capacity := func(n: USize) returns HashMap(K, V) {
         if n == 0 { return HashMap(K, V).new() }
@@ -138,8 +138,8 @@ namespace:
         return self.find(key) >= 0
     }
 
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// Return a ref to the value for ~key~. Throws KeyNotFound if
+    /// ~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
     /// on a missing key. Same contract as core Map.get, so a table can
     /// be swapped between the two without touching its call sites.
     get := func(self: HashMap(K, V), key: K) returns ref V throws KeyNotFound {
@@ -148,10 +148,10 @@ namespace:
         return self.values.unsafe_get(idx.to_usize())
     }
 
-    /// The container's own stored hash of `key` -- the exact value
+    /// The container's own stored hash of ~key~ -- the exact value
     /// hash_key computed when the entry was inserted, retrieved rather
-    /// than recomputed. Throws KeyNotFound if `key` is absent; call as
-    /// `m.stored_hash(k)!` when absence would be a bug. #101: the
+    /// than recomputed. Throws KeyNotFound if ~key~ is absent; call as
+    /// ~m.stored_hash(k)!~ when absence would be a bug. #101: the
     /// generated-C literal pool names its struct fields with this, so
     /// the identifier a literal gets IS the hash its bookkeeping table
     /// already paid for.
@@ -256,7 +256,7 @@ namespace:
         if call_free { free(own self) }
     }
 
-    /// Remove `key`, dropping its key and value. Returns false if
+    /// Remove ~key~, dropping its key and value. Returns false if
     /// absent (same contract as core Map.remove). Uses a
     // swap-remove on the dense vectors: the trailing entry (count-1)
     // is relocated into the removed slot, then count is decremented.

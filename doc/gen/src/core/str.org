@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -45,9 +45,9 @@ func format(parts: ..Str) returns Str
 :END:
 
 Concatenate exactly three strings WITHOUT the variadic Array(Str) that
-`format` makes the caller build per call. One pre-sized result Str, no
-per-call Array alloc. Used on the hot flat-name path (`sname + "_" +
-method`) that the dispatch / codegen / scope lookups rebuild on every
+~format~ makes the caller build per call. One pre-sized result Str, no
+per-call Array alloc. Used on the hot flat-name path
+(~sname + "_" + method~) that dispatch / codegen / scope lookups rebuild
 method resolution -- the self-host --prof run flagged Array__Str_new
 (1.6M allocs) as a top string-churn source.
 
@@ -62,8 +62,8 @@ func concat3(a: Str, b: Str, c: Str) returns Str
 :END:
 
 UTF-8 string with owned heap storage. The byte buffer is typed as
-I8 (= C `char`) so direct FFI bindings against `const char *` APIs
-can pass `s.c_str` without an intermediate pointer-cast helper.
+I8 (= C ~char~) so direct FFI bindings against ~const char *~ APIs
+can pass ~s.c_str~ without an intermediate pointer-cast helper.
 
 #+begin_src til
 struct Str {
@@ -125,7 +125,7 @@ namespace:
 :group: Core
 :END:
 
-Return a ref to byte `i`. Panics if `i` is out of bounds.
+Return a ref to byte ~i~. Panics if ~i~ is out of bounds.
 
 #+begin_src til
 func Str.get(self: Str, i: USize) returns ref I8
@@ -164,7 +164,7 @@ func Str.cmp(a: Str, b: Str) returns shallow I64
 
 Equality with a length-mismatch early-out and a same-buffer
 shortcut before the byte compare. Otherwise eq auto-derives from
-cmp as `cmp(a,b) == 0`, which memcmps the common prefix even when
+cmp as ~cmp(a,b) == 0~, which memcmps the common prefix even when
 the lengths already differ; this rejects the common different-length
 case (distinct identifiers) without touching the bytes, and
 short-circuits interned / identical buffers.
@@ -179,7 +179,7 @@ func Str.eq(a: Str, b: Str) returns shallow Bool
 :group: Core
 :END:
 
-Create an empty Str pre-allocated for up to `n` bytes.
+Create an empty Str pre-allocated for up to ~n~ bytes.
 
 #+begin_src til
 func Str.with_capacity(shallow n: USize) returns Str
@@ -192,7 +192,7 @@ func Str.with_capacity(shallow n: USize) returns Str
 :END:
 
 Wrap a NUL-terminated C string as a non-owning Str view (no copy).
-The view borrows `s`; the caller keeps ownership of the buffer.
+The view borrows ~s~; the caller keeps ownership of the buffer.
 
 #+begin_src til
 func Str.from_c_str(s: Dynamic) returns Str
@@ -204,7 +204,7 @@ func Str.from_c_str(s: Dynamic) returns Str
 :group: Core
 :END:
 
-Append `s` to `self`. Panics if `self` is a view/literal or if
+Append ~s~ to ~self~. Panics if ~self~ is a view/literal or if
 capacity is exceeded.
 
 #+begin_src til
@@ -230,7 +230,7 @@ func Str.clone(val: Str) returns Str
 :END:
 
 String representation of a Str: a fresh owned copy of itself. Lets
-Str satisfy the same `T.to_str(x)` contract as the numeric types, so
+Str satisfy the same ~T.to_str(x)~ contract as the numeric types, so
 generic code (e.g. assert_eq(Str, a, b)) works uniformly.
 
 #+begin_src til
@@ -256,9 +256,9 @@ func Str.delete(own self: Str, shallow call_free: Bool)
 :group: Core
 :END:
 
-Return a non-owning view of the WHOLE string -- `substr(0, len())`
+Return a non-owning view of the WHOLE string -- ~substr(0, len())~
 without the bounds arithmetic. Allocates nothing: the result shares
-`s`'s bytes and `delete` frees neither them (cap >= CAP_VIEW) nor,
+~s~'s bytes and ~delete~ frees neither them (cap >= CAP_VIEW) nor,
 for a view held inside a container, anything else it does not own.
 
 Compiled, the view and its source share one buffer. The
@@ -271,7 +271,7 @@ Use it where a copy would be paid for storage that provably dies
 FIRST -- a lookup key, a set of names collected during one pass
 over an AST that outlives it. Where the copy must outlive its
 source, or the source is itself a view of something shorter-lived,
-`clone` is still the answer: this borrows, it does not own.
+~clone~ is still the answer: this borrows, it does not own.
 
 #+begin_src til :doctest
 s := "hello"
@@ -290,7 +290,7 @@ func Str.borrowed_view(s: Str) returns Str
 :group: Core
 :END:
 
-Return a view into `s` from `start` for `n` bytes (no allocation).
+Return a view into ~s~ from ~start~ for ~n~ bytes (no allocation).
 Clamps to valid bounds.
 
 #+begin_src til
@@ -303,7 +303,7 @@ func Str.substr(s: Str, shallow start: USize, shallow n: USize) returns Str
 :group: Core
 :END:
 
-Return a view of `s` with leading ASCII whitespace (space, tab,
+Return a view of ~s~ with leading ASCII whitespace (space, tab,
 newline, carriage return) removed. View-only -- no allocation.
 
 #+begin_src til
@@ -316,7 +316,7 @@ func Str.trim_start(s: Str) returns Str
 :group: Core
 :END:
 
-Return a view of `s` with leading and trailing ASCII whitespace
+Return a view of ~s~ with leading and trailing ASCII whitespace
 removed. View-only -- no allocation.
 
 #+begin_src til
@@ -329,7 +329,7 @@ func Str.trim(s: Str) returns Str
 :group: Core
 :END:
 
-True if `a` contains `b` as a substring.
+True if ~a~ contains ~b~ as a substring.
 
 #+begin_src til
 func Str.contains(a: Str, b: Str) returns shallow Bool
@@ -341,7 +341,7 @@ func Str.contains(a: Str, b: Str) returns shallow Bool
 :group: Core
 :END:
 
-True if `a` starts with prefix `b`.
+True if ~a~ starts with prefix ~b~.
 
 #+begin_src til
 func Str.starts_with(a: Str, b: Str) returns shallow Bool
@@ -353,7 +353,7 @@ func Str.starts_with(a: Str, b: Str) returns shallow Bool
 :group: Core
 :END:
 
-True if `a` ends with suffix `b`.
+True if ~a~ ends with suffix ~b~.
 
 #+begin_src til
 func Str.ends_with(a: Str, b: Str) returns shallow Bool
@@ -377,7 +377,7 @@ func Str.is_empty(self: Str) returns shallow Bool
 :group: Core
 :END:
 
-Return the byte index of the first occurrence of `needle`, or -1.
+Return the byte index of the first occurrence of ~needle~, or -1.
 
 #+begin_src til
 func Str.find(self: Str, needle: Str) returns shallow I64
@@ -389,7 +389,7 @@ func Str.find(self: Str, needle: Str) returns shallow I64
 :group: Core
 :END:
 
-Return the byte index of the last occurrence of `needle`, or -1.
+Return the byte index of the last occurrence of ~needle~, or -1.
 
 #+begin_src til
 func Str.rfind(self: Str, needle: Str) returns shallow I64
@@ -401,7 +401,7 @@ func Str.rfind(self: Str, needle: Str) returns shallow I64
 :group: Core
 :END:
 
-Return a new Str with all occurrences of `from` replaced by `to`.
+Return a new Str with all occurrences of ~from~ replaced by ~to~.
 
 #+begin_src til
 func Str.replace(self: Str, from: Str, to: Str) returns Str
@@ -413,7 +413,7 @@ func Str.replace(self: Str, from: Str, to: Str) returns Str
 :group: Core
 :END:
 
-View of the single byte at index `i` as a Str.
+View of the single byte at index ~i~ as a Str.
 
 #+begin_src til
 func Str.get_char(self: Str, shallow i: USize) returns Str
@@ -442,7 +442,7 @@ func Str.hash(self: Str, hasher: HashFn) returns shallow U64
 :group: Core
 :END:
 
-If self starts with `prefix`, return the rest; otherwise clone.
+If self starts with ~prefix~, return the rest; otherwise clone.
 
 #+begin_src til
 func Str.strip_prefix(self: Str, prefix: Str) returns Str
@@ -454,7 +454,7 @@ func Str.strip_prefix(self: Str, prefix: Str) returns Str
 :group: Core
 :END:
 
-If self ends with `suffix`, return the part before it; otherwise clone.
+If self ends with ~suffix~, return the part before it; otherwise clone.
 
 #+begin_src til
 func Str.strip_suffix(self: Str, suffix: Str) returns Str
@@ -616,7 +616,7 @@ func Str.to_f64(self: Str) returns shallow F64
 :group: Core
 :END:
 
-Split the string on `delim`, returning a Vec of Str clones.
+Split the string on ~delim~, returning a Vec of Str clones.
 
 #+begin_src til
 func Str.split(self: Str, delim: Str) returns Vec__Str
@@ -741,7 +741,7 @@ namespace:
     func new(shallow cap: USize) returns Array__Str
     func len(self: Array__Str) returns shallow USize
     func unsafe_get(self: Array__Str, i: USize) returns ref Str
-    func get(self: Array__Str, i: USize, mut _err_kind: I64) returns ref Str
+    func get(self: Array__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
     func unsafe_set(mut self: Array__Str, shallow i: USize, own val: Str)
     func set(mut self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
     func delete(own self: Array__Str, shallow call_free: Bool)
@@ -770,10 +770,10 @@ func Array__Str.new(shallow cap: USize) returns Array__Str
 :group: Core
 :END:
 
-Unchecked element access: ref to the element at index `i` with
-NO bounds check. The caller must prove `i < len()`. This is the
-unchecked core that `get` wraps; for-in uses it directly because
-its `_fi < len()` termination test already proves the index in
+Unchecked element access: ref to the element at index ~i~ with
+NO bounds check. The caller must prove ~i < len()~. This is the
+unchecked core that ~get~ wraps; for-in uses it directly because
+its ~_fi < len()~ termination test already proves the index in
 bounds (issue #284).
 
 #+begin_src til
@@ -786,11 +786,11 @@ func Array__Str.unsafe_get(self: Array__Str, i: USize) returns ref Str
 :group: Core
 :END:
 
-Ref to the element at index `i`. Throws OutOfBounds if `i` is
-past the end; call as `arr.get(i)!` to panic on a bad index.
+Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
+past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func Array__Str.get(self: Array__Str, i: USize, mut _err_kind: I64) returns ref Str
+func Array__Str.get(self: Array__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
 #+end_src
 
 * Array__Str.unsafe_set
@@ -799,8 +799,8 @@ func Array__Str.get(self: Array__Str, i: USize, mut _err_kind: I64) returns ref 
 :group: Core
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.cap`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -813,9 +813,9 @@ func Array__Str.unsafe_set(mut self: Array__Str, shallow i: USize, own val: Str)
 :group: Core
 :END:
 
-Overwrite the element at index `i`. Drops the old value. `val` is
-owned. Throws OutOfBounds if `i` is past the end; call as
-`arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. Drops the old value. ~val~ is
+owned. Throws OutOfBounds if ~i~ is past the end; call as
+~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Array__Str.set(mut self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
@@ -827,9 +827,9 @@ func Array__Str.set(mut self: Array__Str, shallow i: USize, own val: Str, mut _e
 :group: Core
 :END:
 
-#342: a fresh Array holding `self`'s elements followed by `other`'s.
+#342: a fresh Array holding ~self~'s elements followed by ~other~'s.
 Both sources keep theirs -- every element is cloned, exactly as
-`clone` does -- so neither is moved out from under its owner. The
+~clone~ does -- so neither is moved out from under its owner. The
 mixed-splat variadic lowering builds its collector with this: the
 fixed arguments become one Array, the splatted Array is the other,
 and the call is then the pure-splat form the desugar already handles.
@@ -844,10 +844,10 @@ func Array__Str.concat(self: Array__Str, other: Array__Str) returns Array__Str
 :group: Core
 :END:
 
-#342: a fresh Vec holding a clone of every element, `self` intact.
-The `vec(T, x, ..arr)` lowering ends here: a splat's length is a
+#342: a fresh Vec holding a clone of every element, ~self~ intact.
+The ~vec(T, x, ..arr)~ lowering ends here: a splat's length is a
 runtime value, so the literal's block is folded into one Array with
-`concat` and converted, instead of the desugar hand-building a push
+~concat~ and converted, instead of the desugar hand-building a push
 loop whose nodes no later pass would infer.
 
 #+begin_src til
@@ -877,7 +877,7 @@ namespace:
     func move_to(own self: Vec__Str, mut dest: Vec__Str)
     func move_from(mut self: Vec__Str, own other: Vec__Str)
     func unsafe_get(self: Vec__Str, i: USize) returns ref Str
-    func get(self: Vec__Str, i: USize, mut _err_kind: I64) returns ref Str
+    func get(self: Vec__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
     func pop(mut self: Vec__Str) returns Str
     func remove_at(mut self: Vec__Str, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Str, shallow n: USize) returns Vec__Str
@@ -913,11 +913,11 @@ func Vec__Str.new() returns Vec__Str
 :group: Core
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -943,7 +943,7 @@ func Vec__Str.clear(mut self: Vec__Str)
 :group: Core
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -959,7 +959,7 @@ func Vec__Str.delete_marked(mut self: Vec__Str, marks: Dynamic)
 :group: Core
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -972,8 +972,8 @@ func Vec__Str.push(mut self: Vec__Str, own val: Str)
 :group: Core
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__Str.append(mut self: Vec__Str, own other: Vec__Str)
@@ -989,7 +989,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -1005,13 +1005,13 @@ func Vec__Str.take(mut self: Vec__Str) returns Vec__Str
 :group: Core
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -1027,9 +1027,9 @@ func Vec__Str.move_to(own self: Vec__Str, mut dest: Vec__Str)
 :group: Core
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__Str.move_from(mut self: Vec__Str, own other: Vec__Str)
@@ -1042,9 +1042,9 @@ func Vec__Str.move_from(mut self: Vec__Str, own other: Vec__Str)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -1057,13 +1057,13 @@ func Vec__Str.unsafe_get(self: Vec__Str, i: USize) returns ref Str
 :group: Core
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Str.get(self: Vec__Str, i: USize, mut _err_kind: I64) returns ref Str
+func Vec__Str.get(self: Vec__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
 #+end_src
 
 * Vec__Str.pop
@@ -1085,7 +1085,7 @@ func Vec__Str.pop(mut self: Vec__Str) returns Str
 :group: Core
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__Str.remove_at(mut self: Vec__Str, shallow i: USize, mut _err_kind: I64)
@@ -1097,7 +1097,7 @@ func Vec__Str.remove_at(mut self: Vec__Str, shallow i: USize, mut _err_kind: I64
 :group: Core
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -1110,9 +1110,9 @@ func Vec__Str.take_prefix(mut self: Vec__Str, shallow n: USize) returns Vec__Str
 :group: Core
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -1125,8 +1125,8 @@ func Vec__Str.truncate(mut self: Vec__Str, shallow n: USize)
 :group: Core
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -1139,9 +1139,9 @@ func Vec__Str.unsafe_set(mut self: Vec__Str, shallow i: USize, own val: Str)
 :group: Core
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__Str.set(mut self: Vec__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
@@ -1168,7 +1168,7 @@ func Vec__Str.push_take(mut self: Vec__Str, mut src: Vec__Str, shallow i: USize)
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__Str.delete(own self: Vec__Str, shallow call_free: Bool)

@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * BorrowRoot
@@ -14,6 +14,9 @@ struct BorrowRoot {
     mut path : Str
     mut line : U32
     mut col : U32
+    mut carried : Bool
+    mut field : Str
+    mut provisional : Bool
 namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func to_str(self: BorrowRoot) returns Str
@@ -283,17 +286,17 @@ namespace:
 #+begin_src til
 struct BuilderFuncScratch {
     mut local_fn_sigs : Map__Str_Dynamic
-    mut body_refs : Set__Str
-    mut body_multi_decls : Set__Str
-    mut stack_locals : Set__Str
-    mut stack_local_types : Map__Str_Str
-    mut stack_lit_str_locals : Set__Str
+    mut body_refs : Set__U32
+    mut body_multi_decls : Set__U32
+    mut stack_locals : Set__U32
+    mut stack_local_types : Map__U32_Str
+    mut stack_lit_str_locals : Set__U32
     mut force_heap_stack_lit_str_own : Bool
-    mut unsafe_to_hoist : Set__Str
-    mut ref_locals : Set__Str
-    mut ref_dyn_locals : Set__Str
-    mut ptr_locals : Set__Str
-    mut shadowed_params : Set__Str
+    mut unsafe_to_hoist : Set__U32
+    mut ref_locals : Set__U32
+    mut ref_dyn_locals : Set__U32
+    mut ptr_locals : Set__U32
+    mut shadowed_params : Set__U32
 namespace:
     func clone(self: BuilderFuncScratch) returns BuilderFuncScratch
     func delete(own self: BuilderFuncScratch, shallow call_free: Bool)
@@ -384,6 +387,7 @@ struct Context {
     ref mut interp_ret_dest : Dynamic
     mut interp_ret_type : Option__ref_Str
     mut interp_ret_own_type : OwnType
+    mut interp_cstr_arg : Bool
     mut constfold_active : Bool
     mut eval_aborted : Bool
     mut repl_session : Bool
@@ -400,17 +404,17 @@ struct Context {
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
     own mut generic_pending : Expr
-    mut lambda_counter : I64
+    own mut func_gen_twins : Expr
     mut scope : TypeScope
     mut is_repl : Bool
     mut struct_layouts : Map__Str_StructLayout
     mut typing_namespace_member : Bool
     mut closure_emit_env : Str
-    mut closure_emit_captures : Set__Str
+    mut closure_emit_captures : Set__U32
     mut funcsig_names : Set__U32
-    mut closure_value_names : Set__Str
-    mut script_globals : Set__Str
-    mut ref_globals : Set__Str
+    mut closure_value_names : Set__U32
+    mut script_globals : Set__U32
+    mut ref_globals : Set__U32
     mut throw_type_registry : Vec__Str
     mut throws_global : Map__Str_call_Vec_Str
     mut bang_counter : I64
@@ -426,6 +430,9 @@ struct Context {
     mut va_counter : I32
     mut kw_counter : I32
     mut coll_counter : I32
+    mut synth_owner : Str
+    mut synth_symbol_seq : Map__Str_I64
+    mut lazy_stmt_temp_counter : I64
     mut errors : I32
     mut current_type_name : Str
     mut current_top_func_name : Str
@@ -433,13 +440,20 @@ struct Context {
     mut throw_used_local_names : Set__Str
     mut priv_ref_edges : Map__Str_call_Vec_Str
     mut builder_func : BuilderFuncScratch
-    mut builder_str_lit_symbols : Map__Str_Str
+    mut builder_str_lit_symbols : HashMap__Str_Str
     mut builder_str_lit_values : Vec__Str
-    mut builder_str_lit_ident_symbols : Map__Str_Str
+    mut builder_str_lit_ident_symbols : HashMap__Str_Str
+    mut builder_str_lit_counts : HashMap__Str_USize
+    mut builder_str_lit_ident_contents : HashMap__Str_Str
+    mut builder_str_lit_members : Vec__Str
+    mut builder_str_lit_member_seq : HashMap__Str_USize
     mut builder_reflect_inventory : Set__Str
     mut builder_dyn_fn_targets : Set__Str
     mut builder_ns_member_sites : Set__Str
     mut builder_collection_elem_types : Set__Str
+    mut builder_used_ctypes : Set__Str
+    mut builder_omitted_core_funcs : Set__Str
+    mut builder_static_ok : Bool
     mut builder_keep_all_exports : Bool
     mut builder_lit_guard_used : Bool
     mut current_fdef : Option__ref_Expr
@@ -460,6 +474,46 @@ namespace:
     func delete(own self: Context, shallow call_free: Bool)
     func size() returns shallow USize
 }
+#+end_src
+
+* synth_suffix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.synth_suffix
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func synth_suffix(ctx: Context, n: Str) returns Str
+#+end_src
+
+* synth_suffix_unique
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.synth_suffix_unique
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func synth_suffix_unique(ctx: Context, n: Str) returns Str
+#+end_src
+
+* synth_owner_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.synth_owner_name
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func synth_owner_name(path: Str, name: Str, orig_name: Str) returns Str
+#+end_src
+
+* synth_symbol_suffix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.synth_symbol_suffix
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func synth_symbol_suffix(mut ctx: Context) returns Str
 #+end_src
 
 * context_register_target_int_alias_types
@@ -1252,6 +1306,16 @@ func pod_struct_is(struct_name: Str, scope: TypeScope) returns shallow Bool
 func pod_ctor_args_safe(ctor: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
+* pod_fcall_is_struct_ctor
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.pod_fcall_is_struct_ctor
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func pod_fcall_is_struct_ctor(e: Expr) returns shallow Bool
+#+end_src
+
 * pod_ctor_decl_is_stack
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.pod_ctor_decl_is_stack
@@ -1285,7 +1349,7 @@ namespace:
     func move_to(own self: Vec__BorrowRoot, mut dest: Vec__BorrowRoot)
     func move_from(mut self: Vec__BorrowRoot, own other: Vec__BorrowRoot)
     func unsafe_get(self: Vec__BorrowRoot, i: USize) returns ref BorrowRoot
-    func get(self: Vec__BorrowRoot, i: USize, mut _err_kind: I64) returns ref BorrowRoot
+    func get(self: Vec__BorrowRoot, shallow i: USize, mut _err_kind: I64) returns ref BorrowRoot
     func pop(mut self: Vec__BorrowRoot) returns BorrowRoot
     func remove_at(mut self: Vec__BorrowRoot, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__BorrowRoot, shallow n: USize) returns Vec__BorrowRoot
@@ -1321,11 +1385,11 @@ func Vec__BorrowRoot.new() returns Vec__BorrowRoot
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -1351,7 +1415,7 @@ func Vec__BorrowRoot.clear(mut self: Vec__BorrowRoot)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -1367,7 +1431,7 @@ func Vec__BorrowRoot.delete_marked(mut self: Vec__BorrowRoot, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -1380,8 +1444,8 @@ func Vec__BorrowRoot.push(mut self: Vec__BorrowRoot, own val: BorrowRoot)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__BorrowRoot.append(mut self: Vec__BorrowRoot, own other: Vec__BorrowRoot)
@@ -1397,7 +1461,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -1413,13 +1477,13 @@ func Vec__BorrowRoot.take(mut self: Vec__BorrowRoot) returns Vec__BorrowRoot
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -1435,9 +1499,9 @@ func Vec__BorrowRoot.move_to(own self: Vec__BorrowRoot, mut dest: Vec__BorrowRoo
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__BorrowRoot.move_from(mut self: Vec__BorrowRoot, own other: Vec__BorrowRoot)
@@ -1450,9 +1514,9 @@ func Vec__BorrowRoot.move_from(mut self: Vec__BorrowRoot, own other: Vec__Borrow
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -1465,13 +1529,13 @@ func Vec__BorrowRoot.unsafe_get(self: Vec__BorrowRoot, i: USize) returns ref Bor
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__BorrowRoot.get(self: Vec__BorrowRoot, i: USize, mut _err_kind: I64) returns ref BorrowRoot
+func Vec__BorrowRoot.get(self: Vec__BorrowRoot, shallow i: USize, mut _err_kind: I64) returns ref BorrowRoot
 #+end_src
 
 * Vec__BorrowRoot.pop
@@ -1493,7 +1557,7 @@ func Vec__BorrowRoot.pop(mut self: Vec__BorrowRoot) returns BorrowRoot
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__BorrowRoot.remove_at(mut self: Vec__BorrowRoot, shallow i: USize, mut _err_kind: I64)
@@ -1505,7 +1569,7 @@ func Vec__BorrowRoot.remove_at(mut self: Vec__BorrowRoot, shallow i: USize, mut 
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -1518,9 +1582,9 @@ func Vec__BorrowRoot.take_prefix(mut self: Vec__BorrowRoot, shallow n: USize) re
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -1533,8 +1597,8 @@ func Vec__BorrowRoot.truncate(mut self: Vec__BorrowRoot, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -1547,9 +1611,9 @@ func Vec__BorrowRoot.unsafe_set(mut self: Vec__BorrowRoot, shallow i: USize, own
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__BorrowRoot.set(mut self: Vec__BorrowRoot, shallow i: USize, own val: BorrowRoot, mut _err_kind: I64)
@@ -1576,7 +1640,7 @@ func Vec__BorrowRoot.push_take(mut self: Vec__BorrowRoot, mut src: Vec__BorrowRo
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__BorrowRoot.delete(own self: Vec__BorrowRoot, shallow call_free: Bool)
@@ -1627,7 +1691,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_TypeBinding.new() returns Map__Str_TypeBinding
@@ -1639,8 +1703,8 @@ func Map__Str_TypeBinding.new() returns Map__Str_TypeBinding
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -1677,8 +1741,8 @@ func Map__Str_TypeBinding.has(self: Map__Str_TypeBinding, key: Str) returns shal
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -1691,7 +1755,7 @@ func Map__Str_TypeBinding.get(self: Map__Str_TypeBinding, key: Str, mut _err_kin
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_TypeBinding.set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
@@ -1703,7 +1767,7 @@ func Map__Str_TypeBinding.set(mut self: Map__Str_TypeBinding, key: Str, own val:
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_TypeBinding.remove(mut self: Map__Str_TypeBinding, key: Str) returns shallow Bool
@@ -1741,9 +1805,9 @@ namespace:
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.
@@ -1763,7 +1827,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
@@ -1804,9 +1868,9 @@ namespace:
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.
@@ -1826,11 +1890,126 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
 func Option__ref_TypeBinding.take(own self: Option__ref_TypeBinding) returns ref TypeBinding
+#+end_src
+
+* Map__U32_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Map__U32_Str {
+    mut keys : Vec__U32
+    mut values : Vec__Str
+namespace:
+    func new() returns Map__U32_Str
+    func with_capacity(shallow n: USize) returns Map__U32_Str
+    func len(self: Map__U32_Str) returns shallow USize
+    func clear(mut self: Map__U32_Str)
+    func has(self: Map__U32_Str, shallow key: U32) returns shallow Bool
+    func get(self: Map__U32_Str, key: U32, mut _err_kind: I64) returns ref Str
+    func set(mut self: Map__U32_Str, shallow key: U32, own val: Str)
+    func remove(mut self: Map__U32_Str, shallow key: U32) returns shallow Bool
+    func delete(own self: Map__U32_Str, shallow call_free: Bool)
+    func clone(self: Map__U32_Str) returns Map__U32_Str
+    func hash(self: Map__U32_Str, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* Map__U32_Str.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str.new
+:group: Compiler frontend
+:END:
+
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func Map__U32_Str.new() returns Map__U32_Str
+#+end_src
+
+* Map__U32_Str.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Map__U32_Str.with_capacity(shallow n: USize) returns Map__U32_Str
+#+end_src
+
+* Map__U32_Str.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str.clear
+:group: Compiler frontend
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__U32_Str.clear(mut self: Map__U32_Str)
+#+end_src
+
+* Map__U32_Str.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str.has
+:group: Compiler frontend
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__U32_Str.has(self: Map__U32_Str, shallow key: U32) returns shallow Bool
+#+end_src
+
+* Map__U32_Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str.get
+:group: Compiler frontend
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__U32_Str.get(self: Map__U32_Str, key: U32, mut _err_kind: I64) returns ref Str
+#+end_src
+
+* Map__U32_Str.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str.set
+:group: Compiler frontend
+:END:
+
+Insert or overwrite the value for ~key~. The value is owned.
+
+#+begin_src til
+func Map__U32_Str.set(mut self: Map__U32_Str, shallow key: U32, own val: Str)
+#+end_src
+
+* Map__U32_Str.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Str.remove
+:group: Compiler frontend
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__U32_Str.remove(mut self: Map__U32_Str, shallow key: U32) returns shallow Bool
 #+end_src
 
 * Map__Str_U32
@@ -1866,7 +2045,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_U32.new() returns Map__Str_U32
@@ -1878,8 +2057,8 @@ func Map__Str_U32.new() returns Map__Str_U32
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -1916,8 +2095,8 @@ func Map__Str_U32.has(self: Map__Str_U32, key: Str) returns shallow Bool
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -1930,7 +2109,7 @@ func Map__Str_U32.get(self: Map__Str_U32, key: Str, mut _err_kind: I64) returns 
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_U32.set(mut self: Map__Str_U32, key: Str, own val: U32)
@@ -1942,7 +2121,7 @@ func Map__Str_U32.set(mut self: Map__Str_U32, key: Str, own val: U32)
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_U32.remove(mut self: Map__Str_U32, key: Str) returns shallow Bool
@@ -1981,7 +2160,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_Mode.new() returns Map__Str_Mode
@@ -1993,8 +2172,8 @@ func Map__Str_Mode.new() returns Map__Str_Mode
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -2031,8 +2210,8 @@ func Map__Str_Mode.has(self: Map__Str_Mode, key: Str) returns shallow Bool
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -2045,7 +2224,7 @@ func Map__Str_Mode.get(self: Map__Str_Mode, key: Str, mut _err_kind: I64) return
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_Mode.set(mut self: Map__Str_Mode, key: Str, own val: Mode)
@@ -2057,7 +2236,7 @@ func Map__Str_Mode.set(mut self: Map__Str_Mode, key: Str, own val: Mode)
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_Mode.remove(mut self: Map__Str_Mode, key: Str) returns shallow Bool
@@ -2096,7 +2275,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_FuncType.new() returns Map__Str_FuncType
@@ -2108,8 +2287,8 @@ func Map__Str_FuncType.new() returns Map__Str_FuncType
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -2146,8 +2325,8 @@ func Map__Str_FuncType.has(self: Map__Str_FuncType, key: Str) returns shallow Bo
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -2160,7 +2339,7 @@ func Map__Str_FuncType.get(self: Map__Str_FuncType, key: Str, mut _err_kind: I64
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_FuncType.set(mut self: Map__Str_FuncType, key: Str, own val: FuncType)
@@ -2172,7 +2351,7 @@ func Map__Str_FuncType.set(mut self: Map__Str_FuncType, key: Str, own val: FuncT
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_FuncType.remove(mut self: Map__Str_FuncType, key: Str) returns shallow Bool
@@ -2191,8 +2370,8 @@ enum Option__Scope {
 namespace:
     func is_some(shallow self: Option__Scope) returns shallow Bool
     func is_none(shallow self: Option__Scope) returns shallow Bool
-    func unwrap_or(shallow self: Option__Scope, default_v: Scope) returns Scope
-    func unwrap(shallow self: Option__Scope) returns Scope
+    func unwrap_or(self: Option__Scope, default_v: Scope) returns Scope
+    func unwrap(self: Option__Scope) returns Scope
     func take(own self: Option__Scope) returns Scope
     ext_func None() returns shallow Option__Scope
     ext_func Some(own val: Scope) returns shallow Option__Scope
@@ -2210,15 +2389,15 @@ namespace:
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.
 
 #+begin_src til
-func Option__Scope.unwrap(shallow self: Option__Scope) returns Scope
+func Option__Scope.unwrap(self: Option__Scope) returns Scope
 #+end_src
 
 * Option__Scope.take
@@ -2232,7 +2411,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
@@ -2272,7 +2451,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_ImportUnit.new() returns Map__Str_ImportUnit
@@ -2284,8 +2463,8 @@ func Map__Str_ImportUnit.new() returns Map__Str_ImportUnit
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -2322,8 +2501,8 @@ func Map__Str_ImportUnit.has(self: Map__Str_ImportUnit, key: Str) returns shallo
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -2336,7 +2515,7 @@ func Map__Str_ImportUnit.get(self: Map__Str_ImportUnit, key: Str, mut _err_kind:
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_ImportUnit.set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
@@ -2348,7 +2527,7 @@ func Map__Str_ImportUnit.set(mut self: Map__Str_ImportUnit, key: Str, own val: I
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_ImportUnit.remove(mut self: Map__Str_ImportUnit, key: Str) returns shallow Bool
@@ -2387,7 +2566,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_Expr.new() returns Map__Str_Expr
@@ -2399,8 +2578,8 @@ func Map__Str_Expr.new() returns Map__Str_Expr
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -2437,8 +2616,8 @@ func Map__Str_Expr.has(self: Map__Str_Expr, key: Str) returns shallow Bool
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -2451,7 +2630,7 @@ func Map__Str_Expr.get(self: Map__Str_Expr, key: Str, mut _err_kind: I64) return
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_Expr.set(mut self: Map__Str_Expr, key: Str, own val: Expr)
@@ -2463,7 +2642,7 @@ func Map__Str_Expr.set(mut self: Map__Str_Expr, key: Str, own val: Expr)
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_Expr.remove(mut self: Map__Str_Expr, key: Str) returns shallow Bool
@@ -2502,7 +2681,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_StructLayout.new() returns Map__Str_StructLayout
@@ -2514,8 +2693,8 @@ func Map__Str_StructLayout.new() returns Map__Str_StructLayout
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -2552,8 +2731,8 @@ func Map__Str_StructLayout.has(self: Map__Str_StructLayout, key: Str) returns sh
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -2566,7 +2745,7 @@ func Map__Str_StructLayout.get(self: Map__Str_StructLayout, key: Str, mut _err_k
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_StructLayout.set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
@@ -2578,7 +2757,7 @@ func Map__Str_StructLayout.set(mut self: Map__Str_StructLayout, key: Str, own va
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_StructLayout.remove(mut self: Map__Str_StructLayout, key: Str) returns shallow Bool
@@ -2615,8 +2794,8 @@ namespace:
 :group: Compiler frontend
 :END:
 
-Create an empty Set. T must implement `cmp`. Allocates nothing:
-like Vec.new, an empty Set is lazy (cap 0) and `add` seeds the
+Create an empty Set. T must implement ~cmp~. Allocates nothing:
+like Vec.new, an empty Set is lazy (cap 0) and ~add~ seeds the
 first slot. Short-lived empty Sets are common -- the garbager
 builds four per statement for its per-statement name facts, most
 of them never added to.
@@ -2631,9 +2810,9 @@ func Set__U32.new() returns Set__U32
 :group: Compiler frontend
 :END:
 
-Create an empty Set pre-sized for `n` elements, so adding up to
-`n` reallocs zero times (Vec.with_capacity's counterpart). Use it
-where the final size is known or well predicted; `new()` grows
+Create an empty Set pre-sized for ~n~ elements, so adding up to
+~n~ reallocs zero times (Vec.with_capacity's counterpart). Use it
+where the final size is known or well predicted; ~new()~ grows
 0->1->2->4, which is the right default but costs a realloc per
 doubling. n=0 behaves like new(): lazy-empty, no allocation.
 
@@ -2659,7 +2838,7 @@ func Set__U32.clear(mut self: Set__U32)
 :group: Compiler frontend
 :END:
 
-True if the set contains an element equal to `val`.
+True if the set contains an element equal to ~val~.
 
 #+begin_src til
 func Set__U32.has(self: Set__U32, shallow val: U32) returns shallow Bool
@@ -2671,8 +2850,8 @@ func Set__U32.has(self: Set__U32, shallow val: U32) returns shallow Bool
 :group: Compiler frontend
 :END:
 
-Insert `val` into the set (sorted order). If an equal element
-already exists, `val` is dropped. `val` is owned.
+Insert ~val~ into the set (sorted order). If an equal element
+already exists, ~val~ is dropped. ~val~ is owned.
 
 #+begin_src til
 func Set__U32.add(mut self: Set__U32, own val: U32)
@@ -2684,13 +2863,128 @@ func Set__U32.add(mut self: Set__U32, own val: U32)
 :group: Compiler frontend
 :END:
 
-Remove the element equal to `val`, dropping it. Returns false if
-absent (Map.remove's counterpart: `add` is the Set's `set`, so
+Remove the element equal to ~val~, dropping it. Returns false if
+absent (Map.remove's counterpart: ~add~ is the Set's ~set~, so
 this is its removal half). Later elements shift left to keep the
 storage sorted and dense.
 
 #+begin_src til
 func Set__U32.remove(mut self: Set__U32, shallow val: U32) returns shallow Bool
+#+end_src
+
+* Map__Str_I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Map__Str_I64 {
+    mut keys : Vec__Str
+    mut values : Vec__I64
+namespace:
+    func new() returns Map__Str_I64
+    func with_capacity(shallow n: USize) returns Map__Str_I64
+    func len(self: Map__Str_I64) returns shallow USize
+    func clear(mut self: Map__Str_I64)
+    func has(self: Map__Str_I64, key: Str) returns shallow Bool
+    func get(self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
+    func set(mut self: Map__Str_I64, key: Str, own val: I64)
+    func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_I64, shallow call_free: Bool)
+    func clone(self: Map__Str_I64) returns Map__Str_I64
+    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* Map__Str_I64.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64.new
+:group: Compiler frontend
+:END:
+
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func Map__Str_I64.new() returns Map__Str_I64
+#+end_src
+
+* Map__Str_I64.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Map__Str_I64.with_capacity(shallow n: USize) returns Map__Str_I64
+#+end_src
+
+* Map__Str_I64.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64.clear
+:group: Compiler frontend
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__Str_I64.clear(mut self: Map__Str_I64)
+#+end_src
+
+* Map__Str_I64.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64.has
+:group: Compiler frontend
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__Str_I64.has(self: Map__Str_I64, key: Str) returns shallow Bool
+#+end_src
+
+* Map__Str_I64.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64.get
+:group: Compiler frontend
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__Str_I64.get(self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
+#+end_src
+
+* Map__Str_I64.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64.set
+:group: Compiler frontend
+:END:
+
+Insert or overwrite the value for ~key~. The value is owned.
+
+#+begin_src til
+func Map__Str_I64.set(mut self: Map__Str_I64, key: Str, own val: I64)
+#+end_src
+
+* Map__Str_I64.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_I64.remove
+:group: Compiler frontend
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__Str_I64.remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
 #+end_src
 
 * Map__Str_call_Vec_Str
@@ -2726,7 +3020,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_call_Vec_Str.new() returns Map__Str_call_Vec_Str
@@ -2738,8 +3032,8 @@ func Map__Str_call_Vec_Str.new() returns Map__Str_call_Vec_Str
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -2776,8 +3070,8 @@ func Map__Str_call_Vec_Str.has(self: Map__Str_call_Vec_Str, key: Str) returns sh
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -2790,7 +3084,7 @@ func Map__Str_call_Vec_Str.get(self: Map__Str_call_Vec_Str, key: Str, mut _err_k
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_call_Vec_Str.set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
@@ -2802,10 +3096,332 @@ func Map__Str_call_Vec_Str.set(mut self: Map__Str_call_Vec_Str, key: Str, own va
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_call_Vec_Str.remove(mut self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
+#+end_src
+
+* HashMap__Str_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct HashMap__Str_Str {
+    mut keys : Vec__Str
+    mut values : Vec__Str
+    mut buckets : Vec__I64
+    mut nexts : Vec__I64
+    mut hashes : Vec__U64
+namespace:
+    hasher : HashFn
+    func new() returns HashMap__Str_Str
+    func with_capacity(shallow n: USize) returns HashMap__Str_Str
+    func len(self: HashMap__Str_Str) returns shallow USize
+    func clear(mut self: HashMap__Str_Str)
+    func clone(self: HashMap__Str_Str) returns HashMap__Str_Str
+    func hash_key(key: Str) returns shallow U64
+    func keys_equal(a: Str, b: Str) returns shallow Bool
+    func find(self: HashMap__Str_Str, key: Str) returns shallow I64
+    func has(self: HashMap__Str_Str, key: Str) returns shallow Bool
+    func get(self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns ref Str
+    func stored_hash(self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns shallow U64
+    func set(mut self: HashMap__Str_Str, key: Str, own val: Str)
+    func rehash(mut self: HashMap__Str_Str)
+    func delete(own self: HashMap__Str_Str, shallow call_free: Bool)
+    func remove(mut self: HashMap__Str_Str, key: Str) returns shallow Bool
+    func hash(self: HashMap__Str_Str, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* HashMap__Str_Str.hasher
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.hasher
+:group: Compiler frontend
+:END:
+
+Byte-hashing algorithm every HashMap forwards to per-key. Swap
+this before constructing any HashMap if you want a different
+algorithm for that concrete HashMap(K, V) specialization.
+
+#+begin_src til
+member HashMap__Str_Str.hasher : HashFn
+#+end_src
+
+* HashMap__Str_Str.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.new
+:group: Compiler frontend
+:END:
+
+Create an empty HashMap. Allocates NOTHING: the bucket array is
+seeded on the first insert (see ~set~), so an empty table costs
+what an empty Map costs. #323: eagerly pushing HASHMAP_INIT_BUCKETS
+here made an empty HashMap about 9x an empty Map to build, which is
+what disqualified every per-scope candidate for a Map -> HashMap
+swap -- the tables built per function/block are mostly empty.
+Every reader already guards on ~keys.count == 0~ before touching
+~buckets~, so zero buckets is a valid state for find/has/get/
+remove/clear/clone; only ~set~ must seed.
+
+#+begin_src til
+func HashMap__Str_Str.new() returns HashMap__Str_Str
+#+end_src
+
+* HashMap__Str_Str.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty HashMap pre-sized for ~n~ entries
+(Map.with_capacity's counterpart). Unlike the ordered containers
+this has two things to size: the dense keys/values/nexts arrays,
+and the bucket array. Buckets are grown by doubling from
+HASHMAP_INIT_BUCKETS until ~n~ entries fit under the 0.75 load
+factor ~set~ enforces, so inserting up to ~n~ never rehashes.
+n=0 behaves like new(): lazy-empty, no allocation at all.
+
+#+begin_src til
+func HashMap__Str_Str.with_capacity(shallow n: USize) returns HashMap__Str_Str
+#+end_src
+
+* HashMap__Str_Str.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.clear
+:group: Compiler frontend
+:END:
+
+Drop all live keys and values but keep the allocated storage so
+the table can be reused (core Map.clear's counterpart). The
+bucket array is reset to empty rather than freed.
+
+#+begin_src til
+func HashMap__Str_Str.clear(mut self: HashMap__Str_Str)
+#+end_src
+
+* HashMap__Str_Str.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.clone
+:group: Compiler frontend
+:END:
+
+Deep copy. Cloning the dense keys/values/nexts Vecs and the
+bucket array preserves every chain link, so the copy needs no
+rehash (core Map.clone's counterpart).
+
+#+begin_src til
+func HashMap__Str_Str.clone(self: HashMap__Str_Str) returns HashMap__Str_Str
+#+end_src
+
+* HashMap__Str_Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.get
+:group: Compiler frontend
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key. Same contract as core Map.get, so a table can
+be swapped between the two without touching its call sites.
+
+#+begin_src til
+func HashMap__Str_Str.get(self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns ref Str
+#+end_src
+
+* HashMap__Str_Str.stored_hash
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.stored_hash
+:group: Compiler frontend
+:END:
+
+The container's own stored hash of ~key~ -- the exact value
+hash_key computed when the entry was inserted, retrieved rather
+than recomputed. Throws KeyNotFound if ~key~ is absent; call as
+~m.stored_hash(k)!~ when absence would be a bug. #101: the
+generated-C literal pool names its struct fields with this, so
+the identifier a literal gets IS the hash its bookkeeping table
+already paid for.
+
+#+begin_src til
+func HashMap__Str_Str.stored_hash(self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns shallow U64
+#+end_src
+
+* HashMap__Str_Str.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_Str.remove
+:group: Compiler frontend
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if
+absent (same contract as core Map.remove). Uses a
+
+#+begin_src til
+func HashMap__Str_Str.remove(mut self: HashMap__Str_Str, key: Str) returns shallow Bool
+#+end_src
+
+* HashMap__Str_USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct HashMap__Str_USize {
+    mut keys : Vec__Str
+    mut values : Vec__USize
+    mut buckets : Vec__I64
+    mut nexts : Vec__I64
+    mut hashes : Vec__U64
+namespace:
+    hasher : HashFn
+    func new() returns HashMap__Str_USize
+    func with_capacity(shallow n: USize) returns HashMap__Str_USize
+    func len(self: HashMap__Str_USize) returns shallow USize
+    func clear(mut self: HashMap__Str_USize)
+    func clone(self: HashMap__Str_USize) returns HashMap__Str_USize
+    func hash_key(key: Str) returns shallow U64
+    func keys_equal(a: Str, b: Str) returns shallow Bool
+    func find(self: HashMap__Str_USize, key: Str) returns shallow I64
+    func has(self: HashMap__Str_USize, key: Str) returns shallow Bool
+    func get(self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
+    func stored_hash(self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns shallow U64
+    func set(mut self: HashMap__Str_USize, key: Str, own val: USize)
+    func rehash(mut self: HashMap__Str_USize)
+    func delete(own self: HashMap__Str_USize, shallow call_free: Bool)
+    func remove(mut self: HashMap__Str_USize, key: Str) returns shallow Bool
+    func hash(self: HashMap__Str_USize, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* HashMap__Str_USize.hasher
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.hasher
+:group: Compiler frontend
+:END:
+
+Byte-hashing algorithm every HashMap forwards to per-key. Swap
+this before constructing any HashMap if you want a different
+algorithm for that concrete HashMap(K, V) specialization.
+
+#+begin_src til
+member HashMap__Str_USize.hasher : HashFn
+#+end_src
+
+* HashMap__Str_USize.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.new
+:group: Compiler frontend
+:END:
+
+Create an empty HashMap. Allocates NOTHING: the bucket array is
+seeded on the first insert (see ~set~), so an empty table costs
+what an empty Map costs. #323: eagerly pushing HASHMAP_INIT_BUCKETS
+here made an empty HashMap about 9x an empty Map to build, which is
+what disqualified every per-scope candidate for a Map -> HashMap
+swap -- the tables built per function/block are mostly empty.
+Every reader already guards on ~keys.count == 0~ before touching
+~buckets~, so zero buckets is a valid state for find/has/get/
+remove/clear/clone; only ~set~ must seed.
+
+#+begin_src til
+func HashMap__Str_USize.new() returns HashMap__Str_USize
+#+end_src
+
+* HashMap__Str_USize.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty HashMap pre-sized for ~n~ entries
+(Map.with_capacity's counterpart). Unlike the ordered containers
+this has two things to size: the dense keys/values/nexts arrays,
+and the bucket array. Buckets are grown by doubling from
+HASHMAP_INIT_BUCKETS until ~n~ entries fit under the 0.75 load
+factor ~set~ enforces, so inserting up to ~n~ never rehashes.
+n=0 behaves like new(): lazy-empty, no allocation at all.
+
+#+begin_src til
+func HashMap__Str_USize.with_capacity(shallow n: USize) returns HashMap__Str_USize
+#+end_src
+
+* HashMap__Str_USize.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.clear
+:group: Compiler frontend
+:END:
+
+Drop all live keys and values but keep the allocated storage so
+the table can be reused (core Map.clear's counterpart). The
+bucket array is reset to empty rather than freed.
+
+#+begin_src til
+func HashMap__Str_USize.clear(mut self: HashMap__Str_USize)
+#+end_src
+
+* HashMap__Str_USize.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.clone
+:group: Compiler frontend
+:END:
+
+Deep copy. Cloning the dense keys/values/nexts Vecs and the
+bucket array preserves every chain link, so the copy needs no
+rehash (core Map.clone's counterpart).
+
+#+begin_src til
+func HashMap__Str_USize.clone(self: HashMap__Str_USize) returns HashMap__Str_USize
+#+end_src
+
+* HashMap__Str_USize.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.get
+:group: Compiler frontend
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key. Same contract as core Map.get, so a table can
+be swapped between the two without touching its call sites.
+
+#+begin_src til
+func HashMap__Str_USize.get(self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
+#+end_src
+
+* HashMap__Str_USize.stored_hash
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.stored_hash
+:group: Compiler frontend
+:END:
+
+The container's own stored hash of ~key~ -- the exact value
+hash_key computed when the entry was inserted, retrieved rather
+than recomputed. Throws KeyNotFound if ~key~ is absent; call as
+~m.stored_hash(k)!~ when absence would be a bug. #101: the
+generated-C literal pool names its struct fields with this, so
+the identifier a literal gets IS the hash its bookkeeping table
+already paid for.
+
+#+begin_src til
+func HashMap__Str_USize.stored_hash(self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns shallow U64
+#+end_src
+
+* HashMap__Str_USize.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.HashMap__Str_USize.remove
+:group: Compiler frontend
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if
+absent (same contract as core Map.remove). Uses a
+
+#+begin_src til
+func HashMap__Str_USize.remove(mut self: HashMap__Str_USize, key: Str) returns shallow Bool
 #+end_src
 
 * Option__ref_Expr
@@ -2842,9 +3458,9 @@ namespace:
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.
@@ -2864,7 +3480,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
@@ -2904,7 +3520,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_Dynamic.new() returns Map__Str_Dynamic
@@ -2916,8 +3532,8 @@ func Map__Str_Dynamic.new() returns Map__Str_Dynamic
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -2954,8 +3570,8 @@ func Map__Str_Dynamic.has(self: Map__Str_Dynamic, key: Str) returns shallow Bool
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -2968,7 +3584,7 @@ func Map__Str_Dynamic.get(self: Map__Str_Dynamic, key: Str, mut _err_kind: I64) 
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_Dynamic.set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
@@ -2980,7 +3596,7 @@ func Map__Str_Dynamic.set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_Dynamic.remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
@@ -3019,7 +3635,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_FFIEntry.new() returns Map__Str_FFIEntry
@@ -3031,8 +3647,8 @@ func Map__Str_FFIEntry.new() returns Map__Str_FFIEntry
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -3069,8 +3685,8 @@ func Map__Str_FFIEntry.has(self: Map__Str_FFIEntry, key: Str) returns shallow Bo
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -3083,7 +3699,7 @@ func Map__Str_FFIEntry.get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_FFIEntry.set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
@@ -3095,7 +3711,7 @@ func Map__Str_FFIEntry.set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEn
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_FFIEntry.remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
@@ -3134,7 +3750,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_ExprPtrBox.new() returns Map__Str_ExprPtrBox
@@ -3146,8 +3762,8 @@ func Map__Str_ExprPtrBox.new() returns Map__Str_ExprPtrBox
 :group: Compiler frontend
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -3184,8 +3800,8 @@ func Map__Str_ExprPtrBox.has(self: Map__Str_ExprPtrBox, key: Str) returns shallo
 :group: Compiler frontend
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -3198,7 +3814,7 @@ func Map__Str_ExprPtrBox.get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind:
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_ExprPtrBox.set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
@@ -3210,7 +3826,7 @@ func Map__Str_ExprPtrBox.set(mut self: Map__Str_ExprPtrBox, key: Str, own val: E
 :group: Compiler frontend
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_ExprPtrBox.remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
@@ -3239,7 +3855,7 @@ namespace:
     func move_to(own self: Vec__FFITypePtrBox, mut dest: Vec__FFITypePtrBox)
     func move_from(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
     func unsafe_get(self: Vec__FFITypePtrBox, i: USize) returns ref FFITypePtrBox
-    func get(self: Vec__FFITypePtrBox, i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
+    func get(self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
     func pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
     func remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USize) returns Vec__FFITypePtrBox
@@ -3275,11 +3891,11 @@ func Vec__FFITypePtrBox.new() returns Vec__FFITypePtrBox
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -3305,7 +3921,7 @@ func Vec__FFITypePtrBox.clear(mut self: Vec__FFITypePtrBox)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -3321,7 +3937,7 @@ func Vec__FFITypePtrBox.delete_marked(mut self: Vec__FFITypePtrBox, marks: Dynam
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -3334,8 +3950,8 @@ func Vec__FFITypePtrBox.push(mut self: Vec__FFITypePtrBox, own val: FFITypePtrBo
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__FFITypePtrBox.append(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
@@ -3351,7 +3967,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -3367,13 +3983,13 @@ func Vec__FFITypePtrBox.take(mut self: Vec__FFITypePtrBox) returns Vec__FFITypeP
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -3389,9 +4005,9 @@ func Vec__FFITypePtrBox.move_to(own self: Vec__FFITypePtrBox, mut dest: Vec__FFI
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__FFITypePtrBox.move_from(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
@@ -3404,9 +4020,9 @@ func Vec__FFITypePtrBox.move_from(mut self: Vec__FFITypePtrBox, own other: Vec__
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -3419,13 +4035,13 @@ func Vec__FFITypePtrBox.unsafe_get(self: Vec__FFITypePtrBox, i: USize) returns r
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__FFITypePtrBox.get(self: Vec__FFITypePtrBox, i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
+func Vec__FFITypePtrBox.get(self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
 #+end_src
 
 * Vec__FFITypePtrBox.pop
@@ -3447,7 +4063,7 @@ func Vec__FFITypePtrBox.pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__FFITypePtrBox.remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
@@ -3459,7 +4075,7 @@ func Vec__FFITypePtrBox.remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -3472,9 +4088,9 @@ func Vec__FFITypePtrBox.take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USi
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -3487,8 +4103,8 @@ func Vec__FFITypePtrBox.truncate(mut self: Vec__FFITypePtrBox, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -3501,9 +4117,9 @@ func Vec__FFITypePtrBox.unsafe_set(mut self: Vec__FFITypePtrBox, shallow i: USiz
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__FFITypePtrBox.set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox, mut _err_kind: I64)
@@ -3530,7 +4146,7 @@ func Vec__FFITypePtrBox.push_take(mut self: Vec__FFITypePtrBox, mut src: Vec__FF
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__FFITypePtrBox.delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
@@ -3582,9 +4198,9 @@ namespace:
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.
@@ -3604,343 +4220,11 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
 func Option__ref_Declaration.take(own self: Option__ref_Declaration) returns ref Declaration
-#+end_src
-
-* Vec__I64
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-struct Vec__I64 {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__I64
-    func with_capacity(shallow n: USize) returns Vec__I64
-    func len(self: Vec__I64) returns shallow USize
-    func clear(mut self: Vec__I64)
-    func delete_marked(mut self: Vec__I64, marks: Dynamic)
-    func push(mut self: Vec__I64, own val: I64)
-    func append(mut self: Vec__I64, own other: Vec__I64)
-    func take(mut self: Vec__I64) returns Vec__I64
-    func move_to(own self: Vec__I64, mut dest: Vec__I64)
-    func move_from(mut self: Vec__I64, own other: Vec__I64)
-    func unsafe_get(self: Vec__I64, i: USize) returns ref I64
-    func get(self: Vec__I64, i: USize, mut _err_kind: I64) returns ref I64
-    func pop(mut self: Vec__I64) returns shallow I64
-    func remove_at(mut self: Vec__I64, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__I64, shallow n: USize) returns Vec__I64
-    func truncate(mut self: Vec__I64, shallow n: USize)
-    func unsafe_set(mut self: Vec__I64, shallow i: USize, own val: I64)
-    func set(mut self: Vec__I64, shallow i: USize, own val: I64, mut _err_kind: I64)
-    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: USize)
-    func delete(own self: Vec__I64, shallow call_free: Bool)
-    func clone(self: Vec__I64) returns Vec__I64
-    func size() returns shallow USize
-}
-#+end_src
-
-* Vec__I64.new
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.new
-:group: Compiler frontend
-:END:
-
-Create a new empty Vec for elements of type T. Lazy: no allocation
-until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-and the grow sites below seed cap 0->1 on the first insert. This keeps
-the many containers that stay empty (e.g. the unused maps in a fresh
-Scope) allocation-free, which is the dominant per-call interpreter cost.
-
-#+begin_src til
-func Vec__I64.new() returns Vec__I64
-#+end_src
-
-* Vec__I64.with_capacity
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.with_capacity
-:group: Compiler frontend
-:END:
-
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-items reallocs zero times. Use at call sites where the final length is
-known up front (cloning a Vec of known length, building a fixed arg
-list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-no allocation (the grow sites seed cap 0->1 on the first insert).
-
-#+begin_src til
-func Vec__I64.with_capacity(shallow n: USize) returns Vec__I64
-#+end_src
-
-* Vec__I64.clear
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.clear
-:group: Compiler frontend
-:END:
-
-Drop all live elements via elem_delete but keep the allocated
-storage and element-type metadata so the Vec can be reused.
-
-#+begin_src til
-func Vec__I64.clear(mut self: Vec__I64)
-#+end_src
-
-* Vec__I64.delete_marked
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.delete_marked
-:group: Compiler frontend
-:END:
-
-Drop the elements flagged in `marks` (a byte-per-element buffer,
-nonzero = drop, at least self.count entries) via elem_delete, then
-compact the survivors forward and update count. This is the
-container home for the scavenger's mark/sweep/compact, which used
-to reach into data/count directly.
-
-#+begin_src til
-func Vec__I64.delete_marked(mut self: Vec__I64, marks: Dynamic)
-#+end_src
-
-* Vec__I64.push
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.push
-:group: Compiler frontend
-:END:
-
-Append an element to the end. `val` is owned: after this call the
-caller must not use the value passed -- clone it first if needed.
-
-#+begin_src til
-func Vec__I64.push(mut self: Vec__I64, own val: I64)
-#+end_src
-
-* Vec__I64.append
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.append
-:group: Compiler frontend
-:END:
-
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
-
-#+begin_src til
-func Vec__I64.append(mut self: Vec__I64, own other: Vec__I64)
-#+end_src
-
-* Vec__I64.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.take
-:group: Compiler frontend
-:END:
-
-Take the contents out: the returned Vec owns self's buffer and
-self is left lazy-empty. No element is copied or cloned.
-
-This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
-argument or receiver, because the callee would then free the
-ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
-pointer" compiling itself. Everything the caller can give away
-uses the two move forms below instead.
-
-#+begin_src til
-func Vec__I64.take(mut self: Vec__I64) returns Vec__I64
-#+end_src
-
-* Vec__I64.move_to
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.move_to
-:group: Compiler frontend
-:END:
-
-Give self's contents to `dest`, which drops whatever it held.
-SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
-
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
-free, which is what the emitted C does with field assignment.
-Blanking the source leaves a genuinely valid lazy-empty Vec, so
-a later push on it allocates afresh instead of reallocating a
-buffer that now belongs to someone else.
-
-#+begin_src til
-func Vec__I64.move_to(own self: Vec__I64, mut dest: Vec__I64)
-#+end_src
-
-* Vec__I64.move_from
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.move_from
-:group: Compiler frontend
-:END:
-
-Take `other`'s contents, dropping whatever self held. OTHER is
-consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
-
-#+begin_src til
-func Vec__I64.move_from(mut self: Vec__I64, own other: Vec__I64)
-#+end_src
-
-* Vec__I64.unsafe_get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.unsafe_get
-:group: Compiler frontend
-:END:
-
-Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
-proves the index in bounds (issue #284).
-
-#+begin_src til
-func Vec__I64.unsafe_get(self: Vec__I64, i: USize) returns ref I64
-#+end_src
-
-* Vec__I64.get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.get
-:group: Compiler frontend
-:END:
-
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
-to panic on a bad index. The reference is valid until the
-next mutation.
-
-#+begin_src til
-func Vec__I64.get(self: Vec__I64, i: USize, mut _err_kind: I64) returns ref I64
-#+end_src
-
-* Vec__I64.pop
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.pop
-:group: Compiler frontend
-:END:
-
-Remove and return the last element. Panics if empty. The caller
-takes ownership of the returned value.
-
-#+begin_src til
-func Vec__I64.pop(mut self: Vec__I64) returns shallow I64
-#+end_src
-
-* Vec__I64.remove_at
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.remove_at
-:group: Compiler frontend
-:END:
-
-Remove and drop the element at `i`, shifting later elements left.
-
-#+begin_src til
-func Vec__I64.remove_at(mut self: Vec__I64, shallow i: USize, mut _err_kind: I64)
-#+end_src
-
-* Vec__I64.take_prefix
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.take_prefix
-:group: Compiler frontend
-:END:
-
-Split off the first `n` elements into a new Vec. Panics if `n`
-exceeds self.len(). The remaining elements shift to the front.
-
-#+begin_src til
-func Vec__I64.take_prefix(mut self: Vec__I64, shallow n: USize) returns Vec__I64
-#+end_src
-
-* Vec__I64.truncate
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.truncate
-:group: Compiler frontend
-:END:
-
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
-for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-
-#+begin_src til
-func Vec__I64.truncate(mut self: Vec__I64, shallow n: USize)
-#+end_src
-
-* Vec__I64.unsafe_set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.unsafe_set
-:group: Compiler frontend
-:END:
-
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
-mirror of unsafe_get (issue #284).
-
-#+begin_src til
-func Vec__I64.unsafe_set(mut self: Vec__I64, shallow i: USize, own val: I64)
-#+end_src
-
-* Vec__I64.set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.set
-:group: Compiler frontend
-:END:
-
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
-
-#+begin_src til
-func Vec__I64.set(mut self: Vec__I64, shallow i: USize, own val: I64, mut _err_kind: I64)
-#+end_src
-
-* Vec__I64.push_take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.push_take
-:group: Compiler frontend
-:END:
-
-Move bytes of src[i] into self (push). Source slot is zeroed so that
-src's eventual elem_delete on it is a no-op (relies on the same
-count==0/data==NULL convention used by take_children and Vec.delete).
-
-#+begin_src til
-func Vec__I64.push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: USize)
-#+end_src
-
-* Vec__I64.delete
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.delete
-:group: Compiler frontend
-:END:
-
-Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
-
-#+begin_src til
-func Vec__I64.delete(own self: Vec__I64, shallow call_free: Bool)
-#+end_src
-
-* Vec__I64.clone
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__I64.clone
-:group: Compiler frontend
-:END:
-
-Deep-copy the Vec and all its elements via elem_clone.
-
-#+begin_src til
-func Vec__I64.clone(self: Vec__I64) returns Vec__I64
 #+end_src
 
 * Vec__TypeBinding
@@ -3966,7 +4250,7 @@ namespace:
     func move_to(own self: Vec__TypeBinding, mut dest: Vec__TypeBinding)
     func move_from(mut self: Vec__TypeBinding, own other: Vec__TypeBinding)
     func unsafe_get(self: Vec__TypeBinding, i: USize) returns ref TypeBinding
-    func get(self: Vec__TypeBinding, i: USize, mut _err_kind: I64) returns ref TypeBinding
+    func get(self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64) returns ref TypeBinding
     func pop(mut self: Vec__TypeBinding) returns TypeBinding
     func remove_at(mut self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__TypeBinding, shallow n: USize) returns Vec__TypeBinding
@@ -4002,11 +4286,11 @@ func Vec__TypeBinding.new() returns Vec__TypeBinding
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -4032,7 +4316,7 @@ func Vec__TypeBinding.clear(mut self: Vec__TypeBinding)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -4048,7 +4332,7 @@ func Vec__TypeBinding.delete_marked(mut self: Vec__TypeBinding, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -4061,8 +4345,8 @@ func Vec__TypeBinding.push(mut self: Vec__TypeBinding, own val: TypeBinding)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__TypeBinding.append(mut self: Vec__TypeBinding, own other: Vec__TypeBinding)
@@ -4078,7 +4362,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -4094,13 +4378,13 @@ func Vec__TypeBinding.take(mut self: Vec__TypeBinding) returns Vec__TypeBinding
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -4116,9 +4400,9 @@ func Vec__TypeBinding.move_to(own self: Vec__TypeBinding, mut dest: Vec__TypeBin
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__TypeBinding.move_from(mut self: Vec__TypeBinding, own other: Vec__TypeBinding)
@@ -4131,9 +4415,9 @@ func Vec__TypeBinding.move_from(mut self: Vec__TypeBinding, own other: Vec__Type
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -4146,13 +4430,13 @@ func Vec__TypeBinding.unsafe_get(self: Vec__TypeBinding, i: USize) returns ref T
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__TypeBinding.get(self: Vec__TypeBinding, i: USize, mut _err_kind: I64) returns ref TypeBinding
+func Vec__TypeBinding.get(self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64) returns ref TypeBinding
 #+end_src
 
 * Vec__TypeBinding.pop
@@ -4174,7 +4458,7 @@ func Vec__TypeBinding.pop(mut self: Vec__TypeBinding) returns TypeBinding
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__TypeBinding.remove_at(mut self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64)
@@ -4186,7 +4470,7 @@ func Vec__TypeBinding.remove_at(mut self: Vec__TypeBinding, shallow i: USize, mu
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -4199,9 +4483,9 @@ func Vec__TypeBinding.take_prefix(mut self: Vec__TypeBinding, shallow n: USize) 
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -4214,8 +4498,8 @@ func Vec__TypeBinding.truncate(mut self: Vec__TypeBinding, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -4228,9 +4512,9 @@ func Vec__TypeBinding.unsafe_set(mut self: Vec__TypeBinding, shallow i: USize, o
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__TypeBinding.set(mut self: Vec__TypeBinding, shallow i: USize, own val: TypeBinding, mut _err_kind: I64)
@@ -4257,7 +4541,7 @@ func Vec__TypeBinding.push_take(mut self: Vec__TypeBinding, mut src: Vec__TypeBi
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__TypeBinding.delete(own self: Vec__TypeBinding, shallow call_free: Bool)
@@ -4298,7 +4582,7 @@ namespace:
     func move_to(own self: Vec__U32, mut dest: Vec__U32)
     func move_from(mut self: Vec__U32, own other: Vec__U32)
     func unsafe_get(self: Vec__U32, i: USize) returns ref U32
-    func get(self: Vec__U32, i: USize, mut _err_kind: I64) returns ref U32
+    func get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
     func pop(mut self: Vec__U32) returns shallow U32
     func remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
@@ -4334,11 +4618,11 @@ func Vec__U32.new() returns Vec__U32
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -4364,7 +4648,7 @@ func Vec__U32.clear(mut self: Vec__U32)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -4380,7 +4664,7 @@ func Vec__U32.delete_marked(mut self: Vec__U32, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -4393,8 +4677,8 @@ func Vec__U32.push(mut self: Vec__U32, own val: U32)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__U32.append(mut self: Vec__U32, own other: Vec__U32)
@@ -4410,7 +4694,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -4426,13 +4710,13 @@ func Vec__U32.take(mut self: Vec__U32) returns Vec__U32
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -4448,9 +4732,9 @@ func Vec__U32.move_to(own self: Vec__U32, mut dest: Vec__U32)
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__U32.move_from(mut self: Vec__U32, own other: Vec__U32)
@@ -4463,9 +4747,9 @@ func Vec__U32.move_from(mut self: Vec__U32, own other: Vec__U32)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -4478,13 +4762,13 @@ func Vec__U32.unsafe_get(self: Vec__U32, i: USize) returns ref U32
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__U32.get(self: Vec__U32, i: USize, mut _err_kind: I64) returns ref U32
+func Vec__U32.get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
 #+end_src
 
 * Vec__U32.pop
@@ -4506,7 +4790,7 @@ func Vec__U32.pop(mut self: Vec__U32) returns shallow U32
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__U32.remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
@@ -4518,7 +4802,7 @@ func Vec__U32.remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -4531,9 +4815,9 @@ func Vec__U32.take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -4546,8 +4830,8 @@ func Vec__U32.truncate(mut self: Vec__U32, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -4560,9 +4844,9 @@ func Vec__U32.unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__U32.set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64)
@@ -4589,7 +4873,7 @@ func Vec__U32.push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__U32.delete(own self: Vec__U32, shallow call_free: Bool)
@@ -4630,7 +4914,7 @@ namespace:
     func move_to(own self: Vec__Mode, mut dest: Vec__Mode)
     func move_from(mut self: Vec__Mode, own other: Vec__Mode)
     func unsafe_get(self: Vec__Mode, i: USize) returns ref Mode
-    func get(self: Vec__Mode, i: USize, mut _err_kind: I64) returns ref Mode
+    func get(self: Vec__Mode, shallow i: USize, mut _err_kind: I64) returns ref Mode
     func pop(mut self: Vec__Mode) returns Mode
     func remove_at(mut self: Vec__Mode, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Mode, shallow n: USize) returns Vec__Mode
@@ -4666,11 +4950,11 @@ func Vec__Mode.new() returns Vec__Mode
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -4696,7 +4980,7 @@ func Vec__Mode.clear(mut self: Vec__Mode)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -4712,7 +4996,7 @@ func Vec__Mode.delete_marked(mut self: Vec__Mode, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -4725,8 +5009,8 @@ func Vec__Mode.push(mut self: Vec__Mode, own val: Mode)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__Mode.append(mut self: Vec__Mode, own other: Vec__Mode)
@@ -4742,7 +5026,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -4758,13 +5042,13 @@ func Vec__Mode.take(mut self: Vec__Mode) returns Vec__Mode
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -4780,9 +5064,9 @@ func Vec__Mode.move_to(own self: Vec__Mode, mut dest: Vec__Mode)
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__Mode.move_from(mut self: Vec__Mode, own other: Vec__Mode)
@@ -4795,9 +5079,9 @@ func Vec__Mode.move_from(mut self: Vec__Mode, own other: Vec__Mode)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -4810,13 +5094,13 @@ func Vec__Mode.unsafe_get(self: Vec__Mode, i: USize) returns ref Mode
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Mode.get(self: Vec__Mode, i: USize, mut _err_kind: I64) returns ref Mode
+func Vec__Mode.get(self: Vec__Mode, shallow i: USize, mut _err_kind: I64) returns ref Mode
 #+end_src
 
 * Vec__Mode.pop
@@ -4838,7 +5122,7 @@ func Vec__Mode.pop(mut self: Vec__Mode) returns Mode
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__Mode.remove_at(mut self: Vec__Mode, shallow i: USize, mut _err_kind: I64)
@@ -4850,7 +5134,7 @@ func Vec__Mode.remove_at(mut self: Vec__Mode, shallow i: USize, mut _err_kind: I
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -4863,9 +5147,9 @@ func Vec__Mode.take_prefix(mut self: Vec__Mode, shallow n: USize) returns Vec__M
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -4878,8 +5162,8 @@ func Vec__Mode.truncate(mut self: Vec__Mode, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -4892,9 +5176,9 @@ func Vec__Mode.unsafe_set(mut self: Vec__Mode, shallow i: USize, own val: Mode)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__Mode.set(mut self: Vec__Mode, shallow i: USize, own val: Mode, mut _err_kind: I64)
@@ -4921,7 +5205,7 @@ func Vec__Mode.push_take(mut self: Vec__Mode, mut src: Vec__Mode, shallow i: USi
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__Mode.delete(own self: Vec__Mode, shallow call_free: Bool)
@@ -4962,7 +5246,7 @@ namespace:
     func move_to(own self: Vec__FuncType, mut dest: Vec__FuncType)
     func move_from(mut self: Vec__FuncType, own other: Vec__FuncType)
     func unsafe_get(self: Vec__FuncType, i: USize) returns ref FuncType
-    func get(self: Vec__FuncType, i: USize, mut _err_kind: I64) returns ref FuncType
+    func get(self: Vec__FuncType, shallow i: USize, mut _err_kind: I64) returns ref FuncType
     func pop(mut self: Vec__FuncType) returns FuncType
     func remove_at(mut self: Vec__FuncType, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FuncType, shallow n: USize) returns Vec__FuncType
@@ -4998,11 +5282,11 @@ func Vec__FuncType.new() returns Vec__FuncType
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -5028,7 +5312,7 @@ func Vec__FuncType.clear(mut self: Vec__FuncType)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -5044,7 +5328,7 @@ func Vec__FuncType.delete_marked(mut self: Vec__FuncType, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -5057,8 +5341,8 @@ func Vec__FuncType.push(mut self: Vec__FuncType, own val: FuncType)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__FuncType.append(mut self: Vec__FuncType, own other: Vec__FuncType)
@@ -5074,7 +5358,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -5090,13 +5374,13 @@ func Vec__FuncType.take(mut self: Vec__FuncType) returns Vec__FuncType
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -5112,9 +5396,9 @@ func Vec__FuncType.move_to(own self: Vec__FuncType, mut dest: Vec__FuncType)
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__FuncType.move_from(mut self: Vec__FuncType, own other: Vec__FuncType)
@@ -5127,9 +5411,9 @@ func Vec__FuncType.move_from(mut self: Vec__FuncType, own other: Vec__FuncType)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -5142,13 +5426,13 @@ func Vec__FuncType.unsafe_get(self: Vec__FuncType, i: USize) returns ref FuncTyp
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__FuncType.get(self: Vec__FuncType, i: USize, mut _err_kind: I64) returns ref FuncType
+func Vec__FuncType.get(self: Vec__FuncType, shallow i: USize, mut _err_kind: I64) returns ref FuncType
 #+end_src
 
 * Vec__FuncType.pop
@@ -5170,7 +5454,7 @@ func Vec__FuncType.pop(mut self: Vec__FuncType) returns FuncType
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__FuncType.remove_at(mut self: Vec__FuncType, shallow i: USize, mut _err_kind: I64)
@@ -5182,7 +5466,7 @@ func Vec__FuncType.remove_at(mut self: Vec__FuncType, shallow i: USize, mut _err
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -5195,9 +5479,9 @@ func Vec__FuncType.take_prefix(mut self: Vec__FuncType, shallow n: USize) return
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -5210,8 +5494,8 @@ func Vec__FuncType.truncate(mut self: Vec__FuncType, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -5224,9 +5508,9 @@ func Vec__FuncType.unsafe_set(mut self: Vec__FuncType, shallow i: USize, own val
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__FuncType.set(mut self: Vec__FuncType, shallow i: USize, own val: FuncType, mut _err_kind: I64)
@@ -5253,7 +5537,7 @@ func Vec__FuncType.push_take(mut self: Vec__FuncType, mut src: Vec__FuncType, sh
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__FuncType.delete(own self: Vec__FuncType, shallow call_free: Bool)
@@ -5294,7 +5578,7 @@ namespace:
     func move_to(own self: Vec__ImportUnit, mut dest: Vec__ImportUnit)
     func move_from(mut self: Vec__ImportUnit, own other: Vec__ImportUnit)
     func unsafe_get(self: Vec__ImportUnit, i: USize) returns ref ImportUnit
-    func get(self: Vec__ImportUnit, i: USize, mut _err_kind: I64) returns ref ImportUnit
+    func get(self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64) returns ref ImportUnit
     func pop(mut self: Vec__ImportUnit) returns ImportUnit
     func remove_at(mut self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__ImportUnit, shallow n: USize) returns Vec__ImportUnit
@@ -5330,11 +5614,11 @@ func Vec__ImportUnit.new() returns Vec__ImportUnit
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -5360,7 +5644,7 @@ func Vec__ImportUnit.clear(mut self: Vec__ImportUnit)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -5376,7 +5660,7 @@ func Vec__ImportUnit.delete_marked(mut self: Vec__ImportUnit, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -5389,8 +5673,8 @@ func Vec__ImportUnit.push(mut self: Vec__ImportUnit, own val: ImportUnit)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__ImportUnit.append(mut self: Vec__ImportUnit, own other: Vec__ImportUnit)
@@ -5406,7 +5690,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -5422,13 +5706,13 @@ func Vec__ImportUnit.take(mut self: Vec__ImportUnit) returns Vec__ImportUnit
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -5444,9 +5728,9 @@ func Vec__ImportUnit.move_to(own self: Vec__ImportUnit, mut dest: Vec__ImportUni
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__ImportUnit.move_from(mut self: Vec__ImportUnit, own other: Vec__ImportUnit)
@@ -5459,9 +5743,9 @@ func Vec__ImportUnit.move_from(mut self: Vec__ImportUnit, own other: Vec__Import
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -5474,13 +5758,13 @@ func Vec__ImportUnit.unsafe_get(self: Vec__ImportUnit, i: USize) returns ref Imp
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__ImportUnit.get(self: Vec__ImportUnit, i: USize, mut _err_kind: I64) returns ref ImportUnit
+func Vec__ImportUnit.get(self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64) returns ref ImportUnit
 #+end_src
 
 * Vec__ImportUnit.pop
@@ -5502,7 +5786,7 @@ func Vec__ImportUnit.pop(mut self: Vec__ImportUnit) returns ImportUnit
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__ImportUnit.remove_at(mut self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64)
@@ -5514,7 +5798,7 @@ func Vec__ImportUnit.remove_at(mut self: Vec__ImportUnit, shallow i: USize, mut 
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -5527,9 +5811,9 @@ func Vec__ImportUnit.take_prefix(mut self: Vec__ImportUnit, shallow n: USize) re
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -5542,8 +5826,8 @@ func Vec__ImportUnit.truncate(mut self: Vec__ImportUnit, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -5556,9 +5840,9 @@ func Vec__ImportUnit.unsafe_set(mut self: Vec__ImportUnit, shallow i: USize, own
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__ImportUnit.set(mut self: Vec__ImportUnit, shallow i: USize, own val: ImportUnit, mut _err_kind: I64)
@@ -5585,7 +5869,7 @@ func Vec__ImportUnit.push_take(mut self: Vec__ImportUnit, mut src: Vec__ImportUn
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__ImportUnit.delete(own self: Vec__ImportUnit, shallow call_free: Bool)
@@ -5626,7 +5910,7 @@ namespace:
     func move_to(own self: Vec__StructLayout, mut dest: Vec__StructLayout)
     func move_from(mut self: Vec__StructLayout, own other: Vec__StructLayout)
     func unsafe_get(self: Vec__StructLayout, i: USize) returns ref StructLayout
-    func get(self: Vec__StructLayout, i: USize, mut _err_kind: I64) returns ref StructLayout
+    func get(self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64) returns ref StructLayout
     func pop(mut self: Vec__StructLayout) returns StructLayout
     func remove_at(mut self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__StructLayout, shallow n: USize) returns Vec__StructLayout
@@ -5662,11 +5946,11 @@ func Vec__StructLayout.new() returns Vec__StructLayout
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -5692,7 +5976,7 @@ func Vec__StructLayout.clear(mut self: Vec__StructLayout)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -5708,7 +5992,7 @@ func Vec__StructLayout.delete_marked(mut self: Vec__StructLayout, marks: Dynamic
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -5721,8 +6005,8 @@ func Vec__StructLayout.push(mut self: Vec__StructLayout, own val: StructLayout)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__StructLayout.append(mut self: Vec__StructLayout, own other: Vec__StructLayout)
@@ -5738,7 +6022,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -5754,13 +6038,13 @@ func Vec__StructLayout.take(mut self: Vec__StructLayout) returns Vec__StructLayo
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -5776,9 +6060,9 @@ func Vec__StructLayout.move_to(own self: Vec__StructLayout, mut dest: Vec__Struc
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__StructLayout.move_from(mut self: Vec__StructLayout, own other: Vec__StructLayout)
@@ -5791,9 +6075,9 @@ func Vec__StructLayout.move_from(mut self: Vec__StructLayout, own other: Vec__St
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -5806,13 +6090,13 @@ func Vec__StructLayout.unsafe_get(self: Vec__StructLayout, i: USize) returns ref
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__StructLayout.get(self: Vec__StructLayout, i: USize, mut _err_kind: I64) returns ref StructLayout
+func Vec__StructLayout.get(self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64) returns ref StructLayout
 #+end_src
 
 * Vec__StructLayout.pop
@@ -5834,7 +6118,7 @@ func Vec__StructLayout.pop(mut self: Vec__StructLayout) returns StructLayout
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__StructLayout.remove_at(mut self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64)
@@ -5846,7 +6130,7 @@ func Vec__StructLayout.remove_at(mut self: Vec__StructLayout, shallow i: USize, 
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -5859,9 +6143,9 @@ func Vec__StructLayout.take_prefix(mut self: Vec__StructLayout, shallow n: USize
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -5874,8 +6158,8 @@ func Vec__StructLayout.truncate(mut self: Vec__StructLayout, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -5888,9 +6172,9 @@ func Vec__StructLayout.unsafe_set(mut self: Vec__StructLayout, shallow i: USize,
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__StructLayout.set(mut self: Vec__StructLayout, shallow i: USize, own val: StructLayout, mut _err_kind: I64)
@@ -5917,7 +6201,7 @@ func Vec__StructLayout.push_take(mut self: Vec__StructLayout, mut src: Vec__Stru
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__StructLayout.delete(own self: Vec__StructLayout, shallow call_free: Bool)
@@ -5958,7 +6242,7 @@ namespace:
     func move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
     func move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
     func unsafe_get(self: Vec__call_Vec_Str, i: USize) returns ref Vec__Str
-    func get(self: Vec__call_Vec_Str, i: USize, mut _err_kind: I64) returns ref Vec__Str
+    func get(self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64) returns ref Vec__Str
     func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
     func remove_at(mut self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__call_Vec_Str, shallow n: USize) returns Vec__call_Vec_Str
@@ -5994,11 +6278,11 @@ func Vec__call_Vec_Str.new() returns Vec__call_Vec_Str
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -6024,7 +6308,7 @@ func Vec__call_Vec_Str.clear(mut self: Vec__call_Vec_Str)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -6040,7 +6324,7 @@ func Vec__call_Vec_Str.delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -6053,8 +6337,8 @@ func Vec__call_Vec_Str.push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__call_Vec_Str.append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
@@ -6070,7 +6354,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -6086,13 +6370,13 @@ func Vec__call_Vec_Str.take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_S
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -6108,9 +6392,9 @@ func Vec__call_Vec_Str.move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__call_Vec_Str.move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
@@ -6123,9 +6407,9 @@ func Vec__call_Vec_Str.move_from(mut self: Vec__call_Vec_Str, own other: Vec__ca
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -6138,13 +6422,13 @@ func Vec__call_Vec_Str.unsafe_get(self: Vec__call_Vec_Str, i: USize) returns ref
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__call_Vec_Str.get(self: Vec__call_Vec_Str, i: USize, mut _err_kind: I64) returns ref Vec__Str
+func Vec__call_Vec_Str.get(self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64) returns ref Vec__Str
 #+end_src
 
 * Vec__call_Vec_Str.pop
@@ -6166,7 +6450,7 @@ func Vec__call_Vec_Str.pop(mut self: Vec__call_Vec_Str) returns Vec__Str
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__call_Vec_Str.remove_at(mut self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64)
@@ -6178,7 +6462,7 @@ func Vec__call_Vec_Str.remove_at(mut self: Vec__call_Vec_Str, shallow i: USize, 
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -6191,9 +6475,9 @@ func Vec__call_Vec_Str.take_prefix(mut self: Vec__call_Vec_Str, shallow n: USize
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -6206,8 +6490,8 @@ func Vec__call_Vec_Str.truncate(mut self: Vec__call_Vec_Str, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -6220,9 +6504,9 @@ func Vec__call_Vec_Str.unsafe_set(mut self: Vec__call_Vec_Str, shallow i: USize,
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__call_Vec_Str.set(mut self: Vec__call_Vec_Str, shallow i: USize, own val: Vec__Str, mut _err_kind: I64)
@@ -6249,7 +6533,7 @@ func Vec__call_Vec_Str.push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__call_Vec_Str.delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
@@ -6290,7 +6574,7 @@ namespace:
     func move_to(own self: Vec__FFIEntry, mut dest: Vec__FFIEntry)
     func move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
     func unsafe_get(self: Vec__FFIEntry, i: USize) returns ref FFIEntry
-    func get(self: Vec__FFIEntry, i: USize, mut _err_kind: I64) returns ref FFIEntry
+    func get(self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
     func pop(mut self: Vec__FFIEntry) returns FFIEntry
     func remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FFIEntry, shallow n: USize) returns Vec__FFIEntry
@@ -6326,11 +6610,11 @@ func Vec__FFIEntry.new() returns Vec__FFIEntry
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -6356,7 +6640,7 @@ func Vec__FFIEntry.clear(mut self: Vec__FFIEntry)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -6372,7 +6656,7 @@ func Vec__FFIEntry.delete_marked(mut self: Vec__FFIEntry, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -6385,8 +6669,8 @@ func Vec__FFIEntry.push(mut self: Vec__FFIEntry, own val: FFIEntry)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__FFIEntry.append(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
@@ -6402,7 +6686,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -6418,13 +6702,13 @@ func Vec__FFIEntry.take(mut self: Vec__FFIEntry) returns Vec__FFIEntry
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -6440,9 +6724,9 @@ func Vec__FFIEntry.move_to(own self: Vec__FFIEntry, mut dest: Vec__FFIEntry)
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__FFIEntry.move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
@@ -6455,9 +6739,9 @@ func Vec__FFIEntry.move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -6470,13 +6754,13 @@ func Vec__FFIEntry.unsafe_get(self: Vec__FFIEntry, i: USize) returns ref FFIEntr
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__FFIEntry.get(self: Vec__FFIEntry, i: USize, mut _err_kind: I64) returns ref FFIEntry
+func Vec__FFIEntry.get(self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
 #+end_src
 
 * Vec__FFIEntry.pop
@@ -6498,7 +6782,7 @@ func Vec__FFIEntry.pop(mut self: Vec__FFIEntry) returns FFIEntry
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__FFIEntry.remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
@@ -6510,7 +6794,7 @@ func Vec__FFIEntry.remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -6523,9 +6807,9 @@ func Vec__FFIEntry.take_prefix(mut self: Vec__FFIEntry, shallow n: USize) return
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -6538,8 +6822,8 @@ func Vec__FFIEntry.truncate(mut self: Vec__FFIEntry, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -6552,9 +6836,9 @@ func Vec__FFIEntry.unsafe_set(mut self: Vec__FFIEntry, shallow i: USize, own val
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__FFIEntry.set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry, mut _err_kind: I64)
@@ -6581,7 +6865,7 @@ func Vec__FFIEntry.push_take(mut self: Vec__FFIEntry, mut src: Vec__FFIEntry, sh
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__FFIEntry.delete(own self: Vec__FFIEntry, shallow call_free: Bool)
@@ -6622,7 +6906,7 @@ namespace:
     func move_to(own self: Vec__ExprPtrBox, mut dest: Vec__ExprPtrBox)
     func move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
     func unsafe_get(self: Vec__ExprPtrBox, i: USize) returns ref ExprPtrBox
-    func get(self: Vec__ExprPtrBox, i: USize, mut _err_kind: I64) returns ref ExprPtrBox
+    func get(self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
     func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
     func remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) returns Vec__ExprPtrBox
@@ -6658,11 +6942,11 @@ func Vec__ExprPtrBox.new() returns Vec__ExprPtrBox
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -6688,7 +6972,7 @@ func Vec__ExprPtrBox.clear(mut self: Vec__ExprPtrBox)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -6704,7 +6988,7 @@ func Vec__ExprPtrBox.delete_marked(mut self: Vec__ExprPtrBox, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -6717,8 +7001,8 @@ func Vec__ExprPtrBox.push(mut self: Vec__ExprPtrBox, own val: ExprPtrBox)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__ExprPtrBox.append(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
@@ -6734,7 +7018,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -6750,13 +7034,13 @@ func Vec__ExprPtrBox.take(mut self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -6772,9 +7056,9 @@ func Vec__ExprPtrBox.move_to(own self: Vec__ExprPtrBox, mut dest: Vec__ExprPtrBo
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__ExprPtrBox.move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
@@ -6787,9 +7071,9 @@ func Vec__ExprPtrBox.move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPt
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -6802,13 +7086,13 @@ func Vec__ExprPtrBox.unsafe_get(self: Vec__ExprPtrBox, i: USize) returns ref Exp
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__ExprPtrBox.get(self: Vec__ExprPtrBox, i: USize, mut _err_kind: I64) returns ref ExprPtrBox
+func Vec__ExprPtrBox.get(self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
 #+end_src
 
 * Vec__ExprPtrBox.pop
@@ -6830,7 +7114,7 @@ func Vec__ExprPtrBox.pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__ExprPtrBox.remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
@@ -6842,7 +7126,7 @@ func Vec__ExprPtrBox.remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut 
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -6855,9 +7139,9 @@ func Vec__ExprPtrBox.take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) re
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -6870,8 +7154,8 @@ func Vec__ExprPtrBox.truncate(mut self: Vec__ExprPtrBox, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -6884,9 +7168,9 @@ func Vec__ExprPtrBox.unsafe_set(mut self: Vec__ExprPtrBox, shallow i: USize, own
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__ExprPtrBox.set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox, mut _err_kind: I64)
@@ -6913,7 +7197,7 @@ func Vec__ExprPtrBox.push_take(mut self: Vec__ExprPtrBox, mut src: Vec__ExprPtrB
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__ExprPtrBox.delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
@@ -7039,14 +7323,4 @@ func adopt__ExprPtrBox(dest: Dynamic, own src: ExprPtrBox)
 
 #+begin_src til
 func adopt__FFITypePtrBox(dest: Dynamic, own src: FFITypePtrBox)
-#+end_src
-
-* adopt__I64
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.adopt__I64
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func adopt__I64(dest: Dynamic, own src: I64)
 #+end_src

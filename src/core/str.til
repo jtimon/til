@@ -26,9 +26,9 @@ format := func(parts: ..Str) returns Str {
 }
 
 /// Concatenate exactly three strings WITHOUT the variadic Array(Str) that
-/// `format` makes the caller build per call. One pre-sized result Str, no
-/// per-call Array alloc. Used on the hot flat-name path (`sname + "_" +
-/// method`) that the dispatch / codegen / scope lookups rebuild on every
+/// ~format~ makes the caller build per call. One pre-sized result Str, no
+/// per-call Array alloc. Used on the hot flat-name path
+/// (~sname + "_" + method~) that dispatch / codegen / scope lookups rebuild
 /// method resolution -- the self-host --prof run flagged Array__Str_new
 /// (1.6M allocs) as a top string-churn source.
 concat3 := func(a: Str, b: Str, c: Str) returns Str {
@@ -40,8 +40,8 @@ concat3 := func(a: Str, b: Str, c: Str) returns Str {
 }
 
 /// UTF-8 string with owned heap storage. The byte buffer is typed as
-/// I8 (= C `char`) so direct FFI bindings against `const char *` APIs
-/// can pass `s.c_str` without an intermediate pointer-cast helper.
+/// I8 (= C ~char~) so direct FFI bindings against ~const char *~ APIs
+/// can pass ~s.c_str~ without an intermediate pointer-cast helper.
 Str := struct {
     own c_str : I8 = 0
     count : USize = 0
@@ -50,7 +50,7 @@ Str := struct {
 namespace:
     len := func(self: Str) returns USize { return self.count }
 
-    /// Return a ref to byte `i`. Panics if `i` is out of bounds.
+    /// Return a ref to byte ~i~. Panics if ~i~ is out of bounds.
     get := func(self: Str, i: USize) returns ref I8 {
         if i >= self.count {
             panic("Str.get: index out of bounds")
@@ -92,7 +92,7 @@ namespace:
 
     /// Equality with a length-mismatch early-out and a same-buffer
     /// shortcut before the byte compare. Otherwise eq auto-derives from
-    /// cmp as `cmp(a,b) == 0`, which memcmps the common prefix even when
+    /// cmp as ~cmp(a,b) == 0~, which memcmps the common prefix even when
     /// the lengths already differ; this rejects the common different-length
     /// case (distinct identifiers) without touching the bytes, and
     /// short-circuits interned / identical buffers.
@@ -102,7 +102,7 @@ namespace:
         return memcmp(a.c_str, b.c_str, a.count) == 0
     }
 
-    /// Create an empty Str pre-allocated for up to `n` bytes.
+    /// Create an empty Str pre-allocated for up to ~n~ bytes.
     with_capacity := func(n: USize) returns Str {
         if n == 0 { return "" }
         buf : I8 = malloc(n + 1)
@@ -111,12 +111,12 @@ namespace:
     }
 
     /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
-    /// The view borrows `s`; the caller keeps ownership of the buffer.
+    /// The view borrows ~s~; the caller keeps ownership of the buffer.
     from_c_str := func(s: Dynamic) returns Str {
         return Str(c_str = s, count = c_str_len(s), cap = CAP_VIEW)
     }
 
-    /// Append `s` to `self`. Panics if `self` is a view/literal or if
+    /// Append ~s~ to ~self~. Panics if ~self~ is a view/literal or if
     /// capacity is exceeded.
     push_str := func(mut self: Str, s: Str) {
         if s.count == 0 { return }
@@ -142,7 +142,7 @@ namespace:
     }
 
     /// String representation of a Str: a fresh owned copy of itself. Lets
-    /// Str satisfy the same `T.to_str(x)` contract as the numeric types, so
+    /// Str satisfy the same ~T.to_str(x)~ contract as the numeric types, so
     /// generic code (e.g. assert_eq(Str, a, b)) works uniformly.
     to_str := func(self: Str) returns Str {
         return self.clone()
@@ -155,9 +155,9 @@ namespace:
         if call_free.and(self.cap.neq(CAP_LIT)) { free(own self) }
     }
 
-    /// Return a non-owning view of the WHOLE string -- `substr(0, len())`
+    /// Return a non-owning view of the WHOLE string -- ~substr(0, len())~
     /// without the bounds arithmetic. Allocates nothing: the result shares
-    /// `s`'s bytes and `delete` frees neither them (cap >= CAP_VIEW) nor,
+    /// ~s~'s bytes and ~delete~ frees neither them (cap >= CAP_VIEW) nor,
     /// for a view held inside a container, anything else it does not own.
     ///
     /// Compiled, the view and its source share one buffer. The
@@ -170,7 +170,7 @@ namespace:
     /// FIRST -- a lookup key, a set of names collected during one pass
     /// over an AST that outlives it. Where the copy must outlive its
     /// source, or the source is itself a view of something shorter-lived,
-    /// `clone` is still the answer: this borrows, it does not own.
+    /// ~clone~ is still the answer: this borrows, it does not own.
     ///
     /// #+begin_src til :doctest
     /// s := "hello"
@@ -182,7 +182,7 @@ namespace:
         return Str(c_str = s.c_str, count = s.count, cap = CAP_VIEW)
     }
 
-    /// Return a view into `s` from `start` for `n` bytes (no allocation).
+    /// Return a view into ~s~ from ~start~ for ~n~ bytes (no allocation).
     /// Clamps to valid bounds.
     substr := func(s: Str, start: USize, n: USize) returns Str {
         mut st := start
@@ -192,7 +192,7 @@ namespace:
         return Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
     }
 
-    /// Return a view of `s` with leading ASCII whitespace (space, tab,
+    /// Return a view of ~s~ with leading ASCII whitespace (space, tab,
     /// newline, carriage return) removed. View-only -- no allocation.
     trim_start := func(s: Str) returns Str {
         mut st : USize = 0
@@ -207,7 +207,7 @@ namespace:
         return s.substr(st, s.count - st)
     }
 
-    /// Return a view of `s` with leading and trailing ASCII whitespace
+    /// Return a view of ~s~ with leading and trailing ASCII whitespace
     /// removed. View-only -- no allocation.
     trim := func(s: Str) returns Str {
         mut st : USize = 0
@@ -231,7 +231,7 @@ namespace:
         return s.substr(st, en - st)
     }
 
-    /// True if `a` contains `b` as a substring.
+    /// True if ~a~ contains ~b~ as a substring.
     contains := func(a: Str, b: Str) returns Bool {
         if b.count == 0 { return true }
         if b.count > a.count { return false }
@@ -247,7 +247,7 @@ namespace:
         return false
     }
 
-    /// True if `a` starts with prefix `b`.
+    /// True if ~a~ starts with prefix ~b~.
     starts_with := func(a: Str, b: Str) returns Bool {
         if b.count > a.count { return false }
         for i in 0..b.count {
@@ -258,7 +258,7 @@ namespace:
         return true
     }
 
-    /// True if `a` ends with suffix `b`.
+    /// True if ~a~ ends with suffix ~b~.
     ends_with := func(a: Str, b: Str) returns Bool {
         if b.count > a.count { return false }
         offset := a.count - b.count
@@ -275,7 +275,7 @@ namespace:
         return self.count == 0
     }
 
-    /// Return the byte index of the first occurrence of `needle`, or -1.
+    /// Return the byte index of the first occurrence of ~needle~, or -1.
     find := func(self: Str, needle: Str) returns I64 {
         if needle.count == 0 { return -1 }
         if needle.count > self.count { return -1 }
@@ -293,7 +293,7 @@ namespace:
         return -1
     }
 
-    /// Return the byte index of the last occurrence of `needle`, or -1.
+    /// Return the byte index of the last occurrence of ~needle~, or -1.
     rfind := func(self: Str, needle: Str) returns I64 {
         if needle.count == 0 { return -1 }
         if needle.count > self.count { return -1 }
@@ -310,7 +310,7 @@ namespace:
         return last
     }
 
-    /// Return a new Str with all occurrences of `from` replaced by `to`.
+    /// Return a new Str with all occurrences of ~from~ replaced by ~to~.
     replace := func(self: Str, from: Str, to: Str) returns Str {
         if from.count == 0 { return self.clone() }
         // `from` longer than the whole string -> no match possible. Guard
@@ -352,7 +352,7 @@ namespace:
         return out
     }
 
-    /// View of the single byte at index `i` as a Str.
+    /// View of the single byte at index ~i~ as a Str.
     get_char := func(self: Str, i: USize) returns Str {
         return self.substr(i, 1)
     }
@@ -367,7 +367,7 @@ namespace:
         return hasher(self.c_str, self.count)
     }
 
-    /// If self starts with `prefix`, return the rest; otherwise clone.
+    /// If self starts with ~prefix~, return the rest; otherwise clone.
     strip_prefix := func(self: Str, prefix: Str) returns Str {
         if self.starts_with(prefix) {
             return self.substr(prefix.count, self.count - prefix.count)
@@ -375,7 +375,7 @@ namespace:
         return self.clone()
     }
 
-    /// If self ends with `suffix`, return the part before it; otherwise clone.
+    /// If self ends with ~suffix~, return the part before it; otherwise clone.
     strip_suffix := func(self: Str, suffix: Str) returns Str {
         if self.ends_with(suffix) {
             return self.substr(0, self.count - suffix.count)
@@ -500,7 +500,7 @@ namespace:
         return str_parse_f64(self)
     }
 
-    /// Split the string on `delim`, returning a Vec of Str clones.
+    /// Split the string on ~delim~, returning a Vec of Str clones.
     split := func(self: Str, delim: Str) returns Vec(Str) {
         mut parts := Vec(Str).new()
         // delim empty, or self too short to contain it: no split point

@@ -1,5 +1,5 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -139,10 +139,12 @@ ext_proc getenv(name: I8) returns ref I8
 :END:
 
 Read an environment variable, "" when unset. NOT view-compatible:
-`name` reaches C as a NUL-terminated string, so it must be a literal
+~name~ reaches C as a NUL-terminated string, so it must be a literal
 or an owned Str, never a substr view (a view's bytes end at its count,
 with no NUL there, and getenv would read past it). Pass
-`view.clone()` at the call site if you have one. The result is owned:
+~view.clone()~ at the call site if you have one -- since #343 the
+boundary panics on a view here rather than reading past it, but the
+caller still owns the choice. The result is owned:
 the bytes are copied out of the environ block, so the Str stays valid
 however the environment changes later. A host observation, hence proc:
 the same call can answer differently twice in one run.
@@ -389,17 +391,17 @@ ext_func ccmd_free(handle: Dynamic)
 
 A command to run, built from argv elements -- never from shell text.
 
-`system_cmd` / `spawn_cmd` / `run_cmd` above hand a STRING to
+~system_cmd~ / ~spawn_cmd~ / ~run_cmd~ above hand a STRING to
 /bin/sh or cmd.exe, which re-splits it on whitespace, expands $VAR
 and globs it; every caller then has to quote its arguments back out
 of that, differently per host. A Cmd passes its elements straight to
 execvp / CreateProcess, so an argument means exactly the bytes it
 holds -- spaces, quotes, dollars and all. A shell is still reachable
-by asking for one: `Cmd.new("sh", "-c", script)`.
+by asking for one: ~Cmd.new("sh", "-c", script)~.
 
 Output is inherited by default (the child writes to this process's
-stdout/stderr as it goes). `capture()` collects it instead, and
-`stdout_to`/`stderr_to` send it to files:
+stdout/stderr as it goes). ~capture()~ collects it instead, and
+~stdout_to~/~stderr_to~ send it to files:
 
     c := Cmd.new("echo", "a b")
     c.capture()
@@ -455,7 +457,7 @@ proc Cmd.new(args: ..Str) returns Cmd
 :group: Standard library
 :END:
 
-Append one argument. Returns `self` so calls chain via UFCS.
+Append one argument. Returns ~self~ so calls chain via UFCS.
 
 #+begin_src til
 proc Cmd.arg(self: Cmd, a: Str) returns ref Cmd
@@ -479,7 +481,7 @@ proc Cmd.args(self: Cmd, more: ..Str) returns ref Cmd
 :group: Standard library
 :END:
 
-Run the command in `dir` instead of this process's working
+Run the command in ~dir~ instead of this process's working
 directory. Only the child moves; this process stays put.
 
 #+begin_src til
@@ -505,7 +507,7 @@ proc Cmd.env(self: Cmd, name: Str, value: Str) returns ref Cmd
 :group: Standard library
 :END:
 
-Send the child's stdout to `path`, truncating it first.
+Send the child's stdout to ~path~, truncating it first.
 
 #+begin_src til
 proc Cmd.stdout_to(self: Cmd, path: Str) returns ref Cmd
@@ -517,7 +519,7 @@ proc Cmd.stdout_to(self: Cmd, path: Str) returns ref Cmd
 :group: Standard library
 :END:
 
-Send the child's stderr to `path`, truncating it first.
+Send the child's stderr to ~path~, truncating it first.
 
 #+begin_src til
 proc Cmd.stderr_to(self: Cmd, path: Str) returns ref Cmd
@@ -530,7 +532,7 @@ proc Cmd.stderr_to(self: Cmd, path: Str) returns ref Cmd
 :END:
 
 Merge the child's stderr into wherever its stdout goes -- the
-`2>&1` of build logs, without a shell.
+~2>&1~ of build logs, without a shell.
 
 #+begin_src til
 proc Cmd.stderr_to_stdout(self: Cmd) returns ref Cmd
@@ -543,7 +545,7 @@ proc Cmd.stderr_to_stdout(self: Cmd) returns ref Cmd
 :END:
 
 Collect the child's output instead of letting it through, for
-reading with `out()` and `err()` once it has finished. The two
+reading with ~out()~ and ~err()~ once it has finished. The two
 streams stay separate; each command captures into its own spool
 file, so concurrent captures never mix.
 
@@ -585,7 +587,7 @@ proc Cmd.render(self: Cmd) returns Str
 :END:
 
 Start the child without waiting, returning its pid (POSIX) or
-process handle (Windows). Pair with `wait` or `poll`.
+process handle (Windows). Pair with ~wait~ or ~poll~.
 
 #+begin_src til
 proc Cmd.start(self: Cmd) returns shallow I64
@@ -626,7 +628,7 @@ proc Cmd.poll(self: Cmd) returns shallow Bool
 :END:
 
 The status of a child that has already finished. Use after
-`poll` reports true; `wait` returns the same value directly.
+~poll~ reports true; ~wait~ returns the same value directly.
 
 #+begin_src til
 proc Cmd.status(self: Cmd) returns shallow I64
@@ -640,7 +642,7 @@ proc Cmd.status(self: Cmd) returns shallow I64
 
 Start the command and block until it finishes, returning its
 status. The lower-level runner: a non-zero status is a value
-here, not a failure. Use `run_checked` when it is one.
+here, not a failure. Use ~run_checked~ when it is one.
 
 #+begin_src til
 proc Cmd.run(self: Cmd) returns shallow I64
@@ -667,8 +669,8 @@ proc Cmd.run_checked(self: Cmd)
 :group: Standard library
 :END:
 
-The child's captured stdout. Requires `capture()` (or
-`capture_out()`) before the run, and a finished child.
+The child's captured stdout. Requires ~capture()~ (or
+~capture_out()~) before the run, and a finished child.
 
 #+begin_src til
 proc Cmd.out(self: Cmd) returns Str
@@ -680,7 +682,7 @@ proc Cmd.out(self: Cmd) returns Str
 :group: Standard library
 :END:
 
-The child's captured stderr. Requires `capture()` before the
+The child's captured stderr. Requires ~capture()~ before the
 run, and a finished child.
 
 #+begin_src til

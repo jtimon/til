@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -189,7 +189,7 @@ proc collect_switch_case_bindings(mut ctx: Context, e: Expr, body: Expr)
 :END:
 
 #+begin_src til
-func make_switch_case_condition(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
+func make_switch_case_condition(mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
 #+end_src
 
 * replace_switch_stmt_with_block
@@ -239,7 +239,7 @@ func switch_is_clike(stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow 
 :END:
 
 #+begin_src til
-func prepend_clike_payload_binding(scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, shallow binding_is_dead: Bool)
+func prepend_clike_payload_binding(mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, shallow binding_is_dead: Bool)
 #+end_src
 
 * replace_body_stmt_with_block
@@ -295,7 +295,7 @@ namespace:
     func move_to(own self: Vec__I32, mut dest: Vec__I32)
     func move_from(mut self: Vec__I32, own other: Vec__I32)
     func unsafe_get(self: Vec__I32, i: USize) returns ref I32
-    func get(self: Vec__I32, i: USize, mut _err_kind: I64) returns ref I32
+    func get(self: Vec__I32, shallow i: USize, mut _err_kind: I64) returns ref I32
     func pop(mut self: Vec__I32) returns shallow I32
     func remove_at(mut self: Vec__I32, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__I32, shallow n: USize) returns Vec__I32
@@ -331,11 +331,11 @@ func Vec__I32.new() returns Vec__I32
 :group: Compiler frontend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -361,7 +361,7 @@ func Vec__I32.clear(mut self: Vec__I32)
 :group: Compiler frontend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -377,7 +377,7 @@ func Vec__I32.delete_marked(mut self: Vec__I32, marks: Dynamic)
 :group: Compiler frontend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -390,8 +390,8 @@ func Vec__I32.push(mut self: Vec__I32, own val: I32)
 :group: Compiler frontend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__I32.append(mut self: Vec__I32, own other: Vec__I32)
@@ -407,7 +407,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -423,13 +423,13 @@ func Vec__I32.take(mut self: Vec__I32) returns Vec__I32
 :group: Compiler frontend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -445,9 +445,9 @@ func Vec__I32.move_to(own self: Vec__I32, mut dest: Vec__I32)
 :group: Compiler frontend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__I32.move_from(mut self: Vec__I32, own other: Vec__I32)
@@ -460,9 +460,9 @@ func Vec__I32.move_from(mut self: Vec__I32, own other: Vec__I32)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -475,13 +475,13 @@ func Vec__I32.unsafe_get(self: Vec__I32, i: USize) returns ref I32
 :group: Compiler frontend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__I32.get(self: Vec__I32, i: USize, mut _err_kind: I64) returns ref I32
+func Vec__I32.get(self: Vec__I32, shallow i: USize, mut _err_kind: I64) returns ref I32
 #+end_src
 
 * Vec__I32.pop
@@ -503,7 +503,7 @@ func Vec__I32.pop(mut self: Vec__I32) returns shallow I32
 :group: Compiler frontend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__I32.remove_at(mut self: Vec__I32, shallow i: USize, mut _err_kind: I64)
@@ -515,7 +515,7 @@ func Vec__I32.remove_at(mut self: Vec__I32, shallow i: USize, mut _err_kind: I64
 :group: Compiler frontend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -528,9 +528,9 @@ func Vec__I32.take_prefix(mut self: Vec__I32, shallow n: USize) returns Vec__I32
 :group: Compiler frontend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -543,8 +543,8 @@ func Vec__I32.truncate(mut self: Vec__I32, shallow n: USize)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -557,9 +557,9 @@ func Vec__I32.unsafe_set(mut self: Vec__I32, shallow i: USize, own val: I32)
 :group: Compiler frontend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__I32.set(mut self: Vec__I32, shallow i: USize, own val: I32, mut _err_kind: I64)
@@ -586,7 +586,7 @@ func Vec__I32.push_take(mut self: Vec__I32, mut src: Vec__I32, shallow i: USize)
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__I32.delete(own self: Vec__I32, shallow call_free: Bool)

@@ -84,7 +84,7 @@ namespace:
         return self.os == "linux"
     }
 
-    /// GNU coreutils `timeout` is `gtimeout` on macOS.
+    /// GNU coreutils ~timeout~ is ~gtimeout~ on macOS.
     timeout_cmd := func(self: Host) returns Str {
         if self.is_mac() { return "gtimeout" }
         return "timeout"
@@ -103,7 +103,7 @@ namespace:
 /// Everything one invocation of the build program carries: the host it
 /// runs on, the options it was given, and the steps it has already
 /// finished. One Build is shared by every requested goal, which is what
-/// makes `bin/make build_win_host win_server` do the shared work once.
+/// makes ~bin/make build_win_host win_server~ do the shared work once.
 Build := struct {
     host : Host
     // -jN for the test runner. Empty means "the runner's own default".
@@ -140,7 +140,7 @@ namespace:
     }
 }
 
-/// An environment variable, or `fallback` when it is unset or empty.
+/// An environment variable, or ~fallback~ when it is unset or empty.
 env_or := proc(name: Str, fallback: Str) returns Str {
     value := get_env(name)
     if value.is_empty() { return fallback }
@@ -172,9 +172,9 @@ run_argv := proc(argv: Vec(Str)) {
     c.run_checked()
 }
 
-/// True when `path` names a program this host can run. Probing by
-/// running it is the portable question: `command -v` is shell syntax
-/// and `which` is not everywhere. The probe's own output is captured
+/// True when ~path~ names a program this host can run. Probing by
+/// running it is the portable question: ~command -v~ is shell syntax
+/// and ~which~ is not everywhere. The probe's own output is captured
 /// so a missing tool stays quiet -- the caller decides what to say.
 have_tool := proc(name: Str) returns Bool {
     probe := Cmd.new(name, "--version")
@@ -182,7 +182,7 @@ have_tool := proc(name: Str) returns Bool {
     return probe.run() == 0
 }
 
-/// True when `output` is missing, or older than any of `inputs`. The
+/// True when ~output~ is missing, or older than any of ~inputs~. The
 /// whole dependency check: no manifest, no hashes, no cache -- the
 /// small description is recomputed every run and mtimes answer it.
 ///
@@ -209,7 +209,7 @@ no_inputs := func() returns Vec(Str) {
     return Vec(Str).new()
 }
 
-/// Append every entry of `dir` ending in `suffix` to `out`, as paths.
+/// Append every entry of ~dir~ ending in ~suffix~ to ~out~, as paths.
 /// The Makefile's $(wildcard src/core/*.til), with the same shallow
 /// one-directory meaning, and sorted for the same reason make sorts:
 /// so a sweep's output does not depend on the file system's order.
@@ -389,7 +389,7 @@ build_tinyfd := proc(mut b: Build) {
 /// So each .a gets a .so beside it, force-linked so every member is
 /// kept; src/self/interpreter.til dlopens the sibling .so of any
 /// archive a program links. Built here, once, rather than by the
-/// interpreter at run time: same link either way, but this keeps `cc`
+/// interpreter at run time: same link either way, but this keeps ~cc~
 /// off the REPL's per-turn path.
 /// EVERY archive a mode's link() names needs a twin here. nng was left
 /// out when this mechanism landed, so every program in an nng mode --
@@ -504,7 +504,7 @@ build_til := proc(mut b: Build) {
 /// Pass 2: rebuild with the compiler pass 1 just produced, so the
 /// committed boot/til.c is the new compiler applied to itself.
 ///
-/// The Makefile needs `$(MAKE) -o bin/til_boot -o bin/til` here to stop
+/// The Makefile needs ~$(MAKE) -o bin/til_boot -o bin/til~ here to stop
 /// a recursive make from re-running pass 1 and overwriting exactly the
 /// artifacts this step exists to produce. Nothing like that is needed
 /// in a program: pass 1 already ran, so build_til is a no-op for the
@@ -708,7 +708,7 @@ run_test_nogui := proc(mut b: Build) {
     c.run_checked()
 }
 
-/// The two-pass equivalent of `test`: everything runs against the
+/// The two-pass equivalent of ~test~: everything runs against the
 /// self-applied compiler. Use for a "Two-pass: "-prefixed commit.
 run_test_two_pass := proc(mut b: Build) {
     if b.begin("test_two_pass").not() { return }
@@ -761,7 +761,7 @@ run_summary := proc(mut b: Build) {
 
 /// Install the compiler. Prefix is til's own option and defaults to
 /// /usr/local; the Makefile never passed one, and neither does this.
-/// `bin/til install --prefix=<path> src/til.til` is the way to choose.
+/// ~bin/til install --prefix=<path> src/til.til~ is the way to choose.
 run_install := proc(mut b: Build) {
     if b.begin("install").not() { return }
     build_til(b)
@@ -778,7 +778,7 @@ run_install := proc(mut b: Build) {
 /// raylib needs two headers: raylib.h plus rcamera.h, which raylib.h
 /// does not include but which ships the camera helpers. Each is
 /// generated separately and the two are joined, dropping the second
-/// file's `mode lib` line so the result has exactly one mode header.
+/// file's ~mode lib~ line so the result has exactly one mode header.
 run_update_c_libs := proc(mut b: Build) {
     if b.begin("update_c_libs").not() { return }
     build_til(b)
@@ -796,7 +796,7 @@ run_update_c_libs := proc(mut b: Build) {
     File.appendfile("vendor/bindings/raylib.til", without_mode_line(File.readfile("tmp/rcamera.til")))
 }
 
-/// A generated binding with its `mode lib` header line removed, so it
+/// A generated binding with its ~mode lib~ header line removed, so it
 /// can be appended to another one. The Makefile spelled this as a sed
 /// script; one line of text handling does not need a process.
 without_mode_line := func(source: Str) returns Str {
@@ -833,10 +833,10 @@ run_clean := proc(mut b: Build) {
 }
 
 /// Remove the vendored libraries' build artifacts so the next build
-/// makes them again from the committed sources. Separate from `clean`
+/// makes them again from the committed sources. Separate from ~clean~
 /// so normal rebuilds stay fast; needed after upgrading a vendored
 /// library, where a stale stamp would keep linking the old archive.
-/// git clean rather than each library's own `make clean`: after a tree
+/// git clean rather than each library's own ~make clean~: after a tree
 /// swap the leftover build system belongs to the OLD version.
 /// vendor/emscripten is deliberately not touched -- it is a downloaded
 /// SDK, not a build artifact of committed sources.
@@ -846,7 +846,7 @@ run_clean_vendor := proc(mut b: Build) {
         "vendor/nng", "vendor/libffi")
 }
 
-/// `rm -rf <dir>/*`: the entries go, the directory stays.
+/// ~rm -rf <dir>/*~: the entries go, the directory stays.
 clear_dir := proc(dir: Str) {
     if File.is_dir(dir).not() { return }
     for name : Str in Dir.list(dir) {
@@ -1080,7 +1080,7 @@ contains_name := func(names: Vec(Str), name: Str) returns Bool {
     return false
 }
 
-/// The `mode` an example declares, "" when it declares none.
+/// The ~mode~ an example declares, "" when it declares none.
 example_mode := proc(path: Str) returns Str {
     for line : Str in File.readfile(path).split("\n") {
         if line.starts_with("mode ") {
@@ -1116,7 +1116,7 @@ windows_examples := proc() returns Vec(Str) {
 /// backend cross-builds for mac from linux against the SDK-less
 /// framework shims. raylib.til (direct-FFI demo, linux link() paths)
 /// and bench_hashmap.til (does not parse anywhere) stay out;
-/// custom_modes.til is `mode mode` and never matches.
+/// custom_modes.til is ~mode mode~ and never matches.
 mac_examples := proc() returns Vec(Str) {
     mut all := Vec(Str).new()
     add_matching(all, "examples", ".til")
@@ -1312,7 +1312,7 @@ mac_raylib_modules := func() returns Vec(Str) {
 
 /// Framework .tbd link stubs, generated ON LINUX from the archives'
 /// true external symbols: the generator maps each by symbol prefix to
-/// its owning framework, so it needs neither `nm -m` (which only
+/// its owning framework, so it needs neither ~nm -m~ (which only
 /// annotates linked Mach-O on a mac) nor an SDK. The real
 /// Cocoa/OpenGL dylibs live on every mac and bind at run time, exactly
 /// like the vendored libSystem.tbd.

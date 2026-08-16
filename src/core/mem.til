@@ -52,8 +52,8 @@ is_null := core_func(p: Dynamic) returns shallow Bool {}
 
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 
-/// Compiler-internal raw byte swap: the desugarer lowers `param = rhs`
-/// for mut aggregate params to `swap_bytes(param, temp, T.size())`
+/// Compiler-internal raw byte swap: the desugarer lowers ~param = rhs~
+/// for mut aggregate params to ~swap_bytes(param, temp, T.size())~
 /// (hoist_param_swap_assign), which runs after generic instantiation and
 /// so cannot call the typed swap below. Not for user code -- it has no
 /// ownership semantics by itself (the lowering pairs it with the temp's
@@ -80,7 +80,7 @@ swap := func(T: Type, mut a: T, mut b: T) {
 /// dest's OLD value is destroyed, src's bytes become dest's, and src is
 /// consumed. Exactly one owner before, exactly one after. The body is
 /// just a byte swap: dest ends up owning src's contents, src's box ends
-/// up holding dest's OLD contents -- and src is an `own` param, so the
+/// up holding dest's OLD contents -- and src is an ~own~ param, so the
 /// garbager's scheduled deep delete of src reclaims exactly that old
 /// value plus the box. No explicit delete or free anywhere.
 move := func(T: Type, mut dest: T, own src: T) {
@@ -88,7 +88,7 @@ move := func(T: Type, mut dest: T, own src: T) {
 }
 
 /// Adopt src into UNINITIALIZED storage (#302 stage 4): dest is a raw
-/// slot with no value in it -- a container's `data[count]` -- so there
+/// slot with no value in it -- a container's ~data[count]~ -- so there
 /// is nothing to destroy and move() cannot express it (its swap would
 /// hand dest's garbage back to src, whose deep delete would then free
 /// it). The caller guarantees dest is uninitialized; that is the unsafe
@@ -98,13 +98,13 @@ move := func(T: Type, mut dest: T, own src: T) {
 /// Ownership is exact: src's contents become dest's, and free(own src)
 /// releases the BOX only -- it is also the transfer that stands the
 /// garbager's scheduled deep delete down, which is what the
-/// hand-written `memset(src, 0, T.size())` used to do at every call
+/// hand-written ~memset(src, 0, T.size())~ used to do at every call
 /// site. Freeing beats blanking: no zero-fill, and no destructor call
 /// walking fields that were just zeroed.
 ///
 /// TYPED on purpose. A Dynamic version compiles and then aborts on a
 /// literal Str: the value points into the static _til_str_lits table,
-/// and the guard that saves it -- `if (v->cap != TIL_CAP_LIT) free(v);`
+/// and the guard that saves it -- ~if (v->cap != TIL_CAP_LIT) free(v);~
 /// -- is emitted only because the call site knows the type.
 adopt := func(T: Type, dest: Dynamic, own src: T) {
     memcpy(dest, src, T.size())
@@ -112,9 +112,9 @@ adopt := func(T: Type, dest: Dynamic, own src: T) {
 }
 
 /// adopt's pointee-to-pointee half (#302 stage 4): move the value at
-/// `src` into UNINITIALIZED storage at `dest`, leaving `src`
+/// ~src~ into UNINITIALIZED storage at ~dest~, leaving ~src~
 /// uninitialized. Both ends are raw slots the caller already owns -- a
-/// container's `data[i]`, or a malloc'd out-box -- so NO box is freed at
+/// container's ~data[i]~, or a malloc'd out-box -- so NO box is freed at
 /// either end, which is the whole difference from adopt above.
 ///
 /// Blanking src is what stands its eventual elem_delete down; a zeroed

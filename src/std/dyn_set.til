@@ -11,7 +11,7 @@ DynSet := struct {
     const elem_cmp : CmpFn = default_cmp
 
 namespace:
-    /// Create an empty DynSet. elem_type must implement `cmp`.
+    /// Create an empty DynSet. elem_type must implement ~cmp~.
     new := func(T: Type) returns DynSet {
         elem_type := dyn_type_to_str(T)
         if elem_type.is_empty() { panic("DynSet.new: elem_type required") }
@@ -28,9 +28,9 @@ namespace:
                    elem_cmp = dyn_fn(elem_type, "cmp"))
     }
 
-    /// Create an empty DynSet pre-sized for `n` elements, so adding up
-    /// to `n` reallocs zero times (Set.with_capacity's counterpart; the
-    /// element type is a runtime argument here, as for `new`).
+    /// Create an empty DynSet pre-sized for ~n~ elements, so adding up
+    /// to ~n~ reallocs zero times (Set.with_capacity's counterpart; the
+    /// element type is a runtime argument here, as for ~new~).
     with_capacity := func(T: Type, n: USize) returns DynSet {
         mut s := DynSet.new(T)
         if n > s.cap {
@@ -52,7 +52,7 @@ namespace:
         self.count = 0
     }
 
-    /// True if the set contains an element equal to `val`.
+    /// True if the set contains an element equal to ~val~.
     has := func(self: DynSet, val: Dynamic) returns Bool {
         mut lo : USize = 0
         mut hi := self.count
@@ -69,8 +69,8 @@ namespace:
         return false
     }
 
-    /// Insert `val` into the set (sorted order). If an equal element
-    /// already exists, `val` is dropped. `val` is owned.
+    /// Insert ~val~ into the set (sorted order). If an equal element
+    /// already exists, ~val~ is dropped. ~val~ is owned.
     add := func(mut self: DynSet, own val: Dynamic) {
         mut lo : USize = 0
         mut hi := self.count
@@ -105,7 +105,7 @@ namespace:
         }
     }
 
-    /// Remove the element equal to `val`, dropping it. Returns false if
+    /// Remove the element equal to ~val~, dropping it. Returns false if
     /// absent (Set.remove's counterpart). Later elements shift left to
     /// keep the storage sorted and dense.
     remove := func(mut self: DynSet, val: Dynamic) returns Bool {

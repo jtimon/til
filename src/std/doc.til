@@ -14,12 +14,12 @@ mode lib
 // stores two string references.
 
 /// Packed runtime registry of /// doc comments collected by the loader.
-/// Encoded as `name<0x01>doc<0x02>...`. Use help(name) for lookup.
+/// Encoded as ~name<0x01>doc<0x02>...~. Use help(name) for lookup.
 mut __til_docs_blob__ := ""
 
 /// Packed runtime registry of human-readable info strings (kind +
 /// signature/fields/methods/var type) for every top-level Decl and
-/// struct/enum member. Encoded as `name<0x01>info<0x02>...`. Use
+/// struct/enum member. Encoded as ~name<0x01>info<0x02>...~. Use
 /// help(name) for lookup.
 mut __til_info_blob__ := ""
 
@@ -44,7 +44,7 @@ doc_init_org_files := proc(index_path: Str, user_info_data: Str, user_docs_data:
 }
 
 /// Print the doc comment and the kind/signature info for a top-level
-/// declaration or struct/enum member (`Type.method`). When both are
+/// declaration or struct/enum member (~Type.method~). When both are
 /// registered, print the doc first then the info. If neither is
 /// registered print "undefined symbol: <name>".
 help := proc(name: Str) {

@@ -54,7 +54,7 @@ main := proc() {
     a := count_matches(output, "til[script]> a\n")
     seven := count_matches(output, "til[script]> 7\n")
     user_info := count_matches(output, "y is a I64")
-    member_doc := count_matches(output, "Unchecked element access: ref to the element at index `i`")
+    member_doc := count_matches(output, "Unchecked element access: ref to the element at index ~i~")
     // A struct DECLARED in one turn, then instantiated with named arguments
     // in a later one. The delta path used to re-run the typer over the AST
     // body_pre_passes had already desugared, and the typer is not idempotent

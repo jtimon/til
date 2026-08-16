@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,6 +43,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -331,7 +333,7 @@ namespace:
 <p>Everything one interactive REPL owns: the line being edited, the
 history it recalls from, and the reverse-search sub-mode. Constructed
 once in run_repl and passed by mutation through every session, so a
-`mode X` restart keeps both the file's entries and this session's.</p>
+<code>mode X</code> restart keeps both the file's entries and this session's.</p>
 </div>
 <pre><code class="language-til">struct {
     mut interactive : Bool
@@ -422,7 +424,7 @@ written on Windows loads unchanged elsewhere.</p>
 <p>Record one ACCEPTED physical line. Empty lines and consecutive
 duplicates are ignored. Called the moment Enter accepts a line --
 before parsing or evaluation -- so a syntax error or a typed
-`exit(0)` is still remembered.</p>
+<code>exit(0)</code> is still remembered.</p>
 </div>
 <pre><code class="language-til">proc (mut ed: ReplEditor, line: Str)
 </code></pre>
@@ -440,7 +442,7 @@ test/repl_editor.til without a terminal.</p>
 <article class="doc-entry" id="til.src.self.repl_editor.repl_editor_viewport">
 <h2>repl_editor_viewport</h2>
 <div class="doc-body">
-<p>Slide the horizontal viewport until `cursor` is visible in `avail`
+<p>Slide the horizontal viewport until <code>cursor</code> is visible in <code>avail</code>
 input columns, returning the new leftmost byte. Split out of the
 renderer so the scrolling arithmetic is testable at narrow widths
 without a terminal.</p>
@@ -461,7 +463,7 @@ and load the history file if it does. Redirect either standard stream
 <article class="doc-entry" id="til.src.self.repl_editor.repl_editor_read_line">
 <h2>repl_editor_read_line</h2>
 <div class="doc-body">
-<p>Read one PHYSICAL line with editing and history. `eof` distinguishes
+<p>Read one PHYSICAL line with editing and history. <code>eof</code> distinguishes
 end of input from an empty line, exactly as in_read_line's Bool does.
 Terminal mode is entered here and left before returning, so nothing
 the REPL evaluates inherits raw console settings.</p>

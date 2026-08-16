@@ -61,28 +61,28 @@ File := struct {
     is_update := false
 
 namespace:
-    /// Read the entire file at `path` into a Str. Exits with an error if
+    /// Read the entire file at ~path~ into a Str. Exits with an error if
     /// the file cannot be opened.
     readfile := proc(path: Str) returns Str {
         f := File.new(path, false)
         return f.read_all()
     }
 
-    /// Write `content` to the file at `path`, replacing any previous
+    /// Write ~content~ to the file at ~path~, replacing any previous
     /// contents. Exits with an error if the file cannot be opened.
     writefile := proc(path: Str, content: Str) {
         f := File.new(path, true)
         f.write(content)
     }
 
-    /// Append `content` to the file at `path`, keeping what is already
+    /// Append ~content~ to the file at ~path~, keeping what is already
     /// there. The file is created when it does not exist.
     appendfile := proc(path: Str, content: Str) {
         f := File.append(path)
         f.write(content)
     }
 
-    /// Delete the file at `path`, like `rm`. Removing a file the process
+    /// Delete the file at ~path~, like ~rm~. Removing a file the process
     /// still has open is allowed on POSIX (the handle keeps working until
     /// it is closed); a missing path is not an error. Directories are
     /// not removed -- pointing this at one is an error.
@@ -90,26 +90,26 @@ namespace:
         cfile_remove(path)
     }
 
-    /// True when `path` names an existing directory entry. A directory,
+    /// True when ~path~ names an existing directory entry. A directory,
     /// or a file the process has no permission to read, still exists.
     exists := proc(path: Str) returns Bool {
         return cfile_exists(path)
     }
 
-    /// True when `path` names a directory. False for a regular file, and
+    /// True when ~path~ names a directory. False for a regular file, and
     /// false for a path that does not exist -- "is a directory" is one
-    /// question, "exists" is another, and `File.exists` answers that one.
+    /// question, "exists" is another, and ~File.exists~ answers that one.
     is_dir := proc(path: Str) returns Bool {
         return cpath_is_dir(path)
     }
 
-    /// True when `path` names a regular file -- not a directory, and not
+    /// True when ~path~ names a regular file -- not a directory, and not
     /// a device, fifo or socket either.
     is_file := proc(path: Str) returns Bool {
         return cpath_is_file(path)
     }
 
-    /// Remove `path` and everything under it, like `rm -rf`: a file, or a
+    /// Remove ~path~ and everything under it, like ~rm -rf~: a file, or a
     /// directory with its whole subtree. A path that does not exist is
     /// already removed and reports success; a symlink is unlinked, never
     /// followed. Any other failure is fatal.
@@ -119,7 +119,7 @@ namespace:
         }
     }
 
-    /// Move `src` onto `dst`, replacing whatever `dst` was. On POSIX the
+    /// Move ~src~ onto ~dst~, replacing whatever ~dst~ was. On POSIX the
     /// replacement is atomic, which is what makes it safe to build a new
     /// executable beside the running one and swap it in. Fatal on
     /// failure -- notably when the two paths are on different file
@@ -130,14 +130,14 @@ namespace:
         }
     }
 
-    /// Open a file at `path` for reading or writing.
+    /// Open a file at ~path~ for reading or writing.
     new := proc(path: Str, is_write: Bool) returns File {
         ref h : Dynamic = cfile_open(path, is_write)
         return File(handle = h, is_write = is_write)
     }
 
-    /// Open a file at `path` for in-place update: reads and writes are
-    /// both allowed and the cursor can be moved with `seek`, so small
+    /// Open a file at ~path~ for in-place update: reads and writes are
+    /// both allowed and the cursor can be moved with ~seek~, so small
     /// regions can be patched without rewriting the whole file. The file
     /// must already exist.
     update := proc(path: Str) returns File {
@@ -145,18 +145,18 @@ namespace:
         return File(handle = h, is_update = true)
     }
 
-    /// Open a file at `path` for appending: writes always land at the end
-    /// and existing contents are kept, where `File.new(path, true)`
+    /// Open a file at ~path~ for appending: writes always land at the end
+    /// and existing contents are kept, where ~File.new(path, true)~
     /// truncates. The file is created when it does not exist. Reads are
-    /// rejected, and `seek` does not move where a write lands -- "ab"
+    /// rejected, and ~seek~ does not move where a write lands -- "ab"
     /// appends regardless of the cursor.
     append := proc(path: Str) returns File {
         ref h : Dynamic = cfile_open_append(path)
         return File(handle = h, is_write = true)
     }
 
-    /// Write a string to the file and return `self` so writes chain via
-    /// UFCS: `f.write("a").write("b").write("c")`. Panics unless opened
+    /// Write a string to the file and return ~self~ so writes chain via
+    /// UFCS: ~f.write("a").write("b").write("c")~. Panics unless opened
     /// for writing or update.
     write := proc(self: File, s: Str) returns ref File {
         if self.is_write.not().and(self.is_update.not()) {
@@ -175,8 +175,8 @@ namespace:
         return cfile_read_all(self.handle)
     }
 
-    /// Read up to `count` bytes starting at the current cursor position
-    /// and advance the cursor. The result is shorter than `count` near
+    /// Read up to ~count~ bytes starting at the current cursor position
+    /// and advance the cursor. The result is shorter than ~count~ near
     /// end-of-file. Panics if opened write-only.
     read := proc(self: File, count: I64) returns Str {
         if self.is_write {
@@ -192,36 +192,36 @@ namespace:
     }
 
     /// Move the cursor to an absolute byte offset from the start of the
-    /// file. Returns `self` so calls chain via UFCS.
+    /// file. Returns ~self~ so calls chain via UFCS.
     seek := proc(self: File, pos: I64) returns ref File {
         cfile_seek(self.handle, pos)
         return self
     }
 
-    /// Move the cursor by `delta` bytes relative to its current position
-    /// (`delta` may be negative). Returns `self` so calls chain via UFCS.
+    /// Move the cursor by ~delta~ bytes relative to its current position
+    /// (~delta~ may be negative). Returns ~self~ so calls chain via UFCS.
     seek_cur := proc(self: File, delta: I64) returns ref File {
         cfile_seek_cur(self.handle, delta)
         return self
     }
 
-    /// Move the cursor to `delta` bytes relative to the end of the file
-    /// (`delta` is typically <= 0). `f.seek_end(0)` followed by `f.tell()`
-    /// yields the file size. Returns `self` so calls chain via UFCS.
+    /// Move the cursor to ~delta~ bytes relative to the end of the file
+    /// (~delta~ is typically <= 0). ~f.seek_end(0)~ followed by ~f.tell()~
+    /// yields the file size. Returns ~self~ so calls chain via UFCS.
     seek_end := proc(self: File, delta: I64) returns ref File {
         cfile_seek_end(self.handle, delta)
         return self
     }
 
     /// Close the underlying file handle. Private: invoked only from
-    /// `delete`, which the garbager inserts after a File local's last
+    /// ~delete~, which the garbager inserts after a File local's last
     /// use, so nothing reads the handle afterwards.
     priv close := func(self: File) {
         cfile_close(self.handle)
     }
 
     /// Release the File: close the handle, then free the struct shell
-    /// unless the caller still owns it (`call_free = false` for a
+    /// unless the caller still owns it (~call_free = false~ for a
     /// stack/value local). The garbager inserts this call right after the
     /// File's last use.
     delete := func(own self: File, call_free: Bool = true) {
@@ -242,7 +242,7 @@ Dir := struct {
     ref handle : U8
 
 namespace:
-    /// Start reading the directory at `path`. Exits with an error if it
+    /// Start reading the directory at ~path~. Exits with an error if it
     /// cannot be opened.
     open := proc(path: Str) returns Dir {
         ref h : Dynamic = cdir_open(path)
@@ -256,7 +256,7 @@ namespace:
         return cdir_next(self.handle)
     }
 
-    /// Every entry in the directory at `path`, in file-system order.
+    /// Every entry in the directory at ~path~, in file-system order.
     /// The whole listing at once, for callers that want to sort or
     /// filter it rather than stream it.
     list := proc(path: Str) returns Vec(Str) {
@@ -270,7 +270,7 @@ namespace:
         return names
     }
 
-    /// Close the underlying handle. Private: invoked only from `delete`,
+    /// Close the underlying handle. Private: invoked only from ~delete~,
     /// which the garbager inserts after a Dir local's last use.
     priv close := func(self: Dir) {
         cdir_close(self.handle)

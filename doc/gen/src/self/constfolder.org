@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * constfolder_clear_known
@@ -32,6 +32,16 @@ func constfolder_reset_state(mut ctx: Context)
 func is_macro_call(e: Expr, mut ctx: Context) returns shallow Bool
 #+end_src
 
+* constfolder_normalize_stack_decls_in_body
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.constfolder_normalize_stack_decls_in_body
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func constfolder_normalize_stack_decls_in_body(mut body: Expr, ctx: Context)
+#+end_src
+
 * process_body
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.constfolder.process_body
@@ -60,67 +70,6 @@ func constfolder_register_fold_scope(mut global: Scope, prog: Expr, mut ctx: Con
 
 #+begin_src til
 func constfolder_register_core_constants(mut global: Scope, usize_name: Str, mut ctx: Context)
-#+end_src
-
-* Option__ref_Dynamic
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.constfolder.Option__ref_Dynamic
-:group: Compiler backend
-:END:
-
-#+begin_src til
-enum Option__ref_Dynamic {
-    None
-    Some: Dynamic
-namespace:
-    func is_some(shallow self: Option__ref_Dynamic) returns shallow Bool
-    func is_none(shallow self: Option__ref_Dynamic) returns shallow Bool
-    func unwrap_or(self: Option__ref_Dynamic, default_v: Dynamic) returns ref Dynamic
-    func unwrap(self: Option__ref_Dynamic) returns ref Dynamic
-    func take(own self: Option__ref_Dynamic) returns ref Dynamic
-    ext_func None() returns shallow Option__ref_Dynamic
-    ext_func Some(val: Dynamic) returns shallow Option__ref_Dynamic
-    core_func is(self: Option__ref_Dynamic, other: Option__ref_Dynamic) returns shallow Bool
-    func delete(own self: Option__ref_Dynamic, shallow call_free: Bool)
-    func clone(self: Option__ref_Dynamic) returns shallow Option__ref_Dynamic
-    func size() returns shallow USize
-}
-#+end_src
-
-* Option__ref_Dynamic.unwrap
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.constfolder.Option__ref_Dynamic.unwrap
-:group: Compiler backend
-:END:
-
-The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.
-
-#+begin_src til
-func Option__ref_Dynamic.unwrap(self: Option__ref_Dynamic) returns ref Dynamic
-#+end_src
-
-* Option__ref_Dynamic.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.constfolder.Option__ref_Dynamic.take
-:group: Compiler backend
-:END:
-
-The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.
-
-#+begin_src til
-func Option__ref_Dynamic.take(own self: Option__ref_Dynamic) returns ref Dynamic
 #+end_src
 
 * Option__ref_Scope
@@ -155,9 +104,9 @@ namespace:
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.
@@ -177,7 +126,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til

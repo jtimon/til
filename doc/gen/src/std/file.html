@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,6 +43,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a class="current" href="../../src/std/file.html">src/std/file.til</a><ul><li><a href="#til.src.std.file.cfile_open">cfile_open</a></li><li><a href="#til.src.std.file.cfile_open_update">cfile_open_update</a></li><li><a href="#til.src.std.file.cfile_open_append">cfile_open_append</a></li><li><a href="#til.src.std.file.cfile_exists">cfile_exists</a></li><li><a href="#til.src.std.file.cfile_close">cfile_close</a></li><li><a href="#til.src.std.file.cfile_write_str">cfile_write_str</a></li><li><a href="#til.src.std.file.cfile_read_all">cfile_read_all</a></li><li><a href="#til.src.std.file.cfile_tell">cfile_tell</a></li><li><a href="#til.src.std.file.cfile_seek">cfile_seek</a></li><li><a href="#til.src.std.file.cfile_seek_cur">cfile_seek_cur</a></li><li><a href="#til.src.std.file.cfile_seek_end">cfile_seek_end</a></li><li><a href="#til.src.std.file.cfile_read_n">cfile_read_n</a></li><li><a href="#til.src.std.file.cfile_remove">cfile_remove</a></li><li><a href="#til.src.std.file.cdir_open">cdir_open</a></li><li><a href="#til.src.std.file.cdir_next">cdir_next</a></li><li><a href="#til.src.std.file.cdir_close">cdir_close</a></li><li><a href="#til.src.std.file.cpath_is_dir">cpath_is_dir</a></li><li><a href="#til.src.std.file.cpath_is_file">cpath_is_file</a></li><li><a href="#til.src.std.file.cremove_tree">cremove_tree</a></li><li><a href="#til.src.std.file.crename_path">crename_path</a></li><li><a href="#til.src.std.file.File">File</a></li><li><a href="#til.src.std.file.File.readfile">File.readfile</a></li><li><a href="#til.src.std.file.File.writefile">File.writefile</a></li><li><a href="#til.src.std.file.File.appendfile">File.appendfile</a></li><li><a href="#til.src.std.file.File.remove">File.remove</a></li><li><a href="#til.src.std.file.File.exists">File.exists</a></li><li><a href="#til.src.std.file.File.is_dir">File.is_dir</a></li><li><a href="#til.src.std.file.File.is_file">File.is_file</a></li><li><a href="#til.src.std.file.File.remove_tree">File.remove_tree</a></li><li><a href="#til.src.std.file.File.rename">File.rename</a></li><li><a href="#til.src.std.file.File.new">File.new</a></li><li><a href="#til.src.std.file.File.update">File.update</a></li><li><a href="#til.src.std.file.File.append">File.append</a></li><li><a href="#til.src.std.file.File.write">File.write</a></li><li><a href="#til.src.std.file.File.read_all">File.read_all</a></li><li><a href="#til.src.std.file.File.read">File.read</a></li><li><a href="#til.src.std.file.File.tell">File.tell</a></li><li><a href="#til.src.std.file.File.seek">File.seek</a></li><li><a href="#til.src.std.file.File.seek_cur">File.seek_cur</a></li><li><a href="#til.src.std.file.File.seek_end">File.seek_end</a></li><li><a href="#til.src.std.file.File.close">File.close</a></li><li><a href="#til.src.std.file.File.delete">File.delete</a></li><li><a href="#til.src.std.file.Dir">Dir</a></li><li><a href="#til.src.std.file.Dir.open">Dir.open</a></li><li><a href="#til.src.std.file.Dir.next">Dir.next</a></li><li><a href="#til.src.std.file.Dir.list">Dir.list</a></li><li><a href="#til.src.std.file.Dir.close">Dir.close</a></li><li><a href="#til.src.std.file.Dir.delete">Dir.delete</a></li></ul></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -223,7 +225,7 @@ namespace:
     proc is_file(path: Str) returns shallow Bool
     proc remove_tree(path: Str)
     proc rename(src: Str, dst: Str)
-    proc new(path: Str, shallow is_write: Bool) returns File
+    proc new(path: Str, is_write: Bool) returns File
     proc update(path: Str) returns File
     proc append(path: Str) returns File
     proc write(self: File, s: Str) returns ref File
@@ -245,7 +247,7 @@ namespace:
 <h2>File.readfile</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Read the entire file at `path` into a Str. Exits with an error if
+<p>Read the entire file at <code>path</code> into a Str. Exits with an error if
 the file cannot be opened.</p>
 </div>
 <pre><code class="language-til">proc (path: Str) returns Str
@@ -255,7 +257,7 @@ the file cannot be opened.</p>
 <h2>File.writefile</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Write `content` to the file at `path`, replacing any previous
+<p>Write <code>content</code> to the file at <code>path</code>, replacing any previous
 contents. Exits with an error if the file cannot be opened.</p>
 </div>
 <pre><code class="language-til">proc (path: Str, content: Str)
@@ -265,7 +267,7 @@ contents. Exits with an error if the file cannot be opened.</p>
 <h2>File.appendfile</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Append `content` to the file at `path`, keeping what is already
+<p>Append <code>content</code> to the file at <code>path</code>, keeping what is already
 there. The file is created when it does not exist.</p>
 </div>
 <pre><code class="language-til">proc (path: Str, content: Str)
@@ -275,7 +277,7 @@ there. The file is created when it does not exist.</p>
 <h2>File.remove</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Delete the file at `path`, like `rm`. Removing a file the process
+<p>Delete the file at <code>path</code>, like <code>rm</code>. Removing a file the process
 still has open is allowed on POSIX (the handle keeps working until
 it is closed); a missing path is not an error. Directories are
 not removed -- pointing this at one is an error.</p>
@@ -287,7 +289,7 @@ not removed -- pointing this at one is an error.</p>
 <h2>File.exists</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>True when `path` names an existing directory entry. A directory,
+<p>True when <code>path</code> names an existing directory entry. A directory,
 or a file the process has no permission to read, still exists.</p>
 </div>
 <pre><code class="language-til">proc (path: Str) returns shallow Bool
@@ -297,9 +299,9 @@ or a file the process has no permission to read, still exists.</p>
 <h2>File.is_dir</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>True when `path` names a directory. False for a regular file, and
+<p>True when <code>path</code> names a directory. False for a regular file, and
 false for a path that does not exist -- &quot;is a directory&quot; is one
-question, &quot;exists&quot; is another, and `File.exists` answers that one.</p>
+question, &quot;exists&quot; is another, and <code>File.exists</code> answers that one.</p>
 </div>
 <pre><code class="language-til">proc (path: Str) returns shallow Bool
 </code></pre>
@@ -308,7 +310,7 @@ question, &quot;exists&quot; is another, and `File.exists` answers that one.</p>
 <h2>File.is_file</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>True when `path` names a regular file -- not a directory, and not
+<p>True when <code>path</code> names a regular file -- not a directory, and not
 a device, fifo or socket either.</p>
 </div>
 <pre><code class="language-til">proc (path: Str) returns shallow Bool
@@ -318,7 +320,7 @@ a device, fifo or socket either.</p>
 <h2>File.remove_tree</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Remove `path` and everything under it, like `rm -rf`: a file, or a
+<p>Remove <code>path</code> and everything under it, like <code>rm -rf</code>: a file, or a
 directory with its whole subtree. A path that does not exist is
 already removed and reports success; a symlink is unlinked, never
 followed. Any other failure is fatal.</p>
@@ -330,7 +332,7 @@ followed. Any other failure is fatal.</p>
 <h2>File.rename</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Move `src` onto `dst`, replacing whatever `dst` was. On POSIX the
+<p>Move <code>src</code> onto <code>dst</code>, replacing whatever <code>dst</code> was. On POSIX the
 replacement is atomic, which is what makes it safe to build a new
 executable beside the running one and swap it in. Fatal on
 failure -- notably when the two paths are on different file
@@ -343,17 +345,17 @@ systems, where a rename cannot happen and a copy is the answer.</p>
 <h2>File.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Open a file at `path` for reading or writing.</p>
+<p>Open a file at <code>path</code> for reading or writing.</p>
 </div>
-<pre><code class="language-til">proc (path: Str, shallow is_write: Bool) returns File
+<pre><code class="language-til">proc (path: Str, is_write: Bool) returns File
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.file.File.update">
 <h2>File.update</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Open a file at `path` for in-place update: reads and writes are
-both allowed and the cursor can be moved with `seek`, so small
+<p>Open a file at <code>path</code> for in-place update: reads and writes are
+both allowed and the cursor can be moved with <code>seek</code>, so small
 regions can be patched without rewriting the whole file. The file
 must already exist.</p>
 </div>
@@ -364,10 +366,10 @@ must already exist.</p>
 <h2>File.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Open a file at `path` for appending: writes always land at the end
-and existing contents are kept, where `File.new(path, true)`
+<p>Open a file at <code>path</code> for appending: writes always land at the end
+and existing contents are kept, where <code>File.new(path, true)</code>
 truncates. The file is created when it does not exist. Reads are
-rejected, and `seek` does not move where a write lands -- &quot;ab&quot;
+rejected, and <code>seek</code> does not move where a write lands -- &quot;ab&quot;
 appends regardless of the cursor.</p>
 </div>
 <pre><code class="language-til">proc (path: Str) returns File
@@ -377,8 +379,8 @@ appends regardless of the cursor.</p>
 <h2>File.write</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Write a string to the file and return `self` so writes chain via
-UFCS: `f.write(&quot;a&quot;).write(&quot;b&quot;).write(&quot;c&quot;)`. Panics unless opened
+<p>Write a string to the file and return <code>self</code> so writes chain via
+UFCS: <code>f.write(&quot;a&quot;).write(&quot;b&quot;).write(&quot;c&quot;)</code>. Panics unless opened
 for writing or update.</p>
 </div>
 <pre><code class="language-til">proc (self: File, s: Str) returns ref File
@@ -398,8 +400,8 @@ write-only.</p>
 <h2>File.read</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Read up to `count` bytes starting at the current cursor position
-and advance the cursor. The result is shorter than `count` near
+<p>Read up to <code>count</code> bytes starting at the current cursor position
+and advance the cursor. The result is shorter than <code>count</code> near
 end-of-file. Panics if opened write-only.</p>
 </div>
 <pre><code class="language-til">proc (self: File, shallow count: I64) returns Str
@@ -420,7 +422,7 @@ of the file.</p>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
 <p>Move the cursor to an absolute byte offset from the start of the
-file. Returns `self` so calls chain via UFCS.</p>
+file. Returns <code>self</code> so calls chain via UFCS.</p>
 </div>
 <pre><code class="language-til">proc (self: File, pos: I64) returns ref File
 </code></pre>
@@ -429,8 +431,8 @@ file. Returns `self` so calls chain via UFCS.</p>
 <h2>File.seek_cur</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Move the cursor by `delta` bytes relative to its current position
-(`delta` may be negative). Returns `self` so calls chain via UFCS.</p>
+<p>Move the cursor by <code>delta</code> bytes relative to its current position
+(<code>delta</code> may be negative). Returns <code>self</code> so calls chain via UFCS.</p>
 </div>
 <pre><code class="language-til">proc (self: File, delta: I64) returns ref File
 </code></pre>
@@ -439,9 +441,9 @@ file. Returns `self` so calls chain via UFCS.</p>
 <h2>File.seek_end</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Move the cursor to `delta` bytes relative to the end of the file
-(`delta` is typically &lt;= 0). `f.seek_end(0)` followed by `f.tell()`
-yields the file size. Returns `self` so calls chain via UFCS.</p>
+<p>Move the cursor to <code>delta</code> bytes relative to the end of the file
+(<code>delta</code> is typically &lt;= 0). ~f.seek_end(0)~ followed by ~f.tell()~
+yields the file size. Returns <code>self</code> so calls chain via UFCS.</p>
 </div>
 <pre><code class="language-til">proc (self: File, delta: I64) returns ref File
 </code></pre>
@@ -451,7 +453,7 @@ yields the file size. Returns `self` so calls chain via UFCS.</p>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
 <p>Close the underlying file handle. Private: invoked only from
-`delete`, which the garbager inserts after a File local's last
+<code>delete</code>, which the garbager inserts after a File local's last
 use, so nothing reads the handle afterwards.</p>
 </div>
 <pre><code class="language-til">func (self: File)
@@ -462,7 +464,7 @@ use, so nothing reads the handle afterwards.</p>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
 <p>Release the File: close the handle, then free the struct shell
-unless the caller still owns it (`call_free = false` for a
+unless the caller still owns it (<code>call_free = false</code> for a
 stack/value local). The garbager inserts this call right after the
 File's last use.</p>
 </div>
@@ -492,7 +494,7 @@ namespace:
 <h2>Dir.open</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Start reading the directory at `path`. Exits with an error if it
+<p>Start reading the directory at <code>path</code>. Exits with an error if it
 cannot be opened.</p>
 </div>
 <pre><code class="language-til">proc (path: Str) returns Dir
@@ -513,7 +515,7 @@ whatever the file system gives -- sort if you need a stable one.</p>
 <h2>Dir.list</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Every entry in the directory at `path`, in file-system order.
+<p>Every entry in the directory at <code>path</code>, in file-system order.
 The whole listing at once, for callers that want to sort or
 filter it rather than stream it.</p>
 </div>
@@ -524,7 +526,7 @@ filter it rather than stream it.</p>
 <h2>Dir.close</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <div class="doc-body">
-<p>Close the underlying handle. Private: invoked only from `delete`,
+<p>Close the underlying handle. Private: invoked only from <code>delete</code>,
 which the garbager inserts after a Dir local's last use.</p>
 </div>
 <pre><code class="language-til">func (self: Dir)

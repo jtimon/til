@@ -25,17 +25,17 @@ namespace:
     }
 
     /// Create an empty DynMap of the types provided for the key and values respectively.
-    /// The key type must implement `cmp`.
+    /// The key type must implement ~cmp~.
     new := func(K: Type, V: Type) returns DynMap {
         key_type := dyn_type_to_str(K)
         val_type := dyn_type_to_str(V)
         return DynMap.new_type_names(key_type, val_type)
     }
 
-    /// Create an empty DynMap pre-sized for `n` entries, so inserting up
-    /// to `n` reallocs neither backing DynVec (Map.with_capacity's
+    /// Create an empty DynMap pre-sized for ~n~ entries, so inserting up
+    /// to ~n~ reallocs neither backing DynVec (Map.with_capacity's
     /// counterpart; the key/value types are runtime arguments here, as
-    /// for `new`).
+    /// for ~new~).
     with_capacity := func(K: Type, V: Type, n: USize) returns DynMap {
         mut m := DynMap.new(K, V)
         if n > m.keys.cap {
@@ -72,8 +72,8 @@ namespace:
         return false
     }
 
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// Return a ref to the value for ~key~. Throws KeyNotFound if
+    /// ~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
     /// on a missing key.
     get := func(self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound {
         mut lo : USize = 0
@@ -90,7 +90,7 @@ namespace:
         throw KeyNotFound()
     }
 
-    /// Insert or overwrite the value for `key`. The value is owned.
+    /// Insert or overwrite the value for ~key~. The value is owned.
     set := func(mut self: DynMap, key: Dynamic, own val: Dynamic) {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
@@ -143,7 +143,7 @@ namespace:
         }
     }
 
-    /// Remove `key`, dropping its key and value. Returns false if absent
+    /// Remove ~key~, dropping its key and value. Returns false if absent
     /// (core Map.remove's counterpart).
     remove := func(mut self: DynMap, key: Dynamic) returns Bool {
         mut lo : USize = 0

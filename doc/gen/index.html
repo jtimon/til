@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,6 +43,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="src/std/file.html">src/std/file.til</a></li>
 <li><a href="src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="src/self/lexer.html">src/self/lexer.til</a></li>
@@ -101,7 +103,7 @@ namespace:
     func new(shallow cap: USize) returns Array__Dynamic
     func len(self: Array__Dynamic) returns shallow USize
     func unsafe_get(self: Array__Dynamic, i: USize) returns ref Dynamic
-    func get(self: Array__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+    func get(self: Array__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
     func unsafe_set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic)
     func set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
     func delete(own self: Array__Dynamic, shallow call_free: Bool)
@@ -121,7 +123,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/vec.html#til.src.core.vec.Array__Dynamic.get">Array__Dynamic.get</a>
-<pre><code class="language-til">func (self: Array__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+<pre><code class="language-til">func (self: Array__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
 </code></pre>
 </li>
 <li><a href="src/core/vec.html#til.src.core.vec.Array__Dynamic.unsafe_set">Array__Dynamic.unsafe_set</a>
@@ -157,7 +159,7 @@ namespace:
     func move_to(own self: Vec__Dynamic, mut dest: Vec__Dynamic)
     func move_from(mut self: Vec__Dynamic, own other: Vec__Dynamic)
     func unsafe_get(self: Vec__Dynamic, i: USize) returns ref Dynamic
-    func get(self: Vec__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+    func get(self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
     func pop(mut self: Vec__Dynamic) returns Dynamic
     func remove_at(mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
@@ -212,7 +214,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/vec.html#til.src.core.vec.Vec__Dynamic.get">Vec__Dynamic.get</a>
-<pre><code class="language-til">func (self: Vec__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+<pre><code class="language-til">func (self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
 </code></pre>
 </li>
 <li><a href="src/core/vec.html#til.src.core.vec.Vec__Dynamic.pop">Vec__Dynamic.pop</a>
@@ -541,7 +543,7 @@ namespace:
     func new(shallow cap: USize) returns Array__Str
     func len(self: Array__Str) returns shallow USize
     func unsafe_get(self: Array__Str, i: USize) returns ref Str
-    func get(self: Array__Str, i: USize, mut _err_kind: I64) returns ref Str
+    func get(self: Array__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
     func unsafe_set(mut self: Array__Str, shallow i: USize, own val: Str)
     func set(mut self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
     func delete(own self: Array__Str, shallow call_free: Bool)
@@ -561,7 +563,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/str.html#til.src.core.str.Array__Str.get">Array__Str.get</a>
-<pre><code class="language-til">func (self: Array__Str, i: USize, mut _err_kind: I64) returns ref Str
+<pre><code class="language-til">func (self: Array__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
 </code></pre>
 </li>
 <li><a href="src/core/str.html#til.src.core.str.Array__Str.unsafe_set">Array__Str.unsafe_set</a>
@@ -597,7 +599,7 @@ namespace:
     func move_to(own self: Vec__Str, mut dest: Vec__Str)
     func move_from(mut self: Vec__Str, own other: Vec__Str)
     func unsafe_get(self: Vec__Str, i: USize) returns ref Str
-    func get(self: Vec__Str, i: USize, mut _err_kind: I64) returns ref Str
+    func get(self: Vec__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
     func pop(mut self: Vec__Str) returns Str
     func remove_at(mut self: Vec__Str, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Str, shallow n: USize) returns Vec__Str
@@ -652,7 +654,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/str.html#til.src.core.str.Vec__Str.get">Vec__Str.get</a>
-<pre><code class="language-til">func (self: Vec__Str, i: USize, mut _err_kind: I64) returns ref Str
+<pre><code class="language-til">func (self: Vec__Str, shallow i: USize, mut _err_kind: I64) returns ref Str
 </code></pre>
 </li>
 <li><a href="src/core/str.html#til.src.core.str.Vec__Str.pop">Vec__Str.pop</a>
@@ -1957,6 +1959,9 @@ namespace:
     mut closure_name : Str
     mut noreturn : Bool
     mut ref_return_params : U64
+    mut ref_return_into_params : U64
+    mut ref_return_carried_params : U64
+    mut ref_return_provisional_params : U64
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -2674,7 +2679,7 @@ namespace:
     func move_to(own self: Vec__VariantDef, mut dest: Vec__VariantDef)
     func move_from(mut self: Vec__VariantDef, own other: Vec__VariantDef)
     func unsafe_get(self: Vec__VariantDef, i: USize) returns ref VariantDef
-    func get(self: Vec__VariantDef, i: USize, mut _err_kind: I64) returns ref VariantDef
+    func get(self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64) returns ref VariantDef
     func pop(mut self: Vec__VariantDef) returns VariantDef
     func remove_at(mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
@@ -2729,7 +2734,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__VariantDef.get">Vec__VariantDef.get</a>
-<pre><code class="language-til">func (self: Vec__VariantDef, i: USize, mut _err_kind: I64) returns ref VariantDef
+<pre><code class="language-til">func (self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64) returns ref VariantDef
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__VariantDef.pop">Vec__VariantDef.pop</a>
@@ -2785,7 +2790,7 @@ namespace:
     func move_to(own self: Vec__FieldLayout, mut dest: Vec__FieldLayout)
     func move_from(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
     func unsafe_get(self: Vec__FieldLayout, i: USize) returns ref FieldLayout
-    func get(self: Vec__FieldLayout, i: USize, mut _err_kind: I64) returns ref FieldLayout
+    func get(self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64) returns ref FieldLayout
     func pop(mut self: Vec__FieldLayout) returns FieldLayout
     func remove_at(mut self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FieldLayout, shallow n: USize) returns Vec__FieldLayout
@@ -2840,7 +2845,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__FieldLayout.get">Vec__FieldLayout.get</a>
-<pre><code class="language-til">func (self: Vec__FieldLayout, i: USize, mut _err_kind: I64) returns ref FieldLayout
+<pre><code class="language-til">func (self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64) returns ref FieldLayout
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__FieldLayout.pop">Vec__FieldLayout.pop</a>
@@ -2896,7 +2901,7 @@ namespace:
     func move_to(own self: Vec__Declaration, mut dest: Vec__Declaration)
     func move_from(mut self: Vec__Declaration, own other: Vec__Declaration)
     func unsafe_get(self: Vec__Declaration, i: USize) returns ref Declaration
-    func get(self: Vec__Declaration, i: USize, mut _err_kind: I64) returns ref Declaration
+    func get(self: Vec__Declaration, shallow i: USize, mut _err_kind: I64) returns ref Declaration
     func pop(mut self: Vec__Declaration) returns Declaration
     func remove_at(mut self: Vec__Declaration, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Declaration, shallow n: USize) returns Vec__Declaration
@@ -2951,7 +2956,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__Declaration.get">Vec__Declaration.get</a>
-<pre><code class="language-til">func (self: Vec__Declaration, i: USize, mut _err_kind: I64) returns ref Declaration
+<pre><code class="language-til">func (self: Vec__Declaration, shallow i: USize, mut _err_kind: I64) returns ref Declaration
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__Declaration.pop">Vec__Declaration.pop</a>
@@ -3007,7 +3012,7 @@ namespace:
     func move_to(own self: Vec__Expr, mut dest: Vec__Expr)
     func move_from(mut self: Vec__Expr, own other: Vec__Expr)
     func unsafe_get(self: Vec__Expr, i: USize) returns ref Expr
-    func get(self: Vec__Expr, i: USize, mut _err_kind: I64) returns ref Expr
+    func get(self: Vec__Expr, shallow i: USize, mut _err_kind: I64) returns ref Expr
     func pop(mut self: Vec__Expr) returns Expr
     func remove_at(mut self: Vec__Expr, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Expr, shallow n: USize) returns Vec__Expr
@@ -3062,7 +3067,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__Expr.get">Vec__Expr.get</a>
-<pre><code class="language-til">func (self: Vec__Expr, i: USize, mut _err_kind: I64) returns ref Expr
+<pre><code class="language-til">func (self: Vec__Expr, shallow i: USize, mut _err_kind: I64) returns ref Expr
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__Expr.pop">Vec__Expr.pop</a>
@@ -3118,7 +3123,7 @@ namespace:
     func move_to(own self: Vec__USize, mut dest: Vec__USize)
     func move_from(mut self: Vec__USize, own other: Vec__USize)
     func unsafe_get(self: Vec__USize, i: USize) returns ref USize
-    func get(self: Vec__USize, i: USize, mut _err_kind: I64) returns ref USize
+    func get(self: Vec__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
     func pop(mut self: Vec__USize) returns shallow USize
     func remove_at(mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__USize, shallow n: USize) returns Vec__USize
@@ -3173,7 +3178,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__USize.get">Vec__USize.get</a>
-<pre><code class="language-til">func (self: Vec__USize, i: USize, mut _err_kind: I64) returns ref USize
+<pre><code class="language-til">func (self: Vec__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.Vec__USize.pop">Vec__USize.pop</a>
@@ -3396,7 +3401,7 @@ namespace:
     func move_to(own self: Vec__Tuple, mut dest: Vec__Tuple)
     func move_from(mut self: Vec__Tuple, own other: Vec__Tuple)
     func unsafe_get(self: Vec__Tuple, i: USize) returns ref Tuple
-    func get(self: Vec__Tuple, i: USize, mut _err_kind: I64) returns ref Tuple
+    func get(self: Vec__Tuple, shallow i: USize, mut _err_kind: I64) returns ref Tuple
     func pop(mut self: Vec__Tuple) returns Tuple
     func remove_at(mut self: Vec__Tuple, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Tuple, shallow n: USize) returns Vec__Tuple
@@ -3451,7 +3456,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/kwargs_map.html#til.src.core.kwargs_map.Vec__Tuple.get">Vec__Tuple.get</a>
-<pre><code class="language-til">func (self: Vec__Tuple, i: USize, mut _err_kind: I64) returns ref Tuple
+<pre><code class="language-til">func (self: Vec__Tuple, shallow i: USize, mut _err_kind: I64) returns ref Tuple
 </code></pre>
 </li>
 <li><a href="src/core/kwargs_map.html#til.src.core.kwargs_map.Vec__Tuple.pop">Vec__Tuple.pop</a>
@@ -3826,7 +3831,7 @@ namespace:
     proc is_file(path: Str) returns shallow Bool
     proc remove_tree(path: Str)
     proc rename(src: Str, dst: Str)
-    proc new(path: Str, shallow is_write: Bool) returns File
+    proc new(path: Str, is_write: Bool) returns File
     proc update(path: Str) returns File
     proc append(path: Str) returns File
     proc write(self: File, s: Str) returns ref File
@@ -3881,7 +3886,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/std/file.html#til.src.std.file.File.new">File.new</a>
-<pre><code class="language-til">proc (path: Str, shallow is_write: Bool) returns File
+<pre><code class="language-til">proc (path: Str, is_write: Bool) returns File
 </code></pre>
 </li>
 <li><a href="src/std/file.html#til.src.std.file.File.update">File.update</a>
@@ -4224,6 +4229,284 @@ namespace:
 <pre><code class="language-til">proc (mut output: Str, args: ..Str) returns shallow I64
 </code></pre>
 </li>
+<li><a href="src/std/hash.html#til.src.std.hash.KNUTH_MULT">KNUTH_MULT</a>
+<pre><code class="language-til"> is a U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.FNV_OFFSET">FNV_OFFSET</a>
+<pre><code class="language-til"> is a U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.FNV_PRIME">FNV_PRIME</a>
+<pre><code class="language-til"> is a U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.hash_i64">hash_i64</a>
+<pre><code class="language-til">func (shallow x: I64) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.hash_u64">hash_u64</a>
+<pre><code class="language-til">func (shallow x: U64) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.hash_str">hash_str</a>
+<pre><code class="language-til">func (s: Str) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.fnv1a">fnv1a</a>
+<pre><code class="language-til">func (data: Dynamic, shallow n: USize) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.djb2">djb2</a>
+<pre><code class="language-til">func (data: Dynamic, shallow n: USize) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.knuth_bytes">knuth_bytes</a>
+<pre><code class="language-til">func (data: Dynamic, shallow n: USize) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.bucket">bucket</a>
+<pre><code class="language-til">func (shallow h: U64, shallow cap: USize) returns shallow USize
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.HASHMAP_INIT_BUCKETS">HASHMAP_INIT_BUCKETS</a>
+<pre><code class="language-til"> is a U32
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.HashMap">HashMap</a>
+<pre><code class="language-til">macro (K: Type, V: Type) returns StructDef
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64">Vec__I64</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__I64
+    func with_capacity(shallow n: USize) returns Vec__I64
+    func len(self: Vec__I64) returns shallow USize
+    func clear(mut self: Vec__I64)
+    func delete_marked(mut self: Vec__I64, marks: Dynamic)
+    func push(mut self: Vec__I64, own val: I64)
+    func append(mut self: Vec__I64, own other: Vec__I64)
+    func take(mut self: Vec__I64) returns Vec__I64
+    func move_to(own self: Vec__I64, mut dest: Vec__I64)
+    func move_from(mut self: Vec__I64, own other: Vec__I64)
+    func unsafe_get(self: Vec__I64, i: USize) returns ref I64
+    func get(self: Vec__I64, shallow i: USize, mut _err_kind: I64) returns ref I64
+    func pop(mut self: Vec__I64) returns shallow I64
+    func remove_at(mut self: Vec__I64, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__I64, shallow n: USize) returns Vec__I64
+    func truncate(mut self: Vec__I64, shallow n: USize)
+    func unsafe_set(mut self: Vec__I64, shallow i: USize, own val: I64)
+    func set(mut self: Vec__I64, shallow i: USize, own val: I64, mut _err_kind: I64)
+    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: USize)
+    func delete(own self: Vec__I64, shallow call_free: Bool)
+    func clone(self: Vec__I64) returns Vec__I64
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.new">Vec__I64.new</a>
+<pre><code class="language-til">func () returns Vec__I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.with_capacity">Vec__I64.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.clear">Vec__I64.clear</a>
+<pre><code class="language-til">func (mut self: Vec__I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.delete_marked">Vec__I64.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__I64, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.push">Vec__I64.push</a>
+<pre><code class="language-til">func (mut self: Vec__I64, own val: I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.append">Vec__I64.append</a>
+<pre><code class="language-til">func (mut self: Vec__I64, own other: Vec__I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.take">Vec__I64.take</a>
+<pre><code class="language-til">func (mut self: Vec__I64) returns Vec__I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.move_to">Vec__I64.move_to</a>
+<pre><code class="language-til">func (own self: Vec__I64, mut dest: Vec__I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.move_from">Vec__I64.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__I64, own other: Vec__I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.unsafe_get">Vec__I64.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__I64, i: USize) returns ref I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.get">Vec__I64.get</a>
+<pre><code class="language-til">func (self: Vec__I64, shallow i: USize, mut _err_kind: I64) returns ref I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.pop">Vec__I64.pop</a>
+<pre><code class="language-til">func (mut self: Vec__I64) returns shallow I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.remove_at">Vec__I64.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__I64, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.take_prefix">Vec__I64.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__I64, shallow n: USize) returns Vec__I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.truncate">Vec__I64.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__I64, shallow n: USize)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.unsafe_set">Vec__I64.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__I64, shallow i: USize, own val: I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.set">Vec__I64.set</a>
+<pre><code class="language-til">func (mut self: Vec__I64, shallow i: USize, own val: I64, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.push_take">Vec__I64.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__I64, mut src: Vec__I64, shallow i: USize)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.delete">Vec__I64.delete</a>
+<pre><code class="language-til">func (own self: Vec__I64, shallow call_free: Bool)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__I64.clone">Vec__I64.clone</a>
+<pre><code class="language-til">func (self: Vec__I64) returns Vec__I64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64">Vec__U64</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__U64
+    func with_capacity(shallow n: USize) returns Vec__U64
+    func len(self: Vec__U64) returns shallow USize
+    func clear(mut self: Vec__U64)
+    func delete_marked(mut self: Vec__U64, marks: Dynamic)
+    func push(mut self: Vec__U64, own val: U64)
+    func append(mut self: Vec__U64, own other: Vec__U64)
+    func take(mut self: Vec__U64) returns Vec__U64
+    func move_to(own self: Vec__U64, mut dest: Vec__U64)
+    func move_from(mut self: Vec__U64, own other: Vec__U64)
+    func unsafe_get(self: Vec__U64, i: USize) returns ref U64
+    func get(self: Vec__U64, shallow i: USize, mut _err_kind: I64) returns ref U64
+    func pop(mut self: Vec__U64) returns shallow U64
+    func remove_at(mut self: Vec__U64, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__U64, shallow n: USize) returns Vec__U64
+    func truncate(mut self: Vec__U64, shallow n: USize)
+    func unsafe_set(mut self: Vec__U64, shallow i: USize, own val: U64)
+    func set(mut self: Vec__U64, shallow i: USize, own val: U64, mut _err_kind: I64)
+    func push_take(mut self: Vec__U64, mut src: Vec__U64, shallow i: USize)
+    func delete(own self: Vec__U64, shallow call_free: Bool)
+    func clone(self: Vec__U64) returns Vec__U64
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.new">Vec__U64.new</a>
+<pre><code class="language-til">func () returns Vec__U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.with_capacity">Vec__U64.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.clear">Vec__U64.clear</a>
+<pre><code class="language-til">func (mut self: Vec__U64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.delete_marked">Vec__U64.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__U64, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.push">Vec__U64.push</a>
+<pre><code class="language-til">func (mut self: Vec__U64, own val: U64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.append">Vec__U64.append</a>
+<pre><code class="language-til">func (mut self: Vec__U64, own other: Vec__U64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.take">Vec__U64.take</a>
+<pre><code class="language-til">func (mut self: Vec__U64) returns Vec__U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.move_to">Vec__U64.move_to</a>
+<pre><code class="language-til">func (own self: Vec__U64, mut dest: Vec__U64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.move_from">Vec__U64.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__U64, own other: Vec__U64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.unsafe_get">Vec__U64.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__U64, i: USize) returns ref U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.get">Vec__U64.get</a>
+<pre><code class="language-til">func (self: Vec__U64, shallow i: USize, mut _err_kind: I64) returns ref U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.pop">Vec__U64.pop</a>
+<pre><code class="language-til">func (mut self: Vec__U64) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.remove_at">Vec__U64.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__U64, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.take_prefix">Vec__U64.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__U64, shallow n: USize) returns Vec__U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.truncate">Vec__U64.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__U64, shallow n: USize)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.unsafe_set">Vec__U64.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__U64, shallow i: USize, own val: U64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.set">Vec__U64.set</a>
+<pre><code class="language-til">func (mut self: Vec__U64, shallow i: USize, own val: U64, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.push_take">Vec__U64.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__U64, mut src: Vec__U64, shallow i: USize)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.delete">Vec__U64.delete</a>
+<pre><code class="language-til">func (own self: Vec__U64, shallow call_free: Bool)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.Vec__U64.clone">Vec__U64.clone</a>
+<pre><code class="language-til">func (self: Vec__U64) returns Vec__U64
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.adopt__I64">adopt__I64</a>
+<pre><code class="language-til">func (dest: Dynamic, own src: I64)
+</code></pre>
+</li>
+<li><a href="src/std/hashmap.html#til.src.std.hashmap.adopt__U64">adopt__U64</a>
+<pre><code class="language-til">func (dest: Dynamic, own src: U64)
+</code></pre>
+</li>
 </ul>
 </section>
 <section>
@@ -4507,7 +4790,7 @@ namespace:
     func move_to(own self: Vec__Token, mut dest: Vec__Token)
     func move_from(mut self: Vec__Token, own other: Vec__Token)
     func unsafe_get(self: Vec__Token, i: USize) returns ref Token
-    func get(self: Vec__Token, i: USize, mut _err_kind: I64) returns ref Token
+    func get(self: Vec__Token, shallow i: USize, mut _err_kind: I64) returns ref Token
     func pop(mut self: Vec__Token) returns Token
     func remove_at(mut self: Vec__Token, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Token, shallow n: USize) returns Vec__Token
@@ -4562,7 +4845,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/lexer.html#til.src.self.lexer.Vec__Token.get">Vec__Token.get</a>
-<pre><code class="language-til">func (self: Vec__Token, i: USize, mut _err_kind: I64) returns ref Token
+<pre><code class="language-til">func (self: Vec__Token, shallow i: USize, mut _err_kind: I64) returns ref Token
 </code></pre>
 </li>
 <li><a href="src/self/lexer.html#til.src.self.lexer.Vec__Token.pop">Vec__Token.pop</a>
@@ -4618,7 +4901,7 @@ namespace:
     func move_to(own self: Vec__TokenType, mut dest: Vec__TokenType)
     func move_from(mut self: Vec__TokenType, own other: Vec__TokenType)
     func unsafe_get(self: Vec__TokenType, i: USize) returns ref TokenType
-    func get(self: Vec__TokenType, i: USize, mut _err_kind: I64) returns ref TokenType
+    func get(self: Vec__TokenType, shallow i: USize, mut _err_kind: I64) returns ref TokenType
     func pop(mut self: Vec__TokenType) returns TokenType
     func remove_at(mut self: Vec__TokenType, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__TokenType, shallow n: USize) returns Vec__TokenType
@@ -4673,7 +4956,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/lexer.html#til.src.self.lexer.Vec__TokenType.get">Vec__TokenType.get</a>
-<pre><code class="language-til">func (self: Vec__TokenType, i: USize, mut _err_kind: I64) returns ref TokenType
+<pre><code class="language-til">func (self: Vec__TokenType, shallow i: USize, mut _err_kind: I64) returns ref TokenType
 </code></pre>
 </li>
 <li><a href="src/self/lexer.html#til.src.self.lexer.Vec__TokenType.pop">Vec__TokenType.pop</a>
@@ -4770,6 +5053,10 @@ namespace:
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.field_access_node">field_access_node</a>
 <pre><code class="language-til">func (name: Str) returns NodeType
+</code></pre>
+</li>
+<li><a href="src/self/parser.html#til.src.self.parser.FCALL_ARG_BITS">FCALL_ARG_BITS</a>
+<pre><code class="language-til"> is a U32
 </code></pre>
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.set_own_arg">set_own_arg</a>
@@ -4920,7 +5207,7 @@ namespace:
     func move_to(own self: Vec__Bool, mut dest: Vec__Bool)
     func move_from(mut self: Vec__Bool, own other: Vec__Bool)
     func unsafe_get(self: Vec__Bool, i: USize) returns ref Bool
-    func get(self: Vec__Bool, i: USize, mut _err_kind: I64) returns ref Bool
+    func get(self: Vec__Bool, shallow i: USize, mut _err_kind: I64) returns ref Bool
     func pop(mut self: Vec__Bool) returns shallow Bool
     func remove_at(mut self: Vec__Bool, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Bool, shallow n: USize) returns Vec__Bool
@@ -4975,7 +5262,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.Vec__Bool.get">Vec__Bool.get</a>
-<pre><code class="language-til">func (self: Vec__Bool, i: USize, mut _err_kind: I64) returns ref Bool
+<pre><code class="language-til">func (self: Vec__Bool, shallow i: USize, mut _err_kind: I64) returns ref Bool
 </code></pre>
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.Vec__Bool.pop">Vec__Bool.pop</a>
@@ -5028,6 +5315,9 @@ namespace:
     mut path : Str
     mut line : U32
     mut col : U32
+    mut carried : Bool
+    mut field : Str
+    mut provisional : Bool
 namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func to_str(self: BorrowRoot) returns Str
@@ -5213,17 +5503,17 @@ namespace:
 <li><a href="src/self/context.html#til.src.self.context.BuilderFuncScratch">BuilderFuncScratch</a>
 <pre><code class="language-til">struct {
     mut local_fn_sigs : Map__Str_Dynamic
-    mut body_refs : Set__Str
-    mut body_multi_decls : Set__Str
-    mut stack_locals : Set__Str
-    mut stack_local_types : Map__Str_Str
-    mut stack_lit_str_locals : Set__Str
+    mut body_refs : Set__U32
+    mut body_multi_decls : Set__U32
+    mut stack_locals : Set__U32
+    mut stack_local_types : Map__U32_Str
+    mut stack_lit_str_locals : Set__U32
     mut force_heap_stack_lit_str_own : Bool
-    mut unsafe_to_hoist : Set__Str
-    mut ref_locals : Set__Str
-    mut ref_dyn_locals : Set__Str
-    mut ptr_locals : Set__Str
-    mut shadowed_params : Set__Str
+    mut unsafe_to_hoist : Set__U32
+    mut ref_locals : Set__U32
+    mut ref_dyn_locals : Set__U32
+    mut ptr_locals : Set__U32
+    mut shadowed_params : Set__U32
 namespace:
     func clone(self: BuilderFuncScratch) returns BuilderFuncScratch
     func delete(own self: BuilderFuncScratch, shallow call_free: Bool)
@@ -5290,6 +5580,7 @@ namespace:
     ref mut interp_ret_dest : Dynamic
     mut interp_ret_type : Option__ref_Str
     mut interp_ret_own_type : OwnType
+    mut interp_cstr_arg : Bool
     mut constfold_active : Bool
     mut eval_aborted : Bool
     mut repl_session : Bool
@@ -5306,17 +5597,17 @@ namespace:
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
     own mut generic_pending : Expr
-    mut lambda_counter : I64
+    own mut func_gen_twins : Expr
     mut scope : TypeScope
     mut is_repl : Bool
     mut struct_layouts : Map__Str_StructLayout
     mut typing_namespace_member : Bool
     mut closure_emit_env : Str
-    mut closure_emit_captures : Set__Str
+    mut closure_emit_captures : Set__U32
     mut funcsig_names : Set__U32
-    mut closure_value_names : Set__Str
-    mut script_globals : Set__Str
-    mut ref_globals : Set__Str
+    mut closure_value_names : Set__U32
+    mut script_globals : Set__U32
+    mut ref_globals : Set__U32
     mut throw_type_registry : Vec__Str
     mut throws_global : Map__Str_call_Vec_Str
     mut bang_counter : I64
@@ -5332,6 +5623,9 @@ namespace:
     mut va_counter : I32
     mut kw_counter : I32
     mut coll_counter : I32
+    mut synth_owner : Str
+    mut synth_symbol_seq : Map__Str_I64
+    mut lazy_stmt_temp_counter : I64
     mut errors : I32
     mut current_type_name : Str
     mut current_top_func_name : Str
@@ -5339,13 +5633,20 @@ namespace:
     mut throw_used_local_names : Set__Str
     mut priv_ref_edges : Map__Str_call_Vec_Str
     mut builder_func : BuilderFuncScratch
-    mut builder_str_lit_symbols : Map__Str_Str
+    mut builder_str_lit_symbols : HashMap__Str_Str
     mut builder_str_lit_values : Vec__Str
-    mut builder_str_lit_ident_symbols : Map__Str_Str
+    mut builder_str_lit_ident_symbols : HashMap__Str_Str
+    mut builder_str_lit_counts : HashMap__Str_USize
+    mut builder_str_lit_ident_contents : HashMap__Str_Str
+    mut builder_str_lit_members : Vec__Str
+    mut builder_str_lit_member_seq : HashMap__Str_USize
     mut builder_reflect_inventory : Set__Str
     mut builder_dyn_fn_targets : Set__Str
     mut builder_ns_member_sites : Set__Str
     mut builder_collection_elem_types : Set__Str
+    mut builder_used_ctypes : Set__Str
+    mut builder_omitted_core_funcs : Set__Str
+    mut builder_static_ok : Bool
     mut builder_keep_all_exports : Bool
     mut builder_lit_guard_used : Bool
     mut current_fdef : Option__ref_Expr
@@ -5366,6 +5667,22 @@ namespace:
     func delete(own self: Context, shallow call_free: Bool)
     func size() returns shallow USize
 }
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.synth_suffix">synth_suffix</a>
+<pre><code class="language-til">func (ctx: Context, n: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.synth_suffix_unique">synth_suffix_unique</a>
+<pre><code class="language-til">func (ctx: Context, n: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.synth_owner_name">synth_owner_name</a>
+<pre><code class="language-til">func (path: Str, name: Str, orig_name: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.synth_symbol_suffix">synth_symbol_suffix</a>
+<pre><code class="language-til">func (mut ctx: Context) returns Str
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.context_register_target_int_alias_types">context_register_target_int_alias_types</a>
@@ -5684,6 +6001,10 @@ namespace:
 <pre><code class="language-til">func (ctor: Expr, scope: TypeScope) returns shallow Bool
 </code></pre>
 </li>
+<li><a href="src/self/context.html#til.src.self.context.pod_fcall_is_struct_ctor">pod_fcall_is_struct_ctor</a>
+<pre><code class="language-til">func (e: Expr) returns shallow Bool
+</code></pre>
+</li>
 <li><a href="src/self/context.html#til.src.self.context.pod_ctor_decl_is_stack">pod_ctor_decl_is_stack</a>
 <pre><code class="language-til">func (rhs: Expr, scope: TypeScope) returns shallow Bool
 </code></pre>
@@ -5705,7 +6026,7 @@ namespace:
     func move_to(own self: Vec__BorrowRoot, mut dest: Vec__BorrowRoot)
     func move_from(mut self: Vec__BorrowRoot, own other: Vec__BorrowRoot)
     func unsafe_get(self: Vec__BorrowRoot, i: USize) returns ref BorrowRoot
-    func get(self: Vec__BorrowRoot, i: USize, mut _err_kind: I64) returns ref BorrowRoot
+    func get(self: Vec__BorrowRoot, shallow i: USize, mut _err_kind: I64) returns ref BorrowRoot
     func pop(mut self: Vec__BorrowRoot) returns BorrowRoot
     func remove_at(mut self: Vec__BorrowRoot, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__BorrowRoot, shallow n: USize) returns Vec__BorrowRoot
@@ -5760,7 +6081,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__BorrowRoot.get">Vec__BorrowRoot.get</a>
-<pre><code class="language-til">func (self: Vec__BorrowRoot, i: USize, mut _err_kind: I64) returns ref BorrowRoot
+<pre><code class="language-til">func (self: Vec__BorrowRoot, shallow i: USize, mut _err_kind: I64) returns ref BorrowRoot
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__BorrowRoot.pop">Vec__BorrowRoot.pop</a>
@@ -5901,6 +6222,54 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Option__ref_TypeBinding.take">Option__ref_TypeBinding.take</a>
 <pre><code class="language-til">func (own self: Option__ref_TypeBinding) returns ref TypeBinding
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str">Map__U32_Str</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__U32
+    mut values : Vec__Str
+namespace:
+    func new() returns Map__U32_Str
+    func with_capacity(shallow n: USize) returns Map__U32_Str
+    func len(self: Map__U32_Str) returns shallow USize
+    func clear(mut self: Map__U32_Str)
+    func has(self: Map__U32_Str, shallow key: U32) returns shallow Bool
+    func get(self: Map__U32_Str, key: U32, mut _err_kind: I64) returns ref Str
+    func set(mut self: Map__U32_Str, shallow key: U32, own val: Str)
+    func remove(mut self: Map__U32_Str, shallow key: U32) returns shallow Bool
+    func delete(own self: Map__U32_Str, shallow call_free: Bool)
+    func clone(self: Map__U32_Str) returns Map__U32_Str
+    func hash(self: Map__U32_Str, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str.new">Map__U32_Str.new</a>
+<pre><code class="language-til">func () returns Map__U32_Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str.with_capacity">Map__U32_Str.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Map__U32_Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str.clear">Map__U32_Str.clear</a>
+<pre><code class="language-til">func (mut self: Map__U32_Str)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str.has">Map__U32_Str.has</a>
+<pre><code class="language-til">func (self: Map__U32_Str, shallow key: U32) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str.get">Map__U32_Str.get</a>
+<pre><code class="language-til">func (self: Map__U32_Str, key: U32, mut _err_kind: I64) returns ref Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str.set">Map__U32_Str.set</a>
+<pre><code class="language-til">func (mut self: Map__U32_Str, shallow key: U32, own val: Str)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__U32_Str.remove">Map__U32_Str.remove</a>
+<pre><code class="language-til">func (mut self: Map__U32_Str, shallow key: U32) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Map__Str_U32">Map__Str_U32</a>
@@ -6054,8 +6423,8 @@ namespace:
 namespace:
     func is_some(shallow self: Option__Scope) returns shallow Bool
     func is_none(shallow self: Option__Scope) returns shallow Bool
-    func unwrap_or(shallow self: Option__Scope, default_v: Scope) returns Scope
-    func unwrap(shallow self: Option__Scope) returns Scope
+    func unwrap_or(self: Option__Scope, default_v: Scope) returns Scope
+    func unwrap(self: Option__Scope) returns Scope
     func take(own self: Option__Scope) returns Scope
     ext_func None() returns shallow Option__Scope
     ext_func Some(own val: Scope) returns shallow Option__Scope
@@ -6067,7 +6436,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Option__Scope.unwrap">Option__Scope.unwrap</a>
-<pre><code class="language-til">func (shallow self: Option__Scope) returns Scope
+<pre><code class="language-til">func (self: Option__Scope) returns Scope
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Option__Scope.take">Option__Scope.take</a>
@@ -6261,6 +6630,54 @@ namespace:
 <pre><code class="language-til">func (mut self: Set__U32, shallow val: U32) returns shallow Bool
 </code></pre>
 </li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64">Map__Str_I64</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__I64
+namespace:
+    func new() returns Map__Str_I64
+    func with_capacity(shallow n: USize) returns Map__Str_I64
+    func len(self: Map__Str_I64) returns shallow USize
+    func clear(mut self: Map__Str_I64)
+    func has(self: Map__Str_I64, key: Str) returns shallow Bool
+    func get(self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
+    func set(mut self: Map__Str_I64, key: Str, own val: I64)
+    func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_I64, shallow call_free: Bool)
+    func clone(self: Map__Str_I64) returns Map__Str_I64
+    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64.new">Map__Str_I64.new</a>
+<pre><code class="language-til">func () returns Map__Str_I64
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64.with_capacity">Map__Str_I64.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Map__Str_I64
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64.clear">Map__Str_I64.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_I64)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64.has">Map__Str_I64.has</a>
+<pre><code class="language-til">func (self: Map__Str_I64, key: Str) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64.get">Map__Str_I64.get</a>
+<pre><code class="language-til">func (self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64.set">Map__Str_I64.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_I64, key: Str, own val: I64)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_I64.remove">Map__Str_I64.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_I64, key: Str) returns shallow Bool
+</code></pre>
+</li>
 <li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -6307,6 +6724,128 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.remove">Map__Str_call_Vec_Str.remove</a>
 <pre><code class="language-til">func (mut self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str">HashMap__Str_Str</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__Str
+    mut buckets : Vec__I64
+    mut nexts : Vec__I64
+    mut hashes : Vec__U64
+namespace:
+    hasher : HashFn
+    func new() returns HashMap__Str_Str
+    func with_capacity(shallow n: USize) returns HashMap__Str_Str
+    func len(self: HashMap__Str_Str) returns shallow USize
+    func clear(mut self: HashMap__Str_Str)
+    func clone(self: HashMap__Str_Str) returns HashMap__Str_Str
+    func hash_key(key: Str) returns shallow U64
+    func keys_equal(a: Str, b: Str) returns shallow Bool
+    func find(self: HashMap__Str_Str, key: Str) returns shallow I64
+    func has(self: HashMap__Str_Str, key: Str) returns shallow Bool
+    func get(self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns ref Str
+    func stored_hash(self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns shallow U64
+    func set(mut self: HashMap__Str_Str, key: Str, own val: Str)
+    func rehash(mut self: HashMap__Str_Str)
+    func delete(own self: HashMap__Str_Str, shallow call_free: Bool)
+    func remove(mut self: HashMap__Str_Str, key: Str) returns shallow Bool
+    func hash(self: HashMap__Str_Str, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.hasher">HashMap__Str_Str.hasher</a>
+<pre><code class="language-til">member : HashFn
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.new">HashMap__Str_Str.new</a>
+<pre><code class="language-til">func () returns HashMap__Str_Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.with_capacity">HashMap__Str_Str.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns HashMap__Str_Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.clear">HashMap__Str_Str.clear</a>
+<pre><code class="language-til">func (mut self: HashMap__Str_Str)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.clone">HashMap__Str_Str.clone</a>
+<pre><code class="language-til">func (self: HashMap__Str_Str) returns HashMap__Str_Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.get">HashMap__Str_Str.get</a>
+<pre><code class="language-til">func (self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns ref Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.stored_hash">HashMap__Str_Str.stored_hash</a>
+<pre><code class="language-til">func (self: HashMap__Str_Str, key: Str, mut _err_kind: I64) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str.remove">HashMap__Str_Str.remove</a>
+<pre><code class="language-til">func (mut self: HashMap__Str_Str, key: Str) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize">HashMap__Str_USize</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__USize
+    mut buckets : Vec__I64
+    mut nexts : Vec__I64
+    mut hashes : Vec__U64
+namespace:
+    hasher : HashFn
+    func new() returns HashMap__Str_USize
+    func with_capacity(shallow n: USize) returns HashMap__Str_USize
+    func len(self: HashMap__Str_USize) returns shallow USize
+    func clear(mut self: HashMap__Str_USize)
+    func clone(self: HashMap__Str_USize) returns HashMap__Str_USize
+    func hash_key(key: Str) returns shallow U64
+    func keys_equal(a: Str, b: Str) returns shallow Bool
+    func find(self: HashMap__Str_USize, key: Str) returns shallow I64
+    func has(self: HashMap__Str_USize, key: Str) returns shallow Bool
+    func get(self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
+    func stored_hash(self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns shallow U64
+    func set(mut self: HashMap__Str_USize, key: Str, own val: USize)
+    func rehash(mut self: HashMap__Str_USize)
+    func delete(own self: HashMap__Str_USize, shallow call_free: Bool)
+    func remove(mut self: HashMap__Str_USize, key: Str) returns shallow Bool
+    func hash(self: HashMap__Str_USize, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.hasher">HashMap__Str_USize.hasher</a>
+<pre><code class="language-til">member : HashFn
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.new">HashMap__Str_USize.new</a>
+<pre><code class="language-til">func () returns HashMap__Str_USize
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.with_capacity">HashMap__Str_USize.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns HashMap__Str_USize
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.clear">HashMap__Str_USize.clear</a>
+<pre><code class="language-til">func (mut self: HashMap__Str_USize)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.clone">HashMap__Str_USize.clone</a>
+<pre><code class="language-til">func (self: HashMap__Str_USize) returns HashMap__Str_USize
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.get">HashMap__Str_USize.get</a>
+<pre><code class="language-til">func (self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.stored_hash">HashMap__Str_USize.stored_hash</a>
+<pre><code class="language-til">func (self: HashMap__Str_USize, key: Str, mut _err_kind: I64) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.HashMap__Str_USize.remove">HashMap__Str_USize.remove</a>
+<pre><code class="language-til">func (mut self: HashMap__Str_USize, key: Str) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Option__ref_Expr">Option__ref_Expr</a>
@@ -6499,7 +7038,7 @@ namespace:
     func move_to(own self: Vec__FFITypePtrBox, mut dest: Vec__FFITypePtrBox)
     func move_from(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
     func unsafe_get(self: Vec__FFITypePtrBox, i: USize) returns ref FFITypePtrBox
-    func get(self: Vec__FFITypePtrBox, i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
+    func get(self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
     func pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
     func remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USize) returns Vec__FFITypePtrBox
@@ -6554,7 +7093,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__FFITypePtrBox.get">Vec__FFITypePtrBox.get</a>
-<pre><code class="language-til">func (self: Vec__FFITypePtrBox, i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
+<pre><code class="language-til">func (self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__FFITypePtrBox.pop">Vec__FFITypePtrBox.pop</a>
@@ -6622,117 +7161,6 @@ namespace:
 <pre><code class="language-til">func (own self: Option__ref_Declaration) returns ref Declaration
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64">Vec__I64</a>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__I64
-    func with_capacity(shallow n: USize) returns Vec__I64
-    func len(self: Vec__I64) returns shallow USize
-    func clear(mut self: Vec__I64)
-    func delete_marked(mut self: Vec__I64, marks: Dynamic)
-    func push(mut self: Vec__I64, own val: I64)
-    func append(mut self: Vec__I64, own other: Vec__I64)
-    func take(mut self: Vec__I64) returns Vec__I64
-    func move_to(own self: Vec__I64, mut dest: Vec__I64)
-    func move_from(mut self: Vec__I64, own other: Vec__I64)
-    func unsafe_get(self: Vec__I64, i: USize) returns ref I64
-    func get(self: Vec__I64, i: USize, mut _err_kind: I64) returns ref I64
-    func pop(mut self: Vec__I64) returns shallow I64
-    func remove_at(mut self: Vec__I64, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__I64, shallow n: USize) returns Vec__I64
-    func truncate(mut self: Vec__I64, shallow n: USize)
-    func unsafe_set(mut self: Vec__I64, shallow i: USize, own val: I64)
-    func set(mut self: Vec__I64, shallow i: USize, own val: I64, mut _err_kind: I64)
-    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: USize)
-    func delete(own self: Vec__I64, shallow call_free: Bool)
-    func clone(self: Vec__I64) returns Vec__I64
-    func size() returns shallow USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.new">Vec__I64.new</a>
-<pre><code class="language-til">func () returns Vec__I64
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.with_capacity">Vec__I64.with_capacity</a>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__I64
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.clear">Vec__I64.clear</a>
-<pre><code class="language-til">func (mut self: Vec__I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.delete_marked">Vec__I64.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__I64, marks: Dynamic)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.push">Vec__I64.push</a>
-<pre><code class="language-til">func (mut self: Vec__I64, own val: I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.append">Vec__I64.append</a>
-<pre><code class="language-til">func (mut self: Vec__I64, own other: Vec__I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.take">Vec__I64.take</a>
-<pre><code class="language-til">func (mut self: Vec__I64) returns Vec__I64
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.move_to">Vec__I64.move_to</a>
-<pre><code class="language-til">func (own self: Vec__I64, mut dest: Vec__I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.move_from">Vec__I64.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__I64, own other: Vec__I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.unsafe_get">Vec__I64.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__I64, i: USize) returns ref I64
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.get">Vec__I64.get</a>
-<pre><code class="language-til">func (self: Vec__I64, i: USize, mut _err_kind: I64) returns ref I64
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.pop">Vec__I64.pop</a>
-<pre><code class="language-til">func (mut self: Vec__I64) returns shallow I64
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.remove_at">Vec__I64.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__I64, shallow i: USize, mut _err_kind: I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.take_prefix">Vec__I64.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__I64, shallow n: USize) returns Vec__I64
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.truncate">Vec__I64.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__I64, shallow n: USize)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.unsafe_set">Vec__I64.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__I64, shallow i: USize, own val: I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.set">Vec__I64.set</a>
-<pre><code class="language-til">func (mut self: Vec__I64, shallow i: USize, own val: I64, mut _err_kind: I64)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.push_take">Vec__I64.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__I64, mut src: Vec__I64, shallow i: USize)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.delete">Vec__I64.delete</a>
-<pre><code class="language-til">func (own self: Vec__I64, shallow call_free: Bool)
-</code></pre>
-</li>
-<li><a href="src/self/context.html#til.src.self.context.Vec__I64.clone">Vec__I64.clone</a>
-<pre><code class="language-til">func (self: Vec__I64) returns Vec__I64
-</code></pre>
-</li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -6750,7 +7178,7 @@ namespace:
     func move_to(own self: Vec__TypeBinding, mut dest: Vec__TypeBinding)
     func move_from(mut self: Vec__TypeBinding, own other: Vec__TypeBinding)
     func unsafe_get(self: Vec__TypeBinding, i: USize) returns ref TypeBinding
-    func get(self: Vec__TypeBinding, i: USize, mut _err_kind: I64) returns ref TypeBinding
+    func get(self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64) returns ref TypeBinding
     func pop(mut self: Vec__TypeBinding) returns TypeBinding
     func remove_at(mut self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__TypeBinding, shallow n: USize) returns Vec__TypeBinding
@@ -6805,7 +7233,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__TypeBinding.get">Vec__TypeBinding.get</a>
-<pre><code class="language-til">func (self: Vec__TypeBinding, i: USize, mut _err_kind: I64) returns ref TypeBinding
+<pre><code class="language-til">func (self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64) returns ref TypeBinding
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__TypeBinding.pop">Vec__TypeBinding.pop</a>
@@ -6861,7 +7289,7 @@ namespace:
     func move_to(own self: Vec__U32, mut dest: Vec__U32)
     func move_from(mut self: Vec__U32, own other: Vec__U32)
     func unsafe_get(self: Vec__U32, i: USize) returns ref U32
-    func get(self: Vec__U32, i: USize, mut _err_kind: I64) returns ref U32
+    func get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
     func pop(mut self: Vec__U32) returns shallow U32
     func remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
@@ -6916,7 +7344,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__U32.get">Vec__U32.get</a>
-<pre><code class="language-til">func (self: Vec__U32, i: USize, mut _err_kind: I64) returns ref U32
+<pre><code class="language-til">func (self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__U32.pop">Vec__U32.pop</a>
@@ -6972,7 +7400,7 @@ namespace:
     func move_to(own self: Vec__Mode, mut dest: Vec__Mode)
     func move_from(mut self: Vec__Mode, own other: Vec__Mode)
     func unsafe_get(self: Vec__Mode, i: USize) returns ref Mode
-    func get(self: Vec__Mode, i: USize, mut _err_kind: I64) returns ref Mode
+    func get(self: Vec__Mode, shallow i: USize, mut _err_kind: I64) returns ref Mode
     func pop(mut self: Vec__Mode) returns Mode
     func remove_at(mut self: Vec__Mode, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Mode, shallow n: USize) returns Vec__Mode
@@ -7027,7 +7455,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__Mode.get">Vec__Mode.get</a>
-<pre><code class="language-til">func (self: Vec__Mode, i: USize, mut _err_kind: I64) returns ref Mode
+<pre><code class="language-til">func (self: Vec__Mode, shallow i: USize, mut _err_kind: I64) returns ref Mode
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__Mode.pop">Vec__Mode.pop</a>
@@ -7083,7 +7511,7 @@ namespace:
     func move_to(own self: Vec__FuncType, mut dest: Vec__FuncType)
     func move_from(mut self: Vec__FuncType, own other: Vec__FuncType)
     func unsafe_get(self: Vec__FuncType, i: USize) returns ref FuncType
-    func get(self: Vec__FuncType, i: USize, mut _err_kind: I64) returns ref FuncType
+    func get(self: Vec__FuncType, shallow i: USize, mut _err_kind: I64) returns ref FuncType
     func pop(mut self: Vec__FuncType) returns FuncType
     func remove_at(mut self: Vec__FuncType, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FuncType, shallow n: USize) returns Vec__FuncType
@@ -7138,7 +7566,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__FuncType.get">Vec__FuncType.get</a>
-<pre><code class="language-til">func (self: Vec__FuncType, i: USize, mut _err_kind: I64) returns ref FuncType
+<pre><code class="language-til">func (self: Vec__FuncType, shallow i: USize, mut _err_kind: I64) returns ref FuncType
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__FuncType.pop">Vec__FuncType.pop</a>
@@ -7194,7 +7622,7 @@ namespace:
     func move_to(own self: Vec__ImportUnit, mut dest: Vec__ImportUnit)
     func move_from(mut self: Vec__ImportUnit, own other: Vec__ImportUnit)
     func unsafe_get(self: Vec__ImportUnit, i: USize) returns ref ImportUnit
-    func get(self: Vec__ImportUnit, i: USize, mut _err_kind: I64) returns ref ImportUnit
+    func get(self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64) returns ref ImportUnit
     func pop(mut self: Vec__ImportUnit) returns ImportUnit
     func remove_at(mut self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__ImportUnit, shallow n: USize) returns Vec__ImportUnit
@@ -7249,7 +7677,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__ImportUnit.get">Vec__ImportUnit.get</a>
-<pre><code class="language-til">func (self: Vec__ImportUnit, i: USize, mut _err_kind: I64) returns ref ImportUnit
+<pre><code class="language-til">func (self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64) returns ref ImportUnit
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__ImportUnit.pop">Vec__ImportUnit.pop</a>
@@ -7305,7 +7733,7 @@ namespace:
     func move_to(own self: Vec__StructLayout, mut dest: Vec__StructLayout)
     func move_from(mut self: Vec__StructLayout, own other: Vec__StructLayout)
     func unsafe_get(self: Vec__StructLayout, i: USize) returns ref StructLayout
-    func get(self: Vec__StructLayout, i: USize, mut _err_kind: I64) returns ref StructLayout
+    func get(self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64) returns ref StructLayout
     func pop(mut self: Vec__StructLayout) returns StructLayout
     func remove_at(mut self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__StructLayout, shallow n: USize) returns Vec__StructLayout
@@ -7360,7 +7788,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__StructLayout.get">Vec__StructLayout.get</a>
-<pre><code class="language-til">func (self: Vec__StructLayout, i: USize, mut _err_kind: I64) returns ref StructLayout
+<pre><code class="language-til">func (self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64) returns ref StructLayout
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__StructLayout.pop">Vec__StructLayout.pop</a>
@@ -7416,7 +7844,7 @@ namespace:
     func move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
     func move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
     func unsafe_get(self: Vec__call_Vec_Str, i: USize) returns ref Vec__Str
-    func get(self: Vec__call_Vec_Str, i: USize, mut _err_kind: I64) returns ref Vec__Str
+    func get(self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64) returns ref Vec__Str
     func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
     func remove_at(mut self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__call_Vec_Str, shallow n: USize) returns Vec__call_Vec_Str
@@ -7471,7 +7899,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__call_Vec_Str.get">Vec__call_Vec_Str.get</a>
-<pre><code class="language-til">func (self: Vec__call_Vec_Str, i: USize, mut _err_kind: I64) returns ref Vec__Str
+<pre><code class="language-til">func (self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64) returns ref Vec__Str
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__call_Vec_Str.pop">Vec__call_Vec_Str.pop</a>
@@ -7527,7 +7955,7 @@ namespace:
     func move_to(own self: Vec__FFIEntry, mut dest: Vec__FFIEntry)
     func move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
     func unsafe_get(self: Vec__FFIEntry, i: USize) returns ref FFIEntry
-    func get(self: Vec__FFIEntry, i: USize, mut _err_kind: I64) returns ref FFIEntry
+    func get(self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
     func pop(mut self: Vec__FFIEntry) returns FFIEntry
     func remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FFIEntry, shallow n: USize) returns Vec__FFIEntry
@@ -7582,7 +8010,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__FFIEntry.get">Vec__FFIEntry.get</a>
-<pre><code class="language-til">func (self: Vec__FFIEntry, i: USize, mut _err_kind: I64) returns ref FFIEntry
+<pre><code class="language-til">func (self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__FFIEntry.pop">Vec__FFIEntry.pop</a>
@@ -7638,7 +8066,7 @@ namespace:
     func move_to(own self: Vec__ExprPtrBox, mut dest: Vec__ExprPtrBox)
     func move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
     func unsafe_get(self: Vec__ExprPtrBox, i: USize) returns ref ExprPtrBox
-    func get(self: Vec__ExprPtrBox, i: USize, mut _err_kind: I64) returns ref ExprPtrBox
+    func get(self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
     func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
     func remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) returns Vec__ExprPtrBox
@@ -7693,7 +8121,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__ExprPtrBox.get">Vec__ExprPtrBox.get</a>
-<pre><code class="language-til">func (self: Vec__ExprPtrBox, i: USize, mut _err_kind: I64) returns ref ExprPtrBox
+<pre><code class="language-til">func (self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__ExprPtrBox.pop">Vec__ExprPtrBox.pop</a>
@@ -7776,10 +8204,6 @@ namespace:
 <pre><code class="language-til">func (dest: Dynamic, own src: FFITypePtrBox)
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.adopt__I64">adopt__I64</a>
-<pre><code class="language-til">func (dest: Dynamic, own src: I64)
-</code></pre>
-</li>
 <li><a href="src/self/modes.html#til.src.self.modes.context_register_path_mode">context_register_path_mode</a>
 <pre><code class="language-til">func (mut ctx: Context, path: Str, mode: Mode)
 </code></pre>
@@ -7844,7 +8268,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.gen_enum_size_method_for_stmt">gen_enum_size_method_for_stmt</a>
-<pre><code class="language-til">proc (mut stmt: Expr, scope: TypeScope, mut ctx: Context)
+<pre><code class="language-til">proc (mut stmt: Expr, mut scope: TypeScope, mut ctx: Context)
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.gen_unity_derived_for_stmt">gen_unity_derived_for_stmt</a>
@@ -7856,11 +8280,11 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.compute_struct_layout">compute_struct_layout</a>
-<pre><code class="language-til">proc (name: Str, mut struct_def: Expr, scope: TypeScope, mut ctx: Context)
+<pre><code class="language-til">proc (name: Str, mut struct_def: Expr, mut scope: TypeScope, mut ctx: Context)
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.compute_enum_layout">compute_enum_layout</a>
-<pre><code class="language-til">proc (name: Str, enum_def: Expr, scope: TypeScope, mut ctx: Context) returns shallow USize
+<pre><code class="language-til">proc (name: Str, enum_def: Expr, mut scope: TypeScope, mut ctx: Context) returns shallow USize
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.ctx_total_size">ctx_total_size</a>
@@ -7932,54 +8356,6 @@ namespace:
 <pre><code class="language-til">func (e: Expr, shallow edef_o: Option__ref_Expr) returns shallow Bool
 </code></pre>
 </li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64">Map__Str_I64</a>
-<pre><code class="language-til">struct {
-    mut keys : Vec__Str
-    mut values : Vec__I64
-namespace:
-    func new() returns Map__Str_I64
-    func with_capacity(shallow n: USize) returns Map__Str_I64
-    func len(self: Map__Str_I64) returns shallow USize
-    func clear(mut self: Map__Str_I64)
-    func has(self: Map__Str_I64, key: Str) returns shallow Bool
-    func get(self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
-    func set(mut self: Map__Str_I64, key: Str, own val: I64)
-    func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_I64, shallow call_free: Bool)
-    func clone(self: Map__Str_I64) returns Map__Str_I64
-    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64.new">Map__Str_I64.new</a>
-<pre><code class="language-til">func () returns Map__Str_I64
-</code></pre>
-</li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64.with_capacity">Map__Str_I64.with_capacity</a>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_I64
-</code></pre>
-</li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64.clear">Map__Str_I64.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_I64)
-</code></pre>
-</li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64.has">Map__Str_I64.has</a>
-<pre><code class="language-til">func (self: Map__Str_I64, key: Str) returns shallow Bool
-</code></pre>
-</li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64.get">Map__Str_I64.get</a>
-<pre><code class="language-til">func (self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
-</code></pre>
-</li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64.set">Map__Str_I64.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_I64, key: Str, own val: I64)
-</code></pre>
-</li>
-<li><a href="src/self/initer.html#til.src.self.initer.Map__Str_I64.remove">Map__Str_I64.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_I64, key: Str) returns shallow Bool
-</code></pre>
-</li>
 <li><a href="src/self/initer.html#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -8045,7 +8421,7 @@ namespace:
     func move_to(own self: Vec__GenericFuncSource, mut dest: Vec__GenericFuncSource)
     func move_from(mut self: Vec__GenericFuncSource, own other: Vec__GenericFuncSource)
     func unsafe_get(self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
-    func get(self: Vec__GenericFuncSource, i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+    func get(self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
     func pop(mut self: Vec__GenericFuncSource) returns GenericFuncSource
     func remove_at(mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
@@ -8100,7 +8476,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.Vec__GenericFuncSource.get">Vec__GenericFuncSource.get</a>
-<pre><code class="language-til">func (self: Vec__GenericFuncSource, i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+<pre><code class="language-til">func (self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.Vec__GenericFuncSource.pop">Vec__GenericFuncSource.pop</a>
@@ -8236,7 +8612,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.infer_expr">infer_expr</a>
-<pre><code class="language-til">proc (scope: TypeScope, mut expr: Expr, shallow in_func: I32, mut ctx: Context)
+<pre><code class="language-til">proc (mut scope: TypeScope, mut expr: Expr, shallow in_func: I32, mut ctx: Context)
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.PTR_SIZE_BYTES">PTR_SIZE_BYTES</a>
@@ -8256,7 +8632,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.check_unused_priv_top_level">check_unused_priv_top_level</a>
-<pre><code class="language-til">proc (scope: TypeScope, mut ctx: Context) returns shallow I32
+<pre><code class="language-til">proc (mut scope: TypeScope, mut ctx: Context) returns shallow I32
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.check_unused_priv_members_in_program">check_unused_priv_members_in_program</a>
@@ -8316,7 +8692,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.type_from_name">type_from_name</a>
-<pre><code class="language-til">func (name: Str, scope: TypeScope, mut ctx: Context) returns Type
+<pre><code class="language-til">func (name: Str, mut scope: TypeScope, mut ctx: Context) returns Type
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.resolve_type_alias">resolve_type_alias</a>
@@ -8328,7 +8704,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.usize_type">usize_type</a>
-<pre><code class="language-til">func (scope: TypeScope, mut ctx: Context) returns Type
+<pre><code class="language-til">func (mut scope: TypeScope, mut ctx: Context) returns Type
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.type_has_cmp">type_has_cmp</a>
@@ -8427,6 +8803,31 @@ namespace:
 <pre><code class="language-til">func (e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64)
 </code></pre>
 </li>
+<li><a href="src/self/typer.html#til.src.self.typer.RootBits">RootBits</a>
+<pre><code class="language-til">struct {
+    mut alias : U64
+    mut into : U64
+    mut carried : U64
+    mut provisional : U64
+namespace:
+    func eq(a: RootBits, b: RootBits) returns shallow Bool
+    func to_str(_self: RootBits) returns Str
+    func bor(self: RootBits, other: RootBits) returns RootBits
+    func all(self: RootBits) returns shallow U64
+    func is_zero(self: RootBits) returns shallow Bool
+    func clone(self: RootBits) returns RootBits
+    func delete(own self: RootBits, shallow call_free: Bool)
+    func hash(self: RootBits, hasher: HashFn) returns shallow U64
+    func cmp(a: RootBits, b: RootBits) returns shallow I64
+    func size() returns shallow USize
+    func lt(a: RootBits, b: RootBits) returns shallow Bool
+    func gt(a: RootBits, b: RootBits) returns shallow Bool
+    func neq(a: RootBits, b: RootBits) returns shallow Bool
+    func lte(a: RootBits, b: RootBits) returns shallow Bool
+    func gte(a: RootBits, b: RootBits) returns shallow Bool
+}
+</code></pre>
+</li>
 <li><a href="src/self/typer.html#til.src.self.typer.fcall_is_get_method">fcall_is_get_method</a>
 <pre><code class="language-til">func (fcall: Expr) returns shallow Bool
 </code></pre>
@@ -8437,117 +8838,6 @@ namespace:
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.fcall_returns_shallow">fcall_returns_shallow</a>
 <pre><code class="language-til">func (fcall: Expr, scope: TypeScope, ctx: Context) returns shallow I32
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64">Vec__U64</a>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__U64
-    func with_capacity(shallow n: USize) returns Vec__U64
-    func len(self: Vec__U64) returns shallow USize
-    func clear(mut self: Vec__U64)
-    func delete_marked(mut self: Vec__U64, marks: Dynamic)
-    func push(mut self: Vec__U64, own val: U64)
-    func append(mut self: Vec__U64, own other: Vec__U64)
-    func take(mut self: Vec__U64) returns Vec__U64
-    func move_to(own self: Vec__U64, mut dest: Vec__U64)
-    func move_from(mut self: Vec__U64, own other: Vec__U64)
-    func unsafe_get(self: Vec__U64, i: USize) returns ref U64
-    func get(self: Vec__U64, i: USize, mut _err_kind: I64) returns ref U64
-    func pop(mut self: Vec__U64) returns shallow U64
-    func remove_at(mut self: Vec__U64, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__U64, shallow n: USize) returns Vec__U64
-    func truncate(mut self: Vec__U64, shallow n: USize)
-    func unsafe_set(mut self: Vec__U64, shallow i: USize, own val: U64)
-    func set(mut self: Vec__U64, shallow i: USize, own val: U64, mut _err_kind: I64)
-    func push_take(mut self: Vec__U64, mut src: Vec__U64, shallow i: USize)
-    func delete(own self: Vec__U64, shallow call_free: Bool)
-    func clone(self: Vec__U64) returns Vec__U64
-    func size() returns shallow USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.new">Vec__U64.new</a>
-<pre><code class="language-til">func () returns Vec__U64
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.with_capacity">Vec__U64.with_capacity</a>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__U64
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.clear">Vec__U64.clear</a>
-<pre><code class="language-til">func (mut self: Vec__U64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.delete_marked">Vec__U64.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__U64, marks: Dynamic)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.push">Vec__U64.push</a>
-<pre><code class="language-til">func (mut self: Vec__U64, own val: U64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.append">Vec__U64.append</a>
-<pre><code class="language-til">func (mut self: Vec__U64, own other: Vec__U64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.take">Vec__U64.take</a>
-<pre><code class="language-til">func (mut self: Vec__U64) returns Vec__U64
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.move_to">Vec__U64.move_to</a>
-<pre><code class="language-til">func (own self: Vec__U64, mut dest: Vec__U64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.move_from">Vec__U64.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__U64, own other: Vec__U64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.unsafe_get">Vec__U64.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__U64, i: USize) returns ref U64
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.get">Vec__U64.get</a>
-<pre><code class="language-til">func (self: Vec__U64, i: USize, mut _err_kind: I64) returns ref U64
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.pop">Vec__U64.pop</a>
-<pre><code class="language-til">func (mut self: Vec__U64) returns shallow U64
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.remove_at">Vec__U64.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__U64, shallow i: USize, mut _err_kind: I64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.take_prefix">Vec__U64.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__U64, shallow n: USize) returns Vec__U64
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.truncate">Vec__U64.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__U64, shallow n: USize)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.unsafe_set">Vec__U64.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__U64, shallow i: USize, own val: U64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.set">Vec__U64.set</a>
-<pre><code class="language-til">func (mut self: Vec__U64, shallow i: USize, own val: U64, mut _err_kind: I64)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.push_take">Vec__U64.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__U64, mut src: Vec__U64, shallow i: USize)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.delete">Vec__U64.delete</a>
-<pre><code class="language-til">func (own self: Vec__U64, shallow call_free: Bool)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__U64.clone">Vec__U64.clone</a>
-<pre><code class="language-til">func (self: Vec__U64) returns Vec__U64
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.Vec__CtorArg">Vec__CtorArg</a>
@@ -8567,7 +8857,7 @@ namespace:
     func move_to(own self: Vec__CtorArg, mut dest: Vec__CtorArg)
     func move_from(mut self: Vec__CtorArg, own other: Vec__CtorArg)
     func unsafe_get(self: Vec__CtorArg, i: USize) returns ref priv___src_self_typer_til__CtorArg
-    func get(self: Vec__CtorArg, i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
+    func get(self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
     func pop(mut self: Vec__CtorArg) returns shallow priv___src_self_typer_til__CtorArg
     func remove_at(mut self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__CtorArg, shallow n: USize) returns Vec__CtorArg
@@ -8622,7 +8912,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.Vec__CtorArg.get">Vec__CtorArg.get</a>
-<pre><code class="language-til">func (self: Vec__CtorArg, i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
+<pre><code class="language-til">func (self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.Vec__CtorArg.pop">Vec__CtorArg.pop</a>
@@ -8661,52 +8951,52 @@ namespace:
 <pre><code class="language-til">func (self: Vec__CtorArg) returns Vec__CtorArg
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64">Map__Str_U64</a>
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits">Map__Str_RootBits</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
-    mut values : Vec__U64
+    mut values : Vec__RootBits
 namespace:
-    func new() returns Map__Str_U64
-    func with_capacity(shallow n: USize) returns Map__Str_U64
-    func len(self: Map__Str_U64) returns shallow USize
-    func clear(mut self: Map__Str_U64)
-    func has(self: Map__Str_U64, key: Str) returns shallow Bool
-    func get(self: Map__Str_U64, key: Str, mut _err_kind: I64) returns ref U64
-    func set(mut self: Map__Str_U64, key: Str, own val: U64)
-    func remove(mut self: Map__Str_U64, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_U64, shallow call_free: Bool)
-    func clone(self: Map__Str_U64) returns Map__Str_U64
-    func hash(self: Map__Str_U64, hasher: HashFn) returns shallow U64
+    func new() returns Map__Str_RootBits
+    func with_capacity(shallow n: USize) returns Map__Str_RootBits
+    func len(self: Map__Str_RootBits) returns shallow USize
+    func clear(mut self: Map__Str_RootBits)
+    func has(self: Map__Str_RootBits, key: Str) returns shallow Bool
+    func get(self: Map__Str_RootBits, key: Str, mut _err_kind: I64) returns ref RootBits
+    func set(mut self: Map__Str_RootBits, key: Str, own val: RootBits)
+    func remove(mut self: Map__Str_RootBits, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_RootBits, shallow call_free: Bool)
+    func clone(self: Map__Str_RootBits) returns Map__Str_RootBits
+    func hash(self: Map__Str_RootBits, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64.new">Map__Str_U64.new</a>
-<pre><code class="language-til">func () returns Map__Str_U64
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits.new">Map__Str_RootBits.new</a>
+<pre><code class="language-til">func () returns Map__Str_RootBits
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64.with_capacity">Map__Str_U64.with_capacity</a>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_U64
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits.with_capacity">Map__Str_RootBits.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Map__Str_RootBits
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64.clear">Map__Str_U64.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_U64)
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits.clear">Map__Str_RootBits.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_RootBits)
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64.has">Map__Str_U64.has</a>
-<pre><code class="language-til">func (self: Map__Str_U64, key: Str) returns shallow Bool
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits.has">Map__Str_RootBits.has</a>
+<pre><code class="language-til">func (self: Map__Str_RootBits, key: Str) returns shallow Bool
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64.get">Map__Str_U64.get</a>
-<pre><code class="language-til">func (self: Map__Str_U64, key: Str, mut _err_kind: I64) returns ref U64
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits.get">Map__Str_RootBits.get</a>
+<pre><code class="language-til">func (self: Map__Str_RootBits, key: Str, mut _err_kind: I64) returns ref RootBits
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64.set">Map__Str_U64.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_U64, key: Str, own val: U64)
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits.set">Map__Str_RootBits.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_RootBits, key: Str, own val: RootBits)
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_U64.remove">Map__Str_U64.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_U64, key: Str) returns shallow Bool
+<li><a href="src/self/typer.html#til.src.self.typer.Map__Str_RootBits.remove">Map__Str_RootBits.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_RootBits, key: Str) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.Vec__CoverageNode">Vec__CoverageNode</a>
@@ -8726,7 +9016,7 @@ namespace:
     func move_to(own self: Vec__CoverageNode, mut dest: Vec__CoverageNode)
     func move_from(mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
     func unsafe_get(self: Vec__CoverageNode, i: USize) returns ref priv___src_self_typer_til__CoverageNode
-    func get(self: Vec__CoverageNode, i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
+    func get(self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
     func pop(mut self: Vec__CoverageNode) returns priv___src_self_typer_til__CoverageNode
     func remove_at(mut self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__CoverageNode, shallow n: USize) returns Vec__CoverageNode
@@ -8781,7 +9071,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.Vec__CoverageNode.get">Vec__CoverageNode.get</a>
-<pre><code class="language-til">func (self: Vec__CoverageNode, i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
+<pre><code class="language-til">func (self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.Vec__CoverageNode.pop">Vec__CoverageNode.pop</a>
@@ -8820,12 +9110,123 @@ namespace:
 <pre><code class="language-til">func (self: Vec__CoverageNode) returns Vec__CoverageNode
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.adopt__U64">adopt__U64</a>
-<pre><code class="language-til">func (dest: Dynamic, own src: U64)
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits">Vec__RootBits</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__RootBits
+    func with_capacity(shallow n: USize) returns Vec__RootBits
+    func len(self: Vec__RootBits) returns shallow USize
+    func clear(mut self: Vec__RootBits)
+    func delete_marked(mut self: Vec__RootBits, marks: Dynamic)
+    func push(mut self: Vec__RootBits, own val: RootBits)
+    func append(mut self: Vec__RootBits, own other: Vec__RootBits)
+    func take(mut self: Vec__RootBits) returns Vec__RootBits
+    func move_to(own self: Vec__RootBits, mut dest: Vec__RootBits)
+    func move_from(mut self: Vec__RootBits, own other: Vec__RootBits)
+    func unsafe_get(self: Vec__RootBits, i: USize) returns ref RootBits
+    func get(self: Vec__RootBits, shallow i: USize, mut _err_kind: I64) returns ref RootBits
+    func pop(mut self: Vec__RootBits) returns RootBits
+    func remove_at(mut self: Vec__RootBits, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__RootBits, shallow n: USize) returns Vec__RootBits
+    func truncate(mut self: Vec__RootBits, shallow n: USize)
+    func unsafe_set(mut self: Vec__RootBits, shallow i: USize, own val: RootBits)
+    func set(mut self: Vec__RootBits, shallow i: USize, own val: RootBits, mut _err_kind: I64)
+    func push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, shallow i: USize)
+    func delete(own self: Vec__RootBits, shallow call_free: Bool)
+    func clone(self: Vec__RootBits) returns Vec__RootBits
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.new">Vec__RootBits.new</a>
+<pre><code class="language-til">func () returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.with_capacity">Vec__RootBits.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.clear">Vec__RootBits.clear</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.delete_marked">Vec__RootBits.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.push">Vec__RootBits.push</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, own val: RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.append">Vec__RootBits.append</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, own other: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.take">Vec__RootBits.take</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits) returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.move_to">Vec__RootBits.move_to</a>
+<pre><code class="language-til">func (own self: Vec__RootBits, mut dest: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.move_from">Vec__RootBits.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, own other: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.unsafe_get">Vec__RootBits.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__RootBits, i: USize) returns ref RootBits
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.get">Vec__RootBits.get</a>
+<pre><code class="language-til">func (self: Vec__RootBits, shallow i: USize, mut _err_kind: I64) returns ref RootBits
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.pop">Vec__RootBits.pop</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits) returns RootBits
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.remove_at">Vec__RootBits.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.take_prefix">Vec__RootBits.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, shallow n: USize) returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.truncate">Vec__RootBits.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, shallow n: USize)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.unsafe_set">Vec__RootBits.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, shallow i: USize, own val: RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.set">Vec__RootBits.set</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, shallow i: USize, own val: RootBits, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.push_take">Vec__RootBits.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, mut src: Vec__RootBits, shallow i: USize)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.delete">Vec__RootBits.delete</a>
+<pre><code class="language-til">func (own self: Vec__RootBits, shallow call_free: Bool)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.clone">Vec__RootBits.clone</a>
+<pre><code class="language-til">func (self: Vec__RootBits) returns Vec__RootBits
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.adopt__priv___src_self_typer_til__CtorArg">adopt__priv___src_self_typer_til__CtorArg</a>
 <pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_typer_til__CtorArg)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.adopt__RootBits">adopt__RootBits</a>
+<pre><code class="language-til">func (dest: Dynamic, own src: RootBits)
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.adopt__priv___src_self_typer_til__CoverageNode">adopt__priv___src_self_typer_til__CoverageNode</a>
@@ -8905,7 +9306,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.make_switch_case_condition">make_switch_case_condition</a>
-<pre><code class="language-til">func (scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
+<pre><code class="language-til">func (mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
 </code></pre>
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.replace_switch_stmt_with_block">replace_switch_stmt_with_block</a>
@@ -8925,7 +9326,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.prepend_clike_payload_binding">prepend_clike_payload_binding</a>
-<pre><code class="language-til">func (scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, shallow binding_is_dead: Bool)
+<pre><code class="language-til">func (mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, shallow binding_is_dead: Bool)
 </code></pre>
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.replace_body_stmt_with_block">replace_body_stmt_with_block</a>
@@ -8957,7 +9358,7 @@ namespace:
     func move_to(own self: Vec__I32, mut dest: Vec__I32)
     func move_from(mut self: Vec__I32, own other: Vec__I32)
     func unsafe_get(self: Vec__I32, i: USize) returns ref I32
-    func get(self: Vec__I32, i: USize, mut _err_kind: I64) returns ref I32
+    func get(self: Vec__I32, shallow i: USize, mut _err_kind: I64) returns ref I32
     func pop(mut self: Vec__I32) returns shallow I32
     func remove_at(mut self: Vec__I32, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__I32, shallow n: USize) returns Vec__I32
@@ -9012,7 +9413,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.Vec__I32.get">Vec__I32.get</a>
-<pre><code class="language-til">func (self: Vec__I32, i: USize, mut _err_kind: I64) returns ref I32
+<pre><code class="language-til">func (self: Vec__I32, shallow i: USize, mut _err_kind: I64) returns ref I32
 </code></pre>
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.Vec__I32.pop">Vec__I32.pop</a>
@@ -9193,10 +9594,6 @@ namespace:
 <pre><code class="language-til">func (fdef: Expr) returns shallow Bool
 </code></pre>
 </li>
-<li><a href="src/self/loader.html#til.src.self.loader.lazy_stmt_temp_counter">lazy_stmt_temp_counter</a>
-<pre><code class="language-til"> is a I64
-</code></pre>
-</li>
 <li><a href="src/self/loader.html#til.src.self.loader.type_program_errors">type_program_errors</a>
 <pre><code class="language-til">proc (mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
 </code></pre>
@@ -9241,54 +9638,6 @@ namespace:
 <pre><code class="language-til">proc (lp: LoadedProgram)
 </code></pre>
 </li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef">Map__Str_DeclRef</a>
-<pre><code class="language-til">struct {
-    mut keys : Vec__Str
-    mut values : Vec__DeclRef
-namespace:
-    func new() returns Map__Str_DeclRef
-    func with_capacity(shallow n: USize) returns Map__Str_DeclRef
-    func len(self: Map__Str_DeclRef) returns shallow USize
-    func clear(mut self: Map__Str_DeclRef)
-    func has(self: Map__Str_DeclRef, key: Str) returns shallow Bool
-    func get(self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_loader_til__DeclRef
-    func set(mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_loader_til__DeclRef)
-    func remove(mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_DeclRef, shallow call_free: Bool)
-    func clone(self: Map__Str_DeclRef) returns Map__Str_DeclRef
-    func hash(self: Map__Str_DeclRef, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef.new">Map__Str_DeclRef.new</a>
-<pre><code class="language-til">func () returns Map__Str_DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef.with_capacity">Map__Str_DeclRef.with_capacity</a>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef.clear">Map__Str_DeclRef.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef.has">Map__Str_DeclRef.has</a>
-<pre><code class="language-til">func (self: Map__Str_DeclRef, key: Str) returns shallow Bool
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef.get">Map__Str_DeclRef.get</a>
-<pre><code class="language-til">func (self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_loader_til__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef.set">Map__Str_DeclRef.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_loader_til__DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Map__Str_DeclRef.remove">Map__Str_DeclRef.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
-</code></pre>
-</li>
 <li><a href="src/self/loader.html#til.src.self.loader.Vec__ProgramUnit">Vec__ProgramUnit</a>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -9306,7 +9655,7 @@ namespace:
     func move_to(own self: Vec__ProgramUnit, mut dest: Vec__ProgramUnit)
     func move_from(mut self: Vec__ProgramUnit, own other: Vec__ProgramUnit)
     func unsafe_get(self: Vec__ProgramUnit, i: USize) returns ref ProgramUnit
-    func get(self: Vec__ProgramUnit, i: USize, mut _err_kind: I64) returns ref ProgramUnit
+    func get(self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64) returns ref ProgramUnit
     func pop(mut self: Vec__ProgramUnit) returns ProgramUnit
     func remove_at(mut self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__ProgramUnit, shallow n: USize) returns Vec__ProgramUnit
@@ -9361,7 +9710,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.Vec__ProgramUnit.get">Vec__ProgramUnit.get</a>
-<pre><code class="language-til">func (self: Vec__ProgramUnit, i: USize, mut _err_kind: I64) returns ref ProgramUnit
+<pre><code class="language-til">func (self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64) returns ref ProgramUnit
 </code></pre>
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.Vec__ProgramUnit.pop">Vec__ProgramUnit.pop</a>
@@ -9417,7 +9766,7 @@ namespace:
     func move_to(own self: Vec__ImportCheckEntry, mut dest: Vec__ImportCheckEntry)
     func move_from(mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
     func unsafe_get(self: Vec__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
-    func get(self: Vec__ImportCheckEntry, i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func get(self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
     func pop(mut self: Vec__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
     func remove_at(mut self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__ImportCheckEntry, shallow n: USize) returns Vec__ImportCheckEntry
@@ -9472,7 +9821,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.Vec__ImportCheckEntry.get">Vec__ImportCheckEntry.get</a>
-<pre><code class="language-til">func (self: Vec__ImportCheckEntry, i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.Vec__ImportCheckEntry.pop">Vec__ImportCheckEntry.pop</a>
@@ -9509,121 +9858,6 @@ namespace:
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.Vec__ImportCheckEntry.clone">Vec__ImportCheckEntry.clone</a>
 <pre><code class="language-til">func (self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef">Vec__DeclRef</a>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__DeclRef
-    func with_capacity(shallow n: USize) returns Vec__DeclRef
-    func len(self: Vec__DeclRef) returns shallow USize
-    func clear(mut self: Vec__DeclRef)
-    func delete_marked(mut self: Vec__DeclRef, marks: Dynamic)
-    func push(mut self: Vec__DeclRef, own val: priv___src_self_loader_til__DeclRef)
-    func append(mut self: Vec__DeclRef, own other: Vec__DeclRef)
-    func take(mut self: Vec__DeclRef) returns Vec__DeclRef
-    func move_to(own self: Vec__DeclRef, mut dest: Vec__DeclRef)
-    func move_from(mut self: Vec__DeclRef, own other: Vec__DeclRef)
-    func unsafe_get(self: Vec__DeclRef, i: USize) returns ref priv___src_self_loader_til__DeclRef
-    func get(self: Vec__DeclRef, i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__DeclRef
-    func pop(mut self: Vec__DeclRef) returns priv___src_self_loader_til__DeclRef
-    func remove_at(mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
-    func truncate(mut self: Vec__DeclRef, shallow n: USize)
-    func unsafe_set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_loader_til__DeclRef)
-    func set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_loader_til__DeclRef, mut _err_kind: I64)
-    func push_take(mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
-    func delete(own self: Vec__DeclRef, shallow call_free: Bool)
-    func clone(self: Vec__DeclRef) returns Vec__DeclRef
-    func size() returns shallow USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.new">Vec__DeclRef.new</a>
-<pre><code class="language-til">func () returns Vec__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.with_capacity">Vec__DeclRef.with_capacity</a>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.clear">Vec__DeclRef.clear</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.delete_marked">Vec__DeclRef.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, marks: Dynamic)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.push">Vec__DeclRef.push</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, own val: priv___src_self_loader_til__DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.append">Vec__DeclRef.append</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, own other: Vec__DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.take">Vec__DeclRef.take</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef) returns Vec__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.move_to">Vec__DeclRef.move_to</a>
-<pre><code class="language-til">func (own self: Vec__DeclRef, mut dest: Vec__DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.move_from">Vec__DeclRef.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, own other: Vec__DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.unsafe_get">Vec__DeclRef.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__DeclRef, i: USize) returns ref priv___src_self_loader_til__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.get">Vec__DeclRef.get</a>
-<pre><code class="language-til">func (self: Vec__DeclRef, i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.pop">Vec__DeclRef.pop</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef) returns priv___src_self_loader_til__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.remove_at">Vec__DeclRef.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.take_prefix">Vec__DeclRef.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.truncate">Vec__DeclRef.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow n: USize)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.unsafe_set">Vec__DeclRef.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_loader_til__DeclRef)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.set">Vec__DeclRef.set</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_loader_til__DeclRef, mut _err_kind: I64)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.push_take">Vec__DeclRef.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.delete">Vec__DeclRef.delete</a>
-<pre><code class="language-til">func (own self: Vec__DeclRef, shallow call_free: Bool)
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.Vec__DeclRef.clone">Vec__DeclRef.clone</a>
-<pre><code class="language-til">func (self: Vec__DeclRef) returns Vec__DeclRef
-</code></pre>
-</li>
-<li><a href="src/self/loader.html#til.src.self.loader.adopt__priv___src_self_loader_til__DeclRef">adopt__priv___src_self_loader_til__DeclRef</a>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_loader_til__DeclRef)
 </code></pre>
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.adopt__ProgramUnit">adopt__ProgramUnit</a>
@@ -9749,6 +9983,10 @@ namespace:
 <pre><code class="language-til">func (target: Target) returns Str
 </code></pre>
 </li>
+<li><a href="src/self/targets.html#til.src.self.targets.target_ffi_build_hint">target_ffi_build_hint</a>
+<pre><code class="language-til">func (target: Target) returns Str
+</code></pre>
+</li>
 <li><a href="src/self/targets.html#til.src.self.targets.target_gui_libs">target_gui_libs</a>
 <pre><code class="language-til">proc (target: Target) returns Str
 </code></pre>
@@ -9777,7 +10015,7 @@ namespace:
     func new(shallow cap: USize) returns Array__USize
     func len(self: Array__USize) returns shallow USize
     func unsafe_get(self: Array__USize, i: USize) returns ref USize
-    func get(self: Array__USize, i: USize, mut _err_kind: I64) returns ref USize
+    func get(self: Array__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
     func unsafe_set(mut self: Array__USize, shallow i: USize, own val: USize)
     func set(mut self: Array__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
     func delete(own self: Array__USize, shallow call_free: Bool)
@@ -9797,7 +10035,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Array__USize.get">Array__USize.get</a>
-<pre><code class="language-til">func (self: Array__USize, i: USize, mut _err_kind: I64) returns ref USize
+<pre><code class="language-til">func (self: Array__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Array__USize.unsafe_set">Array__USize.unsafe_set</a>
@@ -9824,7 +10062,7 @@ namespace:
     func new(shallow cap: USize) returns Array__Bool
     func len(self: Array__Bool) returns shallow USize
     func unsafe_get(self: Array__Bool, i: USize) returns ref Bool
-    func get(self: Array__Bool, i: USize, mut _err_kind: I64) returns ref Bool
+    func get(self: Array__Bool, shallow i: USize, mut _err_kind: I64) returns ref Bool
     func unsafe_set(mut self: Array__Bool, shallow i: USize, own val: Bool)
     func set(mut self: Array__Bool, shallow i: USize, own val: Bool, mut _err_kind: I64)
     func delete(own self: Array__Bool, shallow call_free: Bool)
@@ -9844,7 +10082,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Array__Bool.get">Array__Bool.get</a>
-<pre><code class="language-til">func (self: Array__Bool, i: USize, mut _err_kind: I64) returns ref Bool
+<pre><code class="language-til">func (self: Array__Bool, shallow i: USize, mut _err_kind: I64) returns ref Bool
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Array__Bool.unsafe_set">Array__Bool.unsafe_set</a>
@@ -9871,7 +10109,7 @@ namespace:
     func new(shallow cap: USize) returns Array__U8
     func len(self: Array__U8) returns shallow USize
     func unsafe_get(self: Array__U8, i: USize) returns ref U8
-    func get(self: Array__U8, i: USize, mut _err_kind: I64) returns ref U8
+    func get(self: Array__U8, shallow i: USize, mut _err_kind: I64) returns ref U8
     func unsafe_set(mut self: Array__U8, shallow i: USize, own val: U8)
     func set(mut self: Array__U8, shallow i: USize, own val: U8, mut _err_kind: I64)
     func delete(own self: Array__U8, shallow call_free: Bool)
@@ -9891,7 +10129,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Array__U8.get">Array__U8.get</a>
-<pre><code class="language-til">func (self: Array__U8, i: USize, mut _err_kind: I64) returns ref U8
+<pre><code class="language-til">func (self: Array__U8, shallow i: USize, mut _err_kind: I64) returns ref U8
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Array__U8.unsafe_set">Array__U8.unsafe_set</a>
@@ -9927,7 +10165,7 @@ namespace:
     func move_to(own self: Vec__GcBorrowEdge, mut dest: Vec__GcBorrowEdge)
     func move_from(mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
     func unsafe_get(self: Vec__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
-    func get(self: Vec__GcBorrowEdge, i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+    func get(self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
     func pop(mut self: Vec__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
     func remove_at(mut self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__GcBorrowEdge, shallow n: USize) returns Vec__GcBorrowEdge
@@ -9982,7 +10220,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__GcBorrowEdge.get">Vec__GcBorrowEdge.get</a>
-<pre><code class="language-til">func (self: Vec__GcBorrowEdge, i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+<pre><code class="language-til">func (self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__GcBorrowEdge.pop">Vec__GcBorrowEdge.pop</a>
@@ -10038,7 +10276,7 @@ namespace:
     func move_to(own self: Vec__LocalInfo, mut dest: Vec__LocalInfo)
     func move_from(mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
     func unsafe_get(self: Vec__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
-    func get(self: Vec__LocalInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+    func get(self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
     func pop(mut self: Vec__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
     func remove_at(mut self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__LocalInfo, shallow n: USize) returns Vec__LocalInfo
@@ -10093,7 +10331,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__LocalInfo.get">Vec__LocalInfo.get</a>
-<pre><code class="language-til">func (self: Vec__LocalInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+<pre><code class="language-til">func (self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__LocalInfo.pop">Vec__LocalInfo.pop</a>
@@ -10149,7 +10387,7 @@ namespace:
     func move_to(own self: Vec__GcCfgBlock, mut dest: Vec__GcCfgBlock)
     func move_from(mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
     func unsafe_get(self: Vec__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
-    func get(self: Vec__GcCfgBlock, i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+    func get(self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
     func pop(mut self: Vec__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
     func remove_at(mut self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__GcCfgBlock, shallow n: USize) returns Vec__GcCfgBlock
@@ -10204,7 +10442,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__GcCfgBlock.get">Vec__GcCfgBlock.get</a>
-<pre><code class="language-til">func (self: Vec__GcCfgBlock, i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+<pre><code class="language-til">func (self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__GcCfgBlock.pop">Vec__GcCfgBlock.pop</a>
@@ -10260,7 +10498,7 @@ namespace:
     func move_to(own self: Vec__U8, mut dest: Vec__U8)
     func move_from(mut self: Vec__U8, own other: Vec__U8)
     func unsafe_get(self: Vec__U8, i: USize) returns ref U8
-    func get(self: Vec__U8, i: USize, mut _err_kind: I64) returns ref U8
+    func get(self: Vec__U8, shallow i: USize, mut _err_kind: I64) returns ref U8
     func pop(mut self: Vec__U8) returns shallow U8
     func remove_at(mut self: Vec__U8, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__U8, shallow n: USize) returns Vec__U8
@@ -10315,7 +10553,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__U8.get">Vec__U8.get</a>
-<pre><code class="language-til">func (self: Vec__U8, i: USize, mut _err_kind: I64) returns ref U8
+<pre><code class="language-til">func (self: Vec__U8, shallow i: USize, mut _err_kind: I64) returns ref U8
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__U8.pop">Vec__U8.pop</a>
@@ -10382,6 +10620,10 @@ namespace:
 <pre><code class="language-til">func (e: Expr, mut ctx: Context) returns shallow Bool
 </code></pre>
 </li>
+<li><a href="src/self/constfolder.html#til.src.self.constfolder.constfolder_normalize_stack_decls_in_body">constfolder_normalize_stack_decls_in_body</a>
+<pre><code class="language-til">func (mut body: Expr, ctx: Context)
+</code></pre>
+</li>
 <li><a href="src/self/constfolder.html#til.src.self.constfolder.process_body">process_body</a>
 <pre><code class="language-til">proc (mut scope: Scope, mut body: Expr, mut ctx: Context, shallow at_global: Bool)
 </code></pre>
@@ -10392,33 +10634,6 @@ namespace:
 </li>
 <li><a href="src/self/constfolder.html#til.src.self.constfolder.constfolder_register_core_constants">constfolder_register_core_constants</a>
 <pre><code class="language-til">func (mut global: Scope, usize_name: Str, mut ctx: Context)
-</code></pre>
-</li>
-<li><a href="src/self/constfolder.html#til.src.self.constfolder.Option__ref_Dynamic">Option__ref_Dynamic</a>
-<pre><code class="language-til">enum {
-    None
-    Some: Dynamic
-namespace:
-    func is_some(shallow self: Option__ref_Dynamic) returns shallow Bool
-    func is_none(shallow self: Option__ref_Dynamic) returns shallow Bool
-    func unwrap_or(self: Option__ref_Dynamic, default_v: Dynamic) returns ref Dynamic
-    func unwrap(self: Option__ref_Dynamic) returns ref Dynamic
-    func take(own self: Option__ref_Dynamic) returns ref Dynamic
-    ext_func None() returns shallow Option__ref_Dynamic
-    ext_func Some(val: Dynamic) returns shallow Option__ref_Dynamic
-    core_func is(self: Option__ref_Dynamic, other: Option__ref_Dynamic) returns shallow Bool
-    func delete(own self: Option__ref_Dynamic, shallow call_free: Bool)
-    func clone(self: Option__ref_Dynamic) returns shallow Option__ref_Dynamic
-    func size() returns shallow USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/constfolder.html#til.src.self.constfolder.Option__ref_Dynamic.unwrap">Option__ref_Dynamic.unwrap</a>
-<pre><code class="language-til">func (self: Option__ref_Dynamic) returns ref Dynamic
-</code></pre>
-</li>
-<li><a href="src/self/constfolder.html#til.src.self.constfolder.Option__ref_Dynamic.take">Option__ref_Dynamic.take</a>
-<pre><code class="language-til">func (own self: Option__ref_Dynamic) returns ref Dynamic
 </code></pre>
 </li>
 <li><a href="src/self/constfolder.html#til.src.self.constfolder.Option__ref_Scope">Option__ref_Scope</a>
@@ -10473,7 +10688,174 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/scavenger.html#til.src.self.scavenger.dce_program_bodies">dce_program_bodies</a>
-<pre><code class="language-til">proc (mut program: Expr)
+<pre><code class="language-til">proc (mut program: Expr, ctx: Context)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.scavenge_imported">scavenge_imported</a>
+<pre><code class="language-til">proc (mut lp: LoadedProgram)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef">Map__Str_DeclRef</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__DeclRef
+namespace:
+    func new() returns Map__Str_DeclRef
+    func with_capacity(shallow n: USize) returns Map__Str_DeclRef
+    func len(self: Map__Str_DeclRef) returns shallow USize
+    func clear(mut self: Map__Str_DeclRef)
+    func has(self: Map__Str_DeclRef, key: Str) returns shallow Bool
+    func get(self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+    func set(mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
+    func remove(mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_DeclRef, shallow call_free: Bool)
+    func clone(self: Map__Str_DeclRef) returns Map__Str_DeclRef
+    func hash(self: Map__Str_DeclRef, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef.new">Map__Str_DeclRef.new</a>
+<pre><code class="language-til">func () returns Map__Str_DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef.with_capacity">Map__Str_DeclRef.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Map__Str_DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef.clear">Map__Str_DeclRef.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef.has">Map__Str_DeclRef.has</a>
+<pre><code class="language-til">func (self: Map__Str_DeclRef, key: Str) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef.get">Map__Str_DeclRef.get</a>
+<pre><code class="language-til">func (self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef.set">Map__Str_DeclRef.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Map__Str_DeclRef.remove">Map__Str_DeclRef.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef">Vec__DeclRef</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__DeclRef
+    func with_capacity(shallow n: USize) returns Vec__DeclRef
+    func len(self: Vec__DeclRef) returns shallow USize
+    func clear(mut self: Vec__DeclRef)
+    func delete_marked(mut self: Vec__DeclRef, marks: Dynamic)
+    func push(mut self: Vec__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
+    func append(mut self: Vec__DeclRef, own other: Vec__DeclRef)
+    func take(mut self: Vec__DeclRef) returns Vec__DeclRef
+    func move_to(own self: Vec__DeclRef, mut dest: Vec__DeclRef)
+    func move_from(mut self: Vec__DeclRef, own other: Vec__DeclRef)
+    func unsafe_get(self: Vec__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+    func get(self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+    func pop(mut self: Vec__DeclRef) returns priv___src_self_scavenger_til__DeclRef
+    func remove_at(mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
+    func truncate(mut self: Vec__DeclRef, shallow n: USize)
+    func unsafe_set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+    func set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+    func push_take(mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
+    func delete(own self: Vec__DeclRef, shallow call_free: Bool)
+    func clone(self: Vec__DeclRef) returns Vec__DeclRef
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.new">Vec__DeclRef.new</a>
+<pre><code class="language-til">func () returns Vec__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.with_capacity">Vec__DeclRef.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.clear">Vec__DeclRef.clear</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.delete_marked">Vec__DeclRef.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.push">Vec__DeclRef.push</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.append">Vec__DeclRef.append</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, own other: Vec__DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.take">Vec__DeclRef.take</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef) returns Vec__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.move_to">Vec__DeclRef.move_to</a>
+<pre><code class="language-til">func (own self: Vec__DeclRef, mut dest: Vec__DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.move_from">Vec__DeclRef.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, own other: Vec__DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.unsafe_get">Vec__DeclRef.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.get">Vec__DeclRef.get</a>
+<pre><code class="language-til">func (self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.pop">Vec__DeclRef.pop</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef) returns priv___src_self_scavenger_til__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.remove_at">Vec__DeclRef.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.take_prefix">Vec__DeclRef.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.truncate">Vec__DeclRef.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow n: USize)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.unsafe_set">Vec__DeclRef.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.set">Vec__DeclRef.set</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.push_take">Vec__DeclRef.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.delete">Vec__DeclRef.delete</a>
+<pre><code class="language-til">func (own self: Vec__DeclRef, shallow call_free: Bool)
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.Vec__DeclRef.clone">Vec__DeclRef.clone</a>
+<pre><code class="language-til">func (self: Vec__DeclRef) returns Vec__DeclRef
+</code></pre>
+</li>
+<li><a href="src/self/scavenger.html#til.src.self.scavenger.adopt__priv___src_self_scavenger_til__DeclRef">adopt__priv___src_self_scavenger_til__DeclRef</a>
+<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.closure_call_name">closure_call_name</a>
@@ -10521,7 +10903,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.collect_closure_value_names">collect_closure_value_names</a>
-<pre><code class="language-til">proc (e: Expr, mut names: Set__Str, ctx: Context)
+<pre><code class="language-til">proc (e: Expr, mut names: Set__U32, mut ctx: Context)
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.build_register_closure_values_lp">build_register_closure_values_lp</a>
@@ -10530,6 +10912,10 @@ namespace:
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.emit_dyn_fn_closure_value">emit_dyn_fn_closure_value</a>
 <pre><code class="language-til">proc (f: File, type_name: Str, method_name: Str, suffix: Str)
+</code></pre>
+</li>
+<li><a href="src/self/builder.html#til.src.self.builder.builder_prepare_emit">builder_prepare_emit</a>
+<pre><code class="language-til">proc (mut lp: LoadedProgram)
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.cmd_translate">cmd_translate</a>
@@ -10594,6 +10980,14 @@ namespace:
 <pre><code class="language-til">proc (lp: LoadedProgram, version: Str) returns shallow I32
 </code></pre>
 </li>
+<li><a href="src/self/builder.html#til.src.self.builder.Map__Sym_Str">Map__Sym_Str</a>
+<pre><code class="language-til">
+</code></pre>
+</li>
+<li><a href="src/self/builder.html#til.src.self.builder.Set__Sym">Set__Sym</a>
+<pre><code class="language-til">
+</code></pre>
+</li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__DocEntry">Vec__DocEntry</a>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -10611,7 +11005,7 @@ namespace:
     func move_to(own self: Vec__DocEntry, mut dest: Vec__DocEntry)
     func move_from(mut self: Vec__DocEntry, own other: Vec__DocEntry)
     func unsafe_get(self: Vec__DocEntry, i: USize) returns ref DocEntry
-    func get(self: Vec__DocEntry, i: USize, mut _err_kind: I64) returns ref DocEntry
+    func get(self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64) returns ref DocEntry
     func pop(mut self: Vec__DocEntry) returns DocEntry
     func remove_at(mut self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DocEntry, shallow n: USize) returns Vec__DocEntry
@@ -10666,7 +11060,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__DocEntry.get">Vec__DocEntry.get</a>
-<pre><code class="language-til">func (self: Vec__DocEntry, i: USize, mut _err_kind: I64) returns ref DocEntry
+<pre><code class="language-til">func (self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64) returns ref DocEntry
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__DocEntry.pop">Vec__DocEntry.pop</a>
@@ -10722,7 +11116,7 @@ namespace:
     func move_to(own self: Vec__CollectionInfo, mut dest: Vec__CollectionInfo)
     func move_from(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
     func unsafe_get(self: Vec__CollectionInfo, i: USize) returns ref priv___src_self_builder_til__CollectionInfo
-    func get(self: Vec__CollectionInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
+    func get(self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
     func pop(mut self: Vec__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
     func remove_at(mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__CollectionInfo, shallow n: USize) returns Vec__CollectionInfo
@@ -10777,7 +11171,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__CollectionInfo.get">Vec__CollectionInfo.get</a>
-<pre><code class="language-til">func (self: Vec__CollectionInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
+<pre><code class="language-til">func (self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__CollectionInfo.pop">Vec__CollectionInfo.pop</a>
@@ -10833,7 +11227,7 @@ namespace:
     func move_to(own self: Vec__DynCallInfo, mut dest: Vec__DynCallInfo)
     func move_from(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
     func unsafe_get(self: Vec__DynCallInfo, i: USize) returns ref priv___src_self_builder_til__DynCallInfo
-    func get(self: Vec__DynCallInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
+    func get(self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
     func pop(mut self: Vec__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
     func remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DynCallInfo, shallow n: USize) returns Vec__DynCallInfo
@@ -10888,7 +11282,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__DynCallInfo.get">Vec__DynCallInfo.get</a>
-<pre><code class="language-til">func (self: Vec__DynCallInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
+<pre><code class="language-til">func (self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__DynCallInfo.pop">Vec__DynCallInfo.pop</a>
@@ -11160,11 +11554,19 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.scope_new">scope_new</a>
-<pre><code class="language-til">func (shallow parent: Option__ref_Scope) returns Scope
+<pre><code class="language-til">func (parent: Option__ref_Scope) returns Scope
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a>
 <pre><code class="language-til">func (mut s: Scope, name: Str) returns shallow Option__ref_HeapBinding
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.hb_func_def">hb_func_def</a>
+<pre><code class="language-til">func (hb: HeapBinding) returns shallow Option__ref_Expr
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.ns_func_def">ns_func_def</a>
+<pre><code class="language-til">func (sname: Str, fname: Str, mut ctx: Context) returns shallow Option__ref_Expr
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a>
@@ -11184,7 +11586,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.scope_new_owned">scope_new_owned</a>
-<pre><code class="language-til">func (shallow parent: Option__ref_Scope) returns Scope
+<pre><code class="language-til">func (parent: Option__ref_Scope) returns Scope
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a>
@@ -11444,6 +11846,33 @@ namespace:
 <pre><code class="language-til">func (own self: Option__ref_HeapBinding) returns ref HeapBinding
 </code></pre>
 </li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Option__ref_Dynamic">Option__ref_Dynamic</a>
+<pre><code class="language-til">enum {
+    None
+    Some: Dynamic
+namespace:
+    func is_some(shallow self: Option__ref_Dynamic) returns shallow Bool
+    func is_none(shallow self: Option__ref_Dynamic) returns shallow Bool
+    func unwrap_or(self: Option__ref_Dynamic, default_v: Dynamic) returns ref Dynamic
+    func unwrap(self: Option__ref_Dynamic) returns ref Dynamic
+    func take(own self: Option__ref_Dynamic) returns ref Dynamic
+    ext_func None() returns shallow Option__ref_Dynamic
+    ext_func Some(val: Dynamic) returns shallow Option__ref_Dynamic
+    core_func is(self: Option__ref_Dynamic, other: Option__ref_Dynamic) returns shallow Bool
+    func delete(own self: Option__ref_Dynamic, shallow call_free: Bool)
+    func clone(self: Option__ref_Dynamic) returns shallow Option__ref_Dynamic
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Option__ref_Dynamic.unwrap">Option__ref_Dynamic.unwrap</a>
+<pre><code class="language-til">func (self: Option__ref_Dynamic) returns ref Dynamic
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Option__ref_Dynamic.take">Option__ref_Dynamic.take</a>
+<pre><code class="language-til">func (own self: Option__ref_Dynamic) returns ref Dynamic
+</code></pre>
+</li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__DynPtrBox">Vec__DynPtrBox</a>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -11461,7 +11890,7 @@ namespace:
     func move_to(own self: Vec__DynPtrBox, mut dest: Vec__DynPtrBox)
     func move_from(mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
     func unsafe_get(self: Vec__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
-    func get(self: Vec__DynPtrBox, i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+    func get(self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
     func pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
     func remove_at(mut self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DynPtrBox, shallow n: USize) returns Vec__DynPtrBox
@@ -11516,7 +11945,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__DynPtrBox.get">Vec__DynPtrBox.get</a>
-<pre><code class="language-til">func (self: Vec__DynPtrBox, i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+<pre><code class="language-til">func (self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__DynPtrBox.pop">Vec__DynPtrBox.pop</a>
@@ -11553,6 +11982,117 @@ namespace:
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__DynPtrBox.clone">Vec__DynPtrBox.clone</a>
 <pre><code class="language-til">func (self: Vec__DynPtrBox) returns Vec__DynPtrBox
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias">Vec__InterpAlias</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__InterpAlias
+    func with_capacity(shallow n: USize) returns Vec__InterpAlias
+    func len(self: Vec__InterpAlias) returns shallow USize
+    func clear(mut self: Vec__InterpAlias)
+    func delete_marked(mut self: Vec__InterpAlias, marks: Dynamic)
+    func push(mut self: Vec__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
+    func append(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+    func take(mut self: Vec__InterpAlias) returns Vec__InterpAlias
+    func move_to(own self: Vec__InterpAlias, mut dest: Vec__InterpAlias)
+    func move_from(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+    func unsafe_get(self: Vec__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
+    func get(self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+    func pop(mut self: Vec__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
+    func remove_at(mut self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__InterpAlias, shallow n: USize) returns Vec__InterpAlias
+    func truncate(mut self: Vec__InterpAlias, shallow n: USize)
+    func unsafe_set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
+    func set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
+    func push_take(mut self: Vec__InterpAlias, mut src: Vec__InterpAlias, shallow i: USize)
+    func delete(own self: Vec__InterpAlias, shallow call_free: Bool)
+    func clone(self: Vec__InterpAlias) returns Vec__InterpAlias
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.new">Vec__InterpAlias.new</a>
+<pre><code class="language-til">func () returns Vec__InterpAlias
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.with_capacity">Vec__InterpAlias.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__InterpAlias
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.clear">Vec__InterpAlias.clear</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.delete_marked">Vec__InterpAlias.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.push">Vec__InterpAlias.push</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.append">Vec__InterpAlias.append</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.take">Vec__InterpAlias.take</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias) returns Vec__InterpAlias
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.move_to">Vec__InterpAlias.move_to</a>
+<pre><code class="language-til">func (own self: Vec__InterpAlias, mut dest: Vec__InterpAlias)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.move_from">Vec__InterpAlias.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.unsafe_get">Vec__InterpAlias.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.get">Vec__InterpAlias.get</a>
+<pre><code class="language-til">func (self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.pop">Vec__InterpAlias.pop</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.remove_at">Vec__InterpAlias.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.take_prefix">Vec__InterpAlias.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow n: USize) returns Vec__InterpAlias
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.truncate">Vec__InterpAlias.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow n: USize)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.unsafe_set">Vec__InterpAlias.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.set">Vec__InterpAlias.set</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.push_take">Vec__InterpAlias.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__InterpAlias, mut src: Vec__InterpAlias, shallow i: USize)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.delete">Vec__InterpAlias.delete</a>
+<pre><code class="language-til">func (own self: Vec__InterpAlias, shallow call_free: Bool)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__InterpAlias.clone">Vec__InterpAlias.clone</a>
+<pre><code class="language-til">func (self: Vec__InterpAlias) returns Vec__InterpAlias
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Option__ref_ffi_type">Option__ref_ffi_type</a>
@@ -11599,7 +12139,7 @@ namespace:
     func move_to(own self: Vec__HeapBinding, mut dest: Vec__HeapBinding)
     func move_from(mut self: Vec__HeapBinding, own other: Vec__HeapBinding)
     func unsafe_get(self: Vec__HeapBinding, i: USize) returns ref HeapBinding
-    func get(self: Vec__HeapBinding, i: USize, mut _err_kind: I64) returns ref HeapBinding
+    func get(self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64) returns ref HeapBinding
     func pop(mut self: Vec__HeapBinding) returns HeapBinding
     func remove_at(mut self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__HeapBinding, shallow n: USize) returns Vec__HeapBinding
@@ -11654,7 +12194,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__HeapBinding.get">Vec__HeapBinding.get</a>
-<pre><code class="language-til">func (self: Vec__HeapBinding, i: USize, mut _err_kind: I64) returns ref HeapBinding
+<pre><code class="language-til">func (self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64) returns ref HeapBinding
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__HeapBinding.pop">Vec__HeapBinding.pop</a>
@@ -11699,6 +12239,10 @@ namespace:
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__DynPtrBox">adopt__priv___src_self_interpreter_til__DynPtrBox</a>
 <pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_interpreter_til__DynPtrBox)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__InterpAlias">adopt__priv___src_self_interpreter_til__InterpAlias</a>
+<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_interpreter_til__InterpAlias)
 </code></pre>
 </li>
 <li><a href="src/self/binder.html#til.src.self.binder.generate_bindings">generate_bindings</a>

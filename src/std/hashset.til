@@ -33,10 +33,10 @@ namespace:
     /// algorithm for that concrete HashSet(T) specialization.
     mut hasher : HashFn = fnv1a
 
-    /// Create an empty HashSet. T must implement `cmp` and `hash`.
-    /// Allocates NOTHING: the bucket array is seeded on the first `add`,
+    /// Create an empty HashSet. T must implement ~cmp~ and ~hash~.
+    /// Allocates NOTHING: the bucket array is seeded on the first ~add~,
     /// so an empty set costs what an empty Set costs. Every reader
-    /// guards on `keys.count == 0` before touching `buckets`, so zero
+    /// guards on ~keys.count == 0~ before touching ~buckets~, so zero
     /// buckets is a valid state for has/find/remove/clear/clone.
     new := func() returns HashSet(T) {
         return HashSet(T)(
@@ -46,11 +46,11 @@ namespace:
             hashes = Vec(U64).new())
     }
 
-    /// Create an empty HashSet pre-sized for `n` elements
+    /// Create an empty HashSet pre-sized for ~n~ elements
     /// (Set.with_capacity's counterpart). Sizes the dense arrays and
     /// grows the bucket array by doubling from HASHMAP_INIT_BUCKETS
-    /// until `n` fits under the 0.75 load factor `add` enforces, so
-    /// adding up to `n` never rehashes. n=0 behaves like new().
+    /// until ~n~ fits under the 0.75 load factor ~add~ enforces, so
+    /// adding up to ~n~ never rehashes. n=0 behaves like new().
     with_capacity := func(n: USize) returns HashSet(T) {
         if n == 0 { return HashSet(T).new() }
         mut nb : USize = HASHMAP_INIT_BUCKETS
@@ -123,23 +123,23 @@ namespace:
         return -1
     }
 
-    /// True if the set contains an element equal to `val`.
+    /// True if the set contains an element equal to ~val~.
     has := func(self: HashSet(T), val: T) returns Bool {
         return self.find(val) >= 0
     }
 
-    /// The set's own stored hash of `val` -- the exact value hash_elem
+    /// The set's own stored hash of ~val~ -- the exact value hash_elem
     /// computed when the entry was inserted, retrieved rather than
-    /// recomputed. Throws KeyNotFound if `val` is absent; call as
-    /// `s.stored_hash(v)!` when absence would be a bug.
+    /// recomputed. Throws KeyNotFound if ~val~ is absent; call as
+    /// ~s.stored_hash(v)!~ when absence would be a bug.
     stored_hash := func(self: HashSet(T), val: T) returns U64 throws KeyNotFound {
         idx := self.find(val)
         if idx < 0 { throw KeyNotFound() }
         return self.hashes.unsafe_get(idx.to_usize()).clone()
     }
 
-    /// Insert `val`. If an equal element already exists, `val` is
-    /// dropped (Set.add's contract). `val` is owned.
+    /// Insert ~val~. If an equal element already exists, ~val~ is
+    /// dropped (Set.add's contract). ~val~ is owned.
     add := func(mut self: HashSet(T), own val: T) {
         // Seed the bucket array on first insert -- `new` leaves it empty
         // so an unused set allocates nothing. bucket() takes a modulo,
@@ -212,7 +212,7 @@ namespace:
         if call_free { free(own self) }
     }
 
-    /// Remove the element equal to `val`, dropping it. Returns false if
+    /// Remove the element equal to ~val~, dropping it. Returns false if
     /// absent (Set.remove's contract). Uses a swap-remove on the dense
     /// arrays: the trailing entry is relocated into the removed slot,
     /// so one entry's index changes and the chain pointer that

@@ -1,5 +1,5 @@
 #+TITLE: src/core/tuple.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * Tuple
@@ -61,7 +61,7 @@ func Tuple.push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
 :group: Core
 :END:
 
-Append a value of the given type. `val` is owned.
+Append a value of the given type. ~val~ is owned.
 
 #+begin_src til
 func Tuple.push(mut self: Tuple, T: Type, own val: Dynamic)
@@ -73,7 +73,7 @@ func Tuple.push(mut self: Tuple, T: Type, own val: Dynamic)
 :group: Core
 :END:
 
-Ref to element at index `i`. Panics if out of bounds.
+Ref to element at index ~i~. Panics if out of bounds.
 
 #+begin_src til
 func Tuple.get(self: Tuple, i: USize) returns ref Dynamic
@@ -85,7 +85,7 @@ func Tuple.get(self: Tuple, i: USize) returns ref Dynamic
 :group: Core
 :END:
 
-Type name of the element at index `i`. Panics if `i` is past
+Type name of the element at index ~i~. Panics if ~i~ is past
 the end.
 
 #+begin_src til
@@ -98,7 +98,7 @@ func Tuple.type_at(self: Tuple, i: USize) returns ref Str
 :group: Core
 :END:
 
-Byte size of the element at index `i`. Panics if `i` is past
+Byte size of the element at index ~i~. Panics if ~i~ is past
 the end.
 
 #+begin_src til

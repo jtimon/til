@@ -51,9 +51,9 @@ namespace:
         return DynHashSet.new_type_name(dyn_type_to_str(T))
     }
 
-    /// Create an empty DynHashSet pre-sized for `n` elements
+    /// Create an empty DynHashSet pre-sized for ~n~ elements
     /// (HashSet.with_capacity's counterpart; the element type is a
-    /// runtime argument here, as for `new`).
+    /// runtime argument here, as for ~new~).
     with_capacity := func(T: Type, n: USize) returns DynHashSet {
         mut s := DynHashSet.new(T)
         if n == 0 { return s }
@@ -129,8 +129,8 @@ namespace:
         return self.find(val) >= 0
     }
 
-    /// The set's own stored hash of `val`, retrieved rather than
-    /// recomputed. Throws KeyNotFound if `val` is absent.
+    /// The set's own stored hash of ~val~, retrieved rather than
+    /// recomputed. Throws KeyNotFound if ~val~ is absent.
     stored_hash := func(self: DynHashSet, val: Dynamic) returns U64 throws KeyNotFound {
         idx := self.find(val)
         if idx < 0 { throw KeyNotFound() }
@@ -138,8 +138,8 @@ namespace:
         return h.clone()
     }
 
-    /// Insert `val`. If an equal element already exists, `val` is
-    /// dropped (DynSet.add's contract). `val` is owned.
+    /// Insert ~val~. If an equal element already exists, ~val~ is
+    /// dropped (DynSet.add's contract). ~val~ is owned.
     add := func(mut self: DynHashSet, own val: Dynamic) {
         // Seed the bucket array on first insert (see new_type_name).
         // bucket() takes a modulo, so this precedes any bucket index.
@@ -214,7 +214,7 @@ namespace:
         if call_free { free(own self) }
     }
 
-    /// Remove the element equal to `val`, dropping it. Returns false if
+    /// Remove the element equal to ~val~, dropping it. Returns false if
     /// absent (same contract as DynSet.remove / core Set.remove).
     remove := func(mut self: DynHashSet, val: Dynamic) returns Bool {
         if self.keys.count == 0 { return false }

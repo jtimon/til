@@ -1,5 +1,5 @@
 #+TITLE: src/self/modes.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * context_register_path_mode
@@ -84,9 +84,9 @@ namespace:
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.
@@ -106,7 +106,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til

@@ -13,8 +13,8 @@ Set := struct<T: Type> {
     cap : USize = 0
 
 namespace:
-    /// Create an empty Set. T must implement `cmp`. Allocates nothing:
-    /// like Vec.new, an empty Set is lazy (cap 0) and `add` seeds the
+    /// Create an empty Set. T must implement ~cmp~. Allocates nothing:
+    /// like Vec.new, an empty Set is lazy (cap 0) and ~add~ seeds the
     /// first slot. Short-lived empty Sets are common -- the garbager
     /// builds four per statement for its per-statement name facts, most
     /// of them never added to.
@@ -22,9 +22,9 @@ namespace:
         return Set(T)(cap = 0)
     }
 
-    /// Create an empty Set pre-sized for `n` elements, so adding up to
-    /// `n` reallocs zero times (Vec.with_capacity's counterpart). Use it
-    /// where the final size is known or well predicted; `new()` grows
+    /// Create an empty Set pre-sized for ~n~ elements, so adding up to
+    /// ~n~ reallocs zero times (Vec.with_capacity's counterpart). Use it
+    /// where the final size is known or well predicted; ~new()~ grows
     /// 0->1->2->4, which is the right default but costs a realloc per
     /// doubling. n=0 behaves like new(): lazy-empty, no allocation.
     with_capacity := func(n: USize) returns Set(T) {
@@ -42,7 +42,7 @@ namespace:
         self.count = 0
     }
 
-    /// True if the set contains an element equal to `val`.
+    /// True if the set contains an element equal to ~val~.
     has := func(self: Set(T), val: T) returns Bool {
         mut lo : USize = 0
         mut hi := self.count
@@ -59,8 +59,8 @@ namespace:
         return false
     }
 
-    /// Insert `val` into the set (sorted order). If an equal element
-    /// already exists, `val` is dropped. `val` is owned.
+    /// Insert ~val~ into the set (sorted order). If an equal element
+    /// already exists, ~val~ is dropped. ~val~ is owned.
     add := func(mut self: Set(T), own val: T) {
         mut lo : USize = 0
         mut hi := self.count
@@ -100,8 +100,8 @@ namespace:
         }
     }
 
-    /// Remove the element equal to `val`, dropping it. Returns false if
-    /// absent (Map.remove's counterpart: `add` is the Set's `set`, so
+    /// Remove the element equal to ~val~, dropping it. Returns false if
+    /// absent (Map.remove's counterpart: ~add~ is the Set's ~set~, so
     /// this is its removal half). Later elements shift left to keep the
     /// storage sorted and dense.
     remove := func(mut self: Set(T), val: T) returns Bool {

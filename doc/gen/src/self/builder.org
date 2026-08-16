@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * closure_call_name
@@ -119,7 +119,7 @@ proc build_forward_header_lp(fwd_path: Str, mut lp: LoadedProgram) returns shall
 :END:
 
 #+begin_src til
-proc collect_closure_value_names(e: Expr, mut names: Set__Str, ctx: Context)
+proc collect_closure_value_names(e: Expr, mut names: Set__U32, mut ctx: Context)
 #+end_src
 
 * build_register_closure_values_lp
@@ -140,6 +140,16 @@ proc build_register_closure_values_lp(mut lp: LoadedProgram)
 
 #+begin_src til
 proc emit_dyn_fn_closure_value(f: File, type_name: Str, method_name: Str, suffix: Str)
+#+end_src
+
+* builder_prepare_emit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.builder_prepare_emit
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc builder_prepare_emit(mut lp: LoadedProgram)
 #+end_src
 
 * cmd_translate
@@ -252,6 +262,26 @@ namespace:
 proc cmd_doc(lp: LoadedProgram, version: Str) returns shallow I32
 #+end_src
 
+* Map__Sym_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.Map__Sym_Str
+:group: Compiler backend
+:END:
+
+#+begin_src til
+Map__Sym_Str
+#+end_src
+
+* Set__Sym
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.Set__Sym
+:group: Compiler backend
+:END:
+
+#+begin_src til
+Set__Sym
+#+end_src
+
 * Vec__DocEntry
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.builder.Vec__DocEntry
@@ -275,7 +305,7 @@ namespace:
     func move_to(own self: Vec__DocEntry, mut dest: Vec__DocEntry)
     func move_from(mut self: Vec__DocEntry, own other: Vec__DocEntry)
     func unsafe_get(self: Vec__DocEntry, i: USize) returns ref DocEntry
-    func get(self: Vec__DocEntry, i: USize, mut _err_kind: I64) returns ref DocEntry
+    func get(self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64) returns ref DocEntry
     func pop(mut self: Vec__DocEntry) returns DocEntry
     func remove_at(mut self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DocEntry, shallow n: USize) returns Vec__DocEntry
@@ -311,11 +341,11 @@ func Vec__DocEntry.new() returns Vec__DocEntry
 :group: Compiler backend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -341,7 +371,7 @@ func Vec__DocEntry.clear(mut self: Vec__DocEntry)
 :group: Compiler backend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -357,7 +387,7 @@ func Vec__DocEntry.delete_marked(mut self: Vec__DocEntry, marks: Dynamic)
 :group: Compiler backend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -370,8 +400,8 @@ func Vec__DocEntry.push(mut self: Vec__DocEntry, own val: DocEntry)
 :group: Compiler backend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__DocEntry.append(mut self: Vec__DocEntry, own other: Vec__DocEntry)
@@ -387,7 +417,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -403,13 +433,13 @@ func Vec__DocEntry.take(mut self: Vec__DocEntry) returns Vec__DocEntry
 :group: Compiler backend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -425,9 +455,9 @@ func Vec__DocEntry.move_to(own self: Vec__DocEntry, mut dest: Vec__DocEntry)
 :group: Compiler backend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__DocEntry.move_from(mut self: Vec__DocEntry, own other: Vec__DocEntry)
@@ -440,9 +470,9 @@ func Vec__DocEntry.move_from(mut self: Vec__DocEntry, own other: Vec__DocEntry)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -455,13 +485,13 @@ func Vec__DocEntry.unsafe_get(self: Vec__DocEntry, i: USize) returns ref DocEntr
 :group: Compiler backend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__DocEntry.get(self: Vec__DocEntry, i: USize, mut _err_kind: I64) returns ref DocEntry
+func Vec__DocEntry.get(self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64) returns ref DocEntry
 #+end_src
 
 * Vec__DocEntry.pop
@@ -483,7 +513,7 @@ func Vec__DocEntry.pop(mut self: Vec__DocEntry) returns DocEntry
 :group: Compiler backend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__DocEntry.remove_at(mut self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64)
@@ -495,7 +525,7 @@ func Vec__DocEntry.remove_at(mut self: Vec__DocEntry, shallow i: USize, mut _err
 :group: Compiler backend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -508,9 +538,9 @@ func Vec__DocEntry.take_prefix(mut self: Vec__DocEntry, shallow n: USize) return
 :group: Compiler backend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -523,8 +553,8 @@ func Vec__DocEntry.truncate(mut self: Vec__DocEntry, shallow n: USize)
 :group: Compiler backend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -537,9 +567,9 @@ func Vec__DocEntry.unsafe_set(mut self: Vec__DocEntry, shallow i: USize, own val
 :group: Compiler backend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__DocEntry.set(mut self: Vec__DocEntry, shallow i: USize, own val: DocEntry, mut _err_kind: I64)
@@ -566,7 +596,7 @@ func Vec__DocEntry.push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, sh
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__DocEntry.delete(own self: Vec__DocEntry, shallow call_free: Bool)
@@ -607,7 +637,7 @@ namespace:
     func move_to(own self: Vec__CollectionInfo, mut dest: Vec__CollectionInfo)
     func move_from(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
     func unsafe_get(self: Vec__CollectionInfo, i: USize) returns ref priv___src_self_builder_til__CollectionInfo
-    func get(self: Vec__CollectionInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
+    func get(self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
     func pop(mut self: Vec__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
     func remove_at(mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__CollectionInfo, shallow n: USize) returns Vec__CollectionInfo
@@ -643,11 +673,11 @@ func Vec__CollectionInfo.new() returns Vec__CollectionInfo
 :group: Compiler backend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -673,7 +703,7 @@ func Vec__CollectionInfo.clear(mut self: Vec__CollectionInfo)
 :group: Compiler backend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -689,7 +719,7 @@ func Vec__CollectionInfo.delete_marked(mut self: Vec__CollectionInfo, marks: Dyn
 :group: Compiler backend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -702,8 +732,8 @@ func Vec__CollectionInfo.push(mut self: Vec__CollectionInfo, own val: priv___src
 :group: Compiler backend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__CollectionInfo.append(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
@@ -719,7 +749,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -735,13 +765,13 @@ func Vec__CollectionInfo.take(mut self: Vec__CollectionInfo) returns Vec__Collec
 :group: Compiler backend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -757,9 +787,9 @@ func Vec__CollectionInfo.move_to(own self: Vec__CollectionInfo, mut dest: Vec__C
 :group: Compiler backend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__CollectionInfo.move_from(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
@@ -772,9 +802,9 @@ func Vec__CollectionInfo.move_from(mut self: Vec__CollectionInfo, own other: Vec
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -787,13 +817,13 @@ func Vec__CollectionInfo.unsafe_get(self: Vec__CollectionInfo, i: USize) returns
 :group: Compiler backend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__CollectionInfo.get(self: Vec__CollectionInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
+func Vec__CollectionInfo.get(self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__CollectionInfo
 #+end_src
 
 * Vec__CollectionInfo.pop
@@ -815,7 +845,7 @@ func Vec__CollectionInfo.pop(mut self: Vec__CollectionInfo) returns priv___src_s
 :group: Compiler backend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__CollectionInfo.remove_at(mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
@@ -827,7 +857,7 @@ func Vec__CollectionInfo.remove_at(mut self: Vec__CollectionInfo, shallow i: USi
 :group: Compiler backend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -840,9 +870,9 @@ func Vec__CollectionInfo.take_prefix(mut self: Vec__CollectionInfo, shallow n: U
 :group: Compiler backend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -855,8 +885,8 @@ func Vec__CollectionInfo.truncate(mut self: Vec__CollectionInfo, shallow n: USiz
 :group: Compiler backend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -869,9 +899,9 @@ func Vec__CollectionInfo.unsafe_set(mut self: Vec__CollectionInfo, shallow i: US
 :group: Compiler backend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__CollectionInfo.set(mut self: Vec__CollectionInfo, shallow i: USize, own val: priv___src_self_builder_til__CollectionInfo, mut _err_kind: I64)
@@ -898,7 +928,7 @@ func Vec__CollectionInfo.push_take(mut self: Vec__CollectionInfo, mut src: Vec__
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__CollectionInfo.delete(own self: Vec__CollectionInfo, shallow call_free: Bool)
@@ -939,7 +969,7 @@ namespace:
     func move_to(own self: Vec__DynCallInfo, mut dest: Vec__DynCallInfo)
     func move_from(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
     func unsafe_get(self: Vec__DynCallInfo, i: USize) returns ref priv___src_self_builder_til__DynCallInfo
-    func get(self: Vec__DynCallInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
+    func get(self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
     func pop(mut self: Vec__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
     func remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__DynCallInfo, shallow n: USize) returns Vec__DynCallInfo
@@ -975,11 +1005,11 @@ func Vec__DynCallInfo.new() returns Vec__DynCallInfo
 :group: Compiler backend
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -1005,7 +1035,7 @@ func Vec__DynCallInfo.clear(mut self: Vec__DynCallInfo)
 :group: Compiler backend
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -1021,7 +1051,7 @@ func Vec__DynCallInfo.delete_marked(mut self: Vec__DynCallInfo, marks: Dynamic)
 :group: Compiler backend
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -1034,8 +1064,8 @@ func Vec__DynCallInfo.push(mut self: Vec__DynCallInfo, own val: priv___src_self_
 :group: Compiler backend
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__DynCallInfo.append(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
@@ -1051,7 +1081,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -1067,13 +1097,13 @@ func Vec__DynCallInfo.take(mut self: Vec__DynCallInfo) returns Vec__DynCallInfo
 :group: Compiler backend
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -1089,9 +1119,9 @@ func Vec__DynCallInfo.move_to(own self: Vec__DynCallInfo, mut dest: Vec__DynCall
 :group: Compiler backend
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__DynCallInfo.move_from(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
@@ -1104,9 +1134,9 @@ func Vec__DynCallInfo.move_from(mut self: Vec__DynCallInfo, own other: Vec__DynC
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -1119,13 +1149,13 @@ func Vec__DynCallInfo.unsafe_get(self: Vec__DynCallInfo, i: USize) returns ref p
 :group: Compiler backend
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__DynCallInfo.get(self: Vec__DynCallInfo, i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
+func Vec__DynCallInfo.get(self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_builder_til__DynCallInfo
 #+end_src
 
 * Vec__DynCallInfo.pop
@@ -1147,7 +1177,7 @@ func Vec__DynCallInfo.pop(mut self: Vec__DynCallInfo) returns priv___src_self_bu
 :group: Compiler backend
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__DynCallInfo.remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
@@ -1159,7 +1189,7 @@ func Vec__DynCallInfo.remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mu
 :group: Compiler backend
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -1172,9 +1202,9 @@ func Vec__DynCallInfo.take_prefix(mut self: Vec__DynCallInfo, shallow n: USize) 
 :group: Compiler backend
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -1187,8 +1217,8 @@ func Vec__DynCallInfo.truncate(mut self: Vec__DynCallInfo, shallow n: USize)
 :group: Compiler backend
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -1201,9 +1231,9 @@ func Vec__DynCallInfo.unsafe_set(mut self: Vec__DynCallInfo, shallow i: USize, o
 :group: Compiler backend
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__DynCallInfo.set(mut self: Vec__DynCallInfo, shallow i: USize, own val: priv___src_self_builder_til__DynCallInfo, mut _err_kind: I64)
@@ -1230,7 +1260,7 @@ func Vec__DynCallInfo.push_take(mut self: Vec__DynCallInfo, mut src: Vec__DynCal
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__DynCallInfo.delete(own self: Vec__DynCallInfo, shallow call_free: Bool)

@@ -34,10 +34,10 @@ host_arch := ext_proc() returns Str {}
 getenv := ext_proc(name: I8) returns ref I8 {}
 
 /// Read an environment variable, "" when unset. NOT view-compatible:
-/// `name` reaches C as a NUL-terminated string, so it must be a literal
+/// ~name~ reaches C as a NUL-terminated string, so it must be a literal
 /// or an owned Str, never a substr view (a view's bytes end at its count,
 /// with no NUL there, and getenv would read past it). Pass
-/// `view.clone()` at the call site if you have one -- since #343 the
+/// ~view.clone()~ at the call site if you have one -- since #343 the
 /// boundary panics on a view here rather than reading past it, but the
 /// caller still owns the choice. The result is owned:
 /// the bytes are copied out of the environ block, so the Str stays valid
@@ -86,17 +86,17 @@ ccmd_free := ext_func(handle: Dynamic) {}
 
 /// A command to run, built from argv elements -- never from shell text.
 ///
-/// `system_cmd` / `spawn_cmd` / `run_cmd` above hand a STRING to
+/// ~system_cmd~ / ~spawn_cmd~ / ~run_cmd~ above hand a STRING to
 /// /bin/sh or cmd.exe, which re-splits it on whitespace, expands $VAR
 /// and globs it; every caller then has to quote its arguments back out
 /// of that, differently per host. A Cmd passes its elements straight to
 /// execvp / CreateProcess, so an argument means exactly the bytes it
 /// holds -- spaces, quotes, dollars and all. A shell is still reachable
-/// by asking for one: `Cmd.new("sh", "-c", script)`.
+/// by asking for one: ~Cmd.new("sh", "-c", script)~.
 ///
 /// Output is inherited by default (the child writes to this process's
-/// stdout/stderr as it goes). `capture()` collects it instead, and
-/// `stdout_to`/`stderr_to` send it to files:
+/// stdout/stderr as it goes). ~capture()~ collects it instead, and
+/// ~stdout_to~/~stderr_to~ send it to files:
 ///
 ///     c := Cmd.new("echo", "a b")
 ///     c.capture()
@@ -121,7 +121,7 @@ namespace:
         return Cmd(handle = h)
     }
 
-    /// Append one argument. Returns `self` so calls chain via UFCS.
+    /// Append one argument. Returns ~self~ so calls chain via UFCS.
     arg := proc(self: Cmd, a: Str) returns ref Cmd {
         ccmd_arg(self.handle, a)
         return self
@@ -138,7 +138,7 @@ namespace:
         return self
     }
 
-    /// Run the command in `dir` instead of this process's working
+    /// Run the command in ~dir~ instead of this process's working
     /// directory. Only the child moves; this process stays put.
     cwd := proc(self: Cmd, dir: Str) returns ref Cmd {
         ccmd_cwd(self.handle, dir)
@@ -152,27 +152,27 @@ namespace:
         return self
     }
 
-    /// Send the child's stdout to `path`, truncating it first.
+    /// Send the child's stdout to ~path~, truncating it first.
     stdout_to := proc(self: Cmd, path: Str) returns ref Cmd {
         ccmd_stdout_file(self.handle, path)
         return self
     }
 
-    /// Send the child's stderr to `path`, truncating it first.
+    /// Send the child's stderr to ~path~, truncating it first.
     stderr_to := proc(self: Cmd, path: Str) returns ref Cmd {
         ccmd_stderr_file(self.handle, path)
         return self
     }
 
     /// Merge the child's stderr into wherever its stdout goes -- the
-    /// `2>&1` of build logs, without a shell.
+    /// ~2>&1~ of build logs, without a shell.
     stderr_to_stdout := proc(self: Cmd) returns ref Cmd {
         ccmd_stderr_to_stdout(self.handle)
         return self
     }
 
     /// Collect the child's output instead of letting it through, for
-    /// reading with `out()` and `err()` once it has finished. The two
+    /// reading with ~out()~ and ~err()~ once it has finished. The two
     /// streams stay separate; each command captures into its own spool
     /// file, so concurrent captures never mix.
     capture := proc(self: Cmd) returns ref Cmd {
@@ -195,7 +195,7 @@ namespace:
     }
 
     /// Start the child without waiting, returning its pid (POSIX) or
-    /// process handle (Windows). Pair with `wait` or `poll`.
+    /// process handle (Windows). Pair with ~wait~ or ~poll~.
     start := proc(self: Cmd) returns I64 {
         return ccmd_start(self.handle)
     }
@@ -215,14 +215,14 @@ namespace:
     }
 
     /// The status of a child that has already finished. Use after
-    /// `poll` reports true; `wait` returns the same value directly.
+    /// ~poll~ reports true; ~wait~ returns the same value directly.
     status := proc(self: Cmd) returns I64 {
         return ccmd_status(self.handle)
     }
 
     /// Start the command and block until it finishes, returning its
     /// status. The lower-level runner: a non-zero status is a value
-    /// here, not a failure. Use `run_checked` when it is one.
+    /// here, not a failure. Use ~run_checked~ when it is one.
     run := proc(self: Cmd) returns I64 {
         ccmd_start(self.handle)
         return ccmd_wait(self.handle)
@@ -244,13 +244,13 @@ namespace:
         }
     }
 
-    /// The child's captured stdout. Requires `capture()` (or
-    /// `capture_out()`) before the run, and a finished child.
+    /// The child's captured stdout. Requires ~capture()~ (or
+    /// ~capture_out()~) before the run, and a finished child.
     out := proc(self: Cmd) returns Str {
         return ccmd_out(self.handle)
     }
 
-    /// The child's captured stderr. Requires `capture()` before the
+    /// The child's captured stderr. Requires ~capture()~ before the
     /// run, and a finished child.
     err := proc(self: Cmd) returns Str {
         return ccmd_err(self.handle)

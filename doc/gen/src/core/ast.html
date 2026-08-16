@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,6 +43,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -314,9 +316,9 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.</p>
@@ -333,7 +335,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.</p>
 </div>
 <pre><code class="language-til">func (own self: Option__Expr) returns Expr
@@ -402,6 +404,9 @@ the definition). Prefer a switch when the None arm does real work.</p>
     mut closure_name : Str
     mut noreturn : Bool
     mut ref_return_params : U64
+    mut ref_return_into_params : U64
+    mut ref_return_carried_params : U64
+    mut ref_return_provisional_params : U64
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -431,7 +436,7 @@ markers in fcall.children:</p>
 </ul>
 <p>    (fcall_variadic_count).</p>
 <ul>
-<li>variadic_index : implicit at `1 + fdef_data.variadic_index`</li>
+<li>variadic_index : implicit at <code>1 + fdef_data.variadic_index</code></li>
 </ul>
 <p>    post-desugar. Step 7 of #147 closes here: the trailing typer
     resolution artifact is gone.</p>
@@ -642,14 +647,14 @@ has no entry for that position (see member_name_of).</p>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Reverse index lookup shared by every *_name_at accessor: the name whose
-stored position is `pos`, None for a position no entry points at (one
+stored position is <code>pos</code>, None for a position no entry points at (one
 shadowed by a later duplicate name). The three *_name_at wrappers
 unwrap it: their call sites all walk positions the def itself reports
 and use the name unchecked, so a miss means the index and the decl Vec
 disagree, and unwrap says so loudly instead of handing back a null Str.</p>
 <p>Instantiating Option in this unit needed two prerequisites: the #303
 noreturn seed made order-independent (seed_noreturn_chain, loader.til),
-since Option.unwrap ends in `case: panic` and core.til imports ast
+since Option.unwrap ends in <code>case: panic</code> and core.til imports ast
 before exit; and the borrowed-Str call-shape fix, since
 this is the first Option(ref Str) interpreted code calls.</p>
 </div>
@@ -851,8 +856,8 @@ namespace:
 <h2>ForInData</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Payload for `for name in range` loop nodes. The two-variable
-key/value form `for k, v in map` fills name2/is_mut2; name2 is
+<p>Payload for <code>for name in range</code> loop nodes. The two-variable
+key/value form <code>for k, v in map</code> fills name2/is_mut2; name2 is
 empty for the ordinary single-variable form.</p>
 </div>
 <pre><code class="language-til">struct {
@@ -906,7 +911,7 @@ namespace:
 <h2>MatchData</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Payload for NodeType.Match: a `match` expression yields a value, so
+<p>Payload for NodeType.Match: a <code>match</code> expression yields a value, so
 the typer records the common arm type here (mirrors FCallData.til_type).</p>
 </div>
 <pre><code class="language-til">struct {
@@ -928,7 +933,7 @@ namespace:
 <div class="doc-body">
 <p>Payload for NodeType.Case (issue #334): how many patterns precede the
 guard/body children. Child layout: [pattern x N, guard?, body]. The body
-is always the LAST child; pattern_count <code></code> 0 is the default `case:` arm
+is always the LAST child; pattern_count <code></code> 0 is the default <code>case:</code> arm
 ([body] alone); a guard exists iff children.len() &gt; pattern_count + 1.
 Only pattern_count is stored -- everything else derives from it and the
 child count, so there is no second copy of the shape to drift.</p>
@@ -955,7 +960,7 @@ namespace:
 <h2>CaptureBlockData</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Payload for NodeType.CaptureBlock (issue #54): a bare `[a, mut b] { ... }`
+<p>Payload for NodeType.CaptureBlock (issue #54): a bare <code>[a, mut b] { ... }</code>
 block carrying an explicit capture list. The captures restrict which
 outer-scope locals the block body may reference -- a compile-time
 &quot;insurance policy&quot;. Each capture is a Declaration (name + is_mut);
@@ -1177,10 +1182,10 @@ namespace:
 <h2>Expr.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Null-safe delete. The auto-generated version dereferences `self`
+<p>Null-safe delete. The auto-generated version dereferences <code>self</code>
 unconditionally, so the asap pass deleting an owned-but-null Expr
 (e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
-here lets functions return owned `Expr` that may be null without
+here lets functions return owned <code>Expr</code> that may be null without
 the caller having to clone-and-leak to dodge the deep delete.</p>
 </div>
 <pre><code class="language-til">func (own self: Expr, shallow call_free: Bool)
@@ -1217,7 +1222,7 @@ the caller having to clone-and-leak to dodge the deep delete.</p>
 <h2>Expr.add_child</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Take ownership of `child` and append it to the children list.</p>
+<p>Take ownership of <code>child</code> and append it to the children list.</p>
 </div>
 <pre><code class="language-til">func (mut self: Expr, own child: Expr)
 </code></pre>
@@ -1226,7 +1231,7 @@ the caller having to clone-and-leak to dodge the deep delete.</p>
 <h2>Expr.push_child_clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Clone `child` and append the clone to the children list.</p>
+<p>Clone <code>child</code> and append the clone to the children list.</p>
 </div>
 <pre><code class="language-til">func (mut self: Expr, child: Expr)
 </code></pre>
@@ -1344,9 +1349,9 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>The contained value; PANICS on None, ala Rust's unwrap. For the
-`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
 has already handled absence and unwrapping cannot fail. Prefer
-a `switch` when both arms do real work, and `unwrap_or` when a
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
 default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.</p>
@@ -1363,7 +1368,7 @@ unwrap only BORROWS self, so for an owned payload it must hand
 back a deep clone; this consumes the Option instead, so the
 payload's bytes move and only the enum shell is freed (#321).
 Use it wherever the caller takes ownership of what the Option
-held -- an `Option(Expr)` returned by an AST helper, say, where
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.</p>
 </div>
 <pre><code class="language-til">func (own self: Option__ref_Str) returns ref Str
@@ -1396,7 +1401,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.</p>
+The key type must implement <code>cmp</code>.</p>
 </div>
 <pre><code class="language-til">func () returns Map__Str_USize
 </code></pre>
@@ -1405,8 +1410,8 @@ The key type must implement `cmp`.</p>
 <h2>Map__Str_USize.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+<p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
+<code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Map__Str_USize
@@ -1434,8 +1439,8 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <h2>Map__Str_USize.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+<p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
+<code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
 on a missing key.</p>
 </div>
 <pre><code class="language-til">func (self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
@@ -1445,7 +1450,7 @@ on a missing key.</p>
 <h2>Map__Str_USize.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Insert or overwrite the value for `key`. The value is owned.</p>
+<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_USize, key: Str, own val: USize)
 </code></pre>
@@ -1454,7 +1459,7 @@ on a missing key.</p>
 <h2>Map__Str_USize.remove</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Remove `key`, dropping its key and value. Returns false if absent.</p>
+<p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_USize, key: Str) returns shallow Bool
 </code></pre>
@@ -1478,7 +1483,7 @@ namespace:
     func move_to(own self: Vec__VariantDef, mut dest: Vec__VariantDef)
     func move_from(mut self: Vec__VariantDef, own other: Vec__VariantDef)
     func unsafe_get(self: Vec__VariantDef, i: USize) returns ref VariantDef
-    func get(self: Vec__VariantDef, i: USize, mut _err_kind: I64) returns ref VariantDef
+    func get(self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64) returns ref VariantDef
     func pop(mut self: Vec__VariantDef) returns VariantDef
     func remove_at(mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
@@ -1509,11 +1514,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__VariantDef.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__VariantDef
@@ -1533,7 +1538,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__VariantDef.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -1546,7 +1551,7 @@ to reach into data/count directly.</p>
 <h2>Vec__VariantDef.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, own val: VariantDef)
@@ -1556,8 +1561,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__VariantDef.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, own other: Vec__VariantDef)
 </code></pre>
@@ -1569,7 +1574,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -1582,12 +1587,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__VariantDef.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -1600,9 +1605,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__VariantDef.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, own other: Vec__VariantDef)
 </code></pre>
@@ -1612,9 +1617,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__VariantDef, i: USize) returns ref VariantDef
@@ -1624,12 +1629,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__VariantDef.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__VariantDef, i: USize, mut _err_kind: I64) returns ref VariantDef
+<pre><code class="language-til">func (self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64) returns ref VariantDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.pop">
@@ -1646,7 +1651,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__VariantDef.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -1655,7 +1660,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__VariantDef.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
@@ -1665,9 +1670,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__VariantDef.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: USize)
@@ -1677,8 +1682,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__VariantDef.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef)
@@ -1688,9 +1693,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__VariantDef.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef, mut _err_kind: I64)
 </code></pre>
@@ -1711,7 +1716,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__VariantDef, shallow call_free: Bool)
 </code></pre>
@@ -1744,7 +1749,7 @@ namespace:
     func move_to(own self: Vec__FieldLayout, mut dest: Vec__FieldLayout)
     func move_from(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
     func unsafe_get(self: Vec__FieldLayout, i: USize) returns ref FieldLayout
-    func get(self: Vec__FieldLayout, i: USize, mut _err_kind: I64) returns ref FieldLayout
+    func get(self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64) returns ref FieldLayout
     func pop(mut self: Vec__FieldLayout) returns FieldLayout
     func remove_at(mut self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__FieldLayout, shallow n: USize) returns Vec__FieldLayout
@@ -1775,11 +1780,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__FieldLayout.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__FieldLayout
@@ -1799,7 +1804,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__FieldLayout.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -1812,7 +1817,7 @@ to reach into data/count directly.</p>
 <h2>Vec__FieldLayout.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, own val: FieldLayout)
@@ -1822,8 +1827,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__FieldLayout.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
 </code></pre>
@@ -1835,7 +1840,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -1848,12 +1853,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__FieldLayout.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -1866,9 +1871,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__FieldLayout.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
 </code></pre>
@@ -1878,9 +1883,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__FieldLayout, i: USize) returns ref FieldLayout
@@ -1890,12 +1895,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__FieldLayout.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__FieldLayout, i: USize, mut _err_kind: I64) returns ref FieldLayout
+<pre><code class="language-til">func (self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64) returns ref FieldLayout
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.pop">
@@ -1912,7 +1917,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__FieldLayout.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -1921,7 +1926,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__FieldLayout.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: USize) returns Vec__FieldLayout
@@ -1931,9 +1936,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__FieldLayout.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: USize)
@@ -1943,8 +1948,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__FieldLayout.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout)
@@ -1954,9 +1959,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__FieldLayout.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout, mut _err_kind: I64)
 </code></pre>
@@ -1977,7 +1982,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__FieldLayout, shallow call_free: Bool)
 </code></pre>
@@ -2010,7 +2015,7 @@ namespace:
     func move_to(own self: Vec__Declaration, mut dest: Vec__Declaration)
     func move_from(mut self: Vec__Declaration, own other: Vec__Declaration)
     func unsafe_get(self: Vec__Declaration, i: USize) returns ref Declaration
-    func get(self: Vec__Declaration, i: USize, mut _err_kind: I64) returns ref Declaration
+    func get(self: Vec__Declaration, shallow i: USize, mut _err_kind: I64) returns ref Declaration
     func pop(mut self: Vec__Declaration) returns Declaration
     func remove_at(mut self: Vec__Declaration, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Declaration, shallow n: USize) returns Vec__Declaration
@@ -2041,11 +2046,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__Declaration.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__Declaration
@@ -2065,7 +2070,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__Declaration.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -2078,7 +2083,7 @@ to reach into data/count directly.</p>
 <h2>Vec__Declaration.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, own val: Declaration)
@@ -2088,8 +2093,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__Declaration.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, own other: Vec__Declaration)
 </code></pre>
@@ -2101,7 +2106,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -2114,12 +2119,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__Declaration.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -2132,9 +2137,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__Declaration.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, own other: Vec__Declaration)
 </code></pre>
@@ -2144,9 +2149,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__Declaration, i: USize) returns ref Declaration
@@ -2156,12 +2161,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__Declaration.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Declaration, i: USize, mut _err_kind: I64) returns ref Declaration
+<pre><code class="language-til">func (self: Vec__Declaration, shallow i: USize, mut _err_kind: I64) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.pop">
@@ -2178,7 +2183,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__Declaration.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -2187,7 +2192,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__Declaration.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: USize) returns Vec__Declaration
@@ -2197,9 +2202,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__Declaration.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: USize)
@@ -2209,8 +2214,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__Declaration.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, own val: Declaration)
@@ -2220,9 +2225,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__Declaration.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, own val: Declaration, mut _err_kind: I64)
 </code></pre>
@@ -2243,7 +2248,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__Declaration, shallow call_free: Bool)
 </code></pre>
@@ -2276,7 +2281,7 @@ namespace:
     func move_to(own self: Vec__Expr, mut dest: Vec__Expr)
     func move_from(mut self: Vec__Expr, own other: Vec__Expr)
     func unsafe_get(self: Vec__Expr, i: USize) returns ref Expr
-    func get(self: Vec__Expr, i: USize, mut _err_kind: I64) returns ref Expr
+    func get(self: Vec__Expr, shallow i: USize, mut _err_kind: I64) returns ref Expr
     func pop(mut self: Vec__Expr) returns Expr
     func remove_at(mut self: Vec__Expr, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Expr, shallow n: USize) returns Vec__Expr
@@ -2307,11 +2312,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__Expr.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__Expr
@@ -2331,7 +2336,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__Expr.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -2344,7 +2349,7 @@ to reach into data/count directly.</p>
 <h2>Vec__Expr.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, own val: Expr)
@@ -2354,8 +2359,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__Expr.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, own other: Vec__Expr)
 </code></pre>
@@ -2367,7 +2372,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -2380,12 +2385,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__Expr.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -2398,9 +2403,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__Expr.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, own other: Vec__Expr)
 </code></pre>
@@ -2410,9 +2415,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__Expr, i: USize) returns ref Expr
@@ -2422,12 +2427,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__Expr.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Expr, i: USize, mut _err_kind: I64) returns ref Expr
+<pre><code class="language-til">func (self: Vec__Expr, shallow i: USize, mut _err_kind: I64) returns ref Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.pop">
@@ -2444,7 +2449,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__Expr.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -2453,7 +2458,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__Expr.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, shallow n: USize) returns Vec__Expr
@@ -2463,9 +2468,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__Expr.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, shallow n: USize)
@@ -2475,8 +2480,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__Expr.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, own val: Expr)
@@ -2486,9 +2491,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__Expr.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, own val: Expr, mut _err_kind: I64)
 </code></pre>
@@ -2509,7 +2514,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__Expr, shallow call_free: Bool)
 </code></pre>
@@ -2542,7 +2547,7 @@ namespace:
     func move_to(own self: Vec__USize, mut dest: Vec__USize)
     func move_from(mut self: Vec__USize, own other: Vec__USize)
     func unsafe_get(self: Vec__USize, i: USize) returns ref USize
-    func get(self: Vec__USize, i: USize, mut _err_kind: I64) returns ref USize
+    func get(self: Vec__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
     func pop(mut self: Vec__USize) returns shallow USize
     func remove_at(mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__USize, shallow n: USize) returns Vec__USize
@@ -2573,11 +2578,11 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <h2>Vec__USize.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
 <pre><code class="language-til">func (shallow n: USize) returns Vec__USize
@@ -2597,7 +2602,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <h2>Vec__USize.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -2610,7 +2615,7 @@ to reach into data/count directly.</p>
 <h2>Vec__USize.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Append an element to the end. `val` is owned: after this call the
+<p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, own val: USize)
@@ -2620,8 +2625,8 @@ caller must not use the value passed -- clone it first if needed.</p>
 <h2>Vec__USize.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.</p>
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, own other: Vec__USize)
 </code></pre>
@@ -2633,7 +2638,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <p>Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.</p>
 <p>This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
@@ -2646,12 +2651,12 @@ uses the two move forms below instead.</p>
 <h2>Vec__USize.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Give self's contents to `dest`, which drops whatever it held.
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.</p>
-<p>The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -2664,9 +2669,9 @@ buffer that now belongs to someone else.</p>
 <h2>Vec__USize.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Take `other`'s contents, dropping whatever self held. OTHER is
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.</p>
+argument: <code>dest.move_from(own src)</code>.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, own other: Vec__USize)
 </code></pre>
@@ -2676,9 +2681,9 @@ argument: `dest.move_from(own src)`.</p>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi &lt; len()` termination test already
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
 <pre><code class="language-til">func (self: Vec__USize, i: USize) returns ref USize
@@ -2688,12 +2693,12 @@ proves the index in bounds (issue #284).</p>
 <h2>Vec__USize.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__USize, i: USize, mut _err_kind: I64) returns ref USize
+<pre><code class="language-til">func (self: Vec__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.pop">
@@ -2710,7 +2715,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__USize.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Remove and drop the element at `i`, shifting later elements left.</p>
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
 </code></pre>
@@ -2719,7 +2724,7 @@ takes ownership of the returned value.</p>
 <h2>Vec__USize.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Split off the first `n` elements into a new Vec. Panics if `n`
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, shallow n: USize) returns Vec__USize
@@ -2729,9 +2734,9 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <h2>Vec__USize.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, shallow n: USize)
@@ -2741,8 +2746,8 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <h2>Vec__USize.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i &lt; self.count`; the write-side
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, own val: USize)
@@ -2752,9 +2757,9 @@ mirror of unsafe_get (issue #284).</p>
 <h2>Vec__USize.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
 <pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
 </code></pre>
@@ -2775,7 +2780,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.</p>
+unless <code>call_free</code> is false.</p>
 </div>
 <pre><code class="language-til">func (own self: Vec__USize, shallow call_free: Bool)
 </code></pre>

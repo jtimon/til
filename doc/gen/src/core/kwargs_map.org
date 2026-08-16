@@ -1,5 +1,5 @@
 #+TITLE: src/core/kwargs_map.til
-#+SUBTITLE: til 0.0.1-61e33ef8f
+#+SUBTITLE: til 0.0.1-0c9fbc0e4
 #+OPTIONS: toc:t
 
 * KwargsMap
@@ -46,7 +46,7 @@ func KwargsMap.new() returns KwargsMap
 :group: Core
 :END:
 
-True if `key` exists in the map.
+True if ~key~ exists in the map.
 
 #+begin_src til
 func KwargsMap.has(self: KwargsMap, key: Str) returns shallow Bool
@@ -58,7 +58,7 @@ func KwargsMap.has(self: KwargsMap, key: Str) returns shallow Bool
 :group: Core
 :END:
 
-Insert or overwrite `key` with typed value. The value is owned.
+Insert or overwrite ~key~ with typed value. The value is owned.
 
 #+begin_src til
 func KwargsMap.set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: USize, own val: Dynamic)
@@ -70,7 +70,7 @@ func KwargsMap.set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_
 :group: Core
 :END:
 
-Ref to the value stored under `key`. Panics if not found.
+Ref to the value stored under ~key~. Panics if not found.
 
 #+begin_src til
 func KwargsMap.get(self: KwargsMap, key: Str) returns ref Dynamic
@@ -82,7 +82,7 @@ func KwargsMap.get(self: KwargsMap, key: Str) returns ref Dynamic
 :group: Core
 :END:
 
-Type name of the value stored under `key`.
+Type name of the value stored under ~key~.
 
 #+begin_src til
 func KwargsMap.type_at(self: KwargsMap, key: Str) returns ref Str
@@ -94,7 +94,7 @@ func KwargsMap.type_at(self: KwargsMap, key: Str) returns ref Str
 :group: Core
 :END:
 
-Byte size of the value stored under `key`.
+Byte size of the value stored under ~key~.
 
 #+begin_src til
 func KwargsMap.size_at(self: KwargsMap, key: Str) returns ref USize
@@ -133,7 +133,7 @@ namespace:
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
-The key type must implement `cmp`.
+The key type must implement ~cmp~.
 
 #+begin_src til
 func Map__Str_Tuple.new() returns Map__Str_Tuple
@@ -145,8 +145,8 @@ func Map__Str_Tuple.new() returns Map__Str_Tuple
 :group: Core
 :END:
 
-Create an empty Map pre-sized for `n` entries, so inserting up to
-`n` reallocs neither backing Vec (Vec.with_capacity's
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
@@ -183,8 +183,8 @@ func Map__Str_Tuple.has(self: Map__Str_Tuple, key: Str) returns shallow Bool
 :group: Core
 :END:
 
-Return a ref to the value for `key`. Throws KeyNotFound if
-`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
 on a missing key.
 
 #+begin_src til
@@ -197,7 +197,7 @@ func Map__Str_Tuple.get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64) retu
 :group: Core
 :END:
 
-Insert or overwrite the value for `key`. The value is owned.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func Map__Str_Tuple.set(mut self: Map__Str_Tuple, key: Str, own val: Tuple)
@@ -209,7 +209,7 @@ func Map__Str_Tuple.set(mut self: Map__Str_Tuple, key: Str, own val: Tuple)
 :group: Core
 :END:
 
-Remove `key`, dropping its key and value. Returns false if absent.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_Tuple.remove(mut self: Map__Str_Tuple, key: Str) returns shallow Bool
@@ -238,7 +238,7 @@ namespace:
     func move_to(own self: Vec__Tuple, mut dest: Vec__Tuple)
     func move_from(mut self: Vec__Tuple, own other: Vec__Tuple)
     func unsafe_get(self: Vec__Tuple, i: USize) returns ref Tuple
-    func get(self: Vec__Tuple, i: USize, mut _err_kind: I64) returns ref Tuple
+    func get(self: Vec__Tuple, shallow i: USize, mut _err_kind: I64) returns ref Tuple
     func pop(mut self: Vec__Tuple) returns Tuple
     func remove_at(mut self: Vec__Tuple, shallow i: USize, mut _err_kind: I64)
     func take_prefix(mut self: Vec__Tuple, shallow n: USize) returns Vec__Tuple
@@ -274,11 +274,11 @@ func Vec__Tuple.new() returns Vec__Tuple
 :group: Core
 :END:
 
-Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
 items reallocs zero times. Use at call sites where the final length is
 known up front (cloning a Vec of known length, building a fixed arg
 list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
@@ -304,7 +304,7 @@ func Vec__Tuple.clear(mut self: Vec__Tuple)
 :group: Core
 :END:
 
-Drop the elements flagged in `marks` (a byte-per-element buffer,
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
 nonzero = drop, at least self.count entries) via elem_delete, then
 compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
@@ -320,7 +320,7 @@ func Vec__Tuple.delete_marked(mut self: Vec__Tuple, marks: Dynamic)
 :group: Core
 :END:
 
-Append an element to the end. `val` is owned: after this call the
+Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
@@ -333,8 +333,8 @@ func Vec__Tuple.push(mut self: Vec__Tuple, own val: Tuple)
 :group: Core
 :END:
 
-Consume the contents of `other` by appending them to `self`.
-`other` is taken by ownership and will be empty after the call.
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
 func Vec__Tuple.append(mut self: Vec__Tuple, own other: Vec__Tuple)
@@ -350,7 +350,7 @@ Take the contents out: the returned Vec owns self's buffer and
 self is left lazy-empty. No element is copied or cloned.
 
 This is how a struct FIELD hands its contents over
-(`mut old := body.children.take()`): a field cannot be an `own`
+(~mut old := body.children.take()~): a field cannot be an ~own~
 argument or receiver, because the callee would then free the
 ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
 pointer" compiling itself. Everything the caller can give away
@@ -366,13 +366,13 @@ func Vec__Tuple.take(mut self: Vec__Tuple) returns Vec__Tuple
 :group: Core
 :END:
 
-Give self's contents to `dest`, which drops whatever it held.
+Give self's contents to ~dest~, which drops whatever it held.
 SELF is consumed, so the receiver is the owned one and the call
-spells the type out: `Vec(T).move_to(own src, dest)`.
+spells the type out: ~Vec(T).move_to(own src, dest)~.
 
-The three fields move as BYTES on purpose: `dest.data =
-self.data` drops dest's old pointer (right) and then
-`self.data = 0` drops the pointer dest just adopted -- a double
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
 free, which is what the emitted C does with field assignment.
 Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
@@ -388,9 +388,9 @@ func Vec__Tuple.move_to(own self: Vec__Tuple, mut dest: Vec__Tuple)
 :group: Core
 :END:
 
-Take `other`'s contents, dropping whatever self held. OTHER is
+Take ~other~'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
-argument: `dest.move_from(own src)`.
+argument: ~dest.move_from(own src)~.
 
 #+begin_src til
 func Vec__Tuple.move_from(mut self: Vec__Tuple, own other: Vec__Tuple)
@@ -403,9 +403,9 @@ func Vec__Tuple.move_from(mut self: Vec__Tuple, own other: Vec__Tuple)
 :END:
 
 Unchecked element access: return a reference to the element at
-index `i` with NO bounds check. The caller must prove `i < len()`.
-This is the unchecked core that `get` wraps; for-in uses it
-directly because its `_fi < len()` termination test already
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
@@ -418,13 +418,13 @@ func Vec__Tuple.unsafe_get(self: Vec__Tuple, i: USize) returns ref Tuple
 :group: Core
 :END:
 
-Return a reference to the element at index `i`. Throws
-OutOfBounds if `i` is past the end; call as `vec[i]`
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
 to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Tuple.get(self: Vec__Tuple, i: USize, mut _err_kind: I64) returns ref Tuple
+func Vec__Tuple.get(self: Vec__Tuple, shallow i: USize, mut _err_kind: I64) returns ref Tuple
 #+end_src
 
 * Vec__Tuple.pop
@@ -446,7 +446,7 @@ func Vec__Tuple.pop(mut self: Vec__Tuple) returns Tuple
 :group: Core
 :END:
 
-Remove and drop the element at `i`, shifting later elements left.
+Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
 func Vec__Tuple.remove_at(mut self: Vec__Tuple, shallow i: USize, mut _err_kind: I64)
@@ -458,7 +458,7 @@ func Vec__Tuple.remove_at(mut self: Vec__Tuple, shallow i: USize, mut _err_kind:
 :group: Core
 :END:
 
-Split off the first `n` elements into a new Vec. Panics if `n`
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
@@ -471,9 +471,9 @@ func Vec__Tuple.take_prefix(mut self: Vec__Tuple, shallow n: USize) returns Vec_
 :group: Core
 :END:
 
-Drop the elements from index `n` to the end, freeing each via
-elem_delete, and set count to `n` (the survivors [0, n) are left
-untouched). Panics if `n` exceeds len. This is the container home
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
@@ -486,8 +486,8 @@ func Vec__Tuple.truncate(mut self: Vec__Tuple, shallow n: USize)
 :group: Core
 :END:
 
-Overwrite the element at index `i` without a bounds check, dropping
-the old value. Caller guarantees `i < self.count`; the write-side
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
@@ -500,9 +500,9 @@ func Vec__Tuple.unsafe_set(mut self: Vec__Tuple, shallow i: USize, own val: Tupl
 :group: Core
 :END:
 
-Overwrite the element at index `i`. `val` is owned. Throws
-OutOfBounds if `i` is past the end; call as `vec[i] = val`
-(or `vec.set(i, own val)!`) to panic on a bad index.
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
 func Vec__Tuple.set(mut self: Vec__Tuple, shallow i: USize, own val: Tuple, mut _err_kind: I64)
@@ -529,7 +529,7 @@ func Vec__Tuple.push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: 
 :END:
 
 Drop each element via elem_delete, free storage, then free self
-unless `call_free` is false.
+unless ~call_free~ is false.
 
 #+begin_src til
 func Vec__Tuple.delete(own self: Vec__Tuple, shallow call_free: Bool)

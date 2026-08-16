@@ -109,6 +109,9 @@
 *** closure_name := ""
 *** noreturn := false
 *** ref_return_params : U64 = 0
+*** ref_return_into_params : U64 = 0
+*** ref_return_carried_params : U64 = 0
+*** ref_return_provisional_params : U64 = 0
 ** FCallData: StructDef
 *** is_splat := false
 *** does_throw := false
@@ -253,6 +256,9 @@
 *** path := ""
 *** line : U32 = 0
 *** col : U32 = 0
+*** carried := false
+*** field := ""
+*** provisional := false
 ** TypeBinding: StructDef
 *** name := ""
 *** type := Type.Unknown
@@ -301,17 +307,17 @@
 *** imports := Vec(Str).new()
 ** BuilderFuncScratch: StructDef
 *** local_fn_sigs := Map(Str, Dynamic).new()
-*** body_refs := Set(Str).new()
-*** body_multi_decls := Set(Str).new()
-*** stack_locals := Set(Str).new()
-*** stack_local_types := Map(Str, Str).new()
-*** stack_lit_str_locals := Set(Str).new()
+*** body_refs := Set(Sym).new()
+*** body_multi_decls := Set(Sym).new()
+*** stack_locals := Set(Sym).new()
+*** stack_local_types := Map(Sym, Str).new()
+*** stack_lit_str_locals := Set(Sym).new()
 *** force_heap_stack_lit_str_own : Bool = false
-*** unsafe_to_hoist := Set(Str).new()
-*** ref_locals := Set(Str).new()
-*** ref_dyn_locals := Set(Str).new()
-*** ptr_locals := Set(Str).new()
-*** shadowed_params := Set(Str).new()
+*** unsafe_to_hoist := Set(Sym).new()
+*** ref_locals := Set(Sym).new()
+*** ref_dyn_locals := Set(Sym).new()
+*** ptr_locals := Set(Sym).new()
+*** shadowed_params := Set(Sym).new()
 ** InternedTypes: StructDef
 *** simples := Vec(Dynamic).new()
 *** prims := Vec(Dynamic).new()
@@ -345,13 +351,13 @@
 *** ref interp_ret_dest : Dynamic = 0
 *** interp_ret_type := Option(ref Str).None
 *** interp_ret_own_type := OwnType.Shallow
+*** interp_cstr_arg := false
 *** constfold_active := false
 *** eval_aborted := false
 *** repl_session := false
 *** ns_fields := Option(Scope).None
 *** imported := Map(Str, ImportUnit).new()
-*** check_unused_imports := false
-*** ... (65 more)
+*** ... (76 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -392,9 +398,6 @@
 *** run_tests := false
 *** load_errors : I32 = 0
 *** usize_override_bits : I64 = 0
-** DeclRef: StructDef
-*** path := ""
-*** idx : USize = 0
 ** DocMeta: StructDef
 *** body := ""
 *** group := ""
@@ -420,6 +423,11 @@
 ** FactIndex: StructDef
 *** filt : U64 = 0
 *** idx := Map(Str, USize).new()
+** RootBits: StructDef
+*** alias : U64 = 0
+*** into : U64 = 0
+*** carried : U64 = 0
+*** provisional : U64 = 0
 ** CoverageNode: StructDef
 *** fully_covered := false
 *** sub_names := Vec(Str).new()
@@ -458,6 +466,10 @@
 *** owner := ""
 *** borrower := ""
 *** fixed_reach : I32 = -1
+* scavenger
+** DeclRef: StructDef
+*** path := ""
+*** idx : USize = 0
 * builder
 ** BuildPaths: StructDef
 *** name := ""
@@ -522,6 +534,9 @@
 *** arg_deref := false
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
+** InterpAlias: StructDef
+*** ref name : Str
+*** ref target : Str
 ** ExtStr: StructDef
 *** ref data : U8
 *** count : USize = 0

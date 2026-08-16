@@ -41,14 +41,14 @@ namespace:
 
     len := func(self: DynArray) returns USize { return self.cap }
 
-    /// Unchecked ref to the element at index `i`. Caller guarantees
-    /// `i < self.cap`; the unchecked core that `get` wraps (issue #284).
+    /// Unchecked ref to the element at index ~i~. Caller guarantees
+    /// ~i < self.cap~; the unchecked core that ~get~ wraps (issue #284).
     unsafe_get := func(self: DynArray, i: USize) returns ref Dynamic {
         return ptr_add(self.data, i.mul(self.elem_size))
     }
 
-    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
-    /// past the end; call as `arr.get(i)!` to panic on a bad index.
+    /// Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
+    /// past the end; call as ~arr.get(i)!~ to panic on a bad index.
     get := func(self: DynArray, i: USize) returns ref Dynamic throws OutOfBounds {
         if i >= self.cap {
             throw OutOfBounds()
@@ -56,8 +56,8 @@ namespace:
         return self.unsafe_get(i)
     }
 
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.cap`; the write-side
+    /// Overwrite the element at index ~i~ without a bounds check, dropping
+    /// the old value. Caller guarantees ~i < self.cap~; the write-side
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(mut self: DynArray, i: USize, own val: Dynamic) {
         if self.elem_kind == ELEM_BOXED {
@@ -71,9 +71,9 @@ namespace:
         free(own val)
     }
 
-    /// Overwrite the element at index `i`. Drops the old value. `val` is
-    /// owned. Throws OutOfBounds if `i` is past the end; call as
-    /// `dynarr[i] = val` (or `dynarr.set(i, own val)!`) to panic on a bad index.
+    /// Overwrite the element at index ~i~. Drops the old value. ~val~ is
+    /// owned. Throws OutOfBounds if ~i~ is past the end; call as
+    /// ~dynarr[i] = val~ (or ~dynarr.set(i, own val)!~) to panic on a bad index.
     set := func(mut self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds {
         if i >= self.cap {
             // val is not stored on the error path: drop its content and box.
@@ -106,8 +106,8 @@ namespace:
         if call_free { free(own self) }
     }
 
-    /// Clone every element of `self` into `dst` starting at element index
-    /// `dst_index`. `dst` must have room for self.cap elements from there.
+    /// Clone every element of ~self~ into ~dst~ starting at element index
+    /// ~dst_index~. ~dst~ must have room for self.cap elements from there.
     priv clone_into := func(self: DynArray, dst: Dynamic, dst_index: USize) {
         base := dst_index.mul(self.elem_size)
         if self.elem_kind == ELEM_POD {
@@ -128,9 +128,9 @@ namespace:
         }
     }
 
-    /// A fresh DynArray holding `self`'s elements followed by `other`'s.
+    /// A fresh DynArray holding ~self~'s elements followed by ~other~'s.
     /// Both sources keep theirs -- every element is cloned, exactly as
-    /// `clone` does. Array.concat's counterpart; the element type is
+    /// ~clone~ does. Array.concat's counterpart; the element type is
     /// runtime data here, so mismatched operands panic instead of being
     /// rejected by the typer.
     concat := func(self: DynArray, other: DynArray) returns DynArray {
@@ -146,7 +146,7 @@ namespace:
                      elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 
-    /// A fresh DynVec holding a clone of every element, `self` intact.
+    /// A fresh DynVec holding a clone of every element, ~self~ intact.
     /// Array.to_vec's counterpart.
     to_vec := func(self: DynArray) returns DynVec {
         mut out := DynVec.new_like(self.elem_size, self.elem_kind,
