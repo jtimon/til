@@ -120,6 +120,49 @@ Tests: test_mixed_splat_ufcs / _generic in test/variadic.til, and
 test_to_vec / _empty, test_array_literal_splat, test_vec_literal_splat,
 test_collection_literal_splat_in_arg in test/arrays.til.
 
+*** Follow-up 2: what a splat says about `..T`, and where the bitmap ends
+
+Two more, both the same confusion as the original -- a splat read as ONE
+element instead of the run it stands for.
+
+1. Type-argument DEDUCTION. With the type argument omitted, evidence for
+   `..T` came off the splatted argument's own type, so ~gcount(..xs)~
+   deduced T = ~Array__Str~ and then demanded an ~Array__Array__Str~
+   instance ("pass it explicitly"), while ~gcount("x", ..xs)~ reported
+   ~Str~ and ~Array__Str~ as conflicting evidence. A splat's evidence is
+   its ELEMENT type: ~variadic_array_elem_type_name~ (the inverse of
+   ~variadic_array_type_name~) decodes it, applied only inside the
+   variadic run, which is the only place a splat can appear. Genuine
+   mismatches still conflict, and now say ~Str~ and ~I64~ rather than
+   ~Str~ and ~Array__I64~.
+
+2. The bitmaps END at child 63. ~own_args~ / ~ref_args~ / ~splat_args~ /
+   ~keep_outer_args~ are ~U64~s indexed by child position, so the shift
+   that builds a bit for position 64 overflows to zero and the set is a
+   silent no-op. A ~..~ there reached the lowering as an ordinary element
+   and the callee read the Array's header bytes -- the original garbage,
+   reappearing purely because of WHERE the argument sat. Verified exactly:
+   child 63 is the last that works, child 64 is garbage. The parser now
+   refuses a source-written ~own~ / ~ref~ / ~..~ past ~FCALL_ARG_BITS~
+   rather than drop it; long calls without qualifiers, and a splat early
+   in a long call, are untouched. Widening the bitmaps would be an
+   ~FCallData~ layout change, i.e. the staged migration this issue already
+   did once -- worth doing if the limit is ever hit in earnest.
+
+Found while testing (1) and NOT fixed here, since it has nothing to do
+with splats: applying one generic both explicitly and by deduction in a
+single unit synthesizes the monomorphization TWICE, and the C compiler
+rejects the duplicate definition. It reproduces with plain runtime
+arguments and no splat anywhere (~gc(Str, s)~ beside ~gc(t)~), so it
+predates this work; the deduction fix merely adds a splat call as one more
+way to reach it. The two dedup routes are ~ctx.generic_func_synths~ keyed
+~path#mono~ at init time and the late instantiation in
+~generic_finish_fcall~. test/variadic.til's deduced tests use their own
+generic to stay clear of it.
+
+Tests: test_splat_deduced_type_arg in test/variadic.til, and the
+splat_arg_limit fixture (test/splat_arg_limit_error.til).
+
 A ~..~ splat passed alongside other arguments in the same variadic
 block is currently a type error:
 

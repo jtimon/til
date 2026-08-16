@@ -1407,11 +1407,31 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
             advance(p)
             is_own_arg = true
         }
+        mut is_ref_arg := false
+        if check(p, TokenType.KwRef) { is_ref_arg = true }
+        // #342: own_args / ref_args / splat_args are U64 bitmaps indexed by
+        // child position, so past child 63 the shift that builds the bit
+        // overflows to zero and the qualifier is silently DROPPED. For `..`
+        // that means the splatted Array reaches the lowering as an ordinary
+        // element and the callee reads its header bytes -- the garbage this
+        // issue is about, reappearing purely because of where the argument
+        // sits. Refuse the call rather than miscompile it; a qualifier at that
+        // depth is the only shape affected, so shorter calls are untouched.
+        if is_own_arg.or(is_splat).or(is_ref_arg) {
+            if call.children.len() >= FCALL_ARG_BITS {
+                parse_fail(p, peek_line(p), peek_col(p),
+                    "an own, ref or '..' argument must be among the first ",
+                    FCALL_ARG_BITS.sub(1).to_str(),
+                    " arguments of a call (the per-argument flags are a ",
+                    FCALL_ARG_BITS.to_str(), "-bit map indexed by position)")
+                return call
+            }
+        }
         // #320: ref-qualified TYPE argument (`make_opt(ref T)`). Recorded
         // as a bit on the FCall; init expansion consumes it, and the typer
         // rejects any surviving bit (ref args are only valid on type
         // arguments of type templates).
-        if check(p, TokenType.KwRef) {
+        if is_ref_arg {
             advance(p)
             set_ref_arg(call, call.children.len())
         }
@@ -2785,6 +2805,13 @@ literal_num_node := func(text: Str) returns NodeType {
 field_access_node := func(name: Str) returns NodeType {
     return NodeType.FieldAccess(FieldAccessData(name = name.clone()))
 }
+
+// #342: how many child positions the per-argument bitmaps below can address.
+// own_args / ref_args / splat_args / keep_outer_args are each a U64 indexed by
+// child position, so position 64 and beyond have no bit: the shift that builds
+// one overflows to zero and the set silently does nothing. parse_call_args
+// refuses a source-written qualifier there rather than let it be dropped.
+FCALL_ARG_BITS : USize = 64
 
 set_own_arg := func(mut fcall: Expr, arg_index: USize) {
     ref mut fcd : FCallData = fcall_of(fcall)

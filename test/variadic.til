@@ -229,3 +229,35 @@ test_mixed_splat_generic := test() {
     assert_eq(USize, splat_generic_count(Str, ..a, "x", "y"), 4)
     assert_eq(USize, splat_generic_count(Str, ..a), 2)
 }
+
+// #342: with the type argument OMITTED, a splat says the same thing about `..T`
+// that a plain element does -- it stands for the array's ELEMENTS. Reading the
+// Array itself made the pure form deduce T = Array__Str and then demand an
+// Array__Array__Str instance ("pass it explicitly"), and the mixed form called
+// Str and Array__Str conflicting evidence.
+//
+// Deliberately a SEPARATE generic from splat_generic_count above: applying one
+// generic both explicitly and by deduction in a single unit synthesizes the
+// monomorphization twice and the C compiler rejects the duplicate. That is
+// unrelated to splats (it reproduces with plain runtime arguments) and is not
+// fixed here.
+priv splat_deduced_count := func(T: Type, parts: ..T) returns USize {
+    return parts.len()
+}
+
+priv splat_deduced_prefix := func(T: Type, sep: Str, parts: ..T) returns USize {
+    return parts.len().add(sep.len())
+}
+
+test_splat_deduced_type_arg := test() {
+    a := array(Str, "a", "b")
+    assert_eq(USize, splat_deduced_count(..a), 2)
+    assert_eq(USize, splat_deduced_count("x", ..a), 3)
+    assert_eq(USize, splat_deduced_count(..a, "x", "y"), 4)
+    // deduction still lines up when a fixed parameter precedes the run
+    assert_eq(USize, splat_deduced_prefix("-", "x", ..a), 4)
+    // and the element type is what is deduced, not merely Str-shaped
+    n := array(I64, 7, 8, 9)
+    assert_eq(USize, splat_deduced_count(1, ..n), 4)
+    assert_eq(USize, splat_deduced_count(..n), 3)
+}

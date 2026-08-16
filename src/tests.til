@@ -1215,6 +1215,11 @@ main := proc(args: ..Str) {
         "argument type mismatch", 2, parity_cmd)
     add_count(tests, "fcall_arg_parity_own", "typer",
         "must be marked", 2, parity_cmd)
+    // #342: a `..` past the last bit of the per-argument bitmap is refused,
+    // not silently dropped into the lowering as an ordinary element.
+    add_count(tests, "splat_arg_limit", "typer",
+        "must be among the first 63 arguments", 1,
+        format(til_bin, " interpret test/splat_arg_limit_error.til"))
     add_count(tests, "capture_block_error", "typer",
         "is not captured", 2,
         format(til_bin, " interpret test/capture_block_error.til"))

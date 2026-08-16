@@ -2879,7 +2879,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
                     soft_empty.add(own p.explicit_type.clone())
                     continue
                 }
-                spell := expr_declared_type_name(scope, arg)
+                mut spell := expr_declared_type_name(scope, arg)
                 if spell.len() == 0 {
                     soft_empty.add(own p.explicit_type.clone())
                     continue
@@ -2890,6 +2890,23 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
                 // spelling -- two different signatures then still conflict.
                 mut key := type_to_name(at)
                 if key.len() == 0 { key = spell.clone() }
+                // #342: a `..` splat stands for the array's ELEMENTS, so what
+                // it says about `..T` is the element type. Reading the Array
+                // itself made `gcount(..xs)` deduce T = Array__Str and then
+                // demand an Array__Array__Str instance, and mixed it with a
+                // plain element `gcount("x", ..xs)` became "conflicting
+                // evidence: Str and Array__Str". A splat can only appear in
+                // the variadic run, so nothing outside it is touched.
+                if pi.to_i32() == fvi {
+                    if get_splat_arg(e, ci + k) {
+                        elem_spell := variadic_array_elem_type_name(spell)
+                        elem_key := variadic_array_elem_type_name(key)
+                        if elem_spell.len().gt(0).and(elem_key.len().gt(0)) {
+                            spell = elem_spell.clone()
+                            key = elem_key.clone()
+                        }
+                    }
+                }
                 site := format(ctx.path, ":", arg.line.to_str(), ":", arg.col.to_str())
                 if ev_key.has(p.explicit_type) {
                     if ev_key[p.explicit_type].eq(key).not() {
@@ -8000,6 +8017,19 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr)
 variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Array").is_some() { return "Array" }
     return format("Array__", resolve_type_alias_for_name(scope, elem_type))
+}
+
+// #342: the inverse of variadic_array_type_name -- the element spelling of a
+// monomorphized variadic Array instance ("Array__Str" -> "Str"). Type-argument
+// deduction needs it because a `..` splat contributes the array's ELEMENTS to
+// the variadic run, not the array itself. Returns "" when the name is not an
+// instance to decompose (the generic `Array` in scope, or any other type),
+// which leaves the caller on the evidence it already had.
+priv variadic_array_elem_type_name := func(array_name: Str) returns Str {
+    prefix := "Array__"
+    if array_name.starts_with(prefix).not() { return "" }
+    if array_name.len() <= prefix.len() { return "" }
+    return array_name.substr(prefix.len(), array_name.len().sub(prefix.len()))
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
