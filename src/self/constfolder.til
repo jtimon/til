@@ -1342,9 +1342,7 @@ priv folded_rhs_is_stack_shape := func(rhs: Expr, ctx: Context) returns Bool {
     return pod_ctor_decl_is_stack(rhs, ctx.scope)
 }
 
-priv restamp_folded_decl_storage := func(mut decl: Expr, ctx: Context) {
-    if decl.children.len() == 0 { return }
-    if folded_rhs_is_stack_shape(decl.children[0], ctx).not() { return }
+priv restamp_folded_decl_storage := func(mut decl: Expr) {
     switch decl.node_type {
     case .Decl(dd):
         if dd.gc_storage.is(GcStorage.HeapBox) { dd.gc_storage = GcStorage.Stack }
@@ -1367,10 +1365,8 @@ priv restamp_folded_decl_storage := func(mut decl: Expr, ctx: Context) {
 // where the boxed shape stays correct (merely wasteful) and where a
 // nested shadowing re-declaration could alias the name, which a
 // same-level re-declaration cannot.
-priv normalize_stack_decl_deletes := func(mut e: Expr, i: USize, ctx: Context) {
+priv normalize_stack_decl_deletes := func(mut e: Expr, i: USize) {
     ref decl : Expr = e.children[i]
-    if decl.children.len() == 0 { return }
-    if folded_rhs_is_stack_shape(decl.children[0], ctx).not() { return }
     mut dname := ""
     switch decl.node_type {
     case .Decl(dd): dname = dd.name.clone()
@@ -1417,37 +1413,29 @@ priv normalize_stack_decl_deletes := func(mut e: Expr, i: USize, ctx: Context) {
     }
 }
 
-// #302 stage 4/6: the record/destructor fixup pass, run over each unit
-// AFTER all folding (constfolder_imported calls it per unit,
-// UNCONDITIONALLY -- a unit set with no foldables still carries
-// generic-instantiated ctor decls whose records went stale). It cannot
-// ride fold_subtree's walk: folds land across rounds (a variadic
-// format() RHS folds only after its collector's DCE), so an inline
-// fixup sees pre-fold shapes and misses. One walk at the end sees the
-// FINAL RHS of every Decl. Namespace method bodies live in
-// StructDef/EnumDef ns_decls, not the children tree, so they are
-// walked explicitly, the way process_body reaches them for folding.
-constfolder_normalize_stack_decls := proc(mut e: Expr, ctx: Context) {
-    for i in 0..e.children.len() {
-        ref mut child : Expr = e.children[i]
-        switch child.node_type {
-        case .Decl:
-            restamp_folded_decl_storage(child, ctx)
-            normalize_stack_decl_deletes(e, i, ctx)
-            if child.children.len() > 0 {
-                ref cn_rhs : Expr = child.children[0]
-                if cn_rhs.node_type.is(NodeType.StructDef).or(cn_rhs.node_type.is(NodeType.EnumDef)) {
-                    ref mut cn_ns : Vec(Declaration) = def_ns_decls(child.children[0])
-                    for mut nsd : Declaration in cn_ns {
-                        if nsd.default_value.is_none() { continue }
-                        if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
-                        constfolder_normalize_stack_decls(nsd.default_expr(), ctx)
-                    }
-                }
-            }
-        case:
-        }
-        constfolder_normalize_stack_decls(child, ctx)
+// #302 stage 4/6: the record/destructor fixup, one BODY at a time. It
+// must see the FINAL RHS of every Decl -- folds land across rounds (a
+// variadic format() RHS folds only after its collector's DCE) and
+// generic instantiation rewrites RHSs with no fold involved at all --
+// so it cannot ride fold_subtree's walk, and a walk of its own showed
+// up on the profile. It rides the scavenger's body DCE walk instead
+// (dce_program_bodies), which already visits every body of every unit
+// AFTER all folding, on the build, library and REPL-delta paths alike,
+// and needs the honest records/destructors anyway (dce_one_body reads
+// gc_storage; the decl+delete pairs it drops must be recognizable).
+// The scan is NOT gated on the record having been HeapBox: a
+// Stack-recorded ctor decl's garbager delete is already honest, but a
+// USER-written `Point.delete(own p)` on it still arrives own +
+// call_free=true (the typer stamps the signature's own bit and fills
+// the defaulted call_free) and wants the same stack shape.
+constfolder_normalize_stack_decls_in_body := func(mut body: Expr, ctx: Context) {
+    for i in 0..body.children.len() {
+        ref mut child : Expr = body.children[i]
+        if child.node_type.is(NodeType.Decl).not() { continue }
+        if child.children.len() == 0 { continue }
+        if folded_rhs_is_stack_shape(child.children[0], ctx).not() { continue }
+        restamp_folded_decl_storage(child)
+        normalize_stack_decl_deletes(body, i)
     }
 }
 

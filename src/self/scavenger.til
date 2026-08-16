@@ -862,40 +862,43 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 // outer Decl drop too. `at_top_level` is true only for the program-root
 // body; recursion turns it off when descending into any nested Body
 // (which is by definition inside a function/test/proc).
-priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
+priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, ctx: Context) {
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
     for mut c : Expr in e.children {
-        body_dce_walk(c, child_top)
+        body_dce_walk(c, child_top, ctx)
     }
     if is_body {
+        // #302 stage 4/6: honest records/destructors first -- the drops
+        // below key on gc_storage and on recognizable decl+delete pairs.
+        constfolder_normalize_stack_decls_in_body(e, ctx)
         fix_stale_litstr_in_body(e)
         while dce_one_body(e, at_top_level) {}
     }
 }
 
-priv body_dce_ns := proc(mut rhs: Expr) {
+priv body_dce_ns := proc(mut rhs: Expr, ctx: Context) {
     ref mut dce_ns : Vec(Declaration) = def_ns_decls(rhs)
     for mut nsd : Declaration in dce_ns {
         if nsd.default_value.is_none() { continue }
         if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_expr().children.len() == 0 { continue }
-        body_dce_walk(nsd.default_expr().children[0], false)
+        body_dce_walk(nsd.default_expr().children[0], false, ctx)
     }
 }
 
-dce_program_bodies := proc(mut program: Expr) {
+dce_program_bodies := proc(mut program: Expr, ctx: Context) {
     // Walk the program-root body (becomes main() for non-library
     // modes) and every function/test/proc body inside it.
     // body_dce_walk descends through Expr.children, so namespace
     // methods (which live in StructDef.ns_decls outside the children
     // tree) need a separate walk.
-    body_dce_walk(program, true)
+    body_dce_walk(program, true, ctx)
     for mut stmt : Expr in program.children {
         if is_def(stmt).not() { continue }
         ref mut rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-            body_dce_ns(rhs)
+            body_dce_ns(rhs, ctx)
         }
     }
 }
@@ -1419,6 +1422,6 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     // constfolder's constant folding. Runs over every imported unit (cores
     // included) so the codegen no longer needs `(void)<name>;` guards.
     for upath : Str in lp.unit_paths() {
-        dce_program_bodies(lp.ctx.imported[upath].ast)
+        dce_program_bodies(lp.ctx.imported[upath].ast, lp.ctx)
     }
 }

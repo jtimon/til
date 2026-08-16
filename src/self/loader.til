@@ -465,15 +465,6 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         }
     }
 
-    // #302 stage 4/6: with ALL folding done, restamp the storage records
-    // and destructor calls of Decls whose RHS became a stack shape after
-    // the garbager recorded them (constfold rewrites, generic
-    // instantiation). Outside the has_fold gate on purpose: the
-    // instantiation stales exist with or without foldables.
-    for norm_upath : Str in lp.unit_paths() {
-        constfolder_normalize_stack_decls(lp.ctx.imported[norm_upath].ast, lp.ctx)
-    }
-
     scope_drop_owned_bindings(global)
     scope_free(own global)
     interpreter_free_ns(lp.ctx)
@@ -4473,7 +4464,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
 
 repl_prepare_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) {
     constfolder_repl_delta(lp, delta)
-    dce_program_bodies(delta)
+    dce_program_bodies(delta, lp.ctx)
 }
 
 prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
