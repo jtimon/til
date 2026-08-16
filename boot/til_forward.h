@@ -347,6 +347,7 @@ typedef struct Scope Scope;
 typedef struct InterpSession InterpSession;
 typedef struct priv___src_self_interpreter_til__RawResultInfo priv___src_self_interpreter_til__RawResultInfo;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
+typedef struct priv___src_self_interpreter_til__InterpAlias priv___src_self_interpreter_til__InterpAlias;
 typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpreter_til__ExtStr;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
@@ -354,6 +355,7 @@ typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Vec__DynPtrBox Vec__DynPtrBox;
+typedef struct Vec__InterpAlias Vec__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
@@ -1158,6 +1160,12 @@ typedef struct priv___src_self_interpreter_til__DynPtrBox {
 } priv___src_self_interpreter_til__DynPtrBox;
 
 
+typedef struct priv___src_self_interpreter_til__InterpAlias {
+    Str *name;
+    Str *target;
+} priv___src_self_interpreter_til__InterpAlias;
+
+
 typedef struct priv___src_self_interpreter_til__ExtStr {
     U8 *data;
     USize count;
@@ -1197,6 +1205,13 @@ typedef struct Vec__DynPtrBox {
     USize count;
     USize cap;
 } Vec__DynPtrBox;
+
+
+typedef struct Vec__InterpAlias {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__InterpAlias;
 
 
 struct Option__ref_ffi_type {
@@ -4081,8 +4096,9 @@ void priv___src_self_interpreter_til__free_inline_struct_slot(void * ptr, Str * 
 void priv___src_self_interpreter_til__free_owned_enum_slot(void * ptr, Str * enum_name, Context * ctx);
 void priv___src_self_interpreter_til__write_field(void * inst_data, Declaration * dd, USize field_offset, USize field_size, void * raw, Type raw_type, Bool raw_is_ref, Bool drop_old, Context * ctx);
 void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog, Context * ctx);
-void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog, Context * ctx);
-void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
+void priv___src_self_interpreter_til__InterpAlias_delete(priv___src_self_interpreter_til__InterpAlias * self, Bool call_free);
+void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog, Context * ctx, Vec__InterpAlias * aliases);
+void priv___src_self_interpreter_til__interpret_copy_alias_ns(Vec__InterpAlias * aliases, Scope * global, Context * ctx);
 Scope * priv___src_self_interpreter_til__session_global(InterpSession * session);
 void interp_session_start(InterpSession * session, Vec__Str * user_argv);
 void interp_session_free(InterpSession * session);
@@ -4257,6 +4273,10 @@ Vec__DynPtrBox * Vec__DynPtrBox_new(void);
 void Vec__DynPtrBox_clear(Vec__DynPtrBox * self);
 void Vec__DynPtrBox_push(Vec__DynPtrBox * self, priv___src_self_interpreter_til__DynPtrBox * val);
 void Vec__DynPtrBox_delete(Vec__DynPtrBox * self, Bool call_free);
+Vec__InterpAlias * Vec__InterpAlias_new(void);
+void Vec__InterpAlias_clear(Vec__InterpAlias * self);
+void Vec__InterpAlias_push(Vec__InterpAlias * self, priv___src_self_interpreter_til__InterpAlias * val);
+void Vec__InterpAlias_delete(Vec__InterpAlias * self, Bool call_free);
 Bool Option__ref_ffi_type_is_some(Option__ref_ffi_type self);
 ffi_type * Option__ref_ffi_type_unwrap(Option__ref_ffi_type * self);
 Option__ref_ffi_type Option__ref_ffi_type_Some(ffi_type * val);
@@ -4268,6 +4288,7 @@ void Vec__HeapBinding_delete(Vec__HeapBinding * self, Bool call_free);
 Vec__HeapBinding * Vec__HeapBinding_clone(Vec__HeapBinding * self);
 void adopt__HeapBinding(void * dest, HeapBinding * src);
 void adopt__priv___src_self_interpreter_til__DynPtrBox(void * dest, priv___src_self_interpreter_til__DynPtrBox * src);
+void adopt__priv___src_self_interpreter_til__InterpAlias(void * dest, priv___src_self_interpreter_til__InterpAlias * src);
 Bool priv___src_self_binder_til__bind_is_ws(I8 c);
 USize priv___src_self_binder_til__skip_ws(Str * s, USize from);
 USize priv___src_self_binder_til__skip_word(Str * s, USize from);

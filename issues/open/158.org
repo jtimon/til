@@ -40,6 +40,18 @@
      names a type by its *alias* would resolve under the current
      "all aliases first" ordering but not under an interleaved walk.
      copy_alias_ns reads the namespaces init_ns fills, so it stays last.
+
+     The ORDER above is irreducible, but re-deriving the alias SET was
+     not: ~interpret_register_aliases~ and ~interpret_copy_alias_ns~
+     applied a character-for-character identical predicate (Decl, no
+     til_type, Ident rhs resolving to a struct/enum) over every
+     top-level statement of every unit, to act on the handful that
+     qualify. Registration now records each alias it registers into a
+     borrowed ~InterpAlias~ list that the copy phase iterates instead,
+     so the whole-program walk between the two barriers is gone while
+     the barriers themselves are untouched. The target is still
+     re-resolved through ~global~ at copy time (init_ns is what filled
+     the namespaces being copied), so the copy is byte-identical.
    - scavenger: build top maps -> seed worklist -> BFS -> filter. BFS
      follows edges, not source order; the sweep needs the full mark.
    - builder: header/forward decls -> globals -> function bodies. C

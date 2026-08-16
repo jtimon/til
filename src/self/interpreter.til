@@ -5078,7 +5078,22 @@ priv interpret_register_defs := func(mut global: Scope, prog: Expr, mut ctx: Con
     }
 }
 
-priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: Context) {
+// Issue #158: one type alias (`Foo := Bar` where Bar names a struct or
+// enum), recorded by interpret_register_aliases so interpret_copy_alias_ns
+// does not have to re-derive the same set. Both names are borrowed from the
+// AST Decl, which outlives the prepare-context sequence; interpreter_init_ns
+// runs between the two phases but only reads and evaluates -- it never
+// restructures a unit's top-level children.
+priv InterpAlias := struct {
+    ref name : Str
+    ref target : Str
+}
+
+// Appends one entry to `aliases` per alias actually registered, in walk
+// order, so interpret_copy_alias_ns can iterate that (tiny) list instead of
+// re-walking every top-level statement of every unit to re-apply this exact
+// predicate. Aliases are rare; the walk this saves is over the whole program.
+priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: Context, mut aliases: Vec(InterpAlias)) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.til_type().is(Type.None).not() { }
@@ -5095,6 +5110,8 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
                                 raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                                 write_ptr(raw, sdef)
                                 scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
+                                mut ia := InterpAlias(name = dd.name, target = rhs_ident.ident_name())
+                                aliases.push(own ia)
                             case:
                             }
                         }
@@ -5104,35 +5121,26 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
     }
 }
 
-priv interpret_copy_alias_ns := func(prog: Expr, mut global: Scope, mut ctx: Context) {
-    for stmt : Expr in prog.children {
-        if stmt.node_type.is(NodeType.Decl).not() { }
-        else if stmt.til_type().is(Type.None).not() { }
-        else if stmt.children.len() == 0 { }
-        else {
-            switch stmt.children[0].node_type {
-            case .Ident(rhs_ident):
-                switch stmt.node_type {
-                case .Decl(dd):
-                    ref tc : Dynamic = scope_get(global, rhs_ident.ident_name())!
-                    ref tc_raw : Dynamic = tc
-                    ref sdef : Expr = callable_raw_func_def(tc_raw)
-                            if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                                ref ini_ns : Vec(Declaration) = def_ns_decls(sdef)
-                                mut ini : USize = 0
-                                for nsd : Declaration in ini_ns {
-                                    ref in_name : Str = def_ns_name_at(sdef, ini)
-                                    ini = ini + 1
-                                    raw_o := ns_get(rhs_ident.ident_name(), in_name, ctx)
-                                    if raw_o.is_some() {
-                                        cloned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw_o.unwrap(), ctx)
-                                        ns_set(dd.name, in_name, cloned, ns_decl_raw_type(nsd), ctx)
-                                    }
-                                }
-                            }
-                case:
+// The target is re-resolved through `global` here rather than carried over
+// from registration: interpreter_init_ns ran in between and is what filled
+// the namespaces this copies, so the lookup must happen now -- exactly as
+// it did when this walked the AST itself.
+priv interpret_copy_alias_ns := func(aliases: Vec(InterpAlias), mut global: Scope, mut ctx: Context) {
+    for al : InterpAlias in aliases {
+        ref tc : Dynamic = scope_get(global, al.target)!
+        ref tc_raw : Dynamic = tc
+        ref sdef : Expr = callable_raw_func_def(tc_raw)
+        if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
+            ref ini_ns : Vec(Declaration) = def_ns_decls(sdef)
+            mut ini : USize = 0
+            for nsd : Declaration in ini_ns {
+                ref in_name : Str = def_ns_name_at(sdef, ini)
+                ini = ini + 1
+                raw_o := ns_get(al.target, in_name, ctx)
+                if raw_o.is_some() {
+                    cloned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw_o.unwrap(), ctx)
+                    ns_set(al.name, in_name, cloned, ns_decl_raw_type(nsd), ctx)
                 }
-            case:
             }
         }
     }
@@ -5238,9 +5246,16 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         interpret_register_defs(session_global(session), iu2.ast, lp.ctx)
     }
 
+    // Issue #158: the alias set is derived once, here, and reused after the
+    // init_ns barrier. The barrier itself is real -- a namespace default may
+    // name a type by its alias, so every alias must be registered before any
+    // ns member is evaluated, and copy_alias_ns reads what init_ns filled --
+    // but re-deriving WHICH statements are aliases cost a second full walk
+    // of every unit's top level to find the handful that qualify.
+    mut aliases := Vec(InterpAlias).new()
     for upath : Str in lp.unit_paths() {
         ref iu4 : ImportUnit = lp.ctx.imported[upath]
-        interpret_register_aliases(session_global(session), iu4.ast, lp.ctx)
+        interpret_register_aliases(session_global(session), iu4.ast, lp.ctx, aliases)
     }
 
     for upath : Str in lp.unit_paths() {
@@ -5248,10 +5263,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         interpreter_init_ns(lp.ctx, session_global(session), iu6.ast)
     }
 
-    for upath : Str in lp.unit_paths() {
-        ref iu8 : ImportUnit = lp.ctx.imported[upath]
-        interpret_copy_alias_ns(iu8.ast, session_global(session), lp.ctx)
-    }
+    interpret_copy_alias_ns(aliases, session_global(session), lp.ctx)
     return 0
 }
 
