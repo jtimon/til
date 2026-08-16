@@ -58,8 +58,8 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      pass; no separate Context fields are needed.
    - ~Declaration.til_type~ added and synced with ~explicit_type~ at
      every set site (~5f822fc~, ~8e72cd3~) -- step 5 prep.
-   - Step 7 -- *done*. All ~FCallData~ typer-resolution artifacts are
-     gone. ~fn_sig~ removed first (~ref mut Expr = NULL~ field that
+   - Step 7 -- *done* for the original borrowed-ref and positional
+     artifacts. ~fn_sig~ removed first (~ref mut Expr = NULL~ field that
      pointed at the resolved callee); readers go through
      ~resolve_fn_sig~ ([[file:../../src/self/typer.til:339][src/self/typer.til:339]]) and
      ~fcall_fn_sig~ ([[file:../../src/self/builder.til:98][src/self/builder.til:98]]), which
@@ -73,9 +73,14 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      ~1 + fdef_data.variadic_index~; the "is variadic block already
      rewritten" state is handled by trusting the
      ~process_call_desugars~ pipeline order rather than a per-call
-     flag). FCallData now stores only parse-time flags (~is_splat~,
-     ~does_throw~, ~is_bang~), the ~own_args~ bitmap, and the
-     payload-resident ~til_type~ -- no positional state.
+     flag). ~FCallData~ stores no variadic/kwargs positional state.
+     Later work added scalar phase facts: rewrite markers
+     (~keep_outer_args~, ~swap_replace~), typer stamps
+     (~direct_callee~, ~noreturn_call~), and per-argument parse bitmaps
+     (~ref_args~, ~splat_args~), alongside the original parse flags and
+     payload-resident ~til_type~. The broad old claim that every
+     typer-resolution artifact was gone is therefore no longer true;
+     unlike ~fn_sig~, these fields are values, not refs into the AST.
    - Per #177, the ad-hoc ~ref mut current_*_def : Expr = NULL~
      thread-local fields in interpreter / builder / typer were
      migrated to Context fields; module-scope-only ref-NULL carve-out
@@ -153,7 +158,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | ~Declaration~ | 11 fields: ~name, doc, explicit_type, is_mut, redundant_mut, is_priv, used, own_type, til_type, default_value, orig_name~ (post step 4: ~field_offset~, ~field_size~, ~field_struct_def~ gone -- layout in ~ctx.struct_layouts~; ~explicit_type~/~til_type~ duplication is step 5, blocked on #58 / FuncPtr name-loss) | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
    | ~Context~     | ~73 fields. Genuine cross-phase caches stay here (~struct_layouts~, ~interp_type_defs~, ~func_defs~, ~struct_def_exprs~, ~imported~, ~imports_*_done~ Sets); per-phase scratch state (constfolder tables, interpreter runtime flags, typer/builder transients) is the #246 slimming surface. | 19 fields (rstil): mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_constfolder_func, constfolder_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
    | ~TypeBinding~ | 19 fields (zero ref Expr): ~name, type, is_mut, is_priv, path, line, col, is_param, own_type, is_alias, is_type_alias, is_func_decl, alias_target, func_type, is_builtin, used, written, mut_explicit, orig_name~. The FuncDef/StructDef Exprs live in ~scope.func_defs~/~scope.struct_defs~ (commits ~1c9265a~, ~0d967a8~). | n/a (rstil scope stores names + computes lookups on demand)    |
-   | ~FCallData~   | 5 fields (post step 7): ~is_splat, does_throw, is_bang, own_args, til_type~. Counts and indices for variadic/kwargs are derived via scope helpers (~fcall_kwargs_count~, ~fcall_variadic_count~, ~fcall_kwargs_index_via_scope~, ~fcall_variadic_index_via_scope~). | 2 fields: ~does_throw, is_bang~                                |
+   | ~FCallData~   | 11 fields: parse facts ~is_splat, does_throw, is_bang, own_args, ref_args, splat_args~; rewrite markers ~keep_outer_args, swap_replace~; typer stamps ~direct_callee, noreturn_call~; and payload type ~til_type~. Counts and indices for variadic/kwargs remain derived via scope helpers (~fcall_kwargs_count~, ~fcall_variadic_count~, ~fcall_kwargs_index_via_scope~, ~fcall_variadic_index_via_scope~). | 2 fields: ~does_throw, is_bang~                                |
    | ~StructDef~   | 3 fields: ~fields, ns_decls, c_tag~ (post step 4: ~total_struct_size~ gone -- total in ~ctx.struct_layouts~)                            | 3 fields: ~members, default_values, ns~                        |
    | ~EnumDef~     | 4 fields: ~ns_decls, variants, payload_types, payload_consts~ (post step 4: ~total_enum_size~ gone -- total in ~ctx.struct_layouts~)   | 3 fields: ~variants, methods, ns~                              |
 
@@ -182,9 +187,13 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      in the same commit.
 
    ~TypeBinding~ now carries no ~ref Expr~ into the parse tree at all.
-   The only remaining AST-as-cache item is step 5
-   (~Declaration.explicit_type~), which is blocked on the FuncPtr
-   name-loss described above (#58 / step 8).
+   ~FCallData~ still carries scalar cross-phase facts
+   (~direct_callee~, ~noreturn_call~, and payload ~til_type~); they do
+   not restore the dangling-ref hazard, but they are deliberate
+   AST-as-cache exceptions to the issue's root pattern. The remaining
+   Declaration duplication is step 5 (~Declaration.explicit_type~),
+   which is blocked on the FuncPtr name-loss described above (#58 /
+   step 8).
 
    **** ~Expr.til_type~ reads/writes by phase
 
@@ -248,7 +257,8 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    Bottom line: ~Expr.til_type~ removal landed via #206 (hybrid
    payload-storage path; full side-table-with-node-id rejected, as
    was direct rstil-style derive-from-Context+AST in hot paths). Step
-   7's FCallData purge is now also done. The remaining dangerous-ref
+   7's borrowed-ref and positional-field purge is done; later scalar
+   call-classification stamps remain on ~FCallData~. The remaining dangerous-ref
    work (~field_struct_def~, then ~TypeBinding.struct_def~ /
    ~func_def~) is the actionable next structural move. Both also help
    leak reduction (cloners no longer need to keep referenced nodes
@@ -270,7 +280,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    step 5 (drop the stored map entirely, compute layout on demand
    in the rstil-pure shape).
 
-   **** FCallData resolution artifacts (step 7) -- DONE
+   **** FCallData borrowed/positional artifacts (step 7) -- DONE
 
    All four typer-resolution count/index fields are gone (~b1161e7~,
    ~13816f5~, ~30dfe64~, ~e296692~). The original "six fields, none
@@ -307,6 +317,12 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    ~resolve_variadic_elem_type~ uses, and ~resolve_fn_sig~ /
    ~fcall_fn_sig~ (the originals that replaced ~fn_sig~) remain the
    template the rest of the dangerous-ref purge follows.
+
+   Subsequent work added ~direct_callee~ and ~noreturn_call~ as scalar
+   typer stamps. They preserve no AST refs and do not undo the variadic
+   cleanup, but they are stored derived facts. Deriving them on demand or
+   moving them to a non-AST home remains compatible with this issue's
+   broader architectural direction.
 
    **** explicit_type / til_type duplication (step 5 finish)
 
