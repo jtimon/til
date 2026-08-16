@@ -835,65 +835,23 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     return any
 }
 
-// Match `<Type>.delete(<Ident name>, LiteralBool _)` without
-// constraining the bool value. Used by the stale-Own LiteralStr
-// fixup to find a Decl's paired cleanup when the cleanup's
-// call_free flag may still carry the typer's pre-constfolder `true`.
-priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
-    if stmt.node_type.is(NodeType.FCall).not() { return false }
-    if stmt.children.len() != 3 { return false }
-    ref callee : Expr = stmt.children[0]
-    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
-    mut method_eq := false
-    switch callee.node_type {
-    case .FieldAccess(m): method_eq = m.field_access_name() == "delete"
-    case:
-    }
-    if method_eq.not() { return false }
-    if callee.children.len() != 1 { return false }
-    if callee.children[0].node_type.is(NodeType.Ident).not() { return false }
-    ref arg0 : Expr = stmt.children[1]
-    if arg0.node_type.is(NodeType.Ident).not() { return false }
-    mut name_eq := false
-    switch arg0.node_type {
-    case .Ident(n): name_eq = n.ident_name() == name
-    case:
-    }
-    if name_eq.not() { return false }
-    return stmt.children[2].node_type.is_literal_bool()
-}
-
 // Constfolder folds an FCall RHS to a LiteralStr in place but doesn't
-// touch the surrounding Decl's `own_type` or the matching cleanup's
-// call_free flag -- the typer already committed to Own + call_free=true
-// when the RHS was still an FCall returning an owned Str. The builder
-// papers over the mismatch at emission (stack compound literal +
-// forced `&(Bool){0}`), but the stale Own hides these decls from body
-// DCE. Restore the typer's LiteralStr-decl invariant (Shallow + paired
-// delete with call_free=false) so DCE can drop them.
+// touch the surrounding Decl's `own_type` -- the typer already
+// committed to Own when the RHS was still an FCall returning an owned
+// Str. The stale Own hides these decls from body DCE, so restore the
+// typer's LiteralStr-decl invariant (Shallow). The paired delete needs
+// no fixup here: the constfolder's normalize_folded_decl_deletes
+// already rewrote it to the Stack shape (own bit off, call_free=false)
+// at the fold site.
 priv fix_stale_litstr_in_body := func(mut body: Expr) {
-    n := body.children.len()
-    if n == 0 { return }
-    for i in 0..n {
-        ref mut stmt : Expr = body.children[i]
+    for mut stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
         switch stmt.node_type {
         case .Decl(dd):
             if dd.own_type.is(OwnType.Own).not() { continue }
-            ref rhs : Expr = stmt.children[0]
-            if rhs.node_type.is_literal_str().not() { continue }
+            if stmt.children[0].node_type.is_literal_str().not() { continue }
             dd.own_type = OwnType.Shallow
-            mut j : USize = i + 1
-            while j < n {
-                ref mut del : Expr = body.children[j]
-                if match_named_delete(del, dd.name) {
-                    ref mut bool_arg : Expr = del.children[2]
-                    bool_arg.node_type = NodeType.Literal(Literal.Bool(false))
-                    break
-                }
-                j++
-            }
         case:
         }
     }
