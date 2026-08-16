@@ -3073,12 +3073,9 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
     case .Ident(name):
 
         // Ext/core dispatch writes raw bytes sized by this call's result Type.
-        ref ext_slot : Dynamic = scope_get(scope, name.ident_name())?
-        catch (e: KeyNotFound) {
-            // REM: a pure builtin (U64_bnot, ...) has no FuncDef cell -- an
-            // expected miss. ext_cell stays NULL and the is_null guard below
-            // skips return/param ownership checks.
-        }
+        ext_hb_o := scope_lookup_heap_binding(scope, name.ident_name())
+        mut ext_slot : Dynamic = 0
+        if ext_hb_o.is_some() { ext_slot = to_ptr(ext_hb_o.unwrap().ptr) }
         mut ext_result_type := call_type.clone()
         mut ext_return_own_type := OwnType.Shallow
         mut ext_variadic_index : I32 = -1
@@ -3087,7 +3084,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         // slot read as an Expr (see hb_func_def).
         mut ext_def_o := Option(ref Expr).None
         if ext_slot.is_null().not() {
-            ext_def_o = hb_func_def(scope_lookup_heap_binding(scope, name.ident_name()).unwrap())
+            ext_def_o = hb_func_def(ext_hb_o.unwrap())
         }
         if ext_def_o.is_some() {
             ref ext_def : Expr = ext_def_o.unwrap()
@@ -3174,14 +3171,18 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         // A miss means the callee name is bound nowhere -- undefined. The typer
         // rejects undefined names, so this only fires under the constfolder's
         // speculative eval, where the exit is caught via ctx.constfold_active in
-        // h_exit. The ext dispatch probe above already walked the scope chain
-        // for this exact name; reuse its result instead of a second walk.
+        // h_exit. The ext dispatch probe above already resolved the binding;
+        // reuse its slot and metadata instead of walking the scope again.
         if ext_slot.is_null() {
             interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
             exit(1)
         }
-        mut fn_raw_owned := true
-        mut fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
+        ref ext_hb : HeapBinding = ext_hb_o.unwrap()
+        mut fn_raw_owned := false
+        mut fn_raw : Dynamic = ext_slot
+        if heap_type_is_callable(hb_type(ext_hb)).not() {
+            fn_raw = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
+        }
         ref fn_def : Expr = callable_raw_func_def(fn_raw)
 
         // An ext_func reaching here did not dispatch above (not a builtin and
