@@ -1987,8 +1987,17 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         if dd.name.starts_with("hoisted__").or(source_hb.is_borrowed).or(heap_slot_is_static_callable(hb_type(source_hb), source_raw)) {
             mut copied : Dynamic = source_raw
             if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
-                ref dynamic_data : Dynamic = deref(source_raw)
+                mut dynamic_data : Dynamic = source_raw
+                if source_hb.is_erased_dynamic.not() { dynamic_data = deref(source_raw) }
                 copied = heap_clone_by_type(decl_type, dynamic_data, source_hb.ctx)
+            } else if hb_type(source_hb).is(Type.Dynamic).and(source_hb.is_erased_dynamic) {
+                // Erased-dynamic source: hb.ptr IS the pointer word, not a
+                // boxed slot. Box the word so the owned copy matches h_free's
+                // two-level Dynamic layout; heap_clone_by_type's Dynamic arm
+                // derefs, which here reads the pointed block's bytes as a
+                // pointer.
+                copied = EvalHeap.heap_alloc(Dynamic.size())
+                write_ptr(copied, source_raw)
             } else {
                 copied = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
             }

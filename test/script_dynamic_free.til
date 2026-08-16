@@ -1,0 +1,20 @@
+mode script
+
+// Regression: an owned Dynamic declared from an erased-dynamic source (a
+// deref() result bound by ref) must copy the POINTER WORD. The
+// interpreter's clone path assumed every Dynamic binding is a boxed slot
+// and deref'd the raw allocation itself, boxing a garbage word that the
+// later free(own ...) then freed -- interpreter-only segfault; compiled
+// mode copies the word and frees the real block.
+
+// The block is allocated in argument position on purpose: naming it in a
+// binding would leave that binding owning it after the free-through-alias
+// below, and session teardown would free it a second time (#275's
+// double-ownership, a separate limitation).
+slot : U8 = malloc(UPtr.size())
+write_ptr(slot, malloc(4))
+ref back : Dynamic = deref(slot)
+recovered : Dynamic = back
+free(own recovered)
+free(own slot)
+println("ok")

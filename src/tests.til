@@ -1392,6 +1392,14 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_raw_alloc", "test/script_raw_alloc.til",
         "", 0, format(exp, "script_raw_alloc.out"), til_bin, asan_flag)
 
+    // An owned Dynamic declared from an erased-dynamic source (a deref()
+    // result bound by ref) must copy the pointer word; the interpreter's
+    // clone path deref'd the raw allocation itself and later freed a
+    // garbage word (interpreter-only segfault; compiled mode was correct).
+    File.writefile(format(exp, "script_dynamic_free.out"), format("ok", NL))
+    add_cli_pair(tests, "script_dynamic_free", "test/script_dynamic_free.til",
+        "", 0, format(exp, "script_dynamic_free.out"), til_bin, asan_flag)
+
     // The bang's synthesized panic prints the source location ONCE (via
     // panic's `loc` param) and a readable message; it used to pass the
     // location as a message part too, printing it twice and jamming it
