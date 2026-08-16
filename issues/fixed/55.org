@@ -53,7 +53,7 @@
 
    #+begin_src til
    // Store in a variable
-   cleanup := { file.close(); println("done") }
+   cleanup : Body = [file] { file.close(); println("done") }
 
    // Pass as argument
    run_twice := proc(b: Body) {
@@ -64,13 +64,13 @@
 
    // Store in a struct field
    Task := struct {
-       mut on_complete: Body
+       on_complete : Body = { }
    }
    t := Task(on_complete = { println("finished") })
    t.on_complete()
 
    // Store in a collection
-   steps := Vec.new(Body)
+   steps := DynVec.new(Body)
    steps.push(own { println("step 1") })
    steps.push(own { println("step 2") })
    for step : Body in steps {
@@ -82,12 +82,13 @@
 
    | Construct         | Has params | Has return type | Has captures | Has body |
    |-------------------+------------+-----------------+--------------+----------|
-   | Body              | No         | No              | No*          | Yes      |
+   | Body              | No         | No              | Optional     | Yes      |
    | func (no closure) | Yes        | Yes             | No           | Yes      |
    | func (closure)    | Yes        | Yes             | Yes ([[./54.org][#54]])    | Yes      |
 
-   *Without captures ([[./54.org][#54]]), a Body can only access globals. With captures,
-   a Body becomes a zero-argument closure:
+   A Body is always a zero-argument closure. Without captures
+   ([[./54.org][#54]]) it can access only globals; a capture list gives its
+   isolated environment explicit access to enclosing locals:
 
    #+begin_src til
    mut total := 0
@@ -99,23 +100,26 @@
    // total is now 6
    #+end_src
 
-   A Body is to ~proc()~ what a literal is to a named constant — the
-   anonymous, inline version. The distinction is that a Body has no
-   function overhead (no frame push/pop in the interpreter, no C function
-   call in codegen) — it executes in the caller's scope.
+   A Body is to ~proc()~ what a literal is to a named constant: an anonymous
+   zero-argument callable. A first-class Body has ordinary closure-call
+   overhead (an isolated call scope in the interpreter and a generated C
+   closure function) and can access enclosing locals only through its explicit
+   capture list. A bare statement block remains inline in its surrounding
+   scope; turning that block into a Body value changes it into an isolated
+   callable.
 
 *** Use cases
 
    #+begin_src til
    // Deferred execution (like Go's defer)
-   cleanup := { file.close() }
+   cleanup : Body = [file] { file.close() }
    // ... do work ...
    cleanup()
 
    // Callbacks and hooks
    Widget := struct {
-       mut on_click: Body
-       mut on_hover: Body
+       on_click : Body = { }
+       on_hover : Body = { }
    }
 
    // Builder patterns
@@ -124,7 +128,10 @@
        action()
        db.commit()
    }
-   with_transaction(db, { db.insert(record1); db.insert(record2) })
+   with_transaction(db, [db, record1, record2] {
+       db.insert(record1)
+       db.insert(record2)
+   })
 
    // Test setup/teardown
    run_test := proc(name: Str, setup: Body, test_body: Body, teardown: Body) {
@@ -135,19 +142,14 @@
    }
    #+end_src
 
-*** Scope semantics: inline vs isolated
+*** Scope semantics: inline blocks, isolated Body values
 
-   Open question: when a Body executes, does it share the caller's scope
-   (like an inlined block) or get its own scope (like a function call)?
-
-   - *Option A: Inline* — shared scope (how bare ~{ }~ blocks work today).
-     Simple, powerful, zero overhead. But passing a Body as argument is
-     weird — which scope does it execute in?
-   - *Option B: Isolated* — own scope, captures only ([[./54.org][#54]]). Safe and
-     predictable for stored/passed bodies. But needs captures to be useful.
-   - *Option C: Both* — bare ~{ }~ blocks are inline (current behavior),
-     Body values (stored, passed, returned) are isolated and require
-     captures. This is probably the right answer.
+   The implemented rule is the former Option C. A bare ~{ }~ statement block
+   executes inline in its surrounding scope. A ~Body~ value executes in its
+   own call scope rooted at its captured environment, whether called directly,
+   passed as an argument, stored in a field, or stored in a dynamic container.
+   Explicit captures are therefore the only route from a Body value to
+   enclosing locals; ordinary globals remain visible as usual.
 
 *** Comparison
 
