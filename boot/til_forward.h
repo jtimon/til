@@ -2983,6 +2983,7 @@ Option__ref_Expr priv___src_self_typer_til__dotted_pattern_receiver(Expr * pat);
 void priv___src_self_typer_til__qualify_dotted_expr(Expr * e, Type * expected);
 void priv___src_self_typer_til__qualify_dotted_case_patterns(Expr * stmt, Type * sw_type, Context * ctx);
 Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, USize stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+I32 priv___src_self_typer_til__range_static_direction(Expr * start_expr, Expr * end_expr, Type * elem_t);
 Bool priv___src_self_typer_til__desugar_for_in_range_stmt(TypeScope * scope, Expr * body, USize stmt_idx, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, USize stmt_idx, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__struct_def_has_field(Expr * sdef, Str * field_name);

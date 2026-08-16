@@ -424,35 +424,18 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
     {
         U32 _re_U32_0 = self->cap;
         U32 _rc_U32_0 = 0;
-        Bool hoisted__Bool_9 = ((Bool)(_rc_U32_0 <= _re_U32_0));
-        if (hoisted__Bool_9) {
-            while (1) {
-                Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-                if (_wcond_Bool_1) {
-                } else {
-                    break;
-                }
-                U32 i = (_rc_U32_0);
-                (++_rc_U32_0);
-                U32 hoisted__U32_2 = 16;
-                U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
-                Str *hoisted__Str_Array__Str_delete_4 = ((void *)((U8 *)(self->data) + (hoisted__U32_3)));
-                Str_delete(hoisted__Str_Array__Str_delete_4, 0);
+        while (1) {
+            Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
+            if (_wcond_Bool_1) {
+            } else {
+                break;
             }
-        } else {
-            while (1) {
-                Bool _wcond_Bool_5 = ((Bool)(_rc_U32_0 > _re_U32_0));
-                if (_wcond_Bool_5) {
-                } else {
-                    break;
-                }
-                U32 i = (_rc_U32_0);
-                (--_rc_U32_0);
-                U32 hoisted__U32_6 = 16;
-                U32 hoisted__U32_7 = ((U32)(i * hoisted__U32_6));
-                Str *hoisted__Str_Array__Str_delete_8 = ((void *)((U8 *)(self->data) + (hoisted__U32_7)));
-                Str_delete(hoisted__Str_Array__Str_delete_8, 0);
-            }
+            U32 i = (_rc_U32_0);
+            (++_rc_U32_0);
+            U32 hoisted__U32_2 = 16;
+            U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
+            Str *hoisted__Str_Array__Str_delete_4 = ((void *)((U8 *)(self->data) + (hoisted__U32_3)));
+            Str_delete(hoisted__Str_Array__Str_delete_4, 0);
         }
     }
     free(self->data);
@@ -462,54 +445,33 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
 }
 
 Array__Str * Array__Str_clone(Array__Str * self) {
-    U32 hoisted__U32_14 = 16;
-    U8 *new_data = malloc(((U32)(self->cap * hoisted__U32_14)));
+    U32 hoisted__U32_7 = 16;
+    U8 *new_data = malloc(((U32)(self->cap * hoisted__U32_7)));
     {
         U32 _re_U32_0 = self->cap;
         U32 _rc_U32_0 = 0;
-        Bool hoisted__Bool_13 = ((Bool)(_rc_U32_0 <= _re_U32_0));
-        if (hoisted__Bool_13) {
-            while (1) {
-                Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-                if (_wcond_Bool_1) {
-                } else {
-                    break;
-                }
-                U32 i = (_rc_U32_0);
-                (++_rc_U32_0);
-                U32 hoisted__U32_2 = 16;
-                U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
-                Str *src = ((void *)((U8 *)(self->data) + (hoisted__U32_3)));
-                Str *cloned = Str_clone(src);
-                U32 hoisted__U32_4 = 16;
-                U32 hoisted__U32_5 = ((U32)(i * hoisted__U32_4));
-                void *hoisted__v_6 = ((void *)((U8 *)(new_data) + (hoisted__U32_5)));
-                adopt__Str(hoisted__v_6, cloned);
+        while (1) {
+            Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
+            if (_wcond_Bool_1) {
+            } else {
+                break;
             }
-        } else {
-            while (1) {
-                Bool _wcond_Bool_7 = ((Bool)(_rc_U32_0 > _re_U32_0));
-                if (_wcond_Bool_7) {
-                } else {
-                    break;
-                }
-                U32 i = (_rc_U32_0);
-                (--_rc_U32_0);
-                U32 hoisted__U32_8 = 16;
-                U32 hoisted__U32_9 = ((U32)(i * hoisted__U32_8));
-                Str *src = ((void *)((U8 *)(self->data) + (hoisted__U32_9)));
-                Str *cloned = Str_clone(src);
-                U32 hoisted__U32_10 = 16;
-                U32 hoisted__U32_11 = ((U32)(i * hoisted__U32_10));
-                void *hoisted__v_12 = ((void *)((U8 *)(new_data) + (hoisted__U32_11)));
-                adopt__Str(hoisted__v_12, cloned);
-            }
+            U32 i = (_rc_U32_0);
+            (++_rc_U32_0);
+            U32 hoisted__U32_2 = 16;
+            U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
+            Str *src = ((void *)((U8 *)(self->data) + (hoisted__U32_3)));
+            Str *cloned = Str_clone(src);
+            U32 hoisted__U32_4 = 16;
+            U32 hoisted__U32_5 = ((U32)(i * hoisted__U32_4));
+            void *hoisted__v_6 = ((void *)((U8 *)(new_data) + (hoisted__U32_5)));
+            adopt__Str(hoisted__v_6, cloned);
         }
     }
-    Array__Str *hoisted__Array__Str_15 = malloc(sizeof(Array__Str));
-    hoisted__Array__Str_15->data = new_data;
-    hoisted__Array__Str_15->cap = self->cap;
-    return hoisted__Array__Str_15;
+    Array__Str *hoisted__Array__Str_8 = malloc(sizeof(Array__Str));
+    hoisted__Array__Str_8->data = new_data;
+    hoisted__Array__Str_8->cap = self->cap;
+    return hoisted__Array__Str_8;
 }
 
 void adopt__Str(void * dest, Str * src) {

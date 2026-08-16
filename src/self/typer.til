@@ -11290,6 +11290,50 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
     return true
 }
 
+// A range's direction is a RUNTIME question in general -- `a..b` counts up
+// when a <= b and down otherwise -- so the desugar below emits both loops
+// and picks between them with an `if`, which means the loop body is built,
+// typed and emitted TWICE. For the overwhelmingly common shapes the answer
+// is knowable here, and then only one loop needs to exist:
+//
+//   1 = ascending, -1 = descending, 0 = not known
+//
+// Two shapes qualify. Both bounds numeric literals: compare them. Or a
+// literal 0 start with an UNSIGNED element type: nothing unsigned is less
+// than 0, so `0 <= end` holds for every value end can take. That second
+// one is `for i in 0..v.len()`, 418 of this repo's 535 range loops.
+//
+// Deliberately NOT extended to a literal 1 (or any other positive) start:
+// `for i in 1..v.len()` over an EMPTY vec descends today and runs the body
+// once with i = 1. That is almost certainly not what anyone means, but it
+// is the language's current answer and this commit is not the place to
+// change it.
+priv range_static_direction := func(start_expr: Expr, end_expr: Expr, elem_t: Type) returns I32 {
+    mut start_lit := ""
+    switch start_expr.node_type {
+    case .Literal(Literal.Num(sn)): start_lit = Str.clone(sn.literal_num_text())
+    case:
+    }
+    if start_lit.len() == 0 { return 0 }
+    mut end_lit := ""
+    switch end_expr.node_type {
+    case .Literal(Literal.Num(en)): end_lit = Str.clone(en.literal_num_text())
+    case:
+    }
+    if end_lit.len() > 0 {
+        if start_lit.to_i64() <= end_lit.to_i64() { return 1 }
+        return -1
+    }
+    if start_lit.to_i64() != 0 { return 0 }
+    switch elem_t {
+    case .Primitive(Primitive.U8): return 1
+    case .Primitive(Primitive.U16): return 1
+    case .Primitive(Primitive.U32): return 1
+    case .Primitive(Primitive.U64): return 1
+    case: return 0
+    }
+}
+
 priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, mut ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut iter : Expr = stmt.children[0]
@@ -11371,37 +11415,62 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
     cur_decl.add_child(own start_expr.clone())
     block.add_child(own cur_decl)
 
-    mut cur_ident_lt := Expr.new(ident_node(cur_name), line, col)
-    mut lt_call := make_method_call_fcall(own cur_ident_lt, "lt", line, col)
-    mut end_ident_lt := Expr.new(ident_node(end_name), line, col)
-    lt_call.add_child(own end_ident_lt)
-    mut asc_while := Expr.new(NodeType.While, line, col)
-    asc_while.add_child(own lt_call)
-    asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut))
+    // One direction proven means one loop: the other while is never built,
+    // so the body is not cloned, typed or emitted a second time. Every arm
+    // assigns the SAME `loop_node` and falls through to the one add_child
+    // below, so `block` keeps exactly one owner-transfer site.
+    dir := range_static_direction(start_expr, end_expr, type_from_name(elem_type, scope, ctx))
+    mut loop_node := Expr.new(NodeType.Body, line, col)
 
-    mut cur_ident_gt := Expr.new(ident_node(cur_name), line, col)
-    mut gt_call := make_method_call_fcall(own cur_ident_gt, "gt", line, col)
-    mut end_ident_gt := Expr.new(ident_node(end_name), line, col)
-    gt_call.add_child(own end_ident_gt)
-    mut desc_while := Expr.new(NodeType.While, line, col)
-    desc_while.add_child(own gt_call)
-    desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut))
+    if dir != 0 {
+        mut only_cur := Expr.new(ident_node(cur_name), line, col)
+        mut only_cmp := Expr.new(NodeType.Body, line, col)
+        mut only_body := Expr.new(NodeType.Body, line, col)
+        if dir > 0 {
+            only_cmp = make_method_call_fcall(own only_cur, "lt", line, col)
+            only_body = make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut)
+        } else {
+            only_cmp = make_method_call_fcall(own only_cur, "gt", line, col)
+            only_body = make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut)
+        }
+        mut only_end := Expr.new(ident_node(end_name), line, col)
+        only_cmp.add_child(own only_end)
+        loop_node = Expr.new(NodeType.While, line, col)
+        loop_node.add_child(own only_cmp)
+        loop_node.add_child(own only_body)
+    } else {
+        mut cur_ident_lt := Expr.new(ident_node(cur_name), line, col)
+        mut lt_call := make_method_call_fcall(own cur_ident_lt, "lt", line, col)
+        mut end_ident_lt := Expr.new(ident_node(end_name), line, col)
+        lt_call.add_child(own end_ident_lt)
+        mut asc_while := Expr.new(NodeType.While, line, col)
+        asc_while.add_child(own lt_call)
+        asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut))
 
-    mut if_node := Expr.new(NodeType.If, line, col)
-    mut cur_ident_lte := Expr.new(ident_node(cur_name), line, col)
-    mut lte_call := make_method_call_fcall(own cur_ident_lte, "lte", line, col)
-    mut end_ident_lte := Expr.new(ident_node(end_name), line, col)
-    lte_call.add_child(own end_ident_lte)
-    if_node.add_child(own lte_call)
+        mut cur_ident_gt := Expr.new(ident_node(cur_name), line, col)
+        mut gt_call := make_method_call_fcall(own cur_ident_gt, "gt", line, col)
+        mut end_ident_gt := Expr.new(ident_node(end_name), line, col)
+        gt_call.add_child(own end_ident_gt)
+        mut desc_while := Expr.new(NodeType.While, line, col)
+        desc_while.add_child(own gt_call)
+        desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut))
 
-    mut then_body := Expr.new(NodeType.Body, line, col)
-    then_body.add_child(own asc_while)
-    if_node.add_child(own then_body)
+        mut cur_ident_lte := Expr.new(ident_node(cur_name), line, col)
+        mut lte_call := make_method_call_fcall(own cur_ident_lte, "lte", line, col)
+        mut end_ident_lte := Expr.new(ident_node(end_name), line, col)
+        lte_call.add_child(own end_ident_lte)
+        loop_node = Expr.new(NodeType.If, line, col)
+        loop_node.add_child(own lte_call)
 
-    mut else_body := Expr.new(NodeType.Body, line, col)
-    else_body.add_child(own desc_while)
-    if_node.add_child(own else_body)
-    block.add_child(own if_node)
+        mut then_body := Expr.new(NodeType.Body, line, col)
+        then_body.add_child(own asc_while)
+        loop_node.add_child(own then_body)
+
+        mut else_body := Expr.new(NodeType.Body, line, col)
+        else_body.add_child(own desc_while)
+        loop_node.add_child(own else_body)
+    }
+    block.add_child(own loop_node)
 
     replace_body_stmt_with_block(body, stmt_idx, own block)
     return true

@@ -907,9 +907,12 @@ main := proc(args: ..Str) {
     // false)` hoists its receiver into a ref temp, and with call_free a
     // literal the matcher saw `Str.delete(<ident>, false)` and pruned the
     // old-element drop -- an `own` arg is real semantics, never a temp
-    // cleanup, and the matcher rejects it now. The three survivors here
-    // are unsafe_set's drop plus Array.delete's two per-element loops.
-    add_count(tests, "flow_keeps_consuming_deletes", "build", "Str_delete(hoisted__", 3,
+    // cleanup, and the matcher rejects it now. The two survivors here are
+    // unsafe_set's drop plus Array.delete's per-element loop -- that loop
+    // used to contribute TWO, because a range for-in emitted its body once
+    // per direction; `0..self.cap` is statically ascending, so only the
+    // ascending copy is built now.
+    add_count(tests, "flow_keeps_consuming_deletes", "build", "Str_delete(hoisted__", 2,
         format(til_bin, " translate -c gen/c/flow_cd.c test/flow.til '&&' cat gen/c/flow_cd.c"))
     // The lifecycle gate covers every struct now, not only the POD ones:
     // a non-POD struct never splices, so every call it makes records a
