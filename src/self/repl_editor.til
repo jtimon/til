@@ -282,14 +282,12 @@ priv path_parent := func(path: Str) returns Str {
 /// no second representation is needed.
 repl_editor_history_serialize := func(ed: ReplEditor) returns Str {
     mut total : USize = 0
-    for i in 0..ed.history.len() {
-        ref e : Str = ed.history[i]
+    for e : Str in ed.history {
         total = total + e.len() + 1
     }
     if total == 0 { return "" }
     mut out := Str.with_capacity(total)
-    for i in 0..ed.history.len() {
-        ref e : Str = ed.history[i]
+    for e : Str in ed.history {
         out.push_str(e)
         out.push_str("\n")
     }
@@ -306,8 +304,7 @@ priv history_trim := func(mut ed: ReplEditor) {
 /// written on Windows loads unchanged elsewhere.
 repl_editor_history_load_str := func(mut ed: ReplEditor, data: Str) {
     lines := data.split("\n")
-    for i in 0..lines.len() {
-        ref l : Str = lines[i]
+    for l : Str in lines {
         mut n := l.len()
         if n > 0 {
             if l.unsafe_get(n - 1) == '\r' { n = n - 1 }

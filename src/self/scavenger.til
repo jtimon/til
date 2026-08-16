@@ -828,8 +828,8 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         body.children.move_from(own new_ch)
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
-        for j in 0..body.children.len() {
-            prune_trivial_deletes(body.children[j], dropped)
+        for mut bstmt : Expr in body.children {
+            prune_trivial_deletes(bstmt, dropped)
         }
     }
     return any

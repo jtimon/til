@@ -3587,8 +3587,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
             write_ptr(ptr_add(data, val_fl.offset), bits_word(0))
         }
     }
-    for i in 0..sl.fields.len() {
-        ref fl : FieldLayout = sl.fields[i]
+    for fl : FieldLayout in sl.fields {
         if fl.own_type.is(OwnType.Ref) { continue }
         foff := fl.offset
         if fl.is_funcptr {

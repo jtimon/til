@@ -324,8 +324,7 @@ namespace:
 // can never happen in one commit (a one-build lag), because the C ABI in
 // ext.h has no such lag and the two would disagree at pass 1.
 priv find_alias_rhs_in_ast := func(ast: Expr, name: Str) returns Str {
-    for i in 0..ast.children.len() {
-        ref stmt : Expr = ast.children[i]
+    for stmt : Expr in ast.children {
         mut is_match := false
         switch stmt.node_type {
         case .Decl(d):
@@ -2000,8 +1999,8 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: C
     // direct references to the original decls.
     if ns_alias_names.len() > 0 {
         no_shadows := Set(Str).new()
-        for j in 0..new_ch.len() {
-            rewrite_ns_alias_uses(new_ch[j], ns_alias_names, ns_alias_members, ns_alias_paths, path, no_shadows, ctx)
+        for mut nc : Expr in new_ch {
+            rewrite_ns_alias_uses(nc, ns_alias_names, ns_alias_members, ns_alias_paths, path, no_shadows, ctx)
         }
     }
 
@@ -2267,8 +2266,7 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
     // All substitution happens here, per cloned statement, so lazy_body_as_expr
     // gets a fully-substituted guard chain and no further walk is needed.
     mut unrolled := Expr.new(NodeType.Body, call.line, call.col)
-    for si in 0..body.children.len() {
-        ref stmt : Expr = body.children[si]
+    for stmt : Expr in body.children {
         mut handled := false
         switch stmt.node_type {
         case .ForIn(fid):
@@ -2910,8 +2908,8 @@ priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, mu
         }
     }
     if e.node_type.is(NodeType.Body) { lazy_stmt_inline_body(e, scope, ctx) }
-    for i in 0..e.children.len() {
-        lazy_stmt_inline_walk(e.children[i], scope, depth.add(1), ctx)
+    for mut c : Expr in e.children {
+        lazy_stmt_inline_walk(c, scope, depth.add(1), ctx)
     }
     if lzr_window {
         ctx.synth_owner = ""
@@ -3280,17 +3278,17 @@ priv lazy_count_live_ms := func(node: Expr, pnames: Set(Str), shadowed: Set(Str)
 }
 priv lazy_count_live_body := func(body: Expr, pnames: Set(Str), outer_shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32) {
     mut shadowed := outer_shadowed.clone()
-    for i in 0..body.children.len() {
+    for bstmt : Expr in body.children {
         // Clone the Decl name ONLY when it shadows a param (the clone is
         // consumed by the Set add below); a conditionally-moved clone for a
         // non-param Decl would leak.
         mut decl_name := ""
-        switch body.children[i].node_type {
+        switch bstmt.node_type {
         case .Decl(dd):
             if pnames.has(dd.name) { decl_name = dd.name.clone() }
         case:
         }
-        lazy_count_live(body.children[i], pnames, shadowed, counts, depth + 1)
+        lazy_count_live(bstmt, pnames, shadowed, counts, depth + 1)
         if decl_name.len() > 0 { shadowed.add(own decl_name) }
     }
 }
@@ -3388,15 +3386,15 @@ priv lazy_register_force_once := func(lp: LoadedProgram,
 priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pending: Vec(Expr)) {
     if pending.len() == 0 { return }
     ref mut unit_ast : Expr = lp.ctx.imported[unit_path].ast
-    for i in 0..pending.len() {
+    for pstmt : Expr in pending {
         mut name := ""
-        line := pending[i].line
-        col := pending[i].col
-        switch pending[i].node_type {
+        line := pstmt.line
+        col := pstmt.col
+        switch pstmt.node_type {
         case .Decl(pd): name = pd.name.clone()
         case:
         }
-        unit_ast.add_child(own pending[i].clone())
+        unit_ast.add_child(own pstmt.clone())
         ref pushed : Expr = unit_ast.children[unit_ast.children.len() - 1]
         if name.starts_with("_force_once_") {
             // The binding TYPE is the helper's RETURN type (not None) -- a call
@@ -3458,8 +3456,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
     lazy_count_live_body(body, pnames, Set(Str).new(), use_counts, 0)
     switch fdef.node_type {
     case .FuncDef(fd):
-        for i in 0..fd.params.len() {
-            ref p : Declaration = fd.params[i]
+        for p : Declaration in fd.params {
             mut cnt : I64 = 0
             if use_counts.has(p.name) { cnt = use_counts.get(p.name)! }
             if cnt >= 2 {
@@ -3478,8 +3475,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
     case .FuncDef(fd):
         if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
         else { fd.func_type = FuncType.Proc }
-        for i in 0..fd.params.len() {
-            ref mut param : Declaration = fd.params[i]
+        for mut param : Declaration in fd.params {
             ret_type := param.explicit_type.clone()
             lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
             param.explicit_type = format("_Fn_ret_", ret_type)
@@ -3518,8 +3514,7 @@ priv lazy_lower_funcsig := func(mut lp: LoadedProgram,
         if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
         else if fd.func_type.is(FuncType.LazyProc) { fd.func_type = FuncType.Proc }
         else { return }
-        for i in 0..fd.params.len() {
-            ref mut param : Declaration = fd.params[i]
+        for mut param : Declaration in fd.params {
             ret_type := param.explicit_type.clone()
             lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
             param.explicit_type = format("_Fn_ret_", ret_type)

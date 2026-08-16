@@ -2305,8 +2305,7 @@ enum_is_niche := func(enum_def: Expr) returns Bool {
     if edd.variants.len() != 2 { return false }
     mut payload_less := 0
     mut ref_payloads := 0
-    for vi in 0..edd.variants.len() {
-        ref vd : VariantDef = edd.variants[vi]
+    for vd : VariantDef in edd.variants {
         if vd.payload_type.len() == 0 { payload_less++; continue }
         if vd.payload_ref { ref_payloads++; continue }
         // #321: a funcptr payload never joins the niche -- a distinct C
@@ -2383,8 +2382,7 @@ enum_payload_is_pointer_slot := func(enum_def: Expr, idx: I32) returns Bool {
 enum_has_ref_payload := func(enum_def: Expr) returns Bool {
     switch enum_def.node_type {
     case .EnumDef(edd):
-        for vi in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[vi]
+        for vd : VariantDef in edd.variants {
             if vd.payload_ref { return true }
         }
     case:
@@ -2673,9 +2671,9 @@ lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
             ref lbody : Expr = stmt.children[1]
             if lbody.node_type.is(NodeType.Body).not() { return false }
             if lbody.children.len() == 0 { return false }
-            for j in 0..lbody.children.len() {
-                if lazy_is_guard(lbody.children[j]).not() { return false }
-                if lazy_mentions_ident(lbody.children[j], vname) { return false }
+            for lstmt : Expr in lbody.children {
+                if lazy_is_guard(lstmt).not() { return false }
+                if lazy_mentions_ident(lstmt, vname) { return false }
             }
             is_unroll_loop = true
         case:

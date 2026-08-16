@@ -1295,8 +1295,7 @@ priv gen_enum_nonclone_methods_for_stmt := func(mut stmt: Expr, scope: TypeScope
     // alias, and the niche rule must see through it.
     switch stmt.children[0].node_type {
     case .EnumDef(pfs_edd):
-        for pfs_i in 0..pfs_edd.variants.len() {
-            ref mut pfs_vd : VariantDef = pfs_edd.variants[pfs_i]
+        for mut pfs_vd : VariantDef in pfs_edd.variants {
             if pfs_vd.payload_type.len() > 0 {
                 if type_from_name_init(pfs_vd.payload_type, scope).is_funcptr() {
                     pfs_vd.payload_funcsig = true
@@ -3922,8 +3921,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
         mut mono := format(src.name, "__")
         mut first := true
         mut new_idx : I64 = 0
-        for i in 0..gfd.params.len() {
-            ref p : Declaration = gfd.params[i]
+        for p : Declaration in gfd.params {
             if p.explicit_type.eq("Type").not() {
                 // A fresh box per push: Vec.push CONSUMES its argument, so
                 // pushing the running counter itself would free it.

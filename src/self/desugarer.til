@@ -161,12 +161,12 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     new_ch.push_take(old, 0)
     for i in 0..nparam {
         if i.to_i32() == vi {
-            for vai in 0..va_idxs.len() {
-                new_ch.push_take(old, va_idxs[vai])
+            for vax : USize in va_idxs {
+                new_ch.push_take(old, vax)
             }
         } else if i.to_i32() == kwi {
-            for kwi2 in 0..kw_idxs.len() {
-                new_ch.push_take(old, kw_idxs[kwi2])
+            for kwx : USize in kw_idxs {
+                new_ch.push_take(old, kwx)
             }
         } else {
             ref code : I32 = slots[i]
@@ -338,8 +338,7 @@ typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, mut ctx: Contex
     // REPL turn redefining a name continues that owner's sequence via the
     // Map, so neither can collide with a symbol an earlier lift emitted.
     saved_lift_owner := ctx.synth_owner.clone()
-    for pci in 0..prog.children.len() {
-        ref mut pchild : Expr = prog.children[pci]
+    for mut pchild : Expr in prog.children {
         mut lift_owner := ""
         switch pchild.node_type {
         case .Decl(pdd):

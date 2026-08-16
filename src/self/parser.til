@@ -250,8 +250,7 @@ priv anon_def_key := func(def: Expr) returns Str {
         // #264: tag width is part of the type identity.
         if edd.tag_type.len() > 0 { k = format(k, "(", edd.tag_type, ")") }
         k = format(k, "{")
-        for j in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[j]
+        for vd : VariantDef in edd.variants {
             k = format(k, vd.name)
             if vd.payload_type.len() > 0 {
                 k = format(k, ":", vd.payload_type)
@@ -322,8 +321,8 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: V
 }
 
 priv parser_has_active_type_param := func(p: Parser, name: Str) returns Bool {
-    for i in 0..p.active_type_params.len() {
-        if p.active_type_params[i] == name { return true }
+    for tp : Str in p.active_type_params {
+        if tp == name { return true }
     }
     return false
 }

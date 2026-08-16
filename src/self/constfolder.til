@@ -59,8 +59,8 @@ priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
         names.add(own ad.name.clone())
     case:
     }
-    for i in 0..e.children.len() {
-        collect_assign_targets(e.children[i], names)
+    for c : Expr in e.children {
+        collect_assign_targets(c, names)
     }
 }
 
@@ -1095,8 +1095,8 @@ priv is_va_set := func(stmt: Expr, va: Str) returns Bool {
 }
 
 priv va_name_in := func(names: Vec(Str), name: Str) returns Bool {
-    for k in 0..names.len() {
-        if names[k] == name { return true }
+    for n : Str in names {
+        if n == name { return true }
     }
     return false
 }
@@ -1296,12 +1296,11 @@ priv va_stmt_class := func(s: Expr, va: Str, ek: Str, ctx: Context) returns I32 
 // hoisted__ DCE.
 priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
     mut dead := Vec(Str).new()
-    for di in 0..va_done.len() {
-        ref va : Str = va_done[di]
+    for va : Str in va_done {
         ek := format(va, "_ek")
         mut safe := true
-        for r in 0..body.children.len() {
-            if va_stmt_class(body.children[r], va, ek, ctx) == -1 { safe = false; break }
+        for bstmt : Expr in body.children {
+            if va_stmt_class(bstmt, va, ek, ctx) == -1 { safe = false; break }
         }
         if safe { dead.push(own va.clone()) }
     }
@@ -1309,8 +1308,7 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
         mut keep := Vec(Expr).new()
         for r in 0..body.children.len() {
             mut drop := false
-            for di in 0..dead.len() {
-                ref va : Str = dead[di]
+            for va : Str in dead {
                 ek := format(va, "_ek")
                 if va_stmt_class(body.children[r], va, ek, ctx) == 1 { drop = true; break }
             }
@@ -1558,8 +1556,8 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
                 // immediately after the consumer is folded.
                 mut va_scope := scope_new(Option(ref Scope).Some(scope))
                 if materialize_va(va_scope, e, m, vn, ctx) {
-                    for k in 0..e.children.len() {
-                        fold_va_calls(va_scope, e.children[k], vn, ctx)
+                    for mut vc : Expr in e.children {
+                        fold_va_calls(va_scope, vc, vn, ctx)
                     }
                     va_done.push(own vn.clone())
                 }
@@ -1586,8 +1584,7 @@ process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_glob
     // literal. This mirrors rstil's EvalHeap::insert_primitive flow and
     // is what lets a later fold's eval-time invocation of Str.delete
     // resolve CAP_VIEW (which lives in str.til as a top-level const).
-    for i in 0..body.children.len() {
-        ref mut stmt : Expr = body.children[i]
+    for mut stmt : Expr in body.children {
         fold_subtree(scope, stmt, ctx)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }

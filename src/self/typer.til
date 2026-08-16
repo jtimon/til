@@ -6057,8 +6057,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             tname_351 := type_to_name(stmt.til_type())
             if tname_351.len().gt(0).and(type_carries_borrow(scope, tname_351)) {
                 mut carried_roots := expr_borrow_roots(scope, rhs)
-                for cri in 0..carried_roots.len() {
-                    ref mut crr : BorrowRoot = carried_roots[cri]
+                for mut crr : BorrowRoot in carried_roots {
                     crr.carried = true
                 }
                 decl_b.borrow_roots = carried_roots
@@ -6503,8 +6502,8 @@ priv capture_block_rename := proc(mut e: Expr, from: Str, to: Str) {
         if dd.name == from { return }
     case:
     }
-    for i in 0..e.children.len() {
-        capture_block_rename(e.children[i], from, to)
+    for mut c : Expr in e.children {
+        capture_block_rename(c, from, to)
     }
 }
 

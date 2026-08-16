@@ -93,8 +93,7 @@ collect_symbols := proc(mut syms: Map(Str, I64), flags: Str, archive: Str) {
     result := run_cmd(out, "sh", "-c", format("llvm-nm ", flags, " '", archive, "'"))
     if result != 0 { panic("llvm-nm ", flags, " failed for ", archive) }
     lines := out.split(NL)
-    for li in 0..lines.len() {
-        ref line : Str = lines[li]
+    for line : Str in lines {
         toks := line.trim().split(" ")
         if toks.len() == 0 { continue }
         ref last : Str = toks[toks.len() - 1]
@@ -133,8 +132,7 @@ main := proc(args: ..Str) {
     mut ext_fw := Vec(Str).new()
     mut ext_sym := Vec(Str).new()
     mut unmapped := 0
-    for ki in 0..undef.keys.len() {
-        ref sym : Str = undef.keys[ki]
+    for sym : Str in undef.keys {
         if defined.has(sym) { continue }
         fw := fw_for_symbol(sym)
         if fw.is_empty() {

@@ -665,8 +665,8 @@ priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), 
     for i in 0..n { counts[i] = 0 }
     for p in 0..n {
         ref pb : GcCfgBlock = blocks[p]
-        for k in 0..pb.succs.len() {
-            sidx := pb.succs[k].to_usize()
+        for sc : I32 in pb.succs {
+            sidx := sc.to_usize()
             ref c : USize = counts[sidx]
             counts[sidx] = c.add(1)
         }
@@ -697,8 +697,8 @@ priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), 
     // Every slot is written exactly once: acc is the edge count.
     for p in 0..n {
         ref pb : GcCfgBlock = blocks[p]
-        for k in 0..pb.succs.len() {
-            sidx := pb.succs[k].to_usize()
+        for sc : I32 in pb.succs {
+            sidx := sc.to_usize()
             ref at : USize = cursor[sidx]
             ref mut slot : USize = preds.unsafe_get(at)
             slot = p.add(0)
@@ -948,8 +948,8 @@ priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScop
     for p in 0..blocks.len() {
         ref pb : GcCfgBlock = blocks[p]
         mut feeds_exit := false
-        for k in 0..pb.succs.len() {
-            if pb.succs[k] == 0 { feeds_exit = true }
+        for sc : I32 in pb.succs {
+            if sc == 0 { feeds_exit = true }
         }
         if feeds_exit {
             if outs[p].eq(FLOW_OWNED).or(outs[p].eq(FLOW_MIXED)) { may_owned = true }
@@ -1125,8 +1125,8 @@ priv gc_live_solve := func(blocks: Vec(GcCfgBlock), name: Str, mut ins: Array(U8
         for bi in 0..n {
             ref b : GcCfgBlock = blocks[bi]
             mut o : U8 = 0
-            for k in 0..b.succs.len() {
-                if ins[b.succs[k].to_usize()] == 1 { o = 1 }
+            for sc : I32 in b.succs {
+                if ins[sc.to_usize()] == 1 { o = 1 }
             }
             mut lv := o
             if gen[bi] == LIVE_USE { lv = 1 }
