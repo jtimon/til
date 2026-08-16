@@ -646,6 +646,41 @@ main := proc(args: ..Str) {
     add_count(tests, "dead_temps_one_cast_total", "build", "(void)_", 1,
         format(til_bin, " translate -c gen/c/dead_temps_one.c test/dead_temps.til '&&' cat gen/c/dead_temps_one.c"))
 
+    // #346: ownership and C representation are separate. The ordinary
+    // aggregate function, its closure wrapper and its FuncSig cast all return
+    // ReturnBox346 by value; only the bodyless dyn_type_to_str boundary uses
+    // the one pointer-to-value adapter.
+    add_count(tests, "aggregate_return_value_abi", "build",
+        "static ReturnBox346 make_return_box346(Str * value)", 2,
+        format(til_bin, " translate -c gen/c/aggregate_return_value.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_value.c"))
+    add_count(tests, "aggregate_return_no_pointer_abi", "build",
+        "static ReturnBox346 *make_return_box346", 0,
+        format(til_bin, " translate -c gen/c/aggregate_return_pointer.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_pointer.c"))
+    add_count(tests, "funcsig_aggregate_return_value_abi", "build",
+        "((ReturnBox346 (*)(void *, Str *))", 1,
+        format(til_bin, " translate -c gen/c/aggregate_return_funcsig.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_funcsig.c"))
+    add_count(tests, "closure_aggregate_return_value_abi", "build",
+        "static ClosureBox346 closure_test_capturing_closure_owned_aggregate_return_0(void *til_env_raw)", 1,
+        format(til_bin, " translate -c gen/c/aggregate_return_closure.c test/closures.til '&&' cat gen/c/aggregate_return_closure.c"))
+    add_count(tests, "ext_owned_return_boundary_adapter", "build",
+        "Str *_hp = (Str *)dyn_type_to_str", 1,
+        format(til_bin, " translate -c gen/c/aggregate_return_ext.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_ext.c"))
+    add_count(tests, "aggregate_local_stack_storage", "build",
+        "StackValue346 value = {0};", 1,
+        format(til_bin, " translate -c gen/c/aggregate_local_stack.c test/structs.til '&&' cat gen/c/aggregate_local_stack.c"))
+    add_count(tests, "aggregate_own_param_value_return", "build",
+        "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", 2,
+        format(til_bin, " translate -c gen/c/aggregate_own_return.c test/structs.til '&&' cat gen/c/aggregate_own_return.c"))
+    add_count(tests, "aggregate_own_escape_boxes", "build",
+        "StackValue346 *_oa = malloc(sizeof(StackValue346))", 2,
+        format(til_bin, " translate -c gen/c/aggregate_own_escape.c test/structs.til '&&' cat gen/c/aggregate_own_escape.c"))
+    add_count(tests, "expr_new_value_return_abi", "build",
+        "static Expr Expr_new(NodeType * data, U32 line, U32 col)", 2,
+        "cat boot/til.c")
+    add_count(tests, "expr_new_no_pointer_return_abi", "build",
+        "static Expr *Expr_new(NodeType * data, U32 line, U32 col)", 0,
+        "cat boot/til.c")
+
     // Issue #326: a program that names no compiler AST type and no
     // reflection must not carry the compiler's data model into its output.
     // NodeType is the hub -- StructDef's fields reach Declaration, whose
@@ -764,36 +799,18 @@ main := proc(args: ..Str) {
     // emit_func_forward_decl's own guard is gated on `top_level`, false for
     // a member. So each one got a prototype nothing defines and nothing
     // calls -- 61 in til's own output. `Color_is` is the witness.
-    // An enum's clone/delete/eq are emitted only where a real call
-    // survives, decided by the site inventory plus the splice predicates
-    // the emitters themselves consult (a POD-enum clone is a value copy at
-    // every position; a stack local's POD delete is elided whole). TagU8's
-    // delete rides the #302 gc_storage record through the collector;
-    // ColorG's clone proves the payload-enum side (nothing clones one, so
-    // the definition goes even though its variants carry payloads).
-    // POD structs join the lifecycle gate on the enums' terms: the clone
-    // splice mirror follows the argument's storage (#302 gc_storage) and
-    // the enclosing function's params. CmpPoint is cloned nowhere, so its
-    // generated clone goes. aliases.til's Point_clone stays for now -- its
-    // `p := Point2(...)` ctor Decl is one of #302's documented divergent
-    // paths (records HeapBox, emits stack), and the collector errs toward
-    // keeping until stages 4/6 align the record.
+    // An enum's clone/delete/eq are emitted only where a real call survives.
+    // Stack-local payload-less enum deletes remain no-ops and are omitted;
+    // clone calls use the same value-return ABI as every other til function.
     // A tag enum is anonymous: only the E_TAG_* enumerators are ever
     // referenced (the tag field is typed by its explicit width), so the
     // old `typedef enum {...} E_tag;` left one never-used typedef name per
     // enum -- zero uses across the whole corpus.
     add_count(tests, "enums_no_dead_tag_typedef", "build", "_tag;", 0,
         format(til_bin, " translate -c gen/c/enums_tt.c test/enums.til '&&' cat gen/c/enums_tt.c"))
-    // The POD-struct ctor Decl (`p := Point(x=1)`): #302 stage 4 made
-    // the storage record say Stack -- the truth the emitter's compound
-    // literal was always emitting -- and the site collector reads the
-    // record alone (the mirror that used to re-derive the emitter's
-    // condition is gone). aliases.til clones such a local through an
-    // alias type; the record carries the splice and the clone's
-    // definition goes.
-    add_count(tests, "aliases_no_uncalled_pod_clone", "build", "Point_clone", 0,
+    add_count(tests, "aliases_pod_clone_value_abi", "build", "static Point Point_clone(Point * self)", 2,
         format(til_bin, " translate -c gen/c/aliases_pc.c test/aliases.til '&&' cat gen/c/aliases_pc.c"))
-    add_count(tests, "structs_no_uncalled_pod_clone", "build", "CmpPoint_clone", 0,
+    add_count(tests, "structs_pod_clone_value_abi", "build", "static CmpPoint CmpPoint_clone(CmpPoint * self)", 2,
         format(til_bin, " translate -c gen/c/structs_pc.c test/structs.til '&&' cat gen/c/structs_pc.c"))
     // A swap_replace on a Str target never calls swap_bytes -- the builder
     // writes the delete-copy-free sequence instead -- so the callee is not
@@ -805,7 +822,7 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/strings_sw.c test/strings.til '&&' cat gen/c/strings_sw.c"))
     add_count(tests, "enums_no_uncalled_lifecycle", "build", "TagU8_delete", 0,
         format(til_bin, " translate -c gen/c/enums_lc.c test/enums.til '&&' cat gen/c/enums_lc.c"))
-    add_count(tests, "enums_no_uncalled_payload_clone", "build", "ColorG_clone", 0,
+    add_count(tests, "enums_payload_clone_value_abi", "build", "static ColorG ColorG_clone(ColorG * self)", 2,
         format(til_bin, " translate -c gen/c/enums_pc.c test/enums.til '&&' cat gen/c/enums_pc.c"))
     // #302 stage 4 / #326: a drain-only delete must still be emitted --
     // both the scavenger's reachability walk and the builder's lifecycle
@@ -815,12 +832,9 @@ main := proc(args: ..Str) {
         format(til_bin, " run test/drain_only_delete.til"))
     add_count(tests, "enums_no_orphan_prototype", "build", "Color_is", 0,
         format(til_bin, " translate -c gen/c/enums_proto.c test/enums.til '&&' cat gen/c/enums_proto.c"))
-    // #302 stage 4 / #326: a FieldAssign marked `is_move` consumes the
-    // clone's ARGUMENT -- both back ends substitute it at consumption and
-    // store the value itself -- so the `Node.clone(val)` the garbager left
-    // in the AST is a call nobody makes. Counting it as a reachability
-    // edge kept the definition with no caller.
-    add_count(tests, "bug256_no_uncalled_move_clone", "build", "Node_clone", 0,
+    // Clone calls now share the ordinary value-return ABI rather than a
+    // POD-specific splice path.
+    add_count(tests, "bug256_move_clone_value_abi", "build", "static Node Node_clone(Node * self)", 2,
         format(til_bin, " translate -c gen/c/bug256_mc.c test/bug256.til '&&' cat gen/c/bug256_mc.c"))
     // The prelude used to define print_single/print_flush in every
     // program. They are core ext_procs reached only through println/print,
@@ -908,8 +922,8 @@ main := proc(args: ..Str) {
     // A program is a CLOSED WORLD, so its til functions carry `static`.
     // That is what puts the C compiler's -Wunused-function on permanent
     // duty over this issue's invariant: a future dead emission fails the
-    // build instead of waiting to be surveyed. The two names something
-    // outside the .c calls stay extern -- main, and Str_clone for ext.c.
+    // build instead of waiting to be surveyed. Exported core functions
+    // remain non-static.
     // The bounds-checked `v[i]` is spliced at every call site, so the
     // out-of-line Vec.get has no caller -- the omission gate asks the
     // same predicate the emitter splices on, or the two disagree about
@@ -927,9 +941,9 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/ci_dw.c test/closures_interp.til '&&' cat gen/c/ci_dw.c"))
     add_count(tests, "hello_print_prelude_is_tu_local", "build", "static void print_single(Str *s)", 2,
         format(til_bin, " translate -c gen/c/hs_pp.c examples/hello_script.til '&&' cat gen/c/hs_pp.c"))
-    add_count(tests, "hello_ext_c_boundary_stays_extern", "build", "\nStr * Str_clone(Str * val) {", 1,
+    add_count(tests, "hello_ext_c_boundary_stays_extern", "build", "\nStr Str_clone(Str * val) {", 1,
         format(til_bin, " translate -c gen/c/hs_sx.c examples/hello_script.til '&&' cat gen/c/hs_sx.c"))
-    add_count(tests, "aliases_no_uncalled_unreachable", "build", "void UNREACHABLE(", 0,
+    add_count(tests, "aliases_clone_keeps_unreachable", "build", "void UNREACHABLE(", 2,
         format(til_bin, " translate -c gen/c/al_ur.c test/aliases.til '&&' cat gen/c/al_ur.c"))
     // ...and it stays wherever a surviving body does call it: enums.til's
     // switch has a `case:` wildcard arm whose body calls UNREACHABLE.
@@ -947,27 +961,17 @@ main := proc(args: ..Str) {
     // ascending copy is built now.
     add_count(tests, "flow_keeps_consuming_deletes", "build", "Str_delete(hoisted__", 2,
         format(til_bin, " translate -c gen/c/flow_cd.c test/flow.til '&&' cat gen/c/flow_cd.c"))
-    // The lifecycle gate covers every struct now, not only the POD ones:
-    // a non-POD struct never splices, so every call it makes records a
-    // site and gating it costs nothing but the uncalled definitions.
-    // ErrorWithMessage's clone is the Assign half of bug256's move (the
-    // builder substitutes the clone's arg, the interpreter does not, so
-    // only the emitter may drop the site); Vec(Str)'s is an ordinary
-    // generated clone nothing calls.
-    add_count(tests, "errors_no_uncalled_move_clone", "build", "ErrorWithMessage_clone", 0,
+    add_count(tests, "errors_clone_value_abi", "build", "static ErrorWithMessage ErrorWithMessage_clone(ErrorWithMessage * self)", 2,
         format(til_bin, " translate -c gen/c/errors_mc.c test/errors.til '&&' cat gen/c/errors_mc.c"))
-    add_count(tests, "tilminal_no_uncalled_vec_clone", "build", "Vec__Str_clone", 0,
+    add_count(tests, "tilminal_vec_clone_value_abi", "build", "static Vec__Str Vec__Str_clone(Vec__Str * self)", 2,
         format(til_bin, " translate -c gen/c/tilminal_vc.c examples/tilminal.til '&&' cat gen/c/tilminal_vc.c"))
-    // ...and the one call site the inventory cannot see stays: src/c/ext.c
-    // calls Str_clone from hand-written C. Prototype plus definition; a
-    // gate that omits it fails to LINK, not to compile.
-    add_count(tests, "ext_c_boundary_keeps_str_clone", "build", "Str * Str_clone(Str * val)", 2,
+    add_count(tests, "str_clone_value_abi", "build", "Str Str_clone(Str * val)", 2,
         format(til_bin, " translate -c gen/c/hs_sc.c examples/hello_script.til '&&' cat gen/c/hs_sc.c"))
     // The forward header is written BEFORE the .c, so it has to gate on
     // the same settled inventory -- it used to see an empty one and omit
     // every lifecycle method the .c then defined. ext.c compiles against
-    // this header, so its Str_clone prototype is the witness.
-    add_count(tests, "forward_header_gates_on_same_inventory", "build", "Str * Str_clone(Str * val);", 1,
+    // this header, so Str_clone's value prototype is the witness.
+    add_count(tests, "forward_header_gates_on_same_inventory", "build", "Str Str_clone(Str * val);", 1,
         format(til_bin, " translate -c gen/c/hs_fh.c examples/hello_script.til '&&' cat gen/c/hs_fh_forward.h"))
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
         format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))

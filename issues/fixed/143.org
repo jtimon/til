@@ -1,6 +1,21 @@
 # priority: high
 # category: cleanups
-** OPEN #143 Avoid unnecessary heap round-trips for Expr construction
+** FIXED #143 Avoid unnecessary heap round-trips for Expr construction
+
+   POST-MORTEM:
+
+   Aggregate-returning til functions used a pointer-return C ABI. Earlier
+   attempts to avoid copying those wrappers into stack locals promoted the
+   locals themselves to heap pointers, reducing immediate round trips but
+   retaining the outer allocations and conflating ownership with storage.
+
+   Issue #346 replaced that model atomically: ordinary aggregate calls return
+   C values, ~GcStorage~ puts ordinary locals on the stack, and only real
+   own-pointer escapes or fixed C boundaries allocate/adapt an outer wrapper.
+   ~Expr_new~ and constfolder aggregate results therefore return directly by
+   value, with no ordinary ~_hp~ malloc-copy-free declaration path. The
+   generated-C ABI assertions in ~src/tests.til~ lock in the result, and the
+   full two-pass ASAN suite passed 295/295 with stable self-translation.
 
 ~Expr.new~ itself constructs on the stack, but the generated C for
    callers that store the result does a heap round-trip: the return value
@@ -58,8 +73,6 @@
    ~_oa = malloc~ wrap sites in boot/til.c: 2472 (pre-fix) -> 26.
    ~_hp = ~ return round-trip sites in boot/til.c: 7909 (pre-fix) -> 381.
 
-   Still TODO: remaining ~_hp~ round-trips for non-Struct compound
-   user locals (Enum, blocked on the interp regression above) and a
-   handful of edge cases; final ~_oa~ wraps on module-global delete
-   paths.
-
+   Resolved by #346: structs, enums, and Str now share the ordinary value
+   return and stack-local path. Residual ~_hp~ adapters are fixed bodyless C
+   boundaries, and residual ~_oa~ boxes are actual own-pointer escapes.

@@ -1,6 +1,33 @@
 # priority: high
 # category: cleanups
-** OPEN #346 Keep owned aggregates in place instead of heap-boxing locals and returns
+** FIXED #346 Keep owned aggregates in place instead of heap-boxing locals and returns
+
+  POST-MORTEM:
+
+  The compiler used ~OwnType~ both for semantic ownership and for the outer C
+  representation. That made ordinary owned aggregates heap pointers, forced
+  til functions to return pointer wrappers, and left the builder re-deriving
+  storage from expression shapes despite the garbager already recording
+  ~GcStorage~. Removing any one workaround alone exposed the corresponding
+  malloc-copy-free return path or made destruction use the wrong outer shape.
+
+  Ordinary til functions, methods, FuncSigs, and closures now return aggregates
+  by C value, while ~returns ref~ and bodyless C declarations retain their
+  pointer ABI. ~GcStorage~ is authoritative for declarations and destruction:
+  ordinary aggregates live in stack value slots, raw/Dynamic ownership
+  boundaries remain heap-backed, and an outer box is created only where a
+  stack value escapes to an own-pointer parameter or field. The obsolete POD,
+  shallow-return, stack-rewrite, and promotion compensation was removed. The
+  interpreter follows the same storage provenance, including owned Dynamic
+  results without misclassifying borrowed enum payloads.
+
+  Regression coverage spans managed structs, payload enums, Str, ordinary and
+  FuncSig/closure returns, mutation, reassignment, borrows, ownership escapes,
+  and bodyless ext returns in ~test/structs.til~, ~test/enums_lifecycle.til~,
+  ~test/fn_ptr.til~, and ~test/closures.til~. Generated-C assertions require
+  value-shaped ~Expr_new~ and locals while preserving real pointer boundaries.
+  Focused ASAN runs were clean, and ~make clean && make test_two_pass~ passed
+  295/295 with clang-clean generated C and byte-identical self-translation.
 
   Follow-up to [[../fixed/110.org][#110]] and the active implementation issue
   for the remaining work described by [[./143.org][#143]]. #110's memory-safety

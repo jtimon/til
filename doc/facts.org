@@ -77,8 +77,10 @@
   now responsible for cleanup.
 
 * TRUE Returns are owned by the caller unless declared ref
-  Functions return heap-allocated pointers. The caller owns the returned
-  value and ASAP handles cleanup. Functions can declare returns ref to
+  Ordinary functions, FuncSig calls, and closure trampolines return non-ref
+  results by C value. The caller owns the returned value and ASAP handles
+  cleanup. Bodyless ext/core declarations retain their fixed qualifier-defined
+  C ABI and adapt owned pointer returns at the boundary. Functions can declare returns ref to
   return a borrowed reference — the caller must not delete it. ASAP
   skips cleanup for ref return values and ref declarations.
   Ref returns allow returning args without copying (e.g. min(a, b)).
@@ -111,8 +113,8 @@
   clones recurse into fields, primitive clones produce new values.
   The interpreter uses move semantics (transfer ownership, null source cell)
   for identifier RHS — no copying without an explicit clone call.
-  builder uses pointer-assign for compound types (clone returns fresh pointer),
-  deref-assign for scalars. Struct literals are ownership-taking for all
+  builder uses value assignment for ordinary compound and scalar results.
+  Struct literals are ownership-taking for all
   non-ref fields, so callers must use .clone() explicitly when they want
   to preserve a source variable.
 

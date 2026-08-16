@@ -158,18 +158,24 @@ escape and clone behavior.
 
 ** Return types
 
-| til                       | C return type    | semantics                            |
-|---------------------------+------------------+--------------------------------------|
-| ~returns Type~            | ~Type *~         | heap-allocated, caller owns          |
-| ~returns shallow Type~    | ~Type~           | value return (on stack)              |
-| ~returns ref Type~        | ~Type *~         | borrowed pointer, caller must NOT free |
+| til                       | ordinary C return | bodyless ext/core C return | semantics                    |
+|---------------------------+-------------------+----------------------------+------------------------------|
+| ~returns Type~            | ~Type~            | ~Type *~                   | caller owns the result       |
+| ~returns shallow Type~    | ~Type~            | ~Type~                     | non-owning value copy        |
+| ~returns ref Type~        | ~Type *~          | ~Type *~                   | borrowed pointer; never free |
+
+Ordinary til functions, FuncSig calls, and closure trampolines return every
+non-ref result by C value. Ownership still determines cleanup; it no longer
+selects the C return representation. Bodyless ~ext_*~ and ~core_*~ declarations
+keep their fixed external ABI, and generated code adapts an owned pointer return
+to a value exactly once at that boundary.
 
 ** Locals
 
 | til                       | C (scalar)       | C (compound)     | semantics                            |
 |---------------------------+------------------+------------------+--------------------------------------|
-| ~x := expr~               | ~Type x = ...~   | ~Type *x = ...~  | owned immutable local (default)      |
-| ~mut x := expr~           | ~Type x = ...~   | ~Type *x = ...~  | owned mutable local                  |
+| ~x := expr~               | ~Type x = ...~   | ~Type x = ...~   | owned immutable local (default)      |
+| ~mut x := expr~           | ~Type x = ...~   | ~Type x = ...~   | owned mutable local                  |
 | ~ref x : Type = expr~     | ~Type *x = ...~  | ~Type *x = ...~  | borrowed immutable local             |
 | ~ref mut x : Type = expr~ | ~Type *x = ...~  | ~Type *x = ...~  | borrowed mutable local               |
 
@@ -224,8 +230,8 @@ is_null: the quarantine rule".
 
 ** Key rules
 
-- ~type_name_to_c("I64")~ = ~I64 *~ (pointer form, for normal args/returns/locals)
-- ~type_name_to_c_value("I64")~ = ~I64~ (value form, for ~shallow~ args/returns)
+- ~type_name_to_c("I64")~ = ~I64 *~ (pointer form, for borrowed/own-taking boundaries)
+- ~type_name_to_c_value("I64")~ = ~I64~ (value form, for locals and ordinary returns)
 - In generated C, ~DEREF(x)~ dereferences a pointer: ~(*(x))~
 - Args are borrowed by default, so explicit ~ref~ parameters are redundant
 - Returns are owned by default, so explicit ~returns own Type~ is redundant
@@ -285,12 +291,13 @@ is_null: the quarantine rule".
   variant of the rule is sketched but not yet active -- ~infer_func_sig_expr~
   is a ~func~ with no ~ctx~ to raise the diagnostic from.)
 - Issue #223 step 3: a STRUCT is auto-shallow (treated as ~shallow~ in
-  args/returns without the keyword) when it is safe to copy byte-for-byte:
+  parameter ownership without the keyword) when it is safe to copy byte-for-byte:
   ~MyStruct.size().lte(UPtr.size())~ (<= 8 bytes), no ~own~ fields, no
   ~ref~ fields, and every field's type is itself auto-shallow (a primitive
   or another auto-shallow struct). Otherwise it stays pointer-passed. The
   transitive field check closes the hole where a size-8 struct embeds a
-  deep struct inline. (Enums are not auto-shallow yet -- a separate task.)
+  deep struct inline. Ordinary returns are values regardless; this rule still
+  decides parameter ABI and ownership. (Enums are not auto-shallow yet.)
 - Issue #223 step 4: on a STRUCT (or enum), an explicit ~shallow~ is a
   force/override, NOT an error. Unlike a primitive (step 2, rejected as
   redundant), a struct ~shallow~ is always honored: it forces by-value
@@ -302,7 +309,9 @@ is_null: the quarantine rule".
   an already-~Shallow~ qualifier is left untouched; and the redundant-shallow
   rejection is gated on ~is_primitive~, so it never fires for a struct/enum.
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
-- ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
+- Ordinary non-ref functions return ~Type~ by value. A bodyless ~returns
+  shallow Type~ declaration also returns ~Type~; a bodyless owned return keeps
+  its external ~Type *~ ABI and is adapted at the call boundary
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~
 - Scalar locals use ~&(Type){x}~ when passed to pointer-expecting functions
 - Delete calls for scalar locals are suppressed (no heap allocation to free)
@@ -327,6 +336,12 @@ For ~Param~ and ~FunctionDef~, the enum is used directly (~own_type~,
 ~own_type~ field replaces the former ~is_own~ / ~is_ref~ booleans.
 ~Shallow~ is the natural default for declarations: inline for fields,
 stack-owned for locals.
+
+~OwnType~ records semantics only. ~Declaration.gc_storage~ is the sole
+authority for a local's outer C storage: ~Stack~ for ordinary values and
+~HeapBox~ only for raw allocations or pointer-shaped callable storage. An own
+parameter boundary may allocate a temporary box, but that does not change the
+source local's recorded storage.
 
 
 ** Visibility (priv keyword)

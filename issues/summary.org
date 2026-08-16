@@ -11,7 +11,6 @@
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
 *** [[./open/124.org][#124]] Remove remaining manual frees for typed raw-buffer locals
 *** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
-*** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
 *** [[./open/147.org][#147]] AST/Context redesign: lessons from rstil
 *** [[./open/158.org][#158]] One pass per phase across the whole pipeline
 *** [[./open/163.org][#163]] Per-file AST/import graph + Context.path (prep for removing Expr.path)
@@ -24,7 +23,6 @@
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 *** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 *** [[./open/338.org][#338]] Unify type inference: fields use real inference, typer stamps inferred types into the AST
-*** [[./open/346.org][#346]] Keep owned aggregates in place instead of heap-boxing locals and returns
 ** Medium
 *** [[./open/347.org][#347]] The Windows REPL has never been run
 ** Low

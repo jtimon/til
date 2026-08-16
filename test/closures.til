@@ -198,3 +198,17 @@ test_capturing_closure_ufcs_receiver_arg := test() {
     x := true
     expect(callthunk223(func() returns Bool [x] { return x }).not().not(), "shallow check idempotent")
 }
+
+// #346: a capturing closure's call trampoline and its FuncSig cast must agree
+// with the ordinary by-value aggregate return ABI.
+ClosureBox346 := struct { value := "" }
+ClosureBoxMaker346 := func() returns ClosureBox346
+
+test_capturing_closure_owned_aggregate_return := test() {
+    prefix := "captured"
+    make : ClosureBoxMaker346 = func() returns ClosureBox346 [prefix] {
+        return ClosureBox346(value = prefix.clone())
+    }
+    box := make()
+    assert_eq(Str, box.value, "captured")
+}

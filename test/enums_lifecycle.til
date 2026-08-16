@@ -123,3 +123,25 @@ test_ref_return_payload_alias := test() {
         UNREACHABLE()
     }
 }
+
+// #346: payload enum constructors and ordinary functions both return the
+// aggregate value while the Str payload keeps its nested ownership.
+StackPayload346 := enum {
+    Text: Str,
+    Empty,
+}
+
+priv return_stack_payload346 := func(flag: Bool) returns StackPayload346 {
+    if flag {
+        return StackPayload346.Text("heap-backed enum payload for stack value 346")
+    }
+    return StackPayload346.Empty
+}
+
+test_payload_enum_stack_return346 := test() {
+    mut payload := return_stack_payload346(true)
+    copy := payload.clone()
+    payload = StackPayload346.Text("replacement enum payload for stack value 346")
+    assert_eq(Str, payload.to_str(), "Text(replacement enum payload for stack value 346)")
+    assert_eq(Str, copy.to_str(), "Text(heap-backed enum payload for stack value 346)")
+}

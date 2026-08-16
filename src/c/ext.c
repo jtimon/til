@@ -58,6 +58,27 @@ static int stdio_capture_stderr_fd = -1;
 static char *stdio_capture_path = NULL;
 static int stdio_capture_atexit_armed = 0;
 
+// #346: ext.c's exported functions retain their pointer-return ABI across
+// bootstrap generations, while ordinary til Str.clone now returns a value.
+// Keep this boundary self-contained instead of compiling ext.c against either
+// generation's Str_clone prototype.
+static Str *ext_str_clone_box(const Str *val) {
+    Str *out = malloc(sizeof(Str));
+    out->count = val->count;
+    if (val->count == 0) {
+        out->c_str = (I8 *)"";
+        out->cap = CAP_VIEW;
+        return out;
+    }
+    out->c_str = malloc(val->count + 1);
+    memcpy(out->c_str, val->c_str, val->count);
+    out->c_str[val->count] = '\0';
+    out->cap = val->count;
+    return out;
+}
+
+#define Str_clone ext_str_clone_box
+
 static void stdio_capture_fail(const char *op) {
     perror(op);
     exit(1);

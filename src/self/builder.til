@@ -63,30 +63,6 @@ priv is_stack_local := func(name: Str, mut ctx: Context) returns Bool {
     return ctx.builder_func.stack_locals.has(ctx.symbols.intern(name))
 }
 
-// #302 stage 1 transition assert: on the Decl paths whose stack choice
-// mirrors a garbager carve-out (the LiteralStr pair, fcall_is_shallow_
-// return / fcall_returns_shallow, is_pod_enum_clone_call /
-// is_pod_enum_clone_wrap), the recorded GcStorage must agree with the
-// shape the builder is about to emit. A HeapBox record on one of these
-// paths means the twin predicates drifted: fail loudly here instead of
-// emitting C whose delete call_free disagrees with its storage (a
-// stack free / leak at runtime). Paths that KNOWINGLY diverge today --
-// the can_hoist `_hp` deref copies, the POD-struct user-clone value
-// copy -- stay unasserted until stages 4/6 collapse the compensation.
-// The POD-struct ctor shape is asserted like the rest: the garbager
-// records Stack for it (pod_ctor_decl_is_stack, shared from
-// context.til) and keeps that decision through promotion, and when
-// the ctor only APPEARS after recording (a constfold or generic
-// rewrite of the RHS), restamp_folded_decl_storage flips the record
-// and normalize_folded_ctor_deletes fixes the destructor before the
-// builder ever runs.
-priv assert_gc_stack := func(dd: Declaration, shape: Str) {
-    if dd.gc_storage.is(GcStorage.HeapBox) {
-        panic(__LOC__, ": #302 storage record mismatch: garbager recorded HeapBox for '", dd.name,
-            "' but the builder emits it as a stack ", shape, " value")
-    }
-}
-
 priv is_stack_lit_str_local := func(name: Str, mut ctx: Context) returns Bool {
     return ctx.builder_func.stack_lit_str_locals.has(ctx.symbols.intern(name))
 }
@@ -151,6 +127,7 @@ priv use_dot_access := func(obj: Expr, mut ctx: Context) returns Bool {
     if obj.node_type.is(NodeType.FieldAccess) {
         if builder_fa_is_ptr(obj, ctx).not() { return true }
     }
+    if obj.node_type.is(NodeType.FCall).and(fcall_returns_c_value(obj, ctx)) { return true }
     switch obj.node_type {
     case .Ident(ident):
         if is_stack_local(ident.ident_name(), ctx) { return true }
@@ -166,122 +143,6 @@ priv use_dot_access := func(obj: Expr, mut ctx: Context) returns Bool {
 // The til scalar set, INCLUDING the target-width aliases USize and UPtr --
 // the one difference from is_ext_h_type's list below, which covers only the
 // names ext.h spells as real fixed-width C types.
-
-// A POD enum has no variant payloads, so every variant is fully
-// representable as a single `tag` field assignment.  The typer wraps
-// `c := Color.Red` as `c := Color.clone(Color.Red)` for ownership
-// semantics, but for POD enums the wrap is a wasteful round-trip
-// (malloc + deref + free of a stack compound literal).  The Decl
-// emission path recognises the wrap and emits the value directly.
-
-// Matches the typer-emitted `<Enum>.clone(<value>)` wrap around Ident /
-// FieldAccess RHSes of Enum type. True when the wrap can be skipped
-// (whole enum is POD, or the clone arg is a payload-less variant of
-// an otherwise-payload-carrying enum).
-
-// Matches user-written `<value>.clone()` where the typer's expansion
-// lands `<value>` as e.children[1] and the callee's receiver carries the
-// POD-struct type. Fires when the arg is an Ident of a stack_local /
-// param (struct value) or a FieldAccess (struct field, possibly
-// pointer-typed -- caller derefs explicitly).
-
-// Emit the POD-struct user-clone arg as a struct value: dereference
-// pointer-typed FieldAccesses and pointer-shaped params, otherwise emit
-// as-is (stack-locals and shallow params render as values).
-priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
-    ref arg : Expr = e.children[1]
-    if arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(arg, ctx)) {
-        f.write("*"); emit_expr(f, arg, depth, ctx)
-        return
-    }
-    // A POD struct wider than a word is NOT auto-shallow, so as a param it
-    // is a POINTER in C (K *key). The elided clone must copy the pointee:
-    // emitting the bare Ident produced `K cloned_key = key;`, which cc
-    // rejects -- hit the first time a struct key monomorphized Map.set
-    // (#335 made that reachable; the K.clone(key) inside it is this path).
-    switch arg.node_type {
-    case .Ident(an):
-        ref aname : Str = an.ident_name()
-        if is_current_func_param(aname, ctx).and(is_shallow_param(aname, ctx).not()) {
-            f.write("*"); emit_expr(f, arg, depth, ctx)
-            return
-        }
-    case:
-    }
-    emit_expr(f, arg, depth, ctx)
-}
-
-// Emit the clone arg as `(T){.tag = T_TAG_X}` when it's a ns-Enum
-// variant FieldAccess; otherwise fall back to emit_deref.
-// Emit-time state (ctx.builder_func.stack_locals) makes this one
-// builder-only: the scavenger's C-emit pass mirrors it from the AST
-// instead (builder_pod_site_spliced).
-priv is_pod_struct_user_clone := func(e: Expr, mut ctx: Context) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() < 2 { return false }
-    ref callee : Expr = e.children[0]
-    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
-    mut is_clone := false
-    switch callee.node_type {
-    case .FieldAccess(m): is_clone = m.field_access_name() == "clone"
-    case:
-    }
-    if is_clone.not() { return false }
-    if callee.children.len() == 0 { return false }
-    ref recv : Expr = callee.children[0]
-    if recv.til_type().is(Type.Struct).not() { return false }
-    tname_o := expr_type_name_ref(recv)
-    if tname_o.is_none() { return false }
-    ref tname : Str = tname_o.unwrap()
-    if pod_struct_is(tname, ctx.scope).not() { return false }
-    switch e.children[1].node_type {
-    case .Ident(an):
-        ref aname : Str = an.ident_name()
-        return is_stack_local(aname, ctx).or(is_current_func_param(aname, ctx))
-    case .FieldAccess:
-        return true
-    case:
-        return false
-    }
-}
-
-priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
-    ref pe_arg : Expr = e.children[1]
-    if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.til_type().is(Type.Enum)) {
-        switch pe_arg.node_type {
-        case .FieldAccess(pe_vn):
-            pe_sname_o := expr_type_name_ref(pe_arg.children[0])
-            if pe_sname_o.is_none() { emit_deref(f, pe_arg, depth, ctx); return }
-            ref pe_sname : Str = pe_sname_o.unwrap()
-            // #320 niche: no tag field -- a payload-less variant is null.
-            pe_def_o := find_struct_def(pe_sname, ctx)
-            mut pe_niche := false
-            if pe_def_o.is_some() {
-                ref pe_def : Expr = pe_def_o.unwrap()
-                if pe_def.node_type.is(NodeType.EnumDef) { pe_niche = enum_is_niche(pe_def) }
-            }
-            if pe_niche {
-                f.write("(").write(pe_sname).write("){.data = NULL}")
-                return
-            }
-            f.write("(").write(pe_sname).write("){.tag = ")
-            f.write(pe_sname).write("_TAG_").write(pe_vn.field_access_name()).write("}")
-            return
-        case:
-        }
-    }
-    emit_deref(f, pe_arg, depth, ctx)
-}
-
-// A POD struct has only Shallow-owned fields that are themselves
-// stack-cheap: primitives, or nested POD structs. No Str / Vec /
-// Array / Own-marked fields that would need recursive heap cleanup.
-// Ctor Decls for these structs can live on the stack as a C compound
-// literal (no malloc / no recursive free), and the same emission
-// works inline as an expression when a non-POD parent struct has a
-// POD field set from a ctor FCall.  Callers must still pair this with
-// a non-freeing delete at scope end (call_free=false) so the cleanup
-// doesn't try to free a stack pointer.
 
 priv funcsig_sym := func(name: Str, mut ctx: Context) returns Sym {
     sym := ctx.symbols.intern(name)
@@ -610,6 +471,26 @@ priv is_shallow_param := func(name: Str, mut ctx: Context) returns Bool {
     }
 }
 
+priv is_own_param := func(name: Str, mut ctx: Context) returns Bool {
+    if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
+    switch ctx.current_fdef {
+    case .None: return false
+    case .Some(cf):
+    switch cf.node_type {
+    case .FuncDef(fd):
+        for p : Declaration in fd.params {
+            if p.name == name { return p.own_type.is(OwnType.Own) }
+        }
+        return false
+    case .BodyValue:
+        return false
+    case:
+        UNREACHABLE("unexpected ", cf.node_type.head_str())
+        return false
+    }
+    }
+}
+
 
 priv callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns Bool {
     if callee_name == "malloc" { return true }
@@ -800,26 +681,6 @@ priv emit_checked_c_str := proc(f: File, e: Expr, depth: I32, mut ctx: Context) 
         emit_expr(f, obj, depth, ctx)
     }
     f.write(")")
-}
-
-priv fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
-    if fcall.node_type.is(NodeType.FCall).not() { return false }
-    // Same override-aware short-circuit as fcall_is_shallow_return:
-    // cast(e, T) is declared `returns shallow Dynamic` but the typer
-    // sets the call's til_type to T. Trust the override.
-    if fcall.til_type().is(Type.Dynamic).not() { return false }
-    ref callee_node : Expr = fcall.children[0]
-    switch callee_node.node_type {
-    case .FieldAccess(mname):
-        sname_o := expr_type_name_ref(callee_node.children[0])
-        if sname_o.is_none() { return false }
-        ref sname : Str = sname_o.unwrap()
-        flat := sname.concat3("_", mname.field_access_name())
-        return callee_returns_dynamic(flat, ctx)
-    case .Ident(ident): return callee_returns_dynamic(ident.ident_name(), ctx)
-    case:
-        return false
-    }
 }
 
 priv til_type_to_c := func(shallow t: Type) returns Str {
@@ -1237,6 +1098,63 @@ priv fcall_return_ctype := func(fcall: Expr, mut ctx: Context) returns Str {
     }
 }
 
+// #346: whether this call expression produces a C value rather than a
+// pointer. Constructors are compiler-lowered value constructors; named and
+// indirect calls share func_returns_c_value as the single callable ABI rule.
+priv fcall_returns_c_value := func(fcall: Expr, ctx: Context) returns Bool {
+    if fcall.node_type.is(NodeType.FCall).not() { return false }
+    if fcall.children.len() == 0 { return false }
+    fcall_sname_o := expr_type_name_ref(fcall)
+    if fcall_sname_o.is_some() {
+        ref fcall_sname : Str = fcall_sname_o.unwrap()
+        switch fcall.children[0].node_type {
+        case .Ident(ctor_name):
+            if ctor_name.ident_name() == fcall_sname { return true }
+        case:
+        }
+    }
+    callee := resolve_callee_name(fcall)
+    if callee.len() > 0 {
+        fdef_o := find_callee_fdef(callee, ctx)
+        if fdef_o.is_some() {
+            switch fdef_o.unwrap().node_type {
+            case .FuncDef(fd): return func_returns_c_value(fd)
+            case:
+            }
+        }
+    }
+    sig_o := fcall_fn_sig(fcall, ctx)
+    if sig_o.is_some() {
+        switch sig_o.unwrap().node_type {
+        case .FuncDef(sfd): return func_returns_c_value(sfd)
+        case:
+        }
+    }
+    return false
+}
+
+priv fcall_returns_ref := func(fcall: Expr, ctx: Context) returns Bool {
+    if fcall.node_type.is(NodeType.FCall).not() { return false }
+    callee := resolve_callee_name(fcall)
+    if callee.len() > 0 {
+        fdef_o := find_callee_fdef(callee, ctx)
+        if fdef_o.is_some() {
+            switch fdef_o.unwrap().node_type {
+            case .FuncDef(fd): return fd.return_own_type.is(OwnType.Ref)
+            case:
+            }
+        }
+    }
+    sig_o := fcall_fn_sig(fcall, ctx)
+    if sig_o.is_some() {
+        switch sig_o.unwrap().node_type {
+        case .FuncDef(sfd): return sfd.return_own_type.is(OwnType.Ref)
+        case:
+        }
+    }
+    return false
+}
+
 priv fcall_has_inline_capturing_func_arg := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     for i in 1..e.children.len() {
@@ -1529,6 +1447,7 @@ priv builder_reset_func_scratch := func(mut ctx: Context) {
     ctx.builder_func.body_refs = Set(Sym).new()
     ctx.builder_func.body_multi_decls = Set(Sym).new()
     ctx.builder_func.stack_locals = Set(Sym).new()
+    ctx.builder_func.heap_locals = Set(Sym).new()
     ctx.builder_func.stack_local_types = Map(Sym, Str).new()
     ctx.builder_func.stack_lit_str_locals = Set(Sym).new()
     ctx.builder_func.force_heap_stack_lit_str_own = false
@@ -2007,65 +1926,15 @@ priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
     }
 }
 
-// True when `e` is a struct constructor FCall (callee is the
-// struct-name Ident), not a method call like Point.clone(...) whose
-// callee is a FieldAccess. The POD compound-literal path uses this
-// to decide whether the FCall's children are positional field
-// initializers (ctor) vs an arbitrary call (which would type-clash
-// inside a `.field = ...` initializer).
-
-// True when every FCall arg of `ctor` is either non-FCall or itself a
-// POD-struct ctor (recursively safe). The POD compound-literal path
-// requires this -- a non-ctor FCall arg (e.g. Point.clone(...)) would
-// either type-clash with the positional field assumption or return a
-// pointer that can't be assigned into a value field.
-
-// Emit a C compound literal initializer for a POD-struct ctor FCall:
-// `(Type){.f1 = v1, .f2 = v2, ...}`.  Nested POD ctor args recurse so
-// `(Line){.start = (Point){.x = ..., .y = ...}, .end = ...}` works.
-// Caller must have verified pod_struct_is(ctor type, ctx.scope) AND
-// pod_ctor_args_safe(ctor, ctx.scope). Caller is responsible for trailing
-// punctuation -- this emits the `(...){...}` expression with no
-// semicolon.
-priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, mut ctx: Context) {
-    ctor_sname_o := expr_type_name_ref(ctor)
-    if ctor_sname_o.is_none() { return }
-    ref ctor_sname : Str = ctor_sname_o.unwrap()
-    ctype := c_type_name(ctor.til_type(), ctor_sname, ctx)
-    f.write("(").write(ctype).write("){")
-    pod_def_o := find_struct_def(ctor_sname, ctx)
-    if pod_def_o.is_some() {
-        ref pod_def : Expr = pod_def_o.unwrap()
-        switch pod_def.node_type {
-        case .StructDef(pod_sdd):
-            mut pod_fi : USize = 0
-            for i in 1..ctor.children.len() {
-                if i > 1 { f.write(", ") }
-                mut pod_fname := ""
-                if pod_fi < pod_sdd.fields.len() {
-                    pod_fname = pod_sdd.field_name_at(pod_fi).clone()
-                    pod_fi++
-                }
-                f.write(".").write(pod_fname).write(" = ")
-                ref arg : Expr = ctor.children[i]
-                if pod_fcall_is_struct_ctor(arg) {
-                    emit_pod_compound_literal(f, arg, depth, ctx)
-                } else {
-                    emit_deref(f, arg, depth, ctx)
-                }
-            }
-        case:
-        }
-    }
-    f.write("}")
-}
-
 // Emit layer
 priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     if e.children.len() == 0 { return }
     switch e.node_type {
     case .Decl(dd):
     ref rhs : Expr = e.children[0]
+    if dd.gc_storage.is(GcStorage.HeapBox) {
+        ctx.builder_func.heap_locals.add(own ctx.symbols.intern(dd.name))
+    }
     // #220: any decl inside a function body introduces a local that
     // shadows a same-named script global. is_global / is_rg below are
     // both gated on ctx.in_func_def.not(), so inside a function every
@@ -2187,9 +2056,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 }
                 f.write(";\n")
             } else {
-                can_hoist := is_global.not().and(dd.own_type.is(OwnType.Own).not())
-                .and(e.til_type().is_funcptr().not()).and(e.til_type().is(Type.Dynamic).not())
-                .and(rhs.node_type.is(NodeType.FCall).and(fcall_returns_dynamic(rhs, ctx)).not())
+                stack_storage := is_global.not().and(dd.gc_storage.is(GcStorage.Stack))
                 // Struct constructor
                 mut rhs_sname := ""
                 rhs_sname_o := expr_type_name_ref(rhs)
@@ -2212,34 +2079,23 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                     if is_global {
                         f.fwrite("memset(&", dd.name, ", 0, sizeof(", ctype, "));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
-                    } else if pod_struct_is(rhs_sname, ctx.scope).and(pod_ctor_args_safe(rhs, ctx.scope)) {
-                        assert_gc_stack(dd, "POD-struct-ctor")
-                        // POD struct ctor: emit as a stack value
-                        // initialized with a C compound literal,
-                        // mirroring the LiteralStr Decl path. The
-                        // matching delete arrives with call_free=false
-                        // because the garbager recorded Stack (or the
-                        // constfolder restamped a post-record rewrite),
-                        // so free() is never called on the stack pointer.
-                        f.write(ctype).write(" ").write(dd.name).write(" = ")
-                        emit_pod_compound_literal(f, rhs, depth, ctx)
-                        f.write(";\n")
+                    } else if dd.gc_storage.is(GcStorage.Stack) {
+                        // #346: GcStorage is the sole local representation
+                        // decision. Constructors initialize their aggregate
+                        // directly in frame storage; field ownership still
+                        // determines whether each field stores a value or a
+                        // transferred pointer.
+                        f.write(ctype).write(" ").write(dd.name).write(" = {0};\n")
                         ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
                         ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
+                        emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     } else {
                         f.write(ctype).write(" *").write(dd.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     }
                 } else if rhs.node_type.is_literal_str().and(is_global.not()) {
-                    assert_gc_stack(dd, "LiteralStr")
-                    // Str literal: emit a wrapper value -- no malloc, no Str_lit. Pairs with the
-                    // typer's hoist/promote pass keeping LiteralStr decls
-                    // Shallow so make_delete_call emits call_free=false and
-                    // the existing FCall-arg emission writes `&name` for
-                    // non-own slots. For own-taking callees (Array_set,
-                    // Vec_push, etc.) emit_as_ptr's stack_local + is_own=true
-                    // branch does the usual malloc round-trip so `free(own
-                    // val)` still operates on a heap wrapper.
+                    // Str literal: emit a wrapper value in its recorded stack
+                    // storage. An own-taking boundary boxes it in emit_as_ptr.
                     if dd.is_mut.not().and(ctx.builder_str_lit_ident_symbols.has(dd.name)) {
                         // #326: pooled -- no declaration, so no statement.
                         // emit_stmt skipped the indent for this shape.
@@ -2258,135 +2114,17 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                     ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
                     ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
                     if dd.is_mut.not() { ctx.builder_func.stack_lit_str_locals.add(own ctx.symbols.intern(dd.name)) }
-                } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
-                .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.til_type().is(Type.Enum))) {
-                    if is_global {
-                        if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
-                            f.write(dd.name).write(" = "); emit_expr(f, rhs, depth, ctx); f.write(";\n")
-                        } else if rhs.node_type.is(NodeType.FCall).and(is_pod_enum_clone_call(rhs, ctx)) {
-                            // #326: the global-init twin of the local POD
-                            // splice -- a global is value storage, so the
-                            // clone is a plain compound-literal store. The
-                            // constfolder makes this shape common: a pure
-                            // `make_color(0)` initializer folds to
-                            // `Color.clone(Color.Red)`.
-                            f.write(dd.name).write(" = ")
-                            emit_pod_enum_clone_arg(f, rhs, depth, ctx)
-                            f.write(";\n")
-                        } else if rhs.node_type.is(NodeType.FCall).and(is_pod_struct_user_clone(rhs, ctx)) {
-                            f.write(dd.name).write(" = ")
-                            emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
-                            f.write(";\n")
-                        } else if rhs.node_type.is(NodeType.FCall) {
-                            mut htype := fcall_return_ctype(rhs, ctx)
-                            if htype.len() == 0 { htype = ctype.clone() }
-                            f.write("{ ").write(htype).write(" *_hp = (").write(htype).write(" *)")
-                            emit_expr(f, rhs, depth, ctx)
-                            f.write("; ").write(dd.name).write(" = *_hp; free(_hp); }\n")
-                        } else {
-                            f.write(dd.name).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
-                        }
-                    } else if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
-                        assert_gc_stack(dd, "shallow-return")
-                        // Shallow returns are by-value -- always stack-alloc.
-                        // The malloc'd-and-deref'd path leaks the heap box (the
-                        // typer doesn't track these for delete).
-                        mut htype := fcall_return_ctype(rhs, ctx)
-                        if htype.len() == 0 { htype = ctype.clone() }
-                        f.write(htype).write(" ").write(dd.name).write(" = ")
-                        emit_expr(f, rhs, depth, ctx); f.write(";\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own htype.clone())
-                    } else if can_hoist.and(is_pod_enum_clone_call(rhs, ctx)) {
-                        assert_gc_stack(dd, "POD-enum-clone")
-                        // POD enum clone wrap: typer wraps
-                        // `c := Color.Red` as `c := Color.clone(Color.Red)`
-                        // for ownership semantics.  For payload-less
-                        // enums the clone is a wasteful malloc+deref+
-                        // free of a stack compound literal -- emit the
-                        // value directly via the clone's arg.  When the
-                        // arg is a ns-Enum variant access we know the
-                        // exact compound-literal shape; emit it inline
-                        // so we don't produce the cosmetic `(*&...)`
-                        // round-trip that emit_deref would generate.
-                        f.write(ctype).write(" ").write(dd.name).write(" = ")
-                        emit_pod_enum_clone_arg(f, rhs, depth, ctx)
-                        f.write(";\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
-                    } else if can_hoist.and(rhs_is_allocator_call(rhs)) {
-                        // #302/#303: raw-allocator RHS scalarized to a value
-                        // local (the garbager's shallow-return escape keeps
-                        // e.g. Vec(I64).pop's `out : T = malloc(T.size())`
-                        // on the stack). The legacy roundtrip -- allocate,
-                        // copy the indeterminate bytes into the local, free
-                        // -- is all dead code, and the garbage read trips
-                        // -Werror=maybe-uninitialized now that panic's
-                        // noreturn attribute sharpens gcc's flow analysis.
-                        // A raw alloc's contract is "content indeterminate
-                        // until written", so emit a bare uninitialized value
-                        // local; gcc then flags any genuine
-                        // read-before-write instead of us laundering the
-                        // garbage through the heap.
-                        f.write(ctype).write(" ").write(dd.name).write(";\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
-                    } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
-                        // #302 stage 1: this `_hp` value-copy path used to
-                        // be knowingly divergent -- the pass recorded
-                        // HeapBox while this emits a stack value, papered
-                        // over by the delete shims. The pass now records
-                        // Stack for it, so the transition assert covers it
-                        // like the other stack shapes.
-                        assert_gc_stack(dd, "hp-value-copy")
-                        mut htype := fcall_return_ctype(rhs, ctx)
-                        if htype.len() == 0 { htype = ctype.clone() }
-                        f.write(htype).write(" ").write(dd.name).write("; { ").write(htype).write(" *_hp = (").write(htype).write(" *)")
-                        emit_expr(f, rhs, depth, ctx)
-                        f.write("; ").write(dd.name).write(" = *_hp; free(_hp); }\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own htype.clone())
-                    } else if can_hoist {
-                        f.write(ctype).write(" ").write(dd.name).write("; { ").write(ctype).write(" *_hp = (").write(ctype).write(" *)")
-                        emit_expr(f, rhs, depth, ctx)
-                        f.write("; ").write(dd.name).write(" = *_hp; free(_hp); }\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
-                    } else if is_pod_enum_clone_call(rhs, ctx).and(is_global.not()) {
-                        assert_gc_stack(dd, "POD-enum-clone")
-                        // POD-enum heap-Decl variant: emit as stack
-                        // value, garbager skips heap-promote, delete
-                        // gets elided by is_noop_delete_stmt.
-                        f.write(ctype).write(" ").write(dd.name).write(" = ")
-                        emit_pod_enum_clone_arg(f, rhs, depth, ctx)
-                        f.write(";\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
-                    } else if is_pod_struct_user_clone(rhs, ctx).and(is_global.not()) {
-                        // POD-struct `.clone()`: emit a struct value-copy.
-                        f.write(ctype).write(" ").write(dd.name).write(" = ")
-                        emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
-                        f.write(";\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
-                    } else {
-                        if is_global { f.write(dd.name).write(" = ") }
-                        else { f.write(ctype).write(" *").write(dd.name).write(" = ") }
-                        emit_expr(f, rhs, depth, ctx); f.write(";\n")
-                    }
+                } else if is_global {
+                    f.write(dd.name).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
+                } else if stack_storage {
+                    f.write(ctype).write(" ").write(dd.name).write(" = ")
+                    emit_deref(f, rhs, depth, ctx)
+                    f.write(";\n")
+                    ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
+                    ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
                 } else {
-                    if is_global {
-                        f.write(dd.name).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
-                    } else if can_hoist {
-                        f.write(ctype).write(" ").write(dd.name).write(" = ")
-                        emit_deref(f, rhs, depth, ctx); f.write(";\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
-                    } else {
-                        f.write(ctype).write(" *").write(dd.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
-                        emit_indent(f, depth)
-                        f.write("*").write(dd.name).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
-                    }
+                    f.write(ctype).write(" *").write(dd.name).write(" = ")
+                    emit_expr(f, rhs, depth, ctx); f.write(";\n")
                 }
             }
         }
@@ -2424,151 +2162,50 @@ priv emit_return_ctype := func(rv: Expr, mut ctx: Context) returns Str {
     return c_type_name(rv.til_type(), "", ctx)
 }
 
-priv emit_return_box := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
-    ref rv : Expr = e.children[0]
-    ctype := emit_return_ctype(rv, ctx)
-    f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ")
-    emit_expr(f, rv, depth, ctx)
-    if ctype == "Str" { f.write("; if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }") }
-    f.write(";\n")
-    emit_indent(f, depth)
-    f.write("return _r; }\n")
-}
-
 priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     if e.children.len() == 0 {
         if ctx.in_main_func { f.write("return 0;\n") }
         else { f.write("return;\n") }
+        return
+    }
+    ref rv : Expr = e.children[0]
+    ref cf : Expr = ctx.current_fdef.unwrap()
+    ref fd : FunctionDef = funcdef_of(cf)
+    if fd.return_own_type.is(OwnType.Ref) {
+        f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
+        return
+    }
+    ctype := emit_return_ctype(rv, ctx)
+    if fd.return_type == "Dynamic" {
+        f.write("return ")
+        emit_expr(f, rv, depth, ctx)
+        f.write(";\n")
+        return
+    }
+    mut heap_return_name := ""
+    switch rv.node_type {
+    case .Ident(rv_ident):
+        if type_is_callable_storage(rv.til_type()).not()
+        .and(ctx.builder_func.heap_locals.has(ctx.symbols.intern(rv_ident.ident_name()))
+            .or(is_own_param(rv_ident.ident_name(), ctx))) {
+            heap_return_name = builder_resolve_c_ident_name(rv_ident.ident_name(), ctx)
+        }
+    case:
+    }
+    if heap_return_name.len() > 0 {
+        f.write("{ ").write(ctype).write(" _ret = DEREF(").write(heap_return_name).write("); free(").write(heap_return_name).write("); ")
+        if ctype == "Str" { f.write("if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } ") }
+        f.write("return _ret; }\n")
+    } else if rv.node_type.is_literal_null() {
+        f.write("return (").write(ctype).write("){0};\n")
+    } else if ctype == "Str" {
+        f.write("{ Str _ret = ")
+        emit_deref(f, rv, depth, ctx)
+        f.write("; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }\n")
     } else {
-        ref rv : Expr = e.children[0]
-        // Struct constructor return
-        rv_sname_o := expr_type_name_ref(rv)
-        if rv.node_type.is(NodeType.FCall).and(rv_sname_o.is_some()).and(rv.children.len().gt(0)) {
-            ref rv_sname : Str = rv_sname_o.unwrap()
-            switch rv.children[0].node_type {
-            case .Ident(ci):
-                if ci.ident_name() == rv_sname {
-                    ctype := c_type_name(rv.til_type(), rv_sname, ctx)
-                    f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write("));\n")
-                    emit_ctor_fields(f, "_r", rv, depth, ctx)
-                    emit_indent(f, depth); f.write("return _r; }\n")
-                    return
-                }
-            case:
-            }
-        }
-        // Ref return
-        switch ctx.current_fdef {
-        case .None:
-        case .Some(cf2):
-            switch cf2.node_type {
-            case .FuncDef(fd):
-                if fd.return_own_type.is(OwnType.Ref) {
-                    f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
-                    return
-                }
-                if fd.return_own_type.is(OwnType.Shallow) {
-                    if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv, ctx)) {
-                        f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                        return
-                    }
-                    // Shallow return of an owned heap-box local: the value
-                    // is copied out to the caller, so the local's WRAPPER
-                    // must be released here. The garbager cannot insert it
-                    // (insert_exit_deletes_into_stmt skips locals used in
-                    // the return operand -- freeing before the return would
-                    // destroy what is copied), so the capture-free-return
-                    // dance stays a C emission detail. The RULE is now
-                    // structural: any heap-box local, not just a
-                    // `hoisted__` temp. #302: the old prefix sniff hid a
-                    // real leak -- a USER-NAMED owned local returned from a
-                    // shallow-return func leaked its 8-byte wrapper on
-                    // every call (ASAN-verified repro; regression
-                    // test_bug302_shallow_return_named).
-                    if rv.node_type.is(NodeType.Ident) {
-                        switch rv.node_type {
-                        case .Ident(rv_name):
-                            // Excluded, none of which own a frame-local
-                            // wrapper: stack values, value globals, Dynamic
-                            // (opaque), closure captures (they live in
-                            // `env->name`, so `free(name)` would not even
-                            // name a C local) and params (the caller owns
-                            // the storage).
-                            if is_stack_local(rv_name.ident_name(), ctx).not().and(
-                                is_value_global(rv_name.ident_name(), ctx).not()).and(
-                                ctx.closure_emit_captures.has(ctx.symbols.intern(rv_name.ident_name())).not()).and(
-                                is_current_func_param(rv_name.ident_name(), ctx).not()).and(
-                                rv.til_type().is(Type.Dynamic).not()) {
-                                ctype := emit_return_ctype(rv, ctx)
-                                cname := builder_resolve_c_ident_name(rv_name.ident_name(), ctx)
-                                f.write("{ ").write(ctype).write(" _ret = DEREF(").write(cname).write("); free(").write(cname).write(");\n")
-                                emit_indent(f, depth); f.write("return _ret; }\n")
-                                return
-                            }
-                        case:
-                        }
-                    }
-                    f.write("return "); emit_deref(f, rv, depth, ctx); f.write(";\n")
-                    return
-                }
-            case:
-            }
-        }
-        // Inline field value: box for return
-        if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(rv, ctx).not())
-        .and(builder_fa_is_ns(rv, ctx).not()).and(rv.til_type().is(Type.Dynamic).not()) {
-            emit_return_box(f, e, depth, ctx)
-            // Shallow fcall: box for return
-        } else if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv, ctx)) {
-            emit_return_box(f, e, depth, ctx)
-            // Hoisted local: box for return
-        } else if rv.node_type.is(NodeType.Ident) {
-            ref rv_name : IdentData = ident_of(rv)
-            mut is_shallow_ret := false
-            switch ctx.current_fdef {
-            case .Some(cf3):
-                switch cf3.node_type {
-                case .FuncDef(fd):
-                    is_shallow_ret = fd.return_own_type.is(OwnType.Shallow)
-                case:
-                }
-            case .None:
-            }
-            if is_stack_local(rv_name.ident_name(), ctx).or(is_value_global(rv_name.ident_name(), ctx)) {
-                if is_shallow_ret.not() {
-                    ctype := emit_return_ctype(rv, ctx)
-                    cname := builder_resolve_c_ident_name(rv_name.ident_name(), ctx)
-                    f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ").write(cname)
-                    if ctype == "Str" { f.write("; if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }") }
-                    f.write(";\n")
-                    emit_indent(f, depth); f.write("return _r; }\n")
-                } else {
-                    f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                }
-            } else {
-                f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-            }
-            // Bare enum variant ref: heap-allocate
-        } else if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rv, ctx)).and(rv.til_type().is(Type.Enum)) {
-            sn_o := expr_type_name_ref(rv.children[0])
-            if sn_o.is_none() { f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n"); return }
-            ref sn : Str = sn_o.unwrap()
-            ref vname : FieldAccessData = fieldaccess_of(rv)
-            nsv_def_o := find_struct_def(sn, ctx)
-            mut nsv_niche := false
-            if nsv_def_o.is_some() {
-                ref nsv_def : Expr = nsv_def_o.unwrap()
-                if nsv_def.node_type.is(NodeType.EnumDef) { nsv_niche = enum_is_niche(nsv_def) }
-            }
-            if nsv_niche {
-                f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->data = NULL;\n")
-            } else {
-                f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->tag = ").write(sn).write("_TAG_").write(vname.field_access_name()).write(";\n")
-            }
-            emit_indent(f, depth); f.write("return _r; }\n")
-        } else {
-            f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-        }
+        f.write("return ")
+        emit_deref(f, rv, depth, ctx)
+        f.write(";\n")
     }
 }
 
@@ -2840,51 +2477,13 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         if ad.save_old_delete {
             ctype := c_type_name(e.til_type(), e_sname, ctx)
             if is_stack_local(aname, ctx).or(is_value_global(aname, ctx)) {
-                // LiteralStr RHS can be written directly into the stack-local
-                // after running the old destructor.
-                if rhs.node_type.is_literal_str() {
-                    f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
-                    f.write(aname).write(" = ")
-                    // #326: the pool element IS this CAP_LIT value; the
-                    // assignment is a plain struct copy either way, so read
-                    // the pool instead of restating the compound literal.
-                    switch rhs.node_type {
-                    case .Literal(Literal.Str(lit_s)):
-                        if ctx.builder_str_lit_symbols.has(lit_s) {
-                            f.write(ctx.builder_str_lit_symbols[lit_s])
-                        } else {
-                            f.write("(Str){.c_str = (void *)\"")
-                            f.write(lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(lit_s))
-                            f.write("ULL, .cap = TIL_CAP_LIT}")
-                        }
-                    case:
-                    }
-                    f.write("; }\n")
-                } else if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
-                    // Issue #223 step 3: a shallow-returning call yields a value,
-                    // not a heap pointer -- run the old destructor, then assign
-                    // the value directly (no `*_new` pointer dance / free).
-                    f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
-                    f.write(aname).write(" = ")
-                    emit_expr(f, rhs, depth, ctx)
-                    f.write("; }\n")
-                } else if is_pod_enum_clone_call(rhs, ctx) {
-                    // POD-enum stack-local Assign: old destructor is a
-                    // no-op (call_free=false), new value is the variant
-                    // literal -- skip the clone wrap and rebind.
-                    f.write(aname).write(" = ")
-                    emit_pod_enum_clone_arg(f, rhs, depth, ctx)
-                    f.write(";\n")
-                } else if is_pod_struct_user_clone(rhs, ctx) {
-                    // POD-struct stack-local Assign: value-copy, no wrap.
-                    f.write(aname).write(" = ")
-                    emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
-                    f.write(";\n")
-                } else {
-                    f.write("{ ").write(ctype).write(" *_new = (").write(ctype).write(" *)")
-                    emit_expr(f, rhs, depth, ctx)
-                    f.write("; ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ").write(aname).write(" = *_new; free(_new); }\n")
-                }
+                // Evaluate before deleting: the RHS may borrow the target
+                // itself (`x = normalize(x)`). The replacement is a value,
+                // so no heap wrapper is needed for this ordering temporary.
+                f.write("{ ").write(ctype).write(" _new = ")
+                emit_deref(f, rhs, depth, ctx)
+                f.write("; ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
+                f.write(aname).write(" = _new; }\n")
             } else {
                 lit_owns_box := assign_str_lit_needs_own_box(aname, ctype, rhs, ctx)
                 f.write("{ ").write(ctype).write(" *_old = ").write(aname).write("; ").write(aname).write(" = ")
@@ -2909,20 +2508,12 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         if ad.is_payload_alias {
             mut is_compound := false
             if e.til_type().is(Type.Struct).or(e.til_type().is(Type.Enum)) { is_compound = true }
-            if is_compound.and(rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx))) {
-                // Issue #223 step 3: shallow-returning call yields a value;
-                // delete the old payload, then deref-assign the value directly.
+            if is_compound.and(rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())) {
                 ctype := c_type_name(e.til_type(), e_sname, ctx)
-                f.write("{ ").write(ctype).write("_delete(").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
-                f.write("*").write(aname).write(" = ")
-                emit_expr(f, rhs, depth, ctx)
-                f.write("; }\n")
-            } else if is_compound.and(rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())) {
-                ctype := c_type_name(e.til_type(), e_sname, ctx)
-                f.write("{ ").write(ctype).write("_delete(").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
-                f.write(ctype).write(" *_new = (").write(ctype).write(" *)")
-                emit_expr(f, rhs, depth, ctx)
-                f.write("; *").write(aname).write(" = *_new; free(_new); }\n")
+                f.write("{ ").write(ctype).write(" _new = ")
+                emit_deref(f, rhs, depth, ctx)
+                f.write("; ").write(ctype).write("_delete(").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
+                f.write("*").write(aname).write(" = _new; }\n")
             } else {
                 f.write("*").write(aname).write(" = ")
                 mut is_ref_rhs := false
@@ -2942,31 +2533,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             return
         }
         if is_hoisted {
-            if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
-                f.write(aname).write(" = "); emit_expr(f, rhs, depth, ctx); f.write(";\n")
-            } else if rhs.node_type.is(NodeType.FCall).and(is_pod_enum_clone_call(rhs, ctx)) {
-                // #326: same skip as the Decl / FieldAssign / ctor-field
-                // paths -- a POD-enum clone is a value copy, no wrapper,
-                // no call.
-                f.write(aname).write(" = ")
-                emit_pod_enum_clone_arg(f, rhs, depth, ctx)
-                f.write(";\n")
-            } else if rhs.node_type.is(NodeType.FCall).and(is_pod_struct_user_clone(rhs, ctx)) {
-                f.write(aname).write(" = ")
-                emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
-                f.write(";\n")
-            } else if rhs.node_type.is(NodeType.FCall) {
-                ctype := c_type_name(e.til_type(), e_sname, ctx)
-                f.write("{ ").write(ctype).write(" *_hp = (").write(ctype).write(" *)")
-                emit_expr(f, rhs, depth, ctx)
-                f.write("; ").write(aname).write(" = *_hp; free(_hp); }\n")
-            } else {
-                f.write(aname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
-            }
+            f.write(aname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
         } else {
             if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
             .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.til_type().is(Type.Enum))) {
-                if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
+                if rhs.node_type.is(NodeType.FCall).and(fcall_returns_c_value(rhs, ctx)) {
                     f.write("*").write(aname).write(" = ")
                 } else {
                     f.write(aname).write(" = ")
@@ -3020,87 +2591,21 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             emit_indent(f, depth)
         }
 
-        if rhs_fa.node_type.is(NodeType.FCall).and(builder_fa_is_ptr(e, ctx).not()).and(builder_fa_is_ns(e, ctx).not()) {
-            if fcall_is_shallow_return(rhs_fa, ctx) {
-                emit_expr(f, obj, depth, ctx)
-                if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
-                f.write(fname).write(" = "); emit_expr(f, rhs_fa, depth, ctx); f.write(";\n")
-            } else if is_pod_enum_clone_call(rhs_fa, ctx) {
-                // POD-enum FieldAssign: skip the malloc-copy-free wrapper.
-                emit_expr(f, obj, depth, ctx)
-                if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
-                f.write(fname).write(" = ")
-                emit_pod_enum_clone_arg(f, rhs_fa, depth, ctx)
-                f.write(";\n")
-            } else if is_pod_struct_user_clone(rhs_fa, ctx) {
-                // POD-struct `.clone()`: struct value-copy, no clone wrap.
-                emit_expr(f, obj, depth, ctx)
-                if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
-                f.write(fname).write(" = ")
-                emit_pod_struct_user_clone_arg(f, rhs_fa, depth, ctx)
-                f.write(";\n")
-            } else {
-                ftype := c_type_name(rhs_fa.til_type(), rhs_fa_sname, ctx)
-                f.write("{ ").write(ftype).write(" *_fa = "); emit_expr(f, rhs_fa, depth, ctx); f.write("; ")
-                emit_expr(f, obj, depth, ctx)
-                if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
-                f.write(fname).write(" = *_fa; ")
-                // #302 stage 6: prefer a STATIC answer to "must this
-                // wrapper be released?" over reading Str's cap tag at
-                // runtime (only Str.delete should read it). Provable
-                // cases, which cover the dominant shape -- the typer
-                // wraps every Ident RHS in T.clone():
-                //   - a clone call ALWAYS mallocs its wrapper -> free;
-                //   - a literal Str, or an Ident naming a stack local /
-                //     value global, is a stack/static address -> never
-                //     free.
-                // Everything else keeps the runtime test, because
-                // "wrapper is heap" is NOT locally decidable: an
-                // ext_func can return a pointer straight into the
-                // static `_til_str_lits` table (struct_field_name does,
-                // and an unconditional free there is a bad-free --
-                // ASAN-caught in test/first_class.til). That residue is
-                // the fallback doc/ownership.org already sanctions:
-                // decide statically where possible, let the runtime tag
-                // decide where the callee's storage is unknowable here.
-                mut wrapper_is_static := rhs_fa.node_type.is_literal_str()
-                switch rhs_fa.node_type {
-                case .Ident(fa_rhs_id):
-                    if is_stack_local(fa_rhs_id.ident_name(), ctx)
-                        .or(is_value_global(fa_rhs_id.ident_name(), ctx)) {
-                        wrapper_is_static = true
-                    }
-                case:
-                }
-                if wrapper_is_static {
-                    // nothing to release
-                } else if ftype.neq("Str").or(rhs_is_clone_fcall(rhs_fa)) {
-                    f.write("free(_fa);")
-                } else {
-                    f.write("if (_fa->cap != TIL_CAP_LIT) { free(_fa); }")
-                }
-                f.write(" }\n")
+        if builder_fa_is_ns(e, ctx) {
+            obj_sname_o := expr_type_name_ref(obj)
+            if obj_sname_o.is_some() {
+                ref obj_sname : Str = obj_sname_o.unwrap()
+                f.write(obj_sname)
             }
+            f.write("_").write(fname).write(" = ")
         } else {
-            if builder_fa_is_ns(e, ctx) {
-                obj_sname_o := expr_type_name_ref(obj)
-                if obj_sname_o.is_some() {
-                    ref obj_sname : Str = obj_sname_o.unwrap()
-                    f.write(obj_sname)
-                }
-                f.write("_").write(fname).write(" = ")
-            } else {
-                emit_expr(f, obj, depth, ctx)
-                if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
-                f.write(fname).write(" = ")
-            }
-            if builder_fa_is_ptr(e, ctx) {
-                emit_as_ptr(f, rhs_fa, depth, true, ctx)
-            } else {
-                emit_deref(f, rhs_fa, depth, ctx)
-            }
-            f.write(";\n")
+            emit_expr(f, obj, depth, ctx)
+            if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
+            f.write(fname).write(" = ")
         }
+        if builder_fa_is_ptr(e, ctx) { emit_as_ptr(f, rhs_fa, depth, true, ctx) }
+        else { emit_deref(f, rhs_fa, depth, ctx) }
+        f.write(";\n")
 
         if did_save_old {
             emit_indent(f, depth)
@@ -3187,30 +2692,12 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             case:
             }
         }
-        // Stmt-level FCalls whose return is Own arrive here in one of
-        // two shapes:
-        //  - typer's hoist_stmt_fcall left a non-Own bare call -- those
-        //    have nothing on the heap, plain `<fcall>;` is correct.
-        //  - body DCE replaced an `hoisted__T_X := <fcall>` Decl with
-        //    the bare FCall (the temp was unused). The return is an
-        //    Own heap pointer; without cleaning it up, we leak. `free`
-        //    would also leak for compound types (Str's inner c_str,
-        //    Vec's inner buffer, ...). Hand off to `T.delete(self,
-        //    call_free=true)` -- the same ASAP path the typer would
-        //    have taken if the temp had survived.
+        // Body DCE can replace an unused result temp with its bare call.
+        // Aggregate results still own nested data and need a destructor even
+        // though ordinary calls now return the outer value in place.
         if e.til_type().is(Type.None).not() {
-            // #302 stage 1: shallow-return aggregates reach this arm now.
-            // With the shallow-return promote override gone, their temp
-            // deletes are trivial (call_free=0), so body DCE drops the
-            // temp and hands us the bare call. The C result is a BY-VALUE
-            // struct/enum -- no heap box exists, so the returns-own wrap
-            // below (T_delete(<call>, 1)) would pass a value where a
-            // pointer is expected AND free a non-allocation. Bind the
-            // result to a block-local value and run the value cleanup
-            // (call_free=0); for POD types the delete is a no-op the C
-            // compiler drops.
             if e.til_type().is(Type.Struct).or(e.til_type().is(Type.Enum)) {
-                if fcall_is_shallow_return(e, ctx) {
+                if fcall_returns_c_value(e, ctx) {
                     tname := type_to_name(e.til_type())
                     if tname.len() > 0 {
                         mut htype := fcall_return_ctype(e, ctx)
@@ -3267,7 +2754,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
 priv funcptr_call_ret_ctype := func(e: Expr, sig: Expr) returns Str {
     switch sig.node_type {
     case .FuncDef(sfd):
-        ret_shallow := sfd.return_own_type.is(OwnType.Shallow)
+        ret_value := func_returns_c_value(sfd)
         if sfd.return_type.len() == 0 { return "void" }
         if e.til_type().is(Type.None).or(e.til_type().is(Type.Unknown)).or(e.til_type().is(Type.Dynamic)) {
             return "void *"
@@ -3280,7 +2767,7 @@ priv funcptr_call_ret_ctype := func(e: Expr, sig: Expr) returns Str {
                 ret_c = e_sname.clone()
             }
         }
-        if ret_shallow.not() { ret_c = format(ret_c, " *") }
+        if ret_value.not() { ret_c = format(ret_c, " *") }
         return ret_c
     case:
         return "void *"
@@ -3985,19 +3472,25 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 UNREACHABLE("expected LiteralStr, got ", e.children[2].node_type.head_str())
             }
         } else if call_sname.len().gt(0).and(name.ident_name().eq(call_sname)) {
-            // Struct constructor
+            // #346: a constructor expression is a value. Pointer-taking
+            // boundaries box it in emit_as_ptr; every other destination can
+            // initialize directly from this frame-local temporary.
             ctype := c_type_name(e.til_type(), call_sname, ctx)
             ctx.ctor_seq = ctx.ctor_seq + 1
             id := ctx.ctor_seq
             f.write("({ ")
             f.write(ctype)
-            f.write(" *_sc")
+            f.write(" _sc")
             emit_i32(f, id)
-            f.write(" = malloc(sizeof(")
-            f.write(ctype)
-            f.write(")); ")
+            f.write(" = {0}; ")
             tmp := format("_sc", id.to_str())
+            saved_ctor_sl := ctx.builder_func.stack_locals.clone()
+            saved_ctor_slt := ctx.builder_func.stack_local_types.clone()
+            ctx.builder_func.stack_locals.add(own ctx.symbols.intern(tmp))
+            ctx.builder_func.stack_local_types.set(ctx.symbols.intern(tmp), own ctype.clone())
             emit_ctor_fields(f, tmp, e, depth, ctx)
+            ctx.builder_func.stack_locals = saved_ctor_sl
+            ctx.builder_func.stack_local_types = saved_ctor_slt
             f.write(" _sc")
             emit_i32(f, id)
             f.write("; })")
@@ -4202,9 +3695,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 if nv_niche {
                     // #320 niche: the payload-less variant IS the null
                     // pointer.
-                    f.write("&(").write(obj_sname).write("){.data = NULL}")
+                    f.write("(").write(obj_sname).write("){.data = NULL}")
                 } else {
-                    f.write("&(")
+                    f.write("(")
                     f.write(obj_sname)
                     f.write("){.tag = ")
                     f.write(obj_sname)
@@ -4314,7 +3807,6 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
     mut fi : USize = 0
     for i in 1..ctor.children.len() {
         mut fld_own := OwnType.Shallow
-        mut field_type := Type.Unknown
         mut fname := ""
         if ecf_def_o.is_some() {
             switch ecf_def_o.unwrap().node_type {
@@ -4322,7 +3814,6 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
                 if fi < ecf_sdd.fields.len() {
                     ref dd : Declaration = ecf_sdd.field_at(fi)
                     fld_own = dd.own_type
-                    field_type = dd.til_type
                     fname = ecf_sdd.field_name_at(fi).clone()
                     fi++
                 }
@@ -4396,122 +3887,6 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
                 emit_as_ptr(f, arg, depth, true, ctx)
                 f.write(";\n")
             }
-        } else if arg.node_type.is(NodeType.FCall) {
-            arg_sname2_o := expr_type_name_ref(arg)
-            mut arg_sname2 := ""
-            if arg_sname2_o.is_some() {
-                arg_sname2 = arg_sname2_o.unwrap().borrowed_view()
-            }
-            if arg_sname2.len() > 0 {
-                mut is_ctor_call := false
-                switch arg.children[0].node_type {
-                case .Ident(callee_ident):
-                    if callee_ident.ident_name() == arg_sname2 {
-                        // POD nested ctor: emit the field assign with
-                        // a direct compound literal, skipping the
-                        // malloc-deref-free dance below.
-                        if pod_struct_is(arg_sname2, ctx.scope).and(pod_ctor_args_safe(arg, ctx.scope)) {
-                            emit_field(f, var, fname, ctx)
-                            f.write(" = ")
-                            emit_pod_compound_literal(f, arg, depth, ctx)
-                            f.write(";\n")
-                            is_ctor_call = true
-                        } else {
-                        ct := c_type_name(arg.til_type(), arg_sname2, ctx)
-                        ctx.ctor_seq = ctx.ctor_seq + 1
-                        id := ctx.ctor_seq
-                        tmp := format("_cs", id.to_str())
-                        f.write(ct)
-                        f.write(" *")
-                        f.write(tmp)
-                        f.write(" = malloc(sizeof(")
-                        f.write(ct)
-                        f.write("));\n")
-                        emit_ctor_fields(f, tmp, arg, depth, ctx)
-                        emit_indent(f, depth)
-                        emit_field(f, var, fname, ctx)
-                        f.write(" = *")
-                        f.write(tmp)
-                        f.write("; free(")
-                        f.write(tmp)
-                        f.write(");\n")
-                        is_ctor_call = true
-                        }
-                    }
-            case:
-            }
-            if is_ctor_call.not() {
-                    if field_type.is_funcptr().or(field_type.is(Type.Body)).or(field_type.is(Type.Dynamic))
-                    .or(fcall_is_shallow_return(arg, ctx)).or(fcall_returns_dynamic(arg, ctx)) {
-                        emit_field(f, var, fname, ctx)
-                        f.write(" = ")
-                        emit_expr(f, arg, depth, ctx)
-                        f.write(";\n")
-                    } else if is_pod_enum_clone_call(arg, ctx) {
-                        // #326: same skip the Decl and FieldAssign paths
-                        // make -- a POD-enum clone is a struct value copy,
-                        // so the malloc-copy-free wrapper (and with it the
-                        // C call) buys nothing. This ctor-field path was
-                        // the one emitter left without the check, which
-                        // kept every POD enum's clone definition alive for
-                        // any struct holding one (Declaration.own_type).
-                        emit_field(f, var, fname, ctx)
-                        f.write(" = ")
-                        emit_pod_enum_clone_arg(f, arg, depth, ctx)
-                        f.write(";\n")
-                    } else if is_pod_struct_user_clone(arg, ctx) {
-                        emit_field(f, var, fname, ctx)
-                        f.write(" = ")
-                        emit_pod_struct_user_clone_arg(f, arg, depth, ctx)
-                        f.write(";\n")
-                    } else {
-                        ftype := c_type_name(arg.til_type(), arg_sname2, ctx)
-                        f.write("{ ")
-                        f.write(ftype)
-                        f.write(" *_ca = ")
-                        emit_expr(f, arg, depth, ctx)
-                        f.write("; ")
-                        emit_field(f, var, fname, ctx)
-                        f.write(" = *_ca; ")
-                        // A Str-returning call can hand back a hoisted
-                        // literal (cap == TIL_CAP_LIT, static storage) --
-                        // same guard as the field-assignment path above.
-                        if ftype == "Str" { f.write("if (_ca->cap != TIL_CAP_LIT) { free(_ca); }") }
-                        else { f.write("free(_ca);") }
-                        f.write(" }\n")
-                    }
-                }
-            } else {
-                if field_type.is_funcptr().or(field_type.is(Type.Body)).or(field_type.is(Type.Dynamic))
-                .or(fcall_is_shallow_return(arg, ctx)).or(fcall_returns_dynamic(arg, ctx)) {
-                    emit_field(f, var, fname, ctx)
-                    f.write(" = ")
-                    emit_expr(f, arg, depth, ctx)
-                    f.write(";\n")
-                } else if is_pod_enum_clone_call(arg, ctx) {
-                    emit_field(f, var, fname, ctx)
-                    f.write(" = ")
-                    emit_pod_enum_clone_arg(f, arg, depth, ctx)
-                    f.write(";\n")
-                } else if is_pod_struct_user_clone(arg, ctx) {
-                    emit_field(f, var, fname, ctx)
-                    f.write(" = ")
-                    emit_pod_struct_user_clone_arg(f, arg, depth, ctx)
-                    f.write(";\n")
-                } else {
-                    ftype := c_type_name(arg.til_type(), arg_sname2, ctx)
-                    f.write("{ ")
-                    f.write(ftype)
-                    f.write(" *_ca = ")
-                    emit_expr(f, arg, depth, ctx)
-                    f.write("; ")
-                    emit_field(f, var, fname, ctx)
-                    f.write(" = *_ca; ")
-                    if ftype == "Str" { f.write("if (_ca->cap != TIL_CAP_LIT) { free(_ca); }") }
-                    else { f.write("free(_ca);") }
-                    f.write(" }\n")
-                }
-            }
         } else {
             emit_field(f, var, fname, ctx)
             f.write(" = ")
@@ -4579,14 +3954,39 @@ priv emit_ns_inits := proc(f: File, depth: I32, mut lp: LoadedProgram) {
 
 priv emit_body_scoped := proc(f: File, body: Expr, depth: I32, mut ctx: Context) {
     saved_sl := ctx.builder_func.stack_locals.clone()
+    saved_hl := ctx.builder_func.heap_locals.clone()
     saved_lsl := ctx.builder_func.stack_lit_str_locals.clone()
     saved_rl := ctx.builder_func.ref_locals.clone()
     saved_rdl := ctx.builder_func.ref_dyn_locals.clone()
     emit_body(f, body, depth, ctx)
     ctx.builder_func.stack_locals = saved_sl
+    ctx.builder_func.heap_locals = saved_hl
     ctx.builder_func.stack_lit_str_locals = saved_lsl
     ctx.builder_func.ref_locals = saved_rl
     ctx.builder_func.ref_dyn_locals = saved_rdl
+}
+
+// Adapt the legacy bodyless owned-return ABI (T *) to the value ABI used by
+// ordinary til code. The wrapper is released exactly once at this boundary;
+// a CAP_LIT Str may point at static wrapper storage, so its tag decides
+// whether that outer wrapper is freeable and the copied value becomes VIEW.
+priv emit_fcall_owned_value := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
+    mut ctype := fcall_return_ctype(e, ctx)
+    if ctype.len() == 0 {
+        e_sname_o := expr_type_name_ref(e)
+        if e_sname_o.is_some() { ctype = c_type_name(e.til_type(), e_sname_o.unwrap(), ctx) }
+        else { ctype = c_type_name(e.til_type(), "", ctx) }
+    }
+    f.write("({ ").write(ctype).write(" *_hp = (").write(ctype).write(" *)")
+    emit_expr(f, e, depth, ctx)
+    f.write("; ").write(ctype).write(" _hv = *_hp; ")
+    if ctype == "Str" {
+        f.write("if (_hp->cap != TIL_CAP_LIT) { free(_hp); } ")
+        f.write("if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } ")
+    } else {
+        f.write("free(_hp); ")
+    }
+    f.write("_hv; })")
 }
 
 priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
@@ -4643,9 +4043,17 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
             } else {
                 f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
             }
+        case .FCall:
+            if fcall_returns_c_value(e, ctx) {
+                emit_expr(f, e, depth, ctx)
+            } else if fcall_returns_ref(e, ctx) {
+                f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
+            } else {
+                emit_fcall_owned_value(f, e, depth, ctx)
+            }
         case .FieldAccess:
             if builder_fa_is_ns(e, ctx).and(e.til_type().is(Type.Enum)) {
-                f.write("(*").emit_expr(e, depth, ctx).write(")")
+                emit_expr(f, e, depth, ctx)
             } else {
                 emit_expr(f, e, depth, ctx)
             }
@@ -4757,7 +4165,25 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             case:
             }
         }
-        emit_expr(f, e, depth, ctx)
+        if fcall_returns_c_value(e, ctx) {
+            mut ctype := fcall_return_ctype(e, ctx)
+            if ctype.len() == 0 {
+                if e_sname_o.is_some() { ctype = c_type_name(e.til_type(), e_sname_o.unwrap(), ctx) }
+                else { ctype = c_type_name(e.til_type(), "", ctx) }
+            }
+            if is_own {
+                f.write("({ ").write(ctype).write(" *_oa = malloc(sizeof(").write(ctype).write(")); *_oa = ")
+                emit_expr(f, e, depth, ctx)
+                if ctype == "Str" { f.write("; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }") }
+                f.write("; _oa; })")
+            } else {
+                f.write("&((").write(ctype).write("[]){ ")
+                emit_expr(f, e, depth, ctx)
+                f.write(" })[0]")
+            }
+        } else {
+            emit_expr(f, e, depth, ctx)
+        }
     case .Literal(Literal.Str):
         switch e.node_type {
         case .Literal(Literal.Str(s)):
@@ -4795,6 +4221,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     f.write("}; _oa; })")
                 }
             } else {
+                f.write("&")
                 emit_expr(f, e, depth, ctx)
             }
         } else if e.til_type().is(Type.Dynamic) {
@@ -4829,8 +4256,8 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
 // (e.g. "Str_to_i64(_cv)"). The `({ ... })` block scopes its own temps, so
 // sibling args never clash. Inlines what the old cli_parse_* helpers did.
 priv cli_view_box := func(ctype: Str, conv: Str, arg: Str) returns Str {
-    return "({ Str *_cv = Str_from_c_str(".format(arg, "); ", ctype, " _v = ", conv,
-        "; Str_delete(_cv, (Bool){1}); ", ctype, " *_p = malloc(sizeof(", ctype,
+    return "({ Str _cvv = Str_from_c_str(".format(arg, "); Str *_cv = &_cvv; ", ctype, " _v = ", conv,
+        "; Str_delete(&_cvv, (Bool){0}); ", ctype, " *_p = malloc(sizeof(", ctype,
         ")); *_p = _v; _p; })")
 }
 
@@ -4839,8 +4266,8 @@ priv cli_view_box := func(ctype: Str, conv: Str, arg: Str) returns Str {
 // params, whose C convention is by-value (param_ctype), so the body's
 // emitters see the same shape they see for any other shallow param.
 priv cli_view_value := func(ctype: Str, conv: Str, arg: Str) returns Str {
-    return "({ Str *_cv = Str_from_c_str(".format(arg, "); ", ctype, " _v = ", conv,
-        "; Str_delete(_cv, (Bool){1}); _v; })")
+    return "({ Str _cvv = Str_from_c_str(".format(arg, "); Str *_cv = &_cvv; ", ctype, " _v = ", conv,
+        "; Str_delete(&_cvv, (Bool){0}); _v; })")
 }
 
 // C expression evaluating to a freshly heap-allocated `<ttype> *` parsed from
@@ -4858,8 +4285,10 @@ priv cli_view_scalar := func(by_value: Bool, ctype: Str, conv: Str, arg: Str) re
 priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
     switch ttype {
     case "Str":
-        // Str is a struct: its C convention is by-pointer either way.
-        return "Str_clone(&(Str){.c_str = (void *)".format(arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT})")
+        // The variadic-array fill path consumes a pointer slot; adapt the
+        // ordinary by-value Str.clone result once at this boundary.
+        return "({ Str *_p = malloc(sizeof(Str)); *_p = Str_clone(&(Str){.c_str = (void *)".format(
+            arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT}); _p; })")
     case "I64":   return cli_view_scalar(by_value, "I64", "Str_to_i64(_cv)", arg)
     case "U8":    return cli_view_scalar(by_value, "U8", "Str_to_u8(_cv)", arg)
     case "I8":    return cli_view_scalar(by_value, "I8", "I64_to_i8(Str_to_i64(_cv))", arg)
@@ -5097,7 +4526,13 @@ priv emit_closure_env_clone := proc(f: File, closure_name: Str, env_type: Str,
                 f.write("    til_clone->").write(cap.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
                 f.write("    *til_clone->").write(cap.name).write(" = *til_env->").write(cap.name).write(";\n")
             } else {
-                f.write("    til_clone->").write(cap.name).write(" = ").write(clone_type).write("_clone(til_env->").write(cap.name).write(");\n")
+                clone_name := format(clone_type, "_clone")
+                if callee_returns_c_value(clone_name, lp.ctx) {
+                    f.write("    til_clone->").write(cap.name).write(" = malloc(sizeof(").write(clone_type).write("));\n")
+                    f.write("    *til_clone->").write(cap.name).write(" = ").write(clone_name).write("(til_env->").write(cap.name).write(");\n")
+                } else {
+                    f.write("    til_clone->").write(cap.name).write(" = ").write(clone_name).write("(til_env->").write(cap.name).write(");\n")
+                }
             }
         }
     }
@@ -5456,9 +4891,8 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
         for vd : VariantDef in edd.variants {
             ref vn : Str = vd.name
             if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
-            f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
-            f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
-            f.write("    *r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
+            f.write(name).write(" ").write(name).write("_").write(vn).write("() {\n")
+            f.write("    ").write(name).write(" r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
             f.write("    return r;\n").write("}\n")
         }
     } else if enum_is_niche(enum_def) {
@@ -5485,31 +4919,31 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
             if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             vt := enum_variant_type(enum_def, i.to_i32())
             if vt.len() == 0 {
-                f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
-                f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
-                f.write("    r->tag = ").write(name).write("_TAG_").write(vn).write(";\n")
+                f.write(name).write(" ").write(name).write("_").write(vn).write("() {\n")
+                f.write("    ").write(name).write(" r = {0};\n")
+                f.write("    r.tag = ").write(name).write("_TAG_").write(vn).write(";\n")
                 f.write("    return r;\n").write("}\n")
                 continue
             }
             ptype := type_name_to_c(vt, lp.ctx)
-            f.write(name).write(" *").write(name).write("_").write(vn).write("(").write(ptype).write(" val) {\n")
-            f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
-            f.write("    r->tag = ").write(name).write("_TAG_").write(vn).write(";\n")
+            f.write(name).write(" ").write(name).write("_").write(vn).write("(").write(ptype).write(" val) {\n")
+            f.write("    ").write(name).write(" r = {0};\n")
+            f.write("    r.tag = ").write(name).write("_TAG_").write(vn).write(";\n")
             if enum_variant_payload_ref(enum_def, i.to_i32()) {
                 // #320: borrow -- store the caller's pointer, no move,
                 // no free; the enum does not own the pointee.
-                f.write("    r->data.").write(vn).write(" = val;\n")
+                f.write("    r.data.").write(vn).write(" = val;\n")
             } else if is_primitive_type(vt).or(is_pod_enum(vt, lp.ctx)) {
                 // Value payloads (primitives and payload-less enums):
                 // copied out of the caller's storage, never owned, so
                 // no free -- the caller passes `&value`, not a box.
-                f.write("    r->data.").write(vn).write(" = *val;\n")
+                f.write("    r.data.").write(vn).write(" = *val;\n")
             } else if is_funcsig_type(vt, lp.ctx).or(vt.eq("Dynamic")) {
-                f.write("    r->data.").write(vn).write(" = val;\n")
+                f.write("    r.data.").write(vn).write(" = val;\n")
             } else {
                 // Issue #109: payload param is Own -- caller transferred
                 // the heap `val`, so move its contents and free it.
-                f.write("    r->data.").write(vn).write(" = *val;\n")
+                f.write("    r.data.").write(vn).write(" = *val;\n")
                 if vt == "Str" { f.write("    if (val->cap != TIL_CAP_LIT) { free(val); }\n") }
                 else { f.write("    free(val);\n") }
             }
@@ -5585,15 +5019,11 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
 // call: `is_n`'s tag operand (child 2), which becomes a compound-literal
 // tag compare, and a Case node's pattern (child 0) in a C-like switch,
 // which becomes a case label.
-// The clone/delete sites on a payload-less enum that every emitter now
-// splices in place rather than calls: a POD-enum clone is a value copy at
-// EVERY position (Decl, Assign, FieldAssign, ctor field), and a POD-enum
-// delete of a stack local is elided whole (is_noop_delete_stmt). The site
-// collector must not record those as calls, or the definitions stay for
-// callers that do not exist. The delete side mirrors the emitter's
-// stack-locals answer through the #302 gc_storage record; a name declared
-// twice in one unit walk cannot be told apart, so it takes the safe side
-// (recorded as a call, the definition stays).
+// A payload-less enum delete of a stack local is elided whole
+// (is_noop_delete_stmt). The site collector must not record that as a call,
+// or the definition stays for a caller that does not exist. The collector
+// reads gc_storage; an ambiguous duplicate name takes the safe side and
+// keeps the definition.
 
 
 priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, mut ctx: Context) {
@@ -5777,7 +5207,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
 // "void" Str_lit leaked when reassigned.
 priv func_return_ctype := func(fd: FunctionDef, mut ctx: Context) returns Str {
     if fd.return_type.len() == 0 { return "void" }
-    if fd.return_own_type.is(OwnType.Shallow) { return type_name_to_c_value(fd.return_type, ctx) }
+    if func_returns_c_value(fd) { return type_name_to_c_value(fd.return_type, ctx) }
     return type_name_to_c(fd.return_type, ctx)
 }
 
@@ -6044,13 +5474,13 @@ priv builder_ns_has_func := func(def: Expr, method: Str) returns Bool {
     return nsd.default_expr().node_type.is(NodeType.FuncDef)
 }
 
-priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Bool {
+priv builder_ns_func_returns_c_value := func(def: Expr, method: Str) returns Bool {
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
     ref nsd : Declaration = nsd_o.unwrap()
     if nsd.default_value.is_some() {
         switch nsd.default_expr().node_type {
-        case .FuncDef(fd): return fd.return_own_type.is(OwnType.Shallow)
+        case .FuncDef(fd): return func_returns_c_value(fd)
         case:
         }
     }
@@ -6064,7 +5494,7 @@ priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Boo
 // (one pointer, nothing to free), so its params come through by VALUE and
 // the two disagreed ("conflicting types for E_eq").
 // True when the named ns method takes its first param by VALUE (Shallow),
-// the param-side twin of builder_ns_func_returns_shallow.
+// the param-side twin of builder_ns_func_returns_c_value.
 priv builder_ns_func_param_shallow := func(def: Expr, method: Str) returns Bool {
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
@@ -6080,19 +5510,16 @@ priv builder_ns_func_param_shallow := func(def: Expr, method: Str) returns Bool 
     return false
 }
 
-// #321 perf: the constructors of a NICHE enum return the VALUE (one
-// pointer), not a heap box -- see generate_enum_variant_constructors in
-// initer.til. Every prototype emitter has to agree with the definition
-// emit_enum_def writes, so they all spell the return type through here.
-priv enum_ctor_ret_c := func(ename: Str, enum_def: Expr) returns Str {
-    if enum_is_niche(enum_def) { return format(ename, " ") }
-    return format(ename, " *")
+// #346: every generated enum constructor returns its aggregate value.
+// Pointer-taking consumers adapt once at their call boundary.
+priv enum_ctor_ret_c := func(ename: Str) returns Str {
+    return format(ename, " ")
 }
 
 priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
     if builder_ns_has_func(enum_def, "eq").not() { return }
     mut eq_ret := "Bool *"
-    if builder_ns_func_returns_shallow(enum_def, "eq") { eq_ret = "Bool" }
+    if builder_ns_func_returns_c_value(enum_def, "eq") { eq_ret = "Bool" }
     mut eq_param := format(enum_name, " *")
     if builder_ns_func_param_shallow(enum_def, "eq") { eq_param = enum_name.clone() }
     f.fwrite(eq_ret, " ", enum_name, "_eq(", eq_param, ", ", eq_param, ");\n")
@@ -6192,7 +5619,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
             ref dd : Declaration = decl_of(stmt)
             if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
-            ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
+            ctor_ret := enum_ctor_ret_c(dd.name)
             for hdr_vd : VariantDef in hdr_edd.variants {
                 if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
                 if hdr_vd.payload_type.len() > 0 {
@@ -6563,7 +5990,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     }
                     f.write("]\n")
                     if fd.return_type.len() > 0 {
-                        rs := fd.return_own_type.is(OwnType.Shallow)
+                        rs := func_returns_c_value(fd)
                         f.write("_lib.").write(dd.name).write("_").write(def_ns_name_at(rhs, cur_pybi))
                         f.write(".restype = ")
                         f.write(type_name_to_ctypes_return(fd.return_type, rs)).write("\n")
@@ -6601,7 +6028,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
 
                     // restype
                     if fd.return_type.len() > 0 {
-                        rs := fd.return_own_type.is(OwnType.Shallow)
+                        rs := func_returns_c_value(fd)
                         f.write("_lib.").write(c_name).write(".restype = ")
                         f.write(type_name_to_ctypes_return(fd.return_type, rs)).write("\n")
                     } else {
@@ -6631,9 +6058,9 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
 
             has_eq := builder_ns_has_func(rhs, "eq")
             mut eq_ret := "ctypes.POINTER(ctypes.c_bool)"
-            if builder_ns_func_returns_shallow(rhs, "eq") { eq_ret = "ctypes.c_bool" }
+            if builder_ns_func_returns_c_value(rhs, "eq") { eq_ret = "ctypes.c_bool" }
             mut is_ret := "ctypes.POINTER(ctypes.c_bool)"
-            if builder_ns_func_returns_shallow(rhs, "is") { is_ret = "ctypes.c_bool" }
+            if builder_ns_func_returns_c_value(rhs, "is") { is_ret = "ctypes.c_bool" }
 
             // eq
             if has_eq {
@@ -7362,7 +6789,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
                 ref dd : Declaration = decl_of(stmt)
                 if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
                 ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
-                ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
+                ctor_ret := enum_ctor_ret_c(dd.name)
                 for shdr_vd : VariantDef in shdr_edd.variants {
                     if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                     if shdr_vd.payload_type.len() > 0 {
@@ -7385,7 +6812,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
             case .Decl(dd):
             if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
-            ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
+            ctor_ret := enum_ctor_ret_c(dd.name)
             for shdr_vd : VariantDef in shdr_edd.variants {
                 if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                 if shdr_vd.payload_type.len() > 0 {
@@ -7486,7 +6913,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
             ref sdd : Declaration = decl_of(stmt)
             if sdd.name == "dyn_has_method" {
                 ref fd : FunctionDef = funcdef_of(stmt.children[0])
-                dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
+                dyn_has_shallow = func_returns_c_value(fd)
                 break
             }
         }
@@ -7523,7 +6950,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
 
 priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: FunctionDef, mut ctx: Context) {
     np := fd.params.len()
-    ret_shallow := fd.return_own_type.is(OwnType.Shallow)
+    ret_value_c := func_returns_c_value(fd)
     has_return := fd.return_type.len() > 0
     // The dyn_fn funcptr aliases (CloneFn/DeleteFn/CmpFn, ...) use a uniform
     // dyn ABI. The wrapper bridges that ABI to the concrete method ABI:
@@ -7537,8 +6964,8 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     //     value. The lone auxiliary shallow primitive is delete's call_free
     //     (param index >= 1 of delete), which the collection passes by value;
     //     every other param is element data of the dispatched type.
-    box_ret := ret_shallow.and(method_name.eq("clone"))
-    ret_value := ret_shallow.and(box_ret.not())
+    box_ret := ret_value_c.and(method_name.eq("clone"))
+    ret_value := ret_value_c.and(box_ret.not())
     // #326: the wrapper exists only to fill the closure value emitted
     // right below it, so in a closed world it is TU-local like any other
     // generated definition -- and -Wunused-function audits it.
@@ -8152,9 +7579,9 @@ priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
         } else if vt == "Str" {
             f.write("    case Type_TAG_")
             f.write(vn)
-            f.write(": return Str_clone(&type->data.")
+            f.write(": { Str *r = malloc(sizeof(Str)); *r = Str_clone(&type->data.")
             f.write(vn)
-            f.write(");\n")
+            f.write("); return r; }\n")
         } else {
             // Nested enum
             mut inner_names := Vec(Str).new()
@@ -8247,7 +7674,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                             if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
                         }
                     }
-                    ret_sh := mfd.return_own_type.is(OwnType.Shallow)
+                    ret_sh := func_returns_c_value(mfd)
                     mut ret_ct := ""
                     if info.has_return {
                         if ret_sh {
@@ -8325,7 +7752,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                         if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
                     }
                 }
-                ret_sh := mfd.return_own_type.is(OwnType.Shallow)
+                ret_sh := func_returns_c_value(mfd)
                 mut ret_ct := ""
                 if info.has_return {
                     if ret_sh {
@@ -8380,7 +7807,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                 ref dd : Declaration = decl_of(stmt)
                 if dd.name == "dyn_has_method" {
                     ref fd : FunctionDef = funcdef_of(stmt.children[0])
-                    dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
+                    dyn_has_shallow = func_returns_c_value(fd)
                     break
                 }
             }
@@ -8451,7 +7878,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             cn := et.format("_clone")
-            is_shallow := callee_returns_shallow(cn, lp.ctx)
+            is_shallow := callee_returns_c_value(cn, lp.ctx)
             if is_shallow {
                 f.write("        ").write(et).write(" *_val = malloc(sizeof(").write(et).write(")); *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             } else {
@@ -8479,7 +7906,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             f.write("        USize _idx = _i;\n")
             cn := et.format("_clone")
-            is_shallow := callee_returns_shallow(cn, lp.ctx)
+            is_shallow := callee_returns_c_value(cn, lp.ctx)
             if is_shallow {
                 f.write("        ").write(et).write(" *_val = malloc(sizeof(").write(et).write(")); *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             } else {
@@ -8748,7 +8175,7 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, mut ctx: Context
         if shadowed_by_func { continue }
         if fd.return_type.len() > 0 {
             mut rt := ""
-            if fd.return_own_type.is(OwnType.Shallow) { rt = type_name_to_c_value(fd.return_type, ctx) }
+            if func_returns_c_value(fd) { rt = type_name_to_c_value(fd.return_type, ctx) }
             else { rt = type_name_to_c(fd.return_type, ctx) }
             f.write(rt).write(" "); fc := func_to_c(dd.name); f.write(fc).write("(")
         } else {
@@ -10630,10 +10057,6 @@ priv is_primitive_type := func(name: Str) returns Bool {
     }
     return false
 }
-// #302 stage 4 retired this file's private POD-shape copies: the shared
-// definitions live in context.til (pod_struct_is / pod_ctor_args_safe /
-// pod_fcall_is_struct_ctor), asked by the garbager, the constfolder and
-// every builder site alike -- one definition, no drift.
 priv is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
     if enum_name.len() == 0 { return false }
     ed_o := find_struct_def(enum_name, ctx)
@@ -10643,13 +10066,13 @@ priv is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
     if enum_has_payloads(ed) { return false }
     return true
 }
-priv callee_returns_shallow := func(callee_name: Str, ctx: Context) returns Bool {
+priv callee_returns_c_value := func(callee_name: Str, ctx: Context) returns Bool {
     fdef_o := find_callee_fdef(callee_name, ctx)
     if fdef_o.is_none() { return false }
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        return fd.return_own_type.is(OwnType.Shallow)
+        return func_returns_c_value(fd)
     case:
         return false
     }
@@ -10735,33 +10158,6 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
         return Option(ref Expr).None
     }
 }
-priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
-    if fcall.node_type.is(NodeType.FCall).not() { return false }
-    ref callee : Expr = fcall.children[0]
-    if fcall_is_direct(fcall) {
-        switch callee.node_type {
-        case .Ident(ident):
-            if callee_returns_shallow(ident.ident_name(), ctx) { return true }
-        case .FieldAccess(mname):
-            sname_o := expr_type_name_ref(callee.children[0])
-            if sname_o.is_none() { return false }
-            ref sname : Str = sname_o.unwrap()
-            flat := sname.concat3("_", mname.field_access_name())
-            if callee_returns_shallow(flat, ctx) { return true }
-        case:
-        }
-    }
-    sig_o := fcall_fn_sig(fcall, ctx)
-    if sig_o.is_some() {
-        ref sig : Expr = sig_o.unwrap()
-        switch sig.node_type {
-        case .FuncDef(sfd):
-            return sfd.return_own_type.is(OwnType.Shallow)
-        case:
-        }
-    }
-    return false
-}
 priv builder_fcall_returns_own := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall_is_direct(fcall) { return fcall_returns_own(fcall, ctx.scope) }
     sig_o := fcall_fn_sig(fcall, ctx)
@@ -10770,11 +10166,6 @@ priv builder_fcall_returns_own := func(fcall: Expr, ctx: Context) returns Bool {
     case .FuncDef(fd): return fd.return_own_type.is(OwnType.Own)
     case: return false
     }
-}
-priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
-    tname := clone_call_type_name(e)
-    if tname.len() == 0 { return false }
-    return is_pod_enum_clone_of(e, find_struct_def(tname, ctx))
 }
 priv builder_is_temp_delete := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
@@ -10931,8 +10322,7 @@ priv emit_inline_checked_get := proc(f: File, e: Expr, fdef: Expr, depth: I32, m
     }
     // The error branch reproduces the callee's own two statements: set the
     // caller's err slot (inline_subst mapped the _err_kind PARAMETER to the
-    // out-argument the call site passes) and yield null, which is what the
-    // out-of-line call returned on the throw path.
+    // out-argument the call site passes) and yield the ABI's empty result.
     f.write(" : (")
     mut errname := ""
     switch setk.node_type {
@@ -10941,7 +10331,11 @@ priv emit_inline_checked_get := proc(f: File, e: Expr, fdef: Expr, depth: I32, m
     }
     f.write(builder_resolve_c_ident_name(errname, ctx)).write(" = ")
     emit_deref(f, setk.children[0], depth, ctx)
-    f.write(", (").write(rctype).write(")NULL))")
+    if func_returns_c_value(fd) {
+        f.write(", (").write(rctype).write("){0}))")
+    } else {
+        f.write(", (").write(rctype).write(")NULL))")
+    }
 }
 
 priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) returns Bool {
@@ -10985,38 +10379,7 @@ priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns Option(ref Ex
     ref sig : Expr = deref(slot)
     return Option(ref Expr).Some(sig)
 }
-priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str), dup_names: Set(Str), param_names: Set(Str), ctx: Context) returns Bool {
-    if member.eq("clone") {
-        // Mirror the emitters' branch ORDER, not just their predicate: every
-        // Decl/Assign/FieldAssign/ctor-field path checks shallow-return
-        // before the POD splice, and a NICHE enum's clone returns by value
-        // (#320, one word), so its payload-less-variant clone -- which
-        // is_pod_enum_clone_of alone would call spliceable -- is emitted as
-        // a real call.
-        if fcall_is_shallow_return(e, ctx) { return false }
-        if is_pod_enum_clone_call(e, ctx) { return true }
-        // The POD-STRUCT twin, mirroring is_pod_struct_user_clone: the
-        // emitters splice a FieldAccess arg unconditionally and an Ident
-        // arg when it is a stack local or a parameter of the enclosing
-        // function -- which is what stack_names/param_names hold here.
-        if e.children.len() < 2 { return false }
-        ref bps_ca : Expr = e.children[1]
-        if bps_ca.til_type().is(Type.Struct).not() { return false }
-        bps_ca_name_o := expr_type_name_ref(bps_ca)
-        if bps_ca_name_o.is_none() { return false }
-        if pod_struct_is(bps_ca_name_o.unwrap(), ctx.scope).not() { return false }
-        switch bps_ca.node_type {
-        case .Ident(bps_can):
-            ref bps_caname : Str = bps_can.ident_name()
-            if param_names.has(bps_caname) { return true }
-            if dup_names.has(bps_caname) { return false }
-            return stack_names.has(bps_caname)
-        case .FieldAccess:
-            return true
-        case:
-        }
-        return false
-    }
+priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str), dup_names: Set(Str), ctx: Context) returns Bool {
     if member.eq("delete").not() { return false }
     if e.children.len() < 2 { return false }
     ref bps_arg : Expr = e.children[1]
@@ -11033,38 +10396,23 @@ priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str
     if dup_names.has(bps_name) { return false }
     return stack_names.has(bps_name)
 }
-priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut param_names: Set(Str), owner: Str, ctx: Context) {
+priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), owner: Str, ctx: Context) {
     // A delete is body-local, so the storage tracking below is too: each
     // function body starts from fresh name sets, or the same short local
     // name (`c`, `r`) declared across sibling bodies would look like a
     // shadowing conflict and defeat the stack check in every one of them.
-    // Params seed their own set -- the struct-clone splice treats a param
-    // like a stack value, but a delete on one (an `own` param's scheduled
-    // cleanup) is a real call, so they must not feed the delete mirror.
     if e.node_type.is(NodeType.FuncDef) {
         mut bvs_fn_stack := Set(Str).new()
         mut bvs_fn_dup := Set(Str).new()
-        mut bvs_fn_params := Set(Str).new()
-        switch e.node_type {
-        case .FuncDef(bvs_fnd):
-            for bvs_fp : Declaration in bvs_fnd.params {
-                if bvs_fn_params.has(bvs_fp.name).not() { bvs_fn_params.add(own bvs_fp.name.clone()) }
-            }
-        case:
-        }
         for bvs_fn_ch : Expr in e.children {
-            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_params, "", ctx)
+            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, "", ctx)
         }
         return
     }
     // Track which bindings the garbager recorded as Stack storage -- the
-    // AST-visible mirror of the emitter's stack_locals set (#302's
-    // assert_gc_stack keeps the two honest). The record is trusted as
-    // written: #302 stage 4 made it tell the truth for the POD-struct
-    // ctor Decl, which this walk used to re-derive with a private copy of
-    // the emitter's condition ("the mirror", #326's documented loose
-    // end). The one residual skew errs toward keeping a delete
-    // definition, never toward dropping a called one.
+    // AST-visible mirror of the emitter's stack_locals set. The record is
+    // trusted as written; ambiguous duplicate names conservatively keep the
+    // delete definition.
     switch e.node_type {
     case .Decl(bvs_dd):
         if stack_names.has(bvs_dd.name).or(dup_names.has(bvs_dd.name)) {
@@ -11133,7 +10481,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
                 recv_type_o := expr_type_name_ref(bvs_fa.children[0])
                 if recv_type_o.is_some() {
                     ref recv_type : Str = recv_type_o.unwrap()
-                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, param_names, ctx).not() {
+                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, ctx).not() {
                         sites.add(own recv_type.concat3(".", bvs_f.field_access_name()))
                     }
                 }
@@ -11191,10 +10539,10 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         if has_skip.and(cur_bvs == skip_child) { continue }
         if case_body_only.and(cur_bvs != e.children.len().sub(1)) { continue }
         if bvs_move_subst.and(cur_bvs == 0) {
-            builder_collect_ns_member_sites(bvs_ch.children[1], sites, stack_names, dup_names, param_names, bvs_owner, ctx)
+            builder_collect_ns_member_sites(bvs_ch.children[1], sites, stack_names, dup_names, bvs_owner, ctx)
             continue
         }
-        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, ctx)
+        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, bvs_owner, ctx)
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         // A site inside an OMITTED definition is not a call: the body that
@@ -11214,7 +10562,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
             if owner.len() > 0 {
                 if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
             }
-            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, param_names, "", ctx)
+            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, "", ctx)
         }
     }
 }
@@ -11274,14 +10622,9 @@ priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Cont
 priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if member.eq("clone").or(member.eq("delete")).or(member.eq("eq")).not() { return false }
     // Any ENUM or STRUCT, payload-carrying and non-POD included: the site
-    // inventory is what decides, and the splice predicates only ever fire
-    // for the POD shapes, so a payload enum's sites always record and the
-    // definition stays whenever anything clones/deletes/compares one. The
-    // POD shapes are the only ones whose sites can VANISH -- a POD-enum
-    // clone is a value copy at every position, a stack local's POD delete
-    // is elided whole -- and the collector mirrors those elisions. A
-    // non-POD struct never splices, so every call it makes records, and
-    // gating it costs nothing but the definitions nobody calls
+    // inventory decides. Stack-local payload-less enum deletes are the only
+    // calls elided by storage shape; clone and comparison sites are ordinary
+    // calls. Gating costs nothing but definitions nobody calls
     // (ErrorWithMessage_clone in test/errors.til, Vec__Str_clone in
     // examples/tilminal.til). The name has to resolve to a definition:
     // a primitive or an ext type has no generated body to omit.
@@ -11559,9 +10902,8 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
         inv_round_sites.add(own Str.clone("Str.clone"))
         inv_stack_names = Set(Str).new()
         inv_dup_names = Set(Str).new()
-        mut inv_param_names := Set(Str).new()
         for upath : Str in lp.unit_paths() {
-            builder_collect_ns_member_sites(lp.ctx.imported[upath].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", lp.ctx)
+            builder_collect_ns_member_sites(lp.ctx.imported[upath].ast, inv_round_sites, inv_stack_names, inv_dup_names, "", lp.ctx)
         }
         n_sites := inv_round_sites.len()
         lp.ctx.builder_ns_member_sites = inv_round_sites.clone()

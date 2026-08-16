@@ -781,7 +781,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
             }
             if keep { new_children.push_take(old_children, idx) }
         }
-        iu.ast.children = new_children
+        iu.ast.children.move_from(own new_children)
     }
 }
 
@@ -2878,7 +2878,7 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, mut ctx: Co
         }
         if handled.not() { new.push_take(old, idx) }
     }
-    body.children = new
+    body.children.move_from(own new)
 }
 
 priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, mut ctx: Context) {
@@ -4473,7 +4473,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
 
 repl_prepare_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) {
     constfolder_repl_delta(lp, delta)
-    dce_program_bodies(delta, lp.ctx)
+    dce_program_bodies(delta)
 }
 
 prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {

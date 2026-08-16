@@ -276,3 +276,32 @@ test_funcsig_shallow_return_direct := test() {
     expect(f(10), "10 is positive")
     expect(f(-1).not(), "-1 is not positive")
 }
+
+// #346: ordinary owned aggregates use the same by-value C return ABI through
+// direct calls and FuncSig/closure dispatch. The Str field keeps this from
+// collapsing to a POD-only special case.
+ReturnBox346 := struct { value := "" }
+ReturnBoxMaker346 := func(Str) returns ReturnBox346
+
+make_return_box346 := func(value: Str) returns ReturnBox346 {
+    return ReturnBox346(value = value.clone())
+}
+
+apply_return_box346 := func(make: ReturnBoxMaker346, value: Str) returns ReturnBox346 {
+    return make(value)
+}
+
+type_name_return346 := func(T: Type) returns Str {
+    return dyn_type_to_str(T)
+}
+
+test_owned_aggregate_return_abi := test() {
+    direct := make_return_box346("direct")
+    assert_eq(Str, direct.value, "direct")
+
+    make : ReturnBoxMaker346 = make_return_box346
+    indirect := apply_return_box346(make, "indirect")
+    assert_eq(Str, indirect.value, "indirect")
+
+    assert_eq(Str, type_name_return346(I64), "I64")
+}

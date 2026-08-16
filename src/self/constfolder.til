@@ -1336,48 +1336,9 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
 // literal. Issue #191: macros are always folded (typer already rejected
 // non-comptime args). Funcs fold when all args are comptime. Procs are
 // never folded.
-// #302 stage 1: a fold that replaces a Decl's RHS with a Str literal
-// changes the decl's storage reality AFTER the garbager recorded it
-// (garbager_destroy runs before constfolder_imported in
-// init_and_type_program): the builder stack-allocates LiteralStr
-// decls, so the stale HeapBox record would trip assert_gc_stack.
-// Re-stamp the record to match the post-fold shape. The garbager-
-// inserted delete keeps its pre-fold call_free and is defused by the
-// emit-time stack shims -- pre-existing compensation, a stage 4/6
-// collapse target.
-// The three post-fold RHS shapes the builder emits as a STACK value: a
-// Str literal, the POD-enum clone wrap (mk_color() ->
-// Color.clone(Color.Green)) and the POD-struct ctor (magic() ->
-// CfVec2(42, 99)). Same predicates the garbager records by.
-priv folded_rhs_is_stack_shape := func(rhs: Expr, ctx: Context) returns Bool {
-    if rhs.node_type.is_literal_str() { return true }
-    if is_pod_enum_clone_wrap(rhs, ctx.scope) { return true }
-    return pod_ctor_decl_is_stack(rhs, ctx.scope)
-}
-
-priv restamp_folded_decl_storage := func(mut decl: Expr) {
-    switch decl.node_type {
-    case .Decl(dd):
-        if dd.gc_storage.is(GcStorage.HeapBox) { dd.gc_storage = GcStorage.Stack }
-    case:
-    }
-}
-
-// #302 stage 4/6: the deletes the record's flip above invalidates. When
-// a Decl's RHS folds into one of the stack shapes, garbager_destroy has
-// already built that local's destructor from the pre-fold HeapBox
-// record: `T.delete(own v, call_free=true)`. The stale call would
-// reach the generic own-arg path and box the stack value -- malloc +
-// copy + free -- just to delete it (the struct-ctor regression stage 4
-// shipped and pulled back; the Str and POD-enum flavors used to be
-// defused by emit-time shims, the builder's Str delete override and
-// the scavenger's half of fix_stale_litstr_in_body). Rewrite the
-// delete to what make_delete_call builds for a Stack record: own bit
-// off, call_free=false. Direct siblings of the Decl only: a delete
-// inserted before an early return lives in a nested wrapper body,
-// where the boxed shape stays correct (merely wasteful) and where a
-// nested shadowing re-declaration could alias the name, which a
-// same-level re-declaration cannot.
+// A destructor for frame storage consumes nested ownership but must leave
+// the outer object in place. Rewrite both generated and user-written delete
+// calls from the Decl's recorded GcStorage, never from its final RHS shape.
 priv normalize_stack_decl_deletes := func(mut e: Expr, i: USize) {
     ref decl : Expr = e.children[i]
     mut dname := ""
@@ -1426,28 +1387,13 @@ priv normalize_stack_decl_deletes := func(mut e: Expr, i: USize) {
     }
 }
 
-// #302 stage 4/6: the record/destructor fixup, one BODY at a time. It
-// must see the FINAL RHS of every Decl -- folds land across rounds (a
-// variadic format() RHS folds only after its collector's DCE) and
-// generic instantiation rewrites RHSs with no fold involved at all --
-// so it cannot ride fold_subtree's walk, and a walk of its own showed
-// up on the profile. It rides the scavenger's body DCE walk instead
-// (dce_program_bodies), which already visits every body of every unit
-// AFTER all folding, on the build, library and REPL-delta paths alike,
-// and needs the honest records/destructors anyway (dce_one_body reads
-// gc_storage; the decl+delete pairs it drops must be recognizable).
-// The scan is NOT gated on the record having been HeapBox: a
-// Stack-recorded ctor decl's garbager delete is already honest, but a
-// USER-written `Point.delete(own p)` on it still arrives own +
-// call_free=true (the typer stamps the signature's own bit and fills
-// the defaulted call_free) and wants the same stack shape.
-constfolder_normalize_stack_decls_in_body := func(mut body: Expr, ctx: Context) {
+// Run beside body DCE after all transformations; the storage record is stable
+// even when folding or generic substitution changes the initializer.
+constfolder_normalize_stack_decls_in_body := func(mut body: Expr) {
     for i in 0..body.children.len() {
-        ref mut child : Expr = body.children[i]
+        ref child : Expr = body.children[i]
         if child.node_type.is(NodeType.Decl).not() { continue }
-        if child.children.len() == 0 { continue }
-        if folded_rhs_is_stack_shape(child.children[0], ctx).not() { continue }
-        restamp_folded_decl_storage(child)
+        if decl_of(child).gc_storage.is(GcStorage.Stack).not() { continue }
         normalize_stack_decl_deletes(body, i)
     }
 }

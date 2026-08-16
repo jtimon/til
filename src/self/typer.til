@@ -201,12 +201,6 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 // check ignores reads inside these so genuinely-unused priv fields
 // and ns methods are not masked by boilerplate references.
 // auto_gen_depth / throw_used_local_names now live on Context.
-// typer_in_shallow_return (and the late typer_in_main_func) lived as
-// module-level mut here. They moved to Context (see initer.til) since
-// garbager.til reads them and the garbager entry points already thread
-// ctx. infer_func_def_expr writes ctx.typer_in_* while typing each
-// body; collect_scope_locals / promote_own_transferred_locals read
-// them through ctx.
 I64Name := "I64"
 U8Name := "U8"
 I8Name := "I8"
@@ -446,7 +440,7 @@ priv try_ufcs_rewrite := func(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
     for i in 1..e.children.len() {
         new_children.push_take(e.children, i)
     }
-    e.children = new_children
+    e.children.move_from(own new_children)
     return true
 }
 
@@ -1133,7 +1127,7 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
             UNREACHABLE("expected CtorArg.Filled, got ", fv.to_str())
         }
     }
-    e.children = new_ch
+    e.children.move_from(own new_ch)
     for i in 1..e.children.len() {
         // Issue #295: a FuncDef's til_type is FuncPtr (not Unknown),
         // so a capturing-closure arg would skip inference and its body
@@ -1971,7 +1965,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         for i in 1..e.children.len() {
             new_children.push_take(e.children, i)
         }
-        e.children = new_children
+        e.children.move_from(own new_children)
         ref fa2 : Expr = e.children[0]
         ref m2 : FieldAccessData = fieldaccess_of(fa2)
         method = Str.clone(m2.field_access_name())
@@ -4688,8 +4682,6 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
         if fdef.auto_generated {
             ctx.auto_gen_depth = ctx.auto_gen_depth + 1
         }
-        saved_in_shallow_ret := ctx.typer_in_shallow_return
-        ctx.typer_in_shallow_return = fdef.return_own_type.is(OwnType.Shallow)
         saved_return_type_name := ctx.typer_return_type_name.clone()
         // #321: a PROC can declare `returns Dynamic` too (the interpreter's
         // evaluators do), and its `return 0` needs the zero-to-null rewrite
@@ -4756,7 +4748,6 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
                 capture_block_check_refs(expr.children[0], scope, func_scope, cap_root, fdef.captures, ctx)
             }
         }
-        ctx.typer_in_shallow_return = saved_in_shallow_ret
         ctx.typer_return_type_name = saved_return_type_name
         if fdef.auto_generated {
             ctx.auto_gen_depth = ctx.auto_gen_depth - 1
@@ -8995,6 +8986,20 @@ priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope) returns Option(ref
     return Option(ref Expr).None
 }
 
+// A Dynamic-returning call narrowed to a concrete type still carries an
+// owned pointer block. It is the Dynamic quarantine exception to ordinary
+// value-return storage; record it once so both backends use HeapBox.
+fcall_returns_dynamic_storage := func(fcall: Expr, scope: TypeScope) returns Bool {
+    if fcall.til_type().is(Type.Dynamic) { return false }
+    fd_o := fcall_callee_fdef(fcall, scope)
+    if fd_o.is_none() { return false }
+    switch fd_o.unwrap().node_type {
+    case .FuncDef(fd):
+        return fd.return_type.eq("Dynamic").and(fd.return_own_type.is(OwnType.Own))
+    case: return false
+    }
+}
+
 // The argument expression bound to callee parameter `pi` at this call
 // site. Two layouts: with a plain or namespace-qualified callee (which is
 // also what the UFCS rewrite produces) parameter i sits at children[i+1];
@@ -9955,7 +9960,7 @@ priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope) {
 
 // Asap-destruction helpers (LocalInfo, alias_used_in_stmts,
 // collect_scope_locals, extend_ref_local_lifetimes,
-// check_use_after_own_transfer, promote_own_transferred_locals,
+// check_use_after_own_transfer,
 // insert_exit_deletes / insert_nested_exit_deletes /
 // insert_exit_deletes_into_stmt / insert_post_stmt_deletes /
 // insert_assign_delete, insert_free_calls) moved to
@@ -10064,72 +10069,6 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
                     case:
                     }
                 }
-            }
-        }
-    case:
-    }
-    return 0
-}
-
-// Parallel to fcall_returns_ref: returns 1 when the FCall's callee is
-// declared `returns shallow T`. Used by collect_scope_locals to keep
-// the typer-emitted cleanup's call_free bool consistent with the
-// builder's shallow-return stack-alloc path (no malloc, so freeing
-// would touch a stack pointer).
-// The SETTLED shallow-return answer for a callee signature. The garbager
-// queries callee sigs (via fcall_returns_shallow) while typing the unit
-// that may have JUST instantiated the callee's template -- before the
-// instantiated def's own signature inference applied the #223
-// auto-shallow normalization (Own -> Shallow for primitive / small
-// value-shaped returns, see infer_func_def_expr). Trusting the
-// unsettled return_own_type recorded HeapBox for locals the builder
-// stack-allocates (its fcall_is_shallow_return reads the flag AFTER all
-// typing); the #302 stage-1 assert caught the mismatch on
-// `popped : I64 = v.pop()` the first time a unit instantiated Vec(T)
-// itself. Mirror the normalization here instead.
-priv fdef_returns_shallow_settled := func(fd: FunctionDef, scope: TypeScope, ctx: Context) returns Bool {
-    if fd.return_own_type.is(OwnType.Shallow) { return true }
-    if fd.return_own_type.is(OwnType.Own).not() { return false }
-    auto_ok := fd.func_type.is_plain().or(fd.func_type.is_lazy())
-    if auto_ok.not() { return false }
-    if fd.return_type.len() == 0 { return false }
-    ref resolved : Str = resolve_type_alias(scope, fd.return_type)
-    return is_auto_shallow_type(type_from_name_init(resolved, scope), resolved, scope, ctx)
-}
-
-fcall_returns_shallow := func(fcall: Expr, scope: TypeScope, ctx: Context) returns I32 {
-    if fcall.node_type.is(NodeType.FCall).not() { return 0 }
-    if fcall.children.len() == 0 { return 0 }
-    ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case .Ident(cn):
-        cb_fd_o := scope.lookup_func(cn.ident_name())
-        if cb_fd_o.is_none() { return 0 }
-        switch cb_fd_o.unwrap().node_type {
-        case .FuncDef(cfd):
-            return fdef_returns_shallow_settled(cfd, scope, ctx)
-        case:
-            return 0
-        }
-    case .FieldAccess(cfa):
-        if fa_is_ns(callee, scope) {
-            switch callee.children[0].node_type {
-            case .Ident(cti):
-                sdef_o := scope.get_struct(cti.ident_name())
-                if sdef_o.is_none() { return 0 }
-                ref sdef : Expr = sdef_o.unwrap()
-                fd_o := def_ns_get(sdef, cfa.field_access_name())
-                if fd_o.is_some() {
-                    ref fd : Declaration = fd_o.unwrap()
-                    if fd.default_value.is_some() {
-                        switch fd.default_expr().node_type {
-                        case .FuncDef(ffd):
-                            return fdef_returns_shallow_settled(ffd, scope, ctx)
-                        case:
-                        }
-                    }
-                }
-            case:
             }
         }
     case:
@@ -10687,32 +10626,55 @@ priv make_type_size_call := func(tname: Str, src: Expr) returns Expr {
 // caller. And `free(own <param>)` is an own-transfer the garbager already
 // understands, so it stands the param's exit delete down on this path exactly
 // as it does for a hand-written one.
-// #321: the same move, for a payload that lives in a POINTER SLOT (a niche
-// enum). There is nothing to copy -- the slot already holds the payload's
-// box -- so the block is the steal above minus the malloc and the memcpy:
+// #321/#346: the same move for a payload that lives in a POINTER SLOT (a
+// niche enum). Ordinary functions now return values, so copy the payload
+// bytes into a typed raw temporary, release both pointer shells, and let the
+// return boundary copy the value out:
 //
-//   { <tmp> : T = deref(get_payload(<param>))
+//   { <tmp> : T = malloc(T.size())
+//     memcpy(<tmp>, <binding>, T.size())
+//     free(own <binding>)
 //     free(own <param>)
 //     return <tmp> }
 //
-// `free(own <param>)` releases the enum SHELL without running the payload's
-// destructor, which is what makes handing the box on sound; it is also the
-// own-transfer that stands the param's exit delete down, exactly as in the
-// inline case. This is the zero-copy take: no allocation at all.
-priv make_niche_steal_block := func(param_name: Str, tname: Str, tmp: Str, src: Expr) returns Expr {
+// The copies move the payload's nested ownership; neither free runs a deep
+// destructor. The param free is also the own-transfer that stands its exit
+// delete down.
+priv make_niche_steal_block := func(bind_name: Str, param_name: Str, tname: Str, tmp: Str, src: Expr) returns Expr {
     mut blk := Expr.new(NodeType.Body, src.line, src.col)
 
-    // <tmp> : T = get_payload(<param>)
-    // No deref wrapper: get_payload LOADS a niche's slot itself, so the call
-    // already yields the payload box. The wrapper this block was born with
-    // predated that and double-dereffed -- reading the payload's first word
-    // as if it were the pointer (ASAN: heap-buffer-overflow in the caller's
-    // adopt, copying sizeof(T) from wherever that word pointed).
-    mut self_id := Expr.new(ident_node(param_name), src.line, src.col)
-    mut gp := make_get_payload_fcall(own self_id, til_type_from_explicit_type(tname), src.line, src.col)
+    // <tmp> : T = malloc(T.size())
+    mut malloc_id := Expr.new(ident_node("malloc"), src.line, src.col)
+    mut malloc_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    malloc_call.add_child(own malloc_id)
+    mut msize := make_type_size_call(tname, src)
+    malloc_call.add_child(own msize)
     mut decl := Expr.new(NodeType.Decl(decl_typed(name = tmp, explicit_type = tname)), src.line, src.col)
-    decl.add_child(own gp)
+    decl.set_til_type(src.children[0].til_type().clone())
+    decl.add_child(own malloc_call)
     blk.add_child(own decl)
+
+    // memcpy(<tmp>, <binding>, T.size())
+    mut memcpy_id := Expr.new(ident_node("memcpy"), src.line, src.col)
+    mut copy_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    copy_call.add_child(own memcpy_id)
+    copy_call.add_child(own Expr.new(ident_node(tmp), src.line, src.col))
+    copy_call.add_child(own Expr.new(ident_node(bind_name), src.line, src.col))
+    mut csize := make_type_size_call(tname, src)
+    copy_call.add_child(own csize)
+    blk.add_child(own copy_call)
+
+    // free(own <binding>)
+    mut free_bind_id := Expr.new(ident_node("free"), src.line, src.col)
+    mut free_bind_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    free_bind_call.add_child(own free_bind_id)
+    set_own_arg(free_bind_call, free_bind_call.children.len())
+    mut to_ptr_id := Expr.new(ident_node("to_ptr"), src.line, src.col)
+    mut to_ptr_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    to_ptr_call.add_child(own to_ptr_id)
+    to_ptr_call.add_child(own Expr.new(ident_node(bind_name), src.line, src.col))
+    free_bind_call.add_child(own to_ptr_call)
+    blk.add_child(own free_bind_call)
 
     // free(own <param>)
     mut free_id := Expr.new(ident_node("free"), src.line, src.col)
@@ -10742,6 +10704,7 @@ priv make_payload_steal_block := func(bind_name: Str, param_name: Str, tname: St
     mut msize := make_type_size_call(tname, src)
     malloc_call.add_child(own msize)
     mut decl := Expr.new(NodeType.Decl(decl_typed(name = tmp, explicit_type = tname)), src.line, src.col)
+    decl.set_til_type(src.children[0].til_type().clone())
     decl.add_child(own malloc_call)
     blk.add_child(own decl)
 
@@ -10805,7 +10768,7 @@ priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: S
             if is_bind {
                 tmp := format("_steal_", bind_name, "_", st.line.to_str(), "_", st.col.to_str())
                 if in_slot {
-                    body.children[i] = make_niche_steal_block(param_name, tname, tmp, st)
+                    body.children[i] = make_niche_steal_block(bind_name, param_name, tname, tmp, st)
                 } else {
                     body.children[i] = make_payload_steal_block(bind_name, param_name, tname, tmp, st)
                 }

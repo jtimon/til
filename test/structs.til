@@ -666,3 +666,49 @@ test_field_init_shorthand_matches_longhand := test() {
     b := ShorthandUser(su_name = su_other)
     assert_eq(Bool, a.eq(b), true)
 }
+
+// #346: semantic ownership is independent from the outer C storage. These
+// managed values stay in frame slots until an own parameter or field needs a
+// pointer-shaped transfer boundary.
+StackValue346 := struct {
+    text := ""
+}
+
+StackOwner346 := struct {
+    own value := StackValue346()
+}
+
+priv mutate_stack_value346 := func(mut value: StackValue346) {
+    value.text = "mutated heap-backed text for stack value 346"
+}
+
+priv return_stack_value346 := func(flag: Bool) returns StackValue346 {
+    mut value := StackValue346(text = "early heap-backed text for stack value 346")
+    if flag { return value }
+    value.text = "late heap-backed text for stack value 346"
+    return value
+}
+
+priv move_stack_value346 := func(own value: StackValue346) returns StackValue346 {
+    return value
+}
+
+test_owned_aggregate_stack_lifecycle346 := test() {
+    mut text := format("initial heap-backed text for stack value ", 346.to_str())
+    text = "replacement heap-backed text for stack value 346"
+
+    mut value := StackValue346(text = text)
+    copy := value.clone()
+    value = StackValue346(text = "reassigned heap-backed text for stack value 346")
+    ref borrowed : Str = value.text
+    mutate_stack_value346(value)
+    assert_eq(Str, borrowed, "mutated heap-backed text for stack value 346")
+    assert_eq(Str, copy.text, "replacement heap-backed text for stack value 346")
+
+    early := return_stack_value346(true)
+    assert_eq(Str, early.text, "early heap-backed text for stack value 346")
+
+    moved := move_stack_value346(own value)
+    owner := StackOwner346(value = moved)
+    assert_eq(Str, owner.value.text, "mutated heap-backed text for stack value 346")
+}

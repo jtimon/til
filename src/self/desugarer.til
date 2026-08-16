@@ -4261,7 +4261,8 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
         mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi.to_usize().add(j), j, ctx)
         new_ch.push(own setter)
     }
-    rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc)
+    variadic_own := fd.params[fd.variadic_index.to_usize()].own_type.is(OwnType.Own)
+    rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc, variadic_own)
 }
 
 // Note: the traversal mirrors the recursion guards used by
@@ -4621,8 +4622,8 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     // precise field-access context that hoisting would erase.
     // Non-ref owned results are gated on fcall_returns_own and on an
     // aggregate result type (primitives/Dynamic have no box).
-    // Shallow struct returns are fine to hoist: collect_scope_locals
-    // keys is_heap=false off fcall_returns_shallow for the temp.
+    // Ordinary aggregate results are values, so their hoisted temps use
+    // frame storage and receive normal scope cleanup.
     if expr.node_type.is(NodeType.FieldAccess).and(expr.children.len().gt(0)) {
         ref fa_base : Expr = expr.children[0]
         if fa_base.node_type.is(NodeType.FCall).and(is_macro_call(fa_base, ctx).not()) {
@@ -4929,7 +4930,7 @@ priv hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
     stmt = popped
 }
 
-priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_type: Str, vi: I32, vc: USize) {
+priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_type: Str, vi: I32, vc: USize, variadic_own: Bool) {
     ref mut fcall_data : FCallData = fcall_of(fcall)
     old_own := fcall_data.own_args
     line := fcall.line
@@ -4943,9 +4944,11 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
             if va_inserted.not() {
                 mut va_id := Expr.new(ident_node(va_name), line, col)
                 va_id.set_til_type(Type.Struct(array_type.clone()))
-                mut bit : U64 = 1
-                for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
-                new_own = new_own.bor(bit)
+                if variadic_own {
+                    mut bit : U64 = 1
+                    for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
+                    new_own = new_own.bor(bit)
+                }
                 fcall_new_ch.push(own va_id)
                 va_inserted = true
             }
@@ -4954,9 +4957,11 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         if j.to_i32().eq(vi).and(va_inserted.not()) {
             mut va_id := Expr.new(ident_node(va_name), line, col)
             va_id.set_til_type(Type.Struct(array_type.clone()))
-            mut bit : U64 = 1
-            for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
-            new_own = new_own.bor(bit)
+            if variadic_own {
+                mut bit : U64 = 1
+                for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
+                new_own = new_own.bor(bit)
+            }
             fcall_new_ch.push(own va_id)
             va_inserted = true
         }
@@ -4973,9 +4978,11 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
     if va_inserted.not() {
         mut va_id := Expr.new(ident_node(va_name), line, col)
         va_id.set_til_type(Type.Struct(array_type.clone()))
-        mut bit : U64 = 1
-        for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
-        new_own = new_own.bor(bit)
+        if variadic_own {
+            mut bit : U64 = 1
+            for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
+            new_own = new_own.bor(bit)
+        }
         fcall_new_ch.push(own va_id)
     }
     fcall.children.move_from(own fcall_new_ch)

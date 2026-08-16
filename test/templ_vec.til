@@ -78,9 +78,9 @@ namespace:
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
             mut cloned : T = src.clone()
-            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), cloned, T.size().cast(U64))
+            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), to_ptr(cloned), T.size().cast(U64))
             // ownership of cloned's heap (if any) moves into the buffer
-            memset(cloned, 0, T.size().cast(U64))
+            memset(to_ptr(cloned), 0, T.size().cast(U64))
         }
         return TemplVec(T)(data = new_data, count = self.count, cap = self.cap)
     }

@@ -809,24 +809,6 @@ scalar_block_from_word := func(shallow t: Type, w: Dynamic, ctx: Context) return
     return block
 }
 
-// True when a decl's RHS is a #302 raw-allocation call: the allocator
-// trio declares `own Dynamic` but the typer re-stamps the call to the
-// decl's primitive, so the eval value is a BARE pointer (the same
-// malloc/calloc/realloc name set the garbager's LocalInfo model keys on).
-priv rhs_is_raw_alloc_call := func(rhs: Expr) returns Bool {
-    switch rhs.node_type {
-    case .FCall:
-        if rhs.children.len() == 0 { return false }
-        switch rhs.children[0].node_type {
-        case .Ident(cid):
-            return cid.ident_name().eq("malloc").or(cid.ident_name().eq("calloc")).or(cid.ident_name().eq("realloc"))
-        case:
-        }
-    case:
-    }
-    return false
-}
-
 // Value-word -> binding-slot boundary: primitive VALUES box into a fresh
 // block; a #302 raw-alloc POINTER (an allocator call, whatever the decl's
 // own-ness, or an own-consumed rhs still stamped Dynamic) already IS a
@@ -2138,7 +2120,10 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
                 EvalHeap.heap_free(own raw)
                 return
             }
-            rhs_is_pointer := rhs.til_type().is(Type.Dynamic).and(dd.own_type.is(OwnType.Own)).or(rhs_is_raw_alloc_call(rhs))
+            // GcStorage is the settled outer representation. HeapBox means
+            // the eval result is already the pointer datum (raw allocation or
+            // narrowed Dynamic return), not an inline scalar word to re-box.
+            rhs_is_pointer := dd.gc_storage.is(GcStorage.HeapBox)
             if rhs_is_pointer.and(rhs_type.is(Type.Dynamic)).and(raw_type_is_prim(decl_type, ctx)) {
                 // #302 raw-alloc bind from a Dynamic-slot eval: the POINTER
                 // is the binding datum -- raw_coerce_value's shallow value
@@ -2497,7 +2482,8 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     return_source_is_ref = return_hb.own_type.is(OwnType.Ref).and(heap_type_is_callable(hb_type(return_hb)).not())
                     // A SHALLOW primitive return reads the scalar word; the
                     // binding keeps its block (nothing inner to move).
-                    if scope_return_move_is_local(scope, ret_ident.ident_name()).and(raw_type_is_prim(hb_type(return_hb), ctx).and(return_hb.own_type.is(OwnType.Shallow)).not()) {
+                    if scope_return_move_is_local(scope, ret_ident.ident_name())
+                    .and(return_hb.is_raw_alloc.or(raw_type_is_prim(hb_type(return_hb), ctx).and(return_hb.own_type.is(OwnType.Shallow)).not())) {
                         return_raw = scope_move_bound_raw(scope, ret_ident.ident_name(), ctx)
                         // An own-prim VALUE binding's moved block collapses to
                         // the inline word callers expect from a prim-stamped
@@ -2836,17 +2822,22 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
             source_result_type := type_from_name_init(result_fd.return_type, ctx.scope)
             if callee_ret_is_ref.not() {
                 if source_result_type.is(Type.Dynamic).and(raw_type_is_prim(e.til_type(), ctx)) {
-                    // A Dynamic-declared result re-stamped primitive by the
-                    // typer: the caller consumes the VALUE word. Unbox
-                    // through the wrapper and reclaim the owned storage.
+                    // A Dynamic-declared result re-stamped primitive either
+                    // stays an owned pointer block (Dynamic quarantine) or
+                    // collapses to the transient scalar word.
                     ref unbox_pointed : Dynamic = deref(result)
-                    unboxed_w : Dynamic = scalar_word_load(e.til_type(), unbox_pointed, ctx)
-                    if result_fd.return_own_type.is(OwnType.Own) {
-                        mut owned_pointed : Dynamic = unbox_pointed
-                        EvalHeap.heap_free(own owned_pointed)
+                    if fcall_returns_dynamic_storage(e, ctx.scope) {
+                        EvalHeap.heap_free(own result)
+                        result = unbox_pointed
+                    } else {
+                        unboxed_w : Dynamic = scalar_word_load(e.til_type(), unbox_pointed, ctx)
+                        if result_fd.return_own_type.is(OwnType.Own) {
+                            mut owned_pointed : Dynamic = unbox_pointed
+                            EvalHeap.heap_free(own owned_pointed)
+                        }
+                        EvalHeap.heap_free(own result)
+                        result = unboxed_w
                     }
-                    EvalHeap.heap_free(own result)
-                    result = unboxed_w
                 } else {
                     result = raw_coerce_value(result, source_result_type, e.til_type(), ctx, result_fd.return_own_type)
                 }
@@ -4085,7 +4076,10 @@ scope_new := func(parent: Option(ref Scope)) returns Scope {
         scope_pool.count = scope_pool.count - 1
         ref mut s : Scope = to_ptr(e.p)
         s.parent = parent
-        return to_ptr(e.p)
+        out : Scope = malloc(Scope.size())
+        memcpy(out, e.p, Scope.size())
+        free(own e.p)
+        return out
     }
     return Scope(parent = parent)
 }

@@ -367,8 +367,8 @@ literal only initializes, fills, overwrites, is passed to, or is
 returned from quarantine-labeled positions. A typed param, field,
 assignment target or return gets a type error pointing at Option.
 (Generated code is exempt where its nulls are correct by
-construction: a niche variant ctor returns the null pointer for the
-payload-less variant, and the throw-lowering's unreachable ref-return
+construction: a niche variant ctor returns a value whose data field is null
+for the payload-less variant, and the throw-lowering's unreachable ref-return
 fallback stays under check_ref_function_returns' own rules.) C's NULL
 in EMITTED code is unaffected -- the niche spells None as C null by
 design.

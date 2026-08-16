@@ -19,7 +19,7 @@ import("../std/sys")
 // fa_own_type, transfer_is_shallow_field_value_copy, is_compile_directive,
 // expr_uses_var, expr_transfers_own, expr_used_in_nested_func,
 // expr_contains_decl, fcall_returns_shallow, rhs_is_clone_fcall)
-// and a typer state flag (typer_in_shallow_return). The loader imports garbager.til right after
+// The loader imports garbager.til right after
 // typer.til so those names are in scope.
 
 priv LocalInfo := struct {
@@ -1387,18 +1387,6 @@ priv str_clone_to_move_provably_safe := func(name: Str, preceding: Vec(Expr)) re
     return has_owning_decl
 }
 
-
-// Mirrors builder.til's is_pod_enum_clone_call; resolves the enum def
-// via TypeScope instead of Context.
-// Not priv: constfolder.til's restamp_folded_decl_storage reuses this
-// exact predicate when a fold rewrites a Decl RHS into the POD-enum
-// clone shape (#302 stage 1) -- one predicate, all consumers.
-is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
-    tname := clone_call_type_name(e)
-    if tname.len() == 0 { return false }
-    return is_pod_enum_clone_of(e, scope.get_struct(tname))
-}
-
 // Per-statement name facts for one body (perf): five U64 bitmask rows
 // per statement, filled in a single walk (the expr_collect_* mirrors in
 // typer.til) and probed by the per-local loops below, which previously
@@ -1550,7 +1538,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
     return bf
 }
 
-priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, mut locals_vec: Vec(LocalInfo)) {
+priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, mut locals_vec: Vec(LocalInfo)) {
     for b in scope.bindings.values {
         // main()'s non-Own params are heap-allocated by the builder's CLI
         // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
@@ -1671,84 +1659,28 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             li.dtor_transfer = transfer_is_destructor_call(body.children[own_transfer.to_usize()], b.name)
             li.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[own_transfer.to_usize()], b.name, scope)
         }
+        // #346: semantic Own does not imply a heap wrapper. Ordinary
+        // aggregate locals are values. Own parameters are transfer boundaries
+        // whose C ABI receives an allocated outer pointer; raw allocations,
+        // Dynamic, and allocated callable objects are the other exceptions.
         li.is_heap = b.own_type.is(OwnType.Own)
-        if b.type.is_funcptr().or(b.type.is(Type.Body)).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
-        // Decls whose RHS the builder will stack-allocate must use
-        // call_free=false in their cleanup or `free()` would touch a
-        // stack pointer. Two flavors:
-        //   - LiteralStr RHS: builder emits a stack compound literal.
-        //   - FCall RHS where the callee returns `shallow T`: builder
-        //     stack-allocates the value via fcall_is_shallow_return.
-        // Force is_heap=false regardless of the binding's own_type
-        // (which constfold may leave at Own from the original FCall
-        // return, and which the typer otherwise leaves at Own for
-        // Struct-returning FCalls).
+            .and(b.type.is(Type.Dynamic).or(b.is_param.and(decl_idx.lt(0))))
+        if type_is_callable_storage(b.type).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
         if decl_idx >= 0 {
             ref li_stmt : Expr = body.children[decl_idx.to_usize()]
             if li_stmt.node_type.is(NodeType.Decl).and(li_stmt.children.len().gt(0)) {
                 ref li_rhs : Expr = li_stmt.children[0]
-                if li_rhs.node_type.is_literal_str() {
-                    li.is_heap = false
-                } else if li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(li_rhs, scope, ctx).neq(0)) {
-                    li.is_heap = false
-                } else {
-                    switch li_rhs.node_type {
-                    case .FuncDef(rhs_fd):
-                        if b.type.is_funcptr().and(rhs_fd.captures.len().gt(0)).and(b.own_type.is(OwnType.Ref).not()) {
-                            li.is_heap = true
-                        }
-                    case .BodyValue:
-                        if b.type.is(Type.Body).and(b.own_type.is(OwnType.Ref).not()) {
-                            li.is_heap = true
-                        }
-                    case .FCall:
-                        if b.type.is_funcptr().or(b.type.is(Type.Body)).and(b.own_type.is(OwnType.Ref).not()) {
-                            li.is_heap = true
-                        }
-                    case:
+                switch li_rhs.node_type {
+                case .FuncDef(rhs_fd):
+                    if b.type.is_funcptr().and(rhs_fd.captures.len().gt(0)).and(b.own_type.is(OwnType.Ref).not()) {
+                        li.is_heap = true
                     }
-                }
-                // #302 stage 1: the `_hp` value-copy path. For a
-                // non-global, non-Own aggregate local bound to an
-                // ordinary FCall, the builder emits a STACK value
-                // (`T name; { T *_hp = call(); name = *_hp; free(_hp); }`)
-                // while this pass recorded HeapBox -- a knowingly
-                // divergent path, compensated by the delete shims. The
-                // predicate is computable here (post-promotion own_type,
-                // the binding type and program-scope are all settled),
-                // so the record can simply tell the truth. (The
-                // builder's extra returns-Dynamic guard is subsumed:
-                // is_aggregate excludes Dynamic bindings.)
-                if and(is_program_scope.not(),
-                       b.own_type.is(OwnType.Own).not(),
-                       b.type.is_funcptr().not(),
-                       b.type.is(Type.Dynamic).not(),
-                       is_aggregate(b.type),
-                       li_rhs.node_type.is(NodeType.FCall)) {
-                    li.is_heap = false
-                }
-                // #302 stage 4: the POD-struct ctor Decl. The C backend
-                // emits `Point p = (Point){...}` -- a stack value -- so
-                // the record has to say Stack too; it used to say
-                // HeapBox and the backend compensated at every delete
-                // site. 582 decls per a first_class translate.
-                if pod_ctor_decl_is_stack(li_rhs, scope) {
-                    li.is_heap = false
-                }
-                if is_pod_enum_clone_wrap(li_rhs, scope) {
-                    // POD-enum clone wrap (`c := Color.clone(Color.Red)`):
-                    // builder emits a stack value (Color c = (Color){...};)
-                    // and registers the local with stack_locals. The
-                    // destructor must use call_free=false so the trailing
-                    // Color_delete(&c, &(Bool){0}) is a true no-op --
-                    // payload-less enum delete has nothing to free.
-                    // Without this, the asaper emits call_free=true on
-                    // the stack value, which emit_as_ptr then wraps in
-                    // a malloc-copy `({ Color *_oa = malloc(...); *_oa
-                    // = c; _oa; })` to satisfy the own + free contract.
-                    // Matches the same shape builder.til's POD-enum
-                    // shortcut keys off of (is_pod_enum_clone_call).
-                    li.is_heap = false
+                case .BodyValue:
+                    if b.type.is(Type.Body).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = true }
+                case .FCall:
+                    if fcall_returns_dynamic_storage(li_rhs, scope) { li.is_heap = true }
+                    if type_is_callable_storage(b.type).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = true }
+                case:
                 }
                 if rhs_is_allocator_call(li_rhs).and(b.type.is(Type.Dynamic).not()) {
                     // Typed local from a raw allocator: an owned heap
@@ -2679,7 +2611,9 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
             if local.name.eq(vname).not() { continue }
             is_body_local = true
             if is_aggregate(local.type) {
-                if rhs_depends_on_var(stmt.children[0], vname, fact_bit_req(fi, vname).to_i64(), facts, stmt_idx) {
+                if ad.save_old_delete {
+                    return
+                } else if rhs_depends_on_var(stmt.children[0], vname, fact_bit_req(fi, vname).to_i64(), facts, stmt_idx) {
                     ad.save_old_delete = true
                     stmt.set_til_type(local.type.clone())
                 } else {
@@ -2696,95 +2630,6 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
         }
         if is_body_local { return }
     case:
-    }
-}
-
-priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals: Vec(LocalInfo)) {
-    for mut local : LocalInfo in locals {
-        if local.decl_index < 0 { continue }
-        ref mut stmt : Expr = body.children[local.decl_index.to_usize()]
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        // Skip LiteralStr-RHS decls (temp or user-visible): the builder
-        // emits these as stack-allocated compound-literal Str values, so
-        // heap-promotion would mismatch the generated delete (call_free=true
-        // would free a stack pointer). Keep them Shallow so make_delete_call
-        // generates call_free=false.
-        if stmt.children.len() > 0 {
-            ref rhs0 : Expr = stmt.children[0]
-            if rhs0.node_type.is_literal_str() { continue }
-            // Same shape, payload-less enum case: the builder emits a
-            // stack value via the is_pod_enum_clone_call shortcut, so
-            // heap-promotion here would mismatch the destructor (the
-            // delete-arg malloc-copy wrapper that emit_as_ptr emits for
-            // own + stack_local). Keep is_heap=false so make_delete_call
-            // uses call_free=false / arg_is_own=false and the destructor
-            // becomes a true no-op (`Color_delete(&c, &(Bool){0});`).
-            if is_pod_enum_clone_wrap(rhs0, ctx.scope) { continue }
-            // #302 stage 4: same shape again for a POD-STRUCT ctor
-            // (`p := Point(x = 1)`), which the backend also emits as a
-            // stack compound literal. Promoting it back to HeapBox is
-            // what forced the backend to override the delete at every
-            // site; keeping the Stack decision lets make_delete_call
-            // emit `Point_delete(&p, false)` on its own.
-            if pod_ctor_decl_is_stack(rhs0, ctx.scope) { continue }
-            // #302 stage 1: shallow-return FCall RHS -- the builder
-            // stack-allocates these (fcall_is_shallow_return), and
-            // collect_scope_locals already forced is_heap=false for
-            // exactly that reason. Re-promoting here undid the force
-            // and recorded HeapBox for a stack value; the stage-1
-            // builder assert caught it on the compiler's own
-            // hoisted__TokenType temps (lookup_single_char is
-            // `returns shallow TokenType`). Keep the Stack decision.
-            if rhs0.node_type.is(NodeType.FCall).and(fcall_returns_shallow(rhs0, ctx.scope, ctx).neq(0)) { continue }
-        }
-        switch stmt.node_type {
-        case .Decl(dd):
-        if dd.own_type.is(OwnType.Ref) { continue }
-        // Shared carve-out: the local's only escape is `return local` in a
-        // shallow-returning function -- the value-copy at the return IS the
-        // transfer, and a heap wrapper would just leak (the codegen does
-        // ~return DEREF(rv)~ without freeing rv). Applies to aggregates AND
-        // to raw_alloc locals: Vec(I64).pop's `out : T = malloc(T.size())`
-        // returns T under the auto-shallow primitive rule (#223), so
-        // heap-promoting it leaked the 8-byte box on every scalar pop.
-        mut shallow_ret_escape := false
-        if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0)).and(local.last_use.gte(0)) {
-            ref last_stmt : Expr = body.children[local.last_use.to_usize()]
-            if last_stmt.node_type.is(NodeType.Return) {
-                if last_stmt.children.len() > 0 {
-                    switch last_stmt.children[0].node_type {
-                    case .Ident(rname):
-                        if rname.ident_name() == local.name { shallow_ret_escape = true }
-                    case:
-                    }
-                }
-            }
-        }
-        // Raw-allocator RHS: heap-promote, scalar element type or not --
-        // the local IS a heap pointer, and without the promotion the
-        // builder emits the value-local malloc-deref-free roundtrip (see
-        // LocalInfo.raw_alloc). The shallow-return escape falls back to
-        // exactly that legacy roundtrip: value semantics at the return
-        // boundary, no wrapper to leak.
-        if local.raw_alloc {
-            if shallow_ret_escape {
-                local.raw_alloc = false
-                local.is_heap = false
-                continue
-            }
-            dd.own_type = OwnType.Own
-            local.is_heap = true
-            continue
-        }
-        // Use is_aggregate, not raw is(Type.Struct): keeps user structs/
-        // enums (which heap-promote) distinct from everything else.
-        is_struct := is_aggregate(local.type)
-        if local.own_transfer.lt(0).and(is_struct.not()) { continue }
-        if shallow_ret_escape.and(is_struct) { continue }
-        dd.own_type = OwnType.Own
-        local.is_heap = true
-        case:
-        }
     }
 }
 
@@ -2927,17 +2772,10 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // Index guard, not a semantic one: own_transfer is the statement
         // index read below, and -1 would index out of bounds.
         if local.own_transfer < 0 { continue }
-        if local.is_heap.not() { continue }
-        // Aggregates AND heap-promoted primitives: a scalar with a
-        // recorded own transfer was promoted to a decl-site box
-        // (promote_own_transferred_locals), and when the transfer is
-        // conditional the non-transfer path leaks that box exactly like
-        // an aggregate's -- the shape gc_live_solve's own `mut o : U8 =
-        // 0` fixpoint scratch hit first (3575 one-byte leaks on a
-        // gc_audit translate). Ident-RHS scalar decls never get here:
-        // the typer clone-wraps them, the shallow-FCall force keeps
-        // them on the stack, and the builder's inline box at the
-        // transfer call is consumed by the callee on every path.
+        // Stack values need the same non-transfer cleanup as heap boxes:
+        // their deep contents are still owned even though call_free=false
+        // preserves the frame storage. Pointer-transfer adapters consume a
+        // boxed copy only on the path that actually transfers ownership.
         // Callables and other unnamed types still stand down.
         if is_aggregate(local.type).not().and(local.type.is(Type.Primitive).not()) { continue }
         if type_to_name(local.type).len() == 0 { continue }
@@ -2992,9 +2830,8 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
 }
 
 // #302 stage 1: stamp the settled storage decision on each Decl's
-// Declaration (GcStorage). Runs after promote_own_transferred_locals,
-// the last pass that mutates LocalInfo.is_heap, so the record IS the
-// decision the delete insertion below executes. Ref bindings stay
+// Declaration (GcStorage). The record IS the decision the delete insertion
+// below executes. Ref bindings stay
 // Unset: they are borrows, neither stack-owned values nor heap boxes
 // of their own. The builder's transition asserts (emit_stmt_decl)
 // compare their re-derived twin shape checks against this record and
@@ -3225,7 +3062,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     // every body (~9% of a translate went into building facts).
     fidx := fact_universe(body, scope)
     mut facts := body_stmt_facts(body, scope, true, fidx)
-    collect_scope_locals(ctx, body, scope, is_program_scope, facts, fidx, locals_vec)
+    collect_scope_locals(body, scope, is_program_scope, facts, fidx, locals_vec)
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
@@ -3237,7 +3074,6 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
 
     extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx)
     check_use_after_own_transfer(body, locals_vec, scope, ctx)
-    promote_own_transferred_locals(ctx, body, locals_vec)
     record_storage_decisions(body, locals_vec)
     if sink_conditional_transfer_deletes(body, locals_vec, scope, ctx) {
         // Only when sink actually grafted: the rows are positional and
@@ -3349,12 +3185,9 @@ garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeS
 // or an on-the-fly scope rebuild in garbager.
 garbager_destroy := proc(mut ctx: Context) {
     saved_path := ctx.path.clone()
-    saved_in_shallow := ctx.typer_in_shallow_return
-    ctx.typer_in_shallow_return = false
     for path, mut iu in ctx.imported {
         ctx.path = path.clone()
         insert_free_calls(ctx, iu.ast, ctx.scope, 1)
     }
     ctx.path = saved_path
-    ctx.typer_in_shallow_return = saved_in_shallow
 }
