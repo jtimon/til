@@ -10743,7 +10743,13 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         case:
         }
     }
-    if e.node_type.is(NodeType.Case) { has_skip = true skip_child = 0 }
+    // A Case arm is [pattern x N, body] -- the wildcard arm is just
+    // [body], and the body is ALWAYS the last child. Skipping child 0
+    // dropped the pattern for a matched arm (right) and the whole BODY
+    // for a `case:` arm (wrong): every call inside a wildcard arm was
+    // invisible to this inventory. Walk the last child only.
+    mut case_body_only := false
+    if e.node_type.is(NodeType.Case) { case_body_only = true }
     // #302 stage 4: an Assign marked `is_move` CONSUMES the clone's
     // argument -- emit_stmt's Assign arm substitutes `rhs =
     // rhs.children[1]` and writes a bare move, so the `T.clone(x)` the
@@ -10773,6 +10779,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         cur_bvs := bvs_i
         bvs_i = bvs_i + 1
         if has_skip.and(cur_bvs == skip_child) { continue }
+        if case_body_only.and(cur_bvs != e.children.len().sub(1)) { continue }
         if bvs_move_subst.and(cur_bvs == 0) {
             builder_collect_ns_member_sites(bvs_ch.children[1], sites, stack_names, dup_names, param_names, bvs_owner, ctx)
             continue

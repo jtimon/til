@@ -877,6 +877,14 @@ main := proc(args: ..Str) {
     // name; the block is not emitted (121 of them across the corpus).
     add_count(tests, "option_no_niche_tag_enumerators", "build", "Option__ref_OptSrc_TAG_None", 0,
         format(til_bin, " translate -c gen/c/opt_nt.c test/option.til '&&' cat gen/c/opt_nt.c"))
+    // A Case arm is [pattern x N, body], and a `case:` wildcard arm is
+    // just [body] -- so the site collector's "skip child 0" dropped the
+    // whole BODY of every wildcard arm, and every call inside it. It
+    // walks the last child (the body) only now. enums.til's switch has a
+    // wildcard arm whose body calls UNREACHABLE; without the fix that
+    // call is invisible to the inventory.
+    add_count(tests, "enums_keeps_called_unreachable", "build", "void UNREACHABLE(", 2,
+        format(til_bin, " translate -c gen/c/en_ur.c test/enums.til '&&' cat gen/c/en_ur.c"))
     // The literal exposed DCE's trivial-delete matcher to CONSUMING
     // deletes: Array.unsafe_set's `T.delete(own self.unsafe_get(i),
     // false)` hoists its receiver into a ref temp, and with call_free a
