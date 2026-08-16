@@ -2935,6 +2935,8 @@ U64 RootBits_all(RootBits * self);
 Bool RootBits_is_zero(RootBits * self);
 RootBits * RootBits_clone(RootBits * self);
 void RootBits_delete(RootBits * self, Bool call_free);
+Bool priv___src_self_typer_til__field_path_matches(Str * tag, Str * crossed);
+Str * priv___src_self_typer_til__fieldaccess_path(Expr * fa);
 Vec__BorrowRoot * priv___src_self_typer_til__carried_roots_of(TypeScope * scope, Vec__BorrowRoot * roots, Str * fname);
 void priv___src_self_typer_til__summary_bind_case(Expr * cn, RootBits * subj, Map__Str_RootBits * roots);
 Str * priv___src_self_typer_til__summary_base_type_name(Str * tn);

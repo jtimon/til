@@ -357,3 +357,29 @@ test_borrow_root_per_field := test() {
     assert_eq(I64, s1.held.n, 2)
     assert_eq(I64, s2.held.n, 0)
 }
+
+# --- #356: the carried tag is a PATH, so nesting stays precise ---
+#
+# h borrows s1 and k borrows s2, both one level down inside an owned
+# field. Writing through h.r credits s1 alone -- the tag records the
+# `h.r` path, not just the ref field's name.
+
+Bp356Outer := struct {
+    h := Bp351Holder(r = Bp351Held())
+    k := Bp351Holder(r = Bp351Held())
+}
+
+bp356_poke := func(mut s1: Bp351Src, s2: Bp351Src) {
+    o := Bp356Outer(h = Bp351Holder(r = bp351_held_of(s1)),
+                    k = Bp351Holder(r = bp351_held_of(s2)))
+    o.h.r.n = o.h.r.n + 1
+}
+
+test_borrow_root_nested_per_field := test() {
+    mut s1 := Bp351Src()
+    s2 := Bp351Src()
+    bp356_poke(s1, s2)
+    bp356_poke(s1, s2)
+    assert_eq(I64, s1.held.n, 2)
+    assert_eq(I64, s2.held.n, 0)
+}

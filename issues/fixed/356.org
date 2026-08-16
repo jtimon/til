@@ -1,0 +1,60 @@
+# priority: medium
+# category: bugs
+** FIXED #356 A carried borrow tag is one field deep, so nested holders lump again
+
+*** Post-mortem
+
+Root cause: #355's tag named ONE field, and was set only where a
+constructor argument fed a ref field directly. A holder reached through
+an owned field arrived untagged, and untagged roots pass every filter --
+so the whole-bag answer returned one nesting level down.
+
+Fix: the tag is the dotted PATH the pointer sits behind. At the
+constructor, a ref field is the last segment (what it points at is
+reached by crossing it, and anything the pointee itself carries extends
+the path), while an owned carrying field prefixes its own name onto the
+argument's paths -- and contributes nothing tagged when the argument's
+depth is unknown, since the pointer is not behind the owned field alone.
+At the write, fieldaccess_path gives the whole chain from the base
+binding, and field_path_matches compares.
+
+Matching is deliberately SUFFIX-tolerant, not equality: a write reached
+through a binding that lost the outer segments (`ref hh : Holder = o.h;
+hh.r.n = ...`) crosses "r" where the root records "h.r", and both name
+the same field of the same holder. Equality there would silently drop
+the root -- under-crediting, the one direction this machinery must never
+take. Either side unknown also answers yes.
+
+Regression tests: test/ref.til's test_borrow_root_nested_per_field (mut
+s1 only, s2 non-mut, both backends agree only s1 changed);
+test/typer_errors.til's terr356_poke (one rejection naming s1, s2 absent;
+count 202 -> 203). The suffix-tolerance path was verified by probe: the
+shortened crossing still credits its source.
+
+
+#355 tags a carried root with the ref field that carries it, but only
+where a constructor argument feeds that ref field DIRECTLY. A holder
+reached through an OWNED field arrives untagged, and untagged roots pass
+every filter -- so one nesting level down the whole-bag answer is back:
+
+#+begin_src til
+Holder := struct { ref r : Inner }
+Outer  := struct { h := Holder(r = Inner())
+                   k := Holder(r = Inner()) }
+
+poke := func(mut s1: Src, s2: Src) {
+    o := Outer(h = Holder(r = a_of(s1)), k = Holder(r = a_of(s2)))
+    o.h.r.n = o.h.r.n + 1     // demands mut s2; only s1 is written
+}
+#+end_src
+
+Same class #355 closed, one level deeper. Over-crediting only -- a
+laundered write is never accepted -- but the spurious ~mut~ is a wrong
+requirement on the user.
+
+Fix: make the tag the PATH of fields the pointer sits behind (~h.r~)
+rather than a single name, and match it against the chain the lvalue
+walk actually crossed. A ctor argument feeding an owned field prefixes
+that field's name onto the roots it carries; the ref field it ends at
+appends its own. Matching stays prefix-tolerant so an untagged or
+shorter tag keeps passing -- every conservative path answers as today.

@@ -1179,3 +1179,15 @@ terr355_poke := func(s1: Terr351Src, s2: Terr351Src) {
     t := Terr355Two(p = terr351_held_of(s1), q = terr351_held_of(s2))
     t.p.n = t.p.n + 1
 }
+
+// #356: one level down, the write through h.r still names only h's
+// source. Before the tag became a path, k's source came along too.
+Terr356Outer := struct {
+    h := Terr351Holder(r = Terr351Held())
+    k := Terr351Holder(r = Terr351Held())
+}
+terr356_poke := func(s1: Terr351Src, s2: Terr351Src) {
+    o := Terr356Outer(h = Terr351Holder(r = terr351_held_of(s1)),
+                      k = Terr351Holder(r = terr351_held_of(s2)))
+    o.h.r.n = o.h.r.n + 1
+}

@@ -23,12 +23,12 @@ BorrowRoot := struct {
     // tracking is the boot). Appended at the END so the committed boot's
     // layout stays stable.
     carried := false
-    // #355: for a carried root, the ref FIELD of the carrying value that
-    // holds the pointer -- set only where that is known directly (a ctor
-    // argument feeding `ref p` tags its roots "p"). "" means unknown /
-    // any: such a root passes every field filter, so the conservative
-    // paths keep their answers. Appended at the END so the committed
-    // boot's layout stays stable.
+    // #355/#356: for a carried root, the dotted PATH of fields the
+    // pointer sits behind, from the carrying value (`h.r`: cross the
+    // owned `h`, then the ref `r`). Set where the constructor makes it
+    // known; "" means unknown depth, and an unknown path passes every
+    // filter, so the conservative routes keep their answers. Appended at
+    // the END so the committed boot's layout stays stable.
     field := ""
 namespace:
     eq := func(a: BorrowRoot, b: BorrowRoot) returns Bool {
