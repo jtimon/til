@@ -3674,6 +3674,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                     emit_deref(f, e.children[2], depth, ctx)
                     f.write("))")
                 }
+            } else if builder_is_inline_checked_get(flat, ctx) {
+                // `v[i]`: keep the bounds check, drop the call.
+                emit_inline_checked_get(f, e, find_callee_fdef(flat, ctx).unwrap(), depth, ctx)
             } else if builder_is_inline_accessor(mname.field_access_name(), flat, ctx) {
                 // Generalized len/unsafe_get inline (issue #300): splice the
                 // accessor's own body for ANY type, not just Vec, since a
@@ -10609,6 +10612,146 @@ priv count_ident_uses := func(e: Expr, name: Str) returns USize {
     }
     return n
 }
+// The bounds-CHECKED accessor: the shape `v[i]` calls, and the one the
+// len/unsafe_get inline above cannot take because it is not a single
+// return. After the throws lowering its body is exactly
+//
+//     hoisted__Bool_N = <guard>            (0+ hoisted temps, each used once)
+//     if hoisted__Bool_N { <temps> return <expr> }
+//     hoisted__I64_M = <tag>
+//     _err_kind = hoisted__I64_M
+//     return null
+//
+// -- a guard, a success value, and an error tag, with nothing else. That
+// is inlinable as a conditional expression, keeping the check (so an
+// out-of-range index still panics at the call site, exactly as before)
+// and dropping only the call. Matched on SHAPE, never on the method
+// name: Map.get's binary search has a while loop and does not match, and
+// any user accessor written this way does.
+priv builder_checked_get_body_ok := func(body: Expr) returns Bool {
+    n := body.children.len()
+    if n < 3 { return false }
+    // Tail: `_err_kind = <ident>` then `return null`.
+    ref last : Expr = body.children[n.sub(1)]
+    if last.node_type.is(NodeType.Return).not() { return false }
+    if last.children.len() != 1 { return false }
+    if last.children[0].node_type.is_literal_null().not() { return false }
+    ref setk : Expr = body.children[n.sub(2)]
+    mut sets_err := false
+    switch setk.node_type {
+    case .Assign(ad): sets_err = ad.name.eq("_err_kind")
+    case:
+    }
+    if sets_err.not() { return false }
+    // Everything before the tail: hoisted temps, then ONE if-with-return.
+    mut seen_if := false
+    for si in 0..n.sub(2) {
+        ref s : Expr = body.children[si]
+        switch s.node_type {
+        case .Decl(sd):
+            if sd.name.starts_with("hoisted__").not() { return false }
+            if s.children.len() != 1 { return false }
+        case .If:
+            if seen_if { return false }
+            if s.children.len() != 2 { return false }
+            ref then_body : Expr = s.children[1]
+            tn := then_body.children.len()
+            if tn == 0 { return false }
+            for ti in 0..tn.sub(1) {
+                ref ts : Expr = then_body.children[ti]
+                switch ts.node_type {
+                case .Decl(td):
+                    if td.name.starts_with("hoisted__").not() { return false }
+                    if ts.children.len() != 1 { return false }
+                case:
+                    return false
+                }
+            }
+            ref tlast : Expr = then_body.children[tn.sub(1)]
+            if tlast.node_type.is(NodeType.Return).not() { return false }
+            if tlast.children.len() != 1 { return false }
+            seen_if = true
+        case:
+            return false
+        }
+    }
+    return seen_if
+}
+
+priv builder_is_inline_checked_get := func(flat: Str, ctx: Context) returns Bool {
+    fdef_o := find_callee_fdef(flat, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
+    switch fdef.node_type {
+    case .FuncDef(fd):
+        if fd.func_type.is(FuncType.Func).not() { return false }
+        // One payload-less throw type, so the only out-arg is _err_kind
+        // and the call's argument list matches the parameter list 1:1.
+        if fd.throw_types.len() != 1 { return false }
+        if fdef.children.len() == 0 { return false }
+        return builder_checked_get_body_ok(fdef.children[0])
+    case:
+        return false
+    }
+}
+
+// Splice each `hoisted__X := <init>` temp into its single later use, so
+// the guard and the success value come back as the expressions they were
+// before the desugarer hoisted them. Same move emit_inline_accessor makes,
+// but tolerant of the non-Decl statements this shape has.
+priv builder_splice_hoisted_temps := proc(mut body: Expr) {
+    n := body.children.len()
+    for si in 0..n {
+        ref s : Expr = body.children[si]
+        if s.node_type.is(NodeType.Decl).not() { continue }
+        if s.children.len() != 1 { continue }
+        ref sd : Declaration = decl_of(body.children[si])
+        if sd.name.starts_with("hoisted__").not() { continue }
+        for sj in si.add(1)..n {
+            subst_ident_expr(body.children[sj], sd.name, body.children[si].children[0])
+        }
+    }
+}
+
+priv emit_inline_checked_get := proc(f: File, e: Expr, fdef: Expr, depth: I32, mut ctx: Context) {
+    ref fd : FunctionDef = funcdef_of(fdef)
+    mut bodyc := fdef.children[0].clone()
+    inline_subst(bodyc, fd.params, e)
+    builder_splice_hoisted_temps(bodyc)
+    n := bodyc.children.len()
+    ref setk : Expr = bodyc.children[n.sub(2)]
+    mut if_idx : USize = 0
+    for si in 0..n.sub(2) {
+        if bodyc.children[si].node_type.is(NodeType.If) { if_idx = si }
+    }
+    ref mut if_stmt : Expr = bodyc.children[if_idx]
+    ref mut then_body : Expr = if_stmt.children[1]
+    builder_splice_hoisted_temps(then_body)
+    ref ret_stmt : Expr = then_body.children[then_body.children.len().sub(1)]
+    rctype := func_return_ctype(fd, ctx)
+    f.write("(")
+    emit_deref(f, if_stmt.children[0], depth, ctx)
+    f.write(" ? (").write(rctype).write(")")
+    if fd.return_own_type.is(OwnType.Ref) {
+        emit_as_ptr(f, ret_stmt.children[0], depth, false, ctx)
+    } else {
+        emit_expr(f, ret_stmt.children[0], depth, ctx)
+    }
+    // The error branch reproduces the callee's own two statements: set the
+    // caller's err slot (inline_subst mapped the _err_kind PARAMETER to the
+    // out-argument the call site passes) and yield null, which is what the
+    // out-of-line call returned on the throw path.
+    f.write(" : (")
+    mut errname := ""
+    switch setk.node_type {
+    case .Assign(ad): errname = ad.name.clone()
+    case:
+    }
+    f.write(builder_resolve_c_ident_name(errname, ctx)).write(" = ")
+    emit_deref(f, setk.children[0], depth, ctx)
+    f.write(", (").write(rctype).write(")NULL))")
+}
+
 priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) returns Bool {
     if mname.eq("len").or(mname.eq("unsafe_get")).not() { return false }
     fdef_o := find_callee_fdef(flat, ctx)

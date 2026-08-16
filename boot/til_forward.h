@@ -3868,6 +3868,10 @@ Bool priv___src_self_builder_til__fcall_is_shallow_return(Expr * fcall, Context 
 Bool priv___src_self_builder_til__is_pod_enum_clone_call(Expr * e, Context * ctx);
 Bool priv___src_self_builder_til__builder_is_temp_delete(Expr * e);
 USize priv___src_self_builder_til__count_ident_uses(Expr * e, Str * name);
+Bool priv___src_self_builder_til__builder_checked_get_body_ok(Expr * body);
+Bool priv___src_self_builder_til__builder_is_inline_checked_get(Str * flat, Context * ctx);
+void priv___src_self_builder_til__builder_splice_hoisted_temps(Expr * body);
+void priv___src_self_builder_til__emit_inline_checked_get(File * f, Expr * e, Expr * fdef, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__builder_is_inline_accessor(Str * mname, Str * flat, Context * ctx);
 Option__ref_Expr priv___src_self_builder_til__resolve_local_fn_sig(Context * ctx, Str * name);
 Bool priv___src_self_builder_til__builder_pod_site_spliced(Expr * e, Str * member, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Context * ctx);
