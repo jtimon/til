@@ -1743,7 +1743,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         result : Dynamic = place
         return result
     case .FCall:
-        return eval_call_info(scope, e, ctx, info, destination)
+        return eval_call_info(scope, e, expr_type, ctx, info, destination)
     case .FuncDef(fd):
         if fd.captures.len().gt(0) {
             closure : Dynamic = make_interp_closure(e, scope, ctx)
@@ -2181,8 +2181,9 @@ priv eval_fcall := proc(mut scope: Scope, mut stmt: Expr, fcd: FCallData, mut ct
     if did_swap_replace { return }
     // A bare call-statement discards its typed raw result.
     mut discard_info := raw_result_info_new()
-    mut discard : Dynamic = eval_call_info(scope, stmt, ctx, discard_info)
-    raw_result_drop(stmt.til_type(), discard, discard_info.is_ref, ctx)
+    ref discard_type : Type = stmt.til_type()
+    mut discard : Dynamic = eval_call_info(scope, stmt, discard_type, ctx, discard_info)
+    raw_result_drop(discard_type, discard, discard_info.is_ref, ctx)
 }
 
 priv eval_if := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
@@ -2881,10 +2882,9 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
     }
 }
 
-priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Type, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     ref c : Context = ctx
     ref mut callee_expr : Expr = e.children[0]
-    ref call_type : Type = e.til_type()
     info.is_ref = false
     info.is_word = destination.is_null().and(raw_type_is_prim(call_type, ctx))
 
@@ -3381,7 +3381,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
 
 priv eval_call := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
     mut info := raw_result_info_new()
-    return eval_call_info(scope, e, ctx, info, destination)
+    ref call_type : Type = e.til_type()
+    return eval_call_info(scope, e, call_type, ctx, info, destination)
 }
 
 // Single owning-pointer box for side tables that need to own raw Dynamic
@@ -7568,8 +7569,9 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context)
     }
 
     mut call_info := raw_result_info_new()
-    raw : Dynamic = eval_call_info(s, fake_call, ctx, call_info)
-    raw_result_move_into(e.til_type(), r, raw, call_info.is_ref, ctx)
+    ref result_type : Type = e.til_type()
+    raw : Dynamic = eval_call_info(s, fake_call, result_type, ctx, call_info)
+    raw_result_move_into(result_type, r, raw, call_info.is_ref, ctx)
     return true
 }
 

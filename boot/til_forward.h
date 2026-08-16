@@ -4001,7 +4001,7 @@ void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Cont
 void * priv___src_self_interpreter_til__interp_param_bind_type(Declaration * param, void * source_type_w, Bool is_variadic, Context * ctx);
 void * priv___src_self_interpreter_til__eval_user_func_call(Scope * caller_scope, Expr * e, Expr * func_def, Scope * parent_scope, Context * ctx, void * destination);
 void * priv___src_self_interpreter_til__eval_callable_call(Scope * caller_scope, Expr * e, void * callable, Context * ctx, void * destination);
-void * priv___src_self_interpreter_til__eval_call_info(Scope * scope, Expr * e, Context * ctx, priv___src_self_interpreter_til__RawResultInfo * info, void * destination);
+void * priv___src_self_interpreter_til__eval_call_info(Scope * scope, Expr * e, Type call_type, Context * ctx, priv___src_self_interpreter_til__RawResultInfo * info, void * destination);
 void * priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx, void * destination);
 void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool call_free);
 Str * priv___src_self_interpreter_til__container_elem_type(Str * struct_name, Context * ctx);
