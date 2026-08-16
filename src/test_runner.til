@@ -171,8 +171,8 @@ main := proc(args: ..Str) {
             if phase.status == 0 {
                 compile_ok = 1
                 // Run the compiled binary
-                run_cmd := bin_path.format(" > ", run_outfile, " 2> ", run_errfile)
-                run_phase_result := run_phase(run_cmd)
+                run_cmdline := bin_path.format(" > ", run_outfile, " 2> ", run_errfile)
+                run_phase_result := run_phase(run_cmdline)
                 run_ms = run_phase_result.ms
                 run_mem = run_phase_result.mem
                 if run_phase_result.status == 0 {

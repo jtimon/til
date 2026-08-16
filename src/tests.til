@@ -905,6 +905,22 @@ main := proc(args: ..Str) {
     // UNREACHABLE is the witness: the initer plants a call in every
     // `guard_every` auto-clone body, so wherever those bodies are
     // omitted the definition is left with no caller (8 fixtures).
+    // A program is a CLOSED WORLD, so its til functions carry `static`.
+    // That is what puts the C compiler's -Wunused-function on permanent
+    // duty over this issue's invariant: a future dead emission fails the
+    // build instead of waiting to be surveyed. The two names something
+    // outside the .c calls stay extern -- main, and Str_clone for ext.c.
+    // The bounds-checked `v[i]` is spliced at every call site, so the
+    // out-of-line Vec.get has no caller -- the omission gate asks the
+    // same predicate the emitter splices on, or the two disagree about
+    // what exists and the definition is emitted with nothing calling it
+    // (21 of them in til's own output the day the splice landed).
+    add_count(tests, "vecs_no_uncalled_checked_get", "build", "Vec__I64_get(", 0,
+        format(til_bin, " translate -c gen/c/vv_cg.c test/vecs.til '&&' cat gen/c/vv_cg.c"))
+    add_count(tests, "hello_funcs_are_tu_local", "build", "static void println(Array__Str * parts)", 2,
+        format(til_bin, " translate -c gen/c/hs_st.c examples/hello_script.til '&&' cat gen/c/hs_st.c"))
+    add_count(tests, "hello_ext_c_boundary_stays_extern", "build", "\nStr * Str_clone(Str * val) {", 1,
+        format(til_bin, " translate -c gen/c/hs_sx.c examples/hello_script.til '&&' cat gen/c/hs_sx.c"))
     add_count(tests, "aliases_no_uncalled_unreachable", "build", "void UNREACHABLE(", 0,
         format(til_bin, " translate -c gen/c/al_ur.c test/aliases.til '&&' cat gen/c/al_ur.c"))
     // ...and it stays wherever a surviving body does call it: enums.til's

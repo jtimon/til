@@ -91,56 +91,56 @@ struct Token {
 void print_single(Str *s);
 void print_flush();
 
-Str * format(Array__Str * parts);
-Bool Str_eq(Str * a, Str * b);
-Str * Str_with_capacity(USize n);
-void Str_push_str(Str * self, Str * s);
+static Str * format(Array__Str * parts);
+static Bool Str_eq(Str * a, Str * b);
+static Str * Str_with_capacity(USize n);
+static void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
-Str * Str_to_str(Str * self);
-void Str_delete(Str * self, Bool call_free);
-Bool Str_neq(Str * a, Str * b);
-Array__Str * Array__Str_new(USize cap);
-void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
-void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
-void Array__Str_delete(Array__Str * self, Bool call_free);
-Array__Str * Array__Str_clone(Array__Str * self);
-void adopt__Str(void * dest, Str * src);
-Str * U64_to_str(U64 val);
-Str * I64_to_str(I64 val);
-void I64_delete(I64 * self, Bool call_free);
-__attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
-void assert(Bool cond, Str * loc);
-void expect(Bool cond, Array__Str * parts, Str * loc);
-void println(Array__Str * parts);
-void test_simple_add(void);
-void test_nested_arithmetic(void);
-void test_deeply_nested(void);
-void test_string_concat(void);
-void test_variadic_fold(void);
-void test_variadic_direct_fold(void);
-void test_lolalalo(void);
-void test_fold_variable(void);
-void test_loc_folded(void);
-void test_fold_f32(void);
-void CfVec2_delete(CfVec2 * self, Bool call_free);
-void test_struct_fold_simple(void);
-void test_struct_fold_values(void);
-void CfRect_delete(CfRect * self, Bool call_free);
-void test_struct_fold_nested(void);
-void CfVec3f_delete(CfVec3f * self, Bool call_free);
-void test_struct_fold_f32(void);
-Bool Color_eq(Color * self, Color * other);
-void test_enum_fold(void);
-Token * Token_Num(I64 * val);
-void Token_delete(Token * self, Bool call_free);
-void test_enum_payload_fold(void);
-void test_enum_return_fold(void);
-void test_enum_payload_return_fold(void);
-void test_const_and_or_fold(void);
-void test_mixed_fold(void);
-void test_fold_reads_global_const(void);
-void assert_eq__I64(I64 a, I64 b, Str * loc);
-void assert_eq__Str(Str * a, Str * b, Str * loc);
+static Str * Str_to_str(Str * self);
+static void Str_delete(Str * self, Bool call_free);
+static Bool Str_neq(Str * a, Str * b);
+static Array__Str * Array__Str_new(USize cap);
+static void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
+static void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
+static void Array__Str_delete(Array__Str * self, Bool call_free);
+static Array__Str * Array__Str_clone(Array__Str * self);
+static void adopt__Str(void * dest, Str * src);
+static Str * U64_to_str(U64 val);
+static Str * I64_to_str(I64 val);
+static void I64_delete(I64 * self, Bool call_free);
+static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
+static void assert(Bool cond, Str * loc);
+static void expect(Bool cond, Array__Str * parts, Str * loc);
+static void println(Array__Str * parts);
+static void test_simple_add(void);
+static void test_nested_arithmetic(void);
+static void test_deeply_nested(void);
+static void test_string_concat(void);
+static void test_variadic_fold(void);
+static void test_variadic_direct_fold(void);
+static void test_lolalalo(void);
+static void test_fold_variable(void);
+static void test_loc_folded(void);
+static void test_fold_f32(void);
+static void CfVec2_delete(CfVec2 * self, Bool call_free);
+static void test_struct_fold_simple(void);
+static void test_struct_fold_values(void);
+static void CfRect_delete(CfRect * self, Bool call_free);
+static void test_struct_fold_nested(void);
+static void CfVec3f_delete(CfVec3f * self, Bool call_free);
+static void test_struct_fold_f32(void);
+static Bool Color_eq(Color * self, Color * other);
+static void test_enum_fold(void);
+static Token * Token_Num(I64 * val);
+static void Token_delete(Token * self, Bool call_free);
+static void test_enum_payload_fold(void);
+static void test_enum_return_fold(void);
+static void test_enum_payload_return_fold(void);
+static void test_const_and_or_fold(void);
+static void test_mixed_fold(void);
+static void test_fold_reads_global_const(void);
+static void assert_eq__I64(I64 a, I64 b, Str * loc);
+static void assert_eq__Str(Str * a, Str * b, Str * loc);
 Bool Color_eq(Color *, Color *);
 Token *Token_Num(I64 *);
 
@@ -228,7 +228,7 @@ static Str hoisted__Str_test_variadic_fold_8 = (Str){.c_str = (void *)"test/cons
 U32 CAP_LIT;
 U32 CAP_VIEW;
 
-Str * format(Array__Str * parts) {
+static Str * format(Array__Str * parts) {
     U32 total = 0;
     {
         Array__Str *_fc_Array__Str_0 = parts;
@@ -271,7 +271,7 @@ Str * format(Array__Str * parts) {
     return out;
 }
 
-Bool Str_eq(Str * a, Str * b) {
+static Bool Str_eq(Str * a, Str * b) {
     Bool hoisted__Bool_2 = ((Bool)(a->count != b->count));
     if (hoisted__Bool_2) {
         Bool hoisted__Bool_0 = 0;
@@ -288,7 +288,7 @@ Bool Str_eq(Str * a, Str * b) {
     return hoisted__Bool_6;
 }
 
-Str * Str_with_capacity(USize n) {
+static Str * Str_with_capacity(USize n) {
     U32 hoisted__U32_1 = 0;
     Bool hoisted__Bool_2 = ((Bool)(n == hoisted__U32_1));
     if (hoisted__Bool_2) {
@@ -308,7 +308,7 @@ Str * Str_with_capacity(USize n) {
     return hoisted__Str_Str_with_capacity_7;
 }
 
-void Str_push_str(Str * self, Str * s) {
+static void Str_push_str(Str * self, Str * s) {
     U32 hoisted__U32_8 = 0;
     Bool hoisted__Bool_9 = ((Bool)(s->count == hoisted__U32_8));
     if (hoisted__Bool_9) {
@@ -367,12 +367,12 @@ Str * Str_clone(Str * val) {
     return hoisted__Str_Str_clone_7;
 }
 
-Str * Str_to_str(Str * self) {
+static Str * Str_to_str(Str * self) {
     Str *hoisted__Str_Str_to_str_0 = Str_clone(self);
     return hoisted__Str_Str_to_str_0;
 }
 
-void Str_delete(Str * self, Bool call_free) {
+static void Str_delete(Str * self, Bool call_free) {
     Bool hoisted__Bool_0 = ((Bool)(self->cap < CAP_VIEW));
     if (hoisted__Bool_0) {
         free(self->c_str);
@@ -384,13 +384,13 @@ void Str_delete(Str * self, Bool call_free) {
     }
 }
 
-Bool Str_neq(Str * a, Str * b) {
+static Bool Str_neq(Str * a, Str * b) {
     Bool hoisted__Bool_0 = Str_eq(a, b);
     Bool hoisted__Bool_1 = ((Bool)(!(hoisted__Bool_0)));
     return hoisted__Bool_1;
 }
 
-Array__Str * Array__Str_new(USize cap) {
+static Array__Str * Array__Str_new(USize cap) {
     void * hoisted__v_0 = calloc(cap, 16);
     Array__Str *hoisted__Array__Str_1 = malloc(sizeof(Array__Str));
     hoisted__Array__Str_1->data = hoisted__v_0;
@@ -398,14 +398,14 @@ Array__Str * Array__Str_new(USize cap) {
     return hoisted__Array__Str_1;
 }
 
-void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val) {
+static void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val) {
     Str *hoisted__Str_Array__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(self->data) + (((U32)(i * 16))))));
     Str_delete(hoisted__Str_Array__Str_unsafe_set_0, 0);
     Str *hoisted__Str_Array__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(self->data) + (((U32)(i * 16))))));
     adopt__Str(hoisted__Str_Array__Str_unsafe_set_1, val);
 }
 
-void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind) {
+static void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind) {
     Bool hoisted__Bool_1 = ((Bool)(i >= self->cap));
     if (hoisted__Bool_1) {
         I64 hoisted__I64_0 = 1;
@@ -420,7 +420,7 @@ void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind) {
     }
 }
 
-void Array__Str_delete(Array__Str * self, Bool call_free) {
+static void Array__Str_delete(Array__Str * self, Bool call_free) {
     {
         U32 _re_U32_0 = self->cap;
         U32 _rc_U32_0 = 0;
@@ -444,7 +444,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
     }
 }
 
-Array__Str * Array__Str_clone(Array__Str * self) {
+static Array__Str * Array__Str_clone(Array__Str * self) {
     U32 hoisted__U32_7 = 16;
     U8 *new_data = malloc(((U32)(self->cap * hoisted__U32_7)));
     {
@@ -474,19 +474,19 @@ Array__Str * Array__Str_clone(Array__Str * self) {
     return hoisted__Array__Str_8;
 }
 
-void adopt__Str(void * dest, Str * src) {
+static void adopt__Str(void * dest, Str * src) {
     U32 hoisted__U32_0 = 16;
     memcpy(dest, src, hoisted__U32_0);
     if ((src)->cap != TIL_CAP_LIT) { free(src); };
 }
 
-Str * U64_to_str(U64 val) {
+static Str * U64_to_str(U64 val) {
     /* TODO: nested func U64_to_str_ext */
     Str *hoisted__Str_U64_to_str_0 = U64_to_str_ext(val);
     return hoisted__Str_U64_to_str_0;
 }
 
-Str * I64_to_str(I64 val) {
+static Str * I64_to_str(I64 val) {
     I64 hoisted__I64_8 = 0;
     Bool hoisted__Bool_9 = ((Bool)(val < hoisted__I64_8));
     if (hoisted__Bool_9) {
@@ -510,13 +510,13 @@ Str * I64_to_str(I64 val) {
     return hoisted__Str_I64_to_str_11;
 }
 
-void I64_delete(I64 * self, Bool call_free) {
+static void I64_delete(I64 * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
 }
 
-__attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
+static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     U32 hoisted__U32_0 = 3;
     Array__Str *_va_Array_0 = Array__Str_new(hoisted__U32_0);
     I64 _va_Array_0_ek = 0;
@@ -536,7 +536,7 @@ __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     exit(hoisted__I64_8);
 }
 
-void assert(Bool cond, Str * loc) {
+static void assert(Bool cond, Str * loc) {
     Bool hoisted__Bool_3 = ((Bool)(!(cond)));
     if (hoisted__Bool_3) {
         U32 hoisted__U32_0 = 1;
@@ -549,7 +549,7 @@ void assert(Bool cond, Str * loc) {
     }
 }
 
-void expect(Bool cond, Array__Str * parts, Str * loc) {
+static void expect(Bool cond, Array__Str * parts, Str * loc) {
     Bool hoisted__Bool_6 = ((Bool)(!(cond)));
     if (hoisted__Bool_6) {
         U32 hoisted__U32_0 = 2;
@@ -567,7 +567,7 @@ void expect(Bool cond, Array__Str * parts, Str * loc) {
     Array__Str_delete(parts, 1);
 }
 
-void println(Array__Str * parts) {
+static void println(Array__Str * parts) {
     {
         Array__Str *_fc_Array__Str_0 = parts;
         U32 _fi_USize_0 = 0;
@@ -589,28 +589,28 @@ void println(Array__Str * parts) {
     print_flush();
 }
 
-void test_simple_add(void) {
+static void test_simple_add(void) {
     I64 result = 3;
     I64 hoisted__I64_2 = 3;
     assert_eq__I64(result, hoisted__I64_2, &hoisted__Str_test_simple_add_3);
     Str_delete(&hoisted__Str_test_simple_add_3, 0);
 }
 
-void test_nested_arithmetic(void) {
+static void test_nested_arithmetic(void) {
     I64 result = 15;
     I64 hoisted__I64_6 = 15;
     assert_eq__I64(result, hoisted__I64_6, &hoisted__Str_test_nested_arithmetic_7);
     Str_delete(&hoisted__Str_test_nested_arithmetic_7, 0);
 }
 
-void test_deeply_nested(void) {
+static void test_deeply_nested(void) {
     I64 result = 26;
     I64 hoisted__I64_6 = 26;
     assert_eq__I64(result, hoisted__I64_6, &hoisted__Str_test_deeply_nested_7);
     Str_delete(&hoisted__Str_test_deeply_nested_7, 0);
 }
 
-void test_string_concat(void) {
+static void test_string_concat(void) {
     static Str result = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
     assert_eq__Str(&result, &_til_str_lits.h3fd43551c8c1, &hoisted__Str_test_string_concat_3);
     Str_delete(&_til_str_lits.h3fd43551c8c1, 0);
@@ -618,7 +618,7 @@ void test_string_concat(void) {
     Str_delete(&result, 0);
 }
 
-void test_variadic_fold(void) {
+static void test_variadic_fold(void) {
     static Str r = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
     assert_eq__Str(&r, &_til_str_lits.h3fd43551c8c1, &hoisted__Str_test_variadic_fold_3);
     Str_delete(&_til_str_lits.h3fd43551c8c1, 0);
@@ -632,7 +632,7 @@ void test_variadic_fold(void) {
     Str_delete(&r2, 0);
 }
 
-void test_variadic_direct_fold(void) {
+static void test_variadic_direct_fold(void) {
     static Str d = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
     static Str hoisted__Str_test_variadic_direct_fold_11 = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
     assert_eq__Str(&d, &hoisted__Str_test_variadic_direct_fold_11, &hoisted__Str_test_variadic_direct_fold_12);
@@ -651,7 +651,7 @@ void test_variadic_direct_fold(void) {
     Str_delete(&hoisted__Str_test_variadic_direct_fold_31, 0);
 }
 
-void test_lolalalo(void) {
+static void test_lolalalo(void) {
     static Str lola_rec = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     static Str lola_it = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     static Str lalo_rec = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
@@ -666,14 +666,14 @@ void test_lolalalo(void) {
     Str_delete(&lalo_rec, 0);
 }
 
-void test_fold_variable(void) {
+static void test_fold_variable(void) {
     I64 result = 8;
     I64 hoisted__I64_1 = 8;
     assert_eq__I64(result, hoisted__I64_1, &hoisted__Str_test_fold_variable_2);
     Str_delete(&hoisted__Str_test_fold_variable_2, 0);
 }
 
-void test_loc_folded(void) {
+static void test_loc_folded(void) {
     Bool hoisted__Bool_2 = 1;
     assert(hoisted__Bool_2, &hoisted__Str_test_loc_folded_3);
     Str_delete(&hoisted__Str_test_loc_folded_3, 0);
@@ -682,7 +682,7 @@ void test_loc_folded(void) {
     Str_delete(&hoisted__Str_test_loc_folded_7, 0);
 }
 
-void test_fold_f32(void) {
+static void test_fold_f32(void) {
     assert_eq__Str(&_til_str_lits.h00017c7b7650, &_til_str_lits.h00017c7b7650, &hoisted__Str_test_fold_f32_4);
     Str_delete(&_til_str_lits.h00017c7b7650, 0);
     Str_delete(&_til_str_lits.h00017c7b7650, 0);
@@ -693,13 +693,13 @@ void test_fold_f32(void) {
     Str_delete(&hoisted__Str_test_fold_f32_9, 0);
 }
 
-void CfVec2_delete(CfVec2 * self, Bool call_free) {
+static void CfVec2_delete(CfVec2 * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
 }
 
-void test_struct_fold_simple(void) {
+static void test_struct_fold_simple(void) {
     CfVec2 v = (CfVec2){.x = 42, .y = 99};
     I64 hoisted__I64_0 = 42;
     assert_eq__I64(v.x, hoisted__I64_0, &hoisted__Str_test_struct_fold_simple_1);
@@ -710,7 +710,7 @@ void test_struct_fold_simple(void) {
     CfVec2_delete(&v, 0);
 }
 
-void test_struct_fold_values(void) {
+static void test_struct_fold_values(void) {
     CfVec2 p = (CfVec2){.x = 10, .y = 20};
     I64 hoisted__I64_2 = 10;
     assert_eq__I64(p.x, hoisted__I64_2, &hoisted__Str_test_struct_fold_values_3);
@@ -721,13 +721,13 @@ void test_struct_fold_values(void) {
     CfVec2_delete(&p, 0);
 }
 
-void CfRect_delete(CfRect * self, Bool call_free) {
+static void CfRect_delete(CfRect * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
 }
 
-void test_struct_fold_nested(void) {
+static void test_struct_fold_nested(void) {
     CfRect r = (CfRect){.top_left = (CfVec2){.x = 5, .y = 10}, .bottom_right = (CfVec2){.x = 100, .y = 200}};
     I64 hoisted__I64_0 = 5;
     assert_eq__I64(r.top_left.x, hoisted__I64_0, &hoisted__Str_test_struct_fold_nested_1);
@@ -744,13 +744,13 @@ void test_struct_fold_nested(void) {
     CfRect_delete(&r, 0);
 }
 
-void CfVec3f_delete(CfVec3f * self, Bool call_free) {
+static void CfVec3f_delete(CfVec3f * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
 }
 
-void test_struct_fold_f32(void) {
+static void test_struct_fold_f32(void) {
     CfVec3f v = (CfVec3f){.x = 3, .y = 4, .z = 5};
     Str *hoisted__Str_test_struct_fold_f32_3 = F32_to_str(v.x);
     static Str hoisted__Str_test_struct_fold_f32_4 = (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT};
@@ -773,13 +773,13 @@ void test_struct_fold_f32(void) {
     CfVec3f_delete(&v, 0);
 }
 
-Bool Color_eq(Color * self, Color * other) {
+static Bool Color_eq(Color * self, Color * other) {
     Bool hoisted__Bool_0 = ((Bool)((((Color *)(self))->tag) == (((Color *)(other))->tag)));
     return hoisted__Bool_0;
 }
 
 
-void test_enum_fold(void) {
+static void test_enum_fold(void) {
     Color c = (Color){.tag = Color_TAG_Red};
     Bool hoisted__Bool_0 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     assert(hoisted__Bool_0, &hoisted__Str_test_enum_fold_1);
@@ -796,7 +796,7 @@ Token *Token_Num(I64 * val) {
     r->data.Num = *val;
     return r;
 }
-void Token_delete(Token * self, Bool call_free) {
+static void Token_delete(Token * self, Bool call_free) {
     Bool hoisted__Bool_2 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
     if (hoisted__Bool_2) {
         I64 *hoisted__I64_0 = ((void *)((U8 *)(self) + offsetof(Token, data)));
@@ -813,7 +813,7 @@ void Token_delete(Token * self, Bool call_free) {
 }
 
 
-void test_enum_payload_fold(void) {
+static void test_enum_payload_fold(void) {
     Token *t = Token_Num(&(I64){42});
     Bool hoisted__Bool_1 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
     assert(hoisted__Bool_1, &hoisted__Str_test_enum_payload_fold_2);
@@ -825,7 +825,7 @@ void test_enum_payload_fold(void) {
     Token_delete(t, 1);
 }
 
-void test_enum_return_fold(void) {
+static void test_enum_return_fold(void) {
     Color c = (Color){.tag = Color_TAG_Green};
     Bool hoisted__Bool_0 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     assert(hoisted__Bool_0, &hoisted__Str_test_enum_return_fold_1);
@@ -836,7 +836,7 @@ void test_enum_return_fold(void) {
     Str_delete(&hoisted__Str_test_enum_return_fold_4, 0);
 }
 
-void test_enum_payload_return_fold(void) {
+static void test_enum_payload_return_fold(void) {
     Token *t = Token_Num(&(I64){7});
     Bool hoisted__Bool_1 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
     assert(hoisted__Bool_1, &hoisted__Str_test_enum_payload_return_fold_2);
@@ -848,7 +848,7 @@ void test_enum_payload_return_fold(void) {
     Token_delete(t, 1);
 }
 
-void test_const_and_or_fold(void) {
+static void test_const_and_or_fold(void) {
     U32 hoisted__U32_6 = 1;
     Array__Str *_va_Array_0 = Array__Str_new(hoisted__U32_6);
     I64 _va_Array_0_ek = 0;
@@ -951,21 +951,21 @@ void test_const_and_or_fold(void) {
     Str_delete(&hoisted__Str_test_const_and_or_fold_58, 0);
 }
 
-void test_mixed_fold(void) {
+static void test_mixed_fold(void) {
     I64 result = 10;
     I64 hoisted__I64_3 = 10;
     assert_eq__I64(result, hoisted__I64_3, &hoisted__Str_test_mixed_fold_4);
     Str_delete(&hoisted__Str_test_mixed_fold_4, 0);
 }
 
-void test_fold_reads_global_const(void) {
+static void test_fold_reads_global_const(void) {
     I64 hoisted__I64_1 = 2;
     I64 hoisted__I64_2 = 2;
     assert_eq__I64(hoisted__I64_1, hoisted__I64_2, &hoisted__Str_test_fold_reads_global_const_3);
     Str_delete(&hoisted__Str_test_fold_reads_global_const_3, 0);
 }
 
-void assert_eq__I64(I64 a, I64 b, Str * loc) {
+static void assert_eq__I64(I64 a, I64 b, Str * loc) {
     Bool hoisted__Bool_11 = ((Bool)(a != b));
     if (hoisted__Bool_11) {
         U32 hoisted__U32_0 = 5;
@@ -987,7 +987,7 @@ void assert_eq__I64(I64 a, I64 b, Str * loc) {
     }
 }
 
-void assert_eq__Str(Str * a, Str * b, Str * loc) {
+static void assert_eq__Str(Str * a, Str * b, Str * loc) {
     Bool hoisted__Bool_11 = Str_neq(a, b);
     if (hoisted__Bool_11) {
         U32 hoisted__U32_0 = 5;

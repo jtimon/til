@@ -5047,7 +5047,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // Return type
         ret := func_return_ctype(fd, lp.ctx)
         // Signature
-        if is_static { f.write("static ") }
+        if is_static.or(builder_func_is_tu_local(name, lp.ctx)) { f.write("static ") }
         // #303: same source of truth as the forward decl -- definition and
         // prototype must agree or the C compiler rejects the mismatch.
         if fd.noreturn { f.write("__attribute__((noreturn)) ") }
@@ -5809,6 +5809,15 @@ priv builder_core_func_omitted := func(name: Str, mut lp: LoadedProgram) returns
     return lp.ctx.builder_ns_member_sites.has(name).not()
 }
 
+// #326: may this function carry `static`? Only in a closed world, and
+// never for the two names something outside the .c calls by name: main
+// (the C runtime) and Str_clone (the hand-written ext.c).
+priv builder_func_is_tu_local := func(name: Str, ctx: Context) returns Bool {
+    if ctx.builder_static_ok.not() { return false }
+    if name.eq("main") { return false }
+    return name.eq("Str_clone").not()
+}
+
 priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: Bool, mut ctx: Context) {
     // Issue #262: recursive variadic lazy defs are compile-time-only (see
     // emit_func_def); no prototype either.
@@ -5824,6 +5833,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
     if top_level.and(fd.func_type.is_bodyless()) { return }
     if name == "main" { return }
     ret := func_return_ctype(fd, ctx)
+    if builder_func_is_tu_local(name, ctx) { f.write("static ") }
     // #303: mirror the typer's noreturn knowledge in the C, so the C
     // compiler also knows calls to these functions never come back.
     if fd.noreturn { f.write("__attribute__((noreturn)) ") }
@@ -6211,6 +6221,7 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
 }
 
 build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I32 {
+    lp.ctx.builder_static_ok = false
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -6223,6 +6234,7 @@ build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I3
 }
 
 priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
+    lp.ctx.builder_static_ok = false
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -8985,6 +8997,7 @@ builder_prepare_emit := proc(mut lp: LoadedProgram) {
 
 priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: LoadedProgram) returns I32 {
     is_lib := mode.is_library
+    lp.ctx.builder_static_ok = is_lib.not().and(mode.decls_only.not()).and(lp.link_c_paths.len().eq(0))
     f := File.new(c_output_path, true)
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")
@@ -11100,7 +11113,14 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     }
 }
 priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    if builder_is_inline_accessor(member, type_name.concat3("_", member), ctx).not() { return false }
+    flat_in := type_name.concat3("_", member)
+    // Two ways a method is spliced at every direct call site, so no
+    // emitted C calls the out-of-line definition: the len/unsafe_get
+    // accessor shape, and the bounds-checked `v[i]` get. Both ask the
+    // predicate the EMITTER asks -- the gate and the splice must agree on
+    // the same shape, or one of them is wrong about what exists.
+    if builder_is_inline_accessor(member, flat_in, ctx).not()
+        .and(builder_is_inline_checked_get(flat_in, ctx).not()) { return false }
     // Ask the generated dispatch per METHOD, as the auto-size and
     // variant-ctor gates do. "dyn_fn appears somewhere" is true of every
     // program importing std/dyn_array, whose `dyn_fn(elem_type, "clone")`
