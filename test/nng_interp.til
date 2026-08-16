@@ -1,0 +1,25 @@
+mode sender
+
+// Windowless, networkless nng round trip: version pointer, error string
+// pointer, and a socket open/close writing through a mut out-param.
+ref v : I8 = nng_version()
+if v.is_null() {
+    panic("nng_version returned NULL")
+}
+ref e : I8 = nng_strerror(0)
+if e.is_null() {
+    panic("nng_strerror(0) returned NULL")
+}
+mut srv := nng_socket(id = 0)
+rc := nng_pair0_open(srv)
+if rc != 0 {
+    panic("nng_pair0_open failed: ", rc.to_str())
+}
+if srv.id == 0 {
+    panic("nng_pair0_open did not write the socket id")
+}
+crc := nng_close(srv)
+if crc != 0 {
+    panic("nng_close failed: ", crc.to_str())
+}
+println("nng interp ok")

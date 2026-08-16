@@ -1192,6 +1192,14 @@ main := proc(args: ..Str) {
         format(til_bin, " build", asan_flag, " -o bin/publisher --extra-modes=examples/custom_modes.til examples/publisher.til"))
     add_single(tests, "build_subscriber", "build", 0, "",
         format(til_bin, " build", asan_flag, " -o bin/subscriber --extra-modes=examples/custom_modes.til examples/subscriber.til"))
+    // Interpreted nng smoke test. The four builds above never interpret, so
+    // nothing noticed that the Makefile built no libnng.so twin and every
+    // nng-mode program died at interpret startup on the fatal twin-load
+    // panic (ffi_load_archive_twin) -- the same blind spot that hid #308,
+    // one library over. Windowless and networkless: version + strerror
+    // pointers and an inproc-free socket open/close.
+    add_single(tests, "interp_nng_ffi", "build", 0, "",
+        format(til_bin, " interpret --extra-modes=examples/custom_modes.til test/nng_interp.til"))
 
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.

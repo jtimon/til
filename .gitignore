@@ -24,6 +24,7 @@ vendor/raylib/src/libraylib-macos-arm64.a
 vendor/raylib/src/libraylib-macos-x64.a
 vendor/macos/frameworks/
 vendor/nng/libnng.a
+vendor/nng/libnng.so
 vendor/nng/build/
 vendor/nng/build-win64/
 vendor/emscripten/

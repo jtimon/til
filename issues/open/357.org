@@ -1,0 +1,96 @@
+# priority: high
+# category: bugs
+** OPEN #357 Interpreted: a C pointer crossing into Dynamic is dereferenced once too many
+
+A raw C pointer (a Str's ~c_str~, an FFI call's ~ref I8~ return) placed
+into a ~Dynamic~ binding or passed to a ~Dynamic~ parameter is broken in
+the INTERPRETER: reads through it hit the wrong address -- sometimes
+garbage bytes, sometimes a segfault. The same programs COMPILED are
+correct. ~ptr_add~ itself is innocent (verified below); the defect is
+the Dynamic hop.
+
+*** Minimal repro: segfault, with the value used as the address
+
+: mode cli
+:
+: main := proc() {
+:     s := "ABCD"
+:     p : Dynamic = s.c_str
+:     ref r0 : I8 = ptr_add(p, 0)
+:     println(format("r0=", r0.to_str()))
+: }
+
+Compiled: prints ~r0=65~. Interpreted: segfault, and the backtrace says
+exactly what went wrong -- the faulting address IS the string's bytes:
+
+: #0 scalar_word_load (t=..., addr=0x550044434241, ...)
+: #1 scalar_word_of_raw (raw=0x550044434241, is_ref=true, ...)
+: #2 h_cast (...)
+
+~0x550044434241~ little-endian is ~41 42 43 44 00 55~ = "ABCD\0" plus
+the next pool byte. The crash is not in ~ptr_add~ at all: it is ~h_cast~
+evaluating the DECLARATION ~p : Dynamic = s.c_str~. Something loaded the
+8 bytes AT the pointer (the string contents) where it should have taken
+the pointer, and ~is_ref=true~ then dereferenced that word as an
+address.
+
+*** Second repro: no crash, silently wrong bytes
+
+: mode cli
+:
+: getenv := ext_proc(name : I8) returns ref I8 {}
+:
+: main := proc() {
+:     ref h : I8 = getenv("HOME".c_str)
+:     p : Dynamic = h
+:     ref b0 : I8 = ptr_add(p, 0)   // 47 ('/')  -- correct
+:     ref b1 : I8 = ptr_add(p, 1)   // 0         -- should be 114 ('r')
+: }
+
+With HOME=/root, compiled reads 47 then 114. Interpreted reads byte 0
+correctly and 0 for every later offset -- the quiet version of the same
+misread, and the shape that turns a NUL-scan loop into a lottery.
+
+*** Control: without the Dynamic hop it works
+
+: ref h : I8 = getenv("HOME".c_str)
+: ref d0 : I8 = ptr_add(h, 0)   // 47, interpreted AND compiled
+: ref d1 : I8 = ptr_add(h, 1)   // 114, interpreted AND compiled
+
+~ptr_add~ straight off the ~ref I8~ binding is right in both backends,
+which acquits ptr_add and pins the Dynamic conversion.
+
+*** Not a regression
+
+The literal repro was run against a compiler built from ~601a29f~
+(2026-07-27, before the recent interpreter call-shape rework): same
+segfault. Long-standing, previously masked by the missing nng twin --
+nng-mode programs died at startup before they could reach this
+(fixed alongside; see the interp_nng_ffi test's commit).
+
+*** Real-world victim
+
+~read_cstr~ (examples/lib/custom_modes/nng_base.til) takes
+~p: Dynamic~, NUL-scans it with ~ptr_add(p, n)~, and clones the view.
+Interpreted, the scan reads garbage, ~n~ runs away, and the clone's
+memcpy segfaults -- so ~bin/til interpret examples/sender.til~ dies on
+its FIRST line, ~read_cstr(nng_version())~, and the same applies to the
+other nng examples and ~check~'s error path. This is what is left
+between the nng twin fix and interpreted nng examples actually running.
+
+The suite never sees the shape: the tests that exercise ~ptr_add~
+interpreted (test/script_raw_alloc.til, test/eval_heap.til) type their
+buffers ~U8~ or go through EvalHeap -- none route a raw pointer through
+~Dynamic~.
+
+*** Where to look
+
+~h_cast~ / ~scalar_word_of_raw~ / ~scalar_word_load~
+(src/self/interpreter.til): the ~is_ref~ decision for a cast whose
+SOURCE is a ref-to-scalar (~ref I8~) and whose target is ~Dynamic~. The
+literal case loads the pointee word and then treats it as an address
+(one deref too many); the getenv case reads offset 0 right and later
+offsets as 0, so the stored word differs by path. The fix must make
+both repros print what the compiled backend prints, and a regression
+test should cover both (plus the ~Dynamic~-parameter form that
+read_cstr uses).

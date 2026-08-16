@@ -42,6 +42,7 @@ TINYFD_LIB := "vendor/tinyfiledialogs/libtinyfd.a"
 TINYFD_SO := "vendor/tinyfiledialogs/libtinyfd.so"
 TINYFD_SRC := "vendor/tinyfiledialogs/tinyfiledialogs.c"
 NNG_LIB := "vendor/nng/libnng.a"
+NNG_SO := "vendor/nng/libnng.so"
 NNG_WIN_LIB := "vendor/nng/build-win64/libnng.a"
 LIBFFI_DIR := "vendor/libffi"
 LIBFFI_STAMP := "vendor/libffi/.built"
@@ -390,10 +391,16 @@ build_tinyfd := proc(mut b: Build) {
 /// archive a program links. Built here, once, rather than by the
 /// interpreter at run time: same link either way, but this keeps `cc`
 /// off the REPL's per-turn path.
+/// EVERY archive a mode's link() names needs a twin here. nng was left
+/// out when this mechanism landed, so every program in an nng mode --
+/// even one that never called nng -- died at interpret startup on the
+/// fatal twin-load panic in ffi_load_archive_twin. The compiled path
+/// never noticed, and neither did the suite: the nng tests only build.
 build_ffi_twins := proc(mut b: Build) {
     if b.begin("ffi_twins").not() { return }
     build_raylib(b)
     build_tinyfd(b)
+    build_nng(b)
 
     mut raylib_inputs := Vec(Str).new()
     raylib_inputs.push(own RAYLIB_LIB.clone())
@@ -423,16 +430,41 @@ build_ffi_twins := proc(mut b: Build) {
         argv.append(own force_load_args(b.host, TINYFD_LIB))
         run_argv(argv)
     }
+
+    mut nng_inputs := Vec(Str).new()
+    nng_inputs.push(own NNG_LIB.clone())
+    if needs_rebuild(NNG_SO, nng_inputs) {
+        mut argv := Vec(Str).new()
+        argv.push(own "cc")
+        argv.push(own "-shared")
+        argv.push(own "-fPIC")
+        argv.push(own "-o")
+        argv.push(own NNG_SO.clone())
+        argv.append(own force_load_args(b.host, NNG_LIB))
+        argv.push(own "-lpthread")
+        argv.append(own nng_sys_flags(b.host))
+        run_argv(argv)
+    }
 }
 
 /// nng, built from vendored source via cmake. Static only, no
 /// tests/tools/TLS, so the build stays self-contained.
+///
+/// POSITION_INDEPENDENT_CODE because build_ffi_twins relinks this
+/// archive into a shared object; without it the link fails on
+/// posix_debug.c.o's relocation against stdout ("recompile with
+/// -fPIC"). This file is an input for the same reason tinyfd lists it:
+/// an archive built before the flag existed would otherwise sit there
+/// forever and keep failing the twin link.
 build_nng := proc(mut b: Build) {
     if b.begin("nng").not() { return }
-    if needs_rebuild(NNG_LIB, no_inputs()).not() { return }
+    mut inputs := Vec(Str).new()
+    inputs.push(own SELF_SRC.clone())
+    if needs_rebuild(NNG_LIB, inputs).not() { return }
     run("cmake", "-S", "vendor/nng", "-B", "vendor/nng/build",
         "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF",
-        "-DNNG_TESTS=OFF", "-DNNG_ENABLE_NNGCAT=OFF", "-DNNG_ENABLE_TLS=OFF")
+        "-DNNG_TESTS=OFF", "-DNNG_ENABLE_NNGCAT=OFF", "-DNNG_ENABLE_TLS=OFF",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
     run("cmake", "--build", "vendor/nng/build", "--parallel")
     copy("vendor/nng/build/libnng.a", NNG_LIB)
 }
