@@ -3991,8 +3991,8 @@ void * priv___src_self_interpreter_til__eval_callable_cast_callee_raw(Scope * sc
 void priv___src_self_interpreter_til__init_field_raw(void * inst_data, Declaration * dd, USize field_offset, USize field_size, void * raw, Type raw_type, Bool raw_is_ref, Bool raw_is_place, Context * ctx);
 void priv___src_self_interpreter_til__context_return_set(Context * ctx, void * raw);
 void * priv___src_self_interpreter_til__context_return_take(Context * ctx);
-Str * priv___src_self_interpreter_til__field_access_sname(Expr * e);
-Option__ref_Declaration priv___src_self_interpreter_til__field_access_decl(Expr * e, Context * ctx);
+Str * priv___src_self_interpreter_til__field_access_sname(Expr * e, Str * fallback);
+Option__ref_Declaration priv___src_self_interpreter_til__field_access_decl(Expr * e, Str * sname, Context * ctx);
 Option__ref_Dynamic priv___src_self_interpreter_til__field_access_base(Scope * scope, Expr * obj, Context * ctx);
 void * priv___src_self_interpreter_til__eval_expr_field_raw(Scope * scope, Expr * e, Type expr_type, Context * ctx, priv___src_self_interpreter_til__RawResultInfo * info, void * destination);
 void priv___src_self_interpreter_til__write_runtime_type(void * result, Type t, Context * ctx);

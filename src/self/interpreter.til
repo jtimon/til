@@ -1355,20 +1355,21 @@ priv context_return_take := func(mut ctx: Context) returns Dynamic {
     return result
 }
 
-priv field_access_sname := func(e: Expr) returns Str {
+priv field_access_sname := func(e: Expr, mut fallback: Str) returns ref Str {
     sname_o := expr_type_name_ref(e.children[0])
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
-        return sname.clone()
+        return sname
     }
     switch e.children[0].node_type {
-    case .Ident(id): return Str.clone(id.ident_name())
-    case: return til_type_name_c(e.children[0].til_type())
+    case .Ident(id): return id.ident_name()
+    case:
+        fallback = til_type_name_c(e.children[0].til_type())
+        return fallback
     }
 }
 
-priv field_access_decl := func(e: Expr, ctx: Context) returns Option(ref Declaration) {
-    sname := field_access_sname(e)
+priv field_access_decl := func(e: Expr, sname: Str, ctx: Context) returns Option(ref Declaration) {
     sdef_o := lookup_interp_type_def(sname, ctx)
     if sdef_o.is_none() { return Option(ref Declaration).None }
     ref sdef : Expr = sdef_o.unwrap()
@@ -1387,8 +1388,9 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
         parent_o := field_access_base(scope, obj.children[0], ctx)
         if parent_o.is_none() { return Option(ref Dynamic).None }
         ref parent : Dynamic = parent_o.unwrap()
-        sname := field_access_sname(obj)
-        fdecl_o := field_access_decl(obj, ctx)
+        mut fallback_sname := ""
+        ref sname : Str = field_access_sname(obj, fallback_sname)
+        fdecl_o := field_access_decl(obj, sname, ctx)
         if fdecl_o.is_none() { return Option(ref Dynamic).None }
         ref fdecl : Declaration = fdecl_o.unwrap()
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
@@ -1423,9 +1425,10 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
     ctx.interp_cstr_arg = false
     switch e.node_type {
     case .FieldAccess(fa):
+        mut fallback_sname := ""
+        ref sname : Str = field_access_sname(e, fallback_sname)
         if interp_fa_is_ns(scope, e, ctx) {
             info.is_word = destination.is_null().and(raw_type_is_prim(expr_type, ctx))
-            sname := field_access_sname(e)
             namespace_def_o := lookup_interp_type_def(sname, ctx)
             if namespace_def_o.is_some().and(namespace_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
                 ref namespace_def : Expr = namespace_def_o.unwrap()
@@ -1462,7 +1465,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             cloned : Dynamic = heap_clone_by_type(stored_type, stored, ctx)
             return raw_result_finish(stored_type, cloned, destination, false, ctx)
         }
-        fdecl_o := field_access_decl(e, ctx)
+        fdecl_o := field_access_decl(e, sname, ctx)
         if fdecl_o.is_none() {
             interp_error(e, format("no field '", Str.clone(fa.field_access_name()), "'"), ctx)
             exit(1)
@@ -1472,7 +1475,6 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         info.is_ref = decl_is_funcsig(fdecl, ctx).not()
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
-        sname := field_access_sname(e)
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
         if (fdecl.explicit_type == "USize").or(fdecl.explicit_type == "UPtr") {
             mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
@@ -2082,7 +2084,9 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             mut borrowed_pointer_field := false
             switch rhs.node_type {
             case .FieldAccess:
-                source_field_o := field_access_decl(rhs, ctx)
+                mut fallback_source_name := ""
+                ref source_name : Str = field_access_sname(rhs, fallback_source_name)
+                source_field_o := field_access_decl(rhs, source_name, ctx)
                 if source_field_o.is_some() {
                     ref source_field : Declaration = source_field_o.unwrap()
                     borrowed_pointer_field = source_field.own_type.is(OwnType.Shallow).not().and(source_field.til_type.is(Type.Primitive))
@@ -2910,7 +2914,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         switch callee_expr.node_type {
         case .FieldAccess(callee_field):
-            enum_name := field_access_sname(callee_expr)
+            mut fallback_enum_name := ""
+            ref enum_name : Str = field_access_sname(callee_expr, fallback_enum_name)
             enum_def_o := lookup_interp_type_def(enum_name, ctx)
             if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
                 ref enum_def : Expr = enum_def_o.unwrap()
@@ -7283,7 +7288,8 @@ priv h_is_n := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) ret
     mut a : Dynamic = eval_expr_raw_info(s, ae, ctx, a_info)
     switch be.node_type {
     case .FieldAccess(variant):
-        enum_name := field_access_sname(be)
+        mut fallback_enum_name := ""
+        ref enum_name : Str = field_access_sname(be, fallback_enum_name)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
         if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
             ref enum_def : Expr = enum_def_o.unwrap()
@@ -7626,7 +7632,9 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context)
                 recv_base_o := field_access_base(s, recv_expr.children[0], ctx)
                 if recv_base_o.is_some() {
                     ref recv_base : Dynamic = recv_base_o.unwrap()
-                    ref recv_fl : FieldLayout = ctx_field_layout(field_access_sname(recv_expr), recv_fa.field_access_name(), ctx)
+                    mut fallback_recv_name := ""
+                    ref recv_name : Str = field_access_sname(recv_expr, fallback_recv_name)
+                    ref recv_fl : FieldLayout = ctx_field_layout(recv_name, recv_fa.field_access_name(), ctx)
                     write_ptr(ptr_add(recv_base, recv_fl.offset), bits_word(0))
                 }
             case:
