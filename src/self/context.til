@@ -2965,7 +2965,7 @@ pod_ctor_args_safe := func(ctor: Expr, scope: TypeScope) returns Bool {
     return true
 }
 
-priv pod_fcall_is_struct_ctor := func(e: Expr) returns Bool {
+pod_fcall_is_struct_ctor := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() == 0 { return false }
     sname_o := expr_type_name_ref(e)

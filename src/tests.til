@@ -749,12 +749,13 @@ main := proc(args: ..Str) {
     // enum -- zero uses across the whole corpus.
     add_count(tests, "enums_no_dead_tag_typedef", "build", "_tag;", 0,
         format(til_bin, " translate -c gen/c/enums_tt.c test/enums.til '&&' cat gen/c/enums_tt.c"))
-    // The POD-struct ctor Decl (`p := Point(x=1)`) is a #302-documented
-    // divergent path -- the record says HeapBox, the emitter's compound
-    // literal is a stack value -- so the site collector mirrors the
-    // emitter's own condition instead of trusting the record. aliases.til
-    // clones such a local through an alias type; with the mirror the
-    // splice is seen and the corpus's last never-called function goes.
+    // The POD-struct ctor Decl (`p := Point(x=1)`): #302 stage 4 made
+    // the storage record say Stack -- the truth the emitter's compound
+    // literal was always emitting -- and the site collector reads the
+    // record alone (the mirror that used to re-derive the emitter's
+    // condition is gone). aliases.til clones such a local through an
+    // alias type; the record carries the splice and the clone's
+    // definition goes.
     add_count(tests, "aliases_no_uncalled_pod_clone", "build", "Point_clone", 0,
         format(til_bin, " translate -c gen/c/aliases_pc.c test/aliases.til '&&' cat gen/c/aliases_pc.c"))
     add_count(tests, "structs_no_uncalled_pod_clone", "build", "CmpPoint_clone", 0,

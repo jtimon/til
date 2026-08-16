@@ -618,7 +618,7 @@ different answer -- ~EvalHeap_clone~ and ~CtorArg_clone~ became implicit
 declarations when it ran at sweep time.
 
 *** The loose end this work depends on -- and why it is not a small fix
-    (attempted and measured 2026-08-04)
+    (attempted and measured 2026-08-04; RESOLVED 2026-08-15, see the end)
 
 The site collector mirrors the emitter's stack-storage answer for the
 POD-struct ctor Decl (~bvs_ctor_stack~ in
@@ -654,6 +654,25 @@ then: the POD-struct user-clone value copy.  The builder's predicate for
 it (~is_pod_struct_user_clone~) reads emit-time state -- ~stack_locals~,
 which only exists once the body is being walked -- so no earlier pass has
 anything to record from.
+
+Resolution (2026-08-15).  #302 stage 4 (master bf0525e) took a third
+path neither attempt above tried: record the truth AT record time where
+the shape is visible (collect_scope_locals recognizes the ctor Decl via
+~pod_ctor_decl_is_stack~, with the POD shape queries moved to
+context.til), and RESTAMP the record from the constfolder when the ctor
+shape only appears after recording (a folded pure call or a generic
+instantiation) -- ~restamp_folded_decl_storage~ +
+~normalize_folded_ctor_deletes~.  The 2026-08-04 failure mode (a struct
+declared later in the file not yet registered) does not arise: the
+recognition runs against the fully-seeded scope, not mid-typing
+per-unit state.  With the record honest, the follow-up commit retired
+the mirror -- ~builder_collect_ns_member_sites~ reads ~gc_storage~
+alone, the ~in_body~ threading went with it, and the builder's private
+~is_pod_struct~ / ~pod_ctor_args_are_safe~ / ~fcall_is_struct_ctor~
+copies were deleted in favor of context.til's shared definitions, ending
+the re-derivation this section warned about.  The knowingly-divergent
+second path (the POD-struct user-clone value copy, decided by emit-time
+~stack_locals~) remains, as predicted.
 
 *** The follow-up arc (closed 2026-08-15)
 
