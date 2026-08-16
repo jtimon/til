@@ -174,11 +174,18 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    get := func(self: Vec(T), i: USize) returns ref T throws OutOfBounds {
-        if i >= self.count {
-            throw OutOfBounds()
+    get := func(self: Vec(T), shallow i: USize) returns ref T throws OutOfBounds {
+        // In-range case FIRST so the throw is the body's LAST statement.
+        // The throws lowering guards every statement that FOLLOWS a throw
+        // with `if _err_kind == 0 { ... }`, and that guard re-reads the
+        // error slot through its out-param pointer -- a null-checked DEREF
+        // plus a compare and a branch, on the hot path of every `v[i]` in
+        // the language, to re-learn what the line above just decided.
+        // Nothing follows the throw here, so nothing is guarded.
+        if i < self.count {
+            return self.unsafe_get(i)
         }
-        return self.unsafe_get(i)
+        throw OutOfBounds()
     }
 
     /// Remove and return the last element. Panics if empty. The caller

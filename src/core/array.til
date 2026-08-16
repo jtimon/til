@@ -33,11 +33,13 @@ namespace:
 
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
-    get := func(self: Array(T), i: USize) returns ref T throws OutOfBounds {
-        if i >= self.cap {
-            throw OutOfBounds()
+    get := func(self: Array(T), shallow i: USize) returns ref T throws OutOfBounds {
+        // Throw LAST, so the throws lowering has no following statement to
+        // wrap in its `if _err_kind == 0` re-check. Same shape as Vec.get.
+        if i < self.cap {
+            return self.unsafe_get(i)
         }
-        return self.unsafe_get(i)
+        throw OutOfBounds()
     }
 
     /// Overwrite the element at index `i` without a bounds check, dropping
