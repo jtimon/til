@@ -1167,3 +1167,15 @@ terr354_clone_poke := func(s: Terr351Src) {
     h2 := h.clone()
     h2.r.n = h2.r.n + 1
 }
+
+// #355: writing through ONE ref field names that field's source alone.
+// s2 feeds q, which the write never crosses; dragging it into the
+// verdict was the per-value lumping this issue closed.
+Terr355Two := struct {
+    ref p : Terr351Held
+    ref q : Terr351Held
+}
+terr355_poke := func(s1: Terr351Src, s2: Terr351Src) {
+    t := Terr355Two(p = terr351_held_of(s1), q = terr351_held_of(s2))
+    t.p.n = t.p.n + 1
+}

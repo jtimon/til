@@ -8940,6 +8940,23 @@ priv fcall_struct_ctor_def := func(fcall: Expr, scope: TypeScope) returns Option
 
 // The field a constructor argument populates: by name for a NamedArg, by
 // declaration order for a positional one.
+// The NAME of the field a constructor argument populates. Stored member
+// Declarations carry name == "" (the single copy lives in the index), so
+// the name comes from the NamedArg or the position, not the decl.
+priv ctor_arg_field_name := func(sdd_e: Expr, arg: Expr, pos: USize) returns Str {
+    switch sdd_e.node_type {
+    case .StructDef(sdd):
+        switch arg.node_type {
+        case .NamedArg(nm):
+            return nm.clone()
+        case:
+        }
+        if pos < sdd.fields.len() { return sdd.field_name_at(pos).clone() }
+    case:
+    }
+    return ""
+}
+
 priv ctor_arg_field_decl := func(sdd_e: Expr, arg: Expr, pos: USize) returns Option(ref Declaration) {
     switch sdd_e.node_type {
     case .StructDef(sdd):
@@ -9047,6 +9064,13 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr) returns Vec(BorrowRoot
                     mut crosses := fld.own_type.is(OwnType.Ref)
                     if crosses.not() { crosses = type_carries_borrow(scope, fld.explicit_type) }
                     if crosses.not() { continue }
+                    // #355: a root fed straight into a ref field is
+                    // carried BY that field; tag it so crossing the field
+                    // filters to its own sources. A carrying (non-ref)
+                    // field's roots stay untagged -- reaching them crosses
+                    // a deeper ref field this level cannot name.
+                    mut ftag := ""
+                    if fld.own_type.is(OwnType.Ref) { ftag = ctor_arg_field_name(ctor_o.unwrap(), arg, ai - 1) }
                     mut sub := Vec(BorrowRoot).new()
                     switch arg.node_type {
                     case .NamedArg:
@@ -9057,6 +9081,7 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr) returns Vec(BorrowRoot
                     for r : BorrowRoot in sub {
                         mut cr := r.clone()
                         cr.carried = true
+                        cr.field = ftag.clone()
                         push_root_unique(out, cr)
                     }
                 }
@@ -9091,7 +9116,7 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr) returns Vec(BorrowRoot
                     }
                 }
                 if cfd.ref_return_carried_params.band(pb) != 0 {
-                    subc := carried_roots_of(scope, expr_borrow_roots(scope, arg_o.unwrap()))
+                    subc := carried_roots_of(scope, expr_borrow_roots(scope, arg_o.unwrap()), "")
                     for r : BorrowRoot in subc { push_root_unique(out, r) }
                 }
             }
@@ -9125,9 +9150,14 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr) returns Vec(BorrowR
         if obj.children.len() == 0 { return out }
         if fa_is_ns(obj, scope) { return out }
         if fieldaccess_crosses_borrow(scope, obj) {
-            // The write lands in whatever the borrow points at: every
-            // root the base's value carries.
-            return carried_roots_of(scope, expr_borrow_roots(scope, obj.children[0]))
+            // The write lands in whatever the borrow points at: the
+            // roots THIS field carries (#355) -- plus every untagged one.
+            mut crossed := ""
+            switch obj.node_type {
+            case .FieldAccess(cfad): crossed = Str.clone(cfad.field_access_name())
+            case:
+            }
+            return carried_roots_of(scope, expr_borrow_roots(scope, obj.children[0]), crossed)
         }
         return lvalue_write_roots(scope, obj.children[0])
     case .FCall:
@@ -9222,7 +9252,15 @@ priv check_write_roots_mut := proc(scope: TypeScope, site: Expr, obj: Expr, what
     // actionable -- the same carve-out check_unused_mut_params makes.
     if ctx.auto_gen_depth > 0 { return }
     roots := lvalue_write_roots(scope, obj)
+    mut reported := Vec(BorrowRoot).new()
     for r : BorrowRoot in roots {
+        // #355: eq now separates same-site roots tagged with different
+        // fields; one storage still gets one diagnostic.
+        mut seen := false
+        for pr : BorrowRoot in reported {
+            if pr.line.eq(r.line).and(pr.col == r.col).and(pr.name == r.name).and(pr.path == r.path) { seen = true }
+        }
+        if seen { continue }
         rb_o := lookup_binding_at(scope, r)
         if rb_o.is_none() { continue }
         ref rb : TypeBinding = rb_o.unwrap()
@@ -9232,6 +9270,7 @@ priv check_write_roots_mut := proc(scope: TypeScope, site: Expr, obj: Expr, what
             "' is an immutable binding; declare it 'mut'"), ctx)
         println(r.path, ":", r.line.to_str(), ":", r.col.to_str(),
             ": note: '", r.name, "' declared here")
+        reported.push(own r.clone())
     }
 }
 
@@ -9303,16 +9342,21 @@ namespace:
 // that binding's own value carries. Shared by the lvalue walk's ref-field
 // crossing and the carried-bit call mapping -- both ask the same
 // question, "where do this value's smuggled pointers point?".
-priv carried_roots_of := func(scope: TypeScope, roots: Vec(BorrowRoot)) returns Vec(BorrowRoot) {
+// fname filters to the roots one specific ref field carries; "" keeps
+// them all. An untagged root always passes -- unknown provenance stays
+// conservative.
+priv carried_roots_of := func(scope: TypeScope, roots: Vec(BorrowRoot), fname: Str) returns Vec(BorrowRoot) {
     mut out := Vec(BorrowRoot).new()
     for r : BorrowRoot in roots {
         if r.carried {
+            if fname.len().gt(0).and(r.field.len().gt(0)).and(r.field.eq(fname).not()) { continue }
             push_root_unique(out, r)
         } else {
             br_o := lookup_binding_at(scope, r)
             if br_o.is_none() { continue }
             ref brb : TypeBinding = br_o.unwrap()
             for cr : BorrowRoot in brb.borrow_roots {
+                if fname.len().gt(0).and(cr.field.len().gt(0)).and(cr.field.eq(fname).not()) { continue }
                 mut ccr := cr.clone()
                 ccr.carried = true
                 push_root_unique(out, ccr)

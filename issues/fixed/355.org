@@ -1,0 +1,55 @@
+# priority: medium
+# category: bugs
+** FIXED #355 Carried borrow roots are one bag per value, not per field
+
+*** Post-mortem
+
+Root cause: TypeBinding.borrow_roots was one bag per VALUE. #354 made
+the summaries distinguish HOW a value relates to a parameter, but a
+value carrying two borrows still could not say which of its ref fields
+held which, so the ref-field crossing in lvalue_write_roots handed back
+every field's source and a write through one field implicated them all.
+
+Fix: BorrowRoot.field tags a carried root with the ref field that
+carries it -- set at the one place that knows it directly, the
+constructor argument feeding a ~ref~ field. carried_roots_of takes the
+crossed field's name and filters; an untagged root always passes, so
+every less-direct path (carrying non-ref fields, summary-mapped clone
+roots that lost their tags, pre-#355 recordings) keeps the conservative
+over-credit. BorrowRoot.eq now includes the tag so same-source roots
+tagged with different fields both survive dedup, and the checker dedups
+diagnostics per storage site so one binding still gets one error.
+
+Deliberately conservative: the tag is one level deep. A holder nested
+inside an owned field of another struct is reached through untagged
+roots and keeps today's whole-bag answer -- over-crediting only, and
+the shape has no in-tree instance.
+
+Regression tests: test/ref.til's test_borrow_root_per_field (mut s1
+only, s2 non-mut, both backends agree s1 changed and s2 did not);
+test/typer_errors.til's terr355_poke (exactly one rejection naming s1;
+s2 never appears; count 201 -> 202).
+
+
+A struct with two ref fields fed from different sources lumps both
+sources into one carried set, so a write through either field credits
+and enforces both:
+
+#+begin_src til
+Two := struct { ref p : Inner
+                ref q : Inner }
+t := Two(p = a_of(s1), q = a_of(s2))
+t.p.n = t.p.n + 1     // demands mut s2 as well as mut s1
+#+end_src
+
+Only s1 is written. #354 split the summary by RELATION (alias / into /
+carried) but a value's carried set stayed undifferentiated, so the
+ref-field crossing hands back every field's source. Over-crediting only
+-- a laundered write is never accepted -- but the spurious ~mut~ is a
+wrong requirement, the same class #354 closed for the clone hop.
+
+Fix: tag a carried root with the ref field that carries it (a ctor
+argument feeding ~ref p~ tags its roots "p"; anything less direct stays
+untagged and unfiltered), and filter at the one place a specific field
+is crossed. Untagged roots always pass, so every conservative path
+keeps today's answer.

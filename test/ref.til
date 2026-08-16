@@ -332,3 +332,28 @@ test_borrow_root_through_clone := test() {
     bp354_poke(s)
     assert_eq(I64, s.held.n, 2)
 }
+
+# --- #355: each ref field carries its own sources ---
+#
+# t.p borrows from s1, t.q from s2. The write through p credits s1
+# alone: `mut s1` survives the redundancy check, s2 needs NO mut, and
+# both backends agree on which storage changed.
+
+Bp355Two := struct {
+    ref p : Bp351Held
+    ref q : Bp351Held
+}
+
+bp355_poke := func(mut s1: Bp351Src, s2: Bp351Src) {
+    t := Bp355Two(p = bp351_held_of(s1), q = bp351_held_of(s2))
+    t.p.n = t.p.n + 1
+}
+
+test_borrow_root_per_field := test() {
+    mut s1 := Bp351Src()
+    s2 := Bp351Src()
+    bp355_poke(s1, s2)
+    bp355_poke(s1, s2)
+    assert_eq(I64, s1.held.n, 2)
+    assert_eq(I64, s2.held.n, 0)
+}

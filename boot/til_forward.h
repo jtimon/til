@@ -671,6 +671,7 @@ typedef struct BorrowRoot {
     U32 line;
     U32 col;
     Bool carried;
+    Str field;
 } BorrowRoot;
 
 
@@ -2846,6 +2847,7 @@ Bool priv___src_self_typer_til__type_carries_borrow(TypeScope * scope, Str * tna
 Option__ref_Declaration priv___src_self_typer_til__fieldaccess_field_decl(TypeScope * scope, Expr * fa);
 Bool priv___src_self_typer_til__fieldaccess_crosses_borrow(TypeScope * scope, Expr * fa);
 Option__ref_Expr priv___src_self_typer_til__fcall_struct_ctor_def(Expr * fcall, TypeScope * scope);
+Str * priv___src_self_typer_til__ctor_arg_field_name(Expr * sdd_e, Expr * arg, USize pos);
 Option__ref_Declaration priv___src_self_typer_til__ctor_arg_field_decl(Expr * sdd_e, Expr * arg, USize * pos);
 Bool priv___src_self_typer_til__binding_is_storage(TypeScope * scope, TypeBinding * b);
 Option__ref_Expr priv___src_self_typer_til__raw_borrow_source(Expr * rhs);
@@ -2865,7 +2867,7 @@ U64 RootBits_all(RootBits * self);
 Bool RootBits_is_zero(RootBits * self);
 RootBits * RootBits_clone(RootBits * self);
 void RootBits_delete(RootBits * self, Bool call_free);
-Vec__BorrowRoot * priv___src_self_typer_til__carried_roots_of(TypeScope * scope, Vec__BorrowRoot * roots);
+Vec__BorrowRoot * priv___src_self_typer_til__carried_roots_of(TypeScope * scope, Vec__BorrowRoot * roots, Str * fname);
 void priv___src_self_typer_til__summary_bind_case(Expr * cn, RootBits * subj, Map__Str_RootBits * roots);
 Str * priv___src_self_typer_til__summary_base_type_name(Str * tn);
 Str * priv___src_self_typer_til__summary_receiver_type(Expr * recv, TypeScope * scope, Str * self_type);
