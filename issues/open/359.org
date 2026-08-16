@@ -1,0 +1,69 @@
+# priority: medium
+# category: bugs
+** OPEN #359 One generic applied both explicitly and by deduction is monomorphized twice
+
+Applying the same generic function both ways in a single unit emits the
+concrete function twice, and the C compiler rejects the duplicate:
+
+    priv gc := func(T: Type, parts: ..T) returns USize { return parts.len() }
+    priv mk := func(s: Str) returns Str { return format(s, "!") }
+    test_explicit := test() { s := mk("x") assert_eq(USize, gc(Str, s), 1) }
+    test_deduced  := test() { t := mk("y") assert_eq(USize, gc(t), 1) }
+
+    error: redefinition of 'priv__tmp_dup6_til__gc__Str'
+    error: C compilation failed
+
+Both definitions are byte-identical; only one is reachable. Interpreted
+runs are unaffected -- the duplicate only bites the compiled backend.
+
+The runtime arguments matter for reproducing it: with comptime-foldable
+arguments (~gc(Str, "x")~ beside ~gc("x")~) the constfolder folds both
+calls away, no monomorphization survives, and the file compiles. That is
+why it can sit unnoticed.
+
+*** The two routes
+
+- EXPLICIT application is expanded at init time. ~init_generic_expand_call~
+  (src/self/initer.til) calls the shared constructor ~generic_instantiate~,
+  which dedups on ~ctx.generic_func_synths~ keyed ~format(src.path, "#",
+  mono)~ and appends the concrete Decl to its destination.
+- DEDUCED application (type arguments omitted, #328) is expanded at typer
+  time: ~generic_finish_fcall~ (src/self/typer.til) builds a fresh ~seen~
+  map and calls the SAME ~generic_instantiate~, queueing into
+  ~ctx.generic_pending~.
+
+Sharing the constructor was deliberate -- the comment on
+~generic_instantiate~ says both paths build their declaration there so
+that ~assert_eq(I32, a, b)~ and ~assert_eq(a, b)~ "cannot land on two
+different implementations". The dedup set is on ~ctx~ and so does span
+both. So the keys must be diverging rather than the mechanism being
+absent: the first suspect is ~src.path~, which the typer path takes from
+the callee's binding (~sb.path~) while the init path sets it where the
+~GenericFuncSource~ is built. A private source is the other suspect --
+~generic_instantiate~'s own comment notes that a private source keeps its
+RAW name for the later mangling pass, while "a late instantiation starts
+from the already-mangled source name and that pass is long done", so the
+two routes can hold different ~mono~ spellings for one function.
+
+Confirm which before fixing: print or assert the two dedup keys for the
+repro above.
+
+*** Fix direction
+
+One key per concrete function, agreed on by both routes, so the second
+application finds the first and reuses it. If the private-mangling
+asymmetry is the cause, the key has to be formed from something stable
+across it (the source binding's identity rather than its current
+spelling), not from the mangled name.
+
+*** Regression test
+
+The repro above belongs in the corpus as a compiling test -- it is not a
+diagnostics fixture, since the correct behaviour is that it BUILDS and
+both calls return 1. Note it must use runtime arguments; comptime ones
+fold away and would pass without proving anything.
+
+Found while fixing #342: making a deduced call with a `..` splat type at
+all (previously an error) added one more way to reach this. #342's
+deduced tests use a separate generic from its explicit ones to stay clear
+of it -- that workaround comes out when this is fixed.

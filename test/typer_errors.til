@@ -1191,3 +1191,41 @@ terr356_poke := func(s1: Terr351Src, s2: Terr351Src) {
                       k = Terr351Holder(r = terr351_held_of(s2)))
     o.h.r.n = o.h.r.n + 1
 }
+
+// #342: a `..` splat stands for the whole variadic run, so what has to match
+// the parameter is its container's ELEMENT type. The block used to skip
+// validation entirely as soon as any argument carried `..` (checking a splat
+// AS an element would have rejected every one of them), so a mismatched splat
+// reached the callee unchecked -- `format(..ints)` against `parts: ..Str` had
+// the callee read each I64 as a Str pointer and segfault. Four shapes: wrong
+// element type pure and mixed, a splat of something that is not a container at
+// all, and the same against a user variadic.
+terr342_ints := array(I64, 7, 8)
+terr342_strs := array(Str, "a", "b")
+terr342_plain := "abc"
+
+terr342_pure := format(..terr342_ints)
+terr342_mixed := format("x", ..terr342_ints)
+terr342_noncontainer := format("x", ..terr342_plain)
+
+terr342_sum := func(nums: ..I64) returns I64 {
+    mut t := 0
+    for n : I64 in nums { t = t.add(n) }
+    return t
+}
+terr342_user := terr342_sum(1, ..terr342_strs)
+
+// array() / vec() are declared `..Dynamic`, so the variadic check skips their
+// block and the element type the literal NAMES is what a splat is measured
+// against instead. This folded an Array(Str) into an Array(I64) and printed
+// the pointers as numbers.
+terr342_array_lit := array(I64, 1, ..terr342_strs, 9)
+terr342_vec_lit := vec(I64, ..terr342_strs)
+
+// A Vec is not a splat source: the block is folded with Array.concat, whose
+// parameters are Arrays. This used to pass the typer and then split the
+// backends -- the interpreter ran it on the coincidence that a Vec's data and
+// count sit where an Array's data and cap do, while the C backend rejected
+// `Array__I64_concat(a, v)` outright.
+terr342_vec_src := vec(I64, 1, 2)
+terr342_vec_splat := terr342_sum(..terr342_vec_src)

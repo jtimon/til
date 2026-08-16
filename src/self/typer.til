@@ -1290,6 +1290,37 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
 
 }
 
+// #342: the splat counterpart of validate_fcall_arg. A `..` argument stands
+// for the whole variadic run, so what has to match the parameter is the
+// container's ELEMENT type, not the container. Unknown and Dynamic are left
+// alone the way the element path leaves them: an earlier diagnostic already
+// fired, and piling a second one on it helps nobody.
+//
+// The element coercion the plain path applies (`format("x", 7)` wrapping the
+// I64 in to_str) deliberately does NOT extend here: coercing a splat would
+// mean mapping to_str over a runtime-length array, which is a lowering this
+// does not have. Saying so is better than the segfault that silence produced.
+priv validate_splat_elem_type := proc(scope: TypeScope, arg: Expr, want_name: Str, target: Str, mut ctx: Context) {
+    ref at : Type = arg.til_type()
+    if at.is(Type.Unknown).or(at.is(Type.Dynamic)) { return }
+    src_name := type_to_name(at)
+    if src_name.len() == 0 { return }
+    ref want : Str = resolve_type_alias_for_name(scope, want_name)
+    elem := array_instance_elem_type_name(src_name)
+    if elem.eq(want) { return }
+    vec_elem := vec_instance_elem_type_name(src_name)
+    if vec_elem.len() > 0 {
+        arg.type_error(format("'..' splat of '", src_name,
+            "': a splat source must be an Array, not a Vec (the block is folded with Array.concat)"), ctx)
+        return
+    }
+    mut got := format("'", src_name, "'")
+    if elem.len() > 0 { got = format("'", src_name, "', whose elements are '", elem, "'") }
+    arg.type_error(format("'..' splat of ", got, " does not match ", target,
+        "; splat an Array of '", want,
+        "' (a splat is not coerced element by element the way a plain argument is)"), ctx)
+}
+
 priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e: Expr, fdef_data: FunctionDef, in_func: I32, mut ctx: Context) {
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
@@ -1357,9 +1388,6 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 if pi.to_i32() == fvi {
                     ref vparam : Declaration = fdef_data.params[pi]
                     ref vptype_name : Str = vparam.explicit_type
-                    mut is_splat := false
-                    ref fcd_v : FCallData = fcall_of(e)
-                    is_splat = fcd_v.is_splat
                     // #342: a splat sharing the variadic block with other
                     // args used to be refused here -- which argument carried
                     // the `..` was recorded nowhere, so the desugar wrapped
@@ -1368,11 +1396,25 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                     // now records the position (FCallData.splat_args) and
                     // desugar_mixed_splat_variadic_call folds the block into
                     // one Array, so the mixed form lowers correctly.
-                    if vptype_name.len().gt(0).and(is_splat.not()) {
+                    //
+                    // is_splat used to gate the whole block out of validation:
+                    // a splatted argument is the run, not an element, so
+                    // checking it AS an element would reject every splat. That
+                    // left a mismatched one -- `format(..ints)` against
+                    // `parts: ..Str` -- unchecked all the way to the callee,
+                    // which read each I64 as a Str pointer and segfaulted. The
+                    // bitmap now says which argument is which, so each is
+                    // checked as what it is.
+                    if vptype_name.len() > 0 {
                         vptype := type_from_name(vptype_name, scope, ctx)
                         if vptype.is(Type.Dynamic).not() {
                             is_str_va := vptype_name == "Str"
                             for vk in 0..fvc {
+                                if get_splat_arg(e, ci + vk) {
+                                    validate_splat_elem_type(scope, e.children[ci + vk], vptype_name,
+                                        format("the variadic parameter '", vparam.name, ": ..", vptype_name, "'"), ctx)
+                                    continue
+                                }
                                 if is_str_va {
                                     ref vk_arg : Expr = e.children[ci + vk]
                                     if vk_arg.til_type().is(vptype).not() {
@@ -2525,6 +2567,19 @@ priv infer_array_vec_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str,
     // annotation. The instance name below resolves the alias away, so this
     // is the only point that sees the spelling the user wrote.
     _ : Type = type_from_name(elem_type, scope, ctx)
+    // #342: `array` / `vec` are declared `..Dynamic`, so the variadic check in
+    // infer_and_validate_fcall_args_for_fdef skips their block entirely and
+    // the element type the literal NAMES is the only thing a splat can be
+    // measured against. Without this `array(I64, 1, ..strs, 9)` folded an
+    // Array(Str) into an Array(I64) and printed the Str pointers as numbers.
+    // (Plain elements are still unchecked here -- `array(I64, 1, "a")` is the
+    // same garbage and predates splats; that gap is not this issue's.)
+    for si in 2..e.children.len() {
+        if get_splat_arg(e, si) {
+            validate_splat_elem_type(scope, e.children[si], elem_type,
+                format("the '", elem_type, "' element type of this ", name, "() literal"), ctx)
+        }
+    }
     if name == "array" {
         e.set_til_type(Type.Struct(variadic_array_type_name(scope, elem_type)))
     } else {
@@ -2899,8 +2954,8 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
                 // the variadic run, so nothing outside it is touched.
                 if pi.to_i32() == fvi {
                     if get_splat_arg(e, ci + k) {
-                        elem_spell := variadic_array_elem_type_name(spell)
-                        elem_key := variadic_array_elem_type_name(key)
+                        elem_spell := array_instance_elem_type_name(spell)
+                        elem_key := array_instance_elem_type_name(key)
                         if elem_spell.len().gt(0).and(elem_key.len().gt(0)) {
                             spell = elem_spell.clone()
                             key = elem_key.clone()
@@ -8020,16 +8075,33 @@ variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
 }
 
 // #342: the inverse of variadic_array_type_name -- the element spelling of a
-// monomorphized variadic Array instance ("Array__Str" -> "Str"). Type-argument
-// deduction needs it because a `..` splat contributes the array's ELEMENTS to
-// the variadic run, not the array itself. Returns "" when the name is not an
-// instance to decompose (the generic `Array` in scope, or any other type),
-// which leaves the caller on the evidence it already had.
-priv variadic_array_elem_type_name := func(array_name: Str) returns Str {
+// monomorphized Array instance ("Array__Str" -> "Str"). What a `..` splat
+// contributes to the variadic run is the array's ELEMENTS, so both readers
+// want this: type-argument deduction takes its evidence from it, and the
+// argument check compares it against the parameter's type. Returns "" when the
+// name is not an Array instance to decompose (the generic `Array` in scope, a
+// Vec, or any other type), which leaves each caller on what it had -- for
+// deduction the evidence it already held, for the check a spelling that cannot
+// match and so reports.
+priv array_instance_elem_type_name := func(container_name: Str) returns Str {
     prefix := "Array__"
-    if array_name.starts_with(prefix).not() { return "" }
-    if array_name.len() <= prefix.len() { return "" }
-    return array_name.substr(prefix.len(), array_name.len().sub(prefix.len()))
+    if container_name.starts_with(prefix).not() { return "" }
+    if container_name.len() <= prefix.len() { return "" }
+    return container_name.substr(prefix.len(), container_name.len().sub(prefix.len()))
+}
+
+// #342: the same for a Vec instance, used only to tell a Vec splat apart in a
+// diagnostic. A Vec cannot BE a splat source -- the lowering folds the block
+// with Array.concat, whose parameters are Arrays -- but it used to reach the
+// fold untyped, so the interpreter ran it on the layout coincidence that a
+// Vec's data pointer and count sit where an Array's data and cap do, while the
+// C backend rejected the same program outright. One diagnostic replaces that
+// disagreement.
+priv vec_instance_elem_type_name := func(container_name: Str) returns Str {
+    prefix := "Vec__"
+    if container_name.starts_with(prefix).not() { return "" }
+    if container_name.len() <= prefix.len() { return "" }
+    return container_name.substr(prefix.len(), container_name.len().sub(prefix.len()))
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns Str {

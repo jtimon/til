@@ -149,10 +149,10 @@ element instead of the run it stands for.
    ~FCallData~ layout change, i.e. the staged migration this issue already
    did once -- worth doing if the limit is ever hit in earnest.
 
-Found while testing (1) and NOT fixed here, since it has nothing to do
-with splats: applying one generic both explicitly and by deduction in a
-single unit synthesizes the monomorphization TWICE, and the C compiler
-rejects the duplicate definition. It reproduces with plain runtime
+Found while testing (1), NOT fixed here since it has nothing to do with
+splats, and filed as #359: applying one generic both explicitly and by
+deduction in a single unit synthesizes the monomorphization TWICE, and the
+C compiler rejects the duplicate definition. It reproduces with plain runtime
 arguments and no splat anywhere (~gc(Str, s)~ beside ~gc(t)~), so it
 predates this work; the deduction fix merely adds a splat call as one more
 way to reach it. The two dedup routes are ~ctx.generic_func_synths~ keyed
@@ -162,6 +162,52 @@ generic to stay clear of it.
 
 Tests: test_splat_deduced_type_arg in test/variadic.til, and the
 splat_arg_limit fixture (test/splat_arg_limit_error.til).
+
+*** Follow-up 3: the splat nobody type-checked
+
+~format(..ints)~ against ~parts: ..Str~ SEGFAULTED the interpreter: the
+callee read each I64 as a Str pointer and memcpy'd through it. The cause is
+one condition in ~infer_and_validate_fcall_args_for_fdef~ -- the variadic
+block skipped validation entirely as soon as ~is_splat~ was set. That was
+right when it was written: a splatted argument is the whole run, not one
+element, so checking it AS an element would have rejected every splat, and
+which argument carried the ~..~ was recorded nowhere. ~splat_args~ answers
+that now, so each argument is checked as what it is: elements element-wise
+(with the ~to_str~ coercion the ~..Str~ path applies), splats by their
+ELEMENT type.
+
+The coercion deliberately does NOT extend to splats. Coercing one would
+mean mapping ~to_str~ over an array whose length is a runtime value, which
+is a lowering this does not have; saying so beats the crash silence bought.
+
+~array()~ / ~vec()~ needed their own check. They are declared
+~..Dynamic~, so the variadic check skips their block by design, and the
+element type the literal NAMES is the only thing a splat can be measured
+against -- ~array(I64, 1, ..strs, 9)~ folded an Array(Str) into an
+Array(I64) and printed the pointers as numbers. ~infer_array_vec_fcall~
+checks the splats it holds.
+
+A Vec is no longer a splat source. It never really was: the fold is
+~Array.concat~, whose parameters are Arrays, and a Vec reached it untyped.
+The interpreter then ran on the coincidence that a Vec's ~data~ and ~count~
+sit where an Array's ~data~ and ~cap~ do, while the C backend rejected
+~Array__I64_concat(a, v)~ outright -- the two backends disagreeing about
+one program, which is worse than either answer. It is now one diagnostic
+naming the Vec. Supporting it for real needs a Vec -> Array conversion (the
+mirror of the ~Array.to_vec~ follow-up 1 added) and is a separate feature,
+not a bug fix.
+
+NOT fixed here, found next door and filed as #358: ~array()~ / ~vec()~ do
+not type-check their PLAIN elements either. ~array(I64, 1, "a", 9)~ is the
+same garbage, predates splats entirely, and closing it would reject code
+that compiles today, so it gets its own issue rather than a quiet ride
+along with this one.
+
+Tests: test_splat_elem_type_accepted in test/variadic.til for the shapes
+that must still pass, and seven fixtures in test/typer_errors.til (count
+203 -> 210) for the ones that must not: wrong element type pure, mixed,
+against a user variadic and against both literals, a splat of a
+non-container, and the Vec.
 
 A ~..~ splat passed alongside other arguments in the same variadic
 block is currently a type error:

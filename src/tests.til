@@ -1224,7 +1224,12 @@ main := proc(args: ..Str) {
         format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 203,
+    add_count(tests, "typer_errors", "typer", "error:", 210,
+        format(til_bin, " interpret test/typer_errors.til"))
+    // #342: a splat whose elements do not match is reported, not passed
+    // through to crash the callee -- four variadic shapes, the two literals,
+    // and a Vec source, which the two backends used to disagree about.
+    add_count(tests, "splat_elem_type", "typer", "splat of", 7,
         format(til_bin, " interpret test/typer_errors.til"))
     parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
     add_count(tests, "fcall_arg_parity_total", "typer", "error:", 12, parity_cmd)

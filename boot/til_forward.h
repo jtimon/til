@@ -2733,6 +2733,7 @@ Expr * resolve_default_value(Expr * default_value, Expr * call_expr, Context * c
 Bool priv___src_self_typer_til__name_is_interface(Str * name, TypeScope * scope);
 Bool priv___src_self_typer_til__type_implements_iface(Str * cname, Str * iface, TypeScope * scope);
 void priv___src_self_typer_til__validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_name, Context * ctx);
+void priv___src_self_typer_til__validate_splat_elem_type(TypeScope * scope, Expr * arg, Str * want_name, Str * target, Context * ctx);
 void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(TypeScope * scope, Expr * e, FunctionDef * fdef_data, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_and_validate_fcall_args(TypeScope * scope, Expr * e, Option__ref_TypeBinding callee_bind_o, Option__ref_Expr * fdef_o, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, Option__ref_TypeBinding callee_bind_o, Option__ref_Expr fdef_o, I32 in_func, Context * ctx);
@@ -2885,7 +2886,8 @@ Expr * make_clone_call(Str * type_name, Type type, Expr * arg, Expr * src);
 Expr * priv___src_self_typer_til__make_to_str_call(Str * type_name, Expr * arg);
 Expr * make_ns_call(Str * sname, Str * method, Type ret_type, Expr * src);
 Str * variadic_array_type_name(TypeScope * scope, Str * elem_type);
-Str * priv___src_self_typer_til__variadic_array_elem_type_name(Str * array_name);
+Str * priv___src_self_typer_til__array_instance_elem_type_name(Str * container_name);
+Str * priv___src_self_typer_til__vec_instance_elem_type_name(Str * container_name);
 Str * priv___src_self_typer_til__variadic_vec_type_name(TypeScope * scope, Str * elem_type);
 Bool priv___src_self_typer_til__is_enum_variant_ctor_with_payload(Expr * expr, TypeScope * scope);
 Bool priv___src_self_typer_til__type_is_null_quarantine(Type t);

@@ -1,0 +1,70 @@
+# priority: medium
+# category: bugs
+** OPEN #358 array() / vec() literals do not type-check their elements
+
+An element whose type is not the literal's element type is accepted in
+silence and read back as the element type -- the reader takes its bytes for
+an ~I64~ and prints a pointer:
+
+    mixed := array(I64, 1, "a", 9)
+    // len 3
+    //   1
+    //   94807517492016
+    //   9
+
+Same for ~vec()~. No error, no crash, wrong output, on both backends
+alike.
+
+*** Where the check is missing
+
+~infer_array_vec_fcall~ (src/self/typer.til) infers every element
+expression and then sets the call's type from the NAMED element type
+(child 1). It never compares the two. A plain call gets that comparison
+from ~infer_and_validate_fcall_args_for_fdef~, which walks the variadic
+run calling ~validate_fcall_arg~ per element -- but ~array~ and ~vec~ are
+declared ~..Dynamic~ (src/core/array.til, src/core/vec.til):
+
+    array := ext_func(T: Type, elements: ..Dynamic) returns Array {}
+
+and that function gates its whole block on
+~vptype.is(Type.Dynamic).not()~, so a Dynamic variadic is deliberately
+skipped. Nothing else looks at the elements, so the literal is the one
+call shape whose arguments are never checked against anything.
+
+*** What it should do
+
+Compare each element against the literal's element type, the way the
+element-wise arm of ~infer_and_validate_fcall_args_for_fdef~ does, and
+report a mismatch at the element. #342 already added the SPLAT half of
+exactly this to ~infer_array_vec_fcall~ (a ~..~ argument checked by its
+element type, ~validate_splat_elem_type~), so the shape of the fix and
+the place it goes are settled; what is missing is the plain-element case
+beside it.
+
+Two decisions the implementation has to make, neither of them obvious:
+
+1. Whether the ~..Str~ ~to_str~ coercion applies. A plain variadic
+   coerces (~format("x", 7)~ wraps the I64 via ~make_to_str_call~).
+   ~array(Str, 1)~ arguably should too, or arguably a container literal
+   should be exact. Picking "exact" is the smaller change and the easier
+   one to relax later.
+2. What ~array(Dynamic, ...)~ means. A Dynamic element type must keep
+   accepting anything, so the check has to exempt it the way the variadic
+   path exempts a Dynamic parameter.
+
+*** Why it is filed rather than fixed
+
+Closing this REJECTS programs that compile today. Every mixed-type
+literal currently in a corpus somewhere starts failing the moment the
+check lands, which is the right outcome but is a behaviour change with a
+blast radius worth measuring on its own rather than inside an unrelated
+fix. Found while fixing #342 (whose splat half is done); the plain-element
+half predates splats entirely.
+
+*** Regression tests to add
+
+- ~array(I64, 1, "a", 9)~ and the ~vec()~ equivalent are errors, located
+  at the offending element.
+- ~array(Dynamic, 1, "a")~ still compiles.
+- Whatever the coercion decision is, pin it: ~array(Str, 1)~ either
+  coerces or reports, and the test says which.
