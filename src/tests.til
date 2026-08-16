@@ -877,12 +877,15 @@ main := proc(args: ..Str) {
     // name; the block is not emitted (121 of them across the corpus).
     add_count(tests, "option_no_niche_tag_enumerators", "build", "Option__ref_OptSrc_TAG_None", 0,
         format(til_bin, " translate -c gen/c/opt_nt.c test/option.til '&&' cat gen/c/opt_nt.c"))
-    // A Case arm is [pattern x N, body], and a `case:` wildcard arm is
-    // just [body] -- so the site collector's "skip child 0" dropped the
-    // whole BODY of every wildcard arm, and every call inside it. It
-    // walks the last child (the body) only now. enums.til's switch has a
-    // wildcard arm whose body calls UNREACHABLE; without the fix that
-    // call is invisible to the inventory.
+    // A CORE top-level function whose every call site sits inside a
+    // definition the emit gates drop is not called by the emitted C.
+    // UNREACHABLE is the witness: the initer plants a call in every
+    // `guard_every` auto-clone body, so wherever those bodies are
+    // omitted the definition is left with no caller (8 fixtures).
+    add_count(tests, "aliases_no_uncalled_unreachable", "build", "void UNREACHABLE(", 0,
+        format(til_bin, " translate -c gen/c/al_ur.c test/aliases.til '&&' cat gen/c/al_ur.c"))
+    // ...and it stays wherever a surviving body does call it: enums.til's
+    // switch has a `case:` wildcard arm whose body calls UNREACHABLE.
     add_count(tests, "enums_keeps_called_unreachable", "build", "void UNREACHABLE(", 2,
         format(til_bin, " translate -c gen/c/en_ur.c test/enums.til '&&' cat gen/c/en_ur.c"))
     // The literal exposed DCE's trivial-delete matcher to CONSUMING

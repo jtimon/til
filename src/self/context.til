@@ -1239,6 +1239,11 @@ Context := struct {
     // lowered away (Dynamic -> void*) or every function referencing it was
     // omitted (an unused vendor binding struct).
     builder_used_ctypes := Set(Str).new()
+    // #326: core top-level functions the emit gates drop -- every call
+    // site they had sits inside a definition that is itself omitted. Read
+    // by the definition pass, the forward-declaration pass and the
+    // string-literal registrar, so all three agree on what exists.
+    builder_omitted_core_funcs := Set(Str).new()
     // #326: library output keeps its exported ABI whether or not anything
     // internal uses it, so the two site-driven gates above stand down there
     // -- a consumer can call any exported constructor or `size`, and no

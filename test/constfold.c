@@ -109,7 +109,6 @@ Str * U64_to_str(U64 val);
 Str * I64_to_str(I64 val);
 void I64_delete(I64 * self, Bool call_free);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
-__attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void assert(Bool cond, Str * loc);
 void expect(Bool cond, Array__Str * parts, Str * loc);
 void println(Array__Str * parts);
@@ -570,34 +569,6 @@ __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     Array__Str_delete(parts, 1);
     I64 hoisted__I64_8 = 1;
     exit(hoisted__I64_8);
-}
-
-__attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc) {
-    USize hoisted__U32_9 = (parts->cap);
-    U32 hoisted__U32_10 = 0;
-    Bool hoisted__Bool_11 = ((Bool)(hoisted__U32_9 == hoisted__U32_10));
-    if (hoisted__Bool_11) {
-        U32 hoisted__U32_0 = 1;
-        Array__Str *_va_Array_0 = Array__Str_new(hoisted__U32_0);
-        I64 _va_Array_0_ek = 0;
-        U32 hoisted__U32_1 = 0;
-        static Str hoisted__Str_UNREACHABLE_2 = (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(_va_Array_0, hoisted__U32_1, &hoisted__Str_UNREACHABLE_2, &_va_Array_0_ek);
-        panic(_va_Array_0, loc);
-    } else {
-        U32 hoisted__U32_3 = 2;
-        Array__Str *_va_Array_1 = Array__Str_new(hoisted__U32_3);
-        I64 _va_Array_1_ek = 0;
-        U32 hoisted__U32_4 = 0;
-        static Str hoisted__Str_UNREACHABLE_5 = (Str){.c_str = (void *)"unreachable: ", .count = 13ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(_va_Array_1, hoisted__U32_4, &hoisted__Str_UNREACHABLE_5, &_va_Array_1_ek);
-        Array__Str *hoisted__Array__Str_6 = Array__Str_clone(parts);
-        U32 hoisted__U32_7 = 1;
-        Str *hoisted__Str_UNREACHABLE_8 = format(hoisted__Array__Str_6);
-        Array__Str_set(_va_Array_1, hoisted__U32_7, hoisted__Str_UNREACHABLE_8, &_va_Array_1_ek);
-        panic(_va_Array_1, loc);
-    }
-    Array__Str_delete(parts, 1);
 }
 
 void assert(Bool cond, Str * loc) {

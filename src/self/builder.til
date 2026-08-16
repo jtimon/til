@@ -1682,7 +1682,14 @@ priv builder_register_str_lits := proc(mut lp: LoadedProgram) {
     builder_reset_str_lit_pool(lp.ctx)
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
-        builder_register_str_lits_for_expr(iu.ast, lp.ctx)
+        // An omitted function's body is not walked: its hoisted `__LOC__`
+        // idents are emitted from a GLOBAL region (builder_emit_loc_region),
+        // not from the body, so registering them would leave a file-scope
+        // `static Str` no emitted line reads.
+        for rsl_stmt : Expr in iu.ast.children {
+            if is_func_decl(rsl_stmt).and(lp.ctx.builder_omitted_core_funcs.has(decl_of(rsl_stmt).name)) { continue }
+            builder_register_str_lits_for_expr(rsl_stmt, lp.ctx)
+        }
     }
     builder_register_dyn_type_to_str_lits(lp)
     builder_finalize_str_lit_pool(lp.ctx)
@@ -5711,6 +5718,32 @@ priv func_return_ctype := func(fd: FunctionDef, mut ctx: Context) returns Str {
     return type_name_to_c(fd.return_type, ctx)
 }
 
+// #326: a CORE top-level function whose every call site sits inside a
+// definition the emit gates drop is not called by the emitted C. The site
+// inventory answers it: its walk skips omitted ns bodies and records bare
+// callees by plain name. Scoped to core -- a USER top-level function can
+// be an entry point (a test, a CLI main, an export) that no other til code
+// calls, and the scavenger is the authority there.
+priv builder_core_func_omitted := func(name: Str, mut lp: LoadedProgram) returns Bool {
+    if lp.ctx.builder_keep_all_exports { return false }
+    if name.eq("main") { return false }
+    if lp.skip_core { return false }
+    // A closure VALUE is referenced by dyn_fn's generated dispatch table,
+    // a mention that exists only in emitted C with no AST call site.
+    if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(name)) { return false }
+    mut is_core := false
+    for u : ProgramUnit in lp.core_units {
+        if is_core { break }
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            if is_func_decl(stmt).not() { continue }
+            if decl_of(stmt).name.eq(name) { is_core = true break }
+        }
+    }
+    if is_core.not() { return false }
+    return lp.ctx.builder_ns_member_sites.has(name).not()
+}
+
 priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: Bool, mut ctx: Context) {
     // Issue #262: recursive variadic lazy defs are compile-time-only (see
     // emit_func_def); no prototype either.
@@ -7109,6 +7142,7 @@ priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mo
         }
         fc := func_to_c(dd.name)
         if fd.func_type.is_bodyless() { return }
+        if lp.ctx.builder_omitted_core_funcs.has(dd.name) { return }
         emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
         if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
     case:
@@ -8572,6 +8606,7 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
         if builder_is_type_gen_macro_def(rhs) { return }
         if fd.func_type.is_bodyless() { return }
         if rhs.children.len() == 0 { return }
+        if lp.ctx.builder_omitted_core_funcs.has(dd.name) { return }
         emit_func_def(f, dd.name, rhs, mode, false, lp)
         if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
         f.write("\n")
@@ -8861,6 +8896,22 @@ builder_prepare_emit := proc(mut lp: LoadedProgram) {
     // a different, wrong answer (EvalHeap_clone and CtorArg_clone became
     // implicit declarations in til's own output).
     builder_fill_emit_inventory(lp)
+    // Settled once so the definition pass, the forward-declaration pass
+    // and the string-literal registrar all read the same answer.
+    mut bpe_omitted := Set(Str).new()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            for stmt : Expr in iu.ast.children {
+                if is_func_decl(stmt).not() { continue }
+                ref bpe_dd : Declaration = decl_of(stmt)
+                if builder_core_func_omitted(bpe_dd.name, lp) {
+                    if bpe_omitted.has(bpe_dd.name).not() { bpe_omitted.add(own bpe_dd.name.clone()) }
+                }
+            }
+        }
+    }
+    lp.ctx.builder_omitted_core_funcs = bpe_omitted.clone()
     // After the emit inventory: the used-ctype walk asks the same gates
     // (omission, variant ctors, dyn targets, collection elem types) the
     // emitters will, and those answer from the inventory just filled.
@@ -10728,6 +10779,17 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     case:
     }
 
+    // #326: a bare `f(...)` callee, recorded in the SAME walk so it
+    // inherits the omitted-body skip: a call that appears only inside a
+    // definition the gates drop is not a call. Keyed by plain name, which
+    // cannot collide with the dotted `Type.member` keys.
+    if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
+        switch e.children[0].node_type {
+        case .Ident(bvs_bare):
+            sites.add(own bvs_bare.ident_name().clone())
+        case:
+        }
+    }
     if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
         switch e.children[0].node_type {
         case .FieldAccess(bvs_f):
