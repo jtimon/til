@@ -1,5 +1,5 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -410,74 +410,294 @@ stdout/stderr as it goes). `capture()` collects it instead, and
 struct Cmd {
     ref mut handle : U8
 namespace:
-    /// A command from its program name and arguments. The program is
-    /// looked up in PATH unless the name contains a separator.
     proc new(args: ..Str) returns Cmd
-    /// Append one argument. Returns `self` so calls chain via UFCS.
     proc arg(self: Cmd, a: Str) returns ref Cmd
-    /// Append several arguments at once.
     proc args(self: Cmd, more: ..Str) returns ref Cmd
-    /// Run the command in `dir` instead of this process's working
-    /// directory. Only the child moves; this process stays put.
     proc cwd(self: Cmd, dir: Str) returns ref Cmd
-    /// Set an environment variable for the child only. The rest of the
-    /// environment is inherited; this process's own is never touched.
     proc env(self: Cmd, name: Str, value: Str) returns ref Cmd
-    /// Send the child's stdout to `path`, truncating it first.
     proc stdout_to(self: Cmd, path: Str) returns ref Cmd
-    /// Send the child's stderr to `path`, truncating it first.
     proc stderr_to(self: Cmd, path: Str) returns ref Cmd
-    /// Merge the child's stderr into wherever its stdout goes -- the
-    /// `2>&1` of build logs, without a shell.
     proc stderr_to_stdout(self: Cmd) returns ref Cmd
-    /// Collect the child's output instead of letting it through, for
-    /// reading with `out()` and `err()` once it has finished. The two
-    /// streams stay separate; each command captures into its own spool
-    /// file, so concurrent captures never mix.
     proc capture(self: Cmd) returns ref Cmd
-    /// Collect stdout only, leaving stderr on this process's stderr so
-    /// a compiler's diagnostics still reach the terminal live.
     proc capture_out(self: Cmd) returns ref Cmd
-    /// The command as a human would type it, for logs and error
-    /// messages. NOTHING executes this string -- it is a rendering, not
-    /// the command.
     proc render(self: Cmd) returns Str
-    /// Start the child without waiting, returning its pid (POSIX) or
-    /// process handle (Windows). Pair with `wait` or `poll`.
     proc start(self: Cmd) returns shallow I64
-    /// Block until the child finishes and return its status: the exit
-    /// code, or MINUS the signal number when a signal killed it (so a
-    /// compiler the OOM killer took reads as -9, not as an ordinary
-    /// exit 137).
     proc wait(self: Cmd) returns shallow I64
-    /// True once the child has finished, false while it is still
-    /// running. Deliberately not a status: every I64 is a legal status.
     proc poll(self: Cmd) returns shallow Bool
-    /// The status of a child that has already finished. Use after
-    /// `poll` reports true; `wait` returns the same value directly.
     proc status(self: Cmd) returns shallow I64
-    /// Start the command and block until it finishes, returning its
-    /// status. The lower-level runner: a non-zero status is a value
-    /// here, not a failure. Use `run_checked` when it is one.
     proc run(self: Cmd) returns shallow I64
-    /// Run the command, printing it first, and stop the program if it
-    /// fails. The build-script runner: what ran is visible in the log
-    /// and a failure is reported at the command that caused it, with
-    /// its exact status, instead of surfacing later as a missing file.
     proc run_checked(self: Cmd)
-    /// The child's captured stdout. Requires `capture()` (or
-    /// `capture_out()`) before the run, and a finished child.
     proc out(self: Cmd) returns Str
-    /// The child's captured stderr. Requires `capture()` before the
-    /// run, and a finished child.
     proc err(self: Cmd) returns Str
-    /// Release the command. A child still running is waited for first:
-    /// dropping it would leave a process nobody reaps.
     func close(self: Cmd)
     func delete(own self: Cmd, shallow call_free: Bool)
     func clone(self: Cmd) returns Cmd
     func size() returns shallow USize
 }
+#+end_src
+
+* Cmd.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.new
+:group: Standard library
+:END:
+
+A command from its program name and arguments. The program is
+looked up in PATH unless the name contains a separator.
+
+#+begin_src til
+proc Cmd.new(args: ..Str) returns Cmd
+#+end_src
+
+* Cmd.arg
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.arg
+:group: Standard library
+:END:
+
+Append one argument. Returns `self` so calls chain via UFCS.
+
+#+begin_src til
+proc Cmd.arg(self: Cmd, a: Str) returns ref Cmd
+#+end_src
+
+* Cmd.args
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.args
+:group: Standard library
+:END:
+
+Append several arguments at once.
+
+#+begin_src til
+proc Cmd.args(self: Cmd, more: ..Str) returns ref Cmd
+#+end_src
+
+* Cmd.cwd
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.cwd
+:group: Standard library
+:END:
+
+Run the command in `dir` instead of this process's working
+directory. Only the child moves; this process stays put.
+
+#+begin_src til
+proc Cmd.cwd(self: Cmd, dir: Str) returns ref Cmd
+#+end_src
+
+* Cmd.env
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.env
+:group: Standard library
+:END:
+
+Set an environment variable for the child only. The rest of the
+environment is inherited; this process's own is never touched.
+
+#+begin_src til
+proc Cmd.env(self: Cmd, name: Str, value: Str) returns ref Cmd
+#+end_src
+
+* Cmd.stdout_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.stdout_to
+:group: Standard library
+:END:
+
+Send the child's stdout to `path`, truncating it first.
+
+#+begin_src til
+proc Cmd.stdout_to(self: Cmd, path: Str) returns ref Cmd
+#+end_src
+
+* Cmd.stderr_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.stderr_to
+:group: Standard library
+:END:
+
+Send the child's stderr to `path`, truncating it first.
+
+#+begin_src til
+proc Cmd.stderr_to(self: Cmd, path: Str) returns ref Cmd
+#+end_src
+
+* Cmd.stderr_to_stdout
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.stderr_to_stdout
+:group: Standard library
+:END:
+
+Merge the child's stderr into wherever its stdout goes -- the
+`2>&1` of build logs, without a shell.
+
+#+begin_src til
+proc Cmd.stderr_to_stdout(self: Cmd) returns ref Cmd
+#+end_src
+
+* Cmd.capture
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.capture
+:group: Standard library
+:END:
+
+Collect the child's output instead of letting it through, for
+reading with `out()` and `err()` once it has finished. The two
+streams stay separate; each command captures into its own spool
+file, so concurrent captures never mix.
+
+#+begin_src til
+proc Cmd.capture(self: Cmd) returns ref Cmd
+#+end_src
+
+* Cmd.capture_out
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.capture_out
+:group: Standard library
+:END:
+
+Collect stdout only, leaving stderr on this process's stderr so
+a compiler's diagnostics still reach the terminal live.
+
+#+begin_src til
+proc Cmd.capture_out(self: Cmd) returns ref Cmd
+#+end_src
+
+* Cmd.render
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.render
+:group: Standard library
+:END:
+
+The command as a human would type it, for logs and error
+messages. NOTHING executes this string -- it is a rendering, not
+the command.
+
+#+begin_src til
+proc Cmd.render(self: Cmd) returns Str
+#+end_src
+
+* Cmd.start
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.start
+:group: Standard library
+:END:
+
+Start the child without waiting, returning its pid (POSIX) or
+process handle (Windows). Pair with `wait` or `poll`.
+
+#+begin_src til
+proc Cmd.start(self: Cmd) returns shallow I64
+#+end_src
+
+* Cmd.wait
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.wait
+:group: Standard library
+:END:
+
+Block until the child finishes and return its status: the exit
+code, or MINUS the signal number when a signal killed it (so a
+compiler the OOM killer took reads as -9, not as an ordinary
+exit 137).
+
+#+begin_src til
+proc Cmd.wait(self: Cmd) returns shallow I64
+#+end_src
+
+* Cmd.poll
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.poll
+:group: Standard library
+:END:
+
+True once the child has finished, false while it is still
+running. Deliberately not a status: every I64 is a legal status.
+
+#+begin_src til
+proc Cmd.poll(self: Cmd) returns shallow Bool
+#+end_src
+
+* Cmd.status
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.status
+:group: Standard library
+:END:
+
+The status of a child that has already finished. Use after
+`poll` reports true; `wait` returns the same value directly.
+
+#+begin_src til
+proc Cmd.status(self: Cmd) returns shallow I64
+#+end_src
+
+* Cmd.run
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.run
+:group: Standard library
+:END:
+
+Start the command and block until it finishes, returning its
+status. The lower-level runner: a non-zero status is a value
+here, not a failure. Use `run_checked` when it is one.
+
+#+begin_src til
+proc Cmd.run(self: Cmd) returns shallow I64
+#+end_src
+
+* Cmd.run_checked
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.run_checked
+:group: Standard library
+:END:
+
+Run the command, printing it first, and stop the program if it
+fails. The build-script runner: what ran is visible in the log
+and a failure is reported at the command that caused it, with
+its exact status, instead of surfacing later as a missing file.
+
+#+begin_src til
+proc Cmd.run_checked(self: Cmd)
+#+end_src
+
+* Cmd.out
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.out
+:group: Standard library
+:END:
+
+The child's captured stdout. Requires `capture()` (or
+`capture_out()`) before the run, and a finished child.
+
+#+begin_src til
+proc Cmd.out(self: Cmd) returns Str
+#+end_src
+
+* Cmd.err
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.err
+:group: Standard library
+:END:
+
+The child's captured stderr. Requires `capture()` before the
+run, and a finished child.
+
+#+begin_src til
+proc Cmd.err(self: Cmd) returns Str
+#+end_src
+
+* Cmd.close
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.Cmd.close
+:group: Standard library
+:END:
+
+Release the command. A child still running is waited for first:
+dropping it would leave a process nobody reaps.
+
+#+begin_src til
+func Cmd.close(self: Cmd)
 #+end_src
 
 * run_cmd

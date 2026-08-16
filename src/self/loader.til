@@ -1230,26 +1230,6 @@ priv append_fn_signature := func(mut out: Str, fd: FunctionDef) {
     }
 }
 
-// Append "<indent>/// <line>\n" for each line of doc.
-priv append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
-    if doc.is_empty() { return }
-    mut start : USize = 0
-    for i in 0..doc.len() {
-        ref c : I8 = doc.unsafe_get(i)
-        if c == 10 {
-            out.push_str(indent)
-            out.push_str("/// ")
-            if i > start { out.push_str(doc.substr(start, i - start)) }
-            out.push_str("\n")
-            start = i + 1
-        }
-    }
-    out.push_str(indent)
-    out.push_str("/// ")
-    if start < doc.len() { out.push_str(doc.substr(start, doc.len() - start)) }
-    out.push_str("\n")
-}
-
 DocMeta := struct {
     body := ""
     group := ""
@@ -1332,7 +1312,6 @@ format_doc_for_help := func(doc: Str) returns Str {
 
 // Append "    [own |ref |shallow ][mut ]name : Type" for a struct field.
 priv append_field_indented := func(mut out: Str, dname: Str, d: Declaration) {
-    append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     append_qualifier_prefix(out, d, OwnType.Shallow)
     out.push_str(dname)
@@ -1344,7 +1323,6 @@ priv append_field_indented := func(mut out: Str, dname: Str, d: Declaration) {
 
 // Append "    [kind ]name(sig) returns T" for a namespace method.
 priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration) {
-    append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     mut handled := false
     if d.default_value.is_some() {
@@ -1463,7 +1441,6 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     out.push_str(" {")
     for vd : VariantDef in edef.variants {
         out.push_str("\n")
-        append_doc_lines_indented(out, vd.doc, "    ")
         out.push_str("    ")
         out.push_str(vd.name)
         if vd.payload_type.len() > 0 {
@@ -1503,43 +1480,60 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
     }
 }
 
-// Append "Type.method" qualified entry for a single namespace method.
-priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declaration, mut info: Str, mut docs: Str) {
+format_member_info := func(type_name: Str, dname: Str, d: Declaration) returns Str {
     qual := type_name.format(".", dname)
-    mut info_cap : USize = qual.len() + 64
-    mut is_func := false
+    mut cap := qual.len().add(d.explicit_type.len()) + 128
+    add_ns_method_capacity(d, cap)
+    mut out := Str.with_capacity(cap)
     if d.default_value.is_some() {
         switch d.default_expr().node_type {
         case .FuncDef(fd):
-            is_func = true
-            info_cap = info_cap.add(fd.return_type.len()) + 48
-            for p : Declaration in fd.params {
-                info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()) + 48
-            }
+            out.push_str(func_kind(fd.func_type))
+            out.push_str(" ")
+            out.push_str(qual)
+            append_fn_signature(out, fd)
+            return out
         case:
         }
     }
-    if is_func.not() {
-        info_cap = info_cap.add(d.explicit_type.len()) + 8
+    out.push_str("member ")
+    out.push_str(qual)
+    if d.explicit_type.len() > 0 {
+        out.push_str(" : ")
+        out.push_str(d.explicit_type)
     }
-    mut method_info := Str.with_capacity(info_cap)
-    if is_func {
-        switch d.default_expr().node_type {
-        case .FuncDef(fd):
-            method_info.push_str(func_kind(fd.func_type))
-            method_info.push_str(" ")
-            method_info.push_str(qual)
-            append_fn_signature(method_info, fd)
-        case:
-        }
-    } else {
-        method_info.push_str("member ")
-        method_info.push_str(qual)
-        if d.explicit_type.len() > 0 {
-            method_info.push_str(" : ")
-            method_info.push_str(d.explicit_type)
-        }
+    return out
+}
+
+format_field_info := func(type_name: Str, field_name: Str, field: Declaration) returns Str {
+    qual := type_name.format(".", field_name)
+    mut out := Str.with_capacity(qual.len().add(field.explicit_type.len()) + 64)
+    out.push_str("field ")
+    append_qualifier_prefix(out, field, OwnType.Shallow)
+    out.push_str(qual)
+    if field.explicit_type.len() > 0 {
+        out.push_str(" : ")
+        out.push_str(field.explicit_type)
     }
+    return out
+}
+
+format_variant_info := func(type_name: Str, variant: VariantDef) returns Str {
+    qual := type_name.format(".", variant.name)
+    mut out := Str.with_capacity(qual.len().add(variant.payload_type.len()) + 64)
+    out.push_str("variant ")
+    out.push_str(qual)
+    if variant.payload_type.len() > 0 {
+        out.push_str(": ")
+        out.push_str(variant.payload_type)
+    }
+    return out
+}
+
+// Append "Type.method" qualified entry for a single namespace method.
+priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declaration, mut info: Str, mut docs: Str) {
+    qual := type_name.format(".", dname)
+    method_info := format_member_info(type_name, dname, d)
     append_packed_entry(info, qual, method_info)
     if d.doc.is_empty().not() {
         help_doc := format_doc_for_help(d.doc)
@@ -1557,14 +1551,7 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
         ref pf_name : Str = sdef.field_name_at(pfr)
         pfr = pfr + 1
         qual := type_name.format(".", pf_name)
-        mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()) + 64)
-        field_info.push_str("field ")
-        append_qualifier_prefix(field_info, f, OwnType.Shallow)
-        field_info.push_str(qual)
-        if f.explicit_type.len() > 0 {
-            field_info.push_str(" : ")
-            field_info.push_str(f.explicit_type)
-        }
+        field_info := format_field_info(type_name, pf_name, f)
         append_packed_entry(info, qual, field_info)
         if f.doc.is_empty().not() {
             help_doc := format_doc_for_help(f.doc)
@@ -1585,13 +1572,7 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
 priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
     for vd : VariantDef in edef.variants {
         qual := type_name.format(".", vd.name)
-        mut variant_info := Str.with_capacity(qual.len() + 64)
-        variant_info.push_str("variant ")
-        variant_info.push_str(qual)
-        if vd.payload_type.len() > 0 {
-            variant_info.push_str(": ")
-            variant_info.push_str(vd.payload_type)
-        }
+        variant_info := format_variant_info(type_name, vd)
         append_packed_entry(info, qual, variant_info)
         if vd.doc.is_empty().not() {
             help_doc := format_doc_for_help(vd.doc)

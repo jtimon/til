@@ -1,5 +1,5 @@
 #+TITLE: src/self/modes.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * context_register_path_mode
@@ -66,21 +66,7 @@ namespace:
     func is_some(shallow self: Option__ref_Mode) returns shallow Bool
     func is_none(shallow self: Option__ref_Mode) returns shallow Bool
     func unwrap_or(self: Option__ref_Mode, default_v: Mode) returns ref Mode
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
     func unwrap(self: Option__ref_Mode) returns ref Mode
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
     func take(own self: Option__ref_Mode) returns ref Mode
     ext_func None() returns shallow Option__ref_Mode
     ext_func Some(val: Mode) returns shallow Option__ref_Mode
@@ -89,4 +75,40 @@ namespace:
     func clone(self: Option__ref_Mode) returns shallow Option__ref_Mode
     func size() returns shallow USize
 }
+#+end_src
+
+* Option__ref_Mode.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.Option__ref_Mode.unwrap
+:group: Compiler frontend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a `switch` when both arms do real work, and `unwrap_or` when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__ref_Mode.unwrap(self: Option__ref_Mode) returns ref Mode
+#+end_src
+
+* Option__ref_Mode.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.Option__ref_Mode.take
+:group: Compiler frontend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an `Option(Expr)` returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__ref_Mode.take(own self: Option__ref_Mode) returns ref Mode
 #+end_src

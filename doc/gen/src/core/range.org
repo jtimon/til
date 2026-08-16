@@ -1,5 +1,5 @@
 #+TITLE: src/core/range.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * Range
@@ -15,10 +15,8 @@ struct Range {
     start : U64
     end : U64
 namespace:
-    /// Create a Range from `start` (inclusive) to `end` (exclusive).
     func new(shallow start: U64, shallow end: U64) returns Range
     func len(self: Range) returns shallow U64
-    /// The i-th value in the range (start+i or start-i for reverse).
     func get(self: Range, shallow i: U64) returns shallow U64
     func clone(val: Range) returns Range
     func delete(own self: Range, shallow call_free: Bool)
@@ -33,4 +31,28 @@ namespace:
     func lte(a: Range, b: Range) returns shallow Bool
     func gte(a: Range, b: Range) returns shallow Bool
 }
+#+end_src
+
+* Range.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.range.Range.new
+:group: Core
+:END:
+
+Create a Range from `start` (inclusive) to `end` (exclusive).
+
+#+begin_src til
+func Range.new(shallow start: U64, shallow end: U64) returns Range
+#+end_src
+
+* Range.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.range.Range.get
+:group: Core
+:END:
+
+The i-th value in the range (start+i or start-i for reverse).
+
+#+begin_src til
+func Range.get(self: Range, shallow i: U64) returns shallow U64
 #+end_src

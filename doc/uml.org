@@ -108,6 +108,7 @@
 *** captures := Vec(Declaration).new()
 *** closure_name := ""
 *** noreturn := false
+*** ref_return_params : U64 = 0
 ** FCallData: StructDef
 *** is_splat := false
 *** does_throw := false
@@ -247,6 +248,11 @@
 *** error_msg := ""
 *** source := ""
 * context
+** BorrowRoot: StructDef
+*** name := ""
+*** path := ""
+*** line : U32 = 0
+*** col : U32 = 0
 ** TypeBinding: StructDef
 *** name := ""
 *** type := Type.Unknown
@@ -269,6 +275,7 @@
 *** orig_name := ""
 *** dynvec_elem := ""
 *** declared_type_name := ""
+*** borrow_roots := Vec(BorrowRoot).new()
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
@@ -312,6 +319,10 @@
 *** enums := Map(Str, Dynamic).new()
 *** customs := Map(Str, Dynamic).new()
 *** funcsigs := Map(Str, Dynamic).new()
+** SymbolPool: StructDef
+*** by_name := Map(Str, Sym).new()
+*** names := Vec(Str).new()
+*** next : Sym = 1
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
@@ -340,7 +351,7 @@
 *** ns_fields := Option(Scope).None
 *** imported := Map(Str, ImportUnit).new()
 *** check_unused_imports := false
-*** ... (64 more)
+*** ... (65 more)
 * targets
 ** Lang: EnumDef
 *** C

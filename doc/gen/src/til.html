@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -86,139 +86,139 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.til.BASE_VERSION">
 <h2>BASE_VERSION</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">BASE_VERSION is a Str
+<pre><code class="language-til"> is a Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.get_version">
 <h2>get_version</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">macro get_version() returns shallow Str
+<pre><code class="language-til">macro () returns shallow Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.VERSION">
 <h2>VERSION</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">VERSION is a Str
+<pre><code class="language-til"> is a Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.get_bin_dir">
 <h2>get_bin_dir</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">ext_proc get_bin_dir() returns Str
+<pre><code class="language-til">ext_proc () returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.get_cwd_str">
 <h2>get_cwd_str</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">ext_proc get_cwd_str() returns Str
+<pre><code class="language-til">ext_proc () returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_read_block">
 <h2>repl_read_block</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_read_block(mut ed: ReplEditor, mode_name: Str, mut eof: Bool) returns Str
+<pre><code class="language-til">proc (mut ed: ReplEditor, mode_name: Str, mut eof: Bool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_typecheck">
 <h2>repl_typecheck</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
+<pre><code class="language-til">proc (mut lp: LoadedProgram) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_capture_eval_current">
 <h2>repl_capture_eval_current</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32, mut aborted: Bool) returns Str
+<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32, mut aborted: Bool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_capture_eval_tail">
 <h2>repl_capture_eval_tail</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: USize, shallow count: USize, mut aborted: Bool) returns Str
+<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: USize, shallow count: USize, mut aborted: Bool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_source_line_count">
 <h2>repl_source_line_count</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_source_line_count(s: Str) returns shallow U32
+<pre><code class="language-til">func (s: Str) returns shallow U32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_loader_directive">
 <h2>repl_ast_has_loader_directive</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_ast_has_loader_directive(e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_lazy_def">
 <h2>repl_ast_has_lazy_def</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_ast_has_lazy_def(e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_known_variadic_call">
 <h2>repl_ast_has_known_variadic_call</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_ast_has_known_variadic_call(e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_delta_from_source">
 <h2>repl_delta_from_source</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, mut parse_errors: I32) returns Expr
+<pre><code class="language-til">proc (path: Str, source: Str, mut anon_type_counter: I64, mut parse_errors: I32) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_peek_needs_expr_wrap">
 <h2>repl_peek_needs_expr_wrap</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_peek_needs_expr_wrap(block: Str, tokens: Vec__Token) returns shallow Bool
+<pre><code class="language-til">func (block: Str, tokens: Vec__Token) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_parse_allows_wrap">
 <h2>repl_parse_allows_wrap</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_parse_allows_wrap(peek_ast: Expr) returns shallow Bool
+<pre><code class="language-til">func (peek_ast: Expr) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_help_call">
 <h2>repl_ast_has_help_call</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_ast_has_help_call(e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_updates_doc_cache">
 <h2>repl_ast_updates_doc_cache</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func repl_ast_updates_doc_cache(e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_refresh_user_doc_cache">
 <h2>repl_refresh_user_doc_cache</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_refresh_user_doc_cache(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, mut user_info_cache: Str, mut user_docs_cache: Str)
+<pre><code class="language-til">proc (mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, mut user_info_cache: Str, mut user_docs_cache: Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.run_repl_session">
 <h2>run_repl_session</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc run_repl_session(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec__Str)
+<pre><code class="language-til">proc (mut ed: ReplEditor, mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec__Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.run_repl">
 <h2>run_repl</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc run_repl(initial_mode: Str, extra_modes: Vec__Str)
+<pre><code class="language-til">proc (initial_mode: Str, extra_modes: Vec__Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.usage">
 <h2>usage</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc usage()
+<pre><code class="language-til">proc ()
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.CliArgs">
 <h2>CliArgs</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">struct CliArgs {
+<pre><code class="language-til">struct {
     mut command : Str
     mut path : Str
     mut custom_bin : Str
@@ -243,19 +243,19 @@ namespace:
 <article class="doc-entry" id="til.src.til.parse_args">
 <h2>parse_args</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc parse_args(args: Array__Str) returns CliArgs
+<pre><code class="language-til">proc (args: Array__Str) returns CliArgs
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.collect_user_argv">
 <h2>collect_user_argv</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: USize) returns Vec__Str
+<pre><code class="language-til">func (mut lp: LoadedProgram, args: Array__Str, shallow start_idx: USize) returns Vec__Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.main">
 <h2>main</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc main(args: ..Str)
+<pre><code class="language-til">proc (args: ..Str)
 </code></pre>
 </article>
 </main></div>

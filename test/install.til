@@ -56,6 +56,7 @@ main := proc() returns I64 {
     require(format(PREFIX, "/lib/til/src/modes/gui.til"))
     require(format(PREFIX, "/lib/til/src/c/ext.c"))
     require(format(PREFIX, "/lib/til/boot/til.c"))
+    require(format(PREFIX, "/lib/til/doc/gen/index.org"))
 
     // Paths are relative to WORK, where the program is compiled: the
     // installed til is found through its own location, not through this
@@ -158,6 +159,15 @@ main := proc() returns I64 {
     }
     if ffi_build.out().contains("build it first:").not() {
         panic("the missing-libffi report lost its build hint; got '", ffi_build.out(), "'")
+    }
+
+    repl := Cmd.new("sh", "-c", "printf '%s\\n' 'help(\"println\")' | ../install_test/bin/til")
+    repl.cwd(WORK)
+    repl.capture()
+    repl_status := repl.run()
+    if repl_status != 0 { panic("installed til REPL exited with ", repl_status.to_str()) }
+    if repl.out().contains("Print strings to stdout followed by a newline.").not() {
+        panic("installed til REPL help failed: ", repl.out(), repl.err())
     }
 
     println("install PASS")

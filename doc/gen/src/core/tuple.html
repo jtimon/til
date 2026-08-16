@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -30,7 +30,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
-<li><a class="current" href="../../src/core/tuple.html">src/core/tuple.til</a><ul><li><a href="#til.src.core.tuple.Tuple">Tuple</a></li></ul></li>
+<li><a class="current" href="../../src/core/tuple.html">src/core/tuple.til</a><ul><li><a href="#til.src.core.tuple.Tuple">Tuple</a></li><li><a href="#til.src.core.tuple.Tuple.new">Tuple.new</a></li><li><a href="#til.src.core.tuple.Tuple.push_type_name">Tuple.push_type_name</a></li><li><a href="#til.src.core.tuple.Tuple.push">Tuple.push</a></li><li><a href="#til.src.core.tuple.Tuple.get">Tuple.get</a></li><li><a href="#til.src.core.tuple.Tuple.type_at">Tuple.type_at</a></li><li><a href="#til.src.core.tuple.Tuple.size_at">Tuple.size_at</a></li></ul></li>
 <li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
 <li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
 <li><a href="../../src/core/io.html">src/core/io.til</a></li>
@@ -89,32 +89,80 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <div class="doc-body">
 <p>Heterogeneous sequence of values with mixed types.</p>
 </div>
-<pre><code class="language-til">struct Tuple {
+<pre><code class="language-til">struct {
     own mut data : U8
     mut total_size : USize
     mut cap : USize
     mut type_names : Vec__Str
     mut type_sizes : Vec__USize
 namespace:
-    /// Create an empty Tuple.
     func new() returns Tuple
     func len(self: Tuple) returns shallow USize
-    /// Internal helper that keeps tuple metadata as string type names.
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
-    /// Append a value of the given type. `val` is owned.
     func push(mut self: Tuple, T: Type, own val: Dynamic)
-    /// Ref to element at index `i`. Panics if out of bounds.
     func get(self: Tuple, i: USize) returns ref Dynamic
-    /// Type name of the element at index `i`. Panics if `i` is past
-    /// the end.
     func type_at(self: Tuple, i: USize) returns ref Str
-    /// Byte size of the element at index `i`. Panics if `i` is past
-    /// the end.
     func size_at(self: Tuple, i: USize) returns ref USize
     func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
     func size() returns shallow USize
 }
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.new">
+<h2>Tuple.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Tuple.</p>
+</div>
+<pre><code class="language-til">func () returns Tuple
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.push_type_name">
+<h2>Tuple.push_type_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Internal helper that keeps tuple metadata as string type names.</p>
+</div>
+<pre><code class="language-til">func (mut self: Tuple, own elem_type: Str, own val: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.push">
+<h2>Tuple.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append a value of the given type. `val` is owned.</p>
+</div>
+<pre><code class="language-til">func (mut self: Tuple, T: Type, own val: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.get">
+<h2>Tuple.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Ref to element at index `i`. Panics if out of bounds.</p>
+</div>
+<pre><code class="language-til">func (self: Tuple, i: USize) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.type_at">
+<h2>Tuple.type_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Type name of the element at index `i`. Panics if `i` is past
+the end.</p>
+</div>
+<pre><code class="language-til">func (self: Tuple, i: USize) returns ref Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.size_at">
+<h2>Tuple.size_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Byte size of the element at index `i`. Panics if `i` is past
+the end.</p>
+</div>
+<pre><code class="language-til">func (self: Tuple, i: USize) returns ref USize
 </code></pre>
 </article>
 </main></div>

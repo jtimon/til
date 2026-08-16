@@ -1,5 +1,5 @@
 #+TITLE: src/core/tuple.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * Tuple
@@ -18,23 +18,89 @@ struct Tuple {
     mut type_names : Vec__Str
     mut type_sizes : Vec__USize
 namespace:
-    /// Create an empty Tuple.
     func new() returns Tuple
     func len(self: Tuple) returns shallow USize
-    /// Internal helper that keeps tuple metadata as string type names.
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
-    /// Append a value of the given type. `val` is owned.
     func push(mut self: Tuple, T: Type, own val: Dynamic)
-    /// Ref to element at index `i`. Panics if out of bounds.
     func get(self: Tuple, i: USize) returns ref Dynamic
-    /// Type name of the element at index `i`. Panics if `i` is past
-    /// the end.
     func type_at(self: Tuple, i: USize) returns ref Str
-    /// Byte size of the element at index `i`. Panics if `i` is past
-    /// the end.
     func size_at(self: Tuple, i: USize) returns ref USize
     func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
     func size() returns shallow USize
 }
+#+end_src
+
+* Tuple.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.new
+:group: Core
+:END:
+
+Create an empty Tuple.
+
+#+begin_src til
+func Tuple.new() returns Tuple
+#+end_src
+
+* Tuple.push_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.push_type_name
+:group: Core
+:END:
+
+Internal helper that keeps tuple metadata as string type names.
+
+#+begin_src til
+func Tuple.push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
+#+end_src
+
+* Tuple.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.push
+:group: Core
+:END:
+
+Append a value of the given type. `val` is owned.
+
+#+begin_src til
+func Tuple.push(mut self: Tuple, T: Type, own val: Dynamic)
+#+end_src
+
+* Tuple.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.get
+:group: Core
+:END:
+
+Ref to element at index `i`. Panics if out of bounds.
+
+#+begin_src til
+func Tuple.get(self: Tuple, i: USize) returns ref Dynamic
+#+end_src
+
+* Tuple.type_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.type_at
+:group: Core
+:END:
+
+Type name of the element at index `i`. Panics if `i` is past
+the end.
+
+#+begin_src til
+func Tuple.type_at(self: Tuple, i: USize) returns ref Str
+#+end_src
+
+* Tuple.size_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.size_at
+:group: Core
+:END:
+
+Byte size of the element at index `i`. Panics if `i` is past
+the end.
+
+#+begin_src til
+func Tuple.size_at(self: Tuple, i: USize) returns ref USize
 #+end_src

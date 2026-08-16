@@ -19,8 +19,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
-<li><a class="current" href="../../src/core/vec.html">src/core/vec.til</a><ul><li><a href="#til.src.core.vec.vec">vec</a></li><li><a href="#til.src.core.vec.Vec">Vec</a></li><li><a href="#til.src.core.vec.Array__Dynamic">Array__Dynamic</a></li><li><a href="#til.src.core.vec.adopt__Dynamic">adopt__Dynamic</a></li></ul></li>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<li><a class="current" href="../../src/core/vec.html">src/core/vec.til</a><ul><li><a href="#til.src.core.vec.vec">vec</a></li><li><a href="#til.src.core.vec.Vec">Vec</a></li><li><a href="#til.src.core.vec.Array__Dynamic">Array__Dynamic</a></li><li><a href="#til.src.core.vec.Array__Dynamic.new">Array__Dynamic.new</a></li><li><a href="#til.src.core.vec.Array__Dynamic.unsafe_get">Array__Dynamic.unsafe_get</a></li><li><a href="#til.src.core.vec.Array__Dynamic.get">Array__Dynamic.get</a></li><li><a href="#til.src.core.vec.Array__Dynamic.unsafe_set">Array__Dynamic.unsafe_set</a></li><li><a href="#til.src.core.vec.Array__Dynamic.set">Array__Dynamic.set</a></li><li><a href="#til.src.core.vec.Array__Dynamic.concat">Array__Dynamic.concat</a></li><li><a href="#til.src.core.vec.Array__Dynamic.to_vec">Array__Dynamic.to_vec</a></li><li><a href="#til.src.core.vec.Vec__Dynamic">Vec__Dynamic</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.new">Vec__Dynamic.new</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.with_capacity">Vec__Dynamic.with_capacity</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.clear">Vec__Dynamic.clear</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.delete_marked">Vec__Dynamic.delete_marked</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.push">Vec__Dynamic.push</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.append">Vec__Dynamic.append</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.take">Vec__Dynamic.take</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.move_to">Vec__Dynamic.move_to</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.move_from">Vec__Dynamic.move_from</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.unsafe_get">Vec__Dynamic.unsafe_get</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.get">Vec__Dynamic.get</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.pop">Vec__Dynamic.pop</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.remove_at">Vec__Dynamic.remove_at</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.take_prefix">Vec__Dynamic.take_prefix</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.truncate">Vec__Dynamic.truncate</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.unsafe_set">Vec__Dynamic.unsafe_set</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.set">Vec__Dynamic.set</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.push_take">Vec__Dynamic.push_take</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.delete">Vec__Dynamic.delete</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.clone">Vec__Dynamic.clone</a></li><li><a href="#til.src.core.vec.adopt__Dynamic">adopt__Dynamic</a></li></ul></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
 <li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
@@ -86,7 +86,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.core.vec.vec">
 <h2>vec</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func vec(T: Type, elements: ..Dynamic) returns Vec
+<pre><code class="language-til">ext_func (T: Type, elements: ..Dynamic) returns Vec
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec">
@@ -95,53 +95,381 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <div class="doc-body">
 <p>Dynamic array of typed elements. Checked indexing throws <a href="../../src/core/str.html#til.src.core.str.OutOfBounds">OutOfBounds</a>.</p>
 </div>
-<pre><code class="language-til">macro Vec(T: Type) returns StructDef
+<pre><code class="language-til">macro (T: Type) returns StructDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Array__Dynamic">
 <h2>Array__Dynamic</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct Array__Dynamic {
+<pre><code class="language-til">struct {
     own mut data : U8
     cap : USize
 namespace:
-    /// Create a zero-initialized Array with the given capacity.
     func new(shallow cap: USize) returns Array__Dynamic
     func len(self: Array__Dynamic) returns shallow USize
-    /// Unchecked element access: ref to the element at index `i` with
-    /// NO bounds check. The caller must prove `i &lt; len()`. This is the
-    /// unchecked core that `get` wraps; for-in uses it directly because
-    /// its `_fi &lt; len()` termination test already proves the index in
-    /// bounds (issue #284).
     func unsafe_get(self: Array__Dynamic, i: USize) returns ref Dynamic
-    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
-    /// past the end; call as `arr.get(i)!` to panic on a bad index.
     func get(self: Array__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.cap`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(self: Array__Dynamic, shallow i: USize, own val: Dynamic)
-    /// Overwrite the element at index `i`. Drops the old value. `val` is
-    /// owned. Throws OutOfBounds if `i` is past the end; call as
-    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    func set(self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+    func unsafe_set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic)
+    func set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
     func delete(own self: Array__Dynamic, shallow call_free: Bool)
-    /// #342: a fresh Array holding `self`'s elements followed by `other`'s.
-    /// Both sources keep theirs -- every element is cloned, exactly as
-    /// `clone` does -- so neither is moved out from under its owner. The
-    /// mixed-splat variadic lowering builds its collector with this: the
-    /// fixed arguments become one Array, the splatted Array is the other,
-    /// and the call is then the pure-splat form the desugar already handles.
     func concat(self: Array__Dynamic, other: Array__Dynamic) returns Array__Dynamic
+    func to_vec(self: Array__Dynamic) returns Vec__Dynamic
     func clone(self: Array__Dynamic) returns Array__Dynamic
     func size() returns shallow USize
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic.new">
+<h2>Array__Dynamic.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a zero-initialized Array with the given capacity.</p>
+</div>
+<pre><code class="language-til">func (shallow cap: USize) returns Array__Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic.unsafe_get">
+<h2>Array__Dynamic.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: ref to the element at index `i` with
+NO bounds check. The caller must prove `i &lt; len()`. This is the
+unchecked core that `get` wraps; for-in uses it directly because
+its `_fi &lt; len()` termination test already proves the index in
+bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Array__Dynamic, i: USize) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic.get">
+<h2>Array__Dynamic.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Ref to the element at index `i`. Throws OutOfBounds if `i` is
+past the end; call as `arr.get(i)!` to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (self: Array__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic.unsafe_set">
+<h2>Array__Dynamic.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i &lt; self.cap`; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Array__Dynamic, shallow i: USize, own val: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic.set">
+<h2>Array__Dynamic.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i`. Drops the old value. `val` is
+owned. Throws OutOfBounds if `i` is past the end; call as
+`arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic.concat">
+<h2>Array__Dynamic.concat</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>#342: a fresh Array holding `self`'s elements followed by `other`'s.
+Both sources keep theirs -- every element is cloned, exactly as
+`clone` does -- so neither is moved out from under its owner. The
+mixed-splat variadic lowering builds its collector with this: the
+fixed arguments become one Array, the splatted Array is the other,
+and the call is then the pure-splat form the desugar already handles.</p>
+</div>
+<pre><code class="language-til">func (self: Array__Dynamic, other: Array__Dynamic) returns Array__Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic.to_vec">
+<h2>Array__Dynamic.to_vec</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>#342: a fresh Vec holding a clone of every element, `self` intact.
+The `vec(T, x, ..arr)` lowering ends here: a splat's length is a
+runtime value, so the literal's block is folded into one Array with
+`concat` and converted, instead of the desugar hand-building a push
+loop whose nodes no later pass would infer.</p>
+</div>
+<pre><code class="language-til">func (self: Array__Dynamic) returns Vec__Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic">
+<h2>Vec__Dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__Dynamic
+    func with_capacity(shallow n: USize) returns Vec__Dynamic
+    func len(self: Vec__Dynamic) returns shallow USize
+    func clear(mut self: Vec__Dynamic)
+    func delete_marked(mut self: Vec__Dynamic, marks: Dynamic)
+    func push(mut self: Vec__Dynamic, own val: Dynamic)
+    func append(mut self: Vec__Dynamic, own other: Vec__Dynamic)
+    func take(mut self: Vec__Dynamic) returns Vec__Dynamic
+    func move_to(own self: Vec__Dynamic, mut dest: Vec__Dynamic)
+    func move_from(mut self: Vec__Dynamic, own other: Vec__Dynamic)
+    func unsafe_get(self: Vec__Dynamic, i: USize) returns ref Dynamic
+    func get(self: Vec__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+    func pop(mut self: Vec__Dynamic) returns Dynamic
+    func remove_at(mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
+    func truncate(mut self: Vec__Dynamic, shallow n: USize)
+    func unsafe_set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
+    func set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+    func push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
+    func delete(own self: Vec__Dynamic, shallow call_free: Bool)
+    func clone(self: Vec__Dynamic) returns Vec__Dynamic
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.new">
+<h2>Vec__Dynamic.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.with_capacity">
+<h2>Vec__Dynamic.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.clear">
+<h2>Vec__Dynamic.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.delete_marked">
+<h2>Vec__Dynamic.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.push">
+<h2>Vec__Dynamic.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. `val` is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, own val: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.append">
+<h2>Vec__Dynamic.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of `other` by appending them to `self`.
+`other` is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, own other: Vec__Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.take">
+<h2>Vec__Dynamic.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(`mut old := body.children.take()`): a field cannot be an `own`
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic) returns Vec__Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.move_to">
+<h2>Vec__Dynamic.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to `dest`, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: `Vec(T).move_to(own src, dest)`.</p>
+<p>The three fields move as BYTES on purpose: `dest.data =
+self.data` drops dest's old pointer (right) and then
+`self.data = 0` drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Dynamic, mut dest: Vec__Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.move_from">
+<h2>Vec__Dynamic.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take `other`'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: `dest.move_from(own src)`.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, own other: Vec__Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.unsafe_get">
+<h2>Vec__Dynamic.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+This is the unchecked core that `get` wraps; for-in uses it
+directly because its `_fi &lt; len()` termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Dynamic, i: USize) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.get">
+<h2>Vec__Dynamic.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index `i`. Throws
+OutOfBounds if `i` is past the end; call as `vec[i]`
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.pop">
+<h2>Vec__Dynamic.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.remove_at">
+<h2>Vec__Dynamic.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at `i`, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.take_prefix">
+<h2>Vec__Dynamic.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Split off the first `n` elements into a new Vec. Panics if `n`
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.truncate">
+<h2>Vec__Dynamic.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index `n` to the end, freeing each via
+elem_delete, and set count to `n` (the survivors [0, n) are left
+untouched). Panics if `n` exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.unsafe_set">
+<h2>Vec__Dynamic.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i &lt; self.count`; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.set">
+<h2>Vec__Dynamic.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i`. `val` is owned. Throws
+OutOfBounds if `i` is past the end; call as `vec[i] = val`
+(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.push_take">
+<h2>Vec__Dynamic.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.delete">
+<h2>Vec__Dynamic.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless `call_free` is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Dynamic, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.clone">
+<h2>Vec__Dynamic.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Dynamic) returns Vec__Dynamic
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.vec.adopt__Dynamic">
 <h2>adopt__Dynamic</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func adopt__Dynamic(dest: Dynamic, own src: Dynamic)
+<pre><code class="language-til">func (dest: Dynamic, own src: Dynamic)
 </code></pre>
 </article>
 </main></div>

@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -27,7 +27,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
 <li><a href="../../src/core/option.html">src/core/option.til</a></li>
-<li><a class="current" href="../../src/core/ast.html">src/core/ast.til</a><ul><li><a href="#til.src.core.ast.Primitive">Primitive</a></li><li><a href="#til.src.core.ast.Type">Type</a></li><li><a href="#til.src.core.ast.FuncType">FuncType</a></li><li><a href="#til.src.core.ast.OwnType">OwnType</a></li><li><a href="#til.src.core.ast.GcStorage">GcStorage</a></li><li><a href="#til.src.core.ast.Option__Expr">Option__Expr</a></li><li><a href="#til.src.core.ast.Declaration">Declaration</a></li><li><a href="#til.src.core.ast.FunctionDef">FunctionDef</a></li><li><a href="#til.src.core.ast.FCallData">FCallData</a></li><li><a href="#til.src.core.ast.LiteralNumData">LiteralNumData</a></li><li><a href="#til.src.core.ast.IdentData">IdentData</a></li><li><a href="#til.src.core.ast.FieldAccessData">FieldAccessData</a></li><li><a href="#til.src.core.ast.StructDef">StructDef</a></li><li><a href="#til.src.core.ast.member_name_of">member_name_of</a></li><li><a href="#til.src.core.ast.VariantDef">VariantDef</a></li><li><a href="#til.src.core.ast.EnumDef">EnumDef</a></li><li><a href="#til.src.core.ast.FieldLayout">FieldLayout</a></li><li><a href="#til.src.core.ast.StructLayout">StructLayout</a></li><li><a href="#til.src.core.ast.AssignData">AssignData</a></li><li><a href="#til.src.core.ast.FieldAssignData">FieldAssignData</a></li><li><a href="#til.src.core.ast.ForInData">ForInData</a></li><li><a href="#til.src.core.ast.Literal">Literal</a></li><li><a href="#til.src.core.ast.MatchData">MatchData</a></li><li><a href="#til.src.core.ast.CaseData">CaseData</a></li><li><a href="#til.src.core.ast.CaptureBlockData">CaptureBlockData</a></li><li><a href="#til.src.core.ast.TYPE_NONE">TYPE_NONE</a></li><li><a href="#til.src.core.ast.TYPE_UNKNOWN">TYPE_UNKNOWN</a></li><li><a href="#til.src.core.ast.TYPE_DYNAMIC">TYPE_DYNAMIC</a></li><li><a href="#til.src.core.ast.TYPE_FUNCPTR">TYPE_FUNCPTR</a></li><li><a href="#til.src.core.ast.TYPE_BODY">TYPE_BODY</a></li><li><a href="#til.src.core.ast.TYPE_BOOL">TYPE_BOOL</a></li><li><a href="#til.src.core.ast.TYPE_I64">TYPE_I64</a></li><li><a href="#til.src.core.ast.TYPE_F32">TYPE_F32</a></li><li><a href="#til.src.core.ast.TYPE_F64">TYPE_F64</a></li><li><a href="#til.src.core.ast.TYPE_STR">TYPE_STR</a></li><li><a href="#til.src.core.ast.TYPE_STRUCTDEF">TYPE_STRUCTDEF</a></li><li><a href="#til.src.core.ast.TYPE_ENUMDEF">TYPE_ENUMDEF</a></li><li><a href="#til.src.core.ast.TYPE_MAP">TYPE_MAP</a></li><li><a href="#til.src.core.ast.TYPE_SET">TYPE_SET</a></li><li><a href="#til.src.core.ast.NodeType">NodeType</a></li><li><a href="#til.src.core.ast.Expr">Expr</a></li><li><a href="#til.src.core.ast.ident_of">ident_of</a></li><li><a href="#til.src.core.ast.decl_of">decl_of</a></li><li><a href="#til.src.core.ast.fcall_of">fcall_of</a></li><li><a href="#til.src.core.ast.funcdef_of">funcdef_of</a></li><li><a href="#til.src.core.ast.fieldaccess_of">fieldaccess_of</a></li><li><a href="#til.src.core.ast.structdef_of">structdef_of</a></li><li><a href="#til.src.core.ast.enumdef_of">enumdef_of</a></li><li><a href="#til.src.core.ast.case_of">case_of</a></li><li><a href="#til.src.core.ast.case_pattern_count">case_pattern_count</a></li><li><a href="#til.src.core.ast.case_has_guard">case_has_guard</a></li><li><a href="#til.src.core.ast.Option__ref_Str">Option__ref_Str</a></li><li><a href="#til.src.core.ast.Map__Str_USize">Map__Str_USize</a></li><li><a href="#til.src.core.ast.Vec__VariantDef">Vec__VariantDef</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout">Vec__FieldLayout</a></li><li><a href="#til.src.core.ast.Vec__Declaration">Vec__Declaration</a></li><li><a href="#til.src.core.ast.Vec__Expr">Vec__Expr</a></li><li><a href="#til.src.core.ast.Vec__USize">Vec__USize</a></li><li><a href="#til.src.core.ast.adopt__USize">adopt__USize</a></li><li><a href="#til.src.core.ast.adopt__VariantDef">adopt__VariantDef</a></li><li><a href="#til.src.core.ast.adopt__FieldLayout">adopt__FieldLayout</a></li><li><a href="#til.src.core.ast.adopt__Declaration">adopt__Declaration</a></li><li><a href="#til.src.core.ast.adopt__Expr">adopt__Expr</a></li></ul></li>
+<li><a class="current" href="../../src/core/ast.html">src/core/ast.til</a><ul><li><a href="#til.src.core.ast.Primitive">Primitive</a></li><li><a href="#til.src.core.ast.Type">Type</a></li><li><a href="#til.src.core.ast.FuncType">FuncType</a></li><li><a href="#til.src.core.ast.OwnType">OwnType</a></li><li><a href="#til.src.core.ast.GcStorage">GcStorage</a></li><li><a href="#til.src.core.ast.Option__Expr">Option__Expr</a></li><li><a href="#til.src.core.ast.Option__Expr.unwrap">Option__Expr.unwrap</a></li><li><a href="#til.src.core.ast.Option__Expr.take">Option__Expr.take</a></li><li><a href="#til.src.core.ast.Declaration">Declaration</a></li><li><a href="#til.src.core.ast.Declaration.default_expr">Declaration.default_expr</a></li><li><a href="#til.src.core.ast.FunctionDef">FunctionDef</a></li><li><a href="#til.src.core.ast.FCallData">FCallData</a></li><li><a href="#til.src.core.ast.LiteralNumData">LiteralNumData</a></li><li><a href="#til.src.core.ast.LiteralNumData.is_float">LiteralNumData.is_float</a></li><li><a href="#til.src.core.ast.IdentData">IdentData</a></li><li><a href="#til.src.core.ast.FieldAccessData">FieldAccessData</a></li><li><a href="#til.src.core.ast.StructDef">StructDef</a></li><li><a href="#til.src.core.ast.StructDef.push_field">StructDef.push_field</a></li><li><a href="#til.src.core.ast.StructDef.push_member">StructDef.push_member</a></li><li><a href="#til.src.core.ast.StructDef.field_name_at">StructDef.field_name_at</a></li><li><a href="#til.src.core.ast.StructDef.field_at">StructDef.field_at</a></li><li><a href="#til.src.core.ast.StructDef.member_name_at">StructDef.member_name_at</a></li><li><a href="#til.src.core.ast.StructDef.member_at">StructDef.member_at</a></li><li><a href="#til.src.core.ast.member_name_of">member_name_of</a></li><li><a href="#til.src.core.ast.VariantDef">VariantDef</a></li><li><a href="#til.src.core.ast.VariantDef.doc">VariantDef.doc</a></li><li><a href="#til.src.core.ast.EnumDef">EnumDef</a></li><li><a href="#til.src.core.ast.EnumDef.push_member">EnumDef.push_member</a></li><li><a href="#til.src.core.ast.EnumDef.member_name_at">EnumDef.member_name_at</a></li><li><a href="#til.src.core.ast.EnumDef.member_at">EnumDef.member_at</a></li><li><a href="#til.src.core.ast.FieldLayout">FieldLayout</a></li><li><a href="#til.src.core.ast.StructLayout">StructLayout</a></li><li><a href="#til.src.core.ast.AssignData">AssignData</a></li><li><a href="#til.src.core.ast.FieldAssignData">FieldAssignData</a></li><li><a href="#til.src.core.ast.ForInData">ForInData</a></li><li><a href="#til.src.core.ast.Literal">Literal</a></li><li><a href="#til.src.core.ast.MatchData">MatchData</a></li><li><a href="#til.src.core.ast.CaseData">CaseData</a></li><li><a href="#til.src.core.ast.CaptureBlockData">CaptureBlockData</a></li><li><a href="#til.src.core.ast.TYPE_NONE">TYPE_NONE</a></li><li><a href="#til.src.core.ast.TYPE_UNKNOWN">TYPE_UNKNOWN</a></li><li><a href="#til.src.core.ast.TYPE_DYNAMIC">TYPE_DYNAMIC</a></li><li><a href="#til.src.core.ast.TYPE_FUNCPTR">TYPE_FUNCPTR</a></li><li><a href="#til.src.core.ast.TYPE_BODY">TYPE_BODY</a></li><li><a href="#til.src.core.ast.TYPE_BOOL">TYPE_BOOL</a></li><li><a href="#til.src.core.ast.TYPE_I64">TYPE_I64</a></li><li><a href="#til.src.core.ast.TYPE_F32">TYPE_F32</a></li><li><a href="#til.src.core.ast.TYPE_F64">TYPE_F64</a></li><li><a href="#til.src.core.ast.TYPE_STR">TYPE_STR</a></li><li><a href="#til.src.core.ast.TYPE_STRUCTDEF">TYPE_STRUCTDEF</a></li><li><a href="#til.src.core.ast.TYPE_ENUMDEF">TYPE_ENUMDEF</a></li><li><a href="#til.src.core.ast.TYPE_MAP">TYPE_MAP</a></li><li><a href="#til.src.core.ast.TYPE_SET">TYPE_SET</a></li><li><a href="#til.src.core.ast.NodeType">NodeType</a></li><li><a href="#til.src.core.ast.Expr">Expr</a></li><li><a href="#til.src.core.ast.Expr.delete">Expr.delete</a></li><li><a href="#til.src.core.ast.Expr.error">Expr.error</a></li><li><a href="#til.src.core.ast.Expr.todo_error">Expr.todo_error</a></li><li><a href="#til.src.core.ast.Expr.lang_error">Expr.lang_error</a></li><li><a href="#til.src.core.ast.Expr.add_child">Expr.add_child</a></li><li><a href="#til.src.core.ast.Expr.push_child_clone">Expr.push_child_clone</a></li><li><a href="#til.src.core.ast.Expr.take_children">Expr.take_children</a></li><li><a href="#til.src.core.ast.Expr.new">Expr.new</a></li><li><a href="#til.src.core.ast.ident_of">ident_of</a></li><li><a href="#til.src.core.ast.decl_of">decl_of</a></li><li><a href="#til.src.core.ast.fcall_of">fcall_of</a></li><li><a href="#til.src.core.ast.funcdef_of">funcdef_of</a></li><li><a href="#til.src.core.ast.fieldaccess_of">fieldaccess_of</a></li><li><a href="#til.src.core.ast.structdef_of">structdef_of</a></li><li><a href="#til.src.core.ast.enumdef_of">enumdef_of</a></li><li><a href="#til.src.core.ast.case_of">case_of</a></li><li><a href="#til.src.core.ast.case_pattern_count">case_pattern_count</a></li><li><a href="#til.src.core.ast.case_has_guard">case_has_guard</a></li><li><a href="#til.src.core.ast.Option__ref_Str">Option__ref_Str</a></li><li><a href="#til.src.core.ast.Option__ref_Str.unwrap">Option__ref_Str.unwrap</a></li><li><a href="#til.src.core.ast.Option__ref_Str.take">Option__ref_Str.take</a></li><li><a href="#til.src.core.ast.Map__Str_USize">Map__Str_USize</a></li><li><a href="#til.src.core.ast.Map__Str_USize.new">Map__Str_USize.new</a></li><li><a href="#til.src.core.ast.Map__Str_USize.with_capacity">Map__Str_USize.with_capacity</a></li><li><a href="#til.src.core.ast.Map__Str_USize.clear">Map__Str_USize.clear</a></li><li><a href="#til.src.core.ast.Map__Str_USize.has">Map__Str_USize.has</a></li><li><a href="#til.src.core.ast.Map__Str_USize.get">Map__Str_USize.get</a></li><li><a href="#til.src.core.ast.Map__Str_USize.set">Map__Str_USize.set</a></li><li><a href="#til.src.core.ast.Map__Str_USize.remove">Map__Str_USize.remove</a></li><li><a href="#til.src.core.ast.Vec__VariantDef">Vec__VariantDef</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.new">Vec__VariantDef.new</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.with_capacity">Vec__VariantDef.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.clear">Vec__VariantDef.clear</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.delete_marked">Vec__VariantDef.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.push">Vec__VariantDef.push</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.append">Vec__VariantDef.append</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.take">Vec__VariantDef.take</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.move_to">Vec__VariantDef.move_to</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.move_from">Vec__VariantDef.move_from</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.unsafe_get">Vec__VariantDef.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.get">Vec__VariantDef.get</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.pop">Vec__VariantDef.pop</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.remove_at">Vec__VariantDef.remove_at</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.take_prefix">Vec__VariantDef.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.truncate">Vec__VariantDef.truncate</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.unsafe_set">Vec__VariantDef.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.set">Vec__VariantDef.set</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.push_take">Vec__VariantDef.push_take</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.delete">Vec__VariantDef.delete</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.clone">Vec__VariantDef.clone</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout">Vec__FieldLayout</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.new">Vec__FieldLayout.new</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.with_capacity">Vec__FieldLayout.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.clear">Vec__FieldLayout.clear</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.delete_marked">Vec__FieldLayout.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.push">Vec__FieldLayout.push</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.append">Vec__FieldLayout.append</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.take">Vec__FieldLayout.take</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.move_to">Vec__FieldLayout.move_to</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.move_from">Vec__FieldLayout.move_from</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.unsafe_get">Vec__FieldLayout.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.get">Vec__FieldLayout.get</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.pop">Vec__FieldLayout.pop</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.remove_at">Vec__FieldLayout.remove_at</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.take_prefix">Vec__FieldLayout.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.truncate">Vec__FieldLayout.truncate</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.unsafe_set">Vec__FieldLayout.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.set">Vec__FieldLayout.set</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.push_take">Vec__FieldLayout.push_take</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.delete">Vec__FieldLayout.delete</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.clone">Vec__FieldLayout.clone</a></li><li><a href="#til.src.core.ast.Vec__Declaration">Vec__Declaration</a></li><li><a href="#til.src.core.ast.Vec__Declaration.new">Vec__Declaration.new</a></li><li><a href="#til.src.core.ast.Vec__Declaration.with_capacity">Vec__Declaration.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__Declaration.clear">Vec__Declaration.clear</a></li><li><a href="#til.src.core.ast.Vec__Declaration.delete_marked">Vec__Declaration.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__Declaration.push">Vec__Declaration.push</a></li><li><a href="#til.src.core.ast.Vec__Declaration.append">Vec__Declaration.append</a></li><li><a href="#til.src.core.ast.Vec__Declaration.take">Vec__Declaration.take</a></li><li><a href="#til.src.core.ast.Vec__Declaration.move_to">Vec__Declaration.move_to</a></li><li><a href="#til.src.core.ast.Vec__Declaration.move_from">Vec__Declaration.move_from</a></li><li><a href="#til.src.core.ast.Vec__Declaration.unsafe_get">Vec__Declaration.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__Declaration.get">Vec__Declaration.get</a></li><li><a href="#til.src.core.ast.Vec__Declaration.pop">Vec__Declaration.pop</a></li><li><a href="#til.src.core.ast.Vec__Declaration.remove_at">Vec__Declaration.remove_at</a></li><li><a href="#til.src.core.ast.Vec__Declaration.take_prefix">Vec__Declaration.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__Declaration.truncate">Vec__Declaration.truncate</a></li><li><a href="#til.src.core.ast.Vec__Declaration.unsafe_set">Vec__Declaration.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__Declaration.set">Vec__Declaration.set</a></li><li><a href="#til.src.core.ast.Vec__Declaration.push_take">Vec__Declaration.push_take</a></li><li><a href="#til.src.core.ast.Vec__Declaration.delete">Vec__Declaration.delete</a></li><li><a href="#til.src.core.ast.Vec__Declaration.clone">Vec__Declaration.clone</a></li><li><a href="#til.src.core.ast.Vec__Expr">Vec__Expr</a></li><li><a href="#til.src.core.ast.Vec__Expr.new">Vec__Expr.new</a></li><li><a href="#til.src.core.ast.Vec__Expr.with_capacity">Vec__Expr.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__Expr.clear">Vec__Expr.clear</a></li><li><a href="#til.src.core.ast.Vec__Expr.delete_marked">Vec__Expr.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__Expr.push">Vec__Expr.push</a></li><li><a href="#til.src.core.ast.Vec__Expr.append">Vec__Expr.append</a></li><li><a href="#til.src.core.ast.Vec__Expr.take">Vec__Expr.take</a></li><li><a href="#til.src.core.ast.Vec__Expr.move_to">Vec__Expr.move_to</a></li><li><a href="#til.src.core.ast.Vec__Expr.move_from">Vec__Expr.move_from</a></li><li><a href="#til.src.core.ast.Vec__Expr.unsafe_get">Vec__Expr.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__Expr.get">Vec__Expr.get</a></li><li><a href="#til.src.core.ast.Vec__Expr.pop">Vec__Expr.pop</a></li><li><a href="#til.src.core.ast.Vec__Expr.remove_at">Vec__Expr.remove_at</a></li><li><a href="#til.src.core.ast.Vec__Expr.take_prefix">Vec__Expr.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__Expr.truncate">Vec__Expr.truncate</a></li><li><a href="#til.src.core.ast.Vec__Expr.unsafe_set">Vec__Expr.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__Expr.set">Vec__Expr.set</a></li><li><a href="#til.src.core.ast.Vec__Expr.push_take">Vec__Expr.push_take</a></li><li><a href="#til.src.core.ast.Vec__Expr.delete">Vec__Expr.delete</a></li><li><a href="#til.src.core.ast.Vec__Expr.clone">Vec__Expr.clone</a></li><li><a href="#til.src.core.ast.Vec__USize">Vec__USize</a></li><li><a href="#til.src.core.ast.Vec__USize.new">Vec__USize.new</a></li><li><a href="#til.src.core.ast.Vec__USize.with_capacity">Vec__USize.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__USize.clear">Vec__USize.clear</a></li><li><a href="#til.src.core.ast.Vec__USize.delete_marked">Vec__USize.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__USize.push">Vec__USize.push</a></li><li><a href="#til.src.core.ast.Vec__USize.append">Vec__USize.append</a></li><li><a href="#til.src.core.ast.Vec__USize.take">Vec__USize.take</a></li><li><a href="#til.src.core.ast.Vec__USize.move_to">Vec__USize.move_to</a></li><li><a href="#til.src.core.ast.Vec__USize.move_from">Vec__USize.move_from</a></li><li><a href="#til.src.core.ast.Vec__USize.unsafe_get">Vec__USize.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__USize.get">Vec__USize.get</a></li><li><a href="#til.src.core.ast.Vec__USize.pop">Vec__USize.pop</a></li><li><a href="#til.src.core.ast.Vec__USize.remove_at">Vec__USize.remove_at</a></li><li><a href="#til.src.core.ast.Vec__USize.take_prefix">Vec__USize.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__USize.truncate">Vec__USize.truncate</a></li><li><a href="#til.src.core.ast.Vec__USize.unsafe_set">Vec__USize.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__USize.set">Vec__USize.set</a></li><li><a href="#til.src.core.ast.Vec__USize.push_take">Vec__USize.push_take</a></li><li><a href="#til.src.core.ast.Vec__USize.delete">Vec__USize.delete</a></li><li><a href="#til.src.core.ast.Vec__USize.clone">Vec__USize.clone</a></li><li><a href="#til.src.core.ast.adopt__USize">adopt__USize</a></li><li><a href="#til.src.core.ast.adopt__VariantDef">adopt__VariantDef</a></li><li><a href="#til.src.core.ast.adopt__FieldLayout">adopt__FieldLayout</a></li><li><a href="#til.src.core.ast.adopt__Declaration">adopt__Declaration</a></li><li><a href="#til.src.core.ast.adopt__Expr">adopt__Expr</a></li></ul></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
 <li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
@@ -90,7 +90,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <p>Real primitive types. Issue #203 migrates them one at a time;
 I16 first because it has the smallest call-site surface.</p>
 </div>
-<pre><code class="language-til">enum Primitive {
+<pre><code class="language-til">enum {
     I16
     U16
     I8
@@ -136,7 +136,7 @@ namespace:
 <p>Type representation for the til compiler. Carries payload for named
 types (Struct/Enum/Custom) and is tag-only for builtins.</p>
 </div>
-<pre><code class="language-til">enum Type {
+<pre><code class="language-til">enum {
     Unknown
     None
     Struct: Str
@@ -185,7 +185,7 @@ namespace:
 <div class="doc-body">
 <p>Classifies a til function declaration: func, proc, test, macro, or external.</p>
 </div>
-<pre><code class="language-til">enum FuncType {
+<pre><code class="language-til">enum {
     Func
     Proc
     Test
@@ -237,7 +237,7 @@ namespace:
 <div class="doc-body">
 <p>Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).</p>
 </div>
-<pre><code class="language-til">enum OwnType {
+<pre><code class="language-til">enum {
     Own
     Ref
     Shallow
@@ -263,7 +263,7 @@ namespace:
 <article class="doc-entry" id="til.src.core.ast.GcStorage">
 <h2>GcStorage</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">enum GcStorage {
+<pre><code class="language-til">enum {
     Unset
     Stack
     HeapBox
@@ -289,28 +289,14 @@ namespace:
 <article class="doc-entry" id="til.src.core.ast.Option__Expr">
 <h2>Option__Expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">enum Option__Expr {
+<pre><code class="language-til">enum {
     None
     Some: Expr
 namespace:
     func is_some(shallow self: Option__Expr) returns shallow Bool
     func is_none(shallow self: Option__Expr) returns shallow Bool
     func unwrap_or(shallow self: Option__Expr, default_v: Expr) returns Expr
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
     func unwrap(shallow self: Option__Expr) returns Expr
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
     func take(own self: Option__Expr) returns Expr
     ext_func None() returns shallow Option__Expr
     ext_func Some(own val: Expr) returns shallow Option__Expr
@@ -323,13 +309,43 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Option__Expr.unwrap">
+<h2>Option__Expr.unwrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a `switch` when both arms do real work, and `unwrap_or` when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (shallow self: Option__Expr) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Option__Expr.take">
+<h2>Option__Expr.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an `Option(Expr)` returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__Expr) returns Expr
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.Declaration">
 <h2>Declaration</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Variable/field/parameter declaration node.</p>
 </div>
-<pre><code class="language-til">struct Declaration {
+<pre><code class="language-til">struct {
     mut name : Str
     mut doc : Str
     mut explicit_type : Str
@@ -345,10 +361,6 @@ namespace:
 namespace:
     func eq(a: Declaration, b: Declaration) returns shallow Bool
     func to_str(self: Declaration) returns Str
-    /// The default-value expression, borrowed. PANICS on None: callers
-    /// either sit under an is_some() guard or know absence is impossible
-    /// for their decl kind (e.g. an initer-built member whose default IS
-    /// the definition). Prefer a switch when the None arm does real work.
     func default_expr(self: Declaration) returns ref Expr
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, shallow call_free: Bool)
@@ -357,13 +369,25 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Declaration.default_expr">
+<h2>Declaration.default_expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>The default-value expression, borrowed. PANICS on None: callers
+either sit under an is_some() guard or know absence is impossible
+for their decl kind (e.g. an initer-built member whose default IS
+the definition). Prefer a switch when the None arm does real work.</p>
+</div>
+<pre><code class="language-til">func (self: Declaration) returns ref Expr
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.FunctionDef">
 <h2>FunctionDef</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
 <p>Function signature metadata: params, return type, variadic info.</p>
 </div>
-<pre><code class="language-til">struct FunctionDef {
+<pre><code class="language-til">struct {
     mut func_type : FuncType
     mut params : Vec__Declaration
     mut return_type : Str
@@ -377,6 +401,7 @@ namespace:
     mut captures : Vec__Declaration
     mut closure_name : Str
     mut noreturn : Bool
+    mut ref_return_params : U64
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -411,7 +436,7 @@ markers in fcall.children:</p>
 <p>    post-desugar. Step 7 of #147 closes here: the trailing typer
     resolution artifact is gone.</p>
 </div>
-<pre><code class="language-til">struct FCallData {
+<pre><code class="language-til">struct {
     mut is_splat : Bool
     mut does_throw : Bool
     mut is_bang : Bool
@@ -435,7 +460,7 @@ namespace:
 <article class="doc-entry" id="til.src.core.ast.LiteralNumData">
 <h2>LiteralNumData</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct LiteralNumData {
+<pre><code class="language-til">struct {
     mut text : Str
     mut til_type : Type
 namespace:
@@ -452,12 +477,6 @@ namespace:
     func to_usize(self: LiteralNumData) returns shallow USize
     func to_f32(self: LiteralNumData) returns shallow F32
     func literal_num_text(self: LiteralNumData) returns ref Str
-    /// Does the literal's TEXT spell a float? The lexer accepts a fractional
-    /// part ('.' then a digit) and an exponent (e/E, optional sign, digits)
-    /// only on the non-prefixed decimal path, so a 0x/0b/0o literal is an
-    /// integer even though hex digits include 'e' and 'E'. Callers that infer
-    /// a type FROM a literal need this; a literal that narrows from context
-    /// (declaration or parameter type) keeps that type instead.
     func is_float(self: LiteralNumData) returns shallow Bool
     func clone(self: LiteralNumData) returns LiteralNumData
     func delete(own self: LiteralNumData, shallow call_free: Bool)
@@ -466,10 +485,24 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.LiteralNumData.is_float">
+<h2>LiteralNumData.is_float</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Does the literal's TEXT spell a float? The lexer accepts a fractional
+part ('.' then a digit) and an exponent (e/E, optional sign, digits)
+only on the non-prefixed decimal path, so a 0x/0b/0o literal is an
+integer even though hex digits include 'e' and 'E'. Callers that infer
+a type FROM a literal need this; a literal that narrows from context
+(declaration or parameter type) keeps that type instead.</p>
+</div>
+<pre><code class="language-til">func (self: LiteralNumData) returns shallow Bool
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.IdentData">
 <h2>IdentData</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct IdentData {
+<pre><code class="language-til">struct {
     mut name : Str
     mut til_type : Type
 namespace:
@@ -494,7 +527,7 @@ namespace:
 <article class="doc-entry" id="til.src.core.ast.FieldAccessData">
 <h2>FieldAccessData</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct FieldAccessData {
+<pre><code class="language-til">struct {
     mut name : Str
     mut til_type : Type
 namespace:
@@ -521,7 +554,7 @@ Issue #147 step 4: total_struct_size dropped from the AST in favour
 of ctx.struct_layouts[name].total_size, populated by
 compute_struct_layout at typer time.</p>
 </div>
-<pre><code class="language-til">struct StructDef {
+<pre><code class="language-til">struct {
     own mut fields : Vec__Declaration
     own mut ns_decls : Vec__Declaration
     own mut fields_index : Map__Str_USize
@@ -533,27 +566,75 @@ compute_struct_layout at typer time.</p>
 namespace:
     func eq(a: StructDef, b: StructDef) returns shallow Bool
     func to_str(_self: StructDef) returns Str
-    /// Append a field: the index key becomes the single owner of the
-    /// field's name; the stored Declaration carries none. Appends never
-    /// shift declaration positions, so there is nothing to fix up.
     func push_field(mut self: StructDef, own fd: Declaration)
-    /// Append a namespace member (see push_field). A duplicate name
-    /// re-points the index at the newest declaration.
     func push_member(mut self: StructDef, own nd: Declaration)
-    /// Field name at declaration position i: reverse lookup over the
-    /// index (O(members), tiny and emit-time only). Panics if the index
-    /// has no entry for that position (see member_name_of).
     func field_name_at(self: StructDef, i: USize) returns ref Str
-    /// Field Declaration at declaration position i (name == &quot;&quot;).
     func field_at(self: StructDef, i: USize) returns ref Declaration
-    /// Namespace member name at declaration position i.
     func member_name_at(self: StructDef, i: USize) returns ref Str
-    /// Namespace member Declaration at declaration position i.
     func member_at(self: StructDef, i: USize) returns ref Declaration
     func clone(self: StructDef) returns StructDef
     func delete(own self: StructDef, shallow call_free: Bool)
     func size() returns shallow USize
 }
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructDef.push_field">
+<h2>StructDef.push_field</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append a field: the index key becomes the single owner of the
+field's name; the stored Declaration carries none. Appends never
+shift declaration positions, so there is nothing to fix up.</p>
+</div>
+<pre><code class="language-til">func (mut self: StructDef, own fd: Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructDef.push_member">
+<h2>StructDef.push_member</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append a namespace member (see push_field). A duplicate name
+re-points the index at the newest declaration.</p>
+</div>
+<pre><code class="language-til">func (mut self: StructDef, own nd: Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructDef.field_name_at">
+<h2>StructDef.field_name_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Field name at declaration position i: reverse lookup over the
+index (O(members), tiny and emit-time only). Panics if the index
+has no entry for that position (see member_name_of).</p>
+</div>
+<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructDef.field_at">
+<h2>StructDef.field_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Field Declaration at declaration position i (name <code></code> &quot;&quot;).</p>
+</div>
+<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructDef.member_name_at">
+<h2>StructDef.member_name_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Namespace member name at declaration position i.</p>
+</div>
+<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructDef.member_at">
+<h2>StructDef.member_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Namespace member Declaration at declaration position i.</p>
+</div>
+<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.member_name_of">
@@ -569,10 +650,10 @@ disagree, and unwrap says so loudly instead of handing back a null Str.</p>
 <p>Instantiating Option in this unit needed two prerequisites: the #303
 noreturn seed made order-independent (seed_noreturn_chain, loader.til),
 since Option.unwrap ends in `case: panic` and core.til imports ast
-before exit; and the borrowed-Str fix in call_copies_ref_str, since
+before exit; and the borrowed-Str call-shape fix, since
 this is the first Option(ref Str) interpreted code calls.</p>
 </div>
-<pre><code class="language-til">func member_name_of(idx: Map__Str_USize, pos: USize) returns shallow Option__ref_Str
+<pre><code class="language-til">func (idx: Map__Str_USize, pos: USize) returns shallow Option__ref_Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.VariantDef">
@@ -585,9 +666,8 @@ Map(I64, Str) + payload_consts Vec(Bool) + tag_values Vec(I64) +
 payload_refs Vec(Bool)). The record's position in EnumDef.variants is
 the declaration index the per-variant data used to be keyed by.</p>
 </div>
-<pre><code class="language-til">struct VariantDef {
+<pre><code class="language-til">struct {
     mut name : Str
-    /// Leading /// doc comment run, like Declaration.doc for fields.
     mut doc : Str
     mut payload_type : Str
     mut payload_const : Bool
@@ -610,6 +690,15 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.VariantDef.doc">
+<h2>VariantDef.doc</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Leading /// doc comment run, like Declaration.doc for fields.</p>
+</div>
+<pre><code class="language-til">field mut : Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.EnumDef">
 <h2>EnumDef</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
@@ -622,7 +711,7 @@ Issue #307: ns_decls gets the same name-keyed storage as StructDef's
 (see the StructDef doc comment); variants stays a plain Vec because
 its order IS the tag assignment and it holds the names themselves.</p>
 </div>
-<pre><code class="language-til">struct EnumDef {
+<pre><code class="language-til">struct {
     own mut ns_decls : Vec__Declaration
     own mut ns_index : Map__Str_USize
     mut variants : Vec__VariantDef
@@ -631,11 +720,8 @@ its order IS the tag assignment and it holds the names themselves.</p>
 namespace:
     func eq(a: EnumDef, b: EnumDef) returns shallow Bool
     func to_str(_self: EnumDef) returns Str
-    /// Append a namespace member (see StructDef.push_member).
     func push_member(mut self: EnumDef, own nd: Declaration)
-    /// Namespace member name at declaration position i.
     func member_name_at(self: EnumDef, i: USize) returns ref Str
-    /// Namespace member Declaration at declaration position i.
     func member_at(self: EnumDef, i: USize) returns ref Declaration
     func clone(self: EnumDef) returns EnumDef
     func delete(own self: EnumDef, shallow call_free: Bool)
@@ -643,10 +729,37 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.EnumDef.push_member">
+<h2>EnumDef.push_member</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append a namespace member (see StructDef.push_member).</p>
+</div>
+<pre><code class="language-til">func (mut self: EnumDef, own nd: Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.EnumDef.member_name_at">
+<h2>EnumDef.member_name_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Namespace member name at declaration position i.</p>
+</div>
+<pre><code class="language-til">func (self: EnumDef, i: USize) returns ref Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.EnumDef.member_at">
+<h2>EnumDef.member_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Namespace member Declaration at declaration position i.</p>
+</div>
+<pre><code class="language-til">func (self: EnumDef, i: USize) returns ref Declaration
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.FieldLayout">
 <h2>FieldLayout</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct FieldLayout {
+<pre><code class="language-til">struct {
     mut offset : USize
     mut size : USize
     mut struct_name : Str
@@ -667,7 +780,7 @@ namespace:
 <article class="doc-entry" id="til.src.core.ast.StructLayout">
 <h2>StructLayout</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct StructLayout {
+<pre><code class="language-til">struct {
     mut total_size : USize
     mut align : USize
     mut fields : Vec__FieldLayout
@@ -688,7 +801,7 @@ namespace:
 <div class="doc-body">
 <p>Payload for assignment nodes: which name is being assigned to.</p>
 </div>
-<pre><code class="language-til">struct AssignData {
+<pre><code class="language-til">struct {
     mut name : Str
     mut save_old_delete : Bool
     mut is_payload_alias : Bool
@@ -713,7 +826,7 @@ namespace:
 <article class="doc-entry" id="til.src.core.ast.FieldAssignData">
 <h2>FieldAssignData</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct FieldAssignData {
+<pre><code class="language-til">struct {
     mut name : Str
     mut save_old_delete : Bool
     mut transfers_own : Bool
@@ -742,7 +855,7 @@ namespace:
 key/value form `for k, v in map` fills name2/is_mut2; name2 is
 empty for the ordinary single-variable form.</p>
 </div>
-<pre><code class="language-til">struct ForInData {
+<pre><code class="language-til">struct {
     mut name : Str
     mut is_mut : Bool
     mut til_type : Type
@@ -766,7 +879,7 @@ namespace:
 source. Grouped under NodeType.Literal so &quot;is this any literal?&quot;
 is a single check (NodeType.Literal) instead of a four-way chain.</p>
 </div>
-<pre><code class="language-til">enum Literal {
+<pre><code class="language-til">enum {
     Str: Str
     Num: LiteralNumData
     Bool: Bool
@@ -796,7 +909,7 @@ namespace:
 <p>Payload for NodeType.Match: a `match` expression yields a value, so
 the typer records the common arm type here (mirrors FCallData.til_type).</p>
 </div>
-<pre><code class="language-til">struct MatchData {
+<pre><code class="language-til">struct {
     mut til_type : Type
     mut result_temp : Str
 namespace:
@@ -820,7 +933,7 @@ is always the LAST child; pattern_count <code></code> 0 is the default `case:` a
 Only pattern_count is stored -- everything else derives from it and the
 child count, so there is no second copy of the shape to drift.</p>
 </div>
-<pre><code class="language-til">struct CaseData {
+<pre><code class="language-til">struct {
     mut pattern_count : USize
 namespace:
     func eq(a: CaseData, b: CaseData) returns shallow Bool
@@ -849,7 +962,7 @@ outer-scope locals the block body may reference -- a compile-time
 the block stays inline at runtime, so the only effect is the typer's
 scope-restriction check. Child 0 is the Body.</p>
 </div>
-<pre><code class="language-til">struct CaptureBlockData {
+<pre><code class="language-til">struct {
     mut captures : Vec__Declaration
     mut closure_name : Str
 namespace:
@@ -865,85 +978,85 @@ namespace:
 <article class="doc-entry" id="til.src.core.ast.TYPE_NONE">
 <h2>TYPE_NONE</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_NONE is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_UNKNOWN">
 <h2>TYPE_UNKNOWN</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_UNKNOWN is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_DYNAMIC">
 <h2>TYPE_DYNAMIC</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_DYNAMIC is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_FUNCPTR">
 <h2>TYPE_FUNCPTR</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_FUNCPTR is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_BODY">
 <h2>TYPE_BODY</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_BODY is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_BOOL">
 <h2>TYPE_BOOL</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_BOOL is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_I64">
 <h2>TYPE_I64</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_I64 is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_F32">
 <h2>TYPE_F32</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_F32 is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_F64">
 <h2>TYPE_F64</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_F64 is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_STR">
 <h2>TYPE_STR</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_STR is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_STRUCTDEF">
 <h2>TYPE_STRUCTDEF</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_STRUCTDEF is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_ENUMDEF">
 <h2>TYPE_ENUMDEF</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_ENUMDEF is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_MAP">
 <h2>TYPE_MAP</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_MAP is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.TYPE_SET">
 <h2>TYPE_SET</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">TYPE_SET is a Type
+<pre><code class="language-til"> is a Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.NodeType">
@@ -952,7 +1065,7 @@ namespace:
 <div class="doc-body">
 <p>AST node kind. Each variant carries an optional payload (struct, string, bool).</p>
 </div>
-<pre><code class="language-til">enum NodeType {
+<pre><code class="language-til">enum {
     Body
     Literal: Literal
     Ident: IdentData
@@ -1035,32 +1148,19 @@ namespace:
 <div class="doc-body">
 <p>AST expression node with line/col, type, children, and node-specific payload.</p>
 </div>
-<pre><code class="language-til">struct Expr {
+<pre><code class="language-til">struct {
     mut node_type : NodeType
     mut children : Vec__Expr
     mut line : U32
     mut col : U32
 namespace:
-    /// Null-safe delete. The auto-generated version dereferences `self`
-    /// unconditionally, so the asap pass deleting an owned-but-null Expr
-    /// (e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
-    /// here lets functions return owned `Expr` that may be null without
-    /// the caller having to clone-and-leak to dodge the deep delete.
     func delete(own self: Expr, shallow call_free: Bool)
-    /// Print a diagnostic error with file path and source location.
     proc error(self: Expr, path: Str, msg: Str)
-    /// Like error() but adds &quot;not implemented yet&quot; note.
     proc todo_error(self: Expr, path: Str, msg: Str)
-    /// Like error() but adds &quot;bug in the language&quot; note.
     proc lang_error(self: Expr, path: Str, msg: Str)
-    /// Take ownership of `child` and append it to the children list.
     func add_child(mut self: Expr, own child: Expr)
-    /// Clone `child` and append the clone to the children list.
     func push_child_clone(mut self: Expr, child: Expr)
-    /// Append other's children into self via raw memcpy (no cloning).
-    /// Zeroes other's count so it no longer owns the moved items.
     func take_children(mut self: Expr, mut other: Expr)
-    /// Create a new Expr with the given node_type and source location.
     func new(data: NodeType, shallow line: U32, shallow col: U32) returns Expr
     func eq(_self: Expr, _other: Expr) returns shallow Bool
     func til_type(self: Expr) returns ref Type
@@ -1073,91 +1173,154 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Expr.delete">
+<h2>Expr.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Null-safe delete. The auto-generated version dereferences `self`
+unconditionally, so the asap pass deleting an owned-but-null Expr
+(e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
+here lets functions return owned `Expr` that may be null without
+the caller having to clone-and-leak to dodge the deep delete.</p>
+</div>
+<pre><code class="language-til">func (own self: Expr, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr.error">
+<h2>Expr.error</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Print a diagnostic error with file path and source location.</p>
+</div>
+<pre><code class="language-til">proc (self: Expr, path: Str, msg: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr.todo_error">
+<h2>Expr.todo_error</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Like error() but adds &quot;not implemented yet&quot; note.</p>
+</div>
+<pre><code class="language-til">proc (self: Expr, path: Str, msg: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr.lang_error">
+<h2>Expr.lang_error</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Like error() but adds &quot;bug in the language&quot; note.</p>
+</div>
+<pre><code class="language-til">proc (self: Expr, path: Str, msg: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr.add_child">
+<h2>Expr.add_child</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take ownership of `child` and append it to the children list.</p>
+</div>
+<pre><code class="language-til">func (mut self: Expr, own child: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr.push_child_clone">
+<h2>Expr.push_child_clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Clone `child` and append the clone to the children list.</p>
+</div>
+<pre><code class="language-til">func (mut self: Expr, child: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr.take_children">
+<h2>Expr.take_children</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append other's children into self via raw memcpy (no cloning).
+Zeroes other's count so it no longer owns the moved items.</p>
+</div>
+<pre><code class="language-til">func (mut self: Expr, mut other: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr.new">
+<h2>Expr.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a new Expr with the given node_type and source location.</p>
+</div>
+<pre><code class="language-til">func (data: NodeType, shallow line: U32, shallow col: U32) returns Expr
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.ident_of">
 <h2>ident_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func ident_of(e: Expr, loc: Str) returns ref IdentData
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref IdentData
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.decl_of">
 <h2>decl_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func decl_of(e: Expr, loc: Str) returns ref Declaration
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.fcall_of">
 <h2>fcall_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func fcall_of(e: Expr, loc: Str) returns ref FCallData
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref FCallData
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.funcdef_of">
 <h2>funcdef_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func funcdef_of(e: Expr, loc: Str) returns ref FunctionDef
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref FunctionDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.fieldaccess_of">
 <h2>fieldaccess_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func fieldaccess_of(e: Expr, loc: Str) returns ref FieldAccessData
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref FieldAccessData
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.structdef_of">
 <h2>structdef_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func structdef_of(e: Expr, loc: Str) returns ref StructDef
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref StructDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.enumdef_of">
 <h2>enumdef_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func enumdef_of(e: Expr, loc: Str) returns ref EnumDef
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref EnumDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.case_of">
 <h2>case_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func case_of(e: Expr, loc: Str) returns ref CaseData
+<pre><code class="language-til">func (e: Expr, loc: Str) returns ref CaseData
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.case_pattern_count">
 <h2>case_pattern_count</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func case_pattern_count(cn: Expr) returns shallow USize
+<pre><code class="language-til">func (cn: Expr) returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.case_has_guard">
 <h2>case_has_guard</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func case_has_guard(cn: Expr) returns shallow Bool
+<pre><code class="language-til">func (cn: Expr) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Option__ref_Str">
 <h2>Option__ref_Str</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">enum Option__ref_Str {
+<pre><code class="language-til">enum {
     None
     Some: Str
 namespace:
     func is_some(shallow self: Option__ref_Str) returns shallow Bool
     func is_none(shallow self: Option__ref_Str) returns shallow Bool
     func unwrap_or(self: Option__ref_Str, default_v: Str) returns ref Str
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
     func unwrap(self: Option__ref_Str) returns ref Str
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
     func take(own self: Option__ref_Str) returns ref Str
     ext_func None() returns shallow Option__ref_Str
     ext_func Some(val: Str) returns shallow Option__ref_Str
@@ -1176,32 +1339,50 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Option__ref_Str.unwrap">
+<h2>Option__ref_Str.unwrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a `switch` when both arms do real work, and `unwrap_or` when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__ref_Str) returns ref Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Option__ref_Str.take">
+<h2>Option__ref_Str.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an `Option(Expr)` returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__ref_Str) returns ref Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.Map__Str_USize">
 <h2>Map__Str_USize</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct Map__Str_USize {
+<pre><code class="language-til">struct {
     mut keys : Vec__Str
     mut values : Vec__USize
 namespace:
-    /// Create an empty Map of the types provided for the key and values respectively.
-    /// The key type must implement `cmp`.
     func new() returns Map__Str_USize
-    /// Create an empty Map pre-sized for `n` entries, so inserting up to
-    /// `n` reallocs neither backing Vec (Vec.with_capacity's
-    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
     func with_capacity(shallow n: USize) returns Map__Str_USize
     func len(self: Map__Str_USize) returns shallow USize
-    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_USize)
-    /// True if a value exists for the given key.
     func has(self: Map__Str_USize, key: Str) returns shallow Bool
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
-    /// on a missing key.
     func get(self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
-    /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_USize, key: Str, own val: USize)
-    /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_USize, key: Str) returns shallow Bool
     func delete(own self: Map__Str_USize, shallow call_free: Bool)
     func clone(self: Map__Str_USize) returns Map__Str_USize
@@ -1210,574 +1391,1432 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Map__Str_USize.new">
+<h2>Map__Str_USize.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Map of the types provided for the key and values respectively.
+The key type must implement `cmp`.</p>
+</div>
+<pre><code class="language-til">func () returns Map__Str_USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Map__Str_USize.with_capacity">
+<h2>Map__Str_USize.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Map pre-sized for `n` entries, so inserting up to
+`n` reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Map__Str_USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Map__Str_USize.clear">
+<h2>Map__Str_USize.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__Str_USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Map__Str_USize.has">
+<h2>Map__Str_USize.has</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>True if a value exists for the given key.</p>
+</div>
+<pre><code class="language-til">func (self: Map__Str_USize, key: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Map__Str_USize.get">
+<h2>Map__Str_USize.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Return a ref to the value for `key`. Throws KeyNotFound if
+`key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+on a missing key.</p>
+</div>
+<pre><code class="language-til">func (self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Map__Str_USize.set">
+<h2>Map__Str_USize.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Insert or overwrite the value for `key`. The value is owned.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__Str_USize, key: Str, own val: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Map__Str_USize.remove">
+<h2>Map__Str_USize.remove</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove `key`, dropping its key and value. Returns false if absent.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__Str_USize, key: Str) returns shallow Bool
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef">
 <h2>Vec__VariantDef</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct Vec__VariantDef {
+<pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__VariantDef
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__VariantDef
     func len(self: Vec__VariantDef) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
     func clear(mut self: Vec__VariantDef)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
     func delete_marked(mut self: Vec__VariantDef, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec__VariantDef, own val: VariantDef)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__VariantDef, own other: Vec__VariantDef)
-    /// Take the contents out: the returned Vec owns self's buffer and
-    /// self is left lazy-empty. No element is copied or cloned.
-    /// 
-    /// This is how a struct FIELD hands its contents over
-    /// (`mut old := body.children.take()`): a field cannot be an `own`
-    /// argument or receiver, because the callee would then free the
-    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
-    /// pointer&quot; compiling itself. Everything the caller can give away
-    /// uses the two move forms below instead.
     func take(mut self: Vec__VariantDef) returns Vec__VariantDef
-    /// Give self's contents to `dest`, which drops whatever it held.
-    /// SELF is consumed, so the receiver is the owned one and the call
-    /// spells the type out: `Vec(T).move_to(own src, dest)`.
-    /// 
-    /// The three fields move as BYTES on purpose: `dest.data =
-    /// self.data` drops dest's old pointer (right) and then
-    /// `self.data = 0` drops the pointer dest just adopted -- a double
-    /// free, which is what the emitted C does with field assignment.
-    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
-    /// a later push on it allocates afresh instead of reallocating a
-    /// buffer that now belongs to someone else.
     func move_to(own self: Vec__VariantDef, mut dest: Vec__VariantDef)
-    /// Take `other`'s contents, dropping whatever self held. OTHER is
-    /// consumed -- it is the value being emptied, so it is the owned
-    /// argument: `dest.move_from(own src)`.
     func move_from(mut self: Vec__VariantDef, own other: Vec__VariantDef)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
     func unsafe_get(self: Vec__VariantDef, i: USize) returns ref VariantDef
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
     func get(self: Vec__VariantDef, i: USize, mut _err_kind: I64) returns ref VariantDef
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
     func pop(mut self: Vec__VariantDef) returns VariantDef
-    /// Remove and drop the element at `i`, shifting later elements left.
     func remove_at(mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
     func truncate(mut self: Vec__VariantDef, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
     func unsafe_set(mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
     func set(mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
     func push_take(mut self: Vec__VariantDef, mut src: Vec__VariantDef, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
     func delete(own self: Vec__VariantDef, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__VariantDef) returns Vec__VariantDef
     func size() returns shallow USize
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.new">
+<h2>Vec__VariantDef.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__VariantDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.with_capacity">
+<h2>Vec__VariantDef.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__VariantDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.clear">
+<h2>Vec__VariantDef.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.delete_marked">
+<h2>Vec__VariantDef.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.push">
+<h2>Vec__VariantDef.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. `val` is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, own val: VariantDef)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.append">
+<h2>Vec__VariantDef.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of `other` by appending them to `self`.
+`other` is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, own other: Vec__VariantDef)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.take">
+<h2>Vec__VariantDef.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(`mut old := body.children.take()`): a field cannot be an `own`
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef) returns Vec__VariantDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.move_to">
+<h2>Vec__VariantDef.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to `dest`, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: `Vec(T).move_to(own src, dest)`.</p>
+<p>The three fields move as BYTES on purpose: `dest.data =
+self.data` drops dest's old pointer (right) and then
+`self.data = 0` drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__VariantDef, mut dest: Vec__VariantDef)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.move_from">
+<h2>Vec__VariantDef.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take `other`'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: `dest.move_from(own src)`.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, own other: Vec__VariantDef)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.unsafe_get">
+<h2>Vec__VariantDef.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+This is the unchecked core that `get` wraps; for-in uses it
+directly because its `_fi &lt; len()` termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__VariantDef, i: USize) returns ref VariantDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.get">
+<h2>Vec__VariantDef.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index `i`. Throws
+OutOfBounds if `i` is past the end; call as `vec[i]`
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__VariantDef, i: USize, mut _err_kind: I64) returns ref VariantDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.pop">
+<h2>Vec__VariantDef.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef) returns VariantDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.remove_at">
+<h2>Vec__VariantDef.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at `i`, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.take_prefix">
+<h2>Vec__VariantDef.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Split off the first `n` elements into a new Vec. Panics if `n`
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.truncate">
+<h2>Vec__VariantDef.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index `n` to the end, freeing each via
+elem_delete, and set count to `n` (the survivors [0, n) are left
+untouched). Panics if `n` exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.unsafe_set">
+<h2>Vec__VariantDef.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i &lt; self.count`; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.set">
+<h2>Vec__VariantDef.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i`. `val` is owned. Throws
+OutOfBounds if `i` is past the end; call as `vec[i] = val`
+(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.push_take">
+<h2>Vec__VariantDef.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__VariantDef, mut src: Vec__VariantDef, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.delete">
+<h2>Vec__VariantDef.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless `call_free` is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__VariantDef, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.clone">
+<h2>Vec__VariantDef.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__VariantDef) returns Vec__VariantDef
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout">
 <h2>Vec__FieldLayout</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct Vec__FieldLayout {
+<pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__FieldLayout
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__FieldLayout
     func len(self: Vec__FieldLayout) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
     func clear(mut self: Vec__FieldLayout)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
     func delete_marked(mut self: Vec__FieldLayout, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec__FieldLayout, own val: FieldLayout)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
-    /// Take the contents out: the returned Vec owns self's buffer and
-    /// self is left lazy-empty. No element is copied or cloned.
-    /// 
-    /// This is how a struct FIELD hands its contents over
-    /// (`mut old := body.children.take()`): a field cannot be an `own`
-    /// argument or receiver, because the callee would then free the
-    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
-    /// pointer&quot; compiling itself. Everything the caller can give away
-    /// uses the two move forms below instead.
     func take(mut self: Vec__FieldLayout) returns Vec__FieldLayout
-    /// Give self's contents to `dest`, which drops whatever it held.
-    /// SELF is consumed, so the receiver is the owned one and the call
-    /// spells the type out: `Vec(T).move_to(own src, dest)`.
-    /// 
-    /// The three fields move as BYTES on purpose: `dest.data =
-    /// self.data` drops dest's old pointer (right) and then
-    /// `self.data = 0` drops the pointer dest just adopted -- a double
-    /// free, which is what the emitted C does with field assignment.
-    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
-    /// a later push on it allocates afresh instead of reallocating a
-    /// buffer that now belongs to someone else.
     func move_to(own self: Vec__FieldLayout, mut dest: Vec__FieldLayout)
-    /// Take `other`'s contents, dropping whatever self held. OTHER is
-    /// consumed -- it is the value being emptied, so it is the owned
-    /// argument: `dest.move_from(own src)`.
     func move_from(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
     func unsafe_get(self: Vec__FieldLayout, i: USize) returns ref FieldLayout
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
     func get(self: Vec__FieldLayout, i: USize, mut _err_kind: I64) returns ref FieldLayout
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
     func pop(mut self: Vec__FieldLayout) returns FieldLayout
-    /// Remove and drop the element at `i`, shifting later elements left.
     func remove_at(mut self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64)
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FieldLayout, shallow n: USize) returns Vec__FieldLayout
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
     func truncate(mut self: Vec__FieldLayout, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
     func unsafe_set(mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
     func set(mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
     func push_take(mut self: Vec__FieldLayout, mut src: Vec__FieldLayout, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
     func delete(own self: Vec__FieldLayout, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FieldLayout) returns Vec__FieldLayout
     func size() returns shallow USize
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.new">
+<h2>Vec__FieldLayout.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__FieldLayout
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.with_capacity">
+<h2>Vec__FieldLayout.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__FieldLayout
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.clear">
+<h2>Vec__FieldLayout.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.delete_marked">
+<h2>Vec__FieldLayout.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.push">
+<h2>Vec__FieldLayout.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. `val` is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, own val: FieldLayout)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.append">
+<h2>Vec__FieldLayout.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of `other` by appending them to `self`.
+`other` is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.take">
+<h2>Vec__FieldLayout.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(`mut old := body.children.take()`): a field cannot be an `own`
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout) returns Vec__FieldLayout
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.move_to">
+<h2>Vec__FieldLayout.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to `dest`, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: `Vec(T).move_to(own src, dest)`.</p>
+<p>The three fields move as BYTES on purpose: `dest.data =
+self.data` drops dest's old pointer (right) and then
+`self.data = 0` drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__FieldLayout, mut dest: Vec__FieldLayout)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.move_from">
+<h2>Vec__FieldLayout.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take `other`'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: `dest.move_from(own src)`.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.unsafe_get">
+<h2>Vec__FieldLayout.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+This is the unchecked core that `get` wraps; for-in uses it
+directly because its `_fi &lt; len()` termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__FieldLayout, i: USize) returns ref FieldLayout
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.get">
+<h2>Vec__FieldLayout.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index `i`. Throws
+OutOfBounds if `i` is past the end; call as `vec[i]`
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__FieldLayout, i: USize, mut _err_kind: I64) returns ref FieldLayout
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.pop">
+<h2>Vec__FieldLayout.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout) returns FieldLayout
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.remove_at">
+<h2>Vec__FieldLayout.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at `i`, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.take_prefix">
+<h2>Vec__FieldLayout.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Split off the first `n` elements into a new Vec. Panics if `n`
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: USize) returns Vec__FieldLayout
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.truncate">
+<h2>Vec__FieldLayout.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index `n` to the end, freeing each via
+elem_delete, and set count to `n` (the survivors [0, n) are left
+untouched). Panics if `n` exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.unsafe_set">
+<h2>Vec__FieldLayout.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i &lt; self.count`; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.set">
+<h2>Vec__FieldLayout.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i`. `val` is owned. Throws
+OutOfBounds if `i` is past the end; call as `vec[i] = val`
+(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.push_take">
+<h2>Vec__FieldLayout.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, mut src: Vec__FieldLayout, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.delete">
+<h2>Vec__FieldLayout.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless `call_free` is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__FieldLayout, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.clone">
+<h2>Vec__FieldLayout.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__FieldLayout) returns Vec__FieldLayout
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration">
 <h2>Vec__Declaration</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct Vec__Declaration {
+<pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__Declaration
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__Declaration
     func len(self: Vec__Declaration) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
     func clear(mut self: Vec__Declaration)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
     func delete_marked(mut self: Vec__Declaration, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec__Declaration, own val: Declaration)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__Declaration, own other: Vec__Declaration)
-    /// Take the contents out: the returned Vec owns self's buffer and
-    /// self is left lazy-empty. No element is copied or cloned.
-    /// 
-    /// This is how a struct FIELD hands its contents over
-    /// (`mut old := body.children.take()`): a field cannot be an `own`
-    /// argument or receiver, because the callee would then free the
-    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
-    /// pointer&quot; compiling itself. Everything the caller can give away
-    /// uses the two move forms below instead.
     func take(mut self: Vec__Declaration) returns Vec__Declaration
-    /// Give self's contents to `dest`, which drops whatever it held.
-    /// SELF is consumed, so the receiver is the owned one and the call
-    /// spells the type out: `Vec(T).move_to(own src, dest)`.
-    /// 
-    /// The three fields move as BYTES on purpose: `dest.data =
-    /// self.data` drops dest's old pointer (right) and then
-    /// `self.data = 0` drops the pointer dest just adopted -- a double
-    /// free, which is what the emitted C does with field assignment.
-    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
-    /// a later push on it allocates afresh instead of reallocating a
-    /// buffer that now belongs to someone else.
     func move_to(own self: Vec__Declaration, mut dest: Vec__Declaration)
-    /// Take `other`'s contents, dropping whatever self held. OTHER is
-    /// consumed -- it is the value being emptied, so it is the owned
-    /// argument: `dest.move_from(own src)`.
     func move_from(mut self: Vec__Declaration, own other: Vec__Declaration)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
     func unsafe_get(self: Vec__Declaration, i: USize) returns ref Declaration
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
     func get(self: Vec__Declaration, i: USize, mut _err_kind: I64) returns ref Declaration
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
     func pop(mut self: Vec__Declaration) returns Declaration
-    /// Remove and drop the element at `i`, shifting later elements left.
     func remove_at(mut self: Vec__Declaration, shallow i: USize, mut _err_kind: I64)
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Declaration, shallow n: USize) returns Vec__Declaration
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
     func truncate(mut self: Vec__Declaration, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
     func unsafe_set(mut self: Vec__Declaration, shallow i: USize, own val: Declaration)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
     func set(mut self: Vec__Declaration, shallow i: USize, own val: Declaration, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
     func push_take(mut self: Vec__Declaration, mut src: Vec__Declaration, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
     func delete(own self: Vec__Declaration, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Declaration) returns Vec__Declaration
     func size() returns shallow USize
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.new">
+<h2>Vec__Declaration.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.with_capacity">
+<h2>Vec__Declaration.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.clear">
+<h2>Vec__Declaration.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.delete_marked">
+<h2>Vec__Declaration.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.push">
+<h2>Vec__Declaration.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. `val` is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, own val: Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.append">
+<h2>Vec__Declaration.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of `other` by appending them to `self`.
+`other` is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, own other: Vec__Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.take">
+<h2>Vec__Declaration.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(`mut old := body.children.take()`): a field cannot be an `own`
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration) returns Vec__Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.move_to">
+<h2>Vec__Declaration.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to `dest`, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: `Vec(T).move_to(own src, dest)`.</p>
+<p>The three fields move as BYTES on purpose: `dest.data =
+self.data` drops dest's old pointer (right) and then
+`self.data = 0` drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Declaration, mut dest: Vec__Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.move_from">
+<h2>Vec__Declaration.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take `other`'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: `dest.move_from(own src)`.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, own other: Vec__Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.unsafe_get">
+<h2>Vec__Declaration.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+This is the unchecked core that `get` wraps; for-in uses it
+directly because its `_fi &lt; len()` termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Declaration, i: USize) returns ref Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.get">
+<h2>Vec__Declaration.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index `i`. Throws
+OutOfBounds if `i` is past the end; call as `vec[i]`
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Declaration, i: USize, mut _err_kind: I64) returns ref Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.pop">
+<h2>Vec__Declaration.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration) returns Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.remove_at">
+<h2>Vec__Declaration.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at `i`, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.take_prefix">
+<h2>Vec__Declaration.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Split off the first `n` elements into a new Vec. Panics if `n`
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: USize) returns Vec__Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.truncate">
+<h2>Vec__Declaration.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index `n` to the end, freeing each via
+elem_delete, and set count to `n` (the survivors [0, n) are left
+untouched). Panics if `n` exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.unsafe_set">
+<h2>Vec__Declaration.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i &lt; self.count`; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, own val: Declaration)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.set">
+<h2>Vec__Declaration.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i`. `val` is owned. Throws
+OutOfBounds if `i` is past the end; call as `vec[i] = val`
+(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, own val: Declaration, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.push_take">
+<h2>Vec__Declaration.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Declaration, mut src: Vec__Declaration, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.delete">
+<h2>Vec__Declaration.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless `call_free` is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Declaration, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration.clone">
+<h2>Vec__Declaration.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Declaration) returns Vec__Declaration
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr">
 <h2>Vec__Expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct Vec__Expr {
+<pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__Expr
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__Expr
     func len(self: Vec__Expr) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
     func clear(mut self: Vec__Expr)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
     func delete_marked(mut self: Vec__Expr, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec__Expr, own val: Expr)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__Expr, own other: Vec__Expr)
-    /// Take the contents out: the returned Vec owns self's buffer and
-    /// self is left lazy-empty. No element is copied or cloned.
-    /// 
-    /// This is how a struct FIELD hands its contents over
-    /// (`mut old := body.children.take()`): a field cannot be an `own`
-    /// argument or receiver, because the callee would then free the
-    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
-    /// pointer&quot; compiling itself. Everything the caller can give away
-    /// uses the two move forms below instead.
     func take(mut self: Vec__Expr) returns Vec__Expr
-    /// Give self's contents to `dest`, which drops whatever it held.
-    /// SELF is consumed, so the receiver is the owned one and the call
-    /// spells the type out: `Vec(T).move_to(own src, dest)`.
-    /// 
-    /// The three fields move as BYTES on purpose: `dest.data =
-    /// self.data` drops dest's old pointer (right) and then
-    /// `self.data = 0` drops the pointer dest just adopted -- a double
-    /// free, which is what the emitted C does with field assignment.
-    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
-    /// a later push on it allocates afresh instead of reallocating a
-    /// buffer that now belongs to someone else.
     func move_to(own self: Vec__Expr, mut dest: Vec__Expr)
-    /// Take `other`'s contents, dropping whatever self held. OTHER is
-    /// consumed -- it is the value being emptied, so it is the owned
-    /// argument: `dest.move_from(own src)`.
     func move_from(mut self: Vec__Expr, own other: Vec__Expr)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
     func unsafe_get(self: Vec__Expr, i: USize) returns ref Expr
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
     func get(self: Vec__Expr, i: USize, mut _err_kind: I64) returns ref Expr
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
     func pop(mut self: Vec__Expr) returns Expr
-    /// Remove and drop the element at `i`, shifting later elements left.
     func remove_at(mut self: Vec__Expr, shallow i: USize, mut _err_kind: I64)
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Expr, shallow n: USize) returns Vec__Expr
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
     func truncate(mut self: Vec__Expr, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
     func unsafe_set(mut self: Vec__Expr, shallow i: USize, own val: Expr)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
     func set(mut self: Vec__Expr, shallow i: USize, own val: Expr, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
     func push_take(mut self: Vec__Expr, mut src: Vec__Expr, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
     func delete(own self: Vec__Expr, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Expr) returns Vec__Expr
     func size() returns shallow USize
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.new">
+<h2>Vec__Expr.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.with_capacity">
+<h2>Vec__Expr.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.clear">
+<h2>Vec__Expr.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.delete_marked">
+<h2>Vec__Expr.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.push">
+<h2>Vec__Expr.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. `val` is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, own val: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.append">
+<h2>Vec__Expr.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of `other` by appending them to `self`.
+`other` is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, own other: Vec__Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.take">
+<h2>Vec__Expr.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(`mut old := body.children.take()`): a field cannot be an `own`
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr) returns Vec__Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.move_to">
+<h2>Vec__Expr.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to `dest`, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: `Vec(T).move_to(own src, dest)`.</p>
+<p>The three fields move as BYTES on purpose: `dest.data =
+self.data` drops dest's old pointer (right) and then
+`self.data = 0` drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Expr, mut dest: Vec__Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.move_from">
+<h2>Vec__Expr.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take `other`'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: `dest.move_from(own src)`.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, own other: Vec__Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.unsafe_get">
+<h2>Vec__Expr.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+This is the unchecked core that `get` wraps; for-in uses it
+directly because its `_fi &lt; len()` termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Expr, i: USize) returns ref Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.get">
+<h2>Vec__Expr.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index `i`. Throws
+OutOfBounds if `i` is past the end; call as `vec[i]`
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Expr, i: USize, mut _err_kind: I64) returns ref Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.pop">
+<h2>Vec__Expr.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.remove_at">
+<h2>Vec__Expr.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at `i`, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.take_prefix">
+<h2>Vec__Expr.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Split off the first `n` elements into a new Vec. Panics if `n`
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow n: USize) returns Vec__Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.truncate">
+<h2>Vec__Expr.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index `n` to the end, freeing each via
+elem_delete, and set count to `n` (the survivors [0, n) are left
+untouched). Panics if `n` exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.unsafe_set">
+<h2>Vec__Expr.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i &lt; self.count`; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, own val: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.set">
+<h2>Vec__Expr.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i`. `val` is owned. Throws
+OutOfBounds if `i` is past the end; call as `vec[i] = val`
+(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, own val: Expr, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.push_take">
+<h2>Vec__Expr.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Expr, mut src: Vec__Expr, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.delete">
+<h2>Vec__Expr.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless `call_free` is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Expr, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr.clone">
+<h2>Vec__Expr.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Expr) returns Vec__Expr
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize">
 <h2>Vec__USize</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">struct Vec__USize {
+<pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__USize
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__USize
     func len(self: Vec__USize) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
     func clear(mut self: Vec__USize)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
     func delete_marked(mut self: Vec__USize, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec__USize, own val: USize)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__USize, own other: Vec__USize)
-    /// Take the contents out: the returned Vec owns self's buffer and
-    /// self is left lazy-empty. No element is copied or cloned.
-    /// 
-    /// This is how a struct FIELD hands its contents over
-    /// (`mut old := body.children.take()`): a field cannot be an `own`
-    /// argument or receiver, because the callee would then free the
-    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
-    /// pointer&quot; compiling itself. Everything the caller can give away
-    /// uses the two move forms below instead.
     func take(mut self: Vec__USize) returns Vec__USize
-    /// Give self's contents to `dest`, which drops whatever it held.
-    /// SELF is consumed, so the receiver is the owned one and the call
-    /// spells the type out: `Vec(T).move_to(own src, dest)`.
-    /// 
-    /// The three fields move as BYTES on purpose: `dest.data =
-    /// self.data` drops dest's old pointer (right) and then
-    /// `self.data = 0` drops the pointer dest just adopted -- a double
-    /// free, which is what the emitted C does with field assignment.
-    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
-    /// a later push on it allocates afresh instead of reallocating a
-    /// buffer that now belongs to someone else.
     func move_to(own self: Vec__USize, mut dest: Vec__USize)
-    /// Take `other`'s contents, dropping whatever self held. OTHER is
-    /// consumed -- it is the value being emptied, so it is the owned
-    /// argument: `dest.move_from(own src)`.
     func move_from(mut self: Vec__USize, own other: Vec__USize)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
     func unsafe_get(self: Vec__USize, i: USize) returns ref USize
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
     func get(self: Vec__USize, i: USize, mut _err_kind: I64) returns ref USize
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
     func pop(mut self: Vec__USize) returns shallow USize
-    /// Remove and drop the element at `i`, shifting later elements left.
     func remove_at(mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__USize, shallow n: USize) returns Vec__USize
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
     func truncate(mut self: Vec__USize, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
     func unsafe_set(mut self: Vec__USize, shallow i: USize, own val: USize)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
     func set(mut self: Vec__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
     func push_take(mut self: Vec__USize, mut src: Vec__USize, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
     func delete(own self: Vec__USize, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__USize) returns Vec__USize
     func size() returns shallow USize
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.new">
+<h2>Vec__USize.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.with_capacity">
+<h2>Vec__USize.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.clear">
+<h2>Vec__USize.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.delete_marked">
+<h2>Vec__USize.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in `marks` (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.push">
+<h2>Vec__USize.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. `val` is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, own val: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.append">
+<h2>Vec__USize.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of `other` by appending them to `self`.
+`other` is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, own other: Vec__USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.take">
+<h2>Vec__USize.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(`mut old := body.children.take()`): a field cannot be an `own`
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize) returns Vec__USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.move_to">
+<h2>Vec__USize.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to `dest`, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: `Vec(T).move_to(own src, dest)`.</p>
+<p>The three fields move as BYTES on purpose: `dest.data =
+self.data` drops dest's old pointer (right) and then
+`self.data = 0` drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__USize, mut dest: Vec__USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.move_from">
+<h2>Vec__USize.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Take `other`'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: `dest.move_from(own src)`.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, own other: Vec__USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.unsafe_get">
+<h2>Vec__USize.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+This is the unchecked core that `get` wraps; for-in uses it
+directly because its `_fi &lt; len()` termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__USize, i: USize) returns ref USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.get">
+<h2>Vec__USize.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index `i`. Throws
+OutOfBounds if `i` is past the end; call as `vec[i]`
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__USize, i: USize, mut _err_kind: I64) returns ref USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.pop">
+<h2>Vec__USize.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize) returns shallow USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.remove_at">
+<h2>Vec__USize.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at `i`, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.take_prefix">
+<h2>Vec__USize.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Split off the first `n` elements into a new Vec. Panics if `n`
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, shallow n: USize) returns Vec__USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.truncate">
+<h2>Vec__USize.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index `n` to the end, freeing each via
+elem_delete, and set count to `n` (the survivors [0, n) are left
+untouched). Panics if `n` exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.unsafe_set">
+<h2>Vec__USize.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i &lt; self.count`; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, own val: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.set">
+<h2>Vec__USize.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index `i`. `val` is owned. Throws
+OutOfBounds if `i` is past the end; call as `vec[i] = val`
+(or `vec.set(i, own val)!`) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.push_take">
+<h2>Vec__USize.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__USize, mut src: Vec__USize, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.delete">
+<h2>Vec__USize.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless `call_free` is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__USize, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__USize.clone">
+<h2>Vec__USize.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__USize) returns Vec__USize
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.ast.adopt__USize">
 <h2>adopt__USize</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func adopt__USize(dest: Dynamic, own src: USize)
+<pre><code class="language-til">func (dest: Dynamic, own src: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.adopt__VariantDef">
 <h2>adopt__VariantDef</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func adopt__VariantDef(dest: Dynamic, own src: VariantDef)
+<pre><code class="language-til">func (dest: Dynamic, own src: VariantDef)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.adopt__FieldLayout">
 <h2>adopt__FieldLayout</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func adopt__FieldLayout(dest: Dynamic, own src: FieldLayout)
+<pre><code class="language-til">func (dest: Dynamic, own src: FieldLayout)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.adopt__Declaration">
 <h2>adopt__Declaration</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func adopt__Declaration(dest: Dynamic, own src: Declaration)
+<pre><code class="language-til">func (dest: Dynamic, own src: Declaration)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.adopt__Expr">
 <h2>adopt__Expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func adopt__Expr(dest: Dynamic, own src: Expr)
+<pre><code class="language-til">func (dest: Dynamic, own src: Expr)
 </code></pre>
 </article>
 </main></div>

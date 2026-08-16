@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -86,7 +86,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.targets.Lang">
 <h2>Lang</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">enum Lang {
+<pre><code class="language-til">enum {
     C
     HolyC
     TIL
@@ -112,7 +112,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.targets.Target">
 <h2>Target</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">enum Target {
+<pre><code class="language-til">enum {
     LinuxX64
     LinuxArm64
     LinuxRiscv64
@@ -156,79 +156,79 @@ namespace:
 <article class="doc-entry" id="til.src.self.targets.target_from_str">
 <h2>target_from_str</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func target_from_str(s: Str) returns Target
+<pre><code class="language-til">func (s: Str) returns Target
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.is_windows_target">
 <h2>is_windows_target</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func is_windows_target(target: Target) returns shallow Bool
+<pre><code class="language-til">func (target: Target) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.target_uptr_name">
 <h2>target_uptr_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func target_uptr_name(target: Target) returns Str
+<pre><code class="language-til">func (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.target_usize_name">
 <h2>target_usize_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func target_usize_name(target: Target) returns Str
+<pre><code class="language-til">func (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.toolchain_command">
 <h2>toolchain_command</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc toolchain_command(target: Target, lang: Lang) returns Str
+<pre><code class="language-til">proc (target: Target, lang: Lang) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.target_link_extra_args">
 <h2>target_link_extra_args</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc target_link_extra_args(target: Target) returns Str
+<pre><code class="language-til">proc (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.toolchain_extra_args">
 <h2>toolchain_extra_args</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc toolchain_extra_args(target: Target) returns Str
+<pre><code class="language-til">proc (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.executable_extension">
 <h2>executable_extension</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func executable_extension(target: Target) returns Str
+<pre><code class="language-til">func (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.shared_lib_extension">
 <h2>shared_lib_extension</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func shared_lib_extension(target: Target) returns Str
+<pre><code class="language-til">func (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.target_system_libs">
 <h2>target_system_libs</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func target_system_libs(target: Target) returns Str
+<pre><code class="language-til">func (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.target_ffi_lib">
 <h2>target_ffi_lib</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func target_ffi_lib(target: Target) returns Str
+<pre><code class="language-til">func (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.target_gui_libs">
 <h2>target_gui_libs</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc target_gui_libs(target: Target) returns Str
+<pre><code class="language-til">proc (target: Target) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.detect_current_target">
 <h2>detect_current_target</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc detect_current_target() returns Target
+<pre><code class="language-til">proc () returns Target
 </code></pre>
 </article>
 </main></div>

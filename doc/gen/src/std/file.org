@@ -1,5 +1,5 @@
 #+TITLE: src/std/file.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * cfile_open
@@ -216,91 +216,322 @@ struct File {
     mut is_write : Bool
     mut is_update : Bool
 namespace:
-    /// Read the entire file at `path` into a Str. Exits with an error if
-    /// the file cannot be opened.
     proc readfile(path: Str) returns Str
-    /// Write `content` to the file at `path`, replacing any previous
-    /// contents. Exits with an error if the file cannot be opened.
     proc writefile(path: Str, content: Str)
-    /// Append `content` to the file at `path`, keeping what is already
-    /// there. The file is created when it does not exist.
     proc appendfile(path: Str, content: Str)
-    /// Delete the file at `path`, like `rm`. Removing a file the process
-    /// still has open is allowed on POSIX (the handle keeps working until
-    /// it is closed); a missing path is not an error. Directories are
-    /// not removed -- pointing this at one is an error.
     proc remove(path: Str)
-    /// True when `path` names an existing directory entry. A directory,
-    /// or a file the process has no permission to read, still exists.
     proc exists(path: Str) returns shallow Bool
-    /// True when `path` names a directory. False for a regular file, and
-    /// false for a path that does not exist -- "is a directory" is one
-    /// question, "exists" is another, and `File.exists` answers that one.
     proc is_dir(path: Str) returns shallow Bool
-    /// True when `path` names a regular file -- not a directory, and not
-    /// a device, fifo or socket either.
     proc is_file(path: Str) returns shallow Bool
-    /// Remove `path` and everything under it, like `rm -rf`: a file, or a
-    /// directory with its whole subtree. A path that does not exist is
-    /// already removed and reports success; a symlink is unlinked, never
-    /// followed. Any other failure is fatal.
     proc remove_tree(path: Str)
-    /// Move `src` onto `dst`, replacing whatever `dst` was. On POSIX the
-    /// replacement is atomic, which is what makes it safe to build a new
-    /// executable beside the running one and swap it in. Fatal on
-    /// failure -- notably when the two paths are on different file
-    /// systems, where a rename cannot happen and a copy is the answer.
     proc rename(src: Str, dst: Str)
-    /// Open a file at `path` for reading or writing.
     proc new(path: Str, shallow is_write: Bool) returns File
-    /// Open a file at `path` for in-place update: reads and writes are
-    /// both allowed and the cursor can be moved with `seek`, so small
-    /// regions can be patched without rewriting the whole file. The file
-    /// must already exist.
     proc update(path: Str) returns File
-    /// Open a file at `path` for appending: writes always land at the end
-    /// and existing contents are kept, where `File.new(path, true)`
-    /// truncates. The file is created when it does not exist. Reads are
-    /// rejected, and `seek` does not move where a write lands -- "ab"
-    /// appends regardless of the cursor.
     proc append(path: Str) returns File
-    /// Write a string to the file and return `self` so writes chain via
-    /// UFCS: `f.write("a").write("b").write("c")`. Panics unless opened
-    /// for writing or update.
     proc write(self: File, s: Str) returns ref File
-    /// Read the entire file contents into a Str. Panics if opened
-    /// write-only.
     proc read_all(self: File) returns Str
-    /// Read up to `count` bytes starting at the current cursor position
-    /// and advance the cursor. The result is shorter than `count` near
-    /// end-of-file. Panics if opened write-only.
     proc read(self: File, shallow count: I64) returns Str
-    /// Return the current cursor position as a byte offset from the start
-    /// of the file.
     proc tell(self: File) returns shallow I64
-    /// Move the cursor to an absolute byte offset from the start of the
-    /// file. Returns `self` so calls chain via UFCS.
     proc seek(self: File, pos: I64) returns ref File
-    /// Move the cursor by `delta` bytes relative to its current position
-    /// (`delta` may be negative). Returns `self` so calls chain via UFCS.
     proc seek_cur(self: File, delta: I64) returns ref File
-    /// Move the cursor to `delta` bytes relative to the end of the file
-    /// (`delta` is typically <= 0). `f.seek_end(0)` followed by `f.tell()`
-    /// yields the file size. Returns `self` so calls chain via UFCS.
     proc seek_end(self: File, delta: I64) returns ref File
-    /// Close the underlying file handle. Private: invoked only from
-    /// `delete`, which the garbager inserts after a File local's last
-    /// use, so nothing reads the handle afterwards.
     func close(self: File)
-    /// Release the File: close the handle, then free the struct shell
-    /// unless the caller still owns it (`call_free = false` for a
-    /// stack/value local). The garbager inserts this call right after the
-    /// File's last use.
     func delete(own self: File, shallow call_free: Bool)
     proc fwrite(self: File, parts: ..Str) returns ref File
     func clone(self: File) returns File
     func size() returns shallow USize
 }
+#+end_src
+
+* File.readfile
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.readfile
+:group: Standard library
+:END:
+
+Read the entire file at `path` into a Str. Exits with an error if
+the file cannot be opened.
+
+#+begin_src til
+proc File.readfile(path: Str) returns Str
+#+end_src
+
+* File.writefile
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.writefile
+:group: Standard library
+:END:
+
+Write `content` to the file at `path`, replacing any previous
+contents. Exits with an error if the file cannot be opened.
+
+#+begin_src til
+proc File.writefile(path: Str, content: Str)
+#+end_src
+
+* File.appendfile
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.appendfile
+:group: Standard library
+:END:
+
+Append `content` to the file at `path`, keeping what is already
+there. The file is created when it does not exist.
+
+#+begin_src til
+proc File.appendfile(path: Str, content: Str)
+#+end_src
+
+* File.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.remove
+:group: Standard library
+:END:
+
+Delete the file at `path`, like `rm`. Removing a file the process
+still has open is allowed on POSIX (the handle keeps working until
+it is closed); a missing path is not an error. Directories are
+not removed -- pointing this at one is an error.
+
+#+begin_src til
+proc File.remove(path: Str)
+#+end_src
+
+* File.exists
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.exists
+:group: Standard library
+:END:
+
+True when `path` names an existing directory entry. A directory,
+or a file the process has no permission to read, still exists.
+
+#+begin_src til
+proc File.exists(path: Str) returns shallow Bool
+#+end_src
+
+* File.is_dir
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.is_dir
+:group: Standard library
+:END:
+
+True when `path` names a directory. False for a regular file, and
+false for a path that does not exist -- "is a directory" is one
+question, "exists" is another, and `File.exists` answers that one.
+
+#+begin_src til
+proc File.is_dir(path: Str) returns shallow Bool
+#+end_src
+
+* File.is_file
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.is_file
+:group: Standard library
+:END:
+
+True when `path` names a regular file -- not a directory, and not
+a device, fifo or socket either.
+
+#+begin_src til
+proc File.is_file(path: Str) returns shallow Bool
+#+end_src
+
+* File.remove_tree
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.remove_tree
+:group: Standard library
+:END:
+
+Remove `path` and everything under it, like `rm -rf`: a file, or a
+directory with its whole subtree. A path that does not exist is
+already removed and reports success; a symlink is unlinked, never
+followed. Any other failure is fatal.
+
+#+begin_src til
+proc File.remove_tree(path: Str)
+#+end_src
+
+* File.rename
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.rename
+:group: Standard library
+:END:
+
+Move `src` onto `dst`, replacing whatever `dst` was. On POSIX the
+replacement is atomic, which is what makes it safe to build a new
+executable beside the running one and swap it in. Fatal on
+failure -- notably when the two paths are on different file
+systems, where a rename cannot happen and a copy is the answer.
+
+#+begin_src til
+proc File.rename(src: Str, dst: Str)
+#+end_src
+
+* File.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.new
+:group: Standard library
+:END:
+
+Open a file at `path` for reading or writing.
+
+#+begin_src til
+proc File.new(path: Str, shallow is_write: Bool) returns File
+#+end_src
+
+* File.update
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.update
+:group: Standard library
+:END:
+
+Open a file at `path` for in-place update: reads and writes are
+both allowed and the cursor can be moved with `seek`, so small
+regions can be patched without rewriting the whole file. The file
+must already exist.
+
+#+begin_src til
+proc File.update(path: Str) returns File
+#+end_src
+
+* File.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.append
+:group: Standard library
+:END:
+
+Open a file at `path` for appending: writes always land at the end
+and existing contents are kept, where `File.new(path, true)`
+truncates. The file is created when it does not exist. Reads are
+rejected, and `seek` does not move where a write lands -- "ab"
+appends regardless of the cursor.
+
+#+begin_src til
+proc File.append(path: Str) returns File
+#+end_src
+
+* File.write
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.write
+:group: Standard library
+:END:
+
+Write a string to the file and return `self` so writes chain via
+UFCS: `f.write("a").write("b").write("c")`. Panics unless opened
+for writing or update.
+
+#+begin_src til
+proc File.write(self: File, s: Str) returns ref File
+#+end_src
+
+* File.read_all
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.read_all
+:group: Standard library
+:END:
+
+Read the entire file contents into a Str. Panics if opened
+write-only.
+
+#+begin_src til
+proc File.read_all(self: File) returns Str
+#+end_src
+
+* File.read
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.read
+:group: Standard library
+:END:
+
+Read up to `count` bytes starting at the current cursor position
+and advance the cursor. The result is shorter than `count` near
+end-of-file. Panics if opened write-only.
+
+#+begin_src til
+proc File.read(self: File, shallow count: I64) returns Str
+#+end_src
+
+* File.tell
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.tell
+:group: Standard library
+:END:
+
+Return the current cursor position as a byte offset from the start
+of the file.
+
+#+begin_src til
+proc File.tell(self: File) returns shallow I64
+#+end_src
+
+* File.seek
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.seek
+:group: Standard library
+:END:
+
+Move the cursor to an absolute byte offset from the start of the
+file. Returns `self` so calls chain via UFCS.
+
+#+begin_src til
+proc File.seek(self: File, pos: I64) returns ref File
+#+end_src
+
+* File.seek_cur
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.seek_cur
+:group: Standard library
+:END:
+
+Move the cursor by `delta` bytes relative to its current position
+(`delta` may be negative). Returns `self` so calls chain via UFCS.
+
+#+begin_src til
+proc File.seek_cur(self: File, delta: I64) returns ref File
+#+end_src
+
+* File.seek_end
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.seek_end
+:group: Standard library
+:END:
+
+Move the cursor to `delta` bytes relative to the end of the file
+(`delta` is typically <= 0). `f.seek_end(0)` followed by `f.tell()`
+yields the file size. Returns `self` so calls chain via UFCS.
+
+#+begin_src til
+proc File.seek_end(self: File, delta: I64) returns ref File
+#+end_src
+
+* File.close
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.close
+:group: Standard library
+:END:
+
+Close the underlying file handle. Private: invoked only from
+`delete`, which the garbager inserts after a File local's last
+use, so nothing reads the handle afterwards.
+
+#+begin_src til
+func File.close(self: File)
+#+end_src
+
+* File.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.delete
+:group: Standard library
+:END:
+
+Release the File: close the handle, then free the struct shell
+unless the caller still owns it (`call_free = false` for a
+stack/value local). The garbager inserts this call right after the
+File's last use.
+
+#+begin_src til
+func File.delete(own self: File, shallow call_free: Bool)
 #+end_src
 
 * Dir
@@ -315,24 +546,79 @@ A directory being read, entry by entry.
 struct Dir {
     ref mut handle : U8
 namespace:
-    /// Start reading the directory at `path`. Exits with an error if it
-    /// cannot be opened.
     proc open(path: Str) returns Dir
-    /// The next entry's name (not its path), "" once every entry has
-    /// been reported. "." and ".." are never returned. The order is
-    /// whatever the file system gives -- sort if you need a stable one.
     proc next(self: Dir) returns Str
-    /// Every entry in the directory at `path`, in file-system order.
-    /// The whole listing at once, for callers that want to sort or
-    /// filter it rather than stream it.
     proc list(path: Str) returns Vec__Str
-    /// Close the underlying handle. Private: invoked only from `delete`,
-    /// which the garbager inserts after a Dir local's last use.
     func close(self: Dir)
-    /// Release the Dir: close the handle, then free the struct shell
-    /// unless the caller still owns it.
     func delete(own self: Dir, shallow call_free: Bool)
     func clone(self: Dir) returns Dir
     func size() returns shallow USize
 }
+#+end_src
+
+* Dir.open
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.Dir.open
+:group: Standard library
+:END:
+
+Start reading the directory at `path`. Exits with an error if it
+cannot be opened.
+
+#+begin_src til
+proc Dir.open(path: Str) returns Dir
+#+end_src
+
+* Dir.next
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.Dir.next
+:group: Standard library
+:END:
+
+The next entry's name (not its path), "" once every entry has
+been reported. "." and ".." are never returned. The order is
+whatever the file system gives -- sort if you need a stable one.
+
+#+begin_src til
+proc Dir.next(self: Dir) returns Str
+#+end_src
+
+* Dir.list
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.Dir.list
+:group: Standard library
+:END:
+
+Every entry in the directory at `path`, in file-system order.
+The whole listing at once, for callers that want to sort or
+filter it rather than stream it.
+
+#+begin_src til
+proc Dir.list(path: Str) returns Vec__Str
+#+end_src
+
+* Dir.close
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.Dir.close
+:group: Standard library
+:END:
+
+Close the underlying handle. Private: invoked only from `delete`,
+which the garbager inserts after a Dir local's last use.
+
+#+begin_src til
+func Dir.close(self: Dir)
+#+end_src
+
+* Dir.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.Dir.delete
+:group: Standard library
+:END:
+
+Release the Dir: close the handle, then free the struct shell
+unless the caller still owns it.
+
+#+begin_src til
+func Dir.delete(own self: Dir, shallow call_free: Bool)
 #+end_src

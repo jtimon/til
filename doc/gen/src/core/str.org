@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -72,128 +72,43 @@ struct Str {
     mut cap : USize
 namespace:
     func len(self: Str) returns shallow USize
-    /// Return a ref to byte `i`. Panics if `i` is out of bounds.
     func get(self: Str, i: USize) returns ref I8
-    /// Unchecked byte access -- caller must ensure i < self.len().
     func unsafe_get(self: Str, i: USize) returns ref I8
-    /// Lexicographic comparison. Returns 0 if equal, negative if a < b,
-    /// positive if a > b.
     func cmp(a: Str, b: Str) returns shallow I64
-    /// Equality with a length-mismatch early-out and a same-buffer
-    /// shortcut before the byte compare. Otherwise eq auto-derives from
-    /// cmp as `cmp(a,b) == 0`, which memcmps the common prefix even when
-    /// the lengths already differ; this rejects the common different-length
-    /// case (distinct identifiers) without touching the bytes, and
-    /// short-circuits interned / identical buffers.
     func eq(a: Str, b: Str) returns shallow Bool
-    /// Create an empty Str pre-allocated for up to `n` bytes.
     func with_capacity(shallow n: USize) returns Str
-    /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
-    /// The view borrows `s`; the caller keeps ownership of the buffer.
     func from_c_str(s: Dynamic) returns Str
-    /// Append `s` to `self`. Panics if `self` is a view/literal or if
-    /// capacity is exceeded.
     func push_str(mut self: Str, s: Str)
-    /// Deep-copy the string into a new owned Str.
     func clone(val: Str) returns Str
-    /// String representation of a Str: a fresh owned copy of itself. Lets
-    /// Str satisfy the same `T.to_str(x)` contract as the numeric types, so
-    /// generic code (e.g. assert_eq(Str, a, b)) works uniformly.
     func to_str(self: Str) returns Str
-    /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
-    /// static literal wrapper, so call_free does not free that wrapper either.
     func delete(own self: Str, shallow call_free: Bool)
-    /// Return a non-owning view of the WHOLE string -- `substr(0, len())`
-    /// without the bounds arithmetic. Allocates nothing: the result shares
-    /// `s`'s bytes and `delete` frees neither them (cap >= CAP_VIEW) nor,
-    /// for a view held inside a container, anything else it does not own.
-    /// 
-    /// Compiled, the view and its source share one buffer. The
-    /// INTERPRETER materialises a view when it binds one (as it does for
-    /// substr and from_c_str), so do not write code that depends on
-    /// pointer identity across both modes -- the saving is a compiled-mode
-    /// property; the value semantics below hold everywhere.
-    /// 
-    /// Use it where a copy would be paid for storage that provably dies
-    /// FIRST -- a lookup key, a set of names collected during one pass
-    /// over an AST that outlives it. Where the copy must outlive its
-    /// source, or the source is itself a view of something shorter-lived,
-    /// `clone` is still the answer: this borrows, it does not own.
-    /// 
-    /// #+begin_src til :doctest
-    /// s := "hello"
-    /// v := s.borrowed_view()
-    /// assert_eq(Str, v, "hello")
-    /// assert_eq(USize, v.len(), s.len())
-    /// #+end_src
     func borrowed_view(s: Str) returns Str
-    /// Return a view into `s` from `start` for `n` bytes (no allocation).
-    /// Clamps to valid bounds.
     func substr(s: Str, shallow start: USize, shallow n: USize) returns Str
-    /// Return a view of `s` with leading ASCII whitespace (space, tab,
-    /// newline, carriage return) removed. View-only -- no allocation.
     func trim_start(s: Str) returns Str
-    /// Return a view of `s` with leading and trailing ASCII whitespace
-    /// removed. View-only -- no allocation.
     func trim(s: Str) returns Str
-    /// True if `a` contains `b` as a substring.
     func contains(a: Str, b: Str) returns shallow Bool
-    /// True if `a` starts with prefix `b`.
     func starts_with(a: Str, b: Str) returns shallow Bool
-    /// True if `a` ends with suffix `b`.
     func ends_with(a: Str, b: Str) returns shallow Bool
-    /// True if the string has zero length.
     func is_empty(self: Str) returns shallow Bool
-    /// Return the byte index of the first occurrence of `needle`, or -1.
     func find(self: Str, needle: Str) returns shallow I64
-    /// Return the byte index of the last occurrence of `needle`, or -1.
     func rfind(self: Str, needle: Str) returns shallow I64
-    /// Return a new Str with all occurrences of `from` replaced by `to`.
     func replace(self: Str, from: Str, to: Str) returns Str
-    /// View of the single byte at index `i` as a Str.
     func get_char(self: Str, shallow i: USize) returns Str
-    /// Hash via the caller-supplied byte hasher, feeding it the
-    /// string CONTENT bytes (c_str + count). The default bytewise
-    /// fallback would hash the {c_str, count, cap} struct itself --
-    /// i.e. the heap pointer's address -- which is identity, not
-    /// equality. The container chooses the algorithm; this method
-    /// chooses the right bytes for a Str.
     func hash(self: Str, hasher: HashFn) returns shallow U64
-    /// If self starts with `prefix`, return the rest; otherwise clone.
     func strip_prefix(self: Str, prefix: Str) returns Str
-    /// If self ends with `suffix`, return the part before it; otherwise clone.
     func strip_suffix(self: Str, suffix: Str) returns Str
-    /// Create a 1-byte Str from a U8 value.
     func from_byte(shallow byte: U8) returns Str
-    /// Parse the string as a signed integer. Accepts an optional leading
-    /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
-    /// Bare digit runs are base-10. Panics on invalid input.
     func to_i64(self: Str) returns shallow I64
-    /// Parse as base-10 unsigned 8-bit integer.
     func to_u8(self: Str) returns shallow U8
-    /// Parse as base-10 signed 8-bit integer.
     func to_i8(self: Str) returns shallow I8
-    /// Parse as base-10 signed 16-bit integer.
     func to_i16(self: Str) returns shallow I16
-    /// Parse as base-10 unsigned 16-bit integer.
     func to_u16(self: Str) returns shallow U16
-    /// Parse as base-10 signed 32-bit integer.
     func to_i32(self: Str) returns shallow I32
-    /// Parse as base-10 unsigned 32-bit integer.
     func to_u32(self: Str) returns shallow U32
-    /// Parse as base-10 unsigned 64-bit integer.
     func to_u64(self: Str) returns shallow U64
-    /// Parse as base-10 USize (collection sizes/indices).
     func to_usize(self: Str) returns shallow USize
-    /// Parse as a floating-point number. Backed by C strtof: handles
-    /// decimal and scientific notation at full precision, so a value
-    /// printed by F32.to_repr round-trips exactly back to the same F32.
-    /// '_' digit separators (issue #255) are stripped first since strtof
-    /// does not accept them.
     func to_f32(self: Str) returns shallow F32
-    /// F64 twin of to_f32: faithful strtod parse, '_' separators stripped.
     func to_f64(self: Str) returns shallow F64
-    /// Split the string on `delim`, returning a Vec of Str clones.
     func split(self: Str, delim: Str) returns Vec__Str
     func size() returns shallow USize
     func lt(a: Str, b: Str) returns shallow Bool
@@ -202,6 +117,509 @@ namespace:
     func lte(a: Str, b: Str) returns shallow Bool
     func gte(a: Str, b: Str) returns shallow Bool
 }
+#+end_src
+
+* Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.get
+:group: Core
+:END:
+
+Return a ref to byte `i`. Panics if `i` is out of bounds.
+
+#+begin_src til
+func Str.get(self: Str, i: USize) returns ref I8
+#+end_src
+
+* Str.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.unsafe_get
+:group: Core
+:END:
+
+Unchecked byte access -- caller must ensure i < self.len().
+
+#+begin_src til
+func Str.unsafe_get(self: Str, i: USize) returns ref I8
+#+end_src
+
+* Str.cmp
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.cmp
+:group: Core
+:END:
+
+Lexicographic comparison. Returns 0 if equal, negative if a < b,
+positive if a > b.
+
+#+begin_src til
+func Str.cmp(a: Str, b: Str) returns shallow I64
+#+end_src
+
+* Str.eq
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.eq
+:group: Core
+:END:
+
+Equality with a length-mismatch early-out and a same-buffer
+shortcut before the byte compare. Otherwise eq auto-derives from
+cmp as `cmp(a,b) == 0`, which memcmps the common prefix even when
+the lengths already differ; this rejects the common different-length
+case (distinct identifiers) without touching the bytes, and
+short-circuits interned / identical buffers.
+
+#+begin_src til
+func Str.eq(a: Str, b: Str) returns shallow Bool
+#+end_src
+
+* Str.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.with_capacity
+:group: Core
+:END:
+
+Create an empty Str pre-allocated for up to `n` bytes.
+
+#+begin_src til
+func Str.with_capacity(shallow n: USize) returns Str
+#+end_src
+
+* Str.from_c_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.from_c_str
+:group: Core
+:END:
+
+Wrap a NUL-terminated C string as a non-owning Str view (no copy).
+The view borrows `s`; the caller keeps ownership of the buffer.
+
+#+begin_src til
+func Str.from_c_str(s: Dynamic) returns Str
+#+end_src
+
+* Str.push_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.push_str
+:group: Core
+:END:
+
+Append `s` to `self`. Panics if `self` is a view/literal or if
+capacity is exceeded.
+
+#+begin_src til
+func Str.push_str(mut self: Str, s: Str)
+#+end_src
+
+* Str.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.clone
+:group: Core
+:END:
+
+Deep-copy the string into a new owned Str.
+
+#+begin_src til
+func Str.clone(val: Str) returns Str
+#+end_src
+
+* Str.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_str
+:group: Core
+:END:
+
+String representation of a Str: a fresh owned copy of itself. Lets
+Str satisfy the same `T.to_str(x)` contract as the numeric types, so
+generic code (e.g. assert_eq(Str, a, b)) works uniformly.
+
+#+begin_src til
+func Str.to_str(self: Str) returns Str
+#+end_src
+
+* Str.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.delete
+:group: Core
+:END:
+
+Free the backing buffer unless it is borrowed/static. CAP_LIT names a
+static literal wrapper, so call_free does not free that wrapper either.
+
+#+begin_src til
+func Str.delete(own self: Str, shallow call_free: Bool)
+#+end_src
+
+* Str.borrowed_view
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.borrowed_view
+:group: Core
+:END:
+
+Return a non-owning view of the WHOLE string -- `substr(0, len())`
+without the bounds arithmetic. Allocates nothing: the result shares
+`s`'s bytes and `delete` frees neither them (cap >= CAP_VIEW) nor,
+for a view held inside a container, anything else it does not own.
+
+Compiled, the view and its source share one buffer. The
+INTERPRETER materialises a view when it binds one (as it does for
+substr and from_c_str), so do not write code that depends on
+pointer identity across both modes -- the saving is a compiled-mode
+property; the value semantics below hold everywhere.
+
+Use it where a copy would be paid for storage that provably dies
+FIRST -- a lookup key, a set of names collected during one pass
+over an AST that outlives it. Where the copy must outlive its
+source, or the source is itself a view of something shorter-lived,
+`clone` is still the answer: this borrows, it does not own.
+
+#+begin_src til :doctest
+s := "hello"
+v := s.borrowed_view()
+assert_eq(Str, v, "hello")
+assert_eq(USize, v.len(), s.len())
+#+end_src
+
+#+begin_src til
+func Str.borrowed_view(s: Str) returns Str
+#+end_src
+
+* Str.substr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.substr
+:group: Core
+:END:
+
+Return a view into `s` from `start` for `n` bytes (no allocation).
+Clamps to valid bounds.
+
+#+begin_src til
+func Str.substr(s: Str, shallow start: USize, shallow n: USize) returns Str
+#+end_src
+
+* Str.trim_start
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.trim_start
+:group: Core
+:END:
+
+Return a view of `s` with leading ASCII whitespace (space, tab,
+newline, carriage return) removed. View-only -- no allocation.
+
+#+begin_src til
+func Str.trim_start(s: Str) returns Str
+#+end_src
+
+* Str.trim
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.trim
+:group: Core
+:END:
+
+Return a view of `s` with leading and trailing ASCII whitespace
+removed. View-only -- no allocation.
+
+#+begin_src til
+func Str.trim(s: Str) returns Str
+#+end_src
+
+* Str.contains
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.contains
+:group: Core
+:END:
+
+True if `a` contains `b` as a substring.
+
+#+begin_src til
+func Str.contains(a: Str, b: Str) returns shallow Bool
+#+end_src
+
+* Str.starts_with
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.starts_with
+:group: Core
+:END:
+
+True if `a` starts with prefix `b`.
+
+#+begin_src til
+func Str.starts_with(a: Str, b: Str) returns shallow Bool
+#+end_src
+
+* Str.ends_with
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.ends_with
+:group: Core
+:END:
+
+True if `a` ends with suffix `b`.
+
+#+begin_src til
+func Str.ends_with(a: Str, b: Str) returns shallow Bool
+#+end_src
+
+* Str.is_empty
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.is_empty
+:group: Core
+:END:
+
+True if the string has zero length.
+
+#+begin_src til
+func Str.is_empty(self: Str) returns shallow Bool
+#+end_src
+
+* Str.find
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.find
+:group: Core
+:END:
+
+Return the byte index of the first occurrence of `needle`, or -1.
+
+#+begin_src til
+func Str.find(self: Str, needle: Str) returns shallow I64
+#+end_src
+
+* Str.rfind
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.rfind
+:group: Core
+:END:
+
+Return the byte index of the last occurrence of `needle`, or -1.
+
+#+begin_src til
+func Str.rfind(self: Str, needle: Str) returns shallow I64
+#+end_src
+
+* Str.replace
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.replace
+:group: Core
+:END:
+
+Return a new Str with all occurrences of `from` replaced by `to`.
+
+#+begin_src til
+func Str.replace(self: Str, from: Str, to: Str) returns Str
+#+end_src
+
+* Str.get_char
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.get_char
+:group: Core
+:END:
+
+View of the single byte at index `i` as a Str.
+
+#+begin_src til
+func Str.get_char(self: Str, shallow i: USize) returns Str
+#+end_src
+
+* Str.hash
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.hash
+:group: Core
+:END:
+
+Hash via the caller-supplied byte hasher, feeding it the
+string CONTENT bytes (c_str + count). The default bytewise
+fallback would hash the {c_str, count, cap} struct itself --
+i.e. the heap pointer's address -- which is identity, not
+equality. The container chooses the algorithm; this method
+chooses the right bytes for a Str.
+
+#+begin_src til
+func Str.hash(self: Str, hasher: HashFn) returns shallow U64
+#+end_src
+
+* Str.strip_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.strip_prefix
+:group: Core
+:END:
+
+If self starts with `prefix`, return the rest; otherwise clone.
+
+#+begin_src til
+func Str.strip_prefix(self: Str, prefix: Str) returns Str
+#+end_src
+
+* Str.strip_suffix
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.strip_suffix
+:group: Core
+:END:
+
+If self ends with `suffix`, return the part before it; otherwise clone.
+
+#+begin_src til
+func Str.strip_suffix(self: Str, suffix: Str) returns Str
+#+end_src
+
+* Str.from_byte
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.from_byte
+:group: Core
+:END:
+
+Create a 1-byte Str from a U8 value.
+
+#+begin_src til
+func Str.from_byte(shallow byte: U8) returns Str
+#+end_src
+
+* Str.to_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_i64
+:group: Core
+:END:
+
+Parse the string as a signed integer. Accepts an optional leading
+'-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
+Bare digit runs are base-10. Panics on invalid input.
+
+#+begin_src til
+func Str.to_i64(self: Str) returns shallow I64
+#+end_src
+
+* Str.to_u8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_u8
+:group: Core
+:END:
+
+Parse as base-10 unsigned 8-bit integer.
+
+#+begin_src til
+func Str.to_u8(self: Str) returns shallow U8
+#+end_src
+
+* Str.to_i8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_i8
+:group: Core
+:END:
+
+Parse as base-10 signed 8-bit integer.
+
+#+begin_src til
+func Str.to_i8(self: Str) returns shallow I8
+#+end_src
+
+* Str.to_i16
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_i16
+:group: Core
+:END:
+
+Parse as base-10 signed 16-bit integer.
+
+#+begin_src til
+func Str.to_i16(self: Str) returns shallow I16
+#+end_src
+
+* Str.to_u16
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_u16
+:group: Core
+:END:
+
+Parse as base-10 unsigned 16-bit integer.
+
+#+begin_src til
+func Str.to_u16(self: Str) returns shallow U16
+#+end_src
+
+* Str.to_i32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_i32
+:group: Core
+:END:
+
+Parse as base-10 signed 32-bit integer.
+
+#+begin_src til
+func Str.to_i32(self: Str) returns shallow I32
+#+end_src
+
+* Str.to_u32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_u32
+:group: Core
+:END:
+
+Parse as base-10 unsigned 32-bit integer.
+
+#+begin_src til
+func Str.to_u32(self: Str) returns shallow U32
+#+end_src
+
+* Str.to_u64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_u64
+:group: Core
+:END:
+
+Parse as base-10 unsigned 64-bit integer.
+
+#+begin_src til
+func Str.to_u64(self: Str) returns shallow U64
+#+end_src
+
+* Str.to_usize
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_usize
+:group: Core
+:END:
+
+Parse as base-10 USize (collection sizes/indices).
+
+#+begin_src til
+func Str.to_usize(self: Str) returns shallow USize
+#+end_src
+
+* Str.to_f32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_f32
+:group: Core
+:END:
+
+Parse as a floating-point number. Backed by C strtof: handles
+decimal and scientific notation at full precision, so a value
+printed by F32.to_repr round-trips exactly back to the same F32.
+'_' digit separators (issue #255) are stripped first since strtof
+does not accept them.
+
+#+begin_src til
+func Str.to_f32(self: Str) returns shallow F32
+#+end_src
+
+* Str.to_f64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.to_f64
+:group: Core
+:END:
+
+F64 twin of to_f32: faithful strtod parse, '_' separators stripped.
+
+#+begin_src til
+func Str.to_f64(self: Str) returns shallow F64
+#+end_src
+
+* Str.split
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.split
+:group: Core
+:END:
+
+Split the string on `delim`, returning a Vec of Str clones.
+
+#+begin_src til
+func Str.split(self: Str, delim: Str) returns Vec__Str
 #+end_src
 
 * join
@@ -320,37 +738,120 @@ struct Array__Str {
     own mut data : U8
     cap : USize
 namespace:
-    /// Create a zero-initialized Array with the given capacity.
     func new(shallow cap: USize) returns Array__Str
     func len(self: Array__Str) returns shallow USize
-    /// Unchecked element access: ref to the element at index `i` with
-    /// NO bounds check. The caller must prove `i < len()`. This is the
-    /// unchecked core that `get` wraps; for-in uses it directly because
-    /// its `_fi < len()` termination test already proves the index in
-    /// bounds (issue #284).
     func unsafe_get(self: Array__Str, i: USize) returns ref Str
-    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
-    /// past the end; call as `arr.get(i)!` to panic on a bad index.
     func get(self: Array__Str, i: USize, mut _err_kind: I64) returns ref Str
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.cap`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(self: Array__Str, shallow i: USize, own val: Str)
-    /// Overwrite the element at index `i`. Drops the old value. `val` is
-    /// owned. Throws OutOfBounds if `i` is past the end; call as
-    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    func set(self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
+    func unsafe_set(mut self: Array__Str, shallow i: USize, own val: Str)
+    func set(mut self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
     func delete(own self: Array__Str, shallow call_free: Bool)
-    /// #342: a fresh Array holding `self`'s elements followed by `other`'s.
-    /// Both sources keep theirs -- every element is cloned, exactly as
-    /// `clone` does -- so neither is moved out from under its owner. The
-    /// mixed-splat variadic lowering builds its collector with this: the
-    /// fixed arguments become one Array, the splatted Array is the other,
-    /// and the call is then the pure-splat form the desugar already handles.
     func concat(self: Array__Str, other: Array__Str) returns Array__Str
+    func to_vec(self: Array__Str) returns Vec__Str
     func clone(self: Array__Str) returns Array__Str
     func size() returns shallow USize
 }
+#+end_src
+
+* Array__Str.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str.new
+:group: Core
+:END:
+
+Create a zero-initialized Array with the given capacity.
+
+#+begin_src til
+func Array__Str.new(shallow cap: USize) returns Array__Str
+#+end_src
+
+* Array__Str.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str.unsafe_get
+:group: Core
+:END:
+
+Unchecked element access: ref to the element at index `i` with
+NO bounds check. The caller must prove `i < len()`. This is the
+unchecked core that `get` wraps; for-in uses it directly because
+its `_fi < len()` termination test already proves the index in
+bounds (issue #284).
+
+#+begin_src til
+func Array__Str.unsafe_get(self: Array__Str, i: USize) returns ref Str
+#+end_src
+
+* Array__Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str.get
+:group: Core
+:END:
+
+Ref to the element at index `i`. Throws OutOfBounds if `i` is
+past the end; call as `arr.get(i)!` to panic on a bad index.
+
+#+begin_src til
+func Array__Str.get(self: Array__Str, i: USize, mut _err_kind: I64) returns ref Str
+#+end_src
+
+* Array__Str.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str.unsafe_set
+:group: Core
+:END:
+
+Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i < self.cap`; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Array__Str.unsafe_set(mut self: Array__Str, shallow i: USize, own val: Str)
+#+end_src
+
+* Array__Str.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str.set
+:group: Core
+:END:
+
+Overwrite the element at index `i`. Drops the old value. `val` is
+owned. Throws OutOfBounds if `i` is past the end; call as
+`arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
+
+#+begin_src til
+func Array__Str.set(mut self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
+#+end_src
+
+* Array__Str.concat
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str.concat
+:group: Core
+:END:
+
+#342: a fresh Array holding `self`'s elements followed by `other`'s.
+Both sources keep theirs -- every element is cloned, exactly as
+`clone` does -- so neither is moved out from under its owner. The
+mixed-splat variadic lowering builds its collector with this: the
+fixed arguments become one Array, the splatted Array is the other,
+and the call is then the pure-splat form the desugar already handles.
+
+#+begin_src til
+func Array__Str.concat(self: Array__Str, other: Array__Str) returns Array__Str
+#+end_src
+
+* Array__Str.to_vec
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str.to_vec
+:group: Core
+:END:
+
+#342: a fresh Vec holding a clone of every element, `self` intact.
+The `vec(T, x, ..arr)` lowering ends here: a splat's length is a
+runtime value, so the literal's block is folded into one Array with
+`concat` and converted, instead of the desugar hand-building a push
+loop whose nodes no later pass would infer.
+
+#+begin_src til
+func Array__Str.to_vec(self: Array__Str) returns Vec__Str
 #+end_src
 
 * Vec__Str
@@ -365,104 +866,324 @@ struct Vec__Str {
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__Str
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0->1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__Str
     func len(self: Vec__Str) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
     func clear(mut self: Vec__Str)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
     func delete_marked(mut self: Vec__Str, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec__Str, own val: Str)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__Str, own other: Vec__Str)
-    /// Take the contents out: the returned Vec owns self's buffer and
-    /// self is left lazy-empty. No element is copied or cloned.
-    /// 
-    /// This is how a struct FIELD hands its contents over
-    /// (`mut old := body.children.take()`): a field cannot be an `own`
-    /// argument or receiver, because the callee would then free the
-    /// ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
-    /// pointer" compiling itself. Everything the caller can give away
-    /// uses the two move forms below instead.
     func take(mut self: Vec__Str) returns Vec__Str
-    /// Give self's contents to `dest`, which drops whatever it held.
-    /// SELF is consumed, so the receiver is the owned one and the call
-    /// spells the type out: `Vec(T).move_to(own src, dest)`.
-    /// 
-    /// The three fields move as BYTES on purpose: `dest.data =
-    /// self.data` drops dest's old pointer (right) and then
-    /// `self.data = 0` drops the pointer dest just adopted -- a double
-    /// free, which is what the emitted C does with field assignment.
-    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
-    /// a later push on it allocates afresh instead of reallocating a
-    /// buffer that now belongs to someone else.
     func move_to(own self: Vec__Str, mut dest: Vec__Str)
-    /// Take `other`'s contents, dropping whatever self held. OTHER is
-    /// consumed -- it is the value being emptied, so it is the owned
-    /// argument: `dest.move_from(own src)`.
     func move_from(mut self: Vec__Str, own other: Vec__Str)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i < len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi < len()` termination test already
-    /// proves the index in bounds (issue #284).
     func unsafe_get(self: Vec__Str, i: USize) returns ref Str
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
     func get(self: Vec__Str, i: USize, mut _err_kind: I64) returns ref Str
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
     func pop(mut self: Vec__Str) returns Str
-    /// Remove and drop the element at `i`, shifting later elements left.
     func remove_at(mut self: Vec__Str, shallow i: USize, mut _err_kind: I64)
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Str, shallow n: USize) returns Vec__Str
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
     func truncate(mut self: Vec__Str, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
     func unsafe_set(mut self: Vec__Str, shallow i: USize, own val: Str)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
     func set(mut self: Vec__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
     func push_take(mut self: Vec__Str, mut src: Vec__Str, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
     func delete(own self: Vec__Str, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Str) returns Vec__Str
     func size() returns shallow USize
 }
+#+end_src
+
+* Vec__Str.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.new
+:group: Core
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__Str.new() returns Vec__Str
+#+end_src
+
+* Vec__Str.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.with_capacity
+:group: Core
+:END:
+
+Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+`new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__Str.with_capacity(shallow n: USize) returns Vec__Str
+#+end_src
+
+* Vec__Str.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.clear
+:group: Core
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__Str.clear(mut self: Vec__Str)
+#+end_src
+
+* Vec__Str.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.delete_marked
+:group: Core
+:END:
+
+Drop the elements flagged in `marks` (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__Str.delete_marked(mut self: Vec__Str, marks: Dynamic)
+#+end_src
+
+* Vec__Str.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.push
+:group: Core
+:END:
+
+Append an element to the end. `val` is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__Str.push(mut self: Vec__Str, own val: Str)
+#+end_src
+
+* Vec__Str.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.append
+:group: Core
+:END:
+
+Consume the contents of `other` by appending them to `self`.
+`other` is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__Str.append(mut self: Vec__Str, own other: Vec__Str)
+#+end_src
+
+* Vec__Str.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.take
+:group: Core
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(`mut old := body.children.take()`): a field cannot be an `own`
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__Str.take(mut self: Vec__Str) returns Vec__Str
+#+end_src
+
+* Vec__Str.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.move_to
+:group: Core
+:END:
+
+Give self's contents to `dest`, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: `Vec(T).move_to(own src, dest)`.
+
+The three fields move as BYTES on purpose: `dest.data =
+self.data` drops dest's old pointer (right) and then
+`self.data = 0` drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__Str.move_to(own self: Vec__Str, mut dest: Vec__Str)
+#+end_src
+
+* Vec__Str.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.move_from
+:group: Core
+:END:
+
+Take `other`'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: `dest.move_from(own src)`.
+
+#+begin_src til
+func Vec__Str.move_from(mut self: Vec__Str, own other: Vec__Str)
+#+end_src
+
+* Vec__Str.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.unsafe_get
+:group: Core
+:END:
+
+Unchecked element access: return a reference to the element at
+index `i` with NO bounds check. The caller must prove `i < len()`.
+This is the unchecked core that `get` wraps; for-in uses it
+directly because its `_fi < len()` termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__Str.unsafe_get(self: Vec__Str, i: USize) returns ref Str
+#+end_src
+
+* Vec__Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.get
+:group: Core
+:END:
+
+Return a reference to the element at index `i`. Throws
+OutOfBounds if `i` is past the end; call as `vec[i]`
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__Str.get(self: Vec__Str, i: USize, mut _err_kind: I64) returns ref Str
+#+end_src
+
+* Vec__Str.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.pop
+:group: Core
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__Str.pop(mut self: Vec__Str) returns Str
+#+end_src
+
+* Vec__Str.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.remove_at
+:group: Core
+:END:
+
+Remove and drop the element at `i`, shifting later elements left.
+
+#+begin_src til
+func Vec__Str.remove_at(mut self: Vec__Str, shallow i: USize, mut _err_kind: I64)
+#+end_src
+
+* Vec__Str.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.take_prefix
+:group: Core
+:END:
+
+Split off the first `n` elements into a new Vec. Panics if `n`
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__Str.take_prefix(mut self: Vec__Str, shallow n: USize) returns Vec__Str
+#+end_src
+
+* Vec__Str.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.truncate
+:group: Core
+:END:
+
+Drop the elements from index `n` to the end, freeing each via
+elem_delete, and set count to `n` (the survivors [0, n) are left
+untouched). Panics if `n` exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__Str.truncate(mut self: Vec__Str, shallow n: USize)
+#+end_src
+
+* Vec__Str.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.unsafe_set
+:group: Core
+:END:
+
+Overwrite the element at index `i` without a bounds check, dropping
+the old value. Caller guarantees `i < self.count`; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__Str.unsafe_set(mut self: Vec__Str, shallow i: USize, own val: Str)
+#+end_src
+
+* Vec__Str.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.set
+:group: Core
+:END:
+
+Overwrite the element at index `i`. `val` is owned. Throws
+OutOfBounds if `i` is past the end; call as `vec[i] = val`
+(or `vec.set(i, own val)!`) to panic on a bad index.
+
+#+begin_src til
+func Vec__Str.set(mut self: Vec__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
+#+end_src
+
+* Vec__Str.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.push_take
+:group: Core
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__Str.push_take(mut self: Vec__Str, mut src: Vec__Str, shallow i: USize)
+#+end_src
+
+* Vec__Str.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.delete
+:group: Core
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless `call_free` is false.
+
+#+begin_src til
+func Vec__Str.delete(own self: Vec__Str, shallow call_free: Bool)
+#+end_src
+
+* Vec__Str.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str.clone
+:group: Core
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__Str.clone(self: Vec__Str) returns Vec__Str
 #+end_src
 
 * adopt__Str

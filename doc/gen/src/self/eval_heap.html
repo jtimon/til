@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -86,103 +86,103 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.eval_heap.word_bits">
 <h2>word_bits</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func word_bits(w: Dynamic) returns shallow U64
+<pre><code class="language-til">ext_func (w: Dynamic) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.bits_word">
 <h2>bits_word</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func bits_word(shallow b: U64) returns shallow Dynamic
+<pre><code class="language-til">ext_func (shallow b: U64) returns shallow Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f32_word">
 <h2>f32_word</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f32_word(shallow f: F32) returns shallow U64
+<pre><code class="language-til">ext_func (shallow f: F32) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.word_f32">
 <h2>word_f32</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func word_f32(shallow b: U64) returns shallow F32
+<pre><code class="language-til">ext_func (shallow b: U64) returns shallow F32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_add">
 <h2>f64_bits_add</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_add(shallow a: U64, shallow b: U64) returns shallow U64
+<pre><code class="language-til">ext_func (shallow a: U64, shallow b: U64) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_sub">
 <h2>f64_bits_sub</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_sub(shallow a: U64, shallow b: U64) returns shallow U64
+<pre><code class="language-til">ext_func (shallow a: U64, shallow b: U64) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_mul">
 <h2>f64_bits_mul</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_mul(shallow a: U64, shallow b: U64) returns shallow U64
+<pre><code class="language-til">ext_func (shallow a: U64, shallow b: U64) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_div">
 <h2>f64_bits_div</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_div(shallow a: U64, shallow b: U64) returns shallow U64
+<pre><code class="language-til">ext_func (shallow a: U64, shallow b: U64) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_cmp">
 <h2>f64_bits_cmp</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_cmp(shallow a: U64, shallow b: U64) returns shallow I64
+<pre><code class="language-til">ext_func (shallow a: U64, shallow b: U64) returns shallow I64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.str_parse_f64_bits">
 <h2>str_parse_f64_bits</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func str_parse_f64_bits(s: Str) returns shallow U64
+<pre><code class="language-til">ext_func (s: Str) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_to_str">
 <h2>f64_bits_to_str</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_to_str(shallow b: U64) returns Str
+<pre><code class="language-til">ext_func (shallow b: U64) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_to_repr">
 <h2>f64_bits_to_repr</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_to_repr(shallow b: U64) returns Str
+<pre><code class="language-til">ext_func (shallow b: U64) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.f64_bits_from_i64">
 <h2>f64_bits_from_i64</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func f64_bits_from_i64(shallow v: I64) returns shallow U64
+<pre><code class="language-til">ext_func (shallow v: I64) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.word_drop">
 <h2>word_drop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func word_drop(own w: Dynamic)
+<pre><code class="language-til">ext_func (own w: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.dispatch_scratch_base">
 <h2>dispatch_scratch_base</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func dispatch_scratch_base() returns shallow Dynamic
+<pre><code class="language-til">ext_func () returns shallow Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.word_ring_base">
 <h2>word_ring_base</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func word_ring_base() returns shallow Dynamic
+<pre><code class="language-til">ext_func () returns shallow Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.EvalHeap">
 <h2>EvalHeap</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct EvalHeap {
+<pre><code class="language-til">struct {
     mut unused : U8
 namespace:
     func new() returns shallow EvalHeap

@@ -1,5 +1,5 @@
 #+TITLE: src/core/numbers.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * U8
@@ -17,7 +17,6 @@ namespace:
     ext_func to_i32(shallow val: U8) returns shallow I32
     ext_func to_usize(shallow val: U8) returns shallow USize
     ext_func to_f32(shallow val: U8) returns shallow F32
-    /// Convert to decimal string representation.
     func to_str(shallow val: U8) returns Str
     core_func add(shallow a: U8, shallow b: U8) returns shallow U8
     core_func sub(shallow a: U8, shallow b: U8) returns shallow U8
@@ -26,7 +25,6 @@ namespace:
     core_func mod(shallow a: U8, shallow b: U8) returns shallow U8
     core_func inc(mut self: U8)
     core_func dec(mut self: U8)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U8) returns shallow U8
     core_func eq(shallow a: U8, shallow b: U8) returns shallow Bool
     core_func neq(shallow a: U8, shallow b: U8) returns shallow Bool
@@ -42,25 +40,115 @@ namespace:
     core_func shl(shallow a: U8, shallow b: U8) returns shallow U8
     core_func shr(shallow a: U8, shallow b: U8) returns shallow U8
     ext_func clone(val: U8) returns shallow U8
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U8, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U8.add for the wrapping variant.
     func safe_add(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U8.sub for the wrapping variant.
     func safe_sub(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U8.mul for the wrapping variant.
     func safe_mul(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
-    /// Minimum representable value.
     MIN : U8
-    /// Maximum representable value.
     MAX : U8
     func hash(shallow self: U8, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* U8.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.to_str
+:group: Core
+:END:
+
+Convert to decimal string representation.
+
+#+begin_src til
+func U8.to_str(shallow val: U8) returns Str
+#+end_src
+
+* U8.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func U8.unity(shallow _self: U8) returns shallow U8
+#+end_src
+
+* U8.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func U8.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* U8.safe_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.safe_add
+:group: Core
+:END:
+
+Addition that throws IntegerOverflow on unsigned wrap.
+Use U8.add for the wrapping variant.
+
+#+begin_src til
+func U8.safe_add(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+#+end_src
+
+* U8.safe_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.safe_sub
+:group: Core
+:END:
+
+Subtraction that throws IntegerOverflow when a < b (underflow
+wraps unsigned). Use U8.sub for the wrapping variant.
+
+#+begin_src til
+func U8.safe_sub(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+#+end_src
+
+* U8.safe_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.safe_mul
+:group: Core
+:END:
+
+Multiplication that throws IntegerOverflow on unsigned wrap.
+Use U8.mul for the wrapping variant.
+
+#+begin_src til
+func U8.safe_mul(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+#+end_src
+
+* U8.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member U8.MIN : U8
+#+end_src
+
+* U8.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member U8.MAX : U8
 #+end_src
 
 * U16
@@ -76,7 +164,6 @@ struct U16 {
 namespace:
     ext_func to_i64(shallow val: U16) returns shallow I64
     ext_func to_f32(shallow val: U16) returns shallow F32
-    /// Convert to decimal string representation.
     func to_str(shallow val: U16) returns Str
     core_func add(shallow a: U16, shallow b: U16) returns shallow U16
     core_func sub(shallow a: U16, shallow b: U16) returns shallow U16
@@ -85,7 +172,6 @@ namespace:
     core_func mod(shallow a: U16, shallow b: U16) returns shallow U16
     core_func inc(mut self: U16)
     core_func dec(mut self: U16)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U16) returns shallow U16
     core_func eq(shallow a: U16, shallow b: U16) returns shallow Bool
     core_func neq(shallow a: U16, shallow b: U16) returns shallow Bool
@@ -98,25 +184,115 @@ namespace:
     core_func bor(shallow a: U16, shallow b: U16) returns shallow U16
     core_func bxor(shallow a: U16, shallow b: U16) returns shallow U16
     ext_func clone(val: U16) returns shallow U16
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U16, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U16.add for the wrapping variant.
     func safe_add(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U16.sub for the wrapping variant.
     func safe_sub(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U16.mul for the wrapping variant.
     func safe_mul(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
-    /// Minimum representable value.
     MIN : U16
-    /// Maximum representable value.
     MAX : U16
     func hash(shallow self: U16, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* U16.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.to_str
+:group: Core
+:END:
+
+Convert to decimal string representation.
+
+#+begin_src til
+func U16.to_str(shallow val: U16) returns Str
+#+end_src
+
+* U16.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func U16.unity(shallow _self: U16) returns shallow U16
+#+end_src
+
+* U16.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func U16.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* U16.safe_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.safe_add
+:group: Core
+:END:
+
+Addition that throws IntegerOverflow on unsigned wrap.
+Use U16.add for the wrapping variant.
+
+#+begin_src til
+func U16.safe_add(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+#+end_src
+
+* U16.safe_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.safe_sub
+:group: Core
+:END:
+
+Subtraction that throws IntegerOverflow when a < b (underflow
+wraps unsigned). Use U16.sub for the wrapping variant.
+
+#+begin_src til
+func U16.safe_sub(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+#+end_src
+
+* U16.safe_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.safe_mul
+:group: Core
+:END:
+
+Multiplication that throws IntegerOverflow on unsigned wrap.
+Use U16.mul for the wrapping variant.
+
+#+begin_src til
+func U16.safe_mul(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+#+end_src
+
+* U16.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member U16.MIN : U16
+#+end_src
+
+* U16.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member U16.MAX : U16
 #+end_src
 
 * U32
@@ -135,7 +311,6 @@ namespace:
     ext_func to_u32(shallow val: U32) returns shallow U32
     ext_func to_u64(shallow val: U32) returns shallow U64
     ext_func to_f32(shallow val: U32) returns shallow F32
-    /// Convert to decimal string representation.
     func to_str(shallow val: U32) returns Str
     core_func add(shallow a: U32, shallow b: U32) returns shallow U32
     core_func sub(shallow a: U32, shallow b: U32) returns shallow U32
@@ -144,7 +319,6 @@ namespace:
     core_func mod(shallow a: U32, shallow b: U32) returns shallow U32
     core_func inc(mut self: U32)
     core_func dec(mut self: U32)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U32) returns shallow U32
     core_func eq(shallow a: U32, shallow b: U32) returns shallow Bool
     core_func neq(shallow a: U32, shallow b: U32) returns shallow Bool
@@ -160,25 +334,115 @@ namespace:
     core_func shl(shallow a: U32, shallow b: U32) returns shallow U32
     core_func shr(shallow a: U32, shallow b: U32) returns shallow U32
     ext_func clone(val: U32) returns shallow U32
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U32, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U32.add for the wrapping variant.
     func safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U32.sub for the wrapping variant.
     func safe_sub(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U32.mul for the wrapping variant.
     func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
-    /// Minimum representable value.
     MIN : U32
-    /// Maximum representable value.
     MAX : U32
     func hash(shallow self: U32, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* U32.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.to_str
+:group: Core
+:END:
+
+Convert to decimal string representation.
+
+#+begin_src til
+func U32.to_str(shallow val: U32) returns Str
+#+end_src
+
+* U32.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func U32.unity(shallow _self: U32) returns shallow U32
+#+end_src
+
+* U32.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func U32.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* U32.safe_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.safe_add
+:group: Core
+:END:
+
+Addition that throws IntegerOverflow on unsigned wrap.
+Use U32.add for the wrapping variant.
+
+#+begin_src til
+func U32.safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+#+end_src
+
+* U32.safe_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.safe_sub
+:group: Core
+:END:
+
+Subtraction that throws IntegerOverflow when a < b (underflow
+wraps unsigned). Use U32.sub for the wrapping variant.
+
+#+begin_src til
+func U32.safe_sub(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+#+end_src
+
+* U32.safe_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.safe_mul
+:group: Core
+:END:
+
+Multiplication that throws IntegerOverflow on unsigned wrap.
+Use U32.mul for the wrapping variant.
+
+#+begin_src til
+func U32.safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+#+end_src
+
+* U32.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member U32.MIN : U32
+#+end_src
+
+* U32.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member U32.MAX : U32
 #+end_src
 
 * U64
@@ -199,7 +463,6 @@ namespace:
     ext_func to_usize(shallow val: U64) returns shallow USize
     ext_func to_f32(shallow val: U64) returns shallow F32
     ext_func to_f64(shallow val: U64) returns shallow F64
-    /// Convert to decimal string representation.
     func to_str(shallow val: U64) returns Str
     core_func add(shallow a: U64, shallow b: U64) returns shallow U64
     core_func sub(shallow a: U64, shallow b: U64) returns shallow U64
@@ -208,7 +471,6 @@ namespace:
     core_func mod(shallow a: U64, shallow b: U64) returns shallow U64
     core_func inc(mut self: U64)
     core_func dec(mut self: U64)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U64) returns shallow U64
     core_func eq(shallow a: U64, shallow b: U64) returns shallow Bool
     core_func neq(shallow a: U64, shallow b: U64) returns shallow Bool
@@ -224,25 +486,115 @@ namespace:
     core_func shl(shallow a: U64, shallow b: U64) returns shallow U64
     core_func shr(shallow a: U64, shallow b: U64) returns shallow U64
     ext_func clone(val: U64) returns shallow U64
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U64, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U64.add for the wrapping variant.
     func safe_add(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U64.sub for the wrapping variant.
     func safe_sub(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U64.mul for the wrapping variant.
     func safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
-    /// Minimum representable value.
     MIN : U64
-    /// Maximum representable value.
     MAX : U64
     func hash(shallow self: U64, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* U64.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.to_str
+:group: Core
+:END:
+
+Convert to decimal string representation.
+
+#+begin_src til
+func U64.to_str(shallow val: U64) returns Str
+#+end_src
+
+* U64.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func U64.unity(shallow _self: U64) returns shallow U64
+#+end_src
+
+* U64.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func U64.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* U64.safe_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.safe_add
+:group: Core
+:END:
+
+Addition that throws IntegerOverflow on unsigned wrap.
+Use U64.add for the wrapping variant.
+
+#+begin_src til
+func U64.safe_add(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+#+end_src
+
+* U64.safe_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.safe_sub
+:group: Core
+:END:
+
+Subtraction that throws IntegerOverflow when a < b (underflow
+wraps unsigned). Use U64.sub for the wrapping variant.
+
+#+begin_src til
+func U64.safe_sub(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+#+end_src
+
+* U64.safe_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.safe_mul
+:group: Core
+:END:
+
+Multiplication that throws IntegerOverflow on unsigned wrap.
+Use U64.mul for the wrapping variant.
+
+#+begin_src til
+func U64.safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+#+end_src
+
+* U64.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member U64.MIN : U64
+#+end_src
+
+* U64.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member U64.MAX : U64
 #+end_src
 
 * I8
@@ -257,7 +609,6 @@ Signed 8-bit integer.
 struct I8 {
 namespace:
     ext_func to_u64(shallow val: I8) returns shallow U64
-    /// Convert to decimal string representation.
     func to_str(shallow val: I8) returns Str
     core_func add(shallow a: I8, shallow b: I8) returns shallow I8
     core_func sub(shallow a: I8, shallow b: I8) returns shallow I8
@@ -266,7 +617,6 @@ namespace:
     core_func mod(shallow a: I8, shallow b: I8) returns shallow I8
     core_func inc(mut self: I8)
     core_func dec(mut self: I8)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I8) returns shallow I8
     core_func eq(shallow a: I8, shallow b: I8) returns shallow Bool
     core_func neq(shallow a: I8, shallow b: I8) returns shallow Bool
@@ -275,9 +625,7 @@ namespace:
     core_func lte(shallow a: I8, shallow b: I8) returns shallow Bool
     core_func gte(shallow a: I8, shallow b: I8) returns shallow Bool
     ext_func cmp(shallow a: I8, shallow b: I8) returns shallow I64
-    /// Negate the value.
     func neg(shallow a: I8) returns shallow I8
-    /// Absolute value.
     func abs(shallow a: I8) returns shallow I8
     core_func band(shallow a: I8, shallow b: I8) returns shallow I8
     core_func bor(shallow a: I8, shallow b: I8) returns shallow I8
@@ -286,16 +634,97 @@ namespace:
     core_func shl(shallow a: I8, shallow b: I8) returns shallow I8
     core_func shr(shallow a: I8, shallow b: I8) returns shallow I8
     ext_func clone(val: I8) returns shallow I8
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I8, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Minimum representable value.
     MIN : I8
-    /// Maximum representable value.
     MAX : I8
     func hash(shallow self: I8, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* I8.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8.to_str
+:group: Core
+:END:
+
+Convert to decimal string representation.
+
+#+begin_src til
+func I8.to_str(shallow val: I8) returns Str
+#+end_src
+
+* I8.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func I8.unity(shallow _self: I8) returns shallow I8
+#+end_src
+
+* I8.neg
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8.neg
+:group: Core
+:END:
+
+Negate the value.
+
+#+begin_src til
+func I8.neg(shallow a: I8) returns shallow I8
+#+end_src
+
+* I8.abs
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8.abs
+:group: Core
+:END:
+
+Absolute value.
+
+#+begin_src til
+func I8.abs(shallow a: I8) returns shallow I8
+#+end_src
+
+* I8.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func I8.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* I8.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member I8.MIN : I8
+#+end_src
+
+* I8.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member I8.MAX : I8
 #+end_src
 
 * I16
@@ -312,7 +741,6 @@ namespace:
     ext_func to_u64(shallow val: I16) returns shallow U64
     ext_func to_u32(shallow val: I16) returns shallow U32
     ext_func to_f32(shallow val: I16) returns shallow F32
-    /// Convert to decimal string representation.
     func to_str(shallow val: I16) returns Str
     core_func add(shallow a: I16, shallow b: I16) returns shallow I16
     core_func sub(shallow a: I16, shallow b: I16) returns shallow I16
@@ -321,7 +749,6 @@ namespace:
     core_func mod(shallow a: I16, shallow b: I16) returns shallow I16
     core_func inc(mut self: I16)
     core_func dec(mut self: I16)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I16) returns shallow I16
     core_func eq(shallow a: I16, shallow b: I16) returns shallow Bool
     core_func neq(shallow a: I16, shallow b: I16) returns shallow Bool
@@ -330,33 +757,145 @@ namespace:
     core_func lte(shallow a: I16, shallow b: I16) returns shallow Bool
     core_func gte(shallow a: I16, shallow b: I16) returns shallow Bool
     ext_func cmp(shallow a: I16, shallow b: I16) returns shallow I64
-    /// Negate the value.
     func neg(shallow a: I16) returns shallow I16
-    /// Absolute value.
     func abs(shallow a: I16) returns shallow I16
     core_func band(shallow a: I16, shallow b: I16) returns shallow I16
     core_func bor(shallow a: I16, shallow b: I16) returns shallow I16
     core_func bxor(shallow a: I16, shallow b: I16) returns shallow I16
     ext_func clone(val: I16) returns shallow I16
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I16, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Addition that throws IntegerOverflow on signed wrap.
-    /// Use I16.add for the wrapping variant.
     func safe_add(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
-    /// Subtraction that throws IntegerOverflow on signed wrap.
-    /// Use I16.sub for the wrapping variant.
     func safe_sub(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
-    /// Multiplication that throws IntegerOverflow on signed wrap.
-    /// Use I16.mul for the wrapping variant.
     func safe_mul(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
-    /// Minimum representable value.
     MIN : I16
-    /// Maximum representable value.
     MAX : I16
     func hash(shallow self: I16, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* I16.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.to_str
+:group: Core
+:END:
+
+Convert to decimal string representation.
+
+#+begin_src til
+func I16.to_str(shallow val: I16) returns Str
+#+end_src
+
+* I16.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func I16.unity(shallow _self: I16) returns shallow I16
+#+end_src
+
+* I16.neg
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.neg
+:group: Core
+:END:
+
+Negate the value.
+
+#+begin_src til
+func I16.neg(shallow a: I16) returns shallow I16
+#+end_src
+
+* I16.abs
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.abs
+:group: Core
+:END:
+
+Absolute value.
+
+#+begin_src til
+func I16.abs(shallow a: I16) returns shallow I16
+#+end_src
+
+* I16.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func I16.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* I16.safe_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.safe_add
+:group: Core
+:END:
+
+Addition that throws IntegerOverflow on signed wrap.
+Use I16.add for the wrapping variant.
+
+#+begin_src til
+func I16.safe_add(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+#+end_src
+
+* I16.safe_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.safe_sub
+:group: Core
+:END:
+
+Subtraction that throws IntegerOverflow on signed wrap.
+Use I16.sub for the wrapping variant.
+
+#+begin_src til
+func I16.safe_sub(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+#+end_src
+
+* I16.safe_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.safe_mul
+:group: Core
+:END:
+
+Multiplication that throws IntegerOverflow on signed wrap.
+Use I16.mul for the wrapping variant.
+
+#+begin_src til
+func I16.safe_mul(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+#+end_src
+
+* I16.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member I16.MIN : I16
+#+end_src
+
+* I16.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member I16.MAX : I16
 #+end_src
 
 * I32
@@ -373,7 +912,6 @@ namespace:
     ext_func to_u64(shallow val: I32) returns shallow U64
     ext_func to_usize(shallow val: I32) returns shallow USize
     ext_func to_f32(shallow val: I32) returns shallow F32
-    /// Convert to decimal string representation.
     func to_str(shallow val: I32) returns Str
     core_func add(shallow a: I32, shallow b: I32) returns shallow I32
     core_func sub(shallow a: I32, shallow b: I32) returns shallow I32
@@ -382,7 +920,6 @@ namespace:
     core_func mod(shallow a: I32, shallow b: I32) returns shallow I32
     core_func inc(mut self: I32)
     core_func dec(mut self: I32)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I32) returns shallow I32
     core_func eq(shallow a: I32, shallow b: I32) returns shallow Bool
     core_func neq(shallow a: I32, shallow b: I32) returns shallow Bool
@@ -391,9 +928,7 @@ namespace:
     core_func lte(shallow a: I32, shallow b: I32) returns shallow Bool
     core_func gte(shallow a: I32, shallow b: I32) returns shallow Bool
     ext_func cmp(shallow a: I32, shallow b: I32) returns shallow I64
-    /// Negate the value.
     func neg(shallow a: I32) returns shallow I32
-    /// Absolute value.
     func abs(shallow a: I32) returns shallow I32
     core_func band(shallow a: I32, shallow b: I32) returns shallow I32
     core_func bor(shallow a: I32, shallow b: I32) returns shallow I32
@@ -402,25 +937,139 @@ namespace:
     core_func shl(shallow a: I32, shallow b: I32) returns shallow I32
     core_func shr(shallow a: I32, shallow b: I32) returns shallow I32
     ext_func clone(val: I32) returns shallow I32
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I32, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Addition that throws IntegerOverflow on signed wrap.
-    /// Use I32.add for the wrapping variant.
     func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
-    /// Subtraction that throws IntegerOverflow on signed wrap.
-    /// Use I32.sub for the wrapping variant.
     func safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
-    /// Multiplication that throws IntegerOverflow on signed wrap.
-    /// Use I32.mul for the wrapping variant.
     func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
-    /// Minimum representable value.
     MIN : I32
-    /// Maximum representable value.
     MAX : I32
     func hash(shallow self: I32, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* I32.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.to_str
+:group: Core
+:END:
+
+Convert to decimal string representation.
+
+#+begin_src til
+func I32.to_str(shallow val: I32) returns Str
+#+end_src
+
+* I32.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func I32.unity(shallow _self: I32) returns shallow I32
+#+end_src
+
+* I32.neg
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.neg
+:group: Core
+:END:
+
+Negate the value.
+
+#+begin_src til
+func I32.neg(shallow a: I32) returns shallow I32
+#+end_src
+
+* I32.abs
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.abs
+:group: Core
+:END:
+
+Absolute value.
+
+#+begin_src til
+func I32.abs(shallow a: I32) returns shallow I32
+#+end_src
+
+* I32.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func I32.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* I32.safe_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.safe_add
+:group: Core
+:END:
+
+Addition that throws IntegerOverflow on signed wrap.
+Use I32.add for the wrapping variant.
+
+#+begin_src til
+func I32.safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+#+end_src
+
+* I32.safe_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.safe_sub
+:group: Core
+:END:
+
+Subtraction that throws IntegerOverflow on signed wrap.
+Use I32.sub for the wrapping variant.
+
+#+begin_src til
+func I32.safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+#+end_src
+
+* I32.safe_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.safe_mul
+:group: Core
+:END:
+
+Multiplication that throws IntegerOverflow on signed wrap.
+Use I32.mul for the wrapping variant.
+
+#+begin_src til
+func I32.safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+#+end_src
+
+* I32.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member I32.MIN : I32
+#+end_src
+
+* I32.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member I32.MAX : I32
 #+end_src
 
 * I64
@@ -441,9 +1090,6 @@ namespace:
     ext_func to_u16(shallow val: I64) returns shallow U16
     ext_func to_i32(shallow val: I64) returns shallow I32
     ext_func to_u32(shallow val: I64) returns shallow U32
-    /// Convert to USize (target-width unsigned integer). Backed by the
-    /// C-level cast (USize)val so it tracks ext.h's USize typedef once it
-    /// becomes target-driven on 64-bit; see issue #192.
     ext_func to_usize(shallow val: I64) returns shallow USize
     ext_func to_f32(shallow val: I64) returns shallow F32
     ext_func to_f64(shallow val: I64) returns shallow F64
@@ -454,7 +1100,6 @@ namespace:
     core_func mod(shallow a: I64, shallow b: I64) returns shallow I64
     core_func inc(mut self: I64)
     core_func dec(mut self: I64)
-    /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I64) returns shallow I64
     core_func eq(shallow a: I64, shallow b: I64) returns shallow Bool
     core_func neq(shallow a: I64, shallow b: I64) returns shallow Bool
@@ -463,9 +1108,7 @@ namespace:
     core_func lte(shallow a: I64, shallow b: I64) returns shallow Bool
     core_func gte(shallow a: I64, shallow b: I64) returns shallow Bool
     ext_func cmp(shallow a: I64, shallow b: I64) returns shallow I64
-    /// Negate the value.
     func neg(shallow a: I64) returns shallow I64
-    /// Absolute value.
     func abs(shallow a: I64) returns shallow I64
     core_func band(shallow a: I64, shallow b: I64) returns shallow I64
     core_func bor(shallow a: I64, shallow b: I64) returns shallow I64
@@ -474,28 +1117,155 @@ namespace:
     core_func shl(shallow a: I64, shallow b: I64) returns shallow I64
     core_func shr(shallow a: I64, shallow b: I64) returns shallow I64
     ext_func clone(val: I64) returns shallow I64
-    /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I64, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Issue #198: division that throws DivideByZero when dividing by
-    /// zero. Use I64.div for the panicking variant.
     func safe_div(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow I64
-    /// Addition that throws IntegerOverflow on signed wrap.
-    /// Use I64.add for the wrapping variant.
     func safe_add(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
-    /// Subtraction that throws IntegerOverflow on signed wrap.
-    /// Use I64.sub for the wrapping variant.
     func safe_sub(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
-    /// Multiplication that throws IntegerOverflow on signed wrap.
-    /// Use I64.mul for the wrapping variant.
     func safe_mul(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
-    /// Minimum representable value.
     MIN : I64
-    /// Maximum representable value.
     MAX : I64
     func hash(shallow self: I64, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* I64.to_usize
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.to_usize
+:group: Core
+:END:
+
+Convert to USize (target-width unsigned integer). Backed by the
+C-level cast (USize)val so it tracks ext.h's USize typedef once it
+becomes target-driven on 64-bit; see issue #192.
+
+#+begin_src til
+ext_func I64.to_usize(shallow val: I64) returns shallow USize
+#+end_src
+
+* I64.unity
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.unity
+:group: Core
+:END:
+
+Return the multiplicative identity (1) for this type.
+
+#+begin_src til
+func I64.unity(shallow _self: I64) returns shallow I64
+#+end_src
+
+* I64.neg
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.neg
+:group: Core
+:END:
+
+Negate the value.
+
+#+begin_src til
+func I64.neg(shallow a: I64) returns shallow I64
+#+end_src
+
+* I64.abs
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.abs
+:group: Core
+:END:
+
+Absolute value.
+
+#+begin_src til
+func I64.abs(shallow a: I64) returns shallow I64
+#+end_src
+
+* I64.distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.distance
+:group: Core
+:END:
+
+Absolute difference between two values, useful for Range iteration.
+
+#+begin_src til
+func I64.distance(a: Dynamic, b: Dynamic) returns shallow U64
+#+end_src
+
+* I64.safe_div
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.safe_div
+:group: Core
+:END:
+
+Issue #198: division that throws DivideByZero when dividing by
+zero. Use I64.div for the panicking variant.
+
+#+begin_src til
+func I64.safe_div(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow I64
+#+end_src
+
+* I64.safe_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.safe_add
+:group: Core
+:END:
+
+Addition that throws IntegerOverflow on signed wrap.
+Use I64.add for the wrapping variant.
+
+#+begin_src til
+func I64.safe_add(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+#+end_src
+
+* I64.safe_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.safe_sub
+:group: Core
+:END:
+
+Subtraction that throws IntegerOverflow on signed wrap.
+Use I64.sub for the wrapping variant.
+
+#+begin_src til
+func I64.safe_sub(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+#+end_src
+
+* I64.safe_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.safe_mul
+:group: Core
+:END:
+
+Multiplication that throws IntegerOverflow on signed wrap.
+Use I64.mul for the wrapping variant.
+
+#+begin_src til
+func I64.safe_mul(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+#+end_src
+
+* I64.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member I64.MIN : I64
+#+end_src
+
+* I64.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member I64.MAX : I64
 #+end_src
 
 * F32
@@ -512,9 +1282,7 @@ namespace:
     ext_func to_i64(shallow val: F32) returns shallow I64
     ext_func to_f64(shallow val: F32) returns shallow F64
     ext_func to_str(shallow val: F32) returns Str
-    /// Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
     ext_func to_repr(shallow val: F32) returns Str
-    /// Convert from I64 to F32.
     func from_i64(shallow val: I64) returns shallow F32
     core_func add(shallow a: F32, shallow b: F32) returns shallow F32
     core_func sub(shallow a: F32, shallow b: F32) returns shallow F32
@@ -530,16 +1298,73 @@ namespace:
     ext_func clone(val: F32) returns shallow F32
     func delete(own self: F32, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Division that throws DivideByZero when dividing by zero.
-    /// Reuses the DivideByZero type defined below.
-    /// Use F32.div for the silent (NaN/Inf) variant.
     func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
-    /// Minimum representable value.
     MIN : F32
-    /// Maximum representable value.
     MAX : F32
     func hash(shallow self: F32, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* F32.to_repr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32.to_repr
+:group: Core
+:END:
+
+Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
+
+#+begin_src til
+ext_func F32.to_repr(shallow val: F32) returns Str
+#+end_src
+
+* F32.from_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32.from_i64
+:group: Core
+:END:
+
+Convert from I64 to F32.
+
+#+begin_src til
+func F32.from_i64(shallow val: I64) returns shallow F32
+#+end_src
+
+* F32.safe_div
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32.safe_div
+:group: Core
+:END:
+
+Division that throws DivideByZero when dividing by zero.
+Reuses the DivideByZero type defined below.
+Use F32.div for the silent (NaN/Inf) variant.
+
+#+begin_src til
+func F32.safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
+#+end_src
+
+* F32.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member F32.MIN : F32
+#+end_src
+
+* F32.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member F32.MAX : F32
 #+end_src
 
 * F64
@@ -557,9 +1382,7 @@ namespace:
     ext_func to_i64(shallow val: F64) returns shallow I64
     ext_func to_f32(shallow val: F64) returns shallow F32
     ext_func to_str(shallow val: F64) returns Str
-    /// Round-trippable repr (17 sig digits): str.to_f64(x.to_repr()) == x.
     ext_func to_repr(shallow val: F64) returns Str
-    /// Convert from I64 to F64.
     func from_i64(shallow val: I64) returns shallow F64
     core_func add(shallow a: F64, shallow b: F64) returns shallow F64
     core_func sub(shallow a: F64, shallow b: F64) returns shallow F64
@@ -575,15 +1398,72 @@ namespace:
     ext_func clone(val: F64) returns shallow F64
     func delete(own self: F64, shallow call_free: Bool)
     func size() returns shallow USize
-    /// Division that throws DivideByZero when dividing by zero.
-    /// Use F64.div for the silent (NaN/Inf) variant.
     func safe_div(shallow a: F64, shallow b: F64, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F64
-    /// Minimum representable value.
     MIN : F64
-    /// Maximum representable value.
     MAX : F64
     func hash(shallow self: F64, hasher: HashFn) returns shallow U64
 }
+#+end_src
+
+* F64.to_repr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F64.to_repr
+:group: Core
+:END:
+
+Round-trippable repr (17 sig digits): str.to_f64(x.to_repr()) == x.
+
+#+begin_src til
+ext_func F64.to_repr(shallow val: F64) returns Str
+#+end_src
+
+* F64.from_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F64.from_i64
+:group: Core
+:END:
+
+Convert from I64 to F64.
+
+#+begin_src til
+func F64.from_i64(shallow val: I64) returns shallow F64
+#+end_src
+
+* F64.safe_div
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F64.safe_div
+:group: Core
+:END:
+
+Division that throws DivideByZero when dividing by zero.
+Use F64.div for the silent (NaN/Inf) variant.
+
+#+begin_src til
+func F64.safe_div(shallow a: F64, shallow b: F64, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F64
+#+end_src
+
+* F64.MIN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F64.MIN
+:group: Core
+:END:
+
+Minimum representable value.
+
+#+begin_src til
+member F64.MIN : F64
+#+end_src
+
+* F64.MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F64.MAX
+:group: Core
+:END:
+
+Maximum representable value.
+
+#+begin_src til
+member F64.MAX : F64
 #+end_src
 
 * DivideByZero

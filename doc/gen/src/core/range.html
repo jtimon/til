@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -35,7 +35,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
 <li><a href="../../src/core/io.html">src/core/io.til</a></li>
 <li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
-<li><a class="current" href="../../src/core/range.html">src/core/range.til</a><ul><li><a href="#til.src.core.range.Range">Range</a></li></ul></li>
+<li><a class="current" href="../../src/core/range.html">src/core/range.til</a><ul><li><a href="#til.src.core.range.Range">Range</a></li><li><a href="#til.src.core.range.Range.new">Range.new</a></li><li><a href="#til.src.core.range.Range.get">Range.get</a></li></ul></li>
 <li><a href="../../src/core/set.html">src/core/set.til</a></li>
 <li><a href="../../src/core/core.html">src/core/core.til</a></li>
 </ul>
@@ -89,14 +89,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <div class="doc-body">
 <p>Integer interval from start (inclusive) to end (exclusive).</p>
 </div>
-<pre><code class="language-til">struct Range {
+<pre><code class="language-til">struct {
     start : U64
     end : U64
 namespace:
-    /// Create a Range from `start` (inclusive) to `end` (exclusive).
     func new(shallow start: U64, shallow end: U64) returns Range
     func len(self: Range) returns shallow U64
-    /// The i-th value in the range (start+i or start-i for reverse).
     func get(self: Range, shallow i: U64) returns shallow U64
     func clone(val: Range) returns Range
     func delete(own self: Range, shallow call_free: Bool)
@@ -111,6 +109,24 @@ namespace:
     func lte(a: Range, b: Range) returns shallow Bool
     func gte(a: Range, b: Range) returns shallow Bool
 }
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.range.Range.new">
+<h2>Range.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Create a Range from `start` (inclusive) to `end` (exclusive).</p>
+</div>
+<pre><code class="language-til">func (shallow start: U64, shallow end: U64) returns Range
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.range.Range.get">
+<h2>Range.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>The i-th value in the range (start+i or start-i for reverse).</p>
+</div>
+<pre><code class="language-til">func (self: Range, shallow i: U64) returns shallow U64
 </code></pre>
 </article>
 </main></div>

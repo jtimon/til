@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -86,37 +86,37 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.core.exit.exit">
 <h2>exit</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func exit(shallow code: I64)
+<pre><code class="language-til">ext_func (shallow code: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.exit.panic">
 <h2>panic</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func panic(parts: ..Str, loc: Str)
+<pre><code class="language-til">func (parts: ..Str, loc: Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.exit.TODO">
 <h2>TODO</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func TODO(parts: ..Str, loc: Str)
+<pre><code class="language-til">func (parts: ..Str, loc: Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.exit.UNREACHABLE">
 <h2>UNREACHABLE</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func UNREACHABLE(parts: ..Str, loc: Str)
+<pre><code class="language-til">func (parts: ..Str, loc: Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.exit.assert">
 <h2>assert</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func assert(shallow cond: Bool, loc: Str)
+<pre><code class="language-til">func (shallow cond: Bool, loc: Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.exit.expect">
 <h2>expect</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func expect(shallow cond: Bool, parts: ..Str, loc: Str)
+<pre><code class="language-til">func (shallow cond: Bool, parts: ..Str, loc: Str)
 </code></pre>
 </article>
 </main></div>

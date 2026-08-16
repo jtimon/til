@@ -1,5 +1,5 @@
 #+TITLE: src/core/mem.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * free
@@ -303,8 +303,37 @@ for mut aggregate params to `swap_bytes(param, temp, T.size())`
 (hoist_param_swap_assign), which runs after generic instantiation and
 so cannot call the typed swap below. Not for user code -- it has no
 ownership semantics by itself (the lowering pairs it with the temp's
-scheduled delete). Dies with #302 stage 4's first-class move marker.
+scheduled delete). It outlived #302: the lowering still needs an
+untyped swap that predates monomorphization, so this stays as the
+primitive the typed swap/move below are built on.
 
 #+begin_src til
 func swap_bytes(a: Dynamic, b: Dynamic, shallow size: UPtr)
+#+end_src
+
+* adopt_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.adopt_from
+:group: Core
+:END:
+
+adopt's pointee-to-pointee half (#302 stage 4): move the value at
+`src` into UNINITIALIZED storage at `dest`, leaving `src`
+uninitialized. Both ends are raw slots the caller already owns -- a
+container's `data[i]`, or a malloc'd out-box -- so NO box is freed at
+either end, which is the whole difference from adopt above.
+
+Blanking src is what stands its eventual elem_delete down; a zeroed
+slot is the same count==0/data==NULL convention Vec.delete relies on.
+adopt can free src's box because there IS one; here src stays inside
+the container, so the bytes must be cleared rather than released.
+
+UNTYPED, unlike adopt: nothing is freed, so no literal-Str
+TIL_CAP_LIT guard is needed, and DynVec's runtime elem_size serves as
+the size exactly as T.size() does. The caller guarantees dest is
+uninitialized and that src holds a live value; that is the unsafe
+part, and why this belongs to container internals like swap_bytes.
+
+#+begin_src til
+func adopt_from(dest: Dynamic, src: Dynamic, shallow size: UPtr)
 #+end_src

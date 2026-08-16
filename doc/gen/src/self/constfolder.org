@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-7e89e5443
+#+SUBTITLE: til 0.0.1-61e33ef8f
 #+OPTIONS: toc:t
 
 * constfolder_clear_known
@@ -29,7 +29,7 @@ func constfolder_reset_state(mut ctx: Context)
 :END:
 
 #+begin_src til
-func is_macro_call(e: Expr, ctx: Context) returns shallow Bool
+func is_macro_call(e: Expr, mut ctx: Context) returns shallow Bool
 #+end_src
 
 * process_body
@@ -39,7 +39,7 @@ func is_macro_call(e: Expr, ctx: Context) returns shallow Bool
 :END:
 
 #+begin_src til
-proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool)
+proc process_body(mut scope: Scope, mut body: Expr, mut ctx: Context, shallow at_global: Bool)
 #+end_src
 
 * constfolder_register_fold_scope
@@ -49,7 +49,7 @@ proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Boo
 :END:
 
 #+begin_src til
-func constfolder_register_fold_scope(global: Scope, prog: Expr, ctx: Context)
+func constfolder_register_fold_scope(mut global: Scope, prog: Expr, mut ctx: Context)
 #+end_src
 
 * constfolder_register_core_constants
@@ -59,7 +59,7 @@ func constfolder_register_fold_scope(global: Scope, prog: Expr, ctx: Context)
 :END:
 
 #+begin_src til
-func constfolder_register_core_constants(global: Scope, usize_name: Str, mut ctx: Context)
+func constfolder_register_core_constants(mut global: Scope, usize_name: Str, mut ctx: Context)
 #+end_src
 
 * Option__ref_Dynamic
@@ -76,21 +76,7 @@ namespace:
     func is_some(shallow self: Option__ref_Dynamic) returns shallow Bool
     func is_none(shallow self: Option__ref_Dynamic) returns shallow Bool
     func unwrap_or(self: Option__ref_Dynamic, default_v: Dynamic) returns ref Dynamic
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
     func unwrap(self: Option__ref_Dynamic) returns ref Dynamic
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
     func take(own self: Option__ref_Dynamic) returns ref Dynamic
     ext_func None() returns shallow Option__ref_Dynamic
     ext_func Some(val: Dynamic) returns shallow Option__ref_Dynamic
@@ -99,6 +85,42 @@ namespace:
     func clone(self: Option__ref_Dynamic) returns shallow Option__ref_Dynamic
     func size() returns shallow USize
 }
+#+end_src
+
+* Option__ref_Dynamic.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.Option__ref_Dynamic.unwrap
+:group: Compiler backend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a `switch` when both arms do real work, and `unwrap_or` when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__ref_Dynamic.unwrap(self: Option__ref_Dynamic) returns ref Dynamic
+#+end_src
+
+* Option__ref_Dynamic.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.Option__ref_Dynamic.take
+:group: Compiler backend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an `Option(Expr)` returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__ref_Dynamic.take(own self: Option__ref_Dynamic) returns ref Dynamic
 #+end_src
 
 * Option__ref_Scope
@@ -115,21 +137,7 @@ namespace:
     func is_some(shallow self: Option__ref_Scope) returns shallow Bool
     func is_none(shallow self: Option__ref_Scope) returns shallow Bool
     func unwrap_or(self: Option__ref_Scope, default_v: Scope) returns ref Scope
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
     func unwrap(self: Option__ref_Scope) returns ref Scope
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
     func take(own self: Option__ref_Scope) returns ref Scope
     ext_func None() returns shallow Option__ref_Scope
     ext_func Some(val: Scope) returns shallow Option__ref_Scope
@@ -138,6 +146,42 @@ namespace:
     func clone(self: Option__ref_Scope) returns shallow Option__ref_Scope
     func size() returns shallow USize
 }
+#+end_src
+
+* Option__ref_Scope.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.Option__ref_Scope.unwrap
+:group: Compiler backend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a `switch` when both arms do real work, and `unwrap_or` when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__ref_Scope.unwrap(self: Option__ref_Scope) returns ref Scope
+#+end_src
+
+* Option__ref_Scope.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.Option__ref_Scope.take
+:group: Compiler backend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an `Option(Expr)` returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__ref_Scope.take(own self: Option__ref_Scope) returns ref Scope
 #+end_src
 
 * swap__Option__Scope

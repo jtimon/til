@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-61e33ef8f</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -57,7 +57,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Compiler backend</h2><ul>
 <li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
-<li><a class="current" href="../../src/self/constfolder.html">src/self/constfolder.til</a><ul><li><a href="#til.src.self.constfolder.constfolder_clear_known">constfolder_clear_known</a></li><li><a href="#til.src.self.constfolder.constfolder_reset_state">constfolder_reset_state</a></li><li><a href="#til.src.self.constfolder.is_macro_call">is_macro_call</a></li><li><a href="#til.src.self.constfolder.process_body">process_body</a></li><li><a href="#til.src.self.constfolder.constfolder_register_fold_scope">constfolder_register_fold_scope</a></li><li><a href="#til.src.self.constfolder.constfolder_register_core_constants">constfolder_register_core_constants</a></li><li><a href="#til.src.self.constfolder.Option__ref_Dynamic">Option__ref_Dynamic</a></li><li><a href="#til.src.self.constfolder.Option__ref_Scope">Option__ref_Scope</a></li><li><a href="#til.src.self.constfolder.swap__Option__Scope">swap__Option__Scope</a></li></ul></li>
+<li><a class="current" href="../../src/self/constfolder.html">src/self/constfolder.til</a><ul><li><a href="#til.src.self.constfolder.constfolder_clear_known">constfolder_clear_known</a></li><li><a href="#til.src.self.constfolder.constfolder_reset_state">constfolder_reset_state</a></li><li><a href="#til.src.self.constfolder.is_macro_call">is_macro_call</a></li><li><a href="#til.src.self.constfolder.process_body">process_body</a></li><li><a href="#til.src.self.constfolder.constfolder_register_fold_scope">constfolder_register_fold_scope</a></li><li><a href="#til.src.self.constfolder.constfolder_register_core_constants">constfolder_register_core_constants</a></li><li><a href="#til.src.self.constfolder.Option__ref_Dynamic">Option__ref_Dynamic</a></li><li><a href="#til.src.self.constfolder.Option__ref_Dynamic.unwrap">Option__ref_Dynamic.unwrap</a></li><li><a href="#til.src.self.constfolder.Option__ref_Dynamic.take">Option__ref_Dynamic.take</a></li><li><a href="#til.src.self.constfolder.Option__ref_Scope">Option__ref_Scope</a></li><li><a href="#til.src.self.constfolder.Option__ref_Scope.unwrap">Option__ref_Scope.unwrap</a></li><li><a href="#til.src.self.constfolder.Option__ref_Scope.take">Option__ref_Scope.take</a></li><li><a href="#til.src.self.constfolder.swap__Option__Scope">swap__Option__Scope</a></li></ul></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
@@ -86,64 +86,50 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.constfolder.constfolder_clear_known">
 <h2>constfolder_clear_known</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func constfolder_clear_known(mut ctx: Context)
+<pre><code class="language-til">func (mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.constfolder_reset_state">
 <h2>constfolder_reset_state</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func constfolder_reset_state(mut ctx: Context)
+<pre><code class="language-til">func (mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.is_macro_call">
 <h2>is_macro_call</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func is_macro_call(e: Expr, ctx: Context) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, mut ctx: Context) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.process_body">
 <h2>process_body</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool)
+<pre><code class="language-til">proc (mut scope: Scope, mut body: Expr, mut ctx: Context, shallow at_global: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.constfolder_register_fold_scope">
 <h2>constfolder_register_fold_scope</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func constfolder_register_fold_scope(global: Scope, prog: Expr, ctx: Context)
+<pre><code class="language-til">func (mut global: Scope, prog: Expr, mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.constfolder_register_core_constants">
 <h2>constfolder_register_core_constants</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func constfolder_register_core_constants(global: Scope, usize_name: Str, mut ctx: Context)
+<pre><code class="language-til">func (mut global: Scope, usize_name: Str, mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.Option__ref_Dynamic">
 <h2>Option__ref_Dynamic</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">enum Option__ref_Dynamic {
+<pre><code class="language-til">enum {
     None
     Some: Dynamic
 namespace:
     func is_some(shallow self: Option__ref_Dynamic) returns shallow Bool
     func is_none(shallow self: Option__ref_Dynamic) returns shallow Bool
     func unwrap_or(self: Option__ref_Dynamic, default_v: Dynamic) returns ref Dynamic
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
     func unwrap(self: Option__ref_Dynamic) returns ref Dynamic
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
     func take(own self: Option__ref_Dynamic) returns ref Dynamic
     ext_func None() returns shallow Option__ref_Dynamic
     ext_func Some(val: Dynamic) returns shallow Option__ref_Dynamic
@@ -154,31 +140,47 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.constfolder.Option__ref_Dynamic.unwrap">
+<h2>Option__ref_Dynamic.unwrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a `switch` when both arms do real work, and `unwrap_or` when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__ref_Dynamic) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.constfolder.Option__ref_Dynamic.take">
+<h2>Option__ref_Dynamic.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an `Option(Expr)` returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__ref_Dynamic) returns ref Dynamic
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.constfolder.Option__ref_Scope">
 <h2>Option__ref_Scope</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">enum Option__ref_Scope {
+<pre><code class="language-til">enum {
     None
     Some: Scope
 namespace:
     func is_some(shallow self: Option__ref_Scope) returns shallow Bool
     func is_none(shallow self: Option__ref_Scope) returns shallow Bool
     func unwrap_or(self: Option__ref_Scope, default_v: Scope) returns ref Scope
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
     func unwrap(self: Option__ref_Scope) returns ref Scope
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
     func take(own self: Option__ref_Scope) returns ref Scope
     ext_func None() returns shallow Option__ref_Scope
     ext_func Some(val: Scope) returns shallow Option__ref_Scope
@@ -189,10 +191,40 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.constfolder.Option__ref_Scope.unwrap">
+<h2>Option__ref_Scope.unwrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+`if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a `switch` when both arms do real work, and `unwrap_or` when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__ref_Scope) returns ref Scope
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.constfolder.Option__ref_Scope.take">
+<h2>Option__ref_Scope.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an `Option(Expr)` returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__ref_Scope) returns ref Scope
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.constfolder.swap__Option__Scope">
 <h2>swap__Option__Scope</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func swap__Option__Scope(mut a: Option__Scope, mut b: Option__Scope)
+<pre><code class="language-til">func (mut a: Option__Scope, mut b: Option__Scope)
 </code></pre>
 </article>
 </main></div>

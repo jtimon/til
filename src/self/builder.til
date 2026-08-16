@@ -9332,6 +9332,8 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
         rc = install_file(src_path, format(dst_root, "/", lib), format("install ", lib))
         if rc != 0 { return rc }
     }
+    rc = install_tree(format(root, "/doc/gen"), format(dst_root, "/doc/gen"), "install generated compiler documentation")
+    if rc != 0 { return rc }
     return 0
 }
 
@@ -9536,6 +9538,60 @@ priv doc_effective_group := func(unit_path: Str, meta: DocMeta) returns Str {
     return doc_default_group(unit_path)
 }
 
+priv append_doc_catalog_entry := func(mut catalog: DocCatalog, unit_path: Str, page: Str, name: Str, doc: Str, info: Str) {
+    meta := parse_doc_meta(doc)
+    if meta.hidden { return }
+    catalog.entries.push(own DocEntry(
+        name = name.clone(),
+        id = doc_entry_id(unit_path, name),
+        unit_path = unit_path.clone(),
+        group = doc_effective_group(unit_path, meta),
+        page = page.clone(),
+        body = meta.body.clone(),
+        info = info.clone(),
+        since = meta.since.clone(),
+        deprecated = meta.deprecated.clone()))
+}
+
+priv collect_struct_doc_members := func(unit_path: Str, page: Str, type_name: Str, sdef: StructDef, mut catalog: DocCatalog) {
+    mut field_i : USize = 0
+    for field : Declaration in sdef.fields {
+        ref field_name : Str = sdef.field_name_at(field_i)
+        if field.doc.is_empty().not() {
+            qual := type_name.format(".", field_name)
+            append_doc_catalog_entry(catalog, unit_path, page, qual, field.doc, format_field_info(type_name, field_name, field))
+        }
+        field_i++
+    }
+    mut member_i : USize = 0
+    for member : Declaration in sdef.ns_decls {
+        ref member_name : Str = sdef.member_name_at(member_i)
+        if member.doc.is_empty().not() {
+            qual := type_name.format(".", member_name)
+            append_doc_catalog_entry(catalog, unit_path, page, qual, member.doc, format_member_info(type_name, member_name, member))
+        }
+        member_i++
+    }
+}
+
+priv collect_enum_doc_members := func(unit_path: Str, page: Str, type_name: Str, edef: EnumDef, mut catalog: DocCatalog) {
+    for variant : VariantDef in edef.variants {
+        if variant.doc.is_empty().not() {
+            qual := type_name.format(".", variant.name)
+            append_doc_catalog_entry(catalog, unit_path, page, qual, variant.doc, format_variant_info(type_name, variant))
+        }
+    }
+    mut member_i : USize = 0
+    for member : Declaration in edef.ns_decls {
+        ref member_name : Str = edef.member_name_at(member_i)
+        if member.doc.is_empty().not() {
+            qual := type_name.format(".", member_name)
+            append_doc_catalog_entry(catalog, unit_path, page, qual, member.doc, format_member_info(type_name, member_name, member))
+        }
+        member_i++
+    }
+}
+
 priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog: DocCatalog) {
     ref iu : ImportUnit = ctx.imported[u.path]
     page := doc_index_link_path(til_doc_out_path(u.path))
@@ -9545,19 +9601,31 @@ priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog:
             meta := parse_doc_meta(dd.doc)
             if doc_decl_hidden(dd, meta).not() {
                 info := format_decl_info(stmt, ctx.scope)
-                catalog.entries.push(own DocEntry(
-                    name = dd.name.clone(),
-                    id = doc_entry_id(u.path, dd.name),
-                    unit_path = u.path.clone(),
-                    group = doc_effective_group(u.path, meta),
-                    page = page.clone(),
-                    body = meta.body.clone(),
-                    info = info.clone(),
-                    since = meta.since.clone(),
-                    deprecated = meta.deprecated.clone()))
+                append_doc_catalog_entry(catalog, u.path, page, dd.name, dd.doc, info)
+                if stmt.children.len() > 0 {
+                    switch stmt.children[0].node_type {
+                    case .StructDef(sdef): collect_struct_doc_members(u.path, page, dd.name, sdef, catalog)
+                    case .EnumDef(edef): collect_enum_doc_members(u.path, page, dd.name, edef, catalog)
+                    case:
+                    }
+                }
             }
         }
     }
+}
+
+priv doc_display_info := func(e: DocEntry) returns Str {
+    name_pos := e.info.find(e.name)
+    if name_pos < 0 { return e.info.clone() }
+    name_pos_u := name_pos.to_usize()
+    before := e.info.substr(0, name_pos_u)
+    after := e.info.substr(name_pos_u + e.name.len(), e.info.len() - name_pos_u - e.name.len())
+    mut after_start : USize = 0
+    if before.ends_with(" ").and(after.starts_with(" ")) { after_start = 1 }
+    mut out := Str.with_capacity(e.info.len())
+    out.push_str(before)
+    out.push_str(after.substr(after_start, after.len() - after_start))
+    return out
 }
 
 priv doc_catalog_lookup := func(catalog: DocCatalog, name: Str, loc: Str) returns DocEntry {
@@ -10117,6 +10185,8 @@ priv verify_doc_html_body_renderer := func() {
     require_doc_output(output, "raw &lt;text&gt;", "doc renderer regression")
     require_doc_output(output, "class=\"language-til\"", "doc renderer regression")
     require_doc_output(output, "../src/core/str.html#til.src.core.str.Str", "doc renderer regression")
+    display := doc_display_info(DocEntry(name = "vec", info = "ext_func vec(T: Type, elements: ..Dynamic) returns Vec"))
+    if display != "ext_func (T: Type, elements: ..Dynamic) returns Vec" { panic("doc display signature regression: ", display) }
 }
 
 priv append_doc_html_meta := func(mut out: Str, e: DocEntry, include_group: Bool) {
@@ -10262,9 +10332,10 @@ priv append_doc_html_unit_entry := func(mut out: Str, e: DocEntry, current_page:
         out.push_str("</div>\n")
     }
     if e.info.is_empty().not() {
+        display_info := doc_display_info(e)
         out.push_str("<pre><code class=\"language-til\">")
-        out.push_str(doc_html_escape(e.info))
-        if e.info.ends_with("\n").not() { out.push_str("\n") }
+        out.push_str(doc_html_escape(display_info))
+        if display_info.ends_with("\n").not() { out.push_str("\n") }
         out.push_str("</code></pre>\n")
     }
     out.push_str("</article>\n")
@@ -10304,9 +10375,10 @@ priv append_doc_html_index_entry := func(mut out: Str, e: DocEntry, current_page
     out.push_str("</a>\n")
     append_doc_html_meta(out, e, false)
     if e.info.is_empty().not() {
+        display_info := doc_display_info(e)
         out.push_str("<pre><code class=\"language-til\">")
-        out.push_str(doc_html_escape(e.info))
-        if e.info.ends_with("\n").not() { out.push_str("\n") }
+        out.push_str(doc_html_escape(display_info))
+        if display_info.ends_with("\n").not() { out.push_str("\n") }
         out.push_str("</code></pre>\n")
     }
     out.push_str("</li>\n")
