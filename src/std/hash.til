@@ -58,6 +58,22 @@ fnv1a := func(data: Dynamic, n: USize) returns U64 {
     return h
 }
 
+// djb2 (Bernstein): h = h*33 + b, seed 5381. One multiply-add per
+// byte, no xor. This is the algorithm the #101 literal-pool namer
+// started with (builder-local, before it moved here); it measured
+// faster than fnv1a in that role, at the cost of weaker mixing on
+// short inputs (single-character strings hash to small values). Fine
+// wherever the consumer tolerates that -- the pool namer pads to
+// fixed-width hex and resolves collisions explicitly.
+djb2 := func(data: Dynamic, n: USize) returns U64 {
+    mut h : U64 = 5381
+    for i in 0..n {
+        ref b : U8 = ptr_add(data, i)
+        h = h.mul(33).add(b.cast(U64))
+    }
+    return h
+}
+
 // Same xor-then-mul shape as fnv1a but with Knuth's golden-ratio
 // multiplier (KNUTH_MULT) and a zero seed. FNV's constants are tuned
 // specifically for byte-level mixing; Knuth's are tuned for single-

@@ -1,0 +1,292 @@
+mode lib
+
+import("hashmap")
+import("dyn_vec")
+
+// DynHashSet is the type-erased HashSet: DynHashMap's layout with the
+// `values` vec removed, and DynSet's runtime-typed element contract.
+// It stands to DynSet as DynHashMap stands to DynMap -- O(1) average
+// membership instead of a binary search, at the cost of unordered
+// storage.
+//
+// Each entry's full 64-bit hash is stored (`hashes`), as in HashSet:
+// rehash() re-links without hashing a single element again, has()
+// rejects chain collisions with a U64 compare before the dynamic
+// elem_cmp call (which is the expensive one here -- an indirect call
+// per comparison), and stored_hash() hands back the set's own hash.
+DynHashSet := struct {
+    keys : DynVec = DynVec.new(Dynamic)
+    buckets : DynVec = DynVec.new(I64)  // bucket head entry index, -1 if empty
+    nexts : DynVec = DynVec.new(I64)    // per-entry next-in-chain index, -1 if end
+    hashes : DynVec = DynVec.new(U64)   // per-entry full hash
+    elem_hash : TypeHashFn = default_type_hash
+    elem_cmp  : CmpFn      = default_cmp
+
+namespace:
+    mut hasher : HashFn = fnv1a
+
+    new_type_name := func(elem_type: Str) returns DynHashSet {
+        if elem_type.is_empty() {
+            panic("DynHashSet.new: elem_type required")
+        }
+        if dyn_has_method(elem_type, "hash").not() {
+            panic("DynHashSet.new: type ", elem_type, " must implement hash")
+        }
+        if dyn_has_method(elem_type, "cmp").not() {
+            panic("DynHashSet.new: type ", elem_type, " must implement cmp")
+        }
+        mut s := DynHashSet()
+        s.keys = DynVec.new_type_name(elem_type)
+        s.buckets = DynVec.new(I64)
+        s.nexts = DynVec.new(I64)
+        s.hashes = DynVec.new(U64)
+        s.elem_hash = dyn_fn(elem_type, "hash")
+        s.elem_cmp  = dyn_fn(elem_type, "cmp")
+        // Buckets are seeded on the first insert, as in HashSet.new --
+        // an unused set pays nothing for them (#323).
+        return s
+    }
+
+    new := func(T: Type) returns DynHashSet {
+        return DynHashSet.new_type_name(dyn_type_to_str(T))
+    }
+
+    /// Create an empty DynHashSet pre-sized for `n` elements
+    /// (HashSet.with_capacity's counterpart; the element type is a
+    /// runtime argument here, as for `new`).
+    with_capacity := func(T: Type, n: USize) returns DynHashSet {
+        mut s := DynHashSet.new(T)
+        if n == 0 { return s }
+        mut nb : USize = HASHMAP_INIT_BUCKETS
+        while n * 4 > nb * 3 { nb = nb * 2 }
+        s.keys.data = realloc(own s.keys.data, n.mul(s.keys.elem_size))
+        s.keys.cap = n
+        s.nexts.data = realloc(own s.nexts.data, n.mul(s.nexts.elem_size))
+        s.nexts.cap = n
+        s.hashes.data = realloc(own s.hashes.data, n.mul(s.hashes.elem_size))
+        s.hashes.cap = n
+        for _ in 0..nb {
+            s.buckets.push(own -1)
+        }
+        return s
+    }
+
+    len := func(self: DynHashSet) returns USize { return self.keys.count }
+
+    /// Drop all live elements but keep the allocated storage and type
+    /// metadata so the set can be reused (DynSet.clear's counterpart).
+    /// The bucket array is reset to empty, not freed.
+    clear := func(mut self: DynHashSet) {
+        DynVec.clear(self.keys)
+        DynVec.clear(self.nexts)
+        DynVec.clear(self.hashes)
+        for i in 0..self.buckets.count {
+            self.buckets.unsafe_set(i, own -1)
+        }
+    }
+
+    /// Deep copy. Cloning the dense vecs and the bucket array preserves
+    /// every chain link, so the copy needs no rehash.
+    clone := func(self: DynHashSet) returns DynHashSet {
+        mut s := DynHashSet()
+        s.keys = DynVec.clone(self.keys)
+        s.buckets = DynVec.clone(self.buckets)
+        s.nexts = DynVec.clone(self.nexts)
+        s.hashes = DynVec.clone(self.hashes)
+        s.elem_hash = self.elem_hash
+        s.elem_cmp = self.elem_cmp
+        return s
+    }
+
+    hash_elem := func(self: DynHashSet, val: Dynamic) returns U64 {
+        return self.elem_hash(val, DynHashSet.hasher)
+    }
+
+    elems_equal := func(self: DynHashSet, a: Dynamic, b: Dynamic) returns Bool {
+        return self.elem_cmp(a, b) == 0
+    }
+
+    find := func(self: DynHashSet, val: Dynamic) returns I64 {
+        if self.keys.count == 0 { return -1 }
+        h := self.hash_elem(to_ptr(val))
+        bi := bucket(h, self.buckets.count)
+        ref head : I64 = self.buckets.unsafe_get(bi)
+        mut entry : I64 = head.clone()
+        while entry >= 0 {
+            entry_u : USize = entry.to_usize()
+            ref eh : U64 = self.hashes.unsafe_get(entry_u)
+            if eh == h {
+                ref k : Dynamic = self.keys.unsafe_get(entry_u)
+                if self.elems_equal(to_ptr(val), to_ptr(k)) { return entry }
+            }
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
+            entry = nxt.clone()
+        }
+        return -1
+    }
+
+    has := func(self: DynHashSet, val: Dynamic) returns Bool {
+        return self.find(val) >= 0
+    }
+
+    /// The set's own stored hash of `val`, retrieved rather than
+    /// recomputed. Throws KeyNotFound if `val` is absent.
+    stored_hash := func(self: DynHashSet, val: Dynamic) returns U64 throws KeyNotFound {
+        idx := self.find(val)
+        if idx < 0 { throw KeyNotFound() }
+        ref h : U64 = self.hashes.unsafe_get(idx.to_usize())
+        return h.clone()
+    }
+
+    /// Insert `val`. If an equal element already exists, `val` is
+    /// dropped (DynSet.add's contract). `val` is owned.
+    add := func(mut self: DynHashSet, own val: Dynamic) {
+        // Seed the bucket array on first insert (see new_type_name).
+        // bucket() takes a modulo, so this precedes any bucket index.
+        if self.buckets.count == 0 {
+            for _ in 0..HASHMAP_INIT_BUCKETS {
+                self.buckets.push(own -1)
+            }
+        }
+        h := self.hash_elem(to_ptr(val))
+        bi := bucket(h, self.buckets.count)
+        ref head : I64 = self.buckets.unsafe_get(bi)
+        mut entry : I64 = head.clone()
+        mut existing : I64 = -1
+        while entry >= 0 {
+            entry_u : USize = entry.to_usize()
+            ref eh : U64 = self.hashes.unsafe_get(entry_u)
+            if eh == h {
+                ref k : Dynamic = self.keys.unsafe_get(entry_u)
+                if self.elems_equal(to_ptr(val), to_ptr(k)) {
+                    existing = entry.clone()
+                    break
+                }
+            }
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
+            entry = nxt.clone()
+        }
+        if existing >= 0 {
+            // Already present: the stored element stays, the incoming
+            // one is dropped, exactly as DynSet.add does.
+            self.keys.elem_delete(val, false)
+            free(own val)
+        } else {
+            new_idx : I64 = self.keys.count.to_i64()
+            ref head2 : I64 = self.buckets.unsafe_get(bi)
+            head_val : I64 = head2.clone()
+            self.nexts.push(own head_val)
+            self.hashes.push(own h.clone())
+            self.keys.push(own val)
+            self.buckets.unsafe_set(bi, own new_idx)
+            if self.keys.count * 4 > self.buckets.count * 3 {
+                self.rehash()
+            }
+        }
+    }
+
+    rehash := func(mut self: DynHashSet) {
+        new_count : USize = self.buckets.count * 2
+        for i in 0..self.buckets.count {
+            self.buckets.unsafe_set(i, own -1)
+        }
+        while self.buckets.count < new_count {
+            self.buckets.push(own -1)
+        }
+        // The stored hash makes this pure pointer surgery: no element is
+        // re-hashed, which for a type-erased set also means no indirect
+        // hash call per entry.
+        for i in 0..self.keys.count {
+            ref eh : U64 = self.hashes.unsafe_get(i)
+            bi := bucket(eh.clone(), self.buckets.count)
+            ref head : I64 = self.buckets.unsafe_get(bi)
+            head_val : I64 = head.clone()
+            self.nexts.unsafe_set(i, own head_val)
+            self.buckets.unsafe_set(bi, own i.to_i64())
+        }
+    }
+
+    delete := func(own self: DynHashSet, call_free: Bool = true) {
+        DynVec.delete(own self.keys, false)
+        DynVec.delete(own self.buckets, false)
+        DynVec.delete(own self.nexts, false)
+        DynVec.delete(own self.hashes, false)
+        if call_free { free(own self) }
+    }
+
+    /// Remove the element equal to `val`, dropping it. Returns false if
+    /// absent (same contract as DynSet.remove / core Set.remove).
+    remove := func(mut self: DynHashSet, val: Dynamic) returns Bool {
+        if self.keys.count == 0 { return false }
+        h := self.hash_elem(val)
+        bi := bucket(h, self.buckets.count)
+
+        ref head : I64 = self.buckets.unsafe_get(bi)
+        mut prev : I64 = -1
+        mut entry : I64 = head.clone()
+        mut found := false
+        while entry >= 0 {
+            entry_u : USize = entry.to_usize()
+            ref eh : U64 = self.hashes.unsafe_get(entry_u)
+            if eh == h {
+                ref k : Dynamic = self.keys.unsafe_get(entry_u)
+                if self.elems_equal(val, k) {
+                    found = true
+                    break
+                }
+            }
+            prev = entry.clone()
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
+            entry = nxt.clone()
+        }
+        if found.not() { return false }
+
+        idx_u : USize = entry.to_usize()
+        keys_off : USize = idx_u * self.keys.elem_size
+
+        self.keys.elem_delete(ptr_add(self.keys.data, keys_off), false)
+
+        ref nxt_of_idx : I64 = self.nexts.unsafe_get(idx_u)
+        nxt_val : I64 = nxt_of_idx.clone()
+        if prev < 0 {
+            self.buckets.unsafe_set(bi, own nxt_val)
+        } else {
+            self.nexts.unsafe_set(prev.to_usize(), own nxt_val)
+        }
+
+        last_idx : I64 = self.keys.count.to_i64() - 1
+        if entry.eq(last_idx).not() {
+            last_u : USize = last_idx.to_usize()
+            ref last_h : U64 = self.hashes.unsafe_get(last_u)
+            last_bi := bucket(last_h.clone(), self.buckets.count)
+            ref last_head : I64 = self.buckets.unsafe_get(last_bi)
+            if last_head == last_idx {
+                self.buckets.unsafe_set(last_bi, own entry.clone())
+            } else {
+                mut walker : I64 = last_head.clone()
+                while walker >= 0 {
+                    walker_u : USize = walker.to_usize()
+                    ref walker_nxt : I64 = self.nexts.unsafe_get(walker_u)
+                    if walker_nxt == last_idx {
+                        self.nexts.unsafe_set(walker_u, own entry.clone())
+                        break
+                    }
+                    walker = walker_nxt.clone()
+                }
+            }
+
+            last_keys_off : USize = last_u * self.keys.elem_size
+            memcpy(ptr_add(self.keys.data, keys_off),
+                   ptr_add(self.keys.data, last_keys_off), self.keys.elem_size)
+            ref last_nxt : I64 = self.nexts.unsafe_get(last_u)
+            self.nexts.unsafe_set(idx_u, own last_nxt.clone())
+            ref last_hh : U64 = self.hashes.unsafe_get(last_u)
+            self.hashes.unsafe_set(idx_u, own last_hh.clone())
+        }
+
+        self.keys.count = self.keys.count - 1
+        self.nexts.count = self.nexts.count - 1
+        self.hashes.count = self.hashes.count - 1
+        return true
+    }
+}

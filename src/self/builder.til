@@ -5,6 +5,7 @@ import("loader")
 import("targets")
 import("../std/sys")
 import("../std/file")
+import("../std/hash")
 
 
 closure_call_name := func(name: Str) returns Str {
@@ -1466,13 +1467,19 @@ priv builder_is_hoisted_str_lit_ident := func(name: Str) returns Bool {
 }
 
 priv builder_reset_str_lit_pool := func(mut ctx: Context) {
-    ctx.builder_str_lit_symbols = Map(Str, Str).new()
+    // #101: the counts table's stored hashes double as the pool members'
+    // C names (see builder_str_lit_member), and djb2 measured faster
+    // than the default fnv1a in that role -- swap the hasher for this
+    // specialization, the exact knob std/hashmap documents for it.
+    // member_seq shares the (Str, USize) specialization; harmless.
+    HashMap(Str, USize).hasher = djb2
+    ctx.builder_str_lit_symbols = HashMap(Str, Str).new()
     ctx.builder_str_lit_values = Vec(Str).new()
-    ctx.builder_str_lit_ident_symbols = Map(Str, Str).new()
-    ctx.builder_str_lit_counts = Map(Str, USize).new()
-    ctx.builder_str_lit_ident_contents = Map(Str, Str).new()
+    ctx.builder_str_lit_ident_symbols = HashMap(Str, Str).new()
+    ctx.builder_str_lit_counts = HashMap(Str, USize).new()
+    ctx.builder_str_lit_ident_contents = HashMap(Str, Str).new()
     ctx.builder_str_lit_members = Vec(Str).new()
-    ctx.builder_str_lit_member_seq = Map(Str, USize).new()
+    ctx.builder_str_lit_member_seq = HashMap(Str, USize).new()
 }
 
 // The shared literals live in ONE array rather than N separate statics, so
@@ -1730,12 +1737,16 @@ priv builder_str_lit_is_loc := func(s: Str) returns Bool {
 // use) shifted every content-later index -- 12,747 reference lines
 // across til.c for one new shared literal. A content-derived field name
 // moves for no edit except one that changes the literal itself.
-priv builder_str_lit_member := func(s: Str) returns Str {
-    mut h : U64 = 5381
-    for i in 0..s.len() {
-        ref c : I8 = s.unsafe_get(i)
-        h = h.mul(33).add(c.to_u64())
-    }
+priv builder_str_lit_member := func(ctx: Context, s: Str) returns Str {
+    // The hash is READ out of the counts HashMap, not computed here:
+    // every pooled literal is already a key in that table, the table
+    // stored its full hash at insert (std/hashmap `hashes`), and this
+    // is that stored value -- the container hashes, the namer spells.
+    // Build-time only either way: nothing computes or compares it at
+    // runtime, it just presses the literal's bytes into a C identifier.
+    // The bang is fail-loud on the impossible: finalize only names
+    // contents it is iterating out of that same table.
+    mut h : U64 = ctx.builder_str_lit_counts.stored_hash(s)!
     hexd := "0123456789abcdef"
     mut name := ""
     for _ in 0..12 {
@@ -1746,12 +1757,20 @@ priv builder_str_lit_member := func(s: Str) returns Str {
 }
 
 priv builder_finalize_str_lit_pool := func(mut ctx: Context) {
-    for s : Str in ctx.builder_str_lit_counts.keys {
-        if ctx.builder_str_lit_counts[s] < 2 { continue }
+    // The counts table is a HashMap (the per-occurrence recording path is
+    // hot); the pool LAYOUT must stay content-sorted so a block line only
+    // moves when the shared set itself changes. Sort once here, through
+    // core's ordered Map -- this runs once per emission, over ~1k keys.
+    mut sorted_counts := Map(Str, USize).new()
+    for sck : Str in ctx.builder_str_lit_counts.keys {
+        sorted_counts.set(sck, own ctx.builder_str_lit_counts[sck].clone())
+    }
+    for s : Str in sorted_counts.keys {
+        if sorted_counts[s] < 2 { continue }
         if builder_str_lit_is_loc(s) { continue }
         // Contents iterate key-sorted, so a hash collision resolves
         // deterministically: later colliding contents take _2, _3, ...
-        mut member := builder_str_lit_member(s)
+        mut member := builder_str_lit_member(ctx, s)
         mut seen : USize = 0
         if ctx.builder_str_lit_member_seq.has(member) { seen = ctx.builder_str_lit_member_seq[member] }
         ctx.builder_str_lit_member_seq.set(member, own seen.add(1))
@@ -1844,10 +1863,17 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
 // below the edit. Map iteration is key-sorted, so the region is grouped
 // by owner and deterministic.
 priv builder_emit_loc_region := proc(f: File, ctx: Context) {
+    // ident_contents is a HashMap; the region wants NAME-sorted order so
+    // its lines stay grouped by owner and never reorder. Sort the loc
+    // subset once, through core's ordered Map.
+    mut sorted_locs := Map(Str, Str).new()
+    for lik : Str in ctx.builder_str_lit_ident_contents.keys {
+        ref lval : Str = ctx.builder_str_lit_ident_contents[lik]
+        if builder_str_lit_is_loc(lval) { sorted_locs.set(lik, own lval.clone()) }
+    }
     mut wrote := false
-    for iname : Str in ctx.builder_str_lit_ident_contents.keys {
-        ref icontent : Str = ctx.builder_str_lit_ident_contents[iname]
-        if builder_str_lit_is_loc(icontent).not() { continue }
+    for iname : Str in sorted_locs.keys {
+        ref icontent : Str = sorted_locs[iname]
         if wrote.not() {
             f.write("/* til source locations: line numbers shift with source edits; the code hunks are above */\n")
             wrote = true

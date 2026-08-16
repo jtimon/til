@@ -17,6 +17,25 @@ same probe now churns 819 lines: 790 loc region (real line shifts), the
 rest the probe's own code. With this, NOTHING in til.c is referenced by
 a dense index anymore.
 
+Follow-up (2026-08-16), Jorge's idea implemented in full: the pool no
+longer hashes anything explicitly -- the HashMap hashes implicitly, and
+the namer uses the STORED hash directly. std/hashmap now keeps each
+entry's full 64-bit hash in a `hashes` Vec (like most serious hash
+tables; til's recomputed on every rehash and remove before this), which
+buys rehash() re-linking with zero re-hashing, a U64 pre-filter in
+find() before any byte-wise key compare, and a `stored_hash(key)`
+accessor. The builder's five bookkeeping tables (counts, symbols, ident
+symbols, ident contents, member collision seq) are HashMaps, the counts
+table's (Str, USize) specialization sets `hasher = djb2` -- the exact
+swap knob std/hashmap documents, using the algorithm that measured
+faster here, now housed in std/hash.til beside fnv1a and knuth_bytes --
+and builder_str_lit_member reads `counts.stored_hash(s)!`: the
+identifier a pooled literal gets IS the hash its bookkeeping already
+paid for. The two consumers that need sorted order (content-sorted pool
+layout, name-sorted loc region) build it once per emission through
+core's ordered Map. Member names are byte-identical before and after,
+so the emitted C is untouched by the whole refactor.
+
 Post-mortem (2026-08-15, final): the goal, per Jorge, was always that a
 til.c diff be USEFUL FOR REVIEW -- the C changes in it related to the til
 edit, not label reorganizations rippling through the file. Landed across

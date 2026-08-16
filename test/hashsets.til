@@ -1,0 +1,178 @@
+mode test
+
+import("../src/std/hashset")
+import("../src/std/dyn_hashset")
+import("../src/std/hash")
+
+// HashSet / DynHashSet: the unordered halves of Set / DynSet. Same
+// contracts as their sorted counterparts (add drops a duplicate, remove
+// returns false when absent), plus the stored-hash accessor.
+
+test_hashset_i64_basic := test() {
+    mut s := HashSet(I64).new()
+    s.add(own 1)
+    s.add(own 2)
+    s.add(own 3)
+    assert_eq(USize, s.len(), 3)
+    assert(s.has(1))
+    assert(s.has(2))
+    assert(s.has(3))
+    assert(s.has(4).not())
+}
+
+test_hashset_dedups := test() {
+    mut s := HashSet(I64).new()
+    s.add(own 7)
+    s.add(own 7)
+    s.add(own 7)
+    assert_eq(USize, s.len(), 1)
+    assert(s.has(7))
+}
+
+test_hashset_empty := test() {
+    mut s := HashSet(I64).new()
+    assert_eq(USize, s.len(), 0)
+    assert(s.has(1).not())
+    assert(s.remove(1).not())
+}
+
+test_hashset_remove := test() {
+    mut s := HashSet(I64).new()
+    for i in 0..20 { s.add(own i) }
+    assert_eq(USize, s.len(), 20)
+    assert(s.remove(0))
+    assert(s.remove(19))
+    assert(s.remove(9))
+    assert(s.remove(9).not())
+    assert_eq(USize, s.len(), 17)
+    assert(s.has(0).not())
+    assert(s.has(19).not())
+    assert(s.has(9).not())
+    // Everything else survived the swap-removes and their relinking.
+    for j in 1..9 { assert(s.has(j)) }
+    for k in 10..19 { assert(s.has(k)) }
+}
+
+// Growth past the 0.75 load factor rehashes; the stored hashes make that
+// a pure relink, so every element must still be findable afterwards.
+test_hashset_rehash := test() {
+    mut s := HashSet(I64).new()
+    for i in 0..200 { s.add(own i.mul(7)) }
+    assert_eq(USize, s.len(), 200)
+    for j in 0..200 { assert(s.has(j.mul(7))) }
+    assert(s.has(3).not())
+}
+
+test_hashset_str := test() {
+    mut s := HashSet(Str).new()
+    s.add(own "alpha")
+    s.add(own "beta")
+    s.add(own "alpha")
+    assert_eq(USize, s.len(), 2)
+    assert(s.has("alpha"))
+    assert(s.has("beta"))
+    assert(s.has("gamma").not())
+    assert(s.remove("alpha"))
+    assert(s.has("alpha").not())
+    assert(s.has("beta"))
+}
+
+test_hashset_clear_and_clone := test() {
+    mut s := HashSet(I64).new()
+    for i in 0..30 { s.add(own i) }
+    c := s.clone()
+    assert_eq(USize, c.len(), 30)
+    for j in 0..30 { assert(c.has(j)) }
+    s.clear()
+    assert_eq(USize, s.len(), 0)
+    assert(s.has(5).not())
+    // The clone is independent of the cleared original.
+    assert_eq(USize, c.len(), 30)
+    assert(c.has(5))
+    // A cleared set is reusable.
+    s.add(own 99)
+    assert_eq(USize, s.len(), 1)
+    assert(s.has(99))
+}
+
+test_hashset_with_capacity := test() {
+    mut s := HashSet(I64).with_capacity(64)
+    for i in 0..64 { s.add(own i) }
+    assert_eq(USize, s.len(), 64)
+    for j in 0..64 { assert(s.has(j)) }
+}
+
+// The set hashes on insert and keeps the value; stored_hash hands back
+// that exact value rather than recomputing it.
+test_hashset_stored_hash := test() {
+    mut s := HashSet(Str).new()
+    s.add(own "pooled")
+    h := s.stored_hash("pooled")!
+    assert_eq(U64, h, Str.hash("pooled", fnv1a))
+    // Stable across a rehash: growth relinks, it does not re-hash.
+    for i in 0..200 { s.add(own format("filler", i.to_str())) }
+    h2 := s.stored_hash("pooled")!
+    assert_eq(U64, h2, h)
+}
+
+// --- DynHashSet: same contracts, runtime element type ---
+
+test_dyn_hashset_basic := test() {
+    mut s := DynHashSet.new(I64)
+    s.add(own 1)
+    s.add(own 2)
+    s.add(own 2)
+    assert_eq(USize, s.len(), 2)
+    assert(s.has(1))
+    assert(s.has(2))
+    assert(s.has(3).not())
+}
+
+test_dyn_hashset_remove := test() {
+    mut s := DynHashSet.new(I64)
+    for i in 0..12 { s.add(own i) }
+    assert_eq(USize, s.len(), 12)
+    assert(s.remove(11))
+    assert(s.remove(0))
+    assert(s.remove(0).not())
+    assert_eq(USize, s.len(), 10)
+    for j in 1..11 { assert(s.has(j)) }
+}
+
+test_dyn_hashset_rehash := test() {
+    mut s := DynHashSet.new(I64)
+    for i in 0..150 { s.add(own i) }
+    assert_eq(USize, s.len(), 150)
+    for j in 0..150 { assert(s.has(j)) }
+}
+
+test_dyn_hashset_str := test() {
+    mut s := DynHashSet.new(Str)
+    s.add(own "one")
+    s.add(own "two")
+    s.add(own "one")
+    assert_eq(USize, s.len(), 2)
+    assert(s.has("one"))
+    assert(s.has("two"))
+    assert(s.has("three").not())
+}
+
+test_dyn_hashset_clear_and_clone := test() {
+    mut s := DynHashSet.new(I64)
+    for i in 0..20 { s.add(own i) }
+    c := DynHashSet.clone(s)
+    assert_eq(USize, c.len(), 20)
+    for j in 0..20 { assert(c.has(j)) }
+    DynHashSet.clear(s)
+    assert_eq(USize, s.len(), 0)
+    assert(s.has(3).not())
+    assert_eq(USize, c.len(), 20)
+    assert(c.has(3))
+}
+
+test_dyn_hashset_with_capacity := test() {
+    mut s := DynHashSet.with_capacity(I64, 40)
+    for i in 0..40 { s.add(own i) }
+    assert_eq(USize, s.len(), 40)
+    for j in 0..40 { assert(s.has(j)) }
+}

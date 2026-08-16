@@ -1,0 +1,299 @@
+mode lib
+
+// HashSet: unordered set with O(1) average membership. Use this when you
+// have a big set and don't need elements in sorted order; use core's Set
+// when you need ordered iteration or have only a handful of elements
+// (the binary-search Set wins on small collections).
+//
+// HashSet is to Set what HashMap is to Map, and it is HashMap's layout
+// with the `values` Vec removed: dense `keys` / `hashes` Vecs plus a
+// `buckets` Vec holding each bucket's head entry index and a `nexts` Vec
+// holding the per-entry chain link. Separate chaining over arrays, no
+// per-entry malloc.
+//
+// Each entry's full 64-bit hash is STORED (`hashes`), as in HashMap:
+// rehash() re-links without hashing a single element again, has() rejects
+// chain collisions with a U64 compare before the byte-wise element
+// compare, and stored_hash() hands back the set's own hash of an element
+// for callers that want a content-derived identity they have already
+// paid for.
+
+import("hash")
+import("hashmap")
+
+HashSet := struct<T: Type> {
+    keys : Vec(T)
+    buckets : Vec(I64)  // bucket head entry index, -1 if empty
+    nexts : Vec(I64)    // per-entry next-in-chain index, -1 if end
+    hashes : Vec(U64)   // per-entry full hash, computed once at insert
+
+namespace:
+    /// Byte-hashing algorithm every HashSet forwards to per element.
+    /// Swap this before constructing any HashSet if you want a different
+    /// algorithm for that concrete HashSet(T) specialization.
+    mut hasher : HashFn = fnv1a
+
+    /// Create an empty HashSet. T must implement `cmp` and `hash`.
+    /// Allocates NOTHING: the bucket array is seeded on the first `add`,
+    /// so an empty set costs what an empty Set costs. Every reader
+    /// guards on `keys.count == 0` before touching `buckets`, so zero
+    /// buckets is a valid state for has/find/remove/clear/clone.
+    new := func() returns HashSet(T) {
+        return HashSet(T)(
+            keys = Vec(T).new(),
+            buckets = Vec(I64).new(),
+            nexts = Vec(I64).new(),
+            hashes = Vec(U64).new())
+    }
+
+    /// Create an empty HashSet pre-sized for `n` elements
+    /// (Set.with_capacity's counterpart). Sizes the dense arrays and
+    /// grows the bucket array by doubling from HASHMAP_INIT_BUCKETS
+    /// until `n` fits under the 0.75 load factor `add` enforces, so
+    /// adding up to `n` never rehashes. n=0 behaves like new().
+    with_capacity := func(n: USize) returns HashSet(T) {
+        if n == 0 { return HashSet(T).new() }
+        mut nb : USize = HASHMAP_INIT_BUCKETS
+        while n * 4 > nb * 3 { nb = nb * 2 }
+        mut s := HashSet(T)(
+            keys = Vec(T).with_capacity(n),
+            buckets = Vec(I64).with_capacity(nb),
+            nexts = Vec(I64).with_capacity(n),
+            hashes = Vec(U64).with_capacity(n))
+        for _ in 0..nb {
+            s.buckets.push(own -1)
+        }
+        return s
+    }
+
+    len := func(self: HashSet(T)) returns USize { return self.keys.count }
+
+    /// Drop all live elements but keep the allocated storage so the set
+    /// can be reused (Set.clear's counterpart). The bucket array is
+    /// reset to empty rather than freed.
+    clear := func(mut self: HashSet(T)) {
+        self.keys.clear()
+        self.nexts.clear()
+        self.hashes.clear()
+        for i in 0..self.buckets.count {
+            self.buckets.unsafe_set(i, own -1)
+        }
+    }
+
+    /// Deep copy. Cloning the dense arrays and the bucket array
+    /// preserves every chain link, so the copy needs no rehash.
+    clone := func(self: HashSet(T)) returns HashSet(T) {
+        return HashSet(T)(
+            keys = self.keys.clone(),
+            buckets = self.buckets.clone(),
+            nexts = self.nexts.clone(),
+            hashes = self.hashes.clone())
+    }
+
+    // Hash via the element type's `hash(self, hasher)` method. The
+    // container picks the algorithm (HashSet(T).hasher, fnv1a by
+    // default); the type picks which bytes to feed it.
+    hash_elem := func(val: T) returns U64 {
+        return T.hash(val, HashSet(T).hasher)
+    }
+
+    elems_equal := func(a: T, b: T) returns Bool {
+        return T.cmp(a, b) == 0
+    }
+
+    // Walk the chain at the element's bucket. Returns the entry index in
+    // the dense keys array, or -1 if absent.
+    find := func(self: HashSet(T), val: T) returns I64 {
+        if self.keys.count == 0 { return -1 }
+        h := HashSet(T).hash_elem(val)
+        bi := bucket(h, self.buckets.count)
+        ref head : I64 = self.buckets.unsafe_get(bi)
+        mut entry : I64 = head.clone()
+        while entry >= 0 {
+            entry_u : USize = entry.to_usize()
+            // Stored-hash pre-filter: a chain neighbor with a different
+            // full hash cannot be this element, so skip the byte compare.
+            if self.hashes.unsafe_get(entry_u) == h {
+                ref k : T = self.keys.unsafe_get(entry_u)
+                if HashSet(T).elems_equal(val, k) { return entry }
+            }
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
+            entry = nxt.clone()
+        }
+        return -1
+    }
+
+    /// True if the set contains an element equal to `val`.
+    has := func(self: HashSet(T), val: T) returns Bool {
+        return self.find(val) >= 0
+    }
+
+    /// The set's own stored hash of `val` -- the exact value hash_elem
+    /// computed when the entry was inserted, retrieved rather than
+    /// recomputed. Throws KeyNotFound if `val` is absent; call as
+    /// `s.stored_hash(v)!` when absence would be a bug.
+    stored_hash := func(self: HashSet(T), val: T) returns U64 throws KeyNotFound {
+        idx := self.find(val)
+        if idx < 0 { throw KeyNotFound() }
+        return self.hashes.unsafe_get(idx.to_usize()).clone()
+    }
+
+    /// Insert `val`. If an equal element already exists, `val` is
+    /// dropped (Set.add's contract). `val` is owned.
+    add := func(mut self: HashSet(T), own val: T) {
+        // Seed the bucket array on first insert -- `new` leaves it empty
+        // so an unused set allocates nothing. bucket() takes a modulo,
+        // so this must happen before any bucket index is computed.
+        if self.buckets.count == 0 {
+            for _ in 0..HASHMAP_INIT_BUCKETS {
+                self.buckets.push(own -1)
+            }
+        }
+        h := HashSet(T).hash_elem(val)
+        bi := bucket(h, self.buckets.count)
+        ref head : I64 = self.buckets.unsafe_get(bi)
+        mut entry : I64 = head.clone()
+        mut existing : I64 = -1
+        while entry >= 0 {
+            entry_u : USize = entry.to_usize()
+            if self.hashes.unsafe_get(entry_u) == h {
+                ref k : T = self.keys.unsafe_get(entry_u)
+                if HashSet(T).elems_equal(val, k) {
+                    existing = entry.clone()
+                    break
+                }
+            }
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
+            entry = nxt.clone()
+        }
+        if existing >= 0 {
+            // Already present: the stored element stays, the incoming
+            // one is dropped, exactly as Set.add does.
+            T.delete(own val, false)
+            free(own val)
+        } else {
+            new_idx : I64 = self.keys.count.to_i64()
+            head_val : I64 = self.buckets.unsafe_get(bi).clone()
+            self.nexts.push(own head_val)
+            self.hashes.push(own h.clone())
+            self.keys.push(own val)
+            self.buckets.unsafe_set(bi, own new_idx)
+            // Load factor 0.75 = count * 4 > buckets * 3.
+            if self.keys.count * 4 > self.buckets.count * 3 {
+                self.rehash()
+            }
+        }
+    }
+
+    rehash := func(mut self: HashSet(T)) {
+        new_count : USize = self.buckets.count * 2
+        for i in 0..self.buckets.count {
+            self.buckets.unsafe_set(i, own -1)
+        }
+        while self.buckets.count < new_count {
+            self.buckets.push(own -1)
+        }
+        // Re-link every entry into its new bucket. The stored hash makes
+        // this pure pointer surgery: not one element is re-hashed.
+        for i in 0..self.keys.count {
+            bi := bucket(self.hashes.unsafe_get(i), self.buckets.count)
+            ref head : I64 = self.buckets.unsafe_get(bi)
+            head_val : I64 = head.clone()
+            self.nexts.unsafe_set(i, own head_val)
+            self.buckets.unsafe_set(bi, own i.to_i64())
+        }
+    }
+
+    delete := func(own self: HashSet(T), call_free: Bool = true) {
+        own self.keys.delete(false)
+        own self.buckets.delete(false)
+        own self.nexts.delete(false)
+        own self.hashes.delete(false)
+        if call_free { free(own self) }
+    }
+
+    /// Remove the element equal to `val`, dropping it. Returns false if
+    /// absent (Set.remove's contract). Uses a swap-remove on the dense
+    /// arrays: the trailing entry is relocated into the removed slot,
+    /// so one entry's index changes and the chain pointer that
+    /// referenced the old last index has to be rewritten.
+    remove := func(mut self: HashSet(T), val: T) returns Bool {
+        if self.keys.count == 0 { return false }
+        h := HashSet(T).hash_elem(val)
+        bi := bucket(h, self.buckets.count)
+
+        // Find the entry and its predecessor in the chain.
+        ref head : I64 = self.buckets.unsafe_get(bi)
+        mut prev : I64 = -1
+        mut entry : I64 = head.clone()
+        mut found := false
+        while entry >= 0 {
+            entry_u : USize = entry.to_usize()
+            if self.hashes.unsafe_get(entry_u) == h {
+                ref k : T = self.keys.unsafe_get(entry_u)
+                if HashSet(T).elems_equal(val, k) {
+                    found = true
+                    break
+                }
+            }
+            prev = entry.clone()
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
+            entry = nxt.clone()
+        }
+        if found.not() { return false }
+
+        idx_u : USize = entry.to_usize()
+        keys_off : USize = idx_u * T.size()
+
+        // Drop the entry's owned inner heap.
+        T.delete(own ptr_add(self.keys.data, keys_off), false)
+
+        // Unlink from the chain.
+        nxt_val : I64 = self.nexts.unsafe_get(idx_u).clone()
+        if prev < 0 {
+            self.buckets.unsafe_set(bi, own nxt_val)
+        } else {
+            self.nexts.unsafe_set(prev.to_usize(), own nxt_val)
+        }
+
+        last_idx : I64 = self.keys.count.to_i64() - 1
+        if entry.eq(last_idx).not() {
+            last_u : USize = last_idx.to_usize()
+            // Rewrite whatever pointer in `last_idx`'s chain referenced
+            // last_idx; it must now reference idx_u. The stored hash
+            // gives us its bucket without re-hashing the element.
+            last_bi := bucket(self.hashes.unsafe_get(last_u), self.buckets.count)
+            ref last_head : I64 = self.buckets.unsafe_get(last_bi)
+            if last_head == last_idx {
+                self.buckets.unsafe_set(last_bi, own entry.clone())
+            } else {
+                mut walker : I64 = last_head.clone()
+                while walker >= 0 {
+                    walker_u : USize = walker.to_usize()
+                    ref walker_nxt : I64 = self.nexts.unsafe_get(walker_u)
+                    if walker_nxt == last_idx {
+                        self.nexts.unsafe_set(walker_u, own entry.clone())
+                        break
+                    }
+                    walker = walker_nxt.clone()
+                }
+            }
+
+            // Move bytes for the element, its chain link and its hash.
+            last_keys_off : USize = last_u * T.size()
+            memcpy(ptr_add(self.keys.data, keys_off),
+                   ptr_add(self.keys.data, last_keys_off), T.size())
+            self.nexts.unsafe_set(idx_u, own self.nexts.unsafe_get(last_u).clone())
+            self.hashes.unsafe_set(idx_u, own self.hashes.unsafe_get(last_u).clone())
+        }
+
+        // Shrink the dense arrays by one. We touch count directly rather
+        // than going through Vec.pop -- pop mallocs a copy of the
+        // trailing bytes and hands ownership to the caller, which here
+        // would alias the inner heap we just moved into idx_u.
+        self.keys.count = self.keys.count - 1
+        self.nexts.count = self.nexts.count - 1
+        self.hashes.count = self.hashes.count - 1
+        return true
+    }
+}

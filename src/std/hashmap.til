@@ -5,10 +5,16 @@ mode lib
 // when you need ordered iteration or have only a handful of entries
 // (the binary-search Map wins on small tables).
 //
-// Layout: dense parallel `keys` / `values` Vecs plus a `buckets` Vec
-// that stores the head entry index for each bucket and a `nexts` Vec
-// that stores the per-entry chain link. Separate chaining over arrays,
-// no per-entry malloc. Adapted from rstil's src/std/hashmap.til.
+// Layout: dense parallel `keys` / `values` / `hashes` Vecs plus a
+// `buckets` Vec that stores the head entry index for each bucket and a
+// `nexts` Vec that stores the per-entry chain link. Separate chaining
+// over arrays, no per-entry malloc. Adapted from rstil's
+// src/std/hashmap.til. #101: each entry's full 64-bit hash is STORED
+// (`hashes`), like most serious hash tables: rehash() re-links without
+// re-hashing a single key, find() rejects chain collisions with a U64
+// compare before the byte-wise key compare, and stored_hash() hands the
+// container's own hash of a key to callers that need a content-derived
+// identity -- the generated-C literal pool names itself with it.
 
 import("hash")
 
@@ -19,6 +25,7 @@ HashMap := struct<K: Type, V: Type> {
     values : Vec(V)
     buckets : Vec(I64)  // bucket head entry index, -1 if empty
     nexts : Vec(I64)    // per-entry next-in-chain index, -1 if end
+    hashes : Vec(U64)   // per-entry full hash, computed once at insert
 
 namespace:
     /// Byte-hashing algorithm every HashMap forwards to per-key. Swap
@@ -40,7 +47,8 @@ namespace:
             keys = Vec(K).new(),
             values = Vec(V).new(),
             buckets = Vec(I64).new(),
-            nexts = Vec(I64).new())
+            nexts = Vec(I64).new(),
+            hashes = Vec(U64).new())
     }
 
     /// Create an empty HashMap pre-sized for `n` entries
@@ -58,7 +66,8 @@ namespace:
             keys = Vec(K).with_capacity(n),
             values = Vec(V).with_capacity(n),
             buckets = Vec(I64).with_capacity(nb),
-            nexts = Vec(I64).with_capacity(n))
+            nexts = Vec(I64).with_capacity(n),
+            hashes = Vec(U64).with_capacity(n))
         for _ in 0..nb {
             m.buckets.push(own -1)
         }
@@ -74,6 +83,7 @@ namespace:
         self.keys.clear()
         self.values.clear()
         self.nexts.clear()
+        self.hashes.clear()
         for i in 0..self.buckets.count {
             self.buckets.unsafe_set(i, own -1)
         }
@@ -87,7 +97,8 @@ namespace:
             keys = self.keys.clone(),
             values = self.values.clone(),
             buckets = self.buckets.clone(),
-            nexts = self.nexts.clone())
+            nexts = self.nexts.clone(),
+            hashes = self.hashes.clone())
     }
 
     // Hash via the key type's `hash(self, hasher)` method. The container
@@ -105,13 +116,18 @@ namespace:
     // dense keys/values arrays, or -1 if not found.
     find := func(self: HashMap(K, V), key: K) returns I64 {
         if self.keys.count == 0 { return -1 }
-        bi := bucket(HashMap(K, V).hash_key(key), self.buckets.count)
+        h := HashMap(K, V).hash_key(key)
+        bi := bucket(h, self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
         while entry >= 0 {
             entry_u : USize = entry.to_usize()
-            ref k : K = self.keys.unsafe_get(entry_u)
-            if HashMap(K, V).keys_equal(key, k) { return entry }
+            // Stored-hash pre-filter: a chain neighbor with a different
+            // full hash cannot be this key, so skip the byte compare.
+            if self.hashes.unsafe_get(entry_u) == h {
+                ref k : K = self.keys.unsafe_get(entry_u)
+                if HashMap(K, V).keys_equal(key, k) { return entry }
+            }
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
@@ -132,6 +148,19 @@ namespace:
         return self.values.unsafe_get(idx.to_usize())
     }
 
+    /// The container's own stored hash of `key` -- the exact value
+    /// hash_key computed when the entry was inserted, retrieved rather
+    /// than recomputed. Throws KeyNotFound if `key` is absent; call as
+    /// `m.stored_hash(k)!` when absence would be a bug. #101: the
+    /// generated-C literal pool names its struct fields with this, so
+    /// the identifier a literal gets IS the hash its bookkeeping table
+    /// already paid for.
+    stored_hash := func(self: HashMap(K, V), key: K) returns U64 throws KeyNotFound {
+        idx := self.find(key)
+        if idx < 0 { throw KeyNotFound() }
+        return self.hashes.unsafe_get(idx.to_usize()).clone()
+    }
+
     // Insert or overwrite. The value is owned.
     set := func(mut self: HashMap(K, V), key: K, own val: V) {
         // Seed the bucket array on first insert -- `new` leaves it empty
@@ -143,16 +172,19 @@ namespace:
                 self.buckets.push(own -1)
             }
         }
-        bi := bucket(HashMap(K, V).hash_key(key), self.buckets.count)
+        h := HashMap(K, V).hash_key(key)
+        bi := bucket(h, self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
         mut existing : I64 = -1
         while entry >= 0 {
             entry_u : USize = entry.to_usize()
-            ref k : K = self.keys.unsafe_get(entry_u)
-            if HashMap(K, V).keys_equal(key, k) {
-                existing = entry.clone()
-                break
+            if self.hashes.unsafe_get(entry_u) == h {
+                ref k : K = self.keys.unsafe_get(entry_u)
+                if HashMap(K, V).keys_equal(key, k) {
+                    existing = entry.clone()
+                    break
+                }
             }
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
@@ -167,6 +199,7 @@ namespace:
             new_idx : I64 = self.keys.count.to_i64()
             head_val : I64 = self.buckets.unsafe_get(bi).clone()
             self.nexts.push(own head_val)
+            self.hashes.push(own h.clone())
 
             if self.keys.count == self.keys.cap {
                 // Lazy-empty vecs (cap 0) seed to 1 on the first insert;
@@ -203,10 +236,10 @@ namespace:
             self.buckets.push(own -1)
         }
         // Re-link every entry into its new bucket. Walk keys in index
-        // order; insert at the head of the new chain.
+        // order; insert at the head of the new chain. The stored hash
+        // makes this pure pointer surgery: not one key is re-hashed.
         for i in 0..self.keys.count {
-            ref k : K = self.keys.unsafe_get(i)
-            bi := bucket(HashMap(K, V).hash_key(k), self.buckets.count)
+            bi := bucket(self.hashes.unsafe_get(i), self.buckets.count)
             ref head : I64 = self.buckets.unsafe_get(bi)
             head_val : I64 = head.clone()
             self.nexts.unsafe_set(i, own head_val)
@@ -219,6 +252,7 @@ namespace:
         own self.values.delete(false)
         own self.buckets.delete(false)
         own self.nexts.delete(false)
+        own self.hashes.delete(false)
         if call_free { free(own self) }
     }
 
@@ -235,6 +269,10 @@ namespace:
     remove := func(mut self: HashMap(K, V), key: K) returns Bool {
         if self.keys.count == 0 { return false }
         bi := bucket(HashMap(K, V).hash_key(key), self.buckets.count)
+        // (The chain walk below compares keys directly rather than
+        // through the stored-hash pre-filter: it also has to track
+        // `prev`, and the filter would only skip the byte compare, not
+        // the walk itself.)
 
         // Find the entry and its predecessor in the chain.
         ref head : I64 = self.buckets.unsafe_get(bi)
@@ -277,7 +315,7 @@ namespace:
             last_u : USize = last_idx.to_usize()
             // Rewrite whatever pointer in `last_idx`'s chain referenced
             // last_idx; it must now reference idx_u.
-            last_bi := bucket(HashMap(K, V).hash_key(self.keys.unsafe_get(last_u)), self.buckets.count)
+            last_bi := bucket(self.hashes.unsafe_get(last_u), self.buckets.count)
             ref last_head : I64 = self.buckets.unsafe_get(last_bi)
             if last_head == last_idx {
                 self.buckets.unsafe_set(last_bi, own entry.clone())
@@ -302,6 +340,7 @@ namespace:
             memcpy(ptr_add(self.values.data, values_off),
                    ptr_add(self.values.data, last_values_off), V.size())
             self.nexts.unsafe_set(idx_u, own self.nexts.unsafe_get(last_u).clone())
+            self.hashes.unsafe_set(idx_u, own self.hashes.unsafe_get(last_u).clone())
         }
 
         // Shrink the dense vectors by one. We touch count directly
@@ -311,6 +350,7 @@ namespace:
         self.keys.count = self.keys.count - 1
         self.values.count = self.values.count - 1
         self.nexts.count = self.nexts.count - 1
+        self.hashes.count = self.hashes.count - 1
         return true
     }
 }

@@ -1020,6 +1020,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/macros.til", format(flags, " -no-match"))
     add_both(tests, "test/sets.til", flags)
     add_both(tests, "test/dyn_sets.til", flags)
+    add_both(tests, "test/hashsets.til", flags)
     add_both(tests, "test/local_defs.til", flags)
     add_both(tests, "test/shallow.til", flags)
     add_both(tests, "test/globals_cli.til", flags)

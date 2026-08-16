@@ -232,6 +232,8 @@ typedef struct Set__Str Set__Str;
 typedef struct Map__Str_Str Map__Str_Str;
 typedef struct Vec__Bool Vec__Bool;
 typedef struct EvalHeap EvalHeap;
+typedef struct Vec__I64 Vec__I64;
+typedef struct Vec__U64 Vec__U64;
 typedef struct BorrowRoot BorrowRoot;
 typedef struct TypeBinding TypeBinding;
 typedef struct ScopeFind ScopeFind;
@@ -257,13 +259,14 @@ typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Set__U32 Set__U32;
 typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
+typedef struct HashMap__Str_Str HashMap__Str_Str;
+typedef struct HashMap__Str_USize HashMap__Str_USize;
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
 typedef struct Option__ref_Declaration Option__ref_Declaration;
-typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__U32 Vec__U32;
 typedef struct Vec__Mode Vec__Mode;
@@ -302,7 +305,6 @@ typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__Cto
 typedef struct FactIndex FactIndex;
 typedef struct RootBits RootBits;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
-typedef struct Vec__U64 Vec__U64;
 typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
@@ -367,6 +369,7 @@ typedef struct ReplEditor ReplEditor;
 typedef struct AnsiDecoder AnsiDecoder;
 typedef struct CliArgs CliArgs;
 
+typedef TilClosure *HashFn;
 typedef TilClosure *priv___src_self_interpreter_til__DispatchFn;
 
 typedef struct Vec__Dynamic {
@@ -665,6 +668,20 @@ typedef struct EvalHeap {
 } EvalHeap;
 
 
+typedef struct Vec__I64 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__I64;
+
+
+typedef struct Vec__U64 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__U64;
+
+
 typedef struct BorrowRoot {
     Str name;
     Str path;
@@ -718,6 +735,30 @@ typedef struct Set__U32 {
 } Set__U32;
 
 
+typedef struct Map__Str_I64 {
+    Vec__Str keys;
+    Vec__I64 values;
+} Map__Str_I64;
+
+
+typedef struct HashMap__Str_Str {
+    Vec__Str keys;
+    Vec__Str values;
+    Vec__I64 buckets;
+    Vec__I64 nexts;
+    Vec__U64 hashes;
+} HashMap__Str_Str;
+
+
+typedef struct HashMap__Str_USize {
+    Vec__Str keys;
+    Vec__USize values;
+    Vec__I64 buckets;
+    Vec__I64 nexts;
+    Vec__U64 hashes;
+} HashMap__Str_USize;
+
+
 struct Option__ref_Expr {
     Expr *data;
 };
@@ -738,13 +779,6 @@ typedef struct Vec__FFITypePtrBox {
 struct Option__ref_Declaration {
     Declaration *data;
 };
-
-typedef struct Vec__I64 {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__I64;
-
 
 typedef struct Vec__TypeBinding {
     U8 *data;
@@ -837,13 +871,6 @@ typedef struct RootBits {
     U64 into;
     U64 carried;
 } RootBits;
-
-
-typedef struct Vec__U64 {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__U64;
 
 
 typedef struct Vec__CtorArg {
@@ -1437,12 +1464,6 @@ typedef struct Map__Str_StructLayout {
 } Map__Str_StructLayout;
 
 
-typedef struct Map__Str_I64 {
-    Vec__Str keys;
-    Vec__I64 values;
-} Map__Str_I64;
-
-
 typedef struct Map__Str_call_Vec_Str {
     Vec__Str keys;
     Vec__call_Vec_Str values;
@@ -1631,13 +1652,13 @@ typedef struct Context {
     Set__Str throw_used_local_names;
     Map__Str_call_Vec_Str priv_ref_edges;
     BuilderFuncScratch builder_func;
-    Map__Str_Str builder_str_lit_symbols;
+    HashMap__Str_Str builder_str_lit_symbols;
     Vec__Str builder_str_lit_values;
-    Map__Str_Str builder_str_lit_ident_symbols;
-    Map__Str_USize builder_str_lit_counts;
-    Map__Str_Str builder_str_lit_ident_contents;
+    HashMap__Str_Str builder_str_lit_ident_symbols;
+    HashMap__Str_USize builder_str_lit_counts;
+    HashMap__Str_Str builder_str_lit_ident_contents;
     Vec__Str builder_str_lit_members;
-    Map__Str_USize builder_str_lit_member_seq;
+    HashMap__Str_USize builder_str_lit_member_seq;
     Set__Str builder_reflect_inventory;
     Set__Str builder_dyn_fn_targets;
     Set__Str builder_ns_member_sites;
@@ -1727,6 +1748,7 @@ Bool Str_is_empty(Str * self);
 I64 Str_find(Str * self, Str * needle);
 I64 Str_rfind(Str * self, Str * needle);
 Str * Str_replace(Str * self, Str * from, Str * to);
+U64 Str_hash(Str * self, HashFn hasher);
 Str * Str_strip_prefix(Str * self, Str * prefix);
 Str * Str_strip_suffix(Str * self, Str * suffix);
 Str * Str_from_byte(U8 byte);
@@ -2109,6 +2131,25 @@ void adopt__Bool(void * dest, Bool * src);
 void * EvalHeap_heap_alloc(USize size);
 void EvalHeap_heap_free(void * ptr);
 void EvalHeap_delete(EvalHeap * self, Bool call_free);
+U64 fnv1a(void * data, USize n);
+U64 djb2(void * data, USize n);
+USize bucket(U64 h, USize cap);
+Vec__I64 * Vec__I64_new(void);
+void Vec__I64_clear(Vec__I64 * self);
+void Vec__I64_push(Vec__I64 * self, I64 * val);
+I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
+void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
+void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Vec__I64 * Vec__I64_clone(Vec__I64 * self);
+Vec__U64 * Vec__U64_new(void);
+Vec__U64 * Vec__U64_with_capacity(USize n);
+void Vec__U64_clear(Vec__U64 * self);
+void Vec__U64_push(Vec__U64 * self, U64 * val);
+void Vec__U64_unsafe_set(Vec__U64 * self, USize i, U64 * val);
+void Vec__U64_delete(Vec__U64 * self, Bool call_free);
+Vec__U64 * Vec__U64_clone(Vec__U64 * self);
+void adopt__I64(void * dest, I64 * src);
+void adopt__U64(void * dest, U64 * src);
 Bool BorrowRoot_eq(BorrowRoot * a, BorrowRoot * b);
 BorrowRoot * BorrowRoot_clone(BorrowRoot * self);
 void BorrowRoot_delete(BorrowRoot * self, Bool call_free);
@@ -2353,6 +2394,27 @@ Vec__Str * Map__Str_call_Vec_Str_get(Map__Str_call_Vec_Str * self, Str * key, I6
 void Map__Str_call_Vec_Str_set(Map__Str_call_Vec_Str * self, Str * key, Vec__Str * val);
 void Map__Str_call_Vec_Str_delete(Map__Str_call_Vec_Str * self, Bool call_free);
 Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_clone(Map__Str_call_Vec_Str * self);
+HashMap__Str_Str * HashMap__Str_Str_new(void);
+HashMap__Str_Str * HashMap__Str_Str_clone(HashMap__Str_Str * self);
+U64 HashMap__Str_Str_hash_key(Str * key);
+Bool HashMap__Str_Str_keys_equal(Str * a, Str * b);
+I64 HashMap__Str_Str_find(HashMap__Str_Str * self, Str * key);
+Bool HashMap__Str_Str_has(HashMap__Str_Str * self, Str * key);
+Str * HashMap__Str_Str_get(HashMap__Str_Str * self, Str * key, I64 * _err_kind);
+void HashMap__Str_Str_set(HashMap__Str_Str * self, Str * key, Str * val);
+void HashMap__Str_Str_rehash(HashMap__Str_Str * self);
+void HashMap__Str_Str_delete(HashMap__Str_Str * self, Bool call_free);
+HashMap__Str_USize * HashMap__Str_USize_new(void);
+HashMap__Str_USize * HashMap__Str_USize_clone(HashMap__Str_USize * self);
+U64 HashMap__Str_USize_hash_key(Str * key);
+Bool HashMap__Str_USize_keys_equal(Str * a, Str * b);
+I64 HashMap__Str_USize_find(HashMap__Str_USize * self, Str * key);
+Bool HashMap__Str_USize_has(HashMap__Str_USize * self, Str * key);
+USize * HashMap__Str_USize_get(HashMap__Str_USize * self, Str * key, I64 * _err_kind);
+U64 HashMap__Str_USize_stored_hash(HashMap__Str_USize * self, Str * key, I64 * _err_kind);
+void HashMap__Str_USize_set(HashMap__Str_USize * self, Str * key, USize * val);
+void HashMap__Str_USize_rehash(HashMap__Str_USize * self);
+void HashMap__Str_USize_delete(HashMap__Str_USize * self, Bool call_free);
 Bool Option__ref_Expr_is_some(Option__ref_Expr self);
 Bool Option__ref_Expr_is_none(Option__ref_Expr self);
 Expr * Option__ref_Expr_unwrap(Option__ref_Expr * self);
@@ -2390,13 +2452,6 @@ Bool Option__ref_Declaration_is_none(Option__ref_Declaration self);
 Declaration * Option__ref_Declaration_unwrap(Option__ref_Declaration * self);
 Option__ref_Declaration Option__ref_Declaration_Some(Declaration * val);
 void Option__ref_Declaration_delete(Option__ref_Declaration * self, Bool call_free);
-Vec__I64 * Vec__I64_new(void);
-void Vec__I64_clear(Vec__I64 * self);
-void Vec__I64_push(Vec__I64 * self, I64 * val);
-I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
-void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
-void Vec__I64_delete(Vec__I64 * self, Bool call_free);
-Vec__I64 * Vec__I64_clone(Vec__I64 * self);
 Vec__TypeBinding * Vec__TypeBinding_new(void);
 void Vec__TypeBinding_clear(Vec__TypeBinding * self);
 void Vec__TypeBinding_remove_at(Vec__TypeBinding * self, USize i, I64 * _err_kind);
@@ -2451,7 +2506,6 @@ void adopt__Mode(void * dest, Mode * src);
 void adopt__FuncType(void * dest, FuncType * src);
 void adopt__ImportUnit(void * dest, ImportUnit * src);
 void adopt__StructLayout(void * dest, StructLayout * src);
-void adopt__I64(void * dest, I64 * src);
 void adopt__Vec__Str(void * dest, Vec__Str * src);
 void adopt__FFIEntry(void * dest, FFIEntry * src);
 void adopt__ExprPtrBox(void * dest, ExprPtrBox * src);
@@ -2913,11 +2967,6 @@ Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope * scope
 Bool priv___src_self_typer_til__struct_def_has_field(Expr * sdef, Str * field_name);
 Str * priv___src_self_typer_til__collection_elem_type_of(TypeScope * scope, Str * col_type_name);
 Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope, Expr * body, USize stmt_idx, I32 in_func, Context * ctx);
-Vec__U64 * Vec__U64_new(void);
-Vec__U64 * Vec__U64_with_capacity(USize n);
-void Vec__U64_clear(Vec__U64 * self);
-void Vec__U64_unsafe_set(Vec__U64 * self, USize i, U64 * val);
-void Vec__U64_delete(Vec__U64 * self, Bool call_free);
 Vec__CtorArg * Vec__CtorArg_new(void);
 void Vec__CtorArg_clear(Vec__CtorArg * self);
 void Vec__CtorArg_push(Vec__CtorArg * self, priv___src_self_typer_til__CtorArg * val);
@@ -2939,7 +2988,6 @@ Vec__RootBits * Vec__RootBits_new(void);
 void Vec__RootBits_clear(Vec__RootBits * self);
 void Vec__RootBits_unsafe_set(Vec__RootBits * self, USize i, RootBits * val);
 void Vec__RootBits_delete(Vec__RootBits * self, Bool call_free);
-void adopt__U64(void * dest, U64 * src);
 void adopt__priv___src_self_typer_til__CtorArg(void * dest, priv___src_self_typer_til__CtorArg * src);
 void adopt__RootBits(void * dest, RootBits * src);
 void adopt__priv___src_self_typer_til__CoverageNode(void * dest, priv___src_self_typer_til__CoverageNode * src);
@@ -3565,7 +3613,7 @@ void priv___src_self_builder_til__builder_register_str_lits_for_expr(Expr * e, C
 void priv___src_self_builder_til__builder_register_dyn_type_to_str_lits(LoadedProgram * lp);
 void priv___src_self_builder_til__builder_register_str_lits(LoadedProgram * lp);
 Bool priv___src_self_builder_til__builder_str_lit_is_loc(Str * s);
-Str * priv___src_self_builder_til__builder_str_lit_member(Str * s);
+Str * priv___src_self_builder_til__builder_str_lit_member(Context * ctx, Str * s);
 void priv___src_self_builder_til__builder_finalize_str_lit_pool(Context * ctx);
 void priv___src_self_builder_til__builder_emit_str_lit_pool(File * f, Context * ctx);
 void priv___src_self_builder_til__builder_emit_loc_region(File * f, Context * ctx);
@@ -4346,6 +4394,8 @@ extern Type TYPE_ENUMDEF;
 extern Type TYPE_MAP;
 extern Type TYPE_SET;
 extern Map__Str_TokenType priv___src_self_lexer_til__KEYWORDS;
+extern U64 FNV_PRIME;
+extern U32 HASHMAP_INIT_BUCKETS;
 extern Array__Str PRIM_NAMES;
 extern I64 _PRIM_NAMES_ek;
 extern Array__Str WIDTH_ALIAS_NAMES;
