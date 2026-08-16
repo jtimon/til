@@ -691,7 +691,6 @@ typedef struct BorrowRoot {
     U32 col;
     Bool carried;
     Str field;
-    Bool provisional;
 } BorrowRoot;
 
 
@@ -873,7 +872,6 @@ typedef struct RootBits {
     U64 alias;
     U64 into;
     U64 carried;
-    U64 provisional;
 } RootBits;
 
 
@@ -1308,7 +1306,6 @@ typedef struct FunctionDef {
     U64 ref_return_params;
     U64 ref_return_into_params;
     U64 ref_return_carried_params;
-    U64 ref_return_provisional_params;
 } FunctionDef;
 
 
@@ -2910,6 +2907,7 @@ Option__ref_Expr priv___src_self_typer_til__fcall_callee_fdef(Expr * fcall, Type
 Option__ref_Expr priv___src_self_typer_til__fcall_arg_for_param(Expr * fcall, USize * pi, TypeScope * scope);
 Bool priv___src_self_typer_til__type_carries_borrow_v(TypeScope * scope, Str * tname, Set__Str * visited);
 Bool priv___src_self_typer_til__type_carries_borrow(TypeScope * scope, Str * tname);
+void priv___src_self_typer_til__carries_borrow_memo_clear(void);
 Option__ref_Declaration priv___src_self_typer_til__fieldaccess_field_decl(TypeScope * scope, Expr * fa);
 Bool priv___src_self_typer_til__fieldaccess_crosses_borrow(TypeScope * scope, Expr * fa);
 Option__ref_Expr priv___src_self_typer_til__fcall_struct_ctor_def(Expr * fcall, TypeScope * scope);
@@ -4451,6 +4449,8 @@ extern Str F32Name;
 extern Str F64Name;
 extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
+extern Set__Str priv___src_self_typer_til__carries_borrow_yes;
+extern Set__Str priv___src_self_typer_til__carries_borrow_no;
 extern I32 priv___src_self_desugarer_til__SLOT_EMPTY;
 extern U8 priv___src_self_garbager_til__FLOW_UNREACHED;
 extern U8 priv___src_self_garbager_til__FLOW_UNINIT;

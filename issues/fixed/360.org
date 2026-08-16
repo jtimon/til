@@ -1,6 +1,52 @@
 # priority: high
 # category: bugs
-** WIP #360 An owned intermediate drops borrow provenance; the backends diverge again
+** FIXED #360 An owned intermediate drops borrow provenance; the backends diverge again
+
+*** Post-mortem
+
+Root cause, two independent halves that only diverged together:
+
+1. summary_walk's Decl arm forwarded roots for a ~ref~ local only, so a
+   function parking a borrow in an OWNED local and returning it
+   summarised as reaching nothing. Nothing credited the write, so
+   nothing rejected it either.
+2. fdef_return_carries_borrow -- the gate that keeps auto-shallow (#223)
+   from value-copying a parameter whose borrow can escape -- did not
+   count a returned STRUCT carrying a ref field. So the parameter WAS
+   copied, and the returned borrow pointed into the copy: the write
+   reached the caller's storage interpreted and a dead copy compiled.
+
+Half 1 alone would have made the write visible without making the
+accepted program correct; half 2 alone would have fixed the divergence
+while still accepting a write through a read-only borrow.
+
+Fixed across a master merge, the #344 ladder: the preparation commit
+taught the tracking (owned locals forward the CARRYING relations -- a
+copy cannot reach the source's storage, but holds the same pointers) and
+widened the auto-shallow gate, crediting the write but skipping the
+rejection behind a provisional marker. This commit removes the marker
+and its two fields, so the write is rejected against the storage it
+reaches.
+
+The sweep the plan anticipated turned out to be empty. That is a result
+of the preparation's own decision to SKIP typer-emitted temps rather
+than forward through them: forwarding grew summaries past what the
+expressions themselves say and would have flagged 7 src/self sites that
+no write actually requires. Skipping keeps the summaries honest, and
+src/self needed no qualifier changes at all.
+
+Trap worth keeping: returns are hoisted into owned temps AFTER typing,
+so treating temps as user intermediates marks every summary provisional
+and silently disables the whole check. Two existing #344/#354 negative
+cases going quiet is what caught it -- the reason those cases earn their
+place in the suite.
+
+Regression tests: test/ref.til's
+test_borrow_root_through_owned_intermediate (honest form, both backends
+agree the caller's storage changed twice) landed with the preparation;
+test/typer_errors.til's terr360_poke (the non-mut form rejected, naming
+s; count 210 -> 211) lands here.
+
 
 ~summary_walk~'s Decl arm forwards roots only for a ~ref~ local. An
 OWNED local of a borrow-carrying type, built by a call, drops them -- so

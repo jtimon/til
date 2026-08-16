@@ -1236,3 +1236,17 @@ terr342_vec_splat := terr342_sum(..terr342_vec_src)
 // while the C backend refused `Array__Dynamic_concat(collector, Array__Str)`.
 terr342_dyn := func(xs: ..Dynamic) returns USize { return xs.len() }
 terr342_dyn_splat := terr342_dyn(1, ..terr342_strs)
+
+// #360: parking the borrow in an OWNED local and returning it does not
+// launder the write either. mk hands back a Holder whose ref field
+// points into s, so writing through it writes s -- and s is a read-only
+// borrow here. This was the last shape that compiled while the two
+// backends disagreed about where the write landed.
+terr360_mk := func(s: Terr351Src) returns Terr351Holder {
+    h := Terr351Holder(r = terr351_held_of(s))
+    return h
+}
+terr360_poke := func(s: Terr351Src) {
+    h2 := terr360_mk(s)
+    h2.r.n = h2.r.n + 1
+}
