@@ -1,6 +1,67 @@
 # priority: medium
 # category: bugs
-** OPEN #343 A view reaching a C string parameter reads past its end, unchecked
+** FIXED #343 A view reaching a C string parameter reads past its end, unchecked
+
+*** Post-mortem
+
+  Route 1, with the discriminator the "Constraint" section below asked
+  for: the terminator BYTE, not ~cap~.  ~c_str[count] == 0~ answers the
+  actual question ("is this a C string?") and is immune to the CAP_LIT ->
+  CAP_VIEW demotion that made a cap test fire on safe values, including
+  ~get_env~'s own ~""~ return.  Reading that byte is always in bounds,
+  which is what the NUL audit below had already established: every
+  allocating Str path reserves count+1, and a view's end never passes its
+  base's -- so the check trusts an invariant that was verified before it
+  was written, not the other way round.
+
+  Root cause: nothing connected the two halves of the mismatch.  til's
+  ~Str~ is length-counted and C's string is terminator-counted, and the
+  conversion between them -- ~.c_str~ in an ext argument -- was a bare
+  member read that asserted nothing.  Every guarantee lived in prose
+  (doc/ffi.org, per-binding ~///~ comments), so it held exactly as long
+  as each caller remembered it.
+
+  Changed:
+
+  - ~src/self/builder.til~: ~emit_user_fcall_args~ wraps the argument in
+    a new ~TIL_CSTR~ macro (emitted beside ~DEREF~, and panicking the
+    same way) when the callee is an ext binding, the parameter is a plain
+    ~name : I8~ -- exactly the shape ~emit_param_list~ gives
+    ~const char *~ -- and the argument is ~<str>.c_str~.  ~shallow val :
+    I8~ (a char by value) and ~mut text : I8~ (a buffer the callee writes
+    or frees) are excluded because neither walks to a terminator.  A
+    STRING LITERAL receiver is excluded too: it emits the C literal
+    itself, so the check would be provably dead at most call sites (every
+    ~InitWindow~ / ~DrawText~ in examples/) and they emit unchanged.
+  - ~src/self/interpreter.til~: the mirror, so the backends cannot
+    diverge.  ~ext_dispatch_ffi~ marks the arguments the builder wraps
+    (~ctx.interp_cstr_arg~, a new one-shot Context flag) and
+    ~eval_expr_field_raw~ consumes it at entry -- before the receiver is
+    resolved, so a call in the receiver never inherits the mark -- then
+    runs ~check_c_string_terminator~ on the base it already has.  A flag
+    rather than a check inside ~.c_str~ itself, which was route 4 and is
+    rejected: core/str.til reads ~c_str~ on views constantly and
+    legitimately.
+  - doc/ffi.org and std/sys.til's ~get_env~ record that the boundary now
+    enforces what they used to only ask for.
+
+  Regression test: ~cstr_view_interp~ / ~cstr_view_run~ (src/tests.til)
+  over ~test/cstr_view.til~, one per backend, registered as ~count~
+  entries on the panic text rather than expected-exit singles -- an exit
+  1 could be any panic, while the message appearing exactly once says the
+  terminator check is what stopped it.  The fixture spells the view with
+  the ~Str~ constructor instead of ~substr~ because the two backends do
+  not agree on what ~substr~ returns (compiled: a real CAP_VIEW into the
+  base buffer; interpreted: an owned copy, hence terminated), so a
+  substr-based fixture would have exercised one backend only -- which is
+  how the first version of this test passed compiled and failed
+  interpreted.  It also drives ~view.clone()~ through the same parameter
+  FIRST, so a check that fired on anything view-SHAPED would fail there.
+  The safe shapes stay pinned by ~test/ext_libc.til~ (a both entry).
+
+  Still open, deliberately: route 2, the type-level guarantee.  The check
+  is a runtime backstop under the rules, not a replacement for them, and
+  it only sees the direct ~expr.c_str~ form.
 
   ~Str~ is pointer + count, and C strings are NUL-terminated, so the two
   worlds only line up for values that happen to carry a NUL one byte past

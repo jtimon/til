@@ -572,6 +572,20 @@ main := proc(args: ..Str) {
     add_single(tests, "main_return7_run", "cli", 7, "",
         format(til_bin, " build", asan_flag, " -o bin/main_return7 test/main_return7.til '&&' bin/main_return7 one two"))
 
+    // Issue #343: a Str view reaching a C string parameter must die at the
+    // boundary, on BOTH backends and with the same message -- the compiled
+    // TIL_CSTR macro and the interpreter's FFI marshalling test the same
+    // byte. `count` rather than expected-exit singles because what matters
+    // is WHICH failure fired: an exit 1 could be any panic, while the
+    // message appearing exactly once says the terminator check is what
+    // stopped it. The safe half (literal / owned / clone) rides
+    // test/ext_libc.til, a both entry that must stay green.
+    cstr_view_msg := "Str is not NUL-terminated"
+    add_count(tests, "cstr_view_interp", "cli", cstr_view_msg, 1,
+        format(til_bin, " test/cstr_view.til"))
+    add_count(tests, "cstr_view_run", "cli", cstr_view_msg, 1,
+        format(til_bin, " build", asan_flag, " -o bin/cstr_view test/cstr_view.til '&&' bin/cstr_view"))
+
     // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
     // binary through Cmd with the argument shapes a quoted command
     // line gets wrong and compare what the child's C runtime parsed.

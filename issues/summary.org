@@ -1,8 +1,6 @@
 * Bugs
 ** High
 *** [[./open/357.org][#357]] Interpreted: a C pointer crossing into Dynamic is dereferenced once too many
-** Medium
-*** [[./open/343.org][#343]] A view reaching a C string parameter reads past its end, unchecked
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

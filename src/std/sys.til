@@ -37,7 +37,9 @@ getenv := ext_proc(name: I8) returns ref I8 {}
 /// `name` reaches C as a NUL-terminated string, so it must be a literal
 /// or an owned Str, never a substr view (a view's bytes end at its count,
 /// with no NUL there, and getenv would read past it). Pass
-/// `view.clone()` at the call site if you have one. The result is owned:
+/// `view.clone()` at the call site if you have one -- since #343 the
+/// boundary panics on a view here rather than reading past it, but the
+/// caller still owns the choice. The result is owned:
 /// the bytes are copied out of the environ block, so the Str stays valid
 /// however the environment changes later. A host observation, hence proc:
 /// the same call can answer differently twice in one run.

@@ -1615,6 +1615,7 @@ typedef struct Context {
     void * *interp_ret_dest;
     Option__ref_Str interp_ret_type;
     OwnType interp_ret_own_type;
+    Bool interp_cstr_arg;
     Bool constfold_active;
     Bool eval_aborted;
     Bool repl_session;
@@ -3578,6 +3579,9 @@ Bool priv___src_self_builder_til__callee_param_is_uptr(Str * callee_name, USize 
 Bool priv___src_self_builder_til__callee_param_is_own(Str * callee_name, USize arg_index, Context * ctx);
 Bool priv___src_self_builder_til__callee_param_writes_back(Str * callee_name, USize arg_index, Context * ctx);
 Str * priv___src_self_builder_til__callee_param_explicit_type(Str * callee_name, USize arg_index, Context * ctx);
+Bool priv___src_self_builder_til__ext_c_string_param(Str * callee_name, USize arg_index, Context * ctx);
+Bool priv___src_self_builder_til__c_str_arg_needs_nul_check(Expr * e);
+void priv___src_self_builder_til__emit_checked_c_str(File * f, Expr * e, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__fcall_returns_dynamic(Expr * fcall, Context * ctx);
 Str * priv___src_self_builder_til__til_type_to_c(Type t);
 void priv___src_self_builder_til__seed_primitive_names(Set__Str * emitted);
@@ -3917,6 +3921,7 @@ Option__ref_Expr priv___src_self_interpreter_til__field_nested_def(Declaration *
 Bool priv___src_self_interpreter_til__decl_is_funcsig(Declaration * dd, Context * ctx);
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
+void priv___src_self_interpreter_til__check_c_string_terminator(void * s_base, Context * ctx);
 Bool priv___src_self_interpreter_til__str_owns_c_str(void * s_base, Context * ctx);
 Bool priv___src_self_interpreter_til__str_has_owned_storage(void * ptr, Context * ctx);
 void priv___src_self_interpreter_til__free_str_owned_storage(void * ptr, Context * ctx);
@@ -4244,6 +4249,8 @@ Bool priv___src_self_interpreter_til__ffi_decode_scalar(Str * rtype, void * p, v
 Option__ref_Expr priv___src_self_interpreter_til__ffi_call_ret_struct_def(FFIEntry * fe, Context * ctx);
 Bool priv___src_self_interpreter_til__ffi_shallow_type_info(void * atype, Str * type_name, USize * size);
 Bool priv___src_self_interpreter_til__ffi_write_shallow_arg(void * source, priv___src_self_interpreter_til__RawResultInfo * info, void * atype, void * dst, Context * ctx);
+Bool priv___src_self_interpreter_til__interp_c_str_arg_shape(Expr * arg_expr);
+Bool priv___src_self_interpreter_til__interp_ext_c_string_param(Scope * scope, Str * name, USize arg_index);
 Bool priv___src_self_interpreter_til__ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, void * result, Context * ctx);
 Str * priv___src_self_interpreter_til__scalar_op_cat(Str * t);
 Bool priv___src_self_interpreter_til__scalar_is_binop(Str * op);

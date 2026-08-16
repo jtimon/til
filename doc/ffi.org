@@ -156,12 +156,33 @@ Whether it does depends on how the ~Str~ was made:
 | ~substr~, ~trim~, ~trim_start~ -- any ~CAP_VIEW~ | *NO* -- the view points into the middle of another buffer |
 
 So a view's ~.c_str~ hands C the view's bytes *plus whatever
-follows them*.  This is silent: the C call operates on a
-different string than the program meant, and usually just fails
+follows them*.  This used to be silent: the C call operated on a
+different string than the program meant, and usually just failed
 (~ENOENT~ from ~unlink~, ~NULL~ from ~dlsym~) somewhere far from
 the cause.  Note it only bites in COMPILED code -- the
 interpreter materialises ~substr~ as an owned copy -- so a bug
-here can pass every interpreted test and still ship.
+here could pass every interpreted test and still ship.
+
+Issue #343 closed the silence: the ext-call boundary now CHECKS
+the terminator.  A ~<str>.c_str~ argument feeding an ext
+binding's plain ~name : I8~ parameter -- the shape that emits
+~const char *~ -- is wrapped in the ~TIL_CSTR~ macro, which
+panics when ~c_str[count]~ is not a NUL, the way ~DEREF~ panics
+on a null.  The interpreter's FFI marshalling tests the same
+byte, so both backends die identically.  Two things follow from
+how it is spelled:
+
+- The BYTE is the discriminator, not ~cap~.  Returning a literal
+  from a til function demotes ~CAP_LIT~ to ~CAP_VIEW~ while
+  leaving the string terminated, so a cap test would reject safe
+  values; reading ~c_str[count]~ is always in bounds, because
+  every allocating Str path reserves count+1 and a view's end
+  never passes its base's.
+- It catches the direct ~expr.c_str~ form only.  A pointer
+  laundered through an ~I8~ local first, or handed to C by a
+  binding's own C side, still escapes it -- which is why the two
+  rules below remain the rules, with the check as a backstop
+  under them rather than a replacement for them.
 
 Two rules follow:
 
@@ -178,7 +199,9 @@ Two rules follow:
    owned local, but not for anything that might be a view -- and a
    ~s : Str~ parameter might always be one, since the caller
    chooses.  ~clone()~ the string first: an owned copy always
-   carries the NUL.
+   carries the NUL.  The boundary check turns getting this wrong
+   into a panic naming the cause instead of a wrong string, but
+   the panic is still a bug report, not a behaviour to rely on.
 
      c := s.clone()
      DrawText(c.c_str, 10, 10, 20, WHITE)

@@ -899,6 +899,13 @@ Context := struct {
     // its FuncDef. None outside a call (saved/restored around each one).
     interp_ret_type := Option(ref Str).None
     interp_ret_own_type := OwnType.Shallow
+    // #343: one-shot "the field read about to happen feeds a C string
+    // parameter". ext_dispatch_ffi sets it for exactly the arguments the
+    // builder wraps in TIL_CSTR, and eval_expr_field_raw consumes it at
+    // entry so nested evaluation (a call in the receiver) never inherits it.
+    // A flag rather than a check inside `.c_str` itself: core/str.til reads
+    // c_str on views constantly and legitimately (memcmp, substr, hash).
+    interp_cstr_arg := false
     constfold_active := false
     // "Abandon this evaluation and unwind like an early return", checked by
     // eval_body / eval_while. Two producers, one meaning: a const-fold eval

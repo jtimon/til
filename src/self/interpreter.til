@@ -82,6 +82,22 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
     return true
 }
 
+// #343: the interpreter half of the compiled TIL_CSTR macro, same
+// discriminator and same message so a view reaching a C string parameter
+// dies identically on both backends. Reading the byte at [count] is always
+// in bounds -- every allocating Str path reserves count+1, and a view's end
+// never passes its base's.
+priv check_c_string_terminator := func(s_base: Dynamic, ctx: Context) {
+    ref s : Str = to_ptr(s_base)
+    if s.c_str.is_null() {
+        panic("Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first")
+    }
+    ref b : I8 = ptr_add(s.c_str, str_count_at(s_base, ctx).cast(U64))
+    if b != 0 {
+        panic("Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first")
+    }
+}
+
 priv str_owns_c_str := func(s_base: Dynamic, ctx: Context) returns Bool {
     ref s : Str = to_ptr(s_base)
     return s.c_str.is_null().not().and(str_cap_at(s_base, ctx).lt(CAP_VIEW)).and(str_cap_at(s_base, ctx).gt(0))
@@ -1400,6 +1416,11 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
 priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_type: Type, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
     info.is_ref = false
     info.is_word = false
+    // #343: consume the ext-argument mark HERE, before the receiver is
+    // resolved -- resolving it can evaluate a call (`name.clone().c_str`),
+    // and a `.c_str` inside that callee is an ordinary borrowed read.
+    cstr_arg := ctx.interp_cstr_arg
+    ctx.interp_cstr_arg = false
     switch e.node_type {
     case .FieldAccess(fa):
         if interp_fa_is_ns(scope, e, ctx) {
@@ -1463,6 +1484,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         base_o := field_access_base(scope, e.children[0], ctx)
         if base_o.is_some() {
             ref base : Dynamic = base_o.unwrap()
+            if cstr_arg { check_c_string_terminator(base, ctx) }
             if info.is_ref {
                 if fdecl.own_type.is(OwnType.Shallow).not() { return deref(ptr_add(base, fl.offset)) }
                 return ptr_add(base, fl.offset)
@@ -7724,6 +7746,38 @@ priv ffi_write_shallow_arg := func(source: Dynamic, info: RawResultInfo, atype: 
     return true
 }
 
+// #343: the interpreter's copy of the builder's ext-argument test, split so
+// the cheap half runs first -- an ordinary FFI call with no `.c_str`
+// argument at all (every DrawRectangle in a frame loop) never pays for the
+// scope walk that resolves the binding's parameter list. A string-literal
+// receiver is skipped for the reason the builder skips it: the literal IS
+// the C string, terminator included.
+priv interp_c_str_arg_shape := func(arg_expr: Expr) returns Bool {
+    switch arg_expr.node_type {
+    case .FieldAccess(fname):
+        if fname.field_access_name().eq("c_str").not() { return false }
+        if arg_expr.children.len() == 0 { return false }
+        return arg_expr.children[0].node_type.is_literal_str().not()
+    case:
+        return false
+    }
+}
+
+priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: USize) returns Bool {
+    ref ext_slot : Dynamic = scope_get(scope, name)?
+    catch (knf: KeyNotFound) { return false }
+    ref ext_def : Expr = callable_raw_func_def(ext_slot)
+    switch ext_def.node_type {
+    case .FuncDef(fd):
+        if arg_index >= fd.params.len() { return false }
+        ref p : Declaration = fd.params[arg_index]
+        if p.explicit_type.eq("I8").not() { return false }
+        return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
+    case:
+        return false
+    }
+}
+
 priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
     if ctx.ffi_loaded.not() { return false }
     if ctx.ffi_map.has(name).not() { return false }
@@ -7747,7 +7801,11 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     for i in 0..nargs {
         ref mut arg_expr : Expr = e.children[i + 1]
         mut arg_info := raw_result_info_new()
+        if interp_c_str_arg_shape(arg_expr).and(interp_ext_c_string_param(scope, name, i)) {
+            ctx.interp_cstr_arg = true
+        }
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
+        ctx.interp_cstr_arg = false
         arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
         arg_raw_off := i.mul(16)
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)

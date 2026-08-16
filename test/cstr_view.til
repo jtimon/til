@@ -1,0 +1,48 @@
+mode cli
+
+// Issue #343 regression: a Str VIEW reaching a C string parameter.
+//
+// `Str` is pointer + count; a C string parameter reads to a NUL. The two
+// only line up when the byte at `c_str[count]` IS one, which owned Strs
+// (every allocating path reserves count+1) and literals guarantee and a
+// view does not: a view points into the middle of a bigger buffer and the
+// next byte is more of the original string, or heap garbage. Nothing
+// checked it -- `setenv(name.substr(0, 13).c_str, ...)` compiled clean and
+// stored a longer name than asked for, with no diagnostic at any stage.
+//
+// Now the ext-call boundary checks the terminator: the builder wraps the
+// argument in TIL_CSTR and the interpreter's FFI marshalling tests the
+// same byte, so both backends die here with the same message.
+//
+// The byte, not `cap`, is the discriminator. Returning a literal from a
+// til function demotes CAP_LIT to CAP_VIEW while leaving the string
+// terminated, so a `cap == CAP_VIEW` test would fire on safe values --
+// starting with std/sys's `get_env` returning "".
+//
+// The SAFE shapes (a literal, an owned Str, `view.clone()`) are pinned by
+// test/ext_libc.til, which runs on both backends and must stay green.
+
+setenv := ext_proc(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
+
+main := proc() {
+    backed := "TIL_ISSUE_343_VIEW"
+
+    // The view is spelled out instead of taken with `substr`, because the
+    // two backends do not agree on what substr RETURNS: compiled it is a
+    // real CAP_VIEW into `backed`'s buffer, interpreted it is an owned
+    // copy (allocated count+1, hence terminated). A substr-based fixture
+    // would exercise the check on the compiled backend only. This is the
+    // value substr compiles to, and it is a view on both.
+    view := Str(c_str = ptr_add(backed.c_str, 0), count = 13, cap = CAP_VIEW)
+
+    // A clone of that same view is safe -- an owned copy carries the NUL
+    // -- and it reaches C FIRST, so a check that fired on anything
+    // view-SHAPED rather than on the missing terminator would be caught
+    // here instead of below.
+    rc := setenv(view.clone().c_str, "clone".c_str, 1)
+    if rc.neq(0) { panic("the cloned view did not reach setenv") }
+
+    // The view itself: no NUL at c_str[13], so this must not reach libc.
+    _rc2 := setenv(view.c_str, "view".c_str, 1)
+    println("the view reached setenv unchecked")
+}

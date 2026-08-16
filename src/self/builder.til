@@ -730,6 +730,66 @@ priv callee_param_explicit_type := func(callee_name: Str, arg_index: USize, ctx:
     }
 }
 
+// Issue #343: an ext binding's plain `name : I8` param -- exactly the shape
+// emit_param_list gives `const char *` -- is a C STRING input, read by the
+// callee up to a NUL it assumes is there. `shallow val : I8` is a char by
+// value and `mut text : I8` is a buffer the callee writes or frees; neither
+// walks to a terminator, so neither is checked.
+priv ext_c_string_param := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
+    switch fdef.node_type {
+    case .FuncDef(fd):
+        if fd.func_type.is_ext().not() { return false }
+        if arg_index >= fd.params.len() { return false }
+        ref p : Declaration = fd.params[arg_index]
+        if p.explicit_type.eq("I8").not() { return false }
+        return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
+    case:
+        return false
+    }
+}
+
+// The `<str>.c_str` argument shape the NUL check wraps. A STRING LITERAL
+// base is excluded: it emits the C literal itself, terminator and all, so
+// the check would be provably dead at every `"text".c_str` call site --
+// which is most of them (every InitWindow / DrawText in examples/).
+priv c_str_arg_needs_nul_check := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .FieldAccess(fname):
+        if fname.field_access_name().eq("c_str").not() { return false }
+        if e.children.len() == 0 { return false }
+        if e.children[0].node_type.is_literal_str() { return false }
+        return fa_struct_name(e).eq("Str")
+    case:
+        return false
+    }
+}
+
+// TIL_CSTR needs the receiver as a `Str *`, so spell the base the way the
+// plain field access spells it (emit_expr's FieldAccess arm) and take the
+// address of the value forms. A get_payload receiver is `void *` there and
+// needs the same cast that arm emits, here to the known Str type.
+priv emit_checked_c_str := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
+    ref obj : Expr = e.children[0]
+    mut obj_is_get_payload := false
+    if obj.node_type.is(NodeType.FCall).and(obj.children.len().gt(0)) {
+        if obj.children[0].node_type.is(ident_node("get_payload")) { obj_is_get_payload = true }
+    }
+    f.write("TIL_CSTR(")
+    if obj_is_get_payload {
+        f.write("(Str *)")
+        emit_expr(f, obj, depth, ctx)
+    } else if use_dot_access(obj, ctx) {
+        f.write("&(")
+        emit_expr(f, obj, depth, ctx)
+        f.write(")")
+    } else {
+        emit_expr(f, obj, depth, ctx)
+    }
+    f.write(")")
+}
 
 priv fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
@@ -1194,7 +1254,9 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             }
         }
         if emitted_inline_closure { continue }
-        if callee_param_is_shallow(callee_name, i - 1, ctx) {
+        if ext_c_string_param(callee_name, i - 1, ctx).and(c_str_arg_needs_nul_check(arg)) {
+            emit_checked_c_str(f, arg, depth, ctx)
+        } else if callee_param_is_shallow(callee_name, i - 1, ctx) {
             emit_deref(f, arg, depth, ctx)
         } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
             f.write("USIZE_REF(").emit_deref(arg, depth, ctx).write(")")
@@ -8954,6 +9016,17 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     emit_all_forward_declarations(f, mode, lp)
 
     f.write("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
+
+    // Issue #343: `Str` is pointer + count and a C string parameter reads to
+    // a NUL, so the two only line up when the byte at c_str[count] IS one.
+    // Owned Strs reserve count+1 and literals carry the terminator; a VIEW
+    // into the middle of a buffer does not, and the callee walks past the
+    // count into whatever follows. The byte is the discriminator, not `cap`
+    // -- a literal returned from a til function is demoted to CAP_VIEW while
+    // staying terminated, so a cap test would fire on safe values. Reading
+    // it is always in bounds: every allocating Str path reserves count+1
+    // (issue #343's audit) and a view's end never passes its base's.
+    f.write("#define TIL_CSTR(s) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, \"panic: Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first\\n\"); exit(1); } _cs->c_str; })\n")
 
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
     f.write("#define TIL_CAP_VIEW ((USize)-2)\n")
