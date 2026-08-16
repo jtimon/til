@@ -1,0 +1,308 @@
+mode cli
+
+link_c("test/wincon.c")
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// Issue #347: the FIRST execution of the REPL's Windows console half.
+//
+// #332 gave `til repl` line editing and history on every host, and the
+// native Windows side of that bridge -- src/c/ext.c's `#if
+// defined(_WIN32)` repl_term_* block, the SetConsoleCtrlHandler restore
+// path, the MoveFileExA history rename -- had never run. Not once, on
+// any machine. What was verified is that mingw compiles and links it
+// under -Wall -Wextra -Werror and that the result is PE32+, which is a
+// statement about the C compiler.
+//
+// This is the console analogue of test/repl_pty.til: test/wincon.c
+// allocates a real console, this driver spawns `til.exe repl` into it
+// (Cmd passes our std handles through, and a child without
+// CREATE_NEW_CONSOLE attaches to the same console), posts key records
+// with WriteConsoleInput and reads the drawn rows back with
+// ReadConsoleOutputCharacter. Piping into `til.exe repl` would prove
+// nothing: repl_term_is_interactive asks GetConsoleMode, a pipe fails
+// it, and the REPL falls back to the non-editing path that already
+// worked.
+//
+// Run as: repl_wincon <path-to-til-binary>
+//
+// The five things #347 lists as unverified, and where each is pinned:
+//
+//   - Ctrl-C reaching repl_term_ctrl_handler, its "\r\n" ending the row
+//     and the console modes coming back  -> session B
+//   - the ESC follow-up window surviving non-key input records, which
+//     repl_term_read_event re-waits in full for each one              -> step 6
+//   - WINDOW_BUFFER_SIZE_EVENT -> TIL_KEY_REDRAW, the resize path whose
+//     POSIX twin was where a real bug lived                           -> step 5
+//   - ENABLE_VIRTUAL_TERMINAL_PROCESSING actually moving the cursor
+//     rather than printing the redraw vocabulary as text  -> every row
+//     assertion (a literal "[K" would show up in the row)
+//   - uChar.AsciiChar delivering the ASCII range                      -> all typing
+
+wincon_begin := ext_proc() returns shallow Bool {}
+wincon_end := ext_proc() {}
+wincon_key := ext_proc(shallow vk: I64, shallow ch: I64) {}
+wincon_noise := ext_proc(shallow count: I64) {}
+wincon_clear := ext_proc() {}
+wincon_resize := ext_proc(shallow rows: I64) {}
+wincon_ctrl_c := ext_proc() {}
+wincon_screen := ext_proc() returns Str {}
+wincon_in_mode := ext_proc() returns shallow I64 {}
+wincon_cursor_col := ext_proc() returns shallow I64 {}
+
+// Virtual key codes for the keys repl_term_read_event maps by CODE
+// rather than by character. An ordinary character is posted with vk 0,
+// which falls through that switch to the uChar.AsciiChar arm.
+VK_RETURN : I64 = 13
+VK_ESCAPE : I64 = 27
+VK_END : I64 = 35
+VK_HOME : I64 = 36
+VK_LEFT : I64 = 37
+VK_UP : I64 = 38
+VK_DELETE : I64 = 46
+
+CTRL_D : I64 = 4
+
+// wincon_screen right-trims every row, so the prompt's own trailing
+// space is not there to match on.
+PROMPT := "til[script]>"
+
+POLL_MS : I64 = 100
+POLL_LIMIT : I64 = 600      // a minute of patience before giving up
+// How long the ESC probe holds a non-key record stream against the
+// 50ms REPL_ESC_TIMEOUT_MS window: ten rounds at 20ms is 4x the
+// timeout, so a window that restarts per record never closes.
+NOISE_ROUNDS : I64 = 10
+NOISE_GAP_MS : I64 = 20
+
+STATE := "tmp/repl_wincon_state"
+
+rows_of := func(screen: Str) returns Vec(Str) {
+    return screen.split("\n")
+}
+
+count_rows := func(screen: Str, want: Str) returns I64 {
+    mut n : I64 = 0
+    for r : Str in rows_of(screen) {
+        if r == want { n++ }
+    }
+    return n
+}
+
+last_row := func(screen: Str) returns Str {
+    rs := rows_of(screen)
+    if rs.len() == 0 { return "" }
+    return rs[rs.len() - 1].clone()
+}
+
+// Wait until the row the cursor sits on ends with `want`. Every step
+// waits for the editor to have finished drawing before typing the next
+// one, so a slow machine changes the duration and never the result.
+wait_row := proc(want: Str) returns Bool {
+    mut n : I64 = 0
+    while n < POLL_LIMIT {
+        if last_row(wincon_screen()).ends_with(want) { return true }
+        sleep_ms(POLL_MS)
+        n++
+    }
+    return false
+}
+
+type_str := proc(s: Str) {
+    for i in 0..s.len() {
+        wincon_key(0, s.unsafe_get(i).to_u64().cast(I64))
+    }
+}
+
+enter := proc() {
+    wincon_key(VK_RETURN, 13)
+}
+
+// Type a line, submit it, and wait for the editor to come back with a
+// fresh prompt. `echo` is what the row must end with once the line has
+// been typed, which is how a swallowed keystroke fails HERE instead of
+// somewhere downstream.
+submit := proc(echo: Str) returns Bool {
+    if wait_row(echo).not() { return false }
+    enter()
+    return wait_row(PROMPT)
+}
+
+fail := proc(what: Str, screen: Str) {
+    println("repl_wincon FAIL: ", what)
+    println("--- screen ---")
+    println(screen)
+    println("--- end screen ---")
+    wincon_end()
+    exit(1)
+}
+
+main := proc(args: ..Str) {
+    if args.len() != 1 {
+        println("Usage: repl_wincon <path-to-til-binary>")
+        exit(1)
+    }
+    ref til : Str = args[0]
+
+    if host_os() != "windows" {
+        // Every other host has the pseudo-terminal test instead; this
+        // one exists for the console, and its C side is stubs here.
+        println("repl_wincon SKIP (windows console only)")
+        return
+    }
+
+    // Session A's Up-three-times step counts entries from THIS session,
+    // so a history file left by an earlier run would make it recall a
+    // different line. Start from nothing every time.
+    File.remove_tree(STATE)
+
+    if wincon_begin().not() {
+        println("repl_wincon FAIL: could not allocate a console")
+        exit(1)
+    }
+    // From here on this process's WIN32 std handles are the console, so
+    // every println below still reaches the job log through the CRT's
+    // own file descriptors -- see test/wincon.c.
+    mode_before := wincon_in_mode()
+
+    // --- Session A: editing, recall, redraw, clean exit ---
+
+    repl := Cmd.new(til, "repl")
+    repl.env("LOCALAPPDATA", STATE)
+    _pid := repl.start()
+
+    if wait_row(PROMPT).not() { fail("the REPL never drew a prompt", wincon_screen()) }
+
+    // 1. Home + Delete: two junk bytes typed at the front are removed
+    //    from the start of the line the cursor is not at.
+    type_str("zzprintln(format(\"A\",\"1\"))")
+    wincon_key(VK_HOME, 0)
+    wincon_key(VK_DELETE, 0)
+    wincon_key(VK_DELETE, 0)
+    if submit("println(format(\"A\",\"1\"))").not() {
+        fail("Home/Delete did not edit the line", wincon_screen())
+    }
+
+    // 2. Home + End: the tail is typed after jumping to the front and
+    //    back, so a broken End closes the parens in the wrong place.
+    type_str("println(format(\"A\",\"2\"")
+    wincon_key(VK_HOME, 0)
+    wincon_key(VK_END, 0)
+    type_str("))")
+    if submit("println(format(\"A\",\"2\"))").not() {
+        fail("Home/End did not edit the line", wincon_screen())
+    }
+
+    // 3. Left + Delete: remove a trailing typo without touching the rest.
+    type_str("println(format(\"A\",\"3\"))X")
+    wincon_key(VK_LEFT, 0)
+    wincon_key(VK_DELETE, 0)
+    if submit("println(format(\"A\",\"3\"))").not() {
+        fail("Left/Delete did not edit the line", wincon_screen())
+    }
+
+    // 4. Up three times reaches the first line submitted this session.
+    wincon_key(VK_UP, 0)
+    wincon_key(VK_UP, 0)
+    wincon_key(VK_UP, 0)
+    if submit("println(format(\"A\",\"1\"))").not() {
+        fail("Up did not recall the first line", wincon_screen())
+    }
+
+    // 5. The resize path. The screen is blanked WITHOUT moving the
+    //    cursor and the buffer height is changed; a
+    //    WINDOW_BUFFER_SIZE_EVENT that reaches the editor as
+    //    TIL_KEY_REDRAW draws the row again, and one that never arrives
+    //    leaves it blank. This is the console's SIGWINCH, and its POSIX
+    //    twin is where #332's last bug lived.
+    type_str("1 + 41")
+    if wait_row("1 + 41").not() { fail("the typed line never appeared", wincon_screen()) }
+    wincon_clear()
+    wincon_resize(400)
+    if wait_row("1 + 41").not() {
+        fail("a console resize did not redraw the row (WINDOW_BUFFER_SIZE_EVENT lost)",
+             wincon_screen())
+    }
+    enter()
+    if wait_row(PROMPT).not() { fail("the redrawn line did not submit", wincon_screen()) }
+
+    // 6. The ESC follow-up window against non-key records. ESC starts a
+    //    50ms wait for the rest of a sequence; repl_term_read_event
+    //    filters a mouse record with `continue` and then waits AGAIN for
+    //    the full timeout, so a stream of them keeps the window open for
+    //    as long as it lasts and the NEXT character is eaten as part of
+    //    the sequence instead of being typed. Ten rounds at 20ms is four
+    //    times the timeout.
+    wincon_key(VK_ESCAPE, 27)
+    mut r : I64 = 0
+    while r < NOISE_ROUNDS {
+        wincon_noise(1)
+        sleep_ms(NOISE_GAP_MS)
+        r++
+    }
+    type_str("1 + 41")
+    if submit("1 + 41").not() {
+        fail("a keystroke after ESC + input-record noise was swallowed", wincon_screen())
+    }
+
+    screen_a := wincon_screen()
+    a1 := count_rows(screen_a, "A1")
+    a2 := count_rows(screen_a, "A2")
+    a3 := count_rows(screen_a, "A3")
+    answers := count_rows(screen_a, "42")
+
+    // 7. Ctrl-D on an empty line ends the session, cleanly.
+    wincon_key(0, CTRL_D)
+    status_a := repl.wait()
+    mode_after_a := wincon_in_mode()
+
+    if a1 != 2 { fail(format("A1 drawn ", a1.to_str(), " times, expected 2"), screen_a) }
+    if a2 != 1 { fail(format("A2 drawn ", a2.to_str(), " times, expected 1"), screen_a) }
+    if a3 != 1 { fail(format("A3 drawn ", a3.to_str(), " times, expected 1"), screen_a) }
+    if answers != 2 { fail(format("42 drawn ", answers.to_str(), " times, expected 2"), screen_a) }
+    if status_a != 0 { fail(format("Ctrl-D exited with ", status_a.to_str()), screen_a) }
+    if mode_after_a != mode_before {
+        fail(format("console input mode not restored after Ctrl-D: ",
+                    mode_before.to_str(), " -> ", mode_after_a.to_str()), screen_a)
+    }
+
+    // --- Session B: persisted history, then Ctrl-C ---
+    //
+    // A second process against the same state directory: Up must recall
+    // what the first one wrote, which is the only exercise the
+    // MoveFileExA history rename gets.
+
+    wincon_clear()
+    repl2 := Cmd.new(til, "repl")
+    repl2.env("LOCALAPPDATA", STATE)
+    _pid2 := repl2.start()
+    if wait_row(PROMPT).not() { fail("the second REPL never drew a prompt", wincon_screen()) }
+
+    wincon_key(VK_UP, 0)
+    if wait_row("1 + 41").not() {
+        fail("history did not persist to a second process", wincon_screen())
+    }
+
+    // Ctrl-C as the console raises it. The handler ends the row it
+    // interrupted -- so whatever prints next does not land on top of the
+    // prompt -- and puts the console modes back before the default
+    // handler kills the process.
+    wincon_ctrl_c()
+    status_b := repl2.wait()
+    col_b := wincon_cursor_col()
+    mode_after_b := wincon_in_mode()
+    screen_b := wincon_screen()
+
+    if status_b == 0 { fail("Ctrl-C left the REPL exiting 0", screen_b) }
+    if col_b != 0 {
+        fail(format("Ctrl-C left the cursor at column ", col_b.to_str(), ", expected 0"), screen_b)
+    }
+    if mode_after_b != mode_before {
+        fail(format("console input mode not restored after Ctrl-C: ",
+                    mode_before.to_str(), " -> ", mode_after_b.to_str()), screen_b)
+    }
+
+    wincon_end()
+    println("repl_wincon PASS")
+}

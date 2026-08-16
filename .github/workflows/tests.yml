@@ -315,6 +315,15 @@ jobs:
           ./bin/til build --target=windows-x64 -o bin/win_quoting.exe test/win_quoting.til
           file bin/echo_argv.exe | grep -q "PE32+"
           file bin/win_quoting.exe | grep -q "PE32+"
+      # Issue #347: the REPL console driver, cross-built here and RUN on
+      # the windows runner below -- the only place the repl_term_* windows
+      # block has ever executed. test/wincon.c rides along through
+      # link_c(), so this also keeps that file compiling under mingw's
+      # -Wall -Wextra -Werror.
+      - name: Cross-build the REPL console driver
+        run: |
+          ./bin/til build --target=windows-x64 -o bin/repl_wincon.exe test/repl_wincon.til
+          file bin/repl_wincon.exe | grep -q "PE32+"
       - name: Upload windows-host artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -325,6 +334,7 @@ jobs:
             bin/receiver.exe
             bin/echo_argv.exe
             bin/win_quoting.exe
+            bin/repl_wincon.exe
 
   windows-x64-host-run:
     name: windows-x64 host (run til.exe + nng on windows)
@@ -358,6 +368,25 @@ jobs:
           cd winhost
           ./win_quoting.exe echo_argv.exe
           ./win_quoting.exe echo_argv.exe | grep -q "win_quoting PASS"
+      # Issue #347: first-ever execution of the REPL's windows console
+      # half. The driver allocates a real console (the runner gives the
+      # job pipes, which repl_term_is_interactive correctly refuses), spawns
+      # til.exe repl into it, posts key records with WriteConsoleInput and
+      # reads the drawn rows back with ReadConsoleOutputCharacter -- the
+      # console analogue of the pty test/repl_pty.til drives on POSIX.
+      # Run from winhost/ and name the child as a BARE til.exe, like the
+      # quoting step above: CreateProcess resolves that from the calling
+      # image's directory, while a forward-slash relative path is not a
+      # spelling it is documented to search. til.exe finds its own support
+      # tree through GetModuleFileNameA, not through the cwd, so the REPL
+      # still resolves src/ and boot/ from here.
+      - name: REPL console session on windows
+        shell: bash
+        run: |
+          cd winhost
+          mkdir -p tmp
+          ./repl_wincon.exe til.exe | tee repl_wincon.out
+          grep -q "repl_wincon PASS" repl_wincon.out
       - name: Run nng sender+receiver over real winsock on windows
         shell: bash
         run: |

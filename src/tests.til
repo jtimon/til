@@ -553,6 +553,15 @@ main := proc(args: ..Str) {
     // one again.
     add_single(tests, "repl_pty", "cli", 0, "", format(TIL, " run test/repl_pty.til"))
 
+    // #347: the console half of the same editor, which had never been
+    // RUN on any machine. The real session happens on the windows runner
+    // (the workflow's "REPL console session on windows" step, against the
+    // cross-built .exe); here it reports SKIP -- and in doing so keeps
+    // test/wincon.c compiling and linking on every host, so the driver
+    // cannot rot between windows runs.
+    add_single(tests, "repl_wincon", "cli", 0, "",
+        format(TIL, " run test/repl_wincon.til ", TIL))
+
     // `til install` end to end: install the compiler under tmp/ and
     // build a program with the RESULT, from another directory, against
     // the installed std and C runtime. Nothing covered install before,
