@@ -296,3 +296,24 @@ test_mixed_fold := test() {
     result := add(double_il(3), 4)
     assert_eq(I64, result, 10)
 }
+
+// Test 14: a foldable body that READS a global constant. Every global
+// literal const is registered in the fold scope up front, but only becomes
+// "known" when process_body walks past its Decl -- so a const declared
+// after its reader (GATE below) is bound in scope with the known table
+// still empty for it. The reachability walk then found the binding and
+// read its slot as an Expr: for `GATE : USize = 2` that is the pointer
+// 0x2, and the compiler segfaulted in func_sig_has_dynamic. It now asks
+// the binding whether it is callable at all (hb_func_def) before reading
+// a FuncDef out of it, so the value binding simply has no body to walk.
+gated_incr := func(x: I64) returns I64 {
+    if GATE.gt(1) { return x.add(1) }
+    return x
+}
+
+test_fold_reads_global_const := test() {
+    assert_eq(I64, gated_incr(1), 2)
+}
+
+// Declared after its reader on purpose -- that ordering is the witness.
+GATE : USize = 2

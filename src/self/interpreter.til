@@ -4011,6 +4011,40 @@ priv heap_slot_is_static_callable := func(shallow til_type: Type, ptr: Dynamic) 
     return callable_box_is(stored).not()
 }
 
+// The FuncDef Expr a binding stands for, or None when it holds a VALUE.
+// Not priv: the constfolder reads it, like hb_type.
+//
+// A scope slot is a raw value block, so reading one as an Expr is only
+// sound once the binding's TYPE says it is callable. The constfolder used
+// to `deref` any slot it found and hand the result straight to
+// `fdef.node_type`: for a global constant like `ELEM_FN : USize = 2` that
+// is the wild pointer 0x2, and the first field read segfaults. Both
+// callable shapes end at a FuncDef -- a static one stores the Expr
+// address itself, a closure stores an InterpCallableBox that borrows it.
+hb_func_def := func(hb: HeapBinding) returns Option(ref Expr) {
+    ref slot : Dynamic = to_ptr(hb.ptr)
+    // REM: a moved-out or torn-down binding NULLs ptr; nothing to read.
+    if slot.is_null() { return Option(ref Expr).None }
+    if heap_type_is_callable(hb_type(hb)).not() { return Option(ref Expr).None }
+    ref stored : Dynamic = deref(slot)
+    if stored.is_null() { panic(__LOC__, "callable heap slot is empty") }
+    if callable_box_is(stored) {
+        ref box : InterpCallableBox = to_ptr(stored)
+        return Option(ref Expr).Some(to_ptr(box.func_def))
+    }
+    return Option(ref Expr).Some(to_ptr(stored))
+}
+
+// The FuncDef behind a namespace member (`Str.size`), or None when the
+// member holds a value. Same slot-is-not-an-Expr reasoning as hb_func_def.
+ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Expr) {
+    ref mut c : Context = ctx
+    if c.ns_fields.is_none() { return Option(ref Expr).None }
+    hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
+    if hb_o.is_none() { return Option(ref Expr).None }
+    return hb_func_def(hb_o.unwrap())
+}
+
 priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Context) {
     if ptr.is_null() { return }
     switch til_type {

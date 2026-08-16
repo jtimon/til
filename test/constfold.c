@@ -138,6 +138,7 @@ void test_enum_return_fold(void);
 void test_enum_payload_return_fold(void);
 void test_const_and_or_fold(void);
 void test_mixed_fold(void);
+void test_fold_reads_global_const(void);
 void assert_eq__I64(I64 a, I64 b, Str * loc);
 void assert_eq__Str(Str * a, Str * b, Str * loc);
 Bool Color_eq(Color *, Color *);
@@ -196,6 +197,7 @@ static Str hoisted__Str_test_enum_return_fold_1 = (Str){.c_str = (void *)"test/c
 static Str hoisted__Str_test_enum_return_fold_4 = (Str){.c_str = (void *)"test/constfold.til:260:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_fold_f32_4 = (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_fold_f32_9 = (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_fold_reads_global_const_3 = (Str){.c_str = (void *)"test/constfold.til:315:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_fold_variable_2 = (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_loc_folded_3 = (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_loc_folded_7 = (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -993,6 +995,13 @@ void test_mixed_fold(void) {
     Str_delete(&hoisted__Str_test_mixed_fold_4, 0);
 }
 
+void test_fold_reads_global_const(void) {
+    I64 hoisted__I64_1 = 2;
+    I64 hoisted__I64_2 = 2;
+    assert_eq__I64(hoisted__I64_1, hoisted__I64_2, &hoisted__Str_test_fold_reads_global_const_3);
+    Str_delete(&hoisted__Str_test_fold_reads_global_const_3, 0);
+}
+
 void assert_eq__I64(I64 a, I64 b, Str * loc) {
     Bool hoisted__Bool_11 = ((Bool)(a != b));
     if (hoisted__Bool_11) {
@@ -1080,6 +1089,8 @@ int main(void) {
     fprintf(stderr, "  pass: %s\n", "test_const_and_or_fold");
     test_mixed_fold();
     fprintf(stderr, "  pass: %s\n", "test_mixed_fold");
-    fprintf(stderr, "20/20 tests passed\n");
+    test_fold_reads_global_const();
+    fprintf(stderr, "  pass: %s\n", "test_fold_reads_global_const");
+    fprintf(stderr, "21/21 tests passed\n");
     return 0;
 }

@@ -321,7 +321,6 @@ typedef struct Array__U8 Array__U8;
 typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
 typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
-typedef struct Option__ref_Dynamic Option__ref_Dynamic;
 typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
 typedef struct Map__Str_DeclRef Map__Str_DeclRef;
@@ -354,6 +353,7 @@ typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
+typedef struct Option__ref_Dynamic Option__ref_Dynamic;
 typedef struct Vec__DynPtrBox Vec__DynPtrBox;
 typedef struct Vec__InterpAlias Vec__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
@@ -994,10 +994,6 @@ typedef struct Vec__GcCfgBlock {
 } Vec__GcCfgBlock;
 
 
-struct Option__ref_Dynamic {
-    void *data;
-};
-
 struct Option__ref_Scope {
     Scope *data;
 };
@@ -1198,6 +1194,10 @@ typedef struct FFITypePtrBox {
 
 struct Option__ref_HeapBinding {
     HeapBinding *data;
+};
+
+struct Option__ref_Dynamic {
+    void *data;
 };
 
 typedef struct Vec__DynPtrBox {
@@ -3303,7 +3303,7 @@ Bool priv___src_self_constfolder_til__is_known_check(Context * ctx, Expr * e);
 Bool priv___src_self_constfolder_til__body_has_local(Expr * body, Str * name);
 Bool priv___src_self_constfolder_til__func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * constfolder_scope, Expr * body_root, Bool lenient, Set__Str * visiting, Context * ctx);
 Option__ref_Expr priv___src_self_constfolder_til__extract_trivial_literal_return(Expr * fdef);
-Option__ref_Dynamic priv___src_self_constfolder_til__ns_lookup_flat(Str * name, Context * ctx);
+Option__ref_Expr priv___src_self_constfolder_til__ns_lookup_flat(Str * name, Context * ctx);
 Str * priv___src_self_constfolder_til__fa_recv_type_name(Expr * callee, Context * ctx);
 Option__Expr priv___src_self_constfolder_til__try_fast_fold_call(Scope * scope, Expr * fcall, Context * ctx);
 Option__Expr priv___src_self_constfolder_til__try_eval_call(Scope * scope, Expr * fcall, Bool require_known, Context * ctx);
@@ -3333,11 +3333,6 @@ void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
 void constfolder_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
 void constfolder_register_core_constants(Scope * global, Str * usize_name, Context * ctx);
-Bool Option__ref_Dynamic_is_some(Option__ref_Dynamic self);
-Bool Option__ref_Dynamic_is_none(Option__ref_Dynamic self);
-void * Option__ref_Dynamic_unwrap(Option__ref_Dynamic * self);
-Option__ref_Dynamic Option__ref_Dynamic_Some(void * val);
-void Option__ref_Dynamic_delete(Option__ref_Dynamic * self, Bool call_free);
 Option__ref_Scope Option__ref_Scope_Some(Scope * val);
 void Option__ref_Scope_delete(Option__ref_Scope * self, Bool call_free);
 Option__ref_Scope Option__ref_Scope_clone(Option__ref_Scope * self);
@@ -4046,6 +4041,8 @@ Scope * scope_new(Option__ref_Scope parent);
 Option__ref_HeapBinding scope_lookup_heap_binding(Scope * s, Str * name);
 Bool priv___src_self_interpreter_til__heap_type_is_callable(Type til_type);
 Bool priv___src_self_interpreter_til__heap_slot_is_static_callable(Type til_type, void * ptr);
+Option__ref_Expr hb_func_def(HeapBinding * hb);
+Option__ref_Expr ns_func_def(Str * sname, Str * fname, Context * ctx);
 void priv___src_self_interpreter_til__heap_drop_by_type(Type til_type, void * ptr, Context * ctx);
 void * priv___src_self_interpreter_til__primitive_heap_clone(Primitive * prim, void * ptr);
 void * priv___src_self_interpreter_til__heap_clone_by_type(Type til_type, void * ptr, Context * ctx);
@@ -4274,6 +4271,11 @@ HeapBinding * Option__ref_HeapBinding_unwrap(Option__ref_HeapBinding * self);
 Option__ref_HeapBinding Option__ref_HeapBinding_Some(HeapBinding * val);
 void Option__ref_HeapBinding_delete(Option__ref_HeapBinding * self, Bool call_free);
 Option__ref_HeapBinding Option__ref_HeapBinding_clone(Option__ref_HeapBinding * self);
+Bool Option__ref_Dynamic_is_some(Option__ref_Dynamic self);
+Bool Option__ref_Dynamic_is_none(Option__ref_Dynamic self);
+void * Option__ref_Dynamic_unwrap(Option__ref_Dynamic * self);
+Option__ref_Dynamic Option__ref_Dynamic_Some(void * val);
+void Option__ref_Dynamic_delete(Option__ref_Dynamic * self, Bool call_free);
 Vec__DynPtrBox * Vec__DynPtrBox_new(void);
 void Vec__DynPtrBox_clear(Vec__DynPtrBox * self);
 void Vec__DynPtrBox_push(Vec__DynPtrBox * self, priv___src_self_interpreter_til__DynPtrBox * val);
@@ -4396,9 +4398,9 @@ Option__ref_Declaration Option__ref_Declaration_Some(Declaration *);
 Option__ref_Mode Option__ref_Mode_Some(Mode *);
 Bool Lang_eq(Lang *, Lang *);
 priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg_Filled(Expr *);
-Option__ref_Dynamic Option__ref_Dynamic_Some(void *);
 Option__ref_Scope Option__ref_Scope_Some(Scope *);
 Option__ref_HeapBinding Option__ref_HeapBinding_Some(HeapBinding *);
+Option__ref_Dynamic Option__ref_Dynamic_Some(void *);
 Option__ref_ffi_type Option__ref_ffi_type_Some(ffi_type *);
 
 extern U32 CAP_LIT;
