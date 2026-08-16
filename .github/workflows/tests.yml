@@ -382,6 +382,11 @@ jobs:
       # still resolves src/ and boot/ from here.
       - name: REPL console session on windows
         shell: bash
+        # Belt to the driver's own per-wait budget: the console is the
+        # child's, so a driver that blocks says NOTHING until it is killed,
+        # and the job default is six hours. Ten minutes is above the
+        # driver's own worst case (every wait timing out in sequence).
+        timeout-minutes: 10
         run: |
           cd winhost
           mkdir -p tmp

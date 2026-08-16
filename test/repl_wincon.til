@@ -138,6 +138,34 @@ fail := proc(what: Str, screen: Str) {
     exit(1)
 }
 
+// One line per step into the JOB log -- not the console, which the child
+// owns. The console is invisible while the session runs and only reaches
+// the log if something fails, so without this a step that never finishes
+// says nothing at all about how far it got. That is exactly what the
+// first post-startup run did: it sat for minutes with no output, and the
+// only way to place the stall was to reason about which call could
+// block.
+step := proc(what: Str) {
+    println("repl_wincon: ", what)
+}
+
+// Cmd.wait blocks forever. In a driver that means the CI job sits until
+// its own six-hour timeout instead of reporting, and the screen -- the
+// one thing that would explain the stall -- is never dumped. Poll with
+// the same budget every other wait uses, and treat running out as an
+// ordinary failure: a REPL that does not act on Ctrl-D or Ctrl-C is a
+// finding, not a reason to hang.
+wait_exit := proc(c: Cmd, what: Str) returns I64 {
+    mut n : I64 = 0
+    while n < POLL_LIMIT {
+        if c.poll() { return c.status() }
+        sleep_ms(POLL_MS)
+        n++
+    }
+    fail(format(what, " did not end the REPL within the poll budget"), wincon_screen())
+    return -1
+}
+
 main := proc(args: ..Str) {
     if args.len() != 1 {
         println("Usage: repl_wincon <path-to-til-binary>")
@@ -168,11 +196,13 @@ main := proc(args: ..Str) {
 
     // --- Session A: editing, recall, redraw, clean exit ---
 
+    step("console allocated, spawning the REPL")
     repl := Cmd.new(til, "repl")
     repl.env("LOCALAPPDATA", STATE)
     _pid := repl.start()
 
     if wait_row(PROMPT).not() { fail("the REPL never drew a prompt", wincon_screen()) }
+    step("prompt drawn")
 
     // 1. Home + Delete: two junk bytes typed at the front are removed
     //    from the start of the line the cursor is not at.
@@ -183,6 +213,7 @@ main := proc(args: ..Str) {
     if submit("println(format(\"A\",\"1\"))").not() {
         fail("Home/Delete did not edit the line", wincon_screen())
     }
+    step("1. Home + Delete")
 
     // 2. Home + End: the tail is typed after jumping to the front and
     //    back, so a broken End closes the parens in the wrong place.
@@ -193,6 +224,7 @@ main := proc(args: ..Str) {
     if submit("println(format(\"A\",\"2\"))").not() {
         fail("Home/End did not edit the line", wincon_screen())
     }
+    step("2. Home + End")
 
     // 3. Left + Delete: remove a trailing typo without touching the rest.
     type_str("println(format(\"A\",\"3\"))X")
@@ -201,6 +233,7 @@ main := proc(args: ..Str) {
     if submit("println(format(\"A\",\"3\"))").not() {
         fail("Left/Delete did not edit the line", wincon_screen())
     }
+    step("3. Left + Delete")
 
     // 4. Up three times reaches the first line submitted this session.
     wincon_key(VK_UP, 0)
@@ -209,6 +242,7 @@ main := proc(args: ..Str) {
     if submit("println(format(\"A\",\"1\"))").not() {
         fail("Up did not recall the first line", wincon_screen())
     }
+    step("4. Up recall")
 
     // 5. The resize path. The screen is blanked WITHOUT moving the
     //    cursor and the buffer height is changed; a
@@ -226,6 +260,7 @@ main := proc(args: ..Str) {
     }
     enter()
     if wait_row(PROMPT).not() { fail("the redrawn line did not submit", wincon_screen()) }
+    step("5. resize redraw")
 
     // 6. The ESC follow-up window against non-key records. ESC starts a
     //    50ms wait for the rest of a sequence; repl_term_read_event
@@ -245,6 +280,7 @@ main := proc(args: ..Str) {
     if submit("1 + 41").not() {
         fail("a keystroke after ESC + input-record noise was swallowed", wincon_screen())
     }
+    step("6. ESC window against input-record noise")
 
     screen_a := wincon_screen()
     a1 := count_rows(screen_a, "A1")
@@ -254,8 +290,9 @@ main := proc(args: ..Str) {
 
     // 7. Ctrl-D on an empty line ends the session, cleanly.
     wincon_key(0, CTRL_D)
-    status_a := repl.wait()
+    status_a := wait_exit(repl, "Ctrl-D")
     mode_after_a := wincon_in_mode()
+    step("7. Ctrl-D exit")
 
     if a1 != 2 { fail(format("A1 drawn ", a1.to_str(), " times, expected 2"), screen_a) }
     if a2 != 1 { fail(format("A2 drawn ", a2.to_str(), " times, expected 1"), screen_a) }
@@ -283,13 +320,15 @@ main := proc(args: ..Str) {
     if wait_row("1 + 41").not() {
         fail("history did not persist to a second process", wincon_screen())
     }
+    step("8. history persisted to a second process")
 
     // Ctrl-C as the console raises it. The handler ends the row it
     // interrupted -- so whatever prints next does not land on top of the
     // prompt -- and puts the console modes back before the default
     // handler kills the process.
     wincon_ctrl_c()
-    status_b := repl2.wait()
+    status_b := wait_exit(repl2, "Ctrl-C")
+    step("9. Ctrl-C exit")
     col_b := wincon_cursor_col()
     mode_after_b := wincon_in_mode()
     screen_b := wincon_screen()
