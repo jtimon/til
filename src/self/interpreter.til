@@ -5775,7 +5775,7 @@ cmd_interpret := proc(mut lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
     if lp.link_c_paths.len() > 0 {
-        system_cmd("mkdir -p tmp")
+        _mk := mkdir_p("tmp")
         interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
         // The header's emitters gate on the inventories builder_prepare_emit
         // settles (#326); translate_ast runs it before ITS header for the
@@ -6045,7 +6045,7 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     }
 
     so_path_out = format("tmp/ffi_", process_id().to_str(), ".so")
-    system_cmd("mkdir -p tmp")
+    _mk := mkdir_p("tmp")
 
     lf := link_flags.clone()
     // #299: match the interpreter's own sanitizer. Under bin/til_asan the user

@@ -3369,6 +3369,7 @@ void Vec__DeclRef_clear(Vec__DeclRef * self);
 void Vec__DeclRef_unsafe_set(Vec__DeclRef * self, USize i, priv___src_self_scavenger_til__DeclRef * val);
 void Vec__DeclRef_delete(Vec__DeclRef * self, Bool call_free);
 void adopt__priv___src_self_scavenger_til__DeclRef(void * dest, priv___src_self_scavenger_til__DeclRef * src);
+Bool path_is_absolute(Str * p);
 Str * priv___src_self_loader_til__normalize_mode_name(Str * mode_name);
 Str * priv___src_self_loader_til__display_path(Str * p, Str * cwd);
 Mode * priv___src_self_loader_til__require_mode(Context * ctx, Str * path, Str * mode_name);

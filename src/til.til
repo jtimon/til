@@ -115,7 +115,7 @@ repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProg
     mut result : I32 = 0
     stdio_capture_begin(out_path)
     if lp.link_c_paths.len() > 0 {
-        system_cmd("mkdir -p tmp")
+        _mk := mkdir_p("tmp")
         interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
         result = build_forward_header_lp(interpret_fwd_path, lp)
     }
@@ -135,7 +135,7 @@ repl_capture_eval_tail := proc(mut session: InterpSession, mut lp: LoadedProgram
     mut result : I32 = 0
     stdio_capture_begin(out_path)
     if lp.link_c_paths.len() > 0 {
-        system_cmd("mkdir -p tmp")
+        _mk := mkdir_p("tmp")
         interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
         result = build_forward_header_lp(interpret_fwd_path, lp)
     }
@@ -400,7 +400,13 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
     interp_session_start(session, user_argv)
     session.is_repl = true
 
-    system_cmd("mkdir -p tmp")
+    // #347: `system_cmd("mkdir -p tmp")` runs through cmd.exe on windows,
+    // which has no -p: it created a stray directory literally named `-p`
+    // and printed "A subdirectory or file tmp already exists." over the
+    // REPL's own first screen. mkdir_p is the portable binding, and its C
+    // side already walked the path and tolerated EEXIST on both hosts.
+    // Same swap at every other call site.
+    _mk := mkdir_p("tmp")
     tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
     out_path := format("tmp/repl_", process_id().to_str(), ".out")
     File.writefile(tmp_path, format("mode ", mode_str, "\n", doc_import_line))
