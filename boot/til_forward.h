@@ -3675,6 +3675,7 @@ void priv___src_self_builder_til__emit_enum_struct_body(File * f, Str * ename, E
 void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set__Str * emitted, LoadedProgram * lp);
 Str * priv___src_self_builder_til__func_return_ctype(FunctionDef * fd, Context * ctx);
 Bool priv___src_self_builder_til__builder_core_func_omitted(Str * name, LoadedProgram * lp);
+Str * priv___src_self_builder_til__builder_static_prefix(Context * ctx);
 Bool priv___src_self_builder_til__builder_func_is_tu_local(Str * name, Context * ctx);
 void priv___src_self_builder_til__emit_func_forward_decl(File * f, Str * name, Expr * fdef, Bool top_level, Context * ctx);
 void priv___src_self_builder_til__emit_closure_forward_decl(File * f, Str * name, Expr * fdef, Context * ctx);

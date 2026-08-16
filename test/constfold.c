@@ -88,8 +88,8 @@ struct Token {
 };
 
 
-void print_single(Str *s);
-void print_flush();
+static void print_single(Str *s);
+static void print_flush();
 
 static Str * format(Array__Str * parts);
 static Bool Str_eq(Str * a, Str * b);
@@ -149,10 +149,10 @@ Token *Token_Num(I64 *);
 #define TIL_CSTR(s) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, "panic: Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first\n"); exit(1); } _cs->c_str; })
 #define TIL_CAP_LIT ((USize)-1)
 #define TIL_CAP_VIEW ((USize)-2)
-void print_single(Str *s) {
+static void print_single(Str *s) {
     fwrite(s->c_str, 1, (size_t)s->count, stdout);
 }
-void print_flush() {
+static void print_flush() {
     putchar('\n');
 }
 

@@ -5834,6 +5834,12 @@ priv builder_core_func_omitted := func(name: Str, mut lp: LoadedProgram) returns
 // #326: may this function carry `static`? Only in a closed world, and
 // never for the two names something outside the .c calls by name: main
 // (the C runtime) and Str_clone (the hand-written ext.c).
+// "static " when the generated families may be TU-local, "" otherwise.
+priv builder_static_prefix := func(ctx: Context) returns Str {
+    if ctx.builder_static_ok { return "static " }
+    return ""
+}
+
 priv builder_func_is_tu_local := func(name: Str, ctx: Context) returns Bool {
     if ctx.builder_static_ok.not() { return false }
     if name.eq("main") { return false }
@@ -7551,6 +7557,10 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     //     every other param is element data of the dispatched type.
     box_ret := ret_shallow.and(method_name.eq("clone"))
     ret_value := ret_shallow.and(box_ret.not())
+    // #326: the wrapper exists only to fill the closure value emitted
+    // right below it, so in a closed world it is TU-local like any other
+    // generated definition -- and -Wunused-function audits it.
+    if ctx.builder_static_ok { f.write("static ") }
     if has_return {
         if ret_value { f.write(type_name_to_c_value(fd.return_type, ctx)).write(" ") }
         else { f.write("void *") }
@@ -9044,8 +9054,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     // anyway, in every generated file. Ask the surviving AST.
     print_single_kept := builder_program_declares("print_single", lp)
     print_flush_kept := builder_program_declares("print_flush", lp)
-    if print_single_kept { f.write("void print_single(Str *s);\n") }
-    if print_flush_kept { f.write("void print_flush();\n") }
+    pp_st := builder_static_prefix(lp.ctx)
+    if print_single_kept { f.write(pp_st).write("void print_single(Str *s);\n") }
+    if print_flush_kept { f.write(pp_st).write("void print_flush();\n") }
     if print_single_kept.or(print_flush_kept) { f.write("\n") }
 
     emit_all_forward_declarations(f, mode, lp)
@@ -9066,12 +9077,12 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
     f.write("#define TIL_CAP_VIEW ((USize)-2)\n")
     if print_single_kept {
-        f.write("void print_single(Str *s) {\n")
+        f.write(pp_st).write("void print_single(Str *s) {\n")
         f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
         f.write("}\n")
     }
     if print_flush_kept {
-        f.write("void print_flush() {\n")
+        f.write(pp_st).write("void print_flush() {\n")
         f.write("    putchar('\\n');\n")
         f.write("}\n")
     }

@@ -919,6 +919,14 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/vv_cg.c test/vecs.til '&&' cat gen/c/vv_cg.c"))
     add_count(tests, "hello_funcs_are_tu_local", "build", "static void println(Array__Str * parts)", 2,
         format(til_bin, " translate -c gen/c/hs_st.c examples/hello_script.til '&&' cat gen/c/hs_st.c"))
+    // The GENERATED families join the audit too: a dyn wrapper exists
+    // only to fill the closure value beside it, and the print prelude is
+    // the program's own. Both bypassed emit_func_def, so both stayed
+    // extern and unaudited -- ~1,870 definitions across the corpus.
+    add_count(tests, "closures_dyn_wrapper_is_tu_local", "build", "static void *Mode_clone_dyn(", 1,
+        format(til_bin, " translate -c gen/c/ci_dw.c test/closures_interp.til '&&' cat gen/c/ci_dw.c"))
+    add_count(tests, "hello_print_prelude_is_tu_local", "build", "static void print_single(Str *s)", 2,
+        format(til_bin, " translate -c gen/c/hs_pp.c examples/hello_script.til '&&' cat gen/c/hs_pp.c"))
     add_count(tests, "hello_ext_c_boundary_stays_extern", "build", "\nStr * Str_clone(Str * val) {", 1,
         format(til_bin, " translate -c gen/c/hs_sx.c examples/hello_script.til '&&' cat gen/c/hs_sx.c"))
     add_count(tests, "aliases_no_uncalled_unreachable", "build", "void UNREACHABLE(", 0,
