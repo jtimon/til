@@ -1,6 +1,5 @@
 * Bugs
 ** High
-*** [[./open/357.org][#357]] Interpreted: a C pointer crossing into Dynamic is dereferenced once too many
 *** [[./open/360.org][#360]] An owned intermediate drops borrow provenance; the backends diverge again
 ** Medium
 *** [[./open/358.org][#358]] array() / vec() literals do not type-check their elements

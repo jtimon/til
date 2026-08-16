@@ -3540,6 +3540,7 @@ Bool priv___src_self_builder_til__is_current_func_param(Str * name, Context * ct
 Bool priv___src_self_builder_til__is_value_global(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ref_global(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ref_local(Str * name, Context * ctx);
+Bool priv___src_self_builder_til__dynamic_src_is_pointer_local(Expr * e, Context * ctx);
 Bool priv___src_self_builder_til__use_dot_access(Expr * obj, Context * ctx);
 void priv___src_self_builder_til__emit_pod_struct_user_clone_arg(File * f, Expr * e, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__is_pod_struct_user_clone(Expr * e, Context * ctx);

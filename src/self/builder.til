@@ -136,6 +136,17 @@ priv is_ref_local := func(name: Str, mut ctx: Context) returns Bool {
     return is_ref_global(name, ctx)
 }
 
+/// True when `e` is a borrowed pointer to a scalar -- a `ref x : I8` local,
+/// which C spells `I8 *x`. Feeding one to a Dynamic is a pointer hand-over,
+/// not a load: the value wanted IS the address (#357).
+priv dynamic_src_is_pointer_local := func(e: Expr, mut ctx: Context) returns Bool {
+    switch e.node_type {
+    case .Ident(id): return is_ref_local(id.ident_name(), ctx).and(e.til_type().is(Type.Primitive))
+    case: return false
+    }
+    return false
+}
+
 priv use_dot_access := func(obj: Expr, mut ctx: Context) returns Bool {
     if obj.node_type.is(NodeType.FieldAccess) {
         if builder_fa_is_ptr(obj, ctx).not() { return true }
@@ -2158,7 +2169,18 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             } else if e.til_type().is(Type.Dynamic) {
                 if is_global { f.write(dd.name).write(" = ") }
                 else { tc := til_type_to_c(e.til_type()); f.fwrite(tc, " ", dd.name, " = ") }
-                emit_deref(f, rhs, depth, ctx); f.write(";\n")
+                // A `ref x : I8` local IS `I8 *x` in C, so a Dynamic taking it
+                // wants the pointer, not the byte behind it: emit_deref's
+                // generic arm wrote `void * p = DEREF(c)`, which gcc rejects
+                // outright ("makes pointer from integer without a cast"), so
+                // this form did not compile at all while the interpreter
+                // silently misread it (#357).
+                if dynamic_src_is_pointer_local(rhs, ctx) {
+                    emit_expr(f, rhs, depth, ctx)
+                } else {
+                    emit_deref(f, rhs, depth, ctx)
+                }
+                f.write(";\n")
             } else {
                 can_hoist := is_global.not().and(dd.own_type.is(OwnType.Own).not())
                 .and(e.til_type().is_funcptr().not()).and(e.til_type().is(Type.Dynamic).not())

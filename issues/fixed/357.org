@@ -1,6 +1,61 @@
 # priority: high
 # category: bugs
-** OPEN #357 Interpreted: a C pointer crossing into Dynamic is dereferenced once too many
+** FIXED #357 Interpreted: a C pointer crossing into Dynamic is dereferenced once too many
+
+Post-mortem
+-----------
+ROOT CAUSE: three separate places dropped the pointer-ness of a
+pointer-to-scalar, each by treating "primitive type" as "value", and the
+report's two repros were only two of the three. The unifying rule the fixes
+apply: a ~ref~/~own~ binding or field whose type is a PRIMITIVE holds an
+ADDRESS, so it is handed over, never loaded and never cloned.
+
+1. ~p : Dynamic = <pointer field>~ (src/self/interpreter.til,
+   eval_declaration's ~borrowed_pointer_field~ arm). The binding took the
+   pointer word but did not pass ~decl_type.is(Type.Dynamic)~ as
+   ~is_erased_dynamic~, so every later read treated the word as a boxed
+   Dynamic slot and dereferenced it once more. That is the report's
+   segfault, whose faulting address ~0x550044434241~ is "ABCD\0" -- the
+   string's own bytes used as an address.
+
+2. ~p : Dynamic = <ref binding>~ (same function, the Ident branch). No arm
+   claimed it, so it fell through to the borrow-clone, which copied the
+   POINTEE -- one byte for an I8 -- and pointed the Dynamic at that
+   one-byte block. Offset 0 read correctly and every later offset read
+   zero: the report's quiet repro.
+
+3. ~Str(c_str = start, count = n, cap = CAP_VIEW)~ -- NOT in the report,
+   found while verifying the fix. The struct constructor's own-arg path
+   collapses an "own-prim VALUE binding" to its inline word; the guard
+   said ~own_type.is(Shallow).not()~, which also catches a ~ref~ binding,
+   so a pointer field got the pointee BYTE ('h' = 0x68). Tightening it to
+   ~is(OwnType.Own)~ exposed a second layer: the borrow-clone then stored
+   a pointer to a 1-byte copy, so the view spanned "h\0\0\0\0". A
+   pointer-to-scalar field taking a pointer-to-scalar binding now takes
+   the address, exactly as the compiled backend does
+   (~view->c_str = start;~).
+
+Also fixed on the COMPILED side, which the report wrongly called correct:
+~p : Dynamic = <ref binding>~ emitted ~void * p = DEREF(c);~ and gcc
+refused it outright ("makes pointer from integer without a cast"), so that
+form did not compile at all. ~dynamic_src_is_pointer_local~
+(src/self/builder.til) now emits the pointer. The two backends agree on
+every shape in the regression test.
+
+REGRESSION TEST: test/dynamic_ptr.til (add_both, so both backends), four
+tests covering the three paths plus the read_cstr shape end to end -- a NUL
+scan through a Dynamic, then a Str view cloned out of it. Every assertion
+reads PAST offset 0, because offset 0 was right even when the pointer was
+mangled.
+
+CONSEQUENCE: the nng examples run interpreted for the first time.
+~bin/til interpret --extra-modes=examples/custom_modes.til
+examples/receiver.til~ prints "nng version 1.11.0" through ~read_cstr~,
+dials, and reports "dial: Connection refused" through ~nng_strerror~ +
+~read_cstr~ when no sender is up -- the exact path that used to segfault.
+
+Original report
+---------------
 
 A raw C pointer (a Str's ~c_str~, an FFI call's ~ref I8~ return) placed
 into a ~Dynamic~ binding or passed to a ~Dynamic~ parameter is broken in

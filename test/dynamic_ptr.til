@@ -1,0 +1,79 @@
+mode test
+
+// #357: a raw C pointer that crosses into a Dynamic -- or into a struct's
+// pointer-to-scalar field -- must keep being an ADDRESS. Three paths lost
+// that, each in a different way, and all three were interpret-only for the
+// value (compiled either got it right or, for the `ref` binding, failed to
+// compile at all with "makes pointer from integer without a cast"):
+//
+//   1. `p : Dynamic = <pointer field>` bound the pointer word without
+//      marking it erased-dynamic, so every later read dereferenced it once
+//      more and handed back the BYTES at the string.
+//   2. `p : Dynamic = <ref binding>` cloned the POINTEE -- one byte for I8 --
+//      so offset 0 read right and every later offset read zero.
+//   3. `Str(c_str = start, ...)` collapsed a `ref` binding to its inline
+//      word, storing 'h' where the address belonged; then a clone-based
+//      variant stored a pointer to a 1-byte copy.
+//
+// The victim was read_cstr (examples/lib/custom_modes/nng_base.til): a NUL
+// scan over a Dynamic that ran away or segfaulted, so no nng example could
+// run interpreted.
+
+read_at := func(p: Dynamic, off: USize) returns I8 {
+    ref b : I8 = ptr_add(p, off)
+    return b.clone()
+}
+
+/// A pointer FIELD into a Dynamic (path 1).
+dynamic_from_pointer_field := test() {
+    s := "ABCD"
+    p : Dynamic = s.c_str
+    assert_eq(I8, read_at(p, 0), 65)
+    assert_eq(I8, read_at(p, 1), 66)
+    assert_eq(I8, read_at(p, 3), 68)
+}
+
+/// A `ref` BINDING into a Dynamic (path 2). Offset 0 was right even when
+/// broken, so a one-byte check proves nothing -- read past it.
+dynamic_from_ref_binding := test() {
+    s := "ABCD"
+    ref start : I8 = ptr_add(s.c_str, 0)
+    p : Dynamic = start
+    assert_eq(I8, read_at(p, 0), 65)
+    assert_eq(I8, read_at(p, 1), 66)
+    assert_eq(I8, read_at(p, 3), 68)
+}
+
+/// A `ref` binding into a pointer FIELD, then back out (path 3). This is
+/// the Str-view shape every C-string reader builds.
+pointer_field_round_trip := test() {
+    s := "hello"
+    ref start : I8 = ptr_add(s.c_str, 0)
+    view := Str(c_str = start, count = 5, cap = CAP_VIEW)
+    assert_eq(USize, view.len(), 5)
+    assert_eq(I8, read_at(view.c_str, 0), 104)
+    assert_eq(I8, read_at(view.c_str, 4), 111)
+    // clone() memcpy's count bytes from c_str: with the pointer mangled it
+    // copied one byte, or memcpy'd from the byte VALUE as an address.
+    owned := view.clone()
+    assert_eq(Str, owned, "hello")
+}
+
+/// The read_cstr shape end to end: scan a NUL-terminated C string reached
+/// through a Dynamic, then materialize it.
+nul_scan_through_dynamic := test() {
+    s := "til"
+    ref start : I8 = ptr_add(s.c_str, 0)
+    p : Dynamic = start
+    mut n : USize = 0
+    while true {
+        ref b : I8 = ptr_add(p, n)
+        if b.eq(0) { break }
+        n++
+    }
+    assert_eq(USize, n, 3)
+    ref begin : I8 = ptr_add(p, 0)
+    view := Str(c_str = begin, count = n, cap = CAP_VIEW)
+    owned := view.clone()
+    assert_eq(Str, owned, "til")
+}

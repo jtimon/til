@@ -2008,6 +2008,17 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, w, ctx), bind_type_w, dd.own_type, ctx)
             return
         }
+        // Mirror of the pointer-FIELD arm below: a `ref`/`own` binding to a
+        // scalar IS a pointer, so `p : Dynamic = c` must carry that pointer.
+        // Every path below copies the POINTEE instead -- one byte for an I8 --
+        // leaving `p` aimed at a one-byte clone, so offset 0 read correctly
+        // and every later offset read zero (#357).
+        if decl_type.is(Type.Dynamic).and(hb_type(source_hb).is(Type.Dynamic).not())
+            .and(source_hb.own_type.is(OwnType.Shallow).not())
+            .and(hb_type(source_hb).is(Type.Primitive)) {
+            scope_set_heap_owned(scope, dd.name, source_raw, bind_type_w, dd.own_type, ctx, false, true, true)
+            return
+        }
         if dd.name.starts_with("hoisted__").or(source_hb.is_borrowed).or(heap_slot_is_static_callable(hb_type(source_hb), source_raw)) {
             mut copied : Dynamic = source_raw
             if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
@@ -2079,7 +2090,14 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             case:
             }
             if borrowed_pointer_field {
-                scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, ctx, false, true)
+                // `p : Dynamic = s.c_str` -- a pointer-to-scalar FIELD is
+                // already the value the Dynamic wants, so the binding holds
+                // the pointer word itself and must SAY so: without the
+                // erased-dynamic flag every later read of `p` treated the
+                // word as a boxed slot and dereferenced it once more,
+                // handing back the bytes AT the string instead of the
+                // string's address (#357).
+                scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, ctx, false, true, decl_type.is(Type.Dynamic))
             } else if dd.own_type.is(OwnType.Ref) {
                 scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, ctx, false, true, decl_type.is(Type.Dynamic))
             } else if decl_type.is(Type.Dynamic) {
@@ -3250,7 +3268,21 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                     case:
                                     }
                                 }
-                                if preserve_outer {
+                                if fdd.own_type.is(OwnType.Own).and(raw_type_is_prim(fdd.til_type, ctx))
+                                    .and(source_hb.own_type.is(OwnType.Ref)) {
+                                    // A pointer-to-scalar FIELD taking a
+                                    // pointer-to-scalar BINDING: the value is
+                                    // the address, so hand it over as the
+                                    // compiled backend does (`view->c_str =
+                                    // start`). The borrow-clone below copies
+                                    // the POINTEE instead -- one byte for I8 --
+                                    // so `Str(c_str = start, count = 5, ...)`
+                                    // built a view over a 1-byte copy and read
+                                    // back "h\0\0\0\0" (#357).
+                                    arg_raw = source_ptr
+                                    arg_is_ref = true
+                                    arg_is_place = true
+                                } else if preserve_outer {
                                     arg_raw = EvalHeap.heap_alloc(raw_type_size(hb_type(source_hb), ctx))
                                     memcpy(arg_raw, source_ptr, raw_type_size(hb_type(source_hb), ctx))
                                 } else if source_hb.is_borrowed.and(source_hb.is_erased_dynamic) {
@@ -3297,7 +3329,15 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 // field writer would store the block
                                 // ADDRESS as the scalar. #302 raw-alloc
                                 // pointer bindings keep the bare pointer.
-                                if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Shallow).not()).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
+                                // OWN, not merely non-Shallow: a `ref b : I8`
+                                // binding holds a POINTER to the scalar, the
+                                // same shape #302's raw allocations do, so
+                                // collapsing it to its inline word stored the
+                                // pointee BYTE in a pointer field --
+                                // `Str(c_str = start, ...)` kept 'h' where the
+                                // address belonged, and every later read of
+                                // that field dereferenced 0x68 (#357).
+                                if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Own)).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
                                     ctor_prim_word : Dynamic = scalar_word_load(hb_type(source_hb), arg_raw, ctx)
                                     EvalHeap.heap_free(own arg_raw)
                                     arg_raw = ctor_prim_word
