@@ -383,3 +383,29 @@ test_borrow_root_nested_per_field := test() {
     assert_eq(I64, s1.held.n, 2)
     assert_eq(I64, s2.held.n, 0)
 }
+
+# --- #357: a borrow parked in an owned local survives the round trip ---
+#
+# mk builds the holder in an owned local and returns it, so the borrow
+# reaches the caller through a value, not a `ref`. Two things have to
+# hold: the write through it credits s (so `mut s` is not "redundant"),
+# and s's parameter is NOT auto-shallow-copied on the way into mk -- a
+# copy would leave the returned borrow pointing at a dead value, which
+# is what made the backends disagree here.
+
+bp357_mk := func(s: Bp351Src) returns Bp351Holder {
+    h := Bp351Holder(r = bp351_held_of(s))
+    return h
+}
+
+bp357_poke := func(mut s: Bp351Src) {
+    h2 := bp357_mk(s)
+    h2.r.n = h2.r.n + 1
+}
+
+test_borrow_root_through_owned_intermediate := test() {
+    mut s := Bp351Src()
+    bp357_poke(s)
+    bp357_poke(s)
+    assert_eq(I64, s.held.n, 2)
+}

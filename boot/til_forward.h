@@ -691,6 +691,7 @@ typedef struct BorrowRoot {
     U32 col;
     Bool carried;
     Str field;
+    Bool provisional;
 } BorrowRoot;
 
 
@@ -872,6 +873,7 @@ typedef struct RootBits {
     U64 alias;
     U64 into;
     U64 carried;
+    U64 provisional;
 } RootBits;
 
 
@@ -1306,6 +1308,7 @@ typedef struct FunctionDef {
     U64 ref_return_params;
     U64 ref_return_into_params;
     U64 ref_return_carried_params;
+    U64 ref_return_provisional_params;
 } FunctionDef;
 
 
@@ -2004,7 +2007,7 @@ void adopt_from(void * dest, void * src, UPtr size);
 Str * File_readfile(Str * path);
 void File_writefile(Str * path, Str * content);
 void File_remove(Str * path);
-File * File_new(Str * path, Bool is_write);
+File * File_new(Str * path, Bool * is_write);
 File * File_write(File * self, Str * s);
 Str * File_read_all(File * self);
 void File_close(File * self);
@@ -4050,7 +4053,7 @@ Bool priv___src_self_interpreter_til__scope_return_move_is_local(Scope * s, Str 
 void priv___src_self_interpreter_til__scope_pool_put(void * p);
 void scope_pool_drain(void);
 Scope * priv___src_self_interpreter_til__scope_get_binding_scope(Scope * s, Str * name);
-Scope * scope_new(Option__ref_Scope parent);
+Scope * scope_new(Option__ref_Scope * parent);
 Option__ref_HeapBinding scope_lookup_heap_binding(Scope * s, Str * name);
 Bool priv___src_self_interpreter_til__heap_type_is_callable(Type til_type);
 Bool priv___src_self_interpreter_til__heap_slot_is_static_callable(Type til_type, void * ptr);
@@ -4071,7 +4074,7 @@ void * priv___src_self_interpreter_til__intern_slot(Vec__Dynamic * v, USize idx,
 void * interp_intern_type(Type t, Context * ctx);
 void priv___src_self_interpreter_til__scope_drop_existing_heap_slot(Scope * s, Str * name, Bool drop_nested);
 void scope_set_heap_owned(Scope * s, Str * name, void * ptr, void * til_type_w, OwnType * own_type, Context * ctx, Bool is_local, Bool is_borrowed, Bool is_erased_dynamic);
-Scope * scope_new_owned(Option__ref_Scope parent);
+Scope * scope_new_owned(Option__ref_Scope * parent);
 void scope_drop_owned_bindings(Scope * s);
 void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, void * til_type_w, OwnType * own_type, Str * source_name, Scope * source_scope);
 void scope_free(Scope * s);

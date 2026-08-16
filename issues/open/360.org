@@ -1,0 +1,93 @@
+# priority: high
+# category: bugs
+** WIP #360 An owned intermediate drops borrow provenance; the backends diverge again
+
+~summary_walk~'s Decl arm forwards roots only for a ~ref~ local. An
+OWNED local of a borrow-carrying type, built by a call, drops them -- so
+a function that parks a borrow in a local and returns it summarises as
+reaching nothing, and the write it hands back is neither credited nor
+rejected:
+
+#+begin_src til
+Holder := struct { ref r : Inner }
+a_of := func(s: Src) returns ref Inner { return s.a }
+
+mk := func(s: Src) returns Holder {
+    h := Holder(r = a_of(s))     // owned intermediate: roots dropped here
+    return h
+}
+poke := func(s: Src) {           // accepted, no `mut s` demanded
+    h2 := mk(s)
+    h2.r.n = h2.r.n + 1
+}
+#+end_src
+
+Verified on merged master: ACCEPTED, and interpreted prints ~2~ while
+compiled prints ~0~. That is #344's own signature -- a write through a
+read-only borrow that the two backends disagree about -- still reachable
+through one owned local.
+
+This is NOT the conservative direction. Under-crediting here means
+ACCEPTING a laundered write, which is unsoundness; the arc's other
+limits (unknown field paths, unresolved callees) merely demand a ~mut~
+that is not needed.
+
+*** Why it was left out of #354
+
+#354's first cut propagated these roots and surfaced 11 genuine
+rejections in src/self -- writes through ~scope.get_struct~ results --
+that the then-current boot could not credit. Landing them needs the
+#344 ladder: a preparation commit whose tracking becomes the boot, then
+a use commit that turns on the rejection and sweeps. #354 was a
+single-commit fix, so the arm was cut and recorded rather than half-done.
+
+*** Plan
+
+**** A. Preparation: owned intermediates forward what they carry
+
+Forward roots from an owned Decl of a borrow-carrying type whose RHS is
+a call, keeping only the CARRYING relations (into / carried) -- a copy
+of a value cannot reach the source's own storage, only what the source
+points at. Credit the resulting writes; do not reject on them yet, the
+same seam #351 used. Positive regression proving both backends agree on
+the honest ~mut~ form.
+
+**** B. Use: reject, sweep, close
+
+Remove the seam, sweep what it flags (the src/self scope.get_struct
+sites and whatever else appears), add the probe above as a negative
+case, close the issue.
+
+*** Progress
+
+- [X] A. Preparation. summary_walk's Decl arm forwards the CARRYING
+      relations (into / carried) from an owned local of a
+      borrow-carrying type built by a call, so a function that parks a
+      borrow in a local and returns it no longer summarises as reaching
+      nothing. Those roots are stamped provisional
+      (RootBits.provisional -> FunctionDef.ref_return_provisional_params
+      -> BorrowRoot.provisional) and skipped by check_write_roots_mut:
+      credited, not yet rejected, the seam #351 used.
+
+      Also fixed here, because it is the half that actually made the
+      backends disagree: fdef_return_carries_borrow -- the gate that
+      keeps auto-shallow (#223) from value-copying a parameter whose
+      borrow can escape -- did not count a returned STRUCT carrying a
+      ref field. `mk := func(s: Src) returns Holder` copied `s`, so the
+      returned holder's ref pointed into a dead copy: compiled printed
+      0 where interpreted printed 2. It counts them now, which changes
+      emitted C -- hence the Two-pass: prefix.
+
+      Two traps found while building this, both recorded so B does not
+      re-hit them: (1) returns are hoisted into owned temps AFTER
+      typing, so treating temps as user intermediates marked every
+      summary provisional and silently disabled the whole check (caught
+      by two #344/#354 negative cases going quiet); temps are skipped,
+      and the pre-typing pass reads the real expression anyway. (2)
+      Forwarding through temps instead of skipping them grew summaries
+      enough to reject 7 src/self sites, which is B's ladder, not A's.
+
+- [ ] B. Use: remove the provisional skip and the field/mask that drive
+      it, sweep what it flags (the src/self scope.get_struct and
+      lookup_binding_at sites), add the issue's probe as a negative
+      case, close the issue.

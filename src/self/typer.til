@@ -4173,13 +4173,25 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
 // then took the address of the callee's dead stack copy --
 // `pick(c: Cell) returns Option(ref Cell)` silently lost every write
 // through the returned borrow while the `returns ref Cell` twin worked.
+// Can a borrow of a PARAMETER escape through this function's return? If
+// so its parameters must stay borrowed pointers: auto-shallow (#223)
+// would hand the body a value COPY, and the borrow the caller gets back
+// would point into that copy, dead the moment the call returns.
+//
+// #357: a struct return carrying a ref field escapes a borrow exactly
+// like a `returns ref T` or an enum-with-ref-payload return does. Before
+// this was counted, `mk := func(s: Src) returns Holder` copied `s`, and
+// a write through the returned holder's ref field reached the copy
+// compiled while reaching the caller's own storage interpreted -- the
+// #344 divergence, one indirection removed.
 priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope) returns Bool {
     if fdef.return_own_type.is(OwnType.Ref) { return true }
     if fdef.return_type.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, fdef.return_type)
     rdef_o := scope.get_struct(resolved)
     if rdef_o.is_none() { return false }
-    return enum_has_ref_payload(rdef_o.unwrap())
+    if enum_has_ref_payload(rdef_o.unwrap()) { return true }
+    return type_carries_borrow(scope, resolved)
 }
 
 priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, mut ctx: Context) {
@@ -9220,21 +9232,34 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr) returns Vec(BorrowRoot
                 // its full roots. into: the return carries a pointer INTO
                 // the argument's own storage -- the lvalue roots. carried:
                 // the return reaches only what the argument carries.
+                // #357: a relation the callee only knows through an owned
+                // intermediate stamps its roots provisional -- credited,
+                // not yet enforced.
+                prov := cfd.ref_return_provisional_params.band(pb) != 0
                 if cfd.ref_return_params.band(pb) != 0 {
                     sub := expr_borrow_roots(scope, arg_o.unwrap())
-                    for r : BorrowRoot in sub { push_root_unique(out, r) }
+                    for r : BorrowRoot in sub {
+                        mut cr := r.clone()
+                        if prov { cr.provisional = true }
+                        push_root_unique(out, cr)
+                    }
                 }
                 if cfd.ref_return_into_params.band(pb) != 0 {
                     sub := lvalue_write_roots(scope, arg_o.unwrap())
                     for r : BorrowRoot in sub {
                         mut cr := r.clone()
                         cr.carried = true
+                        if prov { cr.provisional = true }
                         push_root_unique(out, cr)
                     }
                 }
                 if cfd.ref_return_carried_params.band(pb) != 0 {
                     subc := carried_roots_of(scope, expr_borrow_roots(scope, arg_o.unwrap()), "")
-                    for r : BorrowRoot in subc { push_root_unique(out, r) }
+                    for r : BorrowRoot in subc {
+                        mut cr := r.clone()
+                        if prov { cr.provisional = true }
+                        push_root_unique(out, cr)
+                    }
                 }
             }
         case:
@@ -9367,6 +9392,12 @@ priv check_write_roots_mut := proc(scope: TypeScope, site: Expr, obj: Expr, what
     roots := lvalue_write_roots(scope, obj)
     mut reported := Vec(BorrowRoot).new()
     for r : BorrowRoot in roots {
+        // #357 staged migration: a root known only through an owned
+        // intermediate is credited (the honest `mut` survives #164) but
+        // not yet rejected -- the qualifiers this rejection forces are
+        // ones the committed boot still calls redundant. The use commit
+        // removes this skip and sweeps.
+        if r.provisional { continue }
         // #355: eq now separates same-site roots tagged with different
         // fields; one storage still gets one diagnostic.
         mut seen := false
@@ -9434,15 +9465,19 @@ RootBits := struct {
     alias : U64 = 0
     into : U64 = 0
     carried : U64 = 0
+    // #357: which of the bits above were routed through an owned
+    // intermediate. A staged-migration marker, not a fourth relation.
+    provisional : U64 = 0
 namespace:
     eq := func(a: RootBits, b: RootBits) returns Bool {
-        return a.alias.eq(b.alias).and(a.into == b.into).and(a.carried == b.carried)
+        return a.alias.eq(b.alias).and(a.into == b.into).and(a.carried == b.carried).and(a.provisional == b.provisional)
     }
     to_str := func(_self: RootBits) returns Str { return "RootBits" }
     bor := func(self: RootBits, other: RootBits) returns RootBits {
         return RootBits(alias = self.alias.bor(other.alias),
             into = self.into.bor(other.into),
-            carried = self.carried.bor(other.carried))
+            carried = self.carried.bor(other.carried),
+            provisional = self.provisional.bor(other.provisional))
     }
     all := func(self: RootBits) returns U64 {
         return self.alias.bor(self.into).bor(self.carried)
@@ -9525,7 +9560,8 @@ priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, Roo
             // conservative pass-through (the payload lives inside the
             // parameter's own storage and its target is unknown).
             roots.set(bid.ident_name(), own RootBits(
-                alias = subj.alias.bor(subj.into), carried = subj.carried))
+                alias = subj.alias.bor(subj.into), carried = subj.carried,
+                provisional = subj.provisional))
         case:
         }
     }
@@ -9603,7 +9639,8 @@ priv summary_self_method := func(e: Expr, scope: TypeScope, self_type: Str) retu
 // pointer INTO that parameter; one that already carries pointers keeps
 // carrying them.
 priv summary_ctor_wrap := func(arg_bits: RootBits) returns RootBits {
-    return RootBits(into = arg_bits.alias.bor(arg_bits.into), carried = arg_bits.carried)
+    return RootBits(into = arg_bits.alias.bor(arg_bits.into), carried = arg_bits.carried,
+        provisional = arg_bits.provisional)
 }
 
 priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeScope, self_type: Str) returns RootBits {
@@ -9635,7 +9672,8 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                             ref bfd : Declaration = fo.unwrap()
                             if bfd.own_type.is(OwnType.Ref) {
                                 return RootBits(alias = base.into,
-                                    carried = base.alias.bor(base.carried))
+                                    carried = base.alias.bor(base.carried),
+                                    provisional = base.provisional)
                             }
                         }
                     case:
@@ -9700,6 +9738,9 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                 if arg_o.is_none() { continue }
                 ab := summary_expr_bits(arg_o.unwrap(), roots, scope, self_type)
                 if cfd.ref_return_params.band(pb) != 0 { bits = bits.bor(ab) }
+                if cfd.ref_return_provisional_params.band(pb) != 0 {
+                    bits.provisional = bits.provisional.bor(ab.all()).bor(ab.provisional)
+                }
                 if cfd.ref_return_into_params.band(pb) != 0 {
                     // The callee's return carries a pointer into the
                     // argument's own storage.
@@ -9733,15 +9774,32 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeSco
         if e.children.len() == 0 { return RootBits() }
         return summary_expr_bits(e.children[0], roots, scope, self_type)
     case .Decl(d):
-        // Only a BORROW forwards roots. An owned intermediate inside a
-        // summarized body deliberately does NOT -- propagating it would
-        // grow summaries the committed boot cannot reproduce, forcing a
-        // bootstrap ladder for credit no in-tree write needs. The cost is
-        // under-crediting through such intermediates, the documented
-        // conservative direction.
-        if d.own_type.is(OwnType.Ref).and(e.children.len().gt(0)) {
-            db := summary_expr_bits(e.children[0], roots, scope, self_type)
-            if db.is_zero().not() { roots.set(d.name, own db.clone()) }
+        // A BORROW forwards its roots whole: the binding IS a window onto
+        // them. #357: an OWNED local of a borrow-carrying type built by a
+        // call forwards only the CARRYING relations -- a copy of a value
+        // cannot reach the source's own storage, but it does hold the
+        // same pointers, so parking a borrow in a local and returning it
+        // no longer drops the provenance on the floor.
+        if e.children.len() > 0 {
+            if d.own_type.is(OwnType.Ref) {
+                db := summary_expr_bits(e.children[0], roots, scope, self_type)
+                if db.is_zero().not() { roots.set(d.name, own db.clone()) }
+            } else if e.children[0].node_type.is(NodeType.FCall) {
+                db := summary_expr_bits(e.children[0], roots, scope, self_type)
+                if db.is_zero().not() {
+                    // Typer-emitted temps are left alone. A hoist holds
+                    // the very value the expression produced, and the
+                    // pre-typing pass already read that expression
+                    // directly -- forwarding it again after the hoist
+                    // only re-derives what is known, while treating it as
+                    // a user intermediate would mark every summary
+                    // provisional and silently disable the check.
+                    if d.name.starts_with("hoisted__").or(d.name.starts_with("_")).not() {
+                        roots.set(d.name, own RootBits(into = db.into, carried = db.carried,
+                            provisional = db.into.bor(db.carried)))
+                    }
+                }
+            }
         }
         return RootBits()
     case .Switch, .Match:
@@ -9769,13 +9827,10 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
     case .FuncDef(fd):
         // A bodyless raw / core / FFI ref has no typed root to hand back.
         if fd.func_type.is_bodyless() { return false }
-        // #351: summaries also cover a function returning a VALUE that
-        // carries a borrow (a struct with a ref field). Deliberately a
-        // wider gate than fdef_return_carries_borrow, which also steers
-        // auto-shallow and must keep the ABI it implies.
-        mut carries := fdef_return_carries_borrow(fd, scope)
-        if carries.not() { carries = type_carries_borrow(scope, fd.return_type) }
-        if carries.not() { return false }
+        // #351/#357: summaries cover every shape that can hand a borrow
+        // back, which is now exactly what fdef_return_carries_borrow
+        // answers -- including a returned VALUE carrying a ref field.
+        if fdef_return_carries_borrow(fd, scope).not() { return false }
         mut roots := Map(Str, RootBits).new()
         for pi in 0..fd.params.len() {
             ref p : Declaration = fd.params[pi]
@@ -9786,10 +9841,12 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         merged_a := fd.ref_return_params.bor(rb.alias)
         merged_i := fd.ref_return_into_params.bor(rb.into)
         merged_c := fd.ref_return_carried_params.bor(rb.carried)
-        if merged_a.eq(fd.ref_return_params).and(merged_i == fd.ref_return_into_params).and(merged_c == fd.ref_return_carried_params) { return false }
+        merged_p := fd.ref_return_provisional_params.bor(rb.provisional)
+        if merged_a.eq(fd.ref_return_params).and(merged_i == fd.ref_return_into_params).and(merged_c == fd.ref_return_carried_params).and(merged_p == fd.ref_return_provisional_params) { return false }
         fd.ref_return_params = merged_a
         fd.ref_return_into_params = merged_i
         fd.ref_return_carried_params = merged_c
+        fd.ref_return_provisional_params = merged_p
         return true
     case:
     }
