@@ -5580,8 +5580,56 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 exit(1)
             }
 
+            // main is a CALL, so its body has to run with the same
+            // return context eval_user_func_call installs: a `return
+            // <v>` reads ctx.interp_ret_type to coerce the value to the
+            // declared type. Evaluating the body bare left that None,
+            // and interp_ret_type_name's #321 invariant panicked with
+            // "return type read outside a call" -- on EVERY interpreted
+            // `main` that returns something, `{ return 0 }` included.
+            // Nothing caught it because the suite's mode-cli programs
+            // either return nothing or are only ever compiled.
+            ref mut mc : Context = lp.ctx
+            saved_ret_is_ref := mc.interp_ret_is_ref
+            ref saved_ret_dest : Dynamic = mc.interp_ret_dest
+            saved_ret_type := mc.interp_ret_type
+            saved_ret_own_type := mc.interp_ret_own_type
+            mc.interp_ret_type = Option(ref Str).Some(fd.return_type)
+            mc.interp_ret_own_type = fd.return_own_type
+            mc.interp_ret_is_ref = fd.return_own_type.is(OwnType.Ref)
+            mc.interp_ret_dest = 0
+
             eval_body(main_scope, body, lp.ctx)
+
+            // A declared return is this process's exit status, exactly
+            // as the compiled program's `int main` returns it -- the
+            // two backends must not disagree about what a program's
+            // result is.
+            mut main_status : I32 = 0
+            if mc.has_return {
+                mut ret_raw : Dynamic = context_return_take(mc)
+                if fd.return_type.len() > 0 {
+                    ret_type := type_from_name_init(fd.return_type, lp.ctx.scope)
+                    main_status = raw_to_i64(ret_type, ret_raw, lp.ctx).to_i32()
+                    // raw_result_drop, not heap_free: a non-ref prim
+                    // return IS the inline word, never a block, so
+                    // freeing it walks off the value itself (`return 3`
+                    // segfaulted on address 3; `return 0` only survived
+                    // because free(NULL) is a no-op).
+                    raw_result_drop(ret_type, ret_raw, mc.interp_ret_is_ref, lp.ctx)
+                }
+            }
+            mc.interp_ret_is_ref = saved_ret_is_ref
+            mc.interp_ret_dest = saved_ret_dest
+            mc.interp_ret_type = saved_ret_type
+            mc.interp_ret_own_type = saved_ret_own_type
             scope_free(own main_scope)
+
+            if main_status != 0 {
+                interp_session_finish_context(lp)
+                interp_session_free(session)
+                return main_status
+            }
     } }
 
     interp_session_finish_context(lp)

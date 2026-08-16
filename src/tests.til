@@ -560,6 +560,18 @@ main := proc(args: ..Str) {
     // examples/lib/ and the installer kept copying the old path.
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
 
+    // The non-zero half of the value-returning-main contract: `return 7`
+    // is process exit status 7 on both backends. The compiled `int main`
+    // always did this; the interpreter used to discard the value and
+    // exit 0 (behind the panic that test/main_return.til, in the both
+    // list, pins -- a both entry demands exit 0, so the non-zero case
+    // lives here as expected-exit singles, the same shape as the gui
+    // tests' expected 124).
+    add_single(tests, "main_return7_interp", "cli", 7, "",
+        format(til_bin, " test/main_return7.til one two"))
+    add_single(tests, "main_return7_run", "cli", 7, "",
+        format(til_bin, " build", asan_flag, " -o bin/main_return7 test/main_return7.til '&&' bin/main_return7 one two"))
+
     // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
     // binary through Cmd with the argument shapes a quoted command
     // line gets wrong and compare what the child's C runtime parsed.
@@ -1029,6 +1041,12 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug258.til", flags)
     add_both(tests, "test/bug315.til", flags)
     add_both(tests, "test/bug350.til", flags)
+    // A mode-cli main that RETURNS a value: interpreting one panicked
+    // ("return type read outside a call") until interpret_units gave
+    // main the same return context every other call gets. Both
+    // backends, standard both entry -- the interpreted leg's panic is
+    // exactly what a both entry turns red on.
+    add_both(tests, "test/main_return.til", flags)
     add_both(tests, "test/dead_temps.til", flags)
     add_both(tests, "test/minimal_reach.til", flags)
     add_both(tests, "test/dyn_literal.til", flags)

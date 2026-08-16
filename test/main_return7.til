@@ -1,0 +1,13 @@
+mode cli
+
+// The non-zero half of the value-returning-main contract: `return 7`
+// must become process exit status 7 on BOTH backends -- the compiled
+// program's `int main` always did, the interpreter used to discard the
+// value and exit 0 (behind the panic test/main_return.til pins). Run
+// by two expected-exit=7 singles, one interpreted and one compiled.
+// The argument count proves argv parsing and the return context
+// coexist -- main's scope is built by hand from argv.
+main := proc(args: ..Str) returns I64 {
+    println(format("args=", args.len().to_str()))
+    return 7
+}
