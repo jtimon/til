@@ -1,0 +1,6 @@
+mode cli
+
+// A mode that needs a main proc, with `main` bound to a VALUE. The
+// interpreter used to read that binding's slot as a FuncDef -- a wild
+// pointer -- instead of reporting the missing proc.
+main : I64 = 5

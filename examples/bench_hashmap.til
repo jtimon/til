@@ -9,6 +9,13 @@ import("../src/std/hash")
 // `bin/til run examples/bench_hashmap.til` -- compile mode is the
 // only honest measurement; interp mode is dominated by dispatch
 // overhead and would mask the algorithmic difference.
+//
+// Every hasher in std/hash.til gets its own row: fnv1a (the default),
+// knuth_bytes (same loop shape, Knuth's multiplier instead of FNV's
+// constants) and djb2 (one multiply-add per byte, no xor). The rows
+// isolate the choice of algorithm -- everything else about the table
+// is identical -- so "which hasher" is answered by measurement rather
+// than by reputation.
 
 bench_map_i64 := proc(n: I64) returns Vec(I64) {
     mut m := Map(I64, I64).new()
@@ -262,20 +269,31 @@ run_size := proc(n: I64) {
     print_row("HashMap fnv1a ", bench_hashmap_i64(n))
     HashMap(I64, I64).hasher = knuth_bytes
     print_row("HashMap knuth ", bench_hashmap_i64(n))
+    HashMap(I64, I64).hasher = djb2
+    print_row("HashMap djb2  ", bench_hashmap_i64(n))
     println("--- N=", n.to_str(), " Str keys ---")
     print_row("Map           ", bench_map_str(n))
     HashMap(Str, I64).hasher = fnv1a
     print_row("HashMap fnv1a ", bench_hashmap_str(n))
     HashMap(Str, I64).hasher = knuth_bytes
     print_row("HashMap knuth ", bench_hashmap_str(n))
+    HashMap(Str, I64).hasher = djb2
+    print_row("HashMap djb2  ", bench_hashmap_str(n))
 }
 
+// Str keys at compiler-sized tables: the shape the literal pool and the
+// compiler's own name tables live in, so each hasher gets a column.
 run_small := proc(n: I64) {
     total : I64 = 2000000
     mt := bench_map_lookup_small(n, total)
     HashMap(Str, I64).hasher = fnv1a
-    ht := bench_hashmap_lookup_small(n, total)
-    println("N=", n.to_str(), "\tMap=", mt.to_str(), "ms\tHashMap=", ht.to_str(), "ms")
+    ht_fnv := bench_hashmap_lookup_small(n, total)
+    HashMap(Str, I64).hasher = knuth_bytes
+    ht_knuth := bench_hashmap_lookup_small(n, total)
+    HashMap(Str, I64).hasher = djb2
+    ht_djb2 := bench_hashmap_lookup_small(n, total)
+    println("N=", n.to_str(), "\tMap=", mt.to_str(), "ms\tfnv1a=", ht_fnv.to_str(),
+        "ms\tknuth=", ht_knuth.to_str(), "ms\tdjb2=", ht_djb2.to_str(), "ms")
 }
 
 run_construct := proc(entries: I64) {

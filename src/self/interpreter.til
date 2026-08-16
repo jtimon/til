@@ -1778,12 +1778,14 @@ eval_expr_raw := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, destinati
 priv lookup_type_def_helper := func(type_name: Str, mut scope: Scope, ctx: Context) returns Option(ref Expr) {
     // Probe: type_name is empty for a primitive scrutinee (switch on I64)
     // and unbound for a builtin; the absent case falls through to the
-    // interp type-def registry, which answers None for those.
-    ref slot : Dynamic = scope_get(scope, type_name)?
-    catch (e: KeyNotFound) { return lookup_interp_type_def(type_name, ctx) }
-    ref raw : Dynamic = slot
-    ref fd : Expr = callable_raw_func_def(raw)
-    return Option(ref Expr).Some(fd)
+    // interp type-def registry, which answers None for those. A binding
+    // that is not callable holds no def either (hb_func_def), and takes
+    // the same fallback rather than being read as an Expr.
+    hb_o := scope_lookup_heap_binding(scope, type_name)
+    if hb_o.is_none() { return lookup_interp_type_def(type_name, ctx) }
+    fd_o := hb_func_def(hb_o.unwrap())
+    if fd_o.is_none() { return lookup_interp_type_def(type_name, ctx) }
+    return fd_o
 }
 
 priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr) returns Option(ref Dynamic) {
@@ -2980,14 +2982,15 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
                 parent_sname_o := expr_type_name_ref(callee_expr.children[0])
                 if parent_sname_o.is_some() {
                     ref parent_sname : Str = parent_sname_o.unwrap()
-                    ref tc : Dynamic = scope_get(scope, parent_sname)? catch (e: KeyNotFound) {
-                        // REM: an unbound parent_sname is an expected miss.
-                        // tc stays NULL, the guard below skips namespace-method dispatch,
-                        // and control falls through to the flat-name dispatch.
-                    }
-                    if tc.is_null().not() {
-                        ref tc_raw : Dynamic = tc
-                        ref tc_edef : Expr = callable_raw_func_def(tc_raw)
+                    // REM: an unbound parent_sname -- or one bound to a VALUE,
+                    // which holds no def to read (hb_func_def) -- is an
+                    // expected miss: namespace-method dispatch is skipped and
+                    // control falls through to the flat-name dispatch.
+                    mut tc_edef_o := Option(ref Expr).None
+                    tc_hb_o := scope_lookup_heap_binding(scope, parent_sname)
+                    if tc_hb_o.is_some() { tc_edef_o = hb_func_def(tc_hb_o.unwrap()) }
+                    if tc_edef_o.is_some() {
+                        ref tc_edef : Expr = tc_edef_o.unwrap()
                         if tc_edef.node_type.is(NodeType.EnumDef) {
                             ref callee_ident : FieldAccessData = fieldaccess_of(callee_expr)
                             mut enum_raw : Dynamic = destination
@@ -3061,9 +3064,15 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut
         mut ext_result_type := call_type.clone()
         mut ext_return_own_type := OwnType.Shallow
         mut ext_variadic_index : I32 = -1
+        // The binding must be callable to carry a def: a name bound to a
+        // VALUE leaves the signature defaults in place instead of having its
+        // slot read as an Expr (see hb_func_def).
+        mut ext_def_o := Option(ref Expr).None
         if ext_slot.is_null().not() {
-            ref ext_binding_raw : Dynamic = ext_slot
-            ref ext_def : Expr = callable_raw_func_def(ext_binding_raw)
+            ext_def_o = hb_func_def(scope_lookup_heap_binding(scope, name.ident_name()).unwrap())
+        }
+        if ext_def_o.is_some() {
+            ref ext_def : Expr = ext_def_o.unwrap()
             set_resolved_call_result_info(call_type, ext_def, destination, info, ctx)
             switch ext_def.node_type {
             case .FuncDef(ext_fd):
@@ -3737,6 +3746,9 @@ priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Conte
     ref stored : Dynamic = deref(ptr_add(data, fl.offset))
     delete_suffix := ".delete"
     for qn, nsv_hb in ns_scope(ctx).heap_bindings {
+        // Callable-typed only, like the FuncPtr scan in eval_call_info: a
+        // namespace VALUE named `delete` carries no def to compare against.
+        if heap_type_is_callable(hb_type(nsv_hb)).not() { continue }
         ref nsv : Dynamic = to_ptr(nsv_hb.ptr)
         if qn.ends_with(delete_suffix).not() { continue }
         ref expected : Expr = callable_raw_func_def(nsv)
@@ -4652,10 +4664,13 @@ priv interp_fa_is_ns_inner := func(mut scope: Scope, e: Expr, sname: Str, ctx: C
         ref registry_def : Expr = registry_def_o.unwrap()
         return interp_fa_is_ns_def(obj_expr, e, sname, registry_def)
     }
-    ref tc : Dynamic = scope_get(scope, sname)?
-    catch (knf: KeyNotFound) { return false }
-    ref walked_def : Expr = callable_raw_func_def(tc)
-    return interp_fa_is_ns_def(obj_expr, e, sname, walked_def)
+    // Same type gate as interp_fa_is_ns below: only a callable binding
+    // carries a def, and a value binding's slot is not an Expr to read.
+    hb_o := scope_lookup_heap_binding(scope, sname)
+    if hb_o.is_none() { return false }
+    walked_o := hb_func_def(hb_o.unwrap())
+    if walked_o.is_none() { return false }
+    return interp_fa_is_ns_def(obj_expr, e, sname, walked_o.unwrap())
 }
 
 priv interp_fa_is_ns_def := func(obj_expr: Expr, e: Expr, sname: Str, sdef: Expr) returns Bool {
@@ -5166,20 +5181,25 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
         else {
             switch stmt.children[0].node_type {
             case .Ident(rhs_ident):
-                ref src_slot : Dynamic = scope_get(global, rhs_ident.ident_name())!
-                ref src_raw : Dynamic = src_slot
-                ref sdef : Expr = callable_raw_func_def(src_raw)
-                        if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                            switch stmt.node_type {
-                            case .Decl(dd):
-                                raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
-                                write_ptr(raw, sdef)
-                                scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
-                                mut ia := InterpAlias(name = dd.name, target = rhs_ident.ident_name())
-                                aliases.push(own ia)
-                            case:
-                            }
+                // A value RHS is not a type alias: it carries no def, and
+                // reading its slot as one is the wild-pointer bug hb_func_def
+                // exists to stop.
+                ref src_hb : HeapBinding = scope_lookup_heap_binding(global, rhs_ident.ident_name()).unwrap()
+                sdef_o := hb_func_def(src_hb)
+                if sdef_o.is_some() {
+                    ref sdef : Expr = sdef_o.unwrap()
+                    if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
+                        switch stmt.node_type {
+                        case .Decl(dd):
+                            raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                            write_ptr(raw, sdef)
+                            scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
+                            mut ia := InterpAlias(name = dd.name, target = rhs_ident.ident_name())
+                            aliases.push(own ia)
+                        case:
                         }
+                    }
+                }
             case:
             }
         }
@@ -5192,9 +5212,13 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
 // it did when this walked the AST itself.
 priv interpret_copy_alias_ns := func(aliases: Vec(InterpAlias), mut global: Scope, mut ctx: Context) {
     for al : InterpAlias in aliases {
-        ref tc : Dynamic = scope_get(global, al.target)!
-        ref tc_raw : Dynamic = tc
-        ref sdef : Expr = callable_raw_func_def(tc_raw)
+        // The target was registered as a struct/enum def above, so a
+        // non-callable binding here would mean the global was rebound in
+        // between -- ask, don't assume, and skip if so.
+        ref tc_hb : HeapBinding = scope_lookup_heap_binding(global, al.target).unwrap()
+        sdef_o := hb_func_def(tc_hb)
+        if sdef_o.is_none() { continue }
+        ref sdef : Expr = sdef_o.unwrap()
         if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
             ref ini_ns : Vec(Declaration) = def_ns_decls(sdef)
             mut ini : USize = 0
@@ -5577,14 +5601,18 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
     // run_tests is set, tests are the entry points -- skip main() so a
     // mode cli/gui file with inline test() decls runs only its tests.
     if lp.run_tests.not() { if lp.cur_mode.needs_main {
-        ref mut main_slot : Dynamic = scope_get(session_global(session), "main")!
-        if main_slot.is_null() {
+        // A `main` bound to a VALUE (`main : I64 = 5`) is not a main proc:
+        // it has no def to read, and its slot deref'd as one used to be a
+        // wild pointer instead of this error.
+        main_hb_o := scope_lookup_heap_binding(session_global(session), "main")
+        mut main_def_o := Option(ref Expr).None
+        if main_hb_o.is_some() { main_def_o = hb_func_def(main_hb_o.unwrap()) }
+        if main_def_o.is_none() {
             eprint_single(lp.path)
             eprint_single(": error: this mode requires a 'main' proc\n")
             exit(1)
         }
-        ref mut main_raw : Dynamic = main_slot
-        ref mut func_def : Expr = callable_raw_func_def(main_raw)
+        ref mut func_def : Expr = main_def_o.unwrap()
             ref fd : FunctionDef = funcdef_of(func_def)
             nparam := fd.params.len()
             vi := fd.variadic_index
@@ -6306,6 +6334,13 @@ priv h_dyn_fn := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) r
     if stored_o.is_none() {
         panic("dyn_fn: unknown ", type_name, ".", method)
     }
+    // dyn_has_method answers for any namespace member, value ones included,
+    // so a caller can legitimately arrive here with a member that cannot be
+    // indirected. Cloning it as a callable read the VALUE as the box address
+    // (`limit : I64 = 7` -> 0x7); say what is wrong instead.
+    if ns_func_def(type_name, method, ctx).is_none() {
+        panic("dyn_fn: not a method: ", type_name, ".", method)
+    }
     write_ptr(r, callable_storage_clone(deref(stored_o.unwrap())))
     return true
 }
@@ -6397,20 +6432,23 @@ priv eval_str_owned := proc(mut s: Scope, mut arg: Expr, mut ctx: Context) retur
 // introspection handlers (issue #56/#58).
 priv interp_lookup_struct := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     // A miss means `who` asked to introspect a type name with no registered
-    // def -- a not-found error. On success scope_get returns a non-null cell,
-    // so no guard is needed past the catch.
-    ref tc : Dynamic = scope_get(s, type_name)?
-    catch (knf: KeyNotFound) {
+    // def -- a not-found error. The name is a RUNTIME string, so it can also
+    // name an ordinary value (`struct_field_count("x")` with `x := 5`): that
+    // binding carries no def (hb_func_def), and is reported as "not a struct"
+    // rather than being read as one.
+    hb_o := scope_lookup_heap_binding(s, type_name)
+    if hb_o.is_none() {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
-    ref raw : Dynamic = tc
-    ref node : Expr = callable_raw_func_def(raw)
-        if node.node_type.is(NodeType.StructDef).not() {
-            interp_error(e, format(who, ": '", type_name, "' is not a struct"), ctx)
-            exit(1)
-        }
-        return node
+    node_o := hb_func_def(hb_o.unwrap())
+    mut is_struct := false
+    if node_o.is_some() { is_struct = node_o.unwrap().node_type.is(NodeType.StructDef) }
+    if is_struct.not() {
+        interp_error(e, format(who, ": '", type_name, "' is not a struct"), ctx)
+        exit(1)
+    }
+    return node_o.unwrap()
 }
 
 priv h_struct_field_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
@@ -6474,21 +6512,21 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx:
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
 priv interp_lookup_enum := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    // A miss means `who` asked to introspect a type name with no registered
-    // def -- a not-found error. On success scope_get returns a non-null cell,
-    // so no guard is needed past the catch.
-    ref tc : Dynamic = scope_get(s, type_name)?
-    catch (knf: KeyNotFound) {
+    // Same runtime-string exposure as interp_lookup_struct: a name that is
+    // bound to a value carries no def, and is reported as "not an enum".
+    hb_o := scope_lookup_heap_binding(s, type_name)
+    if hb_o.is_none() {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
-    ref raw : Dynamic = tc
-    ref node : Expr = callable_raw_func_def(raw)
-        if node.node_type.is(NodeType.EnumDef).not() {
-            interp_error(e, format(who, ": '", type_name, "' is not an enum"), ctx)
-            exit(1)
-        }
-        return node
+    node_o := hb_func_def(hb_o.unwrap())
+    mut is_enum := false
+    if node_o.is_some() { is_enum = node_o.unwrap().node_type.is(NodeType.EnumDef) }
+    if is_enum.not() {
+        interp_error(e, format(who, ": '", type_name, "' is not an enum"), ctx)
+        exit(1)
+    }
+    return node_o.unwrap()
 }
 
 priv h_enum_variant_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
@@ -6587,21 +6625,22 @@ priv h_enum_variant_payload_is_ref := proc(mut s: Scope, mut e: Expr, r: Dynamic
 // erroring out if the name is unknown or not a function signature.
 // Shared by the func_sig_* introspection handlers (issue #58).
 priv interp_lookup_funcsig := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    // A miss means `who` asked to introspect a type name with no registered
-    // def -- a not-found error. On success scope_get returns a non-null cell,
-    // so no guard is needed past the catch.
-    ref tc : Dynamic = scope_get(s, type_name)?
-    catch (knf: KeyNotFound) {
+    // Same runtime-string exposure as interp_lookup_struct: a name that is
+    // bound to a value carries no def, and is reported as "not a function
+    // signature".
+    hb_o := scope_lookup_heap_binding(s, type_name)
+    if hb_o.is_none() {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
-    ref raw : Dynamic = tc
-    ref node : Expr = callable_raw_func_def(raw)
-        if node.node_type.is(NodeType.FuncDef).not() {
-            interp_error(e, format(who, ": '", type_name, "' is not a function signature"), ctx)
-            exit(1)
-        }
-        return node
+    node_o := hb_func_def(hb_o.unwrap())
+    mut is_funcdef := false
+    if node_o.is_some() { is_funcdef = node_o.unwrap().node_type.is(NodeType.FuncDef) }
+    if is_funcdef.not() {
+        interp_error(e, format(who, ": '", type_name, "' is not a function signature"), ctx)
+        exit(1)
+    }
+    return node_o.unwrap()
 }
 
 priv h_func_sig_param_count := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {

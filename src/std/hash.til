@@ -65,6 +65,13 @@ fnv1a := func(data: Dynamic, n: USize) returns U64 {
 // short inputs (single-character strings hash to small values). Fine
 // wherever the consumer tolerates that -- the pool namer pads to
 // fixed-width hex and resolves collisions explicitly.
+//
+// examples/bench_hashmap.til puts all three side by side, and the
+// trade shows up as a crossover rather than a winner: on 100,000 Str
+// keys djb2 leads every column (ins 36ms vs fnv1a's 41ms, get 10ms vs
+// 14ms), while on the small-N lookup rows it draws level up to ~128
+// entries and then falls behind (1024 entries: 116ms vs 102ms) as the
+// weaker mixing turns into longer chains. I64 keys stay fnv1a's.
 djb2 := func(data: Dynamic, n: USize) returns U64 {
     mut h : U64 = 5381
     for i in 0..n {

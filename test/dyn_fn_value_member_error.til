@@ -1,0 +1,16 @@
+mode script
+
+// dyn_has_method answers for ANY namespace member, values included, so a
+// caller can reach dyn_fn with a member that is not a method at all. The
+// interpreter used to clone that member's slot as a callable, reading the
+// VALUE as the box address (7 -> 0x7) and segfaulting; it now says what is
+// wrong. See hb_func_def / ns_func_def in src/self/interpreter.til.
+Widget := struct {
+    x : I64 = 0
+
+namespace:
+    limit : I64 = 7
+}
+
+f : Dynamic = dyn_fn("Widget", "limit")
+print("unreachable\n")

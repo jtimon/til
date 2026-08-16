@@ -1,0 +1,10 @@
+mode script
+
+// The struct_field_* / enum_variant_* / func_sig_* handlers take a RUNTIME
+// string, so the name they look up can be an ordinary value binding. The
+// lookup used to read that binding's slot as a def (x -> 0x5) before the
+// "is not a struct" check could run.
+x := 5
+
+print(struct_field_count("x").to_str())
+print("\n")

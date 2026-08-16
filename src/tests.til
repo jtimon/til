@@ -1276,6 +1276,20 @@ main := proc(args: ..Str) {
     add_count(tests, "core_func_errors", "typer",
         "cannot be indirected via dyn_fn", 2,
         format(til_bin, " interpret test/core_func_errors.til"))
+    // A scope/namespace slot is only an Expr when the binding is callable.
+    // Each of these used to deref a VALUE as a def and segfault the
+    // interpreter; they now reach the diagnostic that was always there.
+    add_count(tests, "dyn_fn_value_member_error", "interp",
+        "dyn_fn: not a method", 1,
+        format(til_bin, " interpret test/dyn_fn_value_member_error.til"))
+    // The needle avoids the message's apostrophes: add_count single-quotes
+    // it into the runner command line.
+    add_count(tests, "main_value_error", "interp",
+        "this mode requires a", 1,
+        format(til_bin, " interpret test/main_value_error.til"))
+    add_count(tests, "introspect_value_name_error", "interp",
+        "is not a struct", 1,
+        format(til_bin, " interpret test/introspect_value_name_error.til"))
     // Issue #54: function closures run under both backends.
     add_single(tests, "closures_interp", "closures", 0, "",
         format(til_bin, " interpret test/closures_interp.til"))
