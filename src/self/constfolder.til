@@ -317,6 +317,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
                 if payload_o.is_none() { return Option(Expr).None }
                 mut payload : Expr = Option(Expr).take(own payload_o)
                 mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+                mark_fcall_direct(call)
                 call.add_child(own variant)
                 call.add_child(own payload)
                 call.set_til_type(t)
@@ -340,6 +341,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
             clone_callee.add_child(own clone_recv)
             mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+            mark_fcall_direct(clone_call)
             clone_call.add_child(own clone_callee)
             clone_call.add_child(own variant_expr)
             clone_call.set_til_type(t)
@@ -361,6 +363,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         switch sdef.node_type {
         case .StructDef(sfd):
             mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+            mark_fcall_direct(ctor)
             mut callee := Expr.new(ident_node(sname), src.line, src.col)
             callee.set_til_type(t)
             ctor.add_child(own callee)
@@ -710,6 +713,7 @@ priv fa_recv_type_name := func(callee: Expr, mut ctx: Context) returns Str {
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
 priv try_fast_fold_call := func(mut scope: Scope, fcall: Expr, mut ctx: Context) returns Option(Expr) {
+    if fcall_is_direct(fcall).not() { return Option(Expr).None }
     if fcall.children.len().eq(1).not() { return Option(Expr).None }
     ref fc_callee : Expr = fcall.children[0]
     // The callee's FuncDef, resolved through the typed accessors: a scope
@@ -751,6 +755,7 @@ priv try_fast_fold_call := func(mut scope: Scope, fcall: Expr, mut ctx: Context)
 }
 
 priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, mut ctx: Context) returns Option(Expr) {
+    if fcall_is_direct(fcall).not() { return Option(Expr).None }
     fast_o := try_fast_fold_call(scope, fcall, ctx)
     if fast_o.is_some() { return fast_o }
 
@@ -840,6 +845,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // Build a call with literal args for the interpreter
     nargs := fcall.children.len() - 1
     mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
+    mark_fcall_direct(ec)
     ec.set_til_type(fcall.til_type())
     ec.add_child(own fcall.children[0].clone())
 
@@ -912,6 +918,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                         atok_fa.add_child(own atok_recv)
                         mut atok_strlit := Expr.new(NodeType.Literal(Literal.Str(atok_name)), arg.line, arg.col)
                         mut atok_ctor := Expr.new(NodeType.FCall(FCallData()), arg.line, arg.col)
+                        mark_fcall_direct(atok_ctor)
                         atok_ctor.add_child(own atok_fa)
                         atok_ctor.add_child(own atok_strlit)
                         atok_ctor.set_til_type(Type.Enum("Type"))
@@ -1026,6 +1033,7 @@ priv track_literal_known_only := func(name: Str, rhs: Expr, mut ctx: Context) {
 
 is_macro_call := func(e: Expr, mut ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
+    if fcall_is_direct(e).not() { return false }
     if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
     switch callee.node_type {
@@ -1042,6 +1050,7 @@ is_macro_call := func(e: Expr, mut ctx: Context) returns Bool {
 
 priv is_func_call := func(e: Expr, mut ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
+    if fcall_is_direct(e).not() { return false }
     if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
     switch callee.node_type {

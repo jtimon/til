@@ -1605,7 +1605,7 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
             // A FuncPtr-typed binding that is a function-pointer value (not a
             // function/sig declaration) is called through its signature.
             if callee_bind.is_func_decl.not() {
-                e.children[0].set_til_type(Type.FuncPtr)
+                e.children[0].set_til_type(fn_type)
                 if fdef_o.is_some() {
                     ref cb_fdef : FunctionDef = funcdef_of(fdef_o.unwrap())
                     if cb_fdef.return_type.len() > 0 {
@@ -2122,6 +2122,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     }
     switch ns_func2.node_type {
     case .FuncDef(ns_fdef):
+        mark_fcall_direct(e)
         mut implicit_arg_count : USize = 0
         if ufcs_desugared { implicit_arg_count = 1 }
         if desugar_fcall_args_for_fdef(e, "", ns_fdef, implicit_arg_count, ctx).not() {
@@ -2211,6 +2212,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
     case .StructDef(_ns_sdef):
+        mark_fcall_direct(e)
         mut type_ident := Expr.new(ident_node(method), e.children[0].line, e.children[0].col)
         e.children[0] = type_ident
         return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, in_func, ctx)
@@ -3146,6 +3148,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
         // the callee changes, every aligned value/ownership position stays.
         e.children[0] = Expr.new(ident_node(mono), e.line, e.col)
     }
+    mark_fcall_direct(e)
     // #320/#328: the generic path is the ONLY legitimate consumer of a
     // `ref` argument bit. Anything left after type application is a ref on
     // a value argument, and gets the same hard error every other call does.
@@ -3367,6 +3370,7 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
             if e.children.len() > 1 {
                 infer_expr(scope, e.children[1], in_func, ctx)
             }
+            mark_fcall_direct(e)
             return
         }
         name = Str.clone(name0.ident_name())
@@ -3379,16 +3383,29 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         e.set_til_type(Type.Unknown)
         return
     }
-    ref resolved_name : Str = resolve_type_alias(scope, name)
-    if resolved_name.eq(name).not() {
-        callee.node_type = ident_node(resolved_name)
-        name = resolved_name.clone()
+    mut callee_is_indirect := false
+    initial_bind_o := scope.get_binding(name)
+    if initial_bind_o.is_some() {
+        ref initial_bind : TypeBinding = initial_bind_o.unwrap()
+        callee_is_indirect = initial_bind.is_func_decl.not().and(
+            initial_bind.type.is_funcptr().or(initial_bind.type.is(Type.Body)))
     }
-    if name == "cast" {
-        infer_cast_fcall(scope, e, in_func, ctx)
-        return
+    if callee_is_indirect.not() {
+        ref resolved_name : Str = resolve_type_alias(scope, name)
+        if resolved_name.eq(name).not() {
+            callee.node_type = ident_node(resolved_name)
+            name = resolved_name.clone()
+        }
+        if name == "cast" {
+            infer_cast_fcall(scope, e, in_func, ctx)
+            mark_fcall_direct(e)
+            return
+        }
+        if infer_struct_constructor_fcall(scope, e, name, in_func, ctx) {
+            mark_fcall_direct(e)
+            return
+        }
     }
-    if infer_struct_constructor_fcall(scope, e, name, in_func, ctx) { return }
     mut callee_bind_o := scope.get_binding(name)
     mut callee_fdef_o := Option(ref Expr).None
     // #328: set when the callee resolves to a retained generic SOURCE.
@@ -3453,8 +3470,9 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     // a runtime Type expression by rewrite_til_type_arg -- array/vec are
     // monomorphized into Array__T / Vec__T at compile time, so the initer and
     // desugarer read the type NAME straight off this Ident.
-    if name.eq("array").or(name.eq("vec")) {
+    if callee_is_indirect.not().and(name.eq("array").or(name.eq("vec"))) {
         infer_array_vec_fcall(scope, e, name, in_func, ctx)
+        mark_fcall_direct(e)
         return
     }
     // #288: a core_func / core_proc is an inline-only primitive intrinsic --
@@ -3467,7 +3485,7 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     // is statically checkable -- a Str-valued type argument
     // (`dyn_fn(elem_type, ...)`) is dynamic and skipped, and clone/cmp/hash
     // stay ext_func anyway.
-    if name.eq("dyn_fn").and(e.children.len() >= 3) {
+    if callee_is_indirect.not().and(name.eq("dyn_fn")).and(e.children.len() >= 3) {
         switch e.children[1].node_type {
         case .Literal(Literal.Str(dyn_type_nm)):
             dyn_tdef_o := scope.get_struct(dyn_type_nm)
@@ -3500,8 +3518,8 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     // map, invalidating any ref taken before the call (same hazard the
     // callee documents).
     callee_bind_o = scope.get_binding(name)
-    if name == "free" { check_free_managed_local(scope, e, ctx) }
-    if name == "is_null" { check_is_null_arg_dynamic(scope, e, ctx) }
+    if callee_is_indirect.not().and(name == "free") { check_free_managed_local(scope, e, ctx) }
+    if callee_is_indirect.not().and(name == "is_null") { check_is_null_arg_dynamic(scope, e, ctx) }
     // (check_move_managed_dest retired with the raw byte-move: `move` is
     // now the typed ownership primitive that destroys dest's old value
     // itself -- the guard's premise is gone, #302.)
@@ -3546,7 +3564,15 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     }
     validate_fcall_own_args(scope, e, callee_fdef_o, ctx)
     resolve_fcall_return_type(scope, e, name, callee_bind_o, callee_fdef_o, in_func, ctx)
+    if callee_is_indirect.not() { mark_fcall_direct(e) }
     return
+}
+
+priv assert_fcall_callee_classified := func(e: Expr) {
+    if fcall_is_direct(e) { return }
+    ref callee : Expr = e.children[0]
+    if callee.til_type().is_funcptr().or(callee.til_type().is(Type.Body)) { return }
+    panic(__LOC__, "typed call has neither a direct nor callable callee: ", callee.node_type.head_str())
 }
 
 infer_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
@@ -3564,7 +3590,10 @@ infer_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: 
     case .FuncDef:     infer_func_def_expr(scope, expr, ctx)
     case .BodyValue:   infer_body_value_expr(scope, expr, ctx)
     case .StructDef, .EnumDef: infer_type_def_expr(scope, expr, ctx)
-    case .FCall:       infer_fcall_expr(scope, expr, in_func, ctx)
+    case .FCall:
+        errors_before_call := ctx.errors
+        infer_fcall_expr(scope, expr, in_func, ctx)
+        if ctx.errors == errors_before_call { assert_fcall_callee_classified(expr) }
     case .FieldAccess: infer_field_access_expr(scope, expr, in_func, ctx)
     case .Literal(Literal.MapLit):      infer_map_lit_expr(scope, expr, in_func, ctx)
     case .Literal(Literal.SetLit):      infer_set_lit_expr(scope, expr, in_func, ctx)
@@ -7898,6 +7927,7 @@ type_to_name := func(t: Type) returns Str {
 
 make_closure_delete_call := func(var_name: Str, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mark_fcall_direct(call)
     call.set_til_type(Type.None)
 
     mut callee := Expr.new(ident_node("til_closure_delete"), src.line, src.col)
@@ -7919,6 +7949,7 @@ make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, ca
     if tname.len() == 0 { return Option(Expr).None }
 
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mark_fcall_direct(call)
     call.set_til_type(Type.None)
 
     mut type_id := Expr.new(ident_node(tname), src.line, src.col)
@@ -8036,6 +8067,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
 make_free_call := func(var_name: Str, shallow type: Type, src: Expr) returns Expr {
     if type.is_funcptr().or(type.is(Type.Body)) { return make_closure_delete_call(var_name, src) }
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mark_fcall_direct(call)
     call.set_til_type(Type.None)
 
     mut callee := Expr.new(ident_node("free"), src.line, src.col)
@@ -8051,6 +8083,7 @@ make_free_call := func(var_name: Str, shallow type: Type, src: Expr) returns Exp
 
 make_clone_call := func(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mark_fcall_direct(call)
     call.set_til_type(type)
     if type.is(Type.Struct).and(til_type_name(type).len().eq(0)) {
         call.set_til_type(Type.Struct(type_name.clone()))
@@ -8079,6 +8112,7 @@ priv make_to_str_call := func(type_name: Str, arg: Expr) returns Expr {
 
 make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mark_fcall_direct(call)
     call.set_til_type(ret_type)
 
     mut type_id := Expr.new(ident_node(sname), src.line, src.col)

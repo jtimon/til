@@ -110,6 +110,13 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     switch e.node_type {
     case .Ident(ident):
         vec_push_str(refs, ident.ident_name())
+        // A runtime callable value carries its FuncSig in the type payload.
+        // The signature declaration must survive even when only the value's
+        // name appears in executable code.
+        if e.til_type().is(Type.FuncPtrSig) {
+            sig_name := til_type_name(e.til_type())
+            if sig_name.len() > 0 { vec_push_str(refs, sig_name) }
+        }
     case .Assign(adata):
         // An assignment TARGET names a binding the same way a read does --
         // the name lives in the node data, not in an Ident child, so
@@ -119,7 +126,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         vec_push_str(refs, adata.name)
     case .FCall:
         // Check for namespace method call: Type.method(args...)
-        if e.children.len() > 0 {
+        if fcall_is_direct(e).and(e.children.len() > 0) {
             if e.children[0].node_type.is(NodeType.FieldAccess) {
                 if scav_fa_is_ns(e.children[0]) {
                     ref fa : Expr = e.children[0]
@@ -153,7 +160,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             }
         }
         // array()/vec() builtins need Array/Vec constructor methods
-        if e.children.len() >= 2 {
+        if fcall_is_direct(e).and(e.children.len() >= 2) {
             if e.children[0].node_type.is(NodeType.Ident) {
                 ref cn : IdentData = ident_of(e.children[0])
                 if cn.ident_name() == "array" {
@@ -429,15 +436,22 @@ priv scavenge_members_in_place := func(mut decls: Vec(Declaration), mut idx: Map
 
 // #326: a top-level VALUE declaration -- not a func/struct/enum def, and
 // not a type alias (`USize := U32`, which emits nothing but stays a name
-// the builder resolves through the scope).
-priv scav_is_value_decl := func(stmt: Expr) returns Bool {
+// the builder resolves through the scope). A generated-function alias has
+// the same AST shape, but its target is recorded in type_gen_synths and the
+// alias is an ordinary sweepable reachability edge.
+priv scav_is_value_decl := func(stmt: Expr, ctx: Context) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     if stmt.children.len() == 0 { return false }
     ref rhs : Expr = stmt.children[0]
     if rhs.node_type.is(NodeType.FuncDef) { return false }
     if rhs.node_type.is(NodeType.StructDef) { return false }
     if rhs.node_type.is(NodeType.EnumDef) { return false }
-    if stmt.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { return false }
+    if stmt.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) {
+        switch rhs.node_type {
+        case .Ident(alias_id): return ctx.type_gen_synths.has(alias_id.ident_name())
+        case: UNREACHABLE("expected Ident alias")
+        }
+    }
     return true
 }
 
@@ -446,8 +460,8 @@ priv scav_is_value_decl := func(stmt: Expr) returns Bool {
 // (reading another global). Anything containing a call takes the
 // conservative side and stays a blanket root -- in script mode a top-level
 // `x := foo()` IS the program, whether or not x is ever read.
-scav_value_decl_sweepable := func(stmt: Expr) returns Bool {
-    if scav_is_value_decl(stmt).not() { return false }
+scav_value_decl_sweepable := func(stmt: Expr, ctx: Context) returns Bool {
+    if scav_is_value_decl(stmt, ctx).not() { return false }
     ref rhs : Expr = stmt.children[0]
     return rhs.node_type.is(NodeType.Literal).or(rhs.node_type.is(NodeType.Ident))
 }
@@ -492,14 +506,14 @@ priv scav_cleanup_target := func(stmt: Expr) returns Str {
 // check_fcall_mut_args on a spliced swap_replace callee was the proven case
 // -- would otherwise read a freed Expr. Same hazard #328 fixed for retired
 // generic templates; the sweep is just the other producer of it.
-scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool, mut swept_names: Vec(Str)) {
+scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool, mut swept_names: Vec(Str), ctx: Context) {
     pn := program.children.len()
     pm : U8 = malloc(pn)
     memset(pm, 0, pn)
     mut swept := Set(Str).new()
     for i in 0..pn {
         ref stmt : Expr = program.children[i]
-        if is_def(stmt).not().and(sweep_values.and(scav_is_value_decl(stmt)).or(scav_value_decl_sweepable(stmt))) {
+        if is_def(stmt).not().and(sweep_values.and(scav_is_value_decl(stmt, ctx)).or(scav_value_decl_sweepable(stmt, ctx))) {
             ref vd : Declaration = decl_of(stmt)
             if visited.has(vd.name).not() {
                 memset(ptr_add(pm, i), 1, 1)
@@ -1069,7 +1083,7 @@ priv seed_executable_stmt_roots := func(lp: LoadedProgram, mut worklist: Vec(Str
         for stmt : Expr in lp.ctx.imported[u.path].ast.children {
             if stmt.node_type.is(NodeType.Decl) {
                 if is_def(stmt) { continue }
-                if scav_value_decl_sweepable(stmt) { continue }
+                if scav_value_decl_sweepable(stmt, lp.ctx) { continue }
             }
             collect_refs(stmt, worklist)
         }
@@ -1397,11 +1411,11 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     mut swept_names := Vec(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            scavenge_filter(lp.ctx.imported[u.path].ast, visited, true, swept_names)
+            scavenge_filter(lp.ctx.imported[u.path].ast, visited, true, swept_names, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
-        scavenge_filter(lp.ctx.imported[u.path].ast, visited, false, swept_names)
+        scavenge_filter(lp.ctx.imported[u.path].ast, visited, false, swept_names, lp.ctx)
     }
     // #326: the sweep freed those declarations' AST nodes, and the
     // func_defs / struct_defs registries hold pointers INTO them. Erase
@@ -1424,4 +1438,5 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         dce_program_bodies(lp.ctx.imported[upath].ast, lp.ctx)
     }
+
 }

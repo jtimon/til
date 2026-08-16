@@ -1383,7 +1383,11 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, mut scope: T
         return
     }
     ref sdecl : Declaration = decl_of(stmt)
-    if scope.find(sdecl.name).is(ScopeFind.Found) { return }
+    existing_o := scope.get_binding(sdecl.name)
+    if existing_o.is_some().and(existing_o.unwrap().is_type_alias.not()) {
+        ref existing : TypeBinding = existing_o.unwrap()
+        if existing.line.neq(stmt.line).or(existing.col.neq(stmt.col)) { return }
+    }
     // #192: USize/UPtr are target-dependent. Bind them to the per-target
     // primitive registered on the root TypeScope at creation, not the
     // source-alias RHS, so code that reads the binding directly
@@ -1399,7 +1403,8 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, mut scope: T
             if tgt_fd_o.is_none() {
                 return
             }
-            if tgt_fd_o.unwrap().children.len() != 0 {
+            if tgt_fd_o.unwrap().children.len().neq(0)
+                .and(ctx.type_gen_synths.has(target_name).not()) {
                 return
             }
         }
@@ -4803,6 +4808,13 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
     }
     for fi : USize in func_idxs {
         register_function_def_for_stmt(ctx, program.children[fi], scope)
+    }
+    // A type-generator alias can precede its synthesized canonical FuncDef
+    // in program.children. Its first registration above cannot resolve that
+    // target; retry after functions are registered so it inherits the
+    // function declaration binding instead of becoming a FuncPtr value.
+    for ai : USize in alias_idxs {
+        register_type_alias_for_stmt(ctx, program.children[ai], scope)
     }
     for vi : USize in value_idxs {
         register_top_level_value_for_stmt(ctx, program.children[vi], scope)

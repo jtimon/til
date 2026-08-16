@@ -1698,6 +1698,7 @@ make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32)
 make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32) returns Expr {
     mut gp := Expr.new(ident_node("get_payload"), line, col)
     mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mark_fcall_direct(gc)
     gc.add_child(own gp)
     gc.add_child(own arg)
     gc.set_til_type(payload_type)
@@ -1716,6 +1717,7 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
     mut vr := Expr.new(field_access_node(vname), line, col)
     vr.add_child(own et)
     mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mark_fcall_direct(is_call)
     is_call.add_child(own iv)
     is_call.add_child(own arg_id)
     is_call.add_child(own vr)
@@ -2733,6 +2735,21 @@ is_funcptr := func(t: Type) returns Bool {
 // they fall out naturally -- no primitive guard needed.
 is_aggregate := func(t: Type) returns Bool {
     return t.is(Type.Struct).or(t.is(Type.Enum))
+}
+
+fcall_is_direct := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .FCall(fd): return fd.direct_callee
+    case: UNREACHABLE("expected FCall, got ", e.node_type.head_str())
+    }
+    return false
+}
+
+mark_fcall_direct := func(mut e: Expr) {
+    switch e.node_type {
+    case .FCall(fd): fd.direct_callee = true
+    case: UNREACHABLE("expected FCall, got ", e.node_type.head_str())
+    }
 }
 
 // #254 range cases: true when `e` is a `Range.new(lo, hi)` FCall -- the AST

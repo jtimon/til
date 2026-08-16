@@ -4503,6 +4503,7 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
         if is_aggregate(ab.type).not() { return }
 
         mut call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+        mark_fcall_direct(call)
         call.set_til_type(Type.None)
         fn := Expr.new(ident_node("swap_bytes"), stmt.line, stmt.col)
         call.add_child(own fn)

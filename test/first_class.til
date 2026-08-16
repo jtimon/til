@@ -1842,3 +1842,33 @@ test_funcptr_return_called_inline := test() {
 
 inline_after328 := func() returns inline_sig328 { return inline_double328 }
 gpick_inline328 := func(T: Type, f: T) returns T { return f }
+
+direct_shadow_target := func(x: I64) returns I64 { return x + 7 }
+indirect_shadow_target := func() returns I64 { return 29 }
+
+test_direct_and_indirect_callee_identity := test() {
+    assert_eq(I64, direct_shadow_target(4), 11)
+    saved := direct_shadow_target
+    assert_eq(I64, saved(5), 12)
+    direct_shadow_target := indirect_shadow_target
+    assert_eq(I64, direct_shadow_target(), 29)
+}
+
+test_builtin_name_callable_shadows := test() {
+    cast := indirect_shadow_target
+    free := indirect_shadow_target
+    array := indirect_shadow_target
+    dyn_fn := indirect_shadow_target
+    assert_eq(I64, cast(), 29)
+    assert_eq(I64, free(), 29)
+    assert_eq(I64, array(), 29)
+    assert_eq(I64, dyn_fn(), 29)
+}
+
+test_block_callable_shadow_identity := test() {
+    {
+        direct_shadow_target := indirect_shadow_target
+        assert_eq(I64, direct_shadow_target(), 29)
+    }
+    assert_eq(I64, direct_shadow_target(9), 16)
+}

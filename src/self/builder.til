@@ -29,15 +29,15 @@ closure_value_name := func(name: Str) returns Str {
 priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Context) returns Option(ref Expr) {
     switch rhs.node_type {
     case .Ident(rhs_name):
-        fdef_o := find_callee_fdef(rhs_name.ident_name(), ctx)
-        if fdef_o.is_some() { return fdef_o }
-        bfd_o := scope.lookup_func(rhs_name.ident_name())
-        if bfd_o.is_some() { return bfd_o }
         // A transitive first-class alias `h := g` where `g := f` is itself a
         // local funcptr value (#262): chase `g`'s signature captured at its
         // own emit_stmt_decl into local_fn_sigs, so `h` resolves the same sig.
         lsig := resolve_local_fn_sig(ctx, rhs_name.ident_name())
         if lsig.is_some() { return lsig }
+        bfd_o := scope.lookup_func(rhs_name.ident_name())
+        if bfd_o.is_some() { return bfd_o }
+        fdef_o := find_callee_fdef(rhs_name.ident_name(), ctx)
+        if fdef_o.is_some() { return fdef_o }
     case .FCall:
         rsig := resolve_fn_sig(rhs, scope)
         if rsig.is_some() { return rsig }
@@ -1192,6 +1192,7 @@ priv get_stack_local_ctype := func(name: Str, mut ctx: Context) returns Option(r
 priv resolve_callee_name := ext_func(fcall: Expr) returns Str {}
 
 priv resolve_callee_name := func(fcall: Expr) returns Str {
+    if fcall_is_direct(fcall).not() { return "" }
     ref callee_node : Expr = fcall.children[0]
     switch callee_node.node_type {
     case .FieldAccess(mname):
@@ -1208,7 +1209,11 @@ priv resolve_callee_name := func(fcall: Expr) returns Str {
 priv fcall_return_ctype := func(fcall: Expr, mut ctx: Context) returns Str {
     if fcall.node_type.is(NodeType.FCall).not() { return "" }
     callee := resolve_callee_name(fcall)
-    if callee.len() == 0 { return "" }
+    if callee.len() == 0 {
+        ref call_type : Type = fcall.til_type()
+        if call_type.is(Type.Unknown).or(call_type.is(Type.None)) { return "" }
+        return til_type_to_c(call_type)
+    }
     // cast(e, T) is declared `returns shallow Dynamic` but the typer
     // narrows the FCall's til_type to T. For such typer-overridden
     // Dynamic returns, prefer the concrete C type (otherwise we get
@@ -3217,7 +3222,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                     }
                 }
             }
-            if fcall_returns_own(e, ctx.scope) {
+            if builder_fcall_returns_own(e, ctx) {
                 tname := type_to_name(e.til_type())
                 if tname.len() > 0 {
                     f.write(tname).write("_delete(")
@@ -3614,40 +3619,19 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             ref call_sname_ref : Str = call_sname_o.unwrap()
             call_sname = call_sname_ref.clone()
         }
-        // Issue #58: indirect call through a cast result -- the
-        // `cast(value, BinaryOp)(args)` shape. Same C emission as the
-        // FuncSig-typed struct field below: emit the cast result as a
-        // void*, cast it to the C function-pointer type, and apply the
-        // args. fcall_fn_sig resolves the FuncSig via the cast's
-        // child(2) Ident.
-        if callee.node_type.is(NodeType.FCall) {
+        if fcall_is_direct(e).not() {
             if callee.til_type().is(Type.Body) {
                 emit_body_closure_call(f, callee, depth, ctx)
                 return f
             }
             if callee.til_type().is_funcptr() {
-                sig_cc_o := fcall_fn_sig(e, ctx)
-                if sig_cc_o.is_some() {
-                    ref sig_cc : Expr = sig_cc_o.unwrap()
-                    emit_fcall_closure_call(f, e, callee, sig_cc, depth, ctx)
-                    return f
-                }
+                emit_fcall_closure_call(f, e, callee, fcall_fn_sig(e, ctx).unwrap(), depth, ctx)
+                return f
             }
+            UNREACHABLE("typed indirect call has non-callable callee ", callee.node_type.head_str())
+            return f
         }
-        // Indirect call through FuncSig-typed struct field
         if callee.node_type.is(NodeType.FieldAccess) {
-            if callee.til_type().is(Type.Body) {
-                emit_body_closure_call(f, callee, depth, ctx)
-                return f
-            }
-            if callee.til_type().is_funcptr() {
-                sig_o := fcall_fn_sig(e, ctx)
-                if sig_o.is_some() {
-                    ref sig : Expr = sig_o.unwrap()
-                    emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
-                    return f
-                }
-            }
             // Namespace method call
             mut sname := ""
             sname_o := expr_type_name_ref(callee.children[0])
@@ -4017,14 +4001,6 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             f.write(" _sc")
             emit_i32(f, id)
             f.write("; })")
-        } else if callee.til_type().is(Type.Body) {
-            emit_body_closure_call(f, callee, depth, ctx)
-        } else if callee.til_type().is_funcptr() {
-            // Indirect call through function pointer variable
-            // The sig is dereferenced unconditionally downstream
-            // (emit_fcall_funcptr_cast UNREACHABLEs on a non-FuncDef),
-            // so a miss here is a broken invariant, not a state.
-            emit_fcall_closure_call(f, e, callee, fcall_fn_sig(e, ctx).unwrap(), depth, ctx)
         } else if name.ident_name().eq("is_n").and(builder_callee_is_core(name.ident_name(), ctx)) {
             // is_n core_func: inline the variable-width enum-tag check
             // by reading each operand's `tag` field through its enum C
@@ -7183,6 +7159,12 @@ priv build_register_func_symbols_lp := func(mut lp: LoadedProgram) {
 
 collect_closure_value_names := proc(e: Expr, mut names: Set(Sym), mut ctx: Context) {
     switch e.node_type {
+    case .Decl:
+        // A resolved top-level alias is compile-time-only; its Ident RHS
+        // does not take the target function's address at runtime.
+        if e.til_type().is(Type.None).and(e.children.len() > 0) {
+            if e.children[0].node_type.is(NodeType.Ident) { return }
+        }
     case .Ident(ident):
         if e.til_type().is_funcptr() {
             if find_callee_fdef(ident.ident_name(), ctx).is_some() { names.add(own ctx.symbols.intern(ident.ident_name())) }
@@ -10681,8 +10663,16 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
     // (struct constructors, regular func calls) have no fn_sig today.
     if callee.til_type().is_funcptr().not() { return Option(ref Expr).None }
     ref s : TypeScope = ctx.scope
-    vs := resolve_fn_sig(fcall, s)
-    if vs.is_some() { return vs }
+    switch callee.til_type() {
+    case .FuncPtrSig(sig_name):
+        sig_o := find_callee_fdef(sig_name, ctx)
+        if sig_o.is_some().and(sig_o.unwrap().children.len() == 0) { return sig_o }
+    case:
+    }
+    if callee.node_type.is(NodeType.Ident).not().or(fcall_is_direct(fcall)) {
+        vs := resolve_fn_sig(fcall, s)
+        if vs.is_some() { return vs }
+    }
     // resolve_fn_sig only sees globals + struct fields. The remaining FuncPtr
     // shapes are params and locals of the function currently being emitted;
     // their bindings lived in a transient func_scope that is gone by now.
@@ -10748,16 +10738,18 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
 priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case .Ident(ident):
-        if callee_returns_shallow(ident.ident_name(), ctx) { return true }
-    case .FieldAccess(mname):
-        sname_o := expr_type_name_ref(callee.children[0])
-        if sname_o.is_none() { return false }
-        ref sname : Str = sname_o.unwrap()
-        flat := sname.concat3("_", mname.field_access_name())
-        if callee_returns_shallow(flat, ctx) { return true }
-    case:
+    if fcall_is_direct(fcall) {
+        switch callee.node_type {
+        case .Ident(ident):
+            if callee_returns_shallow(ident.ident_name(), ctx) { return true }
+        case .FieldAccess(mname):
+            sname_o := expr_type_name_ref(callee.children[0])
+            if sname_o.is_none() { return false }
+            ref sname : Str = sname_o.unwrap()
+            flat := sname.concat3("_", mname.field_access_name())
+            if callee_returns_shallow(flat, ctx) { return true }
+        case:
+        }
     }
     sig_o := fcall_fn_sig(fcall, ctx)
     if sig_o.is_some() {
@@ -10769,6 +10761,15 @@ priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
         }
     }
     return false
+}
+priv builder_fcall_returns_own := func(fcall: Expr, ctx: Context) returns Bool {
+    if fcall_is_direct(fcall) { return fcall_returns_own(fcall, ctx.scope) }
+    sig_o := fcall_fn_sig(fcall, ctx)
+    if sig_o.is_none() { return false }
+    switch sig_o.unwrap().node_type {
+    case .FuncDef(fd): return fd.return_own_type.is(OwnType.Own)
+    case: return false
+    }
 }
 priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
     tname := clone_call_type_name(e)

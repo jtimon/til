@@ -2933,7 +2933,13 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         case:
         }
         mut fn_raw_owned := true
-        mut fn_raw : Dynamic = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
+        mut fn_raw : Dynamic = 0
+        if fcall_is_direct(e) {
+            ref mut root_scope : Scope = scope_root_ref(scope)
+            fn_raw = eval_callable_callee_raw(root_scope, callee_expr, fn_raw_owned, ctx)
+        } else {
+            fn_raw = eval_callable_callee_raw(scope, callee_expr, fn_raw_owned, ctx)
+        }
         if callable_box_is(deref(fn_raw)) {
             ref boxed_func_def : Expr = callable_raw_func_def(fn_raw)
             set_resolved_call_result_info(call_type, boxed_func_def, destination, info, ctx)
@@ -2975,7 +2981,16 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             e.set_til_type(concrete_result_type)
                             mut concrete_destination : Dynamic = 0
                             if til_type_name_c(concrete_result_type) == til_type_name_c(orig_result_type) { concrete_destination = destination }
+                            // This indirect callable has now resolved to one
+                            // concrete ext-function symbol for the recursive
+                            // dispatch. Restore its runtime-callable identity
+                            // after that temporary direct call returns.
+                            mark_fcall_direct(e)
                             mut result : Dynamic = eval_call(scope, e, ctx, concrete_destination)
+                            switch e.node_type {
+                            case .FCall(fd): fd.direct_callee = false
+                            case:
+                            }
                             e.set_til_type(orig_result_type)
                             swap(Expr, e.children[0], flat_ident)
                             if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
@@ -3068,12 +3083,26 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         return result
     }
 
+    // A typed Ident callee not stamped direct is a runtime callable value,
+    // regardless of whether its spelling matches a global or builtin.
+    if fcall_is_direct(e).not().and(callee_expr.node_type.is(NodeType.Ident))
+    .and(callee_expr.til_type().is_funcptr().or(callee_expr.til_type().is(Type.Body))) {
+        mut callable_owned := true
+        mut callable : Dynamic = eval_callable_callee_raw(scope, callee_expr, callable_owned, ctx)
+        ref callable_fdef : Expr = callable_raw_func_def(callable)
+        set_resolved_call_result_info(call_type, callable_fdef, destination, info, ctx)
+        result : Dynamic = eval_callable_call(scope, e, callable, ctx, destination)
+        if callable_owned { callable_raw_free(callable, ctx) }
+        return result
+    }
+
     // Direct ident call
     switch callee_expr.node_type {
     case .Ident(name):
 
         // Ext/core dispatch writes raw bytes sized by this call's result Type.
-        ext_hb_o := scope_lookup_heap_binding(scope, name.ident_name())
+        ref mut root_scope : Scope = scope_root_ref(scope)
+        ext_hb_o := scope_lookup_heap_binding(root_scope, name.ident_name())
         mut ext_slot : Dynamic = 0
         if ext_hb_o.is_some() { ext_slot = to_ptr(ext_hb_o.unwrap().ptr) }
         mut ext_result_type := call_type.clone()
@@ -7569,6 +7598,7 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context)
     field_access.add_child(own type_ident)
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col)
+    mark_fcall_direct(fake_call)
     fake_call.set_til_type(e.til_type())
     fake_call.add_child(own field_access)
 
@@ -7630,6 +7660,7 @@ priv get_elem_size := proc(mut s: Scope, type_name: Str, src: Expr, mut ctx: Con
 
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mark_fcall_direct(fake_call)
     fake_call.set_til_type(type_from_name_init("USize", ctx.scope))
     fake_call.add_child(own field_access)
 

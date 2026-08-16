@@ -340,6 +340,11 @@ FCallData := struct {
     own_args : U64 = 0
     keep_outer_args : U64 = 0
     swap_replace := false
+    // Set by the typer once this call has selected a static function,
+    // constructor, method, or builtin. False means the callee expression is
+    // a runtime callable value. This occupies existing alignment padding, so
+    // all following field offsets and the FCallData size stay unchanged.
+    direct_callee := false
     // Issue #206 slice 3: payload-resident result type. The typer
     // writes the resolved callee return type here via the
     // set_til_type method at FCall infer time, and
