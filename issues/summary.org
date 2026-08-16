@@ -4,6 +4,10 @@
 ** Medium
 *** [[./open/358.org][#358]] array() / vec() literals do not type-check their elements
 *** [[./open/359.org][#359]] One generic applied both explicitly and by deduction is monomorphized twice
+*** [[./open/361.org][#361]] Interpreted: a Bool into a ..Dynamic variadic is read as 8 bytes off a 1-byte allocation
+*** [[./open/363.org][#363]] A variadic parameter of a private struct type never resolves its Array instance
+** Low
+*** [[./open/362.org][#362]] Constfolder: a Str bound into a ..Dynamic variadic's fold scope leaks its clone
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

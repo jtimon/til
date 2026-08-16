@@ -1229,3 +1229,10 @@ terr342_vec_lit := vec(I64, ..terr342_strs)
 // `Array__I64_concat(a, v)` outright.
 terr342_vec_src := vec(I64, 1, 2)
 terr342_vec_splat := terr342_sum(..terr342_vec_src)
+
+// A ..Dynamic variadic exempts every ELEMENT from the check, but not a splat:
+// converting one would mean converting each element over a runtime length. This
+// used to pass the typer and then split the backends -- the interpreter ran it
+// while the C backend refused `Array__Dynamic_concat(collector, Array__Str)`.
+terr342_dyn := func(xs: ..Dynamic) returns USize { return xs.len() }
+terr342_dyn_splat := terr342_dyn(1, ..terr342_strs)

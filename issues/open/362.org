@@ -1,0 +1,51 @@
+# priority: low
+# category: bugs
+** OPEN #362 Constfolder: a Str bound into a ..Dynamic variadic's fold scope leaks its clone
+
+A small, deterministic ASAN leak with no splat anywhere:
+
+    priv dyn_count := func(xs: ..Dynamic) returns USize { return xs.len() }
+    test_one := test() {
+        assert_eq(USize, dyn_count(1, "a"), 2)
+    }
+
+    Direct leak of 2 byte(s) in 1 object(s) allocated from:
+        clone_str_storage_into / heap_clone / heap_clone_by_type
+        scope_read_heap_binding_raw / scope_read_bound_raw
+        constfolder: bind_known_idents_in / interp_va_build_stmt /
+        materialize_va / fold_subtree
+
+The leaked 2 bytes are the "a\0" storage of the clone that
+~bind_known_idents_in~ (src/self/constfolder.til) makes when it binds the
+hoisted Str into the fold scope for ~materialize_va~. Two controls pin it
+to the Dynamic-variadic combination:
+
+- ~..Str~ variadic, same call shape (~str_count("a", "b")~): no leak.
+- ~..Dynamic~ with only I64 elements (~dyn_count(1, 2)~): no leak.
+
+So the clone is either not adopted by the fold scope or not released when
+the fold scope unwinds, only on the Str-through-Dynamic path. One leak per
+materialized va build region, proportional to Str args -- harmless in a
+short compile, but it puts every ..Dynamic-with-Str call site on the ASAN
+ledger, and the full suite runs ASAN-clean as a hard gate, so any test
+that exercises the shape trips the suite.
+
+*** Where to look
+
+The fold scope teardown in ~materialize_va~ / the ownership flag
+~bind_known_idents_in~ passes to ~scope_set_raw_owned~ (or fails to): the
+Str clone's outer block is freed but its character storage is not, which
+smells like the scope slot being torn down at Dynamic layout while the
+value is a Str (delete runs the wrong type's teardown, missing the inner
+buffer).
+
+*** Regression test
+
+The repro above must be ASAN-clean interpreted. Until then,
+test_splat_dynamic_variadic (test/variadic.til, #342) keeps Str elements
+out of its ..Dynamic calls -- undo that note when this closes. #361 is the
+overflow sibling (Bool, same parameter shape); a fix for either should
+re-run the other's repro.
+
+Found while testing #342's splat checks; no splat in the call, so filed
+separately.

@@ -1,0 +1,48 @@
+# priority: medium
+# category: bugs
+** OPEN #361 Interpreted: a Bool into a ..Dynamic variadic is read as 8 bytes off a 1-byte allocation
+
+An ASAN heap-buffer-overflow with no splat anywhere in the call:
+
+    priv dyn_count := func(xs: ..Dynamic) returns USize { return xs.len() }
+    test_one := test() {
+        assert_eq(USize, dyn_count(true), 1)
+    }
+
+    ERROR: AddressSanitizer: heap-buffer-overflow ... READ of size 8
+    ... in memcpy / ffi_call_unix64 / ext_dispatch_ffi
+    0x... is located 0 bytes after 1-byte region
+
+The I64 and Str equivalents (~dyn_count(1)~, ~dyn_count("a")~) are clean;
+only the Bool overflows, so the width decision is per element type. It
+reproduces interpreted under ~bin/til_asan~; a plain (non-ASAN) run does
+not visibly misbehave, which is how it stays hidden -- the extra 7 bytes
+land in allocator slack.
+
+*** Where to look
+
+The trace runs through ~ext_dispatch_ffi~ (src/self/interpreter.til): the
+FFI argument marshalling for a value crossing into a ~Dynamic~ slot reads
+a full 8-byte word from the argument's storage, and a Bool's heap cell is
+1 byte. Either the load must honour the value's own width (a
+~scalar_word_load~ at Bool width, then widen), or Bool cells must be
+allocated at word size like the other scalars evidently are. Whichever
+way, the fix is about the DYNAMIC hop -- a ~..Bool~ variadic does not
+overflow, so the plain typed path already gets it right.
+
+Neighbouring work worth reading first: #357 (fixed) was the pointer side
+of the same hop -- a pointer-to-scalar crossing into Dynamic stopped being
+dereferenced once too many. This looks like the width side of the same
+conversion, but the two were never observed together: the repro above was
+last run against a compiler that PREDATES that fix, so re-run it before
+digging, in case #357 closed this too.
+
+*** Regression test
+
+The repro above, plus ~dyn_count(1, "a", true)~ mixing widths in one
+call. Both must be ASAN-clean interpreted and compiled. Until then,
+test_splat_dynamic_variadic (test/variadic.til, #342) deliberately keeps
+Bools out of its ..Dynamic calls -- undo that note when this closes.
+
+Found while testing #342's splat checks; the call shape carries no splat,
+so it is not that issue's to fix.

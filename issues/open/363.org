@@ -1,0 +1,64 @@
+# priority: medium
+# category: bugs
+** OPEN #363 A variadic parameter of a private struct type never resolves its Array instance
+
+A ~..T~ where T is a ~priv~ struct breaks in the CALLEE's own body, with
+no splat and no caller trickery involved:
+
+    priv PrivPt := struct { n := 0 }
+    priv pt_sum := func(ps: ..PrivPt) returns I64 {
+        mut t := 0
+        for p : PrivPt in ps { t = t.add(p.n) }
+        return t
+    }
+    test_no_splat := test() {
+        assert_eq(I64, pt_sum(PrivPt(n = 1), PrivPt(n = 2)), 3)
+    }
+
+    error: for-in requires a collection type with get() and len() methods
+    error: redundant 'mut' on local 't': never written through; drop the 'mut'
+
+(The second error is collateral: the loop body typed as nothing, so the
+accumulator is "never written".) Drop the ~priv~ from the struct and the
+identical file passes, splat calls included -- non-private ~..T~ is fine.
+
+*** The spelling mismatch
+
+The private pass mangles the struct to ~priv__<unit>__PrivPt~ and the
+parameter's declared type follows it, so ~ps~ types as an Array of the
+MANGLED name -- while the synthesized container instance is keyed off the
+spelling the variadic machinery derives (~variadic_array_type_name~ ->
+~Array__PrivPt~ or ~Array__priv__<unit>__PrivPt~, whichever side wins).
+The two never meet: the for-in's collection lookup misses, so ~ps~ is not
+a collection to iterate.
+
+The mismatch is visible from the outside too. Before #342's tests moved to
+a public struct, the splat element check reported:
+
+    '..' splat of 'Array__SplatPoint', whose elements are 'SplatPoint'
+    does not match the variadic parameter
+    'ps: ..priv__test_variadic_til__SplatPoint'
+
+-- the ARGUMENT side named the instance from the unmangled spelling, the
+PARAMETER side the mangled one. Both are the same struct.
+
+*** What to fix
+
+One canonical spelling for the pair (parameter element type, Array
+instance name), applied on both sides of the private mangling -- most
+likely: derive the instance from the resolved (mangled) name everywhere,
+including the type-gen that synthesizes it and the deduction/argument
+checks in the typer that decompose instance names back to elements
+(~array_instance_elem_type_name~ and friends, see #342 follow-ups 2-4,
+which compare exactly these spellings and will need re-checking).
+
+*** Regression tests
+
+The repro above (plain call), a splat call (~pt_sum(..a)~ with
+~a := array(PrivPt, ...)~), and an ~array(PrivPt, ...)~ literal, all with
+the struct ~priv~. test/variadic.til's SplatPoint carries a comment
+pointing here -- flip it back to ~priv~ when this closes to keep the
+private shape covered.
+
+Found while writing #342's tests, which tripped over it by declaring the
+helper struct ~priv~.

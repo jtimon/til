@@ -1407,31 +1407,41 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                     // checked as what it is.
                     if vptype_name.len() > 0 {
                         vptype := type_from_name(vptype_name, scope, ctx)
-                        if vptype.is(Type.Dynamic).not() {
-                            is_str_va := vptype_name == "Str"
-                            for vk in 0..fvc {
-                                if get_splat_arg(e, ci + vk) {
-                                    validate_splat_elem_type(scope, e.children[ci + vk], vptype_name,
-                                        format("the variadic parameter '", vparam.name, ": ..", vptype_name, "'"), ctx)
-                                    continue
-                                }
-                                if is_str_va {
-                                    ref vk_arg : Expr = e.children[ci + vk]
-                                    if vk_arg.til_type().is(vptype).not() {
-                                        if vk_arg.til_type().is(Type.Dynamic).not().and(vk_arg.til_type().is(Type.Unknown).not()) {
-                                            arg_tname := type_to_name(vk_arg.til_type())
-                                                if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
-                                                    if type_has_to_str(scope, arg_tname) {
-                                                        e.children[ci + vk] = make_to_str_call(arg_tname, vk_arg)
-                                                        continue
-                                                    }
-                                            }
+                        is_dyn_va := vptype.is(Type.Dynamic)
+                        is_str_va := vptype_name == "Str"
+                        for vk in 0..fvc {
+                            // A splat is checked even against a ..Dynamic
+                            // variadic, where every ELEMENT is exempt. A plain
+                            // argument converts to Dynamic one value at a time;
+                            // a splatted array would have to convert each of
+                            // its elements over a runtime length, the same
+                            // lowering the to_str coercion below does not have
+                            // either. Letting it through built
+                            // Array__Dynamic_concat(collector, Array__Str),
+                            // which the interpreter ran happily and the C
+                            // backend refused to compile.
+                            if get_splat_arg(e, ci + vk) {
+                                validate_splat_elem_type(scope, e.children[ci + vk], vptype_name,
+                                    format("the variadic parameter '", vparam.name, ": ..", vptype_name, "'"), ctx)
+                                continue
+                            }
+                            if is_dyn_va { continue }
+                            if is_str_va {
+                                ref vk_arg : Expr = e.children[ci + vk]
+                                if vk_arg.til_type().is(vptype).not() {
+                                    if vk_arg.til_type().is(Type.Dynamic).not().and(vk_arg.til_type().is(Type.Unknown).not()) {
+                                        arg_tname := type_to_name(vk_arg.til_type())
+                                            if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
+                                                if type_has_to_str(scope, arg_tname) {
+                                                    e.children[ci + vk] = make_to_str_call(arg_tname, vk_arg)
+                                                    continue
+                                                }
                                         }
                                     }
                                 }
-                                rewrite_til_type_arg(scope, e, ci + vk, vptype, in_func, ctx)
-                                validate_fcall_arg(e.children[ci + vk], vptype, vptype_name, vparam.name, ctx)
                             }
+                            rewrite_til_type_arg(scope, e, ci + vk, vptype, in_func, ctx)
+                            validate_fcall_arg(e.children[ci + vk], vptype, vptype_name, vparam.name, ctx)
                         }
                     }
                     ci = ci + fvc

@@ -3968,18 +3968,20 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             arr_name := format("_array_", synth_suffix(ctx, ctx.coll_counter.to_str()))
             ctx.coll_counter++
             array_type := variadic_array_type_name(scope, elem_type)
+            // ONE `Type.Struct(array_type)`, on one exit. Consuming array_type
+            // from two branches instead made the garbager emit a Str_delete for
+            // it on the branch that also handed it to Type.Struct, so an
+            // ordinary array literal double-freed the instance name.
             if desugar_splat_collection_literal(ctx, fcall, new_ch, scope, elem_type,
-                    arr_name, false, false, OwnType.Own) {
-                rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct(array_type))
-                return true
-            }
-            mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count, ctx)
-            scope.set(arr_name, Type.Struct(array_type.clone()), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
-            new_ch.push(own arr_decl)
-            build_variadic_err_slots(arr_name, new_ch, scope, ctx, fcall.line, fcall.col)
-            for j in 0..count {
-                mut setter := build_variadic_array_set(fcall, scope, elem_type, arr_name, j.add(2), j, ctx)
-                new_ch.push(own setter)
+                    arr_name, false, false, OwnType.Own).not() {
+                mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count, ctx)
+                scope.set(arr_name, Type.Struct(array_type.clone()), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
+                new_ch.push(own arr_decl)
+                build_variadic_err_slots(arr_name, new_ch, scope, ctx, fcall.line, fcall.col)
+                for j in 0..count {
+                    mut setter := build_variadic_array_set(fcall, scope, elem_type, arr_name, j.add(2), j, ctx)
+                    new_ch.push(own setter)
+                }
             }
             rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct(array_type))
             return true

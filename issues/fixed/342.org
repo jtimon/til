@@ -209,6 +209,51 @@ that must still pass, and seven fixtures in test/typer_errors.til (count
 against a user variadic and against both literals, a splat of a
 non-container, and the Vec.
 
+*** Follow-up 4: the double free follow-up 1 shipped, and ..Dynamic
+
+A REGRESSION from follow-up 1, found by probing ~..mk()~ and fixed here.
+~desugar_array_vec_fcall~ ended up consuming ~array_type~ from two
+branches -- the splat early return and the ordinary fall-through each did
+~Type.Struct(array_type)~ -- and the garbager then emitted a ~Str_delete~
+for it on the branch that ALSO handed it away, so every ordinary array
+literal double-freed the instance name. The crash needed the freed name to
+be reused before the second free, which is why the corpus stayed green and
+a struct-element literal inside a function reliably segfaulted the
+compiler. One consumption on one exit fixes it, and
+test_splat_call_result puts the shape in the corpus so ASAN sees it every
+run.
+
+The lesson is the one follow-up 1 already recorded from the other side:
+this desugar hands owned Strs and Exprs away, and adding a second branch
+that consumes the same local is exactly what the garbager cannot follow.
+Prefer one exit that consumes, however tempting the early return reads.
+
+Also here: a ~..Dynamic~ variadic exempts every ELEMENT from the type
+check by design, and used to exempt splats with them. A plain argument
+converts to Dynamic one value at a time; a splatted array would have to
+convert each element over a runtime length -- the same missing lowering
+that keeps ~to_str~ coercion away from splats. Untyped, it built
+~Array__Dynamic_concat(collector, Array__Str)~, which the interpreter ran
+and the C backend refused: the two backends disagreeing again, the same
+shape as the Vec. Splats are now checked against ~..Dynamic~ too, so only
+an ~Array(Dynamic)~ matches.
+
+NOT this issue's, found while writing the tests and filed as #363: a
+variadic parameter of a PRIVATE struct type does not resolve its Array
+instance -- the callee's own ~for p : T in ps~ reports "requires a
+collection type with get() and len() methods", with no splat anywhere. The
+same code with a non-private struct works. The declared parameter spelling
+is the mangled ~priv__<unit>__T~ while the array instance is ~Array__T~,
+so the two never meet; whoever fixes it should check that the splat
+element check agrees afterwards, since it compares those spellings. The
+two ..Dynamic memory bugs the same round of testing surfaced (a Bool read
+as 8 bytes off its 1-byte cell, a Str's clone leaked in the constfolder's
+va materialization) are #361 and #362.
+
+Tests: test_splat_call_result and test_splat_dynamic_variadic in
+test/variadic.til, plus the ..Dynamic fixture in test/typer_errors.til
+(count 210 -> 211).
+
 A ~..~ splat passed alongside other arguments in the same variadic
 block is currently a type error:
 
