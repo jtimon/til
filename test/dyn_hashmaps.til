@@ -240,3 +240,37 @@ test_dyn_hashmap_with_capacity_zero_is_lazy := test() {
     ref v : I64 = m.get("a")!
     assert_eq(I64, v, 1)
 }
+
+// #101 family parity: the map hashes each key once at insert and keeps
+// the value; stored_hash hands back that exact value, and growth relinks
+// via the stored hashes instead of re-hashing (which here would be an
+// indirect call per key).
+test_dyn_hashmap_stored_hash := test() {
+    mut m := DynHashMap.new(Str, I64)
+    m.set("pooled", own 1)
+    h := m.stored_hash("pooled")!
+    for i in 0..200 { m.set(format("filler", i.to_str()), own i) }
+    h2 := m.stored_hash("pooled")!
+    assert_eq(U64, h2, h)
+    ref v : I64 = m.get("pooled")!
+    assert_eq(I64, v, 1)
+}
+
+// remove() relinks the swapped trailing entry through its stored hash;
+// every survivor must stay findable across removals that force swaps.
+test_dyn_hashmap_remove_keeps_hashes := test() {
+    mut m := DynHashMap.new(I64, I64)
+    for i in 0..40 { m.set(i, own i.mul(3)) }
+    assert(m.remove(0))
+    assert(m.remove(39))
+    assert(m.remove(17))
+    assert_eq(USize, m.len(), 37)
+    for j in 1..17 {
+        ref v : I64 = m.get(j)!
+        assert_eq(I64, v, j.mul(3))
+    }
+    for k in 18..39 {
+        ref v2 : I64 = m.get(k)!
+        assert_eq(I64, v2, k.mul(3))
+    }
+}

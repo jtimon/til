@@ -5,11 +5,19 @@ import("dyn_vec")
 
 // DynHashMap preserves the current type-erased HashMap implementation while
 // HashMap is migrated toward a templated, monomorphized API.
+//
+// Each entry's full 64-bit hash is stored (`hashes`), as in HashMap /
+// HashSet / DynHashSet: rehash() re-links without hashing a single key
+// again, find()/set() reject chain collisions with a U64 compare before
+// the dynamic key_cmp call (an indirect call per comparison here, so the
+// filter buys the most in this container), and stored_hash() hands back
+// the map's own hash of a key.
 DynHashMap := struct {
     keys : DynVec = DynVec.new(Dynamic)
     values : DynVec = DynVec.new(Dynamic)
     buckets : DynVec = DynVec.new(I64)  // bucket head entry index, -1 if empty
     nexts : DynVec = DynVec.new(I64)    // per-entry next-in-chain index, -1 if end
+    hashes : DynVec = DynVec.new(U64)   // per-entry full hash, computed once at insert
     key_hash : TypeHashFn = default_type_hash
     key_cmp  : CmpFn      = default_cmp
 
@@ -34,6 +42,7 @@ namespace:
         m.values = DynVec.new_type_name(val_type)
         m.buckets = DynVec.new(I64)
         m.nexts = DynVec.new(I64)
+        m.hashes = DynVec.new(U64)
         m.key_hash = dyn_fn(key_type, "hash")
         m.key_cmp  = dyn_fn(key_type, "cmp")
         // Buckets are seeded on the first insert, as in HashMap.new --
@@ -64,6 +73,8 @@ namespace:
         m.values.cap = n
         m.nexts.data = realloc(own m.nexts.data, n.mul(m.nexts.elem_size))
         m.nexts.cap = n
+        m.hashes.data = realloc(own m.hashes.data, n.mul(m.hashes.elem_size))
+        m.hashes.cap = n
         for _ in 0..nb {
             m.buckets.push(own -1)
         }
@@ -79,6 +90,7 @@ namespace:
         DynVec.clear(self.keys)
         DynVec.clear(self.values)
         DynVec.clear(self.nexts)
+        DynVec.clear(self.hashes)
         for i in 0..self.buckets.count {
             self.buckets.unsafe_set(i, own -1)
         }
@@ -93,6 +105,7 @@ namespace:
         m.values = DynVec.clone(self.values)
         m.buckets = DynVec.clone(self.buckets)
         m.nexts = DynVec.clone(self.nexts)
+        m.hashes = DynVec.clone(self.hashes)
         m.key_hash = self.key_hash
         m.key_cmp = self.key_cmp
         return m
@@ -108,13 +121,19 @@ namespace:
 
     find := func(self: DynHashMap, key: Dynamic) returns I64 {
         if self.keys.count == 0 { return -1 }
-        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        h := self.hash_key(to_ptr(key))
+        bi := bucket(h, self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
         while entry >= 0 {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys.unsafe_get(entry_u)
-            if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
+            // Stored-hash pre-filter: a chain neighbor with a different
+            // full hash cannot be this key, so skip the indirect key_cmp.
+            ref eh : U64 = self.hashes.unsafe_get(entry_u)
+            if eh == h {
+                ref k : Dynamic = self.keys.unsafe_get(entry_u)
+                if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
+            }
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
@@ -134,6 +153,16 @@ namespace:
         return self.values.unsafe_get(idx.to_usize())
     }
 
+    /// The map's own stored hash of `key` -- the exact value hash_key
+    /// computed when the entry was inserted, retrieved rather than
+    /// recomputed. Throws KeyNotFound if `key` is absent.
+    stored_hash := func(self: DynHashMap, key: Dynamic) returns U64 throws KeyNotFound {
+        idx := self.find(key)
+        if idx < 0 { throw KeyNotFound() }
+        ref h : U64 = self.hashes.unsafe_get(idx.to_usize())
+        return h.clone()
+    }
+
     set := func(mut self: DynHashMap, key: Dynamic, own val: Dynamic) {
         // Seed the bucket array on first insert (see new_type_names).
         // bucket() takes a modulo, so this precedes any bucket index.
@@ -142,16 +171,20 @@ namespace:
                 self.buckets.push(own -1)
             }
         }
-        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        h := self.hash_key(to_ptr(key))
+        bi := bucket(h, self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
         mut existing : I64 = -1
         while entry >= 0 {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys.unsafe_get(entry_u)
-            if self.keys_equal(to_ptr(key), to_ptr(k)) {
-                existing = entry.clone()
-                break
+            ref eh : U64 = self.hashes.unsafe_get(entry_u)
+            if eh == h {
+                ref k : Dynamic = self.keys.unsafe_get(entry_u)
+                if self.keys_equal(to_ptr(key), to_ptr(k)) {
+                    existing = entry.clone()
+                    break
+                }
             }
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
@@ -164,6 +197,7 @@ namespace:
             ref head2 : I64 = self.buckets.unsafe_get(bi)
             head_val : I64 = head2.clone()
             self.nexts.push(own head_val)
+            self.hashes.push(own h.clone())
             cloned_key : U8 = malloc(self.keys.elem_size)
             if self.keys.elem_kind == ELEM_BOXED {
                 key_copy : Dynamic = self.keys.elem_clone(key)
@@ -189,9 +223,12 @@ namespace:
         while self.buckets.count < new_count {
             self.buckets.push(own -1)
         }
+        // The stored hash makes this pure pointer surgery: no key is
+        // re-hashed, which for a type-erased map also means no indirect
+        // hash call per entry.
         for i in 0..self.keys.count {
-            ref k : Dynamic = self.keys.unsafe_get(i)
-            bi := bucket(self.hash_key(to_ptr(k)), self.buckets.count)
+            ref eh : U64 = self.hashes.unsafe_get(i)
+            bi := bucket(eh.clone(), self.buckets.count)
             ref head : I64 = self.buckets.unsafe_get(bi)
             head_val : I64 = head.clone()
             self.nexts.unsafe_set(i, own head_val)
@@ -204,6 +241,7 @@ namespace:
         DynVec.delete(own self.values, false)
         DynVec.delete(own self.buckets, false)
         DynVec.delete(own self.nexts, false)
+        DynVec.delete(own self.hashes, false)
         if call_free { free(own self) }
     }
 
@@ -211,7 +249,8 @@ namespace:
     /// absent (same contract as DynMap.remove / core Map.remove).
     remove := func(mut self: DynHashMap, key: Dynamic) returns Bool {
         if self.keys.count == 0 { return false }
-        bi := bucket(self.hash_key(key), self.buckets.count)
+        h := self.hash_key(key)
+        bi := bucket(h, self.buckets.count)
 
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut prev : I64 = -1
@@ -219,10 +258,13 @@ namespace:
         mut found := false
         while entry >= 0 {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys.unsafe_get(entry_u)
-            if self.keys_equal(key, k) {
-                found = true
-                break
+            ref eh : U64 = self.hashes.unsafe_get(entry_u)
+            if eh == h {
+                ref k : Dynamic = self.keys.unsafe_get(entry_u)
+                if self.keys_equal(key, k) {
+                    found = true
+                    break
+                }
             }
             prev = entry.clone()
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
@@ -252,8 +294,8 @@ namespace:
         last_idx : I64 = self.keys.count.to_i64() - 1
         if entry.eq(last_idx).not() {
             last_u : USize = last_idx.to_usize()
-            ref last_key : Dynamic = self.keys.unsafe_get(last_u)
-            last_bi := bucket(self.hash_key(last_key), self.buckets.count)
+            ref last_h : U64 = self.hashes.unsafe_get(last_u)
+            last_bi := bucket(last_h.clone(), self.buckets.count)
             ref last_head : I64 = self.buckets.unsafe_get(last_bi)
             if last_head == last_idx {
                 self.buckets.unsafe_set(last_bi, own entry.clone())
@@ -278,11 +320,14 @@ namespace:
                    ptr_add(self.values.data, last_values_off), self.values.elem_size)
             ref last_nxt : I64 = self.nexts.unsafe_get(last_u)
             self.nexts.unsafe_set(idx_u, own last_nxt.clone())
+            ref last_hh : U64 = self.hashes.unsafe_get(last_u)
+            self.hashes.unsafe_set(idx_u, own last_hh.clone())
         }
 
         self.keys.count = self.keys.count - 1
         self.values.count = self.values.count - 1
         self.nexts.count = self.nexts.count - 1
+        self.hashes.count = self.hashes.count - 1
         return true
     }
 }
