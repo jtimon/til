@@ -277,6 +277,23 @@ target_ffi_lib := func(target: Target) returns Str {
     return ""
 }
 
+// The command that produces target_ffi_lib's archive, for the loud
+// missing-archive report in compile_c. Kept beside the path table so
+// the two cannot drift: the windows triples are bin/make path goals,
+// the native stable-path copies come out of the bootstrap on a
+// matching host.
+target_ffi_build_hint := func(target: Target) returns Str {
+    switch target {
+    case .WindowsX64:   return "bin/make vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
+    case .WindowsX86:   return "bin/make vendor/libffi/i686-w64-mingw32/.libs/libffi.a"
+    case .LinuxX64:     return "make (the bootstrap builds the native libffi)"
+    case .LinuxArm64:   return "make, on a native arm64-linux host (the bootstrap stable-copies the archive)"
+    case .MacosX64, .MacosArm64: return "make, on a mac host (the bootstrap stable-copies the archive)"
+    case: return "this target has no vendored libffi build"
+    }
+    return ""
+}
+
 // raylib + tinyfd + windowing-system libs for `mode gui`. Builder appends
 // these only when the program declared mode gui. A proc because the macOS
 // case is host-aware (macos_is_cross). Empty on targets where GUI

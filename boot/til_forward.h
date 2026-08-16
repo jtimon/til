@@ -2694,6 +2694,7 @@ Str * executable_extension(Target * target);
 Str * shared_lib_extension(Target * target);
 Str * target_system_libs(Target * target);
 Str * target_ffi_lib(Target * target);
+Str * target_ffi_build_hint(Target * target);
 Str * target_gui_libs(Target * target);
 Target * detect_current_target(void);
 Bool fa_is_ns(Expr * e, TypeScope * scope);

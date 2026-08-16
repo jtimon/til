@@ -6900,12 +6900,25 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // them (the Makefile keeps stable-path copies on native mac and
     // native arm64-linux hosts). Cross hosts do not have them, and
     // programs that never call ext_func at runtime do not need them, so
-    // link the archive only when it is actually present. Programs that
-    // DO use ext_func against a target with no vendored libffi still
-    // fail loudly at link on the missing ffi_* symbols -- the same
-    // behavior as before the table had entries for those targets.
+    // link the archive only when it is actually present. Whether the
+    // PROGRAM needs it is decided by the generated C itself: nothing in
+    // src/c/ext.c references libffi, so ffi_* calls appear only when
+    // the emitted code carries runtime FFI dispatch (the compiler's own
+    // interpreter, or a program importing the libffi binding). A
+    // missing archive such a program needs used to be dropped silently
+    // here and surface as a screenful of unresolved-ffi_* linker
+    // errors; now it is checked BEFORE the link and reported with the
+    // path and the command that builds it. The scan only runs on the
+    // missing-archive path, so ordinary builds read nothing extra.
     mut ffi_lib := resolve_target_archives(target_ffi_lib(target), ext_c_path)
-    if ffi_lib.len().gt(0).and(realpath_str(ffi_lib).len().eq(0)) { ffi_lib = "" }
+    if ffi_lib.len().gt(0).and(realpath_str(ffi_lib).len().eq(0)) {
+        if File.readfile(c_path).contains("ffi_prep_cif") {
+            println(format("error: the generated C calls libffi (runtime ext_func dispatch), and this target's libffi archive is not built: ", ffi_lib))
+            println(format("  build it first: ", target_ffi_build_hint(target)))
+            return 1
+        }
+        ffi_lib = ""
+    }
     mut gui_part := ""
     if is_gui_auto_import(mode_auto_import) {
         gui_part = format(" ", resolve_target_archives(target_gui_libs(target), ext_c_path))

@@ -127,6 +127,39 @@ main := proc() returns I64 {
         panic("the gui program built by the installed til printed '", gui_run.out(), "'")
     }
 
+    // The missing-libffi report. The install prefix deliberately ships
+    // no libffi archive, which makes this the one place the check fires
+    // hermetically on every host: a program whose generated C calls
+    // libffi (it imports the installed binding and calls ffi_prep_cif)
+    // must FAIL the build with the actionable report, before any linker
+    // spew -- the archive used to be dropped silently here and the
+    // failure surfaced as a screenful of unresolved ffi_* symbols. The
+    // asserted substring is the platform-independent part; the path and
+    // build hint in the full message are per-target.
+    File.writefile(format(WORK, "/installed_ffi.til"), format(
+        "mode cli\n\n",
+        "import(\"../install_test/lib/til/vendor/bindings/libffi\")\n\n",
+        "main := proc() {\n",
+        "    mut rt := ffi_type()\n",
+        "    mut cif := ffi_cif(rtype = rt)\n",
+        "    ref mut atypes : Dynamic = to_ptr(rt)\n",
+        "    status := ffi_prep_cif(cif, 0, 0, rt, atypes)\n",
+        "    println(status.to_str())\n",
+        "}\n"))
+    ffi_build := Cmd.new(installed_til, "build", "installed_ffi.til")
+    ffi_build.cwd(WORK)
+    ffi_build.capture()
+    ffi_status := ffi_build.run()
+    if ffi_status == 0 {
+        panic("a libffi-calling build against the archive-less install tree succeeded; the missing-archive check did not fire")
+    }
+    if ffi_build.out().contains("libffi archive is not built").not() {
+        panic("the missing-libffi failure did not carry the report; got '", ffi_build.out(), ffi_build.err(), "'")
+    }
+    if ffi_build.out().contains("build it first:").not() {
+        panic("the missing-libffi report lost its build hint; got '", ffi_build.out(), "'")
+    }
+
     println("install PASS")
     return 0
 }
