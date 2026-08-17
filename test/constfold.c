@@ -115,12 +115,9 @@ static void test_lolalalo(void);
 static void test_fold_variable(void);
 static void test_loc_folded(void);
 static void test_fold_f32(void);
-static void CfVec2_delete(CfVec2 * self, Bool call_free);
 static void test_struct_fold_simple(void);
 static void test_struct_fold_values(void);
-static void CfRect_delete(CfRect * self, Bool call_free);
 static void test_struct_fold_nested(void);
-static void CfVec3f_delete(CfVec3f * self, Bool call_free);
 static void test_struct_fold_f32(void);
 static Bool Color_eq(Color * self, Color * other);
 static Color Color_clone(Color * self);
@@ -684,12 +681,6 @@ static void test_fold_f32(void) {
     assert_eq__Str(&_til_str_lits.h00000b8791fb, &_til_str_lits.h00000b8791fb, &hoisted__Str_test_fold_f32_9);
 }
 
-static void CfVec2_delete(CfVec2 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 static void test_struct_fold_simple(void) {
     CfVec2 v = {0};
     v.x = 42;
@@ -698,7 +689,6 @@ static void test_struct_fold_simple(void) {
     assert_eq__I64(v.x, hoisted__I64_0, &hoisted__Str_test_struct_fold_simple_1);
     I64 hoisted__I64_2 = 99;
     assert_eq__I64(v.y, hoisted__I64_2, &hoisted__Str_test_struct_fold_simple_3);
-    CfVec2_delete(&v, 0);
 }
 
 static void test_struct_fold_values(void) {
@@ -709,13 +699,6 @@ static void test_struct_fold_values(void) {
     assert_eq__I64(p.x, hoisted__I64_2, &hoisted__Str_test_struct_fold_values_3);
     I64 hoisted__I64_4 = 20;
     assert_eq__I64(p.y, hoisted__I64_4, &hoisted__Str_test_struct_fold_values_5);
-    CfVec2_delete(&p, 0);
-}
-
-static void CfRect_delete(CfRect * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
 }
 
 static void test_struct_fold_nested(void) {
@@ -734,13 +717,6 @@ static void test_struct_fold_nested(void) {
     assert_eq__I64(r.bottom_right.x, hoisted__I64_4, &hoisted__Str_test_struct_fold_nested_5);
     I64 hoisted__I64_6 = 200;
     assert_eq__I64(r.bottom_right.y, hoisted__I64_6, &hoisted__Str_test_struct_fold_nested_7);
-    CfRect_delete(&r, 0);
-}
-
-static void CfVec3f_delete(CfVec3f * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
 }
 
 static void test_struct_fold_f32(void) {
@@ -760,7 +736,6 @@ static void test_struct_fold_f32(void) {
     static Str hoisted__Str_test_struct_fold_f32_10 = (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT};
     assert_eq__Str(&hoisted__Str_test_struct_fold_f32_9, &hoisted__Str_test_struct_fold_f32_10, &hoisted__Str_test_struct_fold_f32_11);
     Str_delete(&hoisted__Str_test_struct_fold_f32_9, 0);
-    CfVec3f_delete(&v, 0);
 }
 
 static Bool Color_eq(Color * self, Color * other) {

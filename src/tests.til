@@ -1020,6 +1020,21 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/tilminal_vc.c examples/tilminal.til '&&' cat gen/c/tilminal_vc.c"))
     add_count(tests, "str_clone_value_abi", "build", "Str Str_clone(Str * val)", 2,
         format(til_bin, " translate -c gen/c/hs_sc.c examples/hello_script.til '&&' cat gen/c/hs_sc.c"))
+    // Issue #326: a destructor whose whole body is the `if call_free {
+    // free(own self) }` tail -- every POD struct, every payload-less enum,
+    // every primitive -- does nothing when call_free is false, so the call
+    // is not emitted. til.c: 2,181 such calls -> 363, 1,824 lines.
+    add_count(tests, "structs_no_noop_pod_delete", "build", "Point_delete(&a, 0);", 0,
+        format(til_bin, " translate -c gen/c/structs_nd2.c test/structs.til '&&' cat gen/c/structs_nd2.c"))
+    // ...unless the call is the binding's ONLY reader: dropping it would
+    // leave a declaration nothing reads, and retiring the declaration too
+    // is the ownership rewrite #302 owns. test_delete's `p := Point(x=3,
+    // y=7); Point.delete(own p)` is exactly that shape.
+    add_count(tests, "structs_keeps_sole_reader_delete", "build", "Point_delete(&p, 0);", 1,
+        format(til_bin, " translate -c gen/c/structs_sr.c test/structs.til '&&' cat gen/c/structs_sr.c"))
+    // A destructor with real field work keeps every call.
+    add_count(tests, "errors_keeps_field_deletes", "build", "Str_delete(&self->msg, 0);", 6,
+        format(til_bin, " translate -c gen/c/errors_fd.c test/errors.til '&&' cat gen/c/errors_fd.c"))
     // Issue #326: deleting an IMMUTABLE Str-literal local cannot do
     // anything. Both of Str.delete's branches test the cap, and such a
     // local IS the CAP_LIT wrapper -- its own file-scope static or a member

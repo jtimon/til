@@ -739,6 +739,17 @@ landing order:
   prefix-matching til's own helpers into all seven ~enum_variant_*~
   stubs, and ~emit_script_main~ leaking a previous function's name-keyed
   locals into the global-vs-local decision.
+- A destructor whose whole body is the ~if call_free { free(own self) }~
+  tail -- what the initer generates for every POD struct and every
+  payload-less enum, and what core writes by hand for every primitive --
+  does nothing when call_free is false, so the call is not emitted.  The
+  site inventory asks the same predicate, or the definition would outlive
+  its last call and trip -Werror=unused-function.  til.c: 2,181 such
+  calls -> 363, 1,824 lines.  Boundary: the call stays where it is the
+  argument's ONLY reader.  Dropping it there leaves a declaration nothing
+  reads, and retiring the declaration too is the ownership rewrite #302
+  owns -- ~test/structs.til~'s ~test_delete~ (build a POD, consume it) and
+  the ~Vec(T).clear~ per-element drop are the shapes that hit it.
 - An enum's auto-generated ~eq~ and its variant constructors are ordinary
   namespace members, so the member walk forward-declares them; the
   enum-auto-helper block below it is only for the enums whose members
