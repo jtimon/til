@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c5918d787</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -106,19 +106,19 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.scavenger.scav_value_decl_sweepable">
 <h2>scav_value_decl_sweepable</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (stmt: Expr) returns shallow Bool
+<pre><code class="language-til">func (stmt: Expr, ctx: Context) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.scavenge_filter">
 <h2>scavenge_filter</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (mut program: Expr, visited: Set__Str, shallow sweep_values: Bool, mut swept_names: Vec__Str)
+<pre><code class="language-til">func (mut program: Expr, visited: Set__Str, shallow sweep_values: Bool, mut swept_names: Vec__Str, ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.dce_program_bodies">
 <h2>dce_program_bodies</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc (mut program: Expr, ctx: Context)
+<pre><code class="language-til">proc (mut program: Expr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.scavenge_imported">

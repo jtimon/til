@@ -111,7 +111,6 @@
 *** ref_return_params : U64 = 0
 *** ref_return_into_params : U64 = 0
 *** ref_return_carried_params : U64 = 0
-*** ref_return_provisional_params : U64 = 0
 ** FCallData: StructDef
 *** is_splat := false
 *** does_throw := false
@@ -119,6 +118,7 @@
 *** own_args : U64 = 0
 *** keep_outer_args : U64 = 0
 *** swap_replace := false
+*** direct_callee := false
 *** til_type := Type.Unknown
 *** noreturn_call := false
 *** ref_args : U64 = 0
@@ -258,7 +258,6 @@
 *** col : U32 = 0
 *** carried := false
 *** field := ""
-*** provisional := false
 ** TypeBinding: StructDef
 *** name := ""
 *** type := Type.Unknown
@@ -310,6 +309,7 @@
 *** body_refs := Set(Sym).new()
 *** body_multi_decls := Set(Sym).new()
 *** stack_locals := Set(Sym).new()
+*** heap_locals := Set(Sym).new()
 *** stack_local_types := Map(Sym, Str).new()
 *** stack_lit_str_locals := Set(Sym).new()
 *** force_heap_stack_lit_str_own : Bool = false
@@ -357,7 +357,7 @@
 *** repl_session := false
 *** ns_fields := Option(Scope).None
 *** imported := Map(Str, ImportUnit).new()
-*** ... (76 more)
+*** ... (78 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -427,7 +427,6 @@
 *** alias : U64 = 0
 *** into : U64 = 0
 *** carried : U64 = 0
-*** provisional : U64 = 0
 ** CoverageNode: StructDef
 *** fully_covered := false
 *** sub_names := Vec(Str).new()
@@ -559,6 +558,10 @@
 ** BinderState: StructDef
 *** alias_to_primitive := "|"
 *** alias_to_dynamic := "|"
+** AuditedDecl: StructDef
+*** comments := ""
+*** line := ""
+*** seen := false
 * desugarer
 ** StmtDesugarNeeds: StructDef
 *** array_vec := false

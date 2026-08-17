@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -20,6 +20,38 @@ CAP_LIT is a U32
 
 #+begin_src til
 CAP_VIEW is a U32
+#+end_src
+
+* CAP_INLINE
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.CAP_INLINE
+:group: Core
+:END:
+
+Reserved for a Str whose bytes live in its own box's tail -- ONE
+allocation for both, so delete releases the box and nothing else. Safe
+because a Str's buffer is never resized: push_str panics on overflow
+rather than growing, so the bytes can never need to move out from under
+the box.
+
+Every reader now ASKS the right question -- "owns a SEPARATE buffer" is
+`cap < CAP_INLINE` -- but nothing produces the tag yet, so the answers
+are unchanged: no Str carries -3, and against every value that does
+occur `< CAP_INLINE` and `< CAP_VIEW` agree. Str.clone starts producing
+it in the next commit, once master's til_boot carries these readers
+compiled in (doc/self.org, "Staged migration across master merges"):
+the FOLD interpreter evaluates the new clone from source while the
+readers around it are whatever til_boot was built with, so a clone that
+tagged inline before those readers shipped freed into the middle of its
+own box.
+
+Ordered BELOW CAP_VIEW on purpose: that keeps all three sentinels at the
+top of the range with every real capacity below them. The readers are
+Str.delete here, the interpreter's str_owns_c_str /
+str_has_owned_storage, and the constfolder's raw_to_expr.
+
+#+begin_src til
+CAP_INLINE is a U32
 #+end_src
 
 * format

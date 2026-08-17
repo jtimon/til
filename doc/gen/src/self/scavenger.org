@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -39,7 +39,7 @@ func collect_refs(e: Expr, mut refs: Vec__Str)
 :END:
 
 #+begin_src til
-func scav_value_decl_sweepable(stmt: Expr) returns shallow Bool
+func scav_value_decl_sweepable(stmt: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * scavenge_filter
@@ -49,7 +49,7 @@ func scav_value_decl_sweepable(stmt: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values: Bool, mut swept_names: Vec__Str)
+func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values: Bool, mut swept_names: Vec__Str, ctx: Context)
 #+end_src
 
 * dce_program_bodies
@@ -59,7 +59,7 @@ func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values:
 :END:
 
 #+begin_src til
-proc dce_program_bodies(mut program: Expr, ctx: Context)
+proc dce_program_bodies(mut program: Expr)
 #+end_src
 
 * scavenge_imported

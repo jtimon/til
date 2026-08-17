@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * Primitive
@@ -358,7 +358,6 @@ struct FunctionDef {
     mut ref_return_params : U64
     mut ref_return_into_params : U64
     mut ref_return_carried_params : U64
-    mut ref_return_provisional_params : U64
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -397,6 +396,7 @@ struct FCallData {
     mut own_args : U64
     mut keep_outer_args : U64
     mut swap_replace : Bool
+    mut direct_callee : Bool
     mut til_type : Type
     mut noreturn_call : Bool
     mut ref_args : U64

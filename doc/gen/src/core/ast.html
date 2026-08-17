@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0c9fbc0e4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c5918d787</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -406,7 +406,6 @@ the definition). Prefer a switch when the None arm does real work.</p>
     mut ref_return_params : U64
     mut ref_return_into_params : U64
     mut ref_return_carried_params : U64
-    mut ref_return_provisional_params : U64
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -448,6 +447,7 @@ markers in fcall.children:</p>
     mut own_args : U64
     mut keep_outer_args : U64
     mut swap_replace : Bool
+    mut direct_callee : Bool
     mut til_type : Type
     mut noreturn_call : Bool
     mut ref_args : U64

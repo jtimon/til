@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * BorrowRoot
@@ -16,7 +16,6 @@ struct BorrowRoot {
     mut col : U32
     mut carried : Bool
     mut field : Str
-    mut provisional : Bool
 namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func to_str(self: BorrowRoot) returns Str
@@ -289,6 +288,7 @@ struct BuilderFuncScratch {
     mut body_refs : Set__U32
     mut body_multi_decls : Set__U32
     mut stack_locals : Set__U32
+    mut heap_locals : Set__U32
     mut stack_local_types : Map__U32_Str
     mut stack_lit_str_locals : Set__U32
     mut force_heap_stack_lit_str_own : Bool
@@ -419,7 +419,6 @@ struct Context {
     mut throws_global : Map__Str_call_Vec_Str
     mut bang_counter : I64
     mut lowering_param_types : Map__Str_Str
-    mut typer_in_shallow_return : Bool
     mut typer_return_type_name : Str
     mut ctor_seq : I32
     mut in_func_def : Bool
@@ -454,8 +453,11 @@ struct Context {
     mut builder_used_ctypes : Set__Str
     mut builder_omitted_core_funcs : Set__Str
     mut builder_static_ok : Bool
+    mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
     mut builder_lit_guard_used : Bool
+    mut builder_cstr_used : Bool
+    mut builder_closure_rt_used : Bool
     mut current_fdef : Option__ref_Expr
     mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
@@ -814,6 +816,26 @@ func funcptr_eq(a: Type, b: Type) returns shallow Bool
 
 #+begin_src til
 func type_is_callable_storage(t: Type) returns shallow Bool
+#+end_src
+
+* func_returns_c_value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.func_returns_c_value
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func func_returns_c_value(fd: FunctionDef) returns shallow Bool
+#+end_src
+
+* func_param_passes_c_value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.func_param_passes_c_value
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func func_param_passes_c_value(fd: FunctionDef, shallow i: USize, shallow value_abi_ok: Bool, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * type_from_name_init
@@ -1216,6 +1238,26 @@ func is_funcptr(t: Type) returns shallow Bool
 func is_aggregate(t: Type) returns shallow Bool
 #+end_src
 
+* fcall_is_direct
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.fcall_is_direct
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_is_direct(e: Expr) returns shallow Bool
+#+end_src
+
+* mark_fcall_direct
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.mark_fcall_direct
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func mark_fcall_direct(mut e: Expr)
+#+end_src
+
 * is_range_new_call
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.is_range_new_call
@@ -1284,46 +1326,6 @@ func qname_keys_index(keys: Vec__Str, a: Str, sep: Str, b: Str) returns shallow 
 
 #+begin_src til
 func qname_in_set(s: Set__Str, a: Str, sep: Str, b: Str) returns shallow Bool
-#+end_src
-
-* pod_struct_is
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.pod_struct_is
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func pod_struct_is(struct_name: Str, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* pod_ctor_args_safe
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.pod_ctor_args_safe
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func pod_ctor_args_safe(ctor: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* pod_fcall_is_struct_ctor
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.pod_fcall_is_struct_ctor
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func pod_fcall_is_struct_ctor(e: Expr) returns shallow Bool
-#+end_src
-
-* pod_ctor_decl_is_stack
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.pod_ctor_decl_is_stack
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func pod_ctor_decl_is_stack(rhs: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * Vec__BorrowRoot

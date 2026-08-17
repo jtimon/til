@@ -1,16 +1,6 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
-
-* is_pod_enum_clone_wrap
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.is_pod_enum_clone_wrap
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func is_pod_enum_clone_wrap(e: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
 
 * garbager_destroy_body
 :PROPERTIES:
@@ -20,6 +10,16 @@ func is_pod_enum_clone_wrap(e: Expr, scope: TypeScope) returns shallow Bool
 
 #+begin_src til
 proc garbager_destroy_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
+#+end_src
+
+* garbager_destroy_func_body
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.garbager_destroy_func_body
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc garbager_destroy_func_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns shallow Bool
 #+end_src
 
 * garbager_destroy

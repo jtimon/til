@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * Core
@@ -214,6 +214,11 @@ CAP_LIT is a U32
 ** [[file:src/core/str.org::#til.src.core.str.CAP_VIEW][CAP_VIEW]]
 #+begin_src til
 CAP_VIEW is a U32
+#+end_src
+
+** [[file:src/core/str.org::#til.src.core.str.CAP_INLINE][CAP_INLINE]]
+#+begin_src til
+CAP_INLINE is a U32
 #+end_src
 
 ** [[file:src/core/str.org::#til.src.core.str.format][format]]
@@ -2152,7 +2157,6 @@ struct FunctionDef {
     mut ref_return_params : U64
     mut ref_return_into_params : U64
     mut ref_return_carried_params : U64
-    mut ref_return_provisional_params : U64
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -2172,6 +2176,7 @@ struct FCallData {
     mut own_args : U64
     mut keep_outer_args : U64
     mut swap_replace : Bool
+    mut direct_callee : Bool
     mut til_type : Type
     mut noreturn_call : Bool
     mut ref_args : U64
@@ -4316,6 +4321,7 @@ namespace:
     proc exists(path: Str) returns shallow Bool
     proc is_dir(path: Str) returns shallow Bool
     proc is_file(path: Str) returns shallow Bool
+    func is_absolute(path: Str) returns shallow Bool
     proc remove_tree(path: Str)
     proc rename(src: Str, dst: Str)
     proc new(path: Str, is_write: Bool) returns File
@@ -4369,6 +4375,11 @@ proc File.is_dir(path: Str) returns shallow Bool
 ** [[file:src/std/file.org::#til.src.std.file.File.is_file][File.is_file]]
 #+begin_src til
 proc File.is_file(path: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/std/file.org::#til.src.std.file.File.is_absolute][File.is_absolute]]
+#+begin_src til
+func File.is_absolute(path: Str) returns shallow Bool
 #+end_src
 
 ** [[file:src/std/file.org::#til.src.std.file.File.remove_tree][File.remove_tree]]
@@ -6064,7 +6075,6 @@ struct BorrowRoot {
     mut col : U32
     mut carried : Bool
     mut field : Str
-    mut provisional : Bool
 namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func to_str(self: BorrowRoot) returns Str
@@ -6267,6 +6277,7 @@ struct BuilderFuncScratch {
     mut body_refs : Set__U32
     mut body_multi_decls : Set__U32
     mut stack_locals : Set__U32
+    mut heap_locals : Set__U32
     mut stack_local_types : Map__U32_Str
     mut stack_lit_str_locals : Set__U32
     mut force_heap_stack_lit_str_own : Bool
@@ -6377,7 +6388,6 @@ struct Context {
     mut throws_global : Map__Str_call_Vec_Str
     mut bang_counter : I64
     mut lowering_param_types : Map__Str_Str
-    mut typer_in_shallow_return : Bool
     mut typer_return_type_name : Str
     mut ctor_seq : I32
     mut in_func_def : Bool
@@ -6412,8 +6422,11 @@ struct Context {
     mut builder_used_ctypes : Set__Str
     mut builder_omitted_core_funcs : Set__Str
     mut builder_static_ok : Bool
+    mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
     mut builder_lit_guard_used : Bool
+    mut builder_cstr_used : Bool
+    mut builder_closure_rt_used : Bool
     mut current_fdef : Option__ref_Expr
     mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
@@ -6602,6 +6615,16 @@ func funcptr_eq(a: Type, b: Type) returns shallow Bool
 ** [[file:src/self/context.org::#til.src.self.context.type_is_callable_storage][type_is_callable_storage]]
 #+begin_src til
 func type_is_callable_storage(t: Type) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.func_returns_c_value][func_returns_c_value]]
+#+begin_src til
+func func_returns_c_value(fd: FunctionDef) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.func_param_passes_c_value][func_param_passes_c_value]]
+#+begin_src til
+func func_param_passes_c_value(fd: FunctionDef, shallow i: USize, shallow value_abi_ok: Bool, scope: TypeScope) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.type_from_name_init][type_from_name_init]]
@@ -6804,6 +6827,16 @@ func is_funcptr(t: Type) returns shallow Bool
 func is_aggregate(t: Type) returns shallow Bool
 #+end_src
 
+** [[file:src/self/context.org::#til.src.self.context.fcall_is_direct][fcall_is_direct]]
+#+begin_src til
+func fcall_is_direct(e: Expr) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.mark_fcall_direct][mark_fcall_direct]]
+#+begin_src til
+func mark_fcall_direct(mut e: Expr)
+#+end_src
+
 ** [[file:src/self/context.org::#til.src.self.context.is_range_new_call][is_range_new_call]]
 #+begin_src til
 func is_range_new_call(e: Expr) returns shallow Bool
@@ -6837,26 +6870,6 @@ func qname_keys_index(keys: Vec__Str, a: Str, sep: Str, b: Str) returns shallow 
 ** [[file:src/self/context.org::#til.src.self.context.qname_in_set][qname_in_set]]
 #+begin_src til
 func qname_in_set(s: Set__Str, a: Str, sep: Str, b: Str) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.pod_struct_is][pod_struct_is]]
-#+begin_src til
-func pod_struct_is(struct_name: Str, scope: TypeScope) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.pod_ctor_args_safe][pod_ctor_args_safe]]
-#+begin_src til
-func pod_ctor_args_safe(ctor: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.pod_fcall_is_struct_ctor][pod_fcall_is_struct_ctor]]
-#+begin_src til
-func pod_fcall_is_struct_ctor(e: Expr) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.pod_ctor_decl_is_stack][pod_ctor_decl_is_stack]]
-#+begin_src til
-func pod_ctor_decl_is_stack(rhs: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Vec__BorrowRoot][Vec__BorrowRoot]]
@@ -9614,16 +9627,6 @@ proc init_file(path: Str, mut ctx: Context) returns shallow I32
 proc init_repl_delta(path: Str, mut program: Expr, mut ctx: Context) returns shallow I32
 #+end_src
 
-** [[file:src/self/initer.org::#til.src.self.initer.clone_call_type_name][clone_call_type_name]]
-#+begin_src til
-func clone_call_type_name(e: Expr) returns Str
-#+end_src
-
-** [[file:src/self/initer.org::#til.src.self.initer.is_pod_enum_clone_of][is_pod_enum_clone_of]]
-#+begin_src til
-func is_pod_enum_clone_of(e: Expr, shallow edef_o: Option__ref_Expr) returns shallow Bool
-#+end_src
-
 ** [[file:src/self/initer.org::#til.src.self.initer.Map__Str_GenericFuncSource][Map__Str_GenericFuncSource]]
 #+begin_src til
 struct Map__Str_GenericFuncSource {
@@ -10170,13 +10173,17 @@ func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut o
 func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64)
 #+end_src
 
+** [[file:src/self/typer.org::#til.src.self.typer.fcall_returns_dynamic_storage][fcall_returns_dynamic_storage]]
+#+begin_src til
+func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope) returns shallow Bool
+#+end_src
+
 ** [[file:src/self/typer.org::#til.src.self.typer.RootBits][RootBits]]
 #+begin_src til
 struct RootBits {
     mut alias : U64
     mut into : U64
     mut carried : U64
-    mut provisional : U64
 namespace:
     func eq(a: RootBits, b: RootBits) returns shallow Bool
     func to_str(_self: RootBits) returns Str
@@ -10204,11 +10211,6 @@ func fcall_is_get_method(fcall: Expr) returns shallow Bool
 ** [[file:src/self/typer.org::#til.src.self.typer.fcall_returns_ref][fcall_returns_ref]]
 #+begin_src til
 func fcall_returns_ref(fcall: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
-** [[file:src/self/typer.org::#til.src.self.typer.fcall_returns_shallow][fcall_returns_shallow]]
-#+begin_src til
-func fcall_returns_shallow(fcall: Expr, scope: TypeScope, ctx: Context) returns shallow I32
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.Vec__CtorArg][Vec__CtorArg]]
@@ -11579,14 +11581,14 @@ proc target_gui_libs(target: Target) returns Str
 proc detect_current_target() returns Target
 #+end_src
 
-** [[file:src/self/garbager.org::#til.src.self.garbager.is_pod_enum_clone_wrap][is_pod_enum_clone_wrap]]
-#+begin_src til
-func is_pod_enum_clone_wrap(e: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
 ** [[file:src/self/garbager.org::#til.src.self.garbager.garbager_destroy_body][garbager_destroy_body]]
 #+begin_src til
 proc garbager_destroy_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
+#+end_src
+
+** [[file:src/self/garbager.org::#til.src.self.garbager.garbager_destroy_func_body][garbager_destroy_func_body]]
+#+begin_src til
+proc garbager_destroy_func_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/garbager.org::#til.src.self.garbager.garbager_destroy][garbager_destroy]]
@@ -12324,7 +12326,7 @@ func is_macro_call(e: Expr, mut ctx: Context) returns shallow Bool
 
 ** [[file:src/self/constfolder.org::#til.src.self.constfolder.constfolder_normalize_stack_decls_in_body][constfolder_normalize_stack_decls_in_body]]
 #+begin_src til
-func constfolder_normalize_stack_decls_in_body(mut body: Expr, ctx: Context)
+func constfolder_normalize_stack_decls_in_body(mut body: Expr)
 #+end_src
 
 ** [[file:src/self/constfolder.org::#til.src.self.constfolder.process_body][process_body]]
@@ -12394,17 +12396,17 @@ func collect_refs(e: Expr, mut refs: Vec__Str)
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.scav_value_decl_sweepable][scav_value_decl_sweepable]]
 #+begin_src til
-func scav_value_decl_sweepable(stmt: Expr) returns shallow Bool
+func scav_value_decl_sweepable(stmt: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.scavenge_filter][scavenge_filter]]
 #+begin_src til
-func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values: Bool, mut swept_names: Vec__Str)
+func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values: Bool, mut swept_names: Vec__Str, ctx: Context)
 #+end_src
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.dce_program_bodies][dce_program_bodies]]
 #+begin_src til
-proc dce_program_bodies(mut program: Expr, ctx: Context)
+proc dce_program_bodies(mut program: Expr)
 #+end_src
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.scavenge_imported][scavenge_imported]]
@@ -14249,6 +14251,199 @@ func adopt__priv___src_self_interpreter_til__InterpAlias(dest: Dynamic, own src:
 ** [[file:src/self/binder.org::#til.src.self.binder.generate_bindings][generate_bindings]]
 #+begin_src til
 proc generate_bindings(in_path: Str, out_path: Str)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl][Map__Str_AuditedDecl]]
+#+begin_src til
+struct Map__Str_AuditedDecl {
+    mut keys : Vec__Str
+    mut values : Vec__AuditedDecl
+namespace:
+    func new() returns Map__Str_AuditedDecl
+    func with_capacity(shallow n: USize) returns Map__Str_AuditedDecl
+    func len(self: Map__Str_AuditedDecl) returns shallow USize
+    func clear(mut self: Map__Str_AuditedDecl)
+    func has(self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
+    func get(self: Map__Str_AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+    func set(mut self: Map__Str_AuditedDecl, key: Str, own val: priv___src_self_binder_til__AuditedDecl)
+    func remove(mut self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_AuditedDecl, shallow call_free: Bool)
+    func clone(self: Map__Str_AuditedDecl) returns Map__Str_AuditedDecl
+    func hash(self: Map__Str_AuditedDecl, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl.new][Map__Str_AuditedDecl.new]]
+#+begin_src til
+func Map__Str_AuditedDecl.new() returns Map__Str_AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl.with_capacity][Map__Str_AuditedDecl.with_capacity]]
+#+begin_src til
+func Map__Str_AuditedDecl.with_capacity(shallow n: USize) returns Map__Str_AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl.clear][Map__Str_AuditedDecl.clear]]
+#+begin_src til
+func Map__Str_AuditedDecl.clear(mut self: Map__Str_AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl.has][Map__Str_AuditedDecl.has]]
+#+begin_src til
+func Map__Str_AuditedDecl.has(self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl.get][Map__Str_AuditedDecl.get]]
+#+begin_src til
+func Map__Str_AuditedDecl.get(self: Map__Str_AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl.set][Map__Str_AuditedDecl.set]]
+#+begin_src til
+func Map__Str_AuditedDecl.set(mut self: Map__Str_AuditedDecl, key: Str, own val: priv___src_self_binder_til__AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Map__Str_AuditedDecl.remove][Map__Str_AuditedDecl.remove]]
+#+begin_src til
+func Map__Str_AuditedDecl.remove(mut self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl][Vec__AuditedDecl]]
+#+begin_src til
+struct Vec__AuditedDecl {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__AuditedDecl
+    func with_capacity(shallow n: USize) returns Vec__AuditedDecl
+    func len(self: Vec__AuditedDecl) returns shallow USize
+    func clear(mut self: Vec__AuditedDecl)
+    func delete_marked(mut self: Vec__AuditedDecl, marks: Dynamic)
+    func push(mut self: Vec__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
+    func append(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
+    func take(mut self: Vec__AuditedDecl) returns Vec__AuditedDecl
+    func move_to(own self: Vec__AuditedDecl, mut dest: Vec__AuditedDecl)
+    func move_from(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
+    func unsafe_get(self: Vec__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
+    func get(self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+    func pop(mut self: Vec__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
+    func remove_at(mut self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__AuditedDecl, shallow n: USize) returns Vec__AuditedDecl
+    func truncate(mut self: Vec__AuditedDecl, shallow n: USize)
+    func unsafe_set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
+    func set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+    func push_take(mut self: Vec__AuditedDecl, mut src: Vec__AuditedDecl, shallow i: USize)
+    func delete(own self: Vec__AuditedDecl, shallow call_free: Bool)
+    func clone(self: Vec__AuditedDecl) returns Vec__AuditedDecl
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.new][Vec__AuditedDecl.new]]
+#+begin_src til
+func Vec__AuditedDecl.new() returns Vec__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.with_capacity][Vec__AuditedDecl.with_capacity]]
+#+begin_src til
+func Vec__AuditedDecl.with_capacity(shallow n: USize) returns Vec__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.clear][Vec__AuditedDecl.clear]]
+#+begin_src til
+func Vec__AuditedDecl.clear(mut self: Vec__AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.delete_marked][Vec__AuditedDecl.delete_marked]]
+#+begin_src til
+func Vec__AuditedDecl.delete_marked(mut self: Vec__AuditedDecl, marks: Dynamic)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.push][Vec__AuditedDecl.push]]
+#+begin_src til
+func Vec__AuditedDecl.push(mut self: Vec__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.append][Vec__AuditedDecl.append]]
+#+begin_src til
+func Vec__AuditedDecl.append(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.take][Vec__AuditedDecl.take]]
+#+begin_src til
+func Vec__AuditedDecl.take(mut self: Vec__AuditedDecl) returns Vec__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.move_to][Vec__AuditedDecl.move_to]]
+#+begin_src til
+func Vec__AuditedDecl.move_to(own self: Vec__AuditedDecl, mut dest: Vec__AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.move_from][Vec__AuditedDecl.move_from]]
+#+begin_src til
+func Vec__AuditedDecl.move_from(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.unsafe_get][Vec__AuditedDecl.unsafe_get]]
+#+begin_src til
+func Vec__AuditedDecl.unsafe_get(self: Vec__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.get][Vec__AuditedDecl.get]]
+#+begin_src til
+func Vec__AuditedDecl.get(self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.pop][Vec__AuditedDecl.pop]]
+#+begin_src til
+func Vec__AuditedDecl.pop(mut self: Vec__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.remove_at][Vec__AuditedDecl.remove_at]]
+#+begin_src til
+func Vec__AuditedDecl.remove_at(mut self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.take_prefix][Vec__AuditedDecl.take_prefix]]
+#+begin_src til
+func Vec__AuditedDecl.take_prefix(mut self: Vec__AuditedDecl, shallow n: USize) returns Vec__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.truncate][Vec__AuditedDecl.truncate]]
+#+begin_src til
+func Vec__AuditedDecl.truncate(mut self: Vec__AuditedDecl, shallow n: USize)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.unsafe_set][Vec__AuditedDecl.unsafe_set]]
+#+begin_src til
+func Vec__AuditedDecl.unsafe_set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.set][Vec__AuditedDecl.set]]
+#+begin_src til
+func Vec__AuditedDecl.set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.push_take][Vec__AuditedDecl.push_take]]
+#+begin_src til
+func Vec__AuditedDecl.push_take(mut self: Vec__AuditedDecl, mut src: Vec__AuditedDecl, shallow i: USize)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.delete][Vec__AuditedDecl.delete]]
+#+begin_src til
+func Vec__AuditedDecl.delete(own self: Vec__AuditedDecl, shallow call_free: Bool)
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.Vec__AuditedDecl.clone][Vec__AuditedDecl.clone]]
+#+begin_src til
+func Vec__AuditedDecl.clone(self: Vec__AuditedDecl) returns Vec__AuditedDecl
+#+end_src
+
+** [[file:src/self/binder.org::#til.src.self.binder.adopt__priv___src_self_binder_til__AuditedDecl][adopt__priv___src_self_binder_til__AuditedDecl]]
+#+begin_src til
+func adopt__priv___src_self_binder_til__AuditedDecl(dest: Dynamic, own src: priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
 * CLI

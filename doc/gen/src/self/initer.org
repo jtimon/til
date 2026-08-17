@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * collect_enum_variants
@@ -229,26 +229,6 @@ proc init_file(path: Str, mut ctx: Context) returns shallow I32
 
 #+begin_src til
 proc init_repl_delta(path: Str, mut program: Expr, mut ctx: Context) returns shallow I32
-#+end_src
-
-* clone_call_type_name
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.initer.clone_call_type_name
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func clone_call_type_name(e: Expr) returns Str
-#+end_src
-
-* is_pod_enum_clone_of
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.initer.is_pod_enum_clone_of
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func is_pod_enum_clone_of(e: Expr, shallow edef_o: Option__ref_Expr) returns shallow Bool
 #+end_src
 
 * Map__Str_GenericFuncSource

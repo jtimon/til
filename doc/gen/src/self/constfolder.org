@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * constfolder_clear_known
@@ -39,7 +39,7 @@ func is_macro_call(e: Expr, mut ctx: Context) returns shallow Bool
 :END:
 
 #+begin_src til
-func constfolder_normalize_stack_decls_in_body(mut body: Expr, ctx: Context)
+func constfolder_normalize_stack_decls_in_body(mut body: Expr)
 #+end_src
 
 * process_body

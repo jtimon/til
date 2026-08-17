@@ -1,5 +1,5 @@
 #+TITLE: src/std/file.til
-#+SUBTITLE: til 0.0.1-0c9fbc0e4
+#+SUBTITLE: til 0.0.1-c5918d787
 #+OPTIONS: toc:t
 
 * cfile_open
@@ -223,6 +223,7 @@ namespace:
     proc exists(path: Str) returns shallow Bool
     proc is_dir(path: Str) returns shallow Bool
     proc is_file(path: Str) returns shallow Bool
+    func is_absolute(path: Str) returns shallow Bool
     proc remove_tree(path: Str)
     proc rename(src: Str, dst: Str)
     proc new(path: Str, is_write: Bool) returns File
@@ -335,6 +336,33 @@ a device, fifo or socket either.
 
 #+begin_src til
 proc File.is_file(path: Str) returns shallow Bool
+#+end_src
+
+* File.is_absolute
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File.is_absolute
+:group: Standard library
+:END:
+
+True when ~path~ is ROOTED -- one that must be used as it stands
+rather than joined to a base directory. POSIX spells that with a
+leading "/", Windows with a drive-letter root (~D:/...~ or
+~D:\...~). A bare ~D:~ is the process's current directory on that
+drive, so it is relative and the separator is required.
+
+Unlike its neighbours this asks about the STRING, hence ~func~: it
+never touches the file system, and says nothing about whether the
+path exists.
+
+Issue #347: this used to be a private ~starts_with("/")~ in the
+loader, which no windows absolute path satisfies -- so every one of
+them read as relative and got a base directory glued in front.
+~til.exe repl~ could not start at all, because the REPL is the only
+thing that injects an ABSOLUTE import. ext.c's ~mkdir_p_cstr~ had
+known about drive letters all along.
+
+#+begin_src til
+func File.is_absolute(path: Str) returns shallow Bool
 #+end_src
 
 * File.remove_tree
