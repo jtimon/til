@@ -1565,7 +1565,7 @@ main := proc(args: ..Str) {
     // result bound by ref) must copy the pointer word; the interpreter's
     // clone path deref'd the raw allocation itself and later freed a
     // garbage word (interpreter-only segfault; compiled mode was correct).
-    File.writefile(format(exp, "script_dynamic_free.out"), format("ok", NL))
+    File.writefile(format(exp, "script_dynamic_free.out"), format("ok", NL, "ok2", NL))
     add_cli_pair(tests, "script_dynamic_free", "test/script_dynamic_free.til",
         "", 0, format(exp, "script_dynamic_free.out"), til_bin, asan_flag)
 

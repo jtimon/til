@@ -4510,6 +4510,15 @@ scope_new_boxed := func(parent: Option(ref Scope)) returns ref Scope {
 scope_drop_owned_bindings := func(mut s: Scope) {
     for _, mut hb in s.heap_bindings {
         if hb.is_local.not().or(hb.is_borrowed).or(hb.moved_out).or(hb.ptr.is_null()) { continue }
+        // #275: a #302 raw allocation (`b : I8 = malloc(n)`) binds the
+        // BLOCK ITSELF as its datum, not an interpreter-owned slot, and the
+        // compiled backend never auto-frees one -- the program's own
+        // `free(own b)` is the sole authority. Freeing it here manufactures
+        // a second owner: an alias that reaches the same block through a
+        // stored pointer frees it via the AST, and this loop then freed it
+        // again (ASAN: attempting double-free), a divergence from compiled
+        // mode. Leave raw allocations to the interpreted free.
+        if hb.is_raw_alloc { continue }
         mut owned_ptr : Dynamic = hb.ptr
         if hb.is_static_callable.not() { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
         EvalHeap.heap_free(own owned_ptr)
@@ -4542,6 +4551,9 @@ scope_free := func(own s: Scope) {
     // but never drop nested payloads here; generated delete/free calls own that.
     for _, hb in s.heap_bindings {
         if hb.is_local.not().or(hb.is_borrowed).or(hb.moved_out).or(hb.ptr.is_null()) { continue }
+        // Same #275 rule as scope_drop_owned_bindings: a raw allocation's
+        // datum is the program's own block, not the interpreter's slot.
+        if hb.is_raw_alloc { continue }
         slot : Dynamic = hb.ptr
         EvalHeap.heap_free(own slot)
     }

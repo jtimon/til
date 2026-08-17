@@ -7,10 +7,6 @@ mode script
 // later free(own ...) then freed -- interpreter-only segfault; compiled
 // mode copies the word and frees the real block.
 
-// The block is allocated in argument position on purpose: naming it in a
-// binding would leave that binding owning it after the free-through-alias
-// below, and session teardown would free it a second time (#275's
-// double-ownership, a separate limitation).
 slot : U8 = malloc(UPtr.size())
 write_ptr(slot, malloc(4))
 ref back : Dynamic = deref(slot)
@@ -18,3 +14,17 @@ recovered : Dynamic = back
 free(own recovered)
 free(own slot)
 println("ok")
+
+// #275: the same free-through-alias with the block NAMED. `b` binds the
+// allocation ITSELF (a #302 raw alloc is its own datum), so after the
+// alias frees it, interpreter teardown used to free it a second time --
+// ASAN double-free, interpreted only. A raw allocation is the program's
+// to free, exactly as in compiled mode.
+slot2 : U8 = malloc(UPtr.size())
+b : I8 = malloc(4)
+write_ptr(slot2, b)
+ref back2 : Dynamic = deref(slot2)
+recovered2 : Dynamic = back2
+free(own recovered2)
+free(own slot2)
+println("ok2")
