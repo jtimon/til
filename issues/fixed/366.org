@@ -1,0 +1,118 @@
+# priority: high
+# category: bugs
+** FIXED #366 substr returns an owned copy interpreted and a view compiled
+
+*** Post-mortem
+
+Resolution 1: the interpreter now aliases like the compiler.
+
+Root cause. ~substr~ itself was never the problem -- the interpreter
+evaluated its ~Str~ constructor correctly, producing a real ~CAP_VIEW~
+over the base buffer. The copy happened one level up, at the RETURN from
+a til function: ~eval_user_func_call~ ended with a block that took any
+by-value ~Str~ result whose ~cap >= CAP_VIEW~ and rewrote it into a
+freshly allocated count+1 buffer with a NUL, ~cap = count~. Since
+~substr~ / ~trim~ / ~strip_prefix~ / ~get_char~ / ~borrowed_view~ /
+~from_c_str~ are all ordinary til functions returning ~Str~ by value,
+every view the interpreter ever handed back was an owned copy. Probes
+localised it exactly: the constructor and the binding agreed across
+backends, only the return diverged.
+
+The block dated from a1ad8668 (the typed-raw-storage rewrite) and its
+comment claimed a lifetime need -- "must outlive any temporary receiver
+hidden by the typer's argument hoisting". That was not true of the
+interpreter: a hoisted receiver temporary lives in the CALLER's scope,
+which outlives the callee's ~scope_free(own call_scope)~ on the next
+line. The guard was defensive cruft, and the test corpus said so.
+
+What changed. Deleted the block (26 lines) from ~eval_user_func_call~ in
+~src/self/interpreter.til~; nothing replaced it. All 364 tests pass.
+Every view-producing path was then re-probed on both backends and now
+agrees byte for byte, including the two shapes the comment named: a view
+over a temporary receiver (~format("XY","ZW").substr(0, 2)~) and a view
+returned from a til func over a temporary argument. Returning a literal
+still yields ~CAP_LIT~ on both, unchanged.
+
+Fallout, all in the same commit. Four comments asserted the divergence as
+a standing fact and became false:
+
+- ~test/cstr_view.til~ (#343's fixture) went back to ~backed.substr(0,
+  13)~. It had to spell the view out with the ~Str~ constructor precisely
+  because of this bug -- the copy left it terminated, so the boundary
+  check had nothing to fire on interpreted. That workaround is gone.
+- ~test/files.til~'s ~test_file_c_boundary_takes_views~ and
+  ~test/strings.til~'s ~test_clone_terminates_views~ both said only the
+  compiled run exercised the missing NUL. Both runs do now.
+- ~test/strings.til~'s ~test_borrowed_view~ explicitly declined to assert
+  pointer identity, calling it "a compiled-mode property". It asserts it.
+- ~doc/ffi.org~'s one sentence on the divergence now records its removal.
+
+Regression tests. ~test_substr_view~ in ~test/strings.til~ (runs on both
+backends) pins the chosen behavior directly, as this issue asked:
+~assert_eq(USize, view.cap, CAP_VIEW)~ and ~assert(view.c_str.ptr_eq(
+ptr_add(s.c_str, 6)))~. Either backend copying again fails it.
+~test_borrowed_view~'s ~assert(v.c_str.ptr_eq(s.c_str))~ is the second
+pin, and ~test/cstr_view.til~ is now a third: it only fires the #343
+check interpreted if the view really aliases.
+
+The payoff is the one this issue was filed for: #350's view-lifetime
+taint pass and #343's boundary check are now exercisable by interpreted
+tests, which is most of the suite.
+
+*** Original report
+
+The two backends do not agree on what ~substr~ RETURNS. Measured, not
+inferred (the probe is three lines; both runs on the same master):
+
+    s := format("TIL_ISSUE", "_343_VIEW")
+    v := s.substr(0, 13)
+
+    interpreted:  v.cap=13         byte13=0    same_buf=false
+    compiled:     v.cap=CAP_VIEW   byte13='_'  same_buf=true
+
+Compiled is what core/str.til writes: a real ~CAP_VIEW~ into the base's
+buffer, unterminated, sharing storage. Interpreted materializes an owned
+copy -- fresh buffer, ~cap = count~, NUL at the end. Same expression, two
+different values.
+
+Why it is expensive rather than cosmetic: every view-lifetime bug is
+UNREPRODUCIBLE interpreted. A dangling view reads freed memory only when
+it aliases the freed buffer, and a missing NUL only bites when the bytes
+are shared -- interpreted, neither is ever true, so such a bug passes the
+interpreted half of every ~both~ test and ships in the binary. This has
+cost real time twice already:
+
+- #350's dangling hoisted views passed every interpreted run and
+  surfaced only compiled.
+- #343's first regression fixture used ~substr~ and PASSED compiled
+  while FAILING interpreted -- the check fired on the compiled view and
+  had nothing to fire on interpreted, because there was no view. The
+  landed fixture spells the view with the ~Str~ constructor instead,
+  with a comment explaining why; that comment is this issue's pointer.
+
+doc/ffi.org mentions the divergence in one sentence ("it only bites in
+COMPILED code -- the interpreter materialises ~substr~ as an owned
+copy") but nothing tracks it and no test pins it either way.
+
+Two honest resolutions; pick one, do not leave it implicit:
+
+1. *Interpreter aliases like the compiler.* The interpreter's Str
+   evaluation builds a view over the base's interned buffer, cap =
+   CAP_VIEW, no copy. Both backends then hold the same value, and the
+   view-lifetime machinery (#350's taint pass, #343's boundary check)
+   becomes exercisable by interpreted tests -- which is most of the
+   suite. The likely cost is the interpreter's teardown paths, which
+   today can assume every Str it produced owns its buffer.
+2. *The divergence is declared deliberate, in writing.* If the
+   interpreter's copying is load-bearing (its heap model may not have a
+   sane owner for a borrowed view), then doc/self.org or doc/ffi.org
+   states it as a rule with the reasoning, and the consequence is
+   accepted: view bugs are compiled-only bugs, and every regression
+   test for one must either run compiled or spell its view with the
+   ~Str~ constructor, never ~substr~ / ~trim~ / ~trim_start~.
+
+(1) is the honest fix and should be tried first; (2) is the fallback if
+(1)'s cost turns out structural. Either way a ~both~ test pins the
+chosen behavior -- e.g. assert ~v.c_str.ptr_eq(s.c_str)~ (choice 1) or
+document-and-pin the copy (choice 2) -- so the next divergence in this
+family fails a test instead of costing another #343-shaped detour.

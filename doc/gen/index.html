@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c5918d787</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee4f8fc7</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -258,15 +258,11 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/str.html#til.src.core.str.CAP_LIT">CAP_LIT</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/core/str.html#til.src.core.str.CAP_VIEW">CAP_VIEW</a>
-<pre><code class="language-til"> is a U32
-</code></pre>
-</li>
-<li><a href="src/core/str.html#til.src.core.str.CAP_INLINE">CAP_INLINE</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/core/str.html#til.src.core.str.format">format</a>
@@ -891,15 +887,15 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.ELEM_POD">ELEM_POD</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.ELEM_BOXED">ELEM_BOXED</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.ELEM_FN">ELEM_FN</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U8">U8</a>
@@ -1657,11 +1653,11 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.USize">USize</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.UPtr">UPtr</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="src/core/bool.html#til.src.core.bool.and">and</a>
@@ -1724,17 +1720,17 @@ namespace:
     Bool
     F64
 namespace:
-    I16
-    U16
-    I8
-    U8
-    U32
-    I32
-    U64
-    I64
-    F32
-    Bool
-    F64
+    I16 : I64
+    U16 : I64
+    I8 : I64
+    U8 : I64
+    U32 : I64
+    I32 : I64
+    U64 : I64
+    I64 : I64
+    F32 : I64
+    Bool : I64
+    F64 : I64
     core_func is(self: Primitive, other: Primitive) returns shallow Bool
     func eq(self: Primitive, other: Primitive) returns shallow Bool
     func delete(own self: Primitive, shallow call_free: Bool)
@@ -1815,17 +1811,17 @@ namespace:
     func is_plain(self: FuncType) returns shallow Bool
     func is_proc(self: FuncType) returns shallow Bool
     func is_bodyless(self: FuncType) returns shallow Bool
-    Func
-    Proc
-    Test
-    Macro
-    ExtFunc
-    ExtProc
-    LazyFunc
-    LazyProc
-    CoreFunc
-    CoreProc
-    CoreLazyFunc
+    Func : I64
+    Proc : I64
+    Test : I64
+    Macro : I64
+    ExtFunc : I64
+    ExtProc : I64
+    LazyFunc : I64
+    LazyProc : I64
+    CoreFunc : I64
+    CoreProc : I64
+    CoreLazyFunc : I64
     core_func is(self: FuncType, other: FuncType) returns shallow Bool
     func eq(self: FuncType, other: FuncType) returns shallow Bool
     func delete(own self: FuncType, shallow call_free: Bool)
@@ -1847,9 +1843,9 @@ namespace:
     Ref
     Shallow
 namespace:
-    Own
-    Ref
-    Shallow
+    Own : I64
+    Ref : I64
+    Shallow : I64
     core_func is(self: OwnType, other: OwnType) returns shallow Bool
     func eq(self: OwnType, other: OwnType) returns shallow Bool
     func delete(own self: OwnType, shallow call_free: Bool)
@@ -1871,9 +1867,9 @@ namespace:
     Stack
     HeapBox
 namespace:
-    Unset
-    Stack
-    HeapBox
+    Unset : I64
+    Stack : I64
+    HeapBox : I64
     core_func is(self: GcStorage, other: GcStorage) returns shallow Bool
     func eq(self: GcStorage, other: GcStorage) returns shallow Bool
     func delete(own self: GcStorage, shallow call_free: Bool)
@@ -1918,11 +1914,14 @@ namespace:
 <pre><code class="language-til">func (own self: Option__Expr) returns Expr
 </code></pre>
 </li>
+<li><a href="src/core/ast.html#til.src.core.ast.declaration_type_from_name">declaration_type_from_name</a>
+<pre><code class="language-til">func (name: Str) returns Type
+</code></pre>
+</li>
 <li><a href="src/core/ast.html#til.src.core.ast.Declaration">Declaration</a>
 <pre><code class="language-til">struct {
     mut name : Str
     mut doc : Str
-    mut explicit_type : Str
     mut is_mut : Bool
     mut redundant_mut : Bool
     mut is_priv : Bool
@@ -1935,6 +1934,7 @@ namespace:
 namespace:
     func eq(a: Declaration, b: Declaration) returns shallow Bool
     func to_str(self: Declaration) returns Str
+    func type_name(self: Declaration) returns Str
     func default_expr(self: Declaration) returns ref Expr
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, shallow call_free: Bool)
@@ -1977,15 +1977,12 @@ namespace:
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.FCallData">FCallData</a>
 <pre><code class="language-til">struct {
-    mut is_splat : Bool
     mut does_throw : Bool
     mut is_bang : Bool
     mut own_args : U64
     mut keep_outer_args : U64
     mut swap_replace : Bool
-    mut direct_callee : Bool
     mut til_type : Type
-    mut noreturn_call : Bool
     mut ref_args : U64
     mut splat_args : U64
 namespace:
@@ -2322,18 +2319,18 @@ namespace:
 <pre><code class="language-til">struct {
     mut pattern_count : USize
 namespace:
-    func eq(a: CaseData, b: CaseData) returns shallow Bool
-    func to_str(_self: CaseData) returns Str
-    func clone(self: CaseData) returns CaseData
+    func eq(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func to_str(shallow _self: CaseData) returns Str
+    func clone(shallow self: CaseData) returns shallow CaseData
     func delete(own self: CaseData, shallow call_free: Bool)
-    func hash(self: CaseData, hasher: HashFn) returns shallow U64
-    func cmp(a: CaseData, b: CaseData) returns shallow I64
+    func hash(shallow self: CaseData, hasher: HashFn) returns shallow U64
+    func cmp(shallow a: CaseData, shallow b: CaseData) returns shallow I64
     func size() returns shallow USize
-    func lt(a: CaseData, b: CaseData) returns shallow Bool
-    func gt(a: CaseData, b: CaseData) returns shallow Bool
-    func neq(a: CaseData, b: CaseData) returns shallow Bool
-    func lte(a: CaseData, b: CaseData) returns shallow Bool
-    func gte(a: CaseData, b: CaseData) returns shallow Bool
+    func lt(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func gt(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func neq(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func lte(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func gte(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
 }
 </code></pre>
 </li>
@@ -4279,7 +4276,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/std/hashmap.html#til.src.std.hashmap.HASHMAP_INIT_BUCKETS">HASHMAP_INIT_BUCKETS</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/std/hashmap.html#til.src.std.hashmap.HashMap">HashMap</a>
@@ -4606,88 +4603,88 @@ namespace:
     KwPriv
     Error
 namespace:
-    Eof
-    LParen
-    RParen
-    LBrace
-    RBrace
-    LBracket
-    RBracket
-    Comma
-    Colon
-    Question
-    Bang
-    Minus
-    Plus
-    Star
-    Slash
-    Percent
-    Ampersand
-    Pipe
-    Caret
-    Dot
-    DotDot
-    DotDotDot
-    Eq
-    EqEq
-    Neq
-    Lt
-    LtEq
-    Gt
-    GtEq
-    PlusPlus
-    MinusMinus
-    AmpAmp
-    PipePipe
-    ColonEq
-    Ident
-    StringTok
-    Number
-    Char
-    DocComment
-    KwMut
-    KwConst
-    KwOwn
-    KwRef
-    KwShallow
-    KwStruct
-    KwEnum
-    KwNamespace
-    KwInterface
-    KwImplements
-    KwFunc
-    KwProc
-    KwTest
-    KwMacro
-    KwExtFunc
-    KwExtProc
-    KwExtStruct
-    KwLazyFunc
-    KwLazyProc
-    KwCoreFunc
-    KwCoreProc
-    KwCoreLazyFunc
-    KwReturns
-    KwThrows
-    KwIf
-    KwElse
-    KwWhile
-    KwFor
-    KwIn
-    KwSwitch
-    KwMatch
-    KwCase
-    KwDefault
-    KwReturn
-    KwThrow
-    KwCatch
-    KwBreak
-    KwContinue
-    KwDefer
-    KwTrue
-    KwFalse
-    KwPriv
-    Error
+    Eof : I64
+    LParen : I64
+    RParen : I64
+    LBrace : I64
+    RBrace : I64
+    LBracket : I64
+    RBracket : I64
+    Comma : I64
+    Colon : I64
+    Question : I64
+    Bang : I64
+    Minus : I64
+    Plus : I64
+    Star : I64
+    Slash : I64
+    Percent : I64
+    Ampersand : I64
+    Pipe : I64
+    Caret : I64
+    Dot : I64
+    DotDot : I64
+    DotDotDot : I64
+    Eq : I64
+    EqEq : I64
+    Neq : I64
+    Lt : I64
+    LtEq : I64
+    Gt : I64
+    GtEq : I64
+    PlusPlus : I64
+    MinusMinus : I64
+    AmpAmp : I64
+    PipePipe : I64
+    ColonEq : I64
+    Ident : I64
+    StringTok : I64
+    Number : I64
+    Char : I64
+    DocComment : I64
+    KwMut : I64
+    KwConst : I64
+    KwOwn : I64
+    KwRef : I64
+    KwShallow : I64
+    KwStruct : I64
+    KwEnum : I64
+    KwNamespace : I64
+    KwInterface : I64
+    KwImplements : I64
+    KwFunc : I64
+    KwProc : I64
+    KwTest : I64
+    KwMacro : I64
+    KwExtFunc : I64
+    KwExtProc : I64
+    KwExtStruct : I64
+    KwLazyFunc : I64
+    KwLazyProc : I64
+    KwCoreFunc : I64
+    KwCoreProc : I64
+    KwCoreLazyFunc : I64
+    KwReturns : I64
+    KwThrows : I64
+    KwIf : I64
+    KwElse : I64
+    KwWhile : I64
+    KwFor : I64
+    KwIn : I64
+    KwSwitch : I64
+    KwMatch : I64
+    KwCase : I64
+    KwDefault : I64
+    KwReturn : I64
+    KwThrow : I64
+    KwCatch : I64
+    KwBreak : I64
+    KwContinue : I64
+    KwDefer : I64
+    KwTrue : I64
+    KwFalse : I64
+    KwPriv : I64
+    Error : I64
     core_func is(self: TokenType, other: TokenType) returns shallow Bool
     func eq(self: TokenType, other: TokenType) returns shallow Bool
     func delete(own self: TokenType, shallow call_free: Bool)
@@ -5024,12 +5021,8 @@ namespace:
 <pre><code class="language-til">func (name: Str, mut out: Type) returns shallow Bool
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.til_type_from_explicit_type">til_type_from_explicit_type</a>
-<pre><code class="language-til">func (name: Str) returns Type
-</code></pre>
-</li>
 <li><a href="src/self/parser.html#til.src.self.parser.decl_typed">decl_typed</a>
-<pre><code class="language-til">func (explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
+<pre><code class="language-til">func (type_name: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
 </code></pre>
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.take_expr">take_expr</a>
@@ -5065,7 +5058,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.FCALL_ARG_BITS">FCALL_ARG_BITS</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.set_own_arg">set_own_arg</a>
@@ -5362,6 +5355,7 @@ namespace:
     mut used : Bool
     mut written : Bool
     mut mut_explicit : Bool
+    mut is_raw_alloc : Bool
     mut orig_name : Str
     mut dynvec_elem : Str
     mut declared_type_name : Str
@@ -5548,7 +5542,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Sym">Sym</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.SymbolPool">SymbolPool</a>
@@ -5654,12 +5648,15 @@ namespace:
     mut builder_collection_elem_types : Set__Str
     mut builder_used_ctypes : Set__Str
     mut builder_omitted_core_funcs : Set__Str
+    mut builder_forward_declared : Set__Str
+    mut builder_free_only_delete : Map__Str_Bool
     mut builder_static_ok : Bool
     mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
     mut builder_lit_guard_used : Bool
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
+    mut builder_prog_closed_world : Bool
     mut current_fdef : Option__ref_Expr
     mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
@@ -5769,7 +5766,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.size_intrinsics_use_sizeof">size_intrinsics_use_sizeof</a>
@@ -5828,8 +5825,12 @@ namespace:
 <pre><code class="language-til">func (name: Str, scope: TypeScope) returns Type
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.init_type_from_explicit_type">init_type_from_explicit_type</a>
+<li><a href="src/self/context.html#til.src.self.context.type_from_declaration_name">type_from_declaration_name</a>
 <pre><code class="language-til">func (name: Str, scope: TypeScope) returns Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.declaration_resolved_type">declaration_resolved_type</a>
+<pre><code class="language-til">func (decl: Declaration, scope: TypeScope) returns Type
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.field_inferred_type_name">field_inferred_type_name</a>
@@ -5949,11 +5950,11 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.fn_never_returns">fn_never_returns</a>
-<pre><code class="language-til">func (body: Expr) returns shallow Bool
+<pre><code class="language-til">func (body: Expr, scope: TypeScope) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.stmt_always_diverges">stmt_always_diverges</a>
-<pre><code class="language-til">func (e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, scope: TypeScope) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.lazy_body_inlinable">lazy_body_inlinable</a>
@@ -5990,6 +5991,10 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.mark_fcall_direct">mark_fcall_direct</a>
 <pre><code class="language-til">func (mut e: Expr)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.resolve_direct_fcall">resolve_direct_fcall</a>
+<pre><code class="language-til">func (fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.is_range_new_call">is_range_new_call</a>
@@ -6859,33 +6864,52 @@ namespace:
 <pre><code class="language-til">func (mut self: HashMap__Str_USize, key: Str) returns shallow Bool
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Option__ref_Expr">Option__ref_Expr</a>
-<pre><code class="language-til">enum {
-    None
-    Some: Expr
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool">Map__Str_Bool</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__Bool
 namespace:
-    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
-    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
-    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
-    func unwrap(self: Option__ref_Expr) returns ref Expr
-    func take(own self: Option__ref_Expr) returns ref Expr
-    ext_func None() returns shallow Option__ref_Expr
-    ext_func Some(val: Expr) returns shallow Option__ref_Expr
-    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
-    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
-    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_Expr) returns Str
-    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
+    func new() returns Map__Str_Bool
+    func with_capacity(shallow n: USize) returns Map__Str_Bool
+    func len(self: Map__Str_Bool) returns shallow USize
+    func clear(mut self: Map__Str_Bool)
+    func has(self: Map__Str_Bool, key: Str) returns shallow Bool
+    func get(self: Map__Str_Bool, key: Str, mut _err_kind: I64) returns ref Bool
+    func set(mut self: Map__Str_Bool, key: Str, own val: Bool)
+    func remove(mut self: Map__Str_Bool, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_Bool, shallow call_free: Bool)
+    func clone(self: Map__Str_Bool) returns Map__Str_Bool
+    func hash(self: Map__Str_Bool, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Option__ref_Expr.unwrap">Option__ref_Expr.unwrap</a>
-<pre><code class="language-til">func (self: Option__ref_Expr) returns ref Expr
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool.new">Map__Str_Bool.new</a>
+<pre><code class="language-til">func () returns Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Option__ref_Expr.take">Option__ref_Expr.take</a>
-<pre><code class="language-til">func (own self: Option__ref_Expr) returns ref Expr
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool.with_capacity">Map__Str_Bool.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Map__Str_Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool.clear">Map__Str_Bool.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_Bool)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool.has">Map__Str_Bool.has</a>
+<pre><code class="language-til">func (self: Map__Str_Bool, key: Str) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool.get">Map__Str_Bool.get</a>
+<pre><code class="language-til">func (self: Map__Str_Bool, key: Str, mut _err_kind: I64) returns ref Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool.set">Map__Str_Bool.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_Bool, key: Str, own val: Bool)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Bool.remove">Map__Str_Bool.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_Bool, key: Str) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Map__Str_Dynamic">Map__Str_Dynamic</a>
@@ -7170,6 +7194,35 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Option__ref_Declaration.take">Option__ref_Declaration.take</a>
 <pre><code class="language-til">func (own self: Option__ref_Declaration) returns ref Declaration
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Option__ref_Expr">Option__ref_Expr</a>
+<pre><code class="language-til">enum {
+    None
+    Some: Expr
+namespace:
+    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
+    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
+    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
+    func unwrap(self: Option__ref_Expr) returns ref Expr
+    func take(own self: Option__ref_Expr) returns ref Expr
+    ext_func None() returns shallow Option__ref_Expr
+    ext_func Some(val: Expr) returns shallow Option__ref_Expr
+    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
+    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
+    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_Expr) returns Str
+    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Option__ref_Expr.unwrap">Option__ref_Expr.unwrap</a>
+<pre><code class="language-til">func (self: Option__ref_Expr) returns ref Expr
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Option__ref_Expr.take">Option__ref_Expr.take</a>
+<pre><code class="language-til">func (own self: Option__ref_Expr) returns ref Expr
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a>
@@ -8267,7 +8320,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.register_funcsig_alias_for_stmt">register_funcsig_alias_for_stmt</a>
-<pre><code class="language-til">func (ctx: Context, stmt: Expr, mut scope: TypeScope)
+<pre><code class="language-til">func (ctx: Context, mut stmt: Expr, mut scope: TypeScope)
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.register_function_def_for_stmt">register_function_def_for_stmt</a>
@@ -8619,7 +8672,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.PTR_SIZE_BYTES">PTR_SIZE_BYTES</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.check_unused_locals">check_unused_locals</a>
@@ -9881,9 +9934,9 @@ namespace:
     HolyC
     TIL
 namespace:
-    C
-    HolyC
-    TIL
+    C : I64
+    HolyC : I64
+    TIL : I64
     core_func is(self: Lang, other: Lang) returns shallow Bool
     func eq(self: Lang, other: Lang) returns shallow Bool
     func delete(own self: Lang, shallow call_free: Bool)
@@ -9914,18 +9967,18 @@ namespace:
     Wasm32
     TempleosX86
 namespace:
-    LinuxX64
-    LinuxArm64
-    LinuxRiscv64
-    LinuxX86
-    LinuxArm32
-    LinuxRiscv32
-    WindowsX64
-    WindowsX86
-    MacosX64
-    MacosArm64
-    Wasm32
-    TempleosX86
+    LinuxX64 : I64
+    LinuxArm64 : I64
+    LinuxRiscv64 : I64
+    LinuxX86 : I64
+    LinuxArm32 : I64
+    LinuxRiscv32 : I64
+    WindowsX64 : I64
+    WindowsX86 : I64
+    MacosX64 : I64
+    MacosArm64 : I64
+    Wasm32 : I64
+    TempleosX86 : I64
     core_func is(self: Target, other: Target) returns shallow Bool
     func eq(self: Target, other: Target) returns shallow Bool
     func delete(own self: Target, shallow call_free: Bool)
@@ -10982,12 +11035,16 @@ namespace:
 <pre><code class="language-til">proc (lp: LoadedProgram, version: Str) returns shallow I32
 </code></pre>
 </li>
+<li><a href="src/self/builder.html#til.src.self.builder.builder_delete_arg_root">builder_delete_arg_root</a>
+<pre><code class="language-til">func (e: Expr) returns shallow Option__ref_Str
+</code></pre>
+</li>
 <li><a href="src/self/builder.html#til.src.self.builder.Map__Sym_Str">Map__Sym_Str</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Set__Sym">Set__Sym</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.Vec__DocEntry">Vec__DocEntry</a>
@@ -11528,11 +11585,11 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.raw_result_drop">raw_result_drop</a>
@@ -12620,15 +12677,15 @@ namespace:
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.ffi_arg">ffi_arg</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.ffi_sarg">ffi_sarg</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.ffi_abi">ffi_abi</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.FFI_FIRST_ABI">FFI_FIRST_ABI</a>
@@ -12693,7 +12750,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.ffi_status">ffi_status</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.FFI_OK">FFI_OK</a>
@@ -12733,11 +12790,11 @@ namespace:
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.ffi_raw">ffi_raw</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.ffi_java_raw">ffi_java_raw</a>
-<pre><code class="language-til">
+<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="vendor/bindings/libffi.html#til.vendor.bindings.libffi.ffi_raw_call">ffi_raw_call</a>
@@ -13112,7 +13169,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/repl_editor.html#til.src.self.repl_editor.REPL_HISTORY_MAX">REPL_HISTORY_MAX</a>
-<pre><code class="language-til"> is a U32
+<pre><code class="language-til"> is a USize
 </code></pre>
 </li>
 <li><a href="src/self/repl_editor.html#til.src.self.repl_editor.REPL_ESC_TIMEOUT_MS">REPL_ESC_TIMEOUT_MS</a>
@@ -13127,11 +13184,11 @@ namespace:
     Bell
     ClearScreen
 namespace:
-    Continue
-    Submit
-    Eof
-    Bell
-    ClearScreen
+    Continue : I64
+    Submit : I64
+    Eof : I64
+    Bell : I64
+    ClearScreen : I64
     core_func is(self: EditAction, other: EditAction) returns shallow Bool
     func eq(self: EditAction, other: EditAction) returns shallow Bool
     func delete(own self: EditAction, shallow call_free: Bool)

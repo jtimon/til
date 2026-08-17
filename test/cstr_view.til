@@ -27,13 +27,13 @@ setenv := ext_proc(name: I8, value: I8, shallow overwrite: I32) returns shallow 
 main := proc() {
     backed := "TIL_ISSUE_343_VIEW"
 
-    // The view is spelled out instead of taken with `substr`, because the
-    // two backends do not agree on what substr RETURNS: compiled it is a
-    // real CAP_VIEW into `backed`'s buffer, interpreted it is an owned
-    // copy (allocated count+1, hence terminated). A substr-based fixture
-    // would exercise the check on the compiled backend only. This is the
-    // value substr compiles to, and it is a view on both.
-    view := Str(c_str = ptr_add(backed.c_str, 0), count = 13, cap = CAP_VIEW)
+    // A real CAP_VIEW into `backed`'s buffer on BOTH backends: the byte at
+    // c_str[13] is '_', not a NUL. This fixture originally had to spell the
+    // view out with the Str constructor, because the interpreter copied a
+    // by-value Str returned from a til function into an owned (hence
+    // terminated) buffer and the check had nothing to fire on. Issue #366
+    // removed that copy, so `substr` says it directly again.
+    view := backed.substr(0, 13)
 
     // A clone of that same view is safe -- an owned copy carries the NUL
     // -- and it reaches C FIRST, so a check that fired on anything

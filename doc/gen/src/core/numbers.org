@@ -1,5 +1,5 @@
 #+TITLE: src/core/numbers.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * U8
@@ -1532,7 +1532,7 @@ namespace:
 :END:
 
 #+begin_src til
-USize
+USize is a None
 #+end_src
 
 * UPtr
@@ -1547,5 +1547,5 @@ The source alias defaults to U64; the loader retargets it to U32 for
 32-bit targets before typecheck/codegen.
 
 #+begin_src til
-UPtr
+UPtr is a None
 #+end_src

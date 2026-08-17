@@ -160,11 +160,10 @@ namespace:
     /// ~s~'s bytes and ~delete~ frees neither them (cap >= CAP_VIEW) nor,
     /// for a view held inside a container, anything else it does not own.
     ///
-    /// Compiled, the view and its source share one buffer. The
-    /// INTERPRETER materialises a view when it binds one (as it does for
-    /// substr and from_c_str), so do not write code that depends on
-    /// pointer identity across both modes -- the saving is a compiled-mode
-    /// property; the value semantics below hold everywhere.
+    /// The view and its source share one buffer on BOTH backends -- true
+    /// of substr and from_c_str too. (The interpreter used to copy a Str
+    /// returned by value out of a til function, making pointer identity a
+    /// compiled-mode property; issue #366 removed that copy.)
     ///
     /// Use it where a copy would be paid for storage that provably dies
     /// FIRST -- a lookup key, a set of names collected during one pass

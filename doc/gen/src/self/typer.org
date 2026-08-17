@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -249,7 +249,7 @@ proc infer_expr(mut scope: TypeScope, mut expr: Expr, shallow in_func: I32, mut 
 :END:
 
 #+begin_src til
-PTR_SIZE_BYTES is a U32
+PTR_SIZE_BYTES is a USize
 #+end_src
 
 * check_unused_locals

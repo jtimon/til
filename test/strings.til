@@ -207,6 +207,16 @@ test_substr_view := test() {
     view := s.substr(6, 5)
     assert_eq(Str, view, "world")
 
+    // Issue #366: BOTH backends alias. The interpreter used to copy a
+    // by-value Str returned from a til function into a fresh owned buffer,
+    // so substr came back with cap == count and its own bytes while the
+    // compiled run returned a real CAP_VIEW into `s`. That made every
+    // view-lifetime and missing-NUL bug unreproducible interpreted -- which
+    // is most of the suite. These two lines are the pin: they fail the
+    // moment either backend starts copying again.
+    assert_eq(USize, view.cap, CAP_VIEW)
+    assert(view.c_str.ptr_eq(ptr_add(s.c_str, 6)))
+
     // clone materializes a view into an owned string
     owned := view.clone()
     assert_eq(Str, owned, "world")
@@ -363,9 +373,8 @@ test_if_body_literal_reassign_move := test() {
 // a Str to a C string parameter".
 test_clone_terminates_views := test() {
     backed := "abcdefZZZ"
-    // A CAP_VIEW into backed when compiled; the interpreter materialises
-    // substr as an owned copy instead, so only the compiled run exercises
-    // the unterminated case -- the round trip has to hold either way.
+    // A CAP_VIEW into backed on both backends since #366, so both runs
+    // exercise the unterminated case: c_str[6] is 'Z', not a NUL.
     view := backed.substr(0, 6)
 
     // BIND the clone, never chain: `view.clone().c_str` reads the field of
@@ -388,13 +397,11 @@ test_borrowed_view := test() {
     assert_eq(Str, v, "borrowed")
     assert_eq(USize, v.len(), s.len())
 
-    // Byte sharing is deliberately NOT asserted here: compiled, the view
-    // and its source hold the same pointer, but the interpreter
-    // materialises a view when it binds one -- true of substr and
-    // from_c_str too, not just this method -- so pointer identity is a
-    // compiled-mode property and a cross-mode test would fail there.
-    // What both modes guarantee is everything below: the value, and that
-    // the source survives the view.
+    // Byte sharing IS a cross-mode property since #366 -- true of substr
+    // and from_c_str too, not just this method. Before it, the interpreter
+    // copied a Str returned by value out of a til function, so this
+    // assertion would have failed interpreted and passed compiled.
+    assert(v.c_str.ptr_eq(s.c_str))
 
     // Whole-string view == substr over the whole range, and an empty
     // string views as empty.

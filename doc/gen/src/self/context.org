@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * BorrowRoot
@@ -58,6 +58,7 @@ struct TypeBinding {
     mut used : Bool
     mut written : Bool
     mut mut_explicit : Bool
+    mut is_raw_alloc : Bool
     mut orig_name : Str
     mut dynvec_elem : Str
     mut declared_type_name : Str
@@ -334,7 +335,7 @@ namespace:
 :END:
 
 #+begin_src til
-Sym
+Sym is a None
 #+end_src
 
 * SymbolPool
@@ -452,12 +453,15 @@ struct Context {
     mut builder_collection_elem_types : Set__Str
     mut builder_used_ctypes : Set__Str
     mut builder_omitted_core_funcs : Set__Str
+    mut builder_forward_declared : Set__Str
+    mut builder_free_only_delete : Map__Str_Bool
     mut builder_static_ok : Bool
     mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
     mut builder_lit_guard_used : Bool
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
+    mut builder_prog_closed_world : Bool
     mut current_fdef : Option__ref_Expr
     mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
@@ -705,7 +709,7 @@ func host_uptr_pname() returns Str
 :END:
 
 #+begin_src til
-ENUM_PAYLOAD_OFFSET is a U32
+ENUM_PAYLOAD_OFFSET is a USize
 #+end_src
 
 * size_intrinsics_use_sizeof
@@ -848,14 +852,24 @@ func func_param_passes_c_value(fd: FunctionDef, shallow i: USize, shallow value_
 func type_from_name_init(name: Str, scope: TypeScope) returns Type
 #+end_src
 
-* init_type_from_explicit_type
+* type_from_declaration_name
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.init_type_from_explicit_type
+:CUSTOM_ID: til.src.self.context.type_from_declaration_name
 :group: Compiler frontend
 :END:
 
 #+begin_src til
-func init_type_from_explicit_type(name: Str, scope: TypeScope) returns Type
+func type_from_declaration_name(name: Str, scope: TypeScope) returns Type
+#+end_src
+
+* declaration_resolved_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.declaration_resolved_type
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func declaration_resolved_type(decl: Declaration, scope: TypeScope) returns Type
 #+end_src
 
 * field_inferred_type_name
@@ -1155,7 +1169,7 @@ func rhs_is_allocator_call(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func fn_never_returns(body: Expr) returns shallow Bool
+func fn_never_returns(body: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * stmt_always_diverges
@@ -1165,7 +1179,7 @@ func fn_never_returns(body: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func stmt_always_diverges(e: Expr) returns shallow Bool
+func stmt_always_diverges(e: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * lazy_body_inlinable
@@ -1256,6 +1270,16 @@ func fcall_is_direct(e: Expr) returns shallow Bool
 
 #+begin_src til
 func mark_fcall_direct(mut e: Expr)
+#+end_src
+
+* resolve_direct_fcall
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.resolve_direct_fcall
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func resolve_direct_fcall(fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
 #+end_src
 
 * is_range_new_call
@@ -3426,67 +3450,119 @@ absent (same contract as core Map.remove). Uses a
 func HashMap__Str_USize.remove(mut self: HashMap__Str_USize, key: Str) returns shallow Bool
 #+end_src
 
-* Option__ref_Expr
+* Map__Str_Bool
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Option__ref_Expr
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool
 :group: Compiler frontend
 :END:
 
 #+begin_src til
-enum Option__ref_Expr {
-    None
-    Some: Expr
+struct Map__Str_Bool {
+    mut keys : Vec__Str
+    mut values : Vec__Bool
 namespace:
-    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
-    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
-    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
-    func unwrap(self: Option__ref_Expr) returns ref Expr
-    func take(own self: Option__ref_Expr) returns ref Expr
-    ext_func None() returns shallow Option__ref_Expr
-    ext_func Some(val: Expr) returns shallow Option__ref_Expr
-    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
-    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
-    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_Expr) returns Str
-    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
+    func new() returns Map__Str_Bool
+    func with_capacity(shallow n: USize) returns Map__Str_Bool
+    func len(self: Map__Str_Bool) returns shallow USize
+    func clear(mut self: Map__Str_Bool)
+    func has(self: Map__Str_Bool, key: Str) returns shallow Bool
+    func get(self: Map__Str_Bool, key: Str, mut _err_kind: I64) returns ref Bool
+    func set(mut self: Map__Str_Bool, key: Str, own val: Bool)
+    func remove(mut self: Map__Str_Bool, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_Bool, shallow call_free: Bool)
+    func clone(self: Map__Str_Bool) returns Map__Str_Bool
+    func hash(self: Map__Str_Bool, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
 
-* Option__ref_Expr.unwrap
+* Map__Str_Bool.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Option__ref_Expr.unwrap
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool.new
 :group: Compiler frontend
 :END:
 
-The contained value; PANICS on None, ala Rust's unwrap. For the
-~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a ~switch~ when both arms do real work, and ~unwrap_or~ when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
 
 #+begin_src til
-func Option__ref_Expr.unwrap(self: Option__ref_Expr) returns ref Expr
+func Map__Str_Bool.new() returns Map__Str_Bool
 #+end_src
 
-* Option__ref_Expr.take
+* Map__Str_Bool.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Option__ref_Expr.take
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool.with_capacity
 :group: Compiler frontend
 :END:
 
-The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an ~Option(Expr)~ returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Option__ref_Expr.take(own self: Option__ref_Expr) returns ref Expr
+func Map__Str_Bool.with_capacity(shallow n: USize) returns Map__Str_Bool
+#+end_src
+
+* Map__Str_Bool.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool.clear
+:group: Compiler frontend
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__Str_Bool.clear(mut self: Map__Str_Bool)
+#+end_src
+
+* Map__Str_Bool.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool.has
+:group: Compiler frontend
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__Str_Bool.has(self: Map__Str_Bool, key: Str) returns shallow Bool
+#+end_src
+
+* Map__Str_Bool.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool.get
+:group: Compiler frontend
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__Str_Bool.get(self: Map__Str_Bool, key: Str, mut _err_kind: I64) returns ref Bool
+#+end_src
+
+* Map__Str_Bool.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool.set
+:group: Compiler frontend
+:END:
+
+Insert or overwrite the value for ~key~. The value is owned.
+
+#+begin_src til
+func Map__Str_Bool.set(mut self: Map__Str_Bool, key: Str, own val: Bool)
+#+end_src
+
+* Map__Str_Bool.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Bool.remove
+:group: Compiler frontend
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__Str_Bool.remove(mut self: Map__Str_Bool, key: Str) returns shallow Bool
 #+end_src
 
 * Map__Str_Dynamic
@@ -4227,6 +4303,69 @@ a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
 func Option__ref_Declaration.take(own self: Option__ref_Declaration) returns ref Declaration
+#+end_src
+
+* Option__ref_Expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__ref_Expr
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+enum Option__ref_Expr {
+    None
+    Some: Expr
+namespace:
+    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
+    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
+    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
+    func unwrap(self: Option__ref_Expr) returns ref Expr
+    func take(own self: Option__ref_Expr) returns ref Expr
+    ext_func None() returns shallow Option__ref_Expr
+    ext_func Some(val: Expr) returns shallow Option__ref_Expr
+    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
+    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
+    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_Expr) returns Str
+    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
+    func size() returns shallow USize
+}
+#+end_src
+
+* Option__ref_Expr.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__ref_Expr.unwrap
+:group: Compiler frontend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__ref_Expr.unwrap(self: Option__ref_Expr) returns ref Expr
+#+end_src
+
+* Option__ref_Expr.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__ref_Expr.take
+:group: Compiler frontend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__ref_Expr.take(own self: Option__ref_Expr) returns ref Expr
 #+end_src
 
 * Vec__TypeBinding

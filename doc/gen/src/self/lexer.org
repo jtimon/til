@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * TokenType
@@ -93,88 +93,88 @@ enum TokenType {
     KwPriv
     Error
 namespace:
-    Eof
-    LParen
-    RParen
-    LBrace
-    RBrace
-    LBracket
-    RBracket
-    Comma
-    Colon
-    Question
-    Bang
-    Minus
-    Plus
-    Star
-    Slash
-    Percent
-    Ampersand
-    Pipe
-    Caret
-    Dot
-    DotDot
-    DotDotDot
-    Eq
-    EqEq
-    Neq
-    Lt
-    LtEq
-    Gt
-    GtEq
-    PlusPlus
-    MinusMinus
-    AmpAmp
-    PipePipe
-    ColonEq
-    Ident
-    StringTok
-    Number
-    Char
-    DocComment
-    KwMut
-    KwConst
-    KwOwn
-    KwRef
-    KwShallow
-    KwStruct
-    KwEnum
-    KwNamespace
-    KwInterface
-    KwImplements
-    KwFunc
-    KwProc
-    KwTest
-    KwMacro
-    KwExtFunc
-    KwExtProc
-    KwExtStruct
-    KwLazyFunc
-    KwLazyProc
-    KwCoreFunc
-    KwCoreProc
-    KwCoreLazyFunc
-    KwReturns
-    KwThrows
-    KwIf
-    KwElse
-    KwWhile
-    KwFor
-    KwIn
-    KwSwitch
-    KwMatch
-    KwCase
-    KwDefault
-    KwReturn
-    KwThrow
-    KwCatch
-    KwBreak
-    KwContinue
-    KwDefer
-    KwTrue
-    KwFalse
-    KwPriv
-    Error
+    Eof : I64
+    LParen : I64
+    RParen : I64
+    LBrace : I64
+    RBrace : I64
+    LBracket : I64
+    RBracket : I64
+    Comma : I64
+    Colon : I64
+    Question : I64
+    Bang : I64
+    Minus : I64
+    Plus : I64
+    Star : I64
+    Slash : I64
+    Percent : I64
+    Ampersand : I64
+    Pipe : I64
+    Caret : I64
+    Dot : I64
+    DotDot : I64
+    DotDotDot : I64
+    Eq : I64
+    EqEq : I64
+    Neq : I64
+    Lt : I64
+    LtEq : I64
+    Gt : I64
+    GtEq : I64
+    PlusPlus : I64
+    MinusMinus : I64
+    AmpAmp : I64
+    PipePipe : I64
+    ColonEq : I64
+    Ident : I64
+    StringTok : I64
+    Number : I64
+    Char : I64
+    DocComment : I64
+    KwMut : I64
+    KwConst : I64
+    KwOwn : I64
+    KwRef : I64
+    KwShallow : I64
+    KwStruct : I64
+    KwEnum : I64
+    KwNamespace : I64
+    KwInterface : I64
+    KwImplements : I64
+    KwFunc : I64
+    KwProc : I64
+    KwTest : I64
+    KwMacro : I64
+    KwExtFunc : I64
+    KwExtProc : I64
+    KwExtStruct : I64
+    KwLazyFunc : I64
+    KwLazyProc : I64
+    KwCoreFunc : I64
+    KwCoreProc : I64
+    KwCoreLazyFunc : I64
+    KwReturns : I64
+    KwThrows : I64
+    KwIf : I64
+    KwElse : I64
+    KwWhile : I64
+    KwFor : I64
+    KwIn : I64
+    KwSwitch : I64
+    KwMatch : I64
+    KwCase : I64
+    KwDefault : I64
+    KwReturn : I64
+    KwThrow : I64
+    KwCatch : I64
+    KwBreak : I64
+    KwContinue : I64
+    KwDefer : I64
+    KwTrue : I64
+    KwFalse : I64
+    KwPriv : I64
+    Error : I64
     core_func is(self: TokenType, other: TokenType) returns shallow Bool
     func eq(self: TokenType, other: TokenType) returns shallow Bool
     func delete(own self: TokenType, shallow call_free: Bool)

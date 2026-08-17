@@ -1,5 +1,5 @@
 #+TITLE: src/self/repl_editor.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * repl_term_is_interactive
@@ -368,7 +368,7 @@ REPL_BYTE_DEL is a I64
 :END:
 
 #+begin_src til
-REPL_HISTORY_MAX is a U32
+REPL_HISTORY_MAX is a USize
 #+end_src
 
 * REPL_ESC_TIMEOUT_MS
@@ -395,11 +395,11 @@ enum EditAction {
     Bell
     ClearScreen
 namespace:
-    Continue
-    Submit
-    Eof
-    Bell
-    ClearScreen
+    Continue : I64
+    Submit : I64
+    Eof : I64
+    Bell : I64
+    ClearScreen : I64
     core_func is(self: EditAction, other: EditAction) returns shallow Bool
     func eq(self: EditAction, other: EditAction) returns shallow Bool
     func delete(own self: EditAction, shallow call_free: Bool)

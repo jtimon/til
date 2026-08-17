@@ -159,9 +159,10 @@ So a view's ~.c_str~ hands C the view's bytes *plus whatever
 follows them*.  This used to be silent: the C call operated on a
 different string than the program meant, and usually just failed
 (~ENOENT~ from ~unlink~, ~NULL~ from ~dlsym~) somewhere far from
-the cause.  Note it only bites in COMPILED code -- the
-interpreter materialises ~substr~ as an owned copy -- so a bug
-here could pass every interpreted test and still ship.
+the cause.  Both backends produce the same value here: the
+interpreter used to materialise a returned view as an owned copy,
+so a view bug could pass every interpreted test and still ship.
+Issue #366 removed that copy -- a view is a view on both.
 
 Issue #343 closed the silence: the ext-call boundary now CHECKS
 the terminator.  A ~<str>.c_str~ argument feeding an ext

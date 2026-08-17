@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -164,7 +164,7 @@ func scalar_block_from_word(shallow t: Type, w: Dynamic, ctx: Context) returns D
 :END:
 
 #+begin_src til
-DISPATCH_SCRATCH_SLOTS is a U32
+DISPATCH_SCRATCH_SLOTS is a USize
 #+end_src
 
 * WORD_RING_SLOTS
@@ -174,7 +174,7 @@ DISPATCH_SCRATCH_SLOTS is a U32
 :END:
 
 #+begin_src til
-WORD_RING_SLOTS is a U32
+WORD_RING_SLOTS is a USize
 #+end_src
 
 * raw_result_drop

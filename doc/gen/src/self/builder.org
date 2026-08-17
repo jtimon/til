@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * closure_call_name
@@ -262,6 +262,16 @@ namespace:
 proc cmd_doc(lp: LoadedProgram, version: Str) returns shallow I32
 #+end_src
 
+* builder_delete_arg_root
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.builder_delete_arg_root
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func builder_delete_arg_root(e: Expr) returns shallow Option__ref_Str
+#+end_src
+
 * Map__Sym_Str
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.builder.Map__Sym_Str
@@ -269,7 +279,7 @@ proc cmd_doc(lp: LoadedProgram, version: Str) returns shallow I32
 :END:
 
 #+begin_src til
-Map__Sym_Str
+Map__Sym_Str is a None
 #+end_src
 
 * Set__Sym
@@ -279,7 +289,7 @@ Map__Sym_Str
 :END:
 
 #+begin_src til
-Set__Sym
+Set__Sym is a None
 #+end_src
 
 * Vec__DocEntry

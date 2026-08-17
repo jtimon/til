@@ -185,9 +185,9 @@ test_file_remove := test() {
 // 'Z'. Every C function taking a path must therefore copy through dup_n
 // rather than cast c_str; without that, unlink/fopen/stat see
 // "tmp/_test_view_path.txtZZZ" and quietly operate on the wrong path (or
-// none). Compiled code is what this pins down: the interpreter
-// materialises substr as an owned copy, so only the compiled backend
-// hands a genuinely unterminated buffer to C.
+// none). Both backends hand C a genuinely unterminated buffer here since
+// #366; before it, the interpreter copied a by-value Str returned from a
+// til function, so only the compiled run exercised the missing NUL.
 test_file_c_boundary_takes_views := test() {
     backed := "tmp/_test_view_path.txtZZZ"
     path := backed.substr(0, 23)

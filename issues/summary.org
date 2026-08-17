@@ -1,6 +1,5 @@
 * Bugs
 ** High
-*** [[./open/366.org][#366]] substr returns an owned copy interpreted and a view compiled
 *** [[./open/368.org][#368]] Multiple own-transfer sites on returning paths miscompile SILENTLY since #364/#365
 ** Medium
 *** [[./open/358.org][#358]] array() / vec() literals do not type-check their elements

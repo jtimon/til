@@ -4,22 +4,27 @@
 
 #+begin_src til
 Str := struct {
-    own mut c_str : I8 = 0   # pointer to buffer (C `char *`)
-    mut count := 0           # content length in bytes
-    mut cap := 0             # allocated capacity, or sentinel
+    own c_str : I8 = 0   # pointer to buffer (C `char *`)
+    count : USize = 0    # content length in bytes
+    cap : USize = 0      # allocated capacity, or sentinel
 }
 #+end_src
 
-The ~cap~ field encodes ownership:
+The ~cap~ field encodes ownership. It is a ~USize~, so the sentinels are
+the two largest values, not negatives, and "owned" is ~cap < CAP_VIEW~:
 
-| cap          | meaning                                          |
-|--------------+--------------------------------------------------|
-| cap >= 0     | owned buffer, cap = allocated size               |
-| CAP_LIT (-1) | static string literal wrapper and C data         |
-| CAP_VIEW (-2)| borrowed view into another Str's buffer          |
+| cap                  | meaning                                  |
+|----------------------+------------------------------------------|
+| cap < CAP_VIEW       | owned buffer, cap = allocated size       |
+| CAP_LIT ((USize)-1)  | static string literal wrapper and C data |
+| CAP_VIEW ((USize)-2) | borrowed view into another Str's buffer  |
 
-For owned strings, ~count <= cap~. For literals and views, ~count~ is the
-content length and ~cap~ is the sentinel.
+For owned strings, ~count <= cap~ and the byte at ~c_str[count]~ is a
+NUL -- every allocating path reserves count+1 and writes it, which is
+what lets an owned ~.c_str~ cross the C boundary (doc/ffi.org). For
+literals and views, ~count~ is the content length and ~cap~ is the
+sentinel; a literal is NUL-terminated (it is a C string constant), a
+view is NOT -- its next byte is more of the base buffer.
 
 Named constants ~CAP_LIT~ and ~CAP_VIEW~ are defined in str.til (globally
 available via core import).
@@ -47,8 +52,10 @@ view := s.substr(2, 3)   # count=3, cap=CAP_VIEW, points into s.c_str
 owned := view.clone()     # materializes view into owned string
 #+end_src
 
-Zero-copy but can dangle if source is freed or realloced. No borrow checker —
-accepted risk. Call ~.clone()~ when you need ownership.
+Zero-copy but can dangle if source is freed or realloced. No borrow
+checker -- accepted risk. Call ~.clone()~ when you need ownership. Both
+backends return the same view since #366; the interpreter used to hand
+back an owned copy instead.
 
 *** Pre-sized with Capacity
 #+begin_src til
@@ -60,15 +67,15 @@ s.push_str("hello")           # count=5, cap=100 (in-place, no realloc)
 
 #+begin_src til
 delete := func(own self: Str, call_free: Bool = true) {
-    if self.cap.gte(0) {     # owned -- free the buffer
-        free(own self.c_str)
-    }
+    if self.cap < CAP_VIEW { free(own self.c_str) }
     if call_free.and(self.cap.neq(CAP_LIT)) { free(own self) }
 }
 #+end_src
 
-Negative cap (CAP_LIT or CAP_VIEW) means data is not owned -- skip data free.
-CAP_LIT also means the wrapper is static, so skip wrapper free too.
+A sentinel cap (CAP_LIT or CAP_VIEW -- the two largest USize values, so
+the test is ~cap < CAP_VIEW~, not a sign check) means the data is not
+owned: skip the data free. CAP_LIT also means the wrapper is static, so
+skip the wrapper free too.
 
 ** Clone
 
@@ -76,17 +83,24 @@ Clone always creates an owned copy regardless of source cap:
 
 #+begin_src til
 clone := func(val: Str) returns Str {
-    own new_data : I8 = malloc(val.count)
+    if val.count == 0 { return "" }
+    new_data : I8 = malloc(val.count + 1)
     memcpy(new_data, val.c_str, val.count)
+    memset(ptr_add(new_data, val.count), 0, 1)
     return Str(c_str = new_data, count = val.count, cap = val.count)
 }
 #+end_src
 
+The count+1 allocation and the NUL write are load-bearing, not
+politeness: they are what makes ~view.clone().c_str~ safe to hand to a C
+string parameter (doc/ffi.org, issue #343), and #343's ext-call boundary
+check reads exactly that byte.
+
 ** push_str on views/literals
 
-~push_str~ panics when ~cap < 0~ (view or literal). Views and literals are
-borrowed/static data — mutating them is not allowed. Call ~.clone()~ first
-to get an owned copy, then push_str on that.
+~push_str~ panics when ~cap >= CAP_VIEW~ (view or literal). Views and
+literals are borrowed/static data -- mutating them is not allowed. Call
+~.clone()~ first to get an owned copy, then push_str on that.
 
 ** Optimized Builders
 

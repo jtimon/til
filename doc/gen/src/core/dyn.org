@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -474,7 +474,7 @@ ext_func dyn_has_method(type_name: Str, method: Str) returns shallow Bool
 :END:
 
 #+begin_src til
-ELEM_POD is a U32
+ELEM_POD is a USize
 #+end_src
 
 * ELEM_BOXED
@@ -484,7 +484,7 @@ ELEM_POD is a U32
 :END:
 
 #+begin_src til
-ELEM_BOXED is a U32
+ELEM_BOXED is a USize
 #+end_src
 
 * ELEM_FN
@@ -494,5 +494,5 @@ ELEM_BOXED is a U32
 :END:
 
 #+begin_src til
-ELEM_FN is a U32
+ELEM_FN is a USize
 #+end_src

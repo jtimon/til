@@ -84,7 +84,6 @@
 ** Declaration: StructDef
 *** name := ""
 *** doc := ""
-*** explicit_type := ""
 *** is_mut := false
 *** redundant_mut := false
 *** is_priv := false
@@ -112,15 +111,12 @@
 *** ref_return_into_params : U64 = 0
 *** ref_return_carried_params : U64 = 0
 ** FCallData: StructDef
-*** is_splat := false
 *** does_throw := false
 *** is_bang := false
 *** own_args : U64 = 0
 *** keep_outer_args : U64 = 0
 *** swap_replace := false
-*** direct_callee := false
 *** til_type := Type.Unknown
-*** noreturn_call := false
 *** ref_args : U64 = 0
 *** splat_args : U64 = 0
 ** LiteralNumData: StructDef
@@ -277,6 +273,7 @@
 *** used := false
 *** written := false
 *** mut_explicit := false
+*** is_raw_alloc := false
 *** orig_name := ""
 *** dynvec_elem := ""
 *** declared_type_name := ""
@@ -357,7 +354,7 @@
 *** repl_session := false
 *** ns_fields := Option(Scope).None
 *** imported := Map(Str, ImportUnit).new()
-*** ... (78 more)
+*** ... (81 more)
 * targets
 ** Lang: EnumDef
 *** C

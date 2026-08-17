@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c5918d787</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee4f8fc7</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,9 +93,9 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     HolyC
     TIL
 namespace:
-    C
-    HolyC
-    TIL
+    C : I64
+    HolyC : I64
+    TIL : I64
     core_func is(self: Lang, other: Lang) returns shallow Bool
     func eq(self: Lang, other: Lang) returns shallow Bool
     func delete(own self: Lang, shallow call_free: Bool)
@@ -128,18 +128,18 @@ namespace:
     Wasm32
     TempleosX86
 namespace:
-    LinuxX64
-    LinuxArm64
-    LinuxRiscv64
-    LinuxX86
-    LinuxArm32
-    LinuxRiscv32
-    WindowsX64
-    WindowsX86
-    MacosX64
-    MacosArm64
-    Wasm32
-    TempleosX86
+    LinuxX64 : I64
+    LinuxArm64 : I64
+    LinuxRiscv64 : I64
+    LinuxX86 : I64
+    LinuxArm32 : I64
+    LinuxRiscv32 : I64
+    WindowsX64 : I64
+    WindowsX86 : I64
+    MacosX64 : I64
+    MacosArm64 : I64
+    Wasm32 : I64
+    TempleosX86 : I64
     core_func is(self: Target, other: Target) returns shallow Bool
     func eq(self: Target, other: Target) returns shallow Bool
     func delete(own self: Target, shallow call_free: Bool)

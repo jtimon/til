@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * Core
@@ -208,17 +208,12 @@ func adopt__Dynamic(dest: Dynamic, own src: Dynamic)
 
 ** [[file:src/core/str.org::#til.src.core.str.CAP_LIT][CAP_LIT]]
 #+begin_src til
-CAP_LIT is a U32
+CAP_LIT is a USize
 #+end_src
 
 ** [[file:src/core/str.org::#til.src.core.str.CAP_VIEW][CAP_VIEW]]
 #+begin_src til
-CAP_VIEW is a U32
-#+end_src
-
-** [[file:src/core/str.org::#til.src.core.str.CAP_INLINE][CAP_INLINE]]
-#+begin_src til
-CAP_INLINE is a U32
+CAP_VIEW is a USize
 #+end_src
 
 ** [[file:src/core/str.org::#til.src.core.str.format][format]]
@@ -968,17 +963,17 @@ ext_func dyn_has_method(type_name: Str, method: Str) returns shallow Bool
 
 ** [[file:src/core/dyn.org::#til.src.core.dyn.ELEM_POD][ELEM_POD]]
 #+begin_src til
-ELEM_POD is a U32
+ELEM_POD is a USize
 #+end_src
 
 ** [[file:src/core/dyn.org::#til.src.core.dyn.ELEM_BOXED][ELEM_BOXED]]
 #+begin_src til
-ELEM_BOXED is a U32
+ELEM_BOXED is a USize
 #+end_src
 
 ** [[file:src/core/dyn.org::#til.src.core.dyn.ELEM_FN][ELEM_FN]]
 #+begin_src til
-ELEM_FN is a U32
+ELEM_FN is a USize
 #+end_src
 
 ** [[file:src/core/numbers.org::#til.src.core.numbers.U8][U8]]
@@ -1829,12 +1824,12 @@ namespace:
 
 ** [[file:src/core/numbers.org::#til.src.core.numbers.USize][USize]]
 #+begin_src til
-USize
+USize is a None
 #+end_src
 
 ** [[file:src/core/numbers.org::#til.src.core.numbers.UPtr][UPtr]]
 #+begin_src til
-UPtr
+UPtr is a None
 #+end_src
 
 ** [[file:src/core/bool.org::#til.src.core.bool.and][and]]
@@ -1906,17 +1901,17 @@ enum Primitive {
     Bool
     F64
 namespace:
-    I16
-    U16
-    I8
-    U8
-    U32
-    I32
-    U64
-    I64
-    F32
-    Bool
-    F64
+    I16 : I64
+    U16 : I64
+    I8 : I64
+    U8 : I64
+    U32 : I64
+    I32 : I64
+    U64 : I64
+    I64 : I64
+    F32 : I64
+    Bool : I64
+    F64 : I64
     core_func is(self: Primitive, other: Primitive) returns shallow Bool
     func eq(self: Primitive, other: Primitive) returns shallow Bool
     func delete(own self: Primitive, shallow call_free: Bool)
@@ -1999,17 +1994,17 @@ namespace:
     func is_plain(self: FuncType) returns shallow Bool
     func is_proc(self: FuncType) returns shallow Bool
     func is_bodyless(self: FuncType) returns shallow Bool
-    Func
-    Proc
-    Test
-    Macro
-    ExtFunc
-    ExtProc
-    LazyFunc
-    LazyProc
-    CoreFunc
-    CoreProc
-    CoreLazyFunc
+    Func : I64
+    Proc : I64
+    Test : I64
+    Macro : I64
+    ExtFunc : I64
+    ExtProc : I64
+    LazyFunc : I64
+    LazyProc : I64
+    CoreFunc : I64
+    CoreProc : I64
+    CoreLazyFunc : I64
     core_func is(self: FuncType, other: FuncType) returns shallow Bool
     func eq(self: FuncType, other: FuncType) returns shallow Bool
     func delete(own self: FuncType, shallow call_free: Bool)
@@ -2032,9 +2027,9 @@ enum OwnType {
     Ref
     Shallow
 namespace:
-    Own
-    Ref
-    Shallow
+    Own : I64
+    Ref : I64
+    Shallow : I64
     core_func is(self: OwnType, other: OwnType) returns shallow Bool
     func eq(self: OwnType, other: OwnType) returns shallow Bool
     func delete(own self: OwnType, shallow call_free: Bool)
@@ -2057,9 +2052,9 @@ enum GcStorage {
     Stack
     HeapBox
 namespace:
-    Unset
-    Stack
-    HeapBox
+    Unset : I64
+    Stack : I64
+    HeapBox : I64
     core_func is(self: GcStorage, other: GcStorage) returns shallow Bool
     func eq(self: GcStorage, other: GcStorage) returns shallow Bool
     func delete(own self: GcStorage, shallow call_free: Bool)
@@ -2107,12 +2102,16 @@ func Option__Expr.unwrap(shallow self: Option__Expr) returns Expr
 func Option__Expr.take(own self: Option__Expr) returns Expr
 #+end_src
 
+** [[file:src/core/ast.org::#til.src.core.ast.declaration_type_from_name][declaration_type_from_name]]
+#+begin_src til
+func declaration_type_from_name(name: Str) returns Type
+#+end_src
+
 ** [[file:src/core/ast.org::#til.src.core.ast.Declaration][Declaration]]
 #+begin_src til
 struct Declaration {
     mut name : Str
     mut doc : Str
-    mut explicit_type : Str
     mut is_mut : Bool
     mut redundant_mut : Bool
     mut is_priv : Bool
@@ -2125,6 +2124,7 @@ struct Declaration {
 namespace:
     func eq(a: Declaration, b: Declaration) returns shallow Bool
     func to_str(self: Declaration) returns Str
+    func type_name(self: Declaration) returns Str
     func default_expr(self: Declaration) returns ref Expr
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, shallow call_free: Bool)
@@ -2170,15 +2170,12 @@ namespace:
 ** [[file:src/core/ast.org::#til.src.core.ast.FCallData][FCallData]]
 #+begin_src til
 struct FCallData {
-    mut is_splat : Bool
     mut does_throw : Bool
     mut is_bang : Bool
     mut own_args : U64
     mut keep_outer_args : U64
     mut swap_replace : Bool
-    mut direct_callee : Bool
     mut til_type : Type
-    mut noreturn_call : Bool
     mut ref_args : U64
     mut splat_args : U64
 namespace:
@@ -2541,18 +2538,18 @@ namespace:
 struct CaseData {
     mut pattern_count : USize
 namespace:
-    func eq(a: CaseData, b: CaseData) returns shallow Bool
-    func to_str(_self: CaseData) returns Str
-    func clone(self: CaseData) returns CaseData
+    func eq(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func to_str(shallow _self: CaseData) returns Str
+    func clone(shallow self: CaseData) returns shallow CaseData
     func delete(own self: CaseData, shallow call_free: Bool)
-    func hash(self: CaseData, hasher: HashFn) returns shallow U64
-    func cmp(a: CaseData, b: CaseData) returns shallow I64
+    func hash(shallow self: CaseData, hasher: HashFn) returns shallow U64
+    func cmp(shallow a: CaseData, shallow b: CaseData) returns shallow I64
     func size() returns shallow USize
-    func lt(a: CaseData, b: CaseData) returns shallow Bool
-    func gt(a: CaseData, b: CaseData) returns shallow Bool
-    func neq(a: CaseData, b: CaseData) returns shallow Bool
-    func lte(a: CaseData, b: CaseData) returns shallow Bool
-    func gte(a: CaseData, b: CaseData) returns shallow Bool
+    func lt(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func gt(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func neq(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func lte(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func gte(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
 }
 #+end_src
 
@@ -4865,7 +4862,7 @@ func bucket(shallow h: U64, shallow cap: USize) returns shallow USize
 
 ** [[file:src/std/hashmap.org::#til.src.std.hashmap.HASHMAP_INIT_BUCKETS][HASHMAP_INIT_BUCKETS]]
 #+begin_src til
-HASHMAP_INIT_BUCKETS is a U32
+HASHMAP_INIT_BUCKETS is a USize
 #+end_src
 
 ** [[file:src/std/hashmap.org::#til.src.std.hashmap.HashMap][HashMap]]
@@ -5235,88 +5232,88 @@ enum TokenType {
     KwPriv
     Error
 namespace:
-    Eof
-    LParen
-    RParen
-    LBrace
-    RBrace
-    LBracket
-    RBracket
-    Comma
-    Colon
-    Question
-    Bang
-    Minus
-    Plus
-    Star
-    Slash
-    Percent
-    Ampersand
-    Pipe
-    Caret
-    Dot
-    DotDot
-    DotDotDot
-    Eq
-    EqEq
-    Neq
-    Lt
-    LtEq
-    Gt
-    GtEq
-    PlusPlus
-    MinusMinus
-    AmpAmp
-    PipePipe
-    ColonEq
-    Ident
-    StringTok
-    Number
-    Char
-    DocComment
-    KwMut
-    KwConst
-    KwOwn
-    KwRef
-    KwShallow
-    KwStruct
-    KwEnum
-    KwNamespace
-    KwInterface
-    KwImplements
-    KwFunc
-    KwProc
-    KwTest
-    KwMacro
-    KwExtFunc
-    KwExtProc
-    KwExtStruct
-    KwLazyFunc
-    KwLazyProc
-    KwCoreFunc
-    KwCoreProc
-    KwCoreLazyFunc
-    KwReturns
-    KwThrows
-    KwIf
-    KwElse
-    KwWhile
-    KwFor
-    KwIn
-    KwSwitch
-    KwMatch
-    KwCase
-    KwDefault
-    KwReturn
-    KwThrow
-    KwCatch
-    KwBreak
-    KwContinue
-    KwDefer
-    KwTrue
-    KwFalse
-    KwPriv
-    Error
+    Eof : I64
+    LParen : I64
+    RParen : I64
+    LBrace : I64
+    RBrace : I64
+    LBracket : I64
+    RBracket : I64
+    Comma : I64
+    Colon : I64
+    Question : I64
+    Bang : I64
+    Minus : I64
+    Plus : I64
+    Star : I64
+    Slash : I64
+    Percent : I64
+    Ampersand : I64
+    Pipe : I64
+    Caret : I64
+    Dot : I64
+    DotDot : I64
+    DotDotDot : I64
+    Eq : I64
+    EqEq : I64
+    Neq : I64
+    Lt : I64
+    LtEq : I64
+    Gt : I64
+    GtEq : I64
+    PlusPlus : I64
+    MinusMinus : I64
+    AmpAmp : I64
+    PipePipe : I64
+    ColonEq : I64
+    Ident : I64
+    StringTok : I64
+    Number : I64
+    Char : I64
+    DocComment : I64
+    KwMut : I64
+    KwConst : I64
+    KwOwn : I64
+    KwRef : I64
+    KwShallow : I64
+    KwStruct : I64
+    KwEnum : I64
+    KwNamespace : I64
+    KwInterface : I64
+    KwImplements : I64
+    KwFunc : I64
+    KwProc : I64
+    KwTest : I64
+    KwMacro : I64
+    KwExtFunc : I64
+    KwExtProc : I64
+    KwExtStruct : I64
+    KwLazyFunc : I64
+    KwLazyProc : I64
+    KwCoreFunc : I64
+    KwCoreProc : I64
+    KwCoreLazyFunc : I64
+    KwReturns : I64
+    KwThrows : I64
+    KwIf : I64
+    KwElse : I64
+    KwWhile : I64
+    KwFor : I64
+    KwIn : I64
+    KwSwitch : I64
+    KwMatch : I64
+    KwCase : I64
+    KwDefault : I64
+    KwReturn : I64
+    KwThrow : I64
+    KwCatch : I64
+    KwBreak : I64
+    KwContinue : I64
+    KwDefer : I64
+    KwTrue : I64
+    KwFalse : I64
+    KwPriv : I64
+    Error : I64
     core_func is(self: TokenType, other: TokenType) returns shallow Bool
     func eq(self: TokenType, other: TokenType) returns shallow Bool
     func delete(own self: TokenType, shallow call_free: Bool)
@@ -5713,14 +5710,9 @@ func builtin_primitive_size_align(prim: Primitive, mut sz: USize, mut al: USize)
 func builtin_type_from_name(name: Str, mut out: Type) returns shallow Bool
 #+end_src
 
-** [[file:src/self/parser.org::#til.src.self.parser.til_type_from_explicit_type][til_type_from_explicit_type]]
-#+begin_src til
-func til_type_from_explicit_type(name: Str) returns Type
-#+end_src
-
 ** [[file:src/self/parser.org::#til.src.self.parser.decl_typed][decl_typed]]
 #+begin_src til
-func decl_typed(explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
+func decl_typed(type_name: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
 #+end_src
 
 ** [[file:src/self/parser.org::#til.src.self.parser.take_expr][take_expr]]
@@ -5765,7 +5757,7 @@ func field_access_node(name: Str) returns NodeType
 
 ** [[file:src/self/parser.org::#til.src.self.parser.FCALL_ARG_BITS][FCALL_ARG_BITS]]
 #+begin_src til
-FCALL_ARG_BITS is a U32
+FCALL_ARG_BITS is a USize
 #+end_src
 
 ** [[file:src/self/parser.org::#til.src.self.parser.set_own_arg][set_own_arg]]
@@ -6112,6 +6104,7 @@ struct TypeBinding {
     mut used : Bool
     mut written : Bool
     mut mut_explicit : Bool
+    mut is_raw_alloc : Bool
     mut orig_name : Str
     mut dynvec_elem : Str
     mut declared_type_name : Str
@@ -6313,7 +6306,7 @@ namespace:
 
 ** [[file:src/self/context.org::#til.src.self.context.Sym][Sym]]
 #+begin_src til
-Sym
+Sym is a None
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.SymbolPool][SymbolPool]]
@@ -6421,12 +6414,15 @@ struct Context {
     mut builder_collection_elem_types : Set__Str
     mut builder_used_ctypes : Set__Str
     mut builder_omitted_core_funcs : Set__Str
+    mut builder_forward_declared : Set__Str
+    mut builder_free_only_delete : Map__Str_Bool
     mut builder_static_ok : Bool
     mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
     mut builder_lit_guard_used : Bool
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
+    mut builder_prog_closed_world : Bool
     mut current_fdef : Option__ref_Expr
     mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
@@ -6559,7 +6555,7 @@ func host_uptr_pname() returns Str
 
 ** [[file:src/self/context.org::#til.src.self.context.ENUM_PAYLOAD_OFFSET][ENUM_PAYLOAD_OFFSET]]
 #+begin_src til
-ENUM_PAYLOAD_OFFSET is a U32
+ENUM_PAYLOAD_OFFSET is a USize
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.size_intrinsics_use_sizeof][size_intrinsics_use_sizeof]]
@@ -6632,9 +6628,14 @@ func func_param_passes_c_value(fd: FunctionDef, shallow i: USize, shallow value_
 func type_from_name_init(name: Str, scope: TypeScope) returns Type
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.init_type_from_explicit_type][init_type_from_explicit_type]]
+** [[file:src/self/context.org::#til.src.self.context.type_from_declaration_name][type_from_declaration_name]]
 #+begin_src til
-func init_type_from_explicit_type(name: Str, scope: TypeScope) returns Type
+func type_from_declaration_name(name: Str, scope: TypeScope) returns Type
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.declaration_resolved_type][declaration_resolved_type]]
+#+begin_src til
+func declaration_resolved_type(decl: Declaration, scope: TypeScope) returns Type
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.field_inferred_type_name][field_inferred_type_name]]
@@ -6784,12 +6785,12 @@ func rhs_is_allocator_call(e: Expr) returns shallow Bool
 
 ** [[file:src/self/context.org::#til.src.self.context.fn_never_returns][fn_never_returns]]
 #+begin_src til
-func fn_never_returns(body: Expr) returns shallow Bool
+func fn_never_returns(body: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.stmt_always_diverges][stmt_always_diverges]]
 #+begin_src til
-func stmt_always_diverges(e: Expr) returns shallow Bool
+func stmt_always_diverges(e: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.lazy_body_inlinable][lazy_body_inlinable]]
@@ -6835,6 +6836,11 @@ func fcall_is_direct(e: Expr) returns shallow Bool
 ** [[file:src/self/context.org::#til.src.self.context.mark_fcall_direct][mark_fcall_direct]]
 #+begin_src til
 func mark_fcall_direct(mut e: Expr)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.resolve_direct_fcall][resolve_direct_fcall]]
+#+begin_src til
+func resolve_direct_fcall(fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.is_range_new_call][is_range_new_call]]
@@ -7846,36 +7852,60 @@ func HashMap__Str_USize.stored_hash(self: HashMap__Str_USize, key: Str, mut _err
 func HashMap__Str_USize.remove(mut self: HashMap__Str_USize, key: Str) returns shallow Bool
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Option__ref_Expr][Option__ref_Expr]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool][Map__Str_Bool]]
 #+begin_src til
-enum Option__ref_Expr {
-    None
-    Some: Expr
+struct Map__Str_Bool {
+    mut keys : Vec__Str
+    mut values : Vec__Bool
 namespace:
-    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
-    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
-    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
-    func unwrap(self: Option__ref_Expr) returns ref Expr
-    func take(own self: Option__ref_Expr) returns ref Expr
-    ext_func None() returns shallow Option__ref_Expr
-    ext_func Some(val: Expr) returns shallow Option__ref_Expr
-    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
-    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
-    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_Expr) returns Str
-    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
+    func new() returns Map__Str_Bool
+    func with_capacity(shallow n: USize) returns Map__Str_Bool
+    func len(self: Map__Str_Bool) returns shallow USize
+    func clear(mut self: Map__Str_Bool)
+    func has(self: Map__Str_Bool, key: Str) returns shallow Bool
+    func get(self: Map__Str_Bool, key: Str, mut _err_kind: I64) returns ref Bool
+    func set(mut self: Map__Str_Bool, key: Str, own val: Bool)
+    func remove(mut self: Map__Str_Bool, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_Bool, shallow call_free: Bool)
+    func clone(self: Map__Str_Bool) returns Map__Str_Bool
+    func hash(self: Map__Str_Bool, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Option__ref_Expr.unwrap][Option__ref_Expr.unwrap]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool.new][Map__Str_Bool.new]]
 #+begin_src til
-func Option__ref_Expr.unwrap(self: Option__ref_Expr) returns ref Expr
+func Map__Str_Bool.new() returns Map__Str_Bool
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Option__ref_Expr.take][Option__ref_Expr.take]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool.with_capacity][Map__Str_Bool.with_capacity]]
 #+begin_src til
-func Option__ref_Expr.take(own self: Option__ref_Expr) returns ref Expr
+func Map__Str_Bool.with_capacity(shallow n: USize) returns Map__Str_Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool.clear][Map__Str_Bool.clear]]
+#+begin_src til
+func Map__Str_Bool.clear(mut self: Map__Str_Bool)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool.has][Map__Str_Bool.has]]
+#+begin_src til
+func Map__Str_Bool.has(self: Map__Str_Bool, key: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool.get][Map__Str_Bool.get]]
+#+begin_src til
+func Map__Str_Bool.get(self: Map__Str_Bool, key: Str, mut _err_kind: I64) returns ref Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool.set][Map__Str_Bool.set]]
+#+begin_src til
+func Map__Str_Bool.set(mut self: Map__Str_Bool, key: Str, own val: Bool)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_Bool.remove][Map__Str_Bool.remove]]
+#+begin_src til
+func Map__Str_Bool.remove(mut self: Map__Str_Bool, key: Str) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Map__Str_Dynamic][Map__Str_Dynamic]]
@@ -8208,6 +8238,38 @@ func Option__ref_Declaration.unwrap(self: Option__ref_Declaration) returns ref D
 ** [[file:src/self/context.org::#til.src.self.context.Option__ref_Declaration.take][Option__ref_Declaration.take]]
 #+begin_src til
 func Option__ref_Declaration.take(own self: Option__ref_Declaration) returns ref Declaration
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Option__ref_Expr][Option__ref_Expr]]
+#+begin_src til
+enum Option__ref_Expr {
+    None
+    Some: Expr
+namespace:
+    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
+    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
+    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
+    func unwrap(self: Option__ref_Expr) returns ref Expr
+    func take(own self: Option__ref_Expr) returns ref Expr
+    ext_func None() returns shallow Option__ref_Expr
+    ext_func Some(val: Expr) returns shallow Option__ref_Expr
+    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
+    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
+    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_Expr) returns Str
+    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Option__ref_Expr.unwrap][Option__ref_Expr.unwrap]]
+#+begin_src til
+func Option__ref_Expr.unwrap(self: Option__ref_Expr) returns ref Expr
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Option__ref_Expr.take][Option__ref_Expr.take]]
+#+begin_src til
+func Option__ref_Expr.take(own self: Option__ref_Expr) returns ref Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Vec__TypeBinding][Vec__TypeBinding]]
@@ -9515,7 +9577,7 @@ func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut vari
 
 ** [[file:src/self/initer.org::#til.src.self.initer.register_funcsig_alias_for_stmt][register_funcsig_alias_for_stmt]]
 #+begin_src til
-func register_funcsig_alias_for_stmt(ctx: Context, stmt: Expr, mut scope: TypeScope)
+func register_funcsig_alias_for_stmt(ctx: Context, mut stmt: Expr, mut scope: TypeScope)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.register_function_def_for_stmt][register_function_def_for_stmt]]
@@ -9942,7 +10004,7 @@ proc infer_expr(mut scope: TypeScope, mut expr: Expr, shallow in_func: I32, mut 
 
 ** [[file:src/self/typer.org::#til.src.self.typer.PTR_SIZE_BYTES][PTR_SIZE_BYTES]]
 #+begin_src til
-PTR_SIZE_BYTES is a U32
+PTR_SIZE_BYTES is a USize
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.check_unused_locals][check_unused_locals]]
@@ -11450,9 +11512,9 @@ enum Lang {
     HolyC
     TIL
 namespace:
-    C
-    HolyC
-    TIL
+    C : I64
+    HolyC : I64
+    TIL : I64
     core_func is(self: Lang, other: Lang) returns shallow Bool
     func eq(self: Lang, other: Lang) returns shallow Bool
     func delete(own self: Lang, shallow call_free: Bool)
@@ -11484,18 +11546,18 @@ enum Target {
     Wasm32
     TempleosX86
 namespace:
-    LinuxX64
-    LinuxArm64
-    LinuxRiscv64
-    LinuxX86
-    LinuxArm32
-    LinuxRiscv32
-    WindowsX64
-    WindowsX86
-    MacosX64
-    MacosArm64
-    Wasm32
-    TempleosX86
+    LinuxX64 : I64
+    LinuxArm64 : I64
+    LinuxRiscv64 : I64
+    LinuxX86 : I64
+    LinuxArm32 : I64
+    LinuxRiscv32 : I64
+    WindowsX64 : I64
+    WindowsX86 : I64
+    MacosX64 : I64
+    MacosArm64 : I64
+    Wasm32 : I64
+    TempleosX86 : I64
     core_func is(self: Target, other: Target) returns shallow Bool
     func eq(self: Target, other: Target) returns shallow Bool
     func delete(own self: Target, shallow call_free: Bool)
@@ -12752,14 +12814,19 @@ namespace:
 proc cmd_doc(lp: LoadedProgram, version: Str) returns shallow I32
 #+end_src
 
+** [[file:src/self/builder.org::#til.src.self.builder.builder_delete_arg_root][builder_delete_arg_root]]
+#+begin_src til
+func builder_delete_arg_root(e: Expr) returns shallow Option__ref_Str
+#+end_src
+
 ** [[file:src/self/builder.org::#til.src.self.builder.Map__Sym_Str][Map__Sym_Str]]
 #+begin_src til
-Map__Sym_Str
+Map__Sym_Str is a None
 #+end_src
 
 ** [[file:src/self/builder.org::#til.src.self.builder.Set__Sym][Set__Sym]]
 #+begin_src til
-Set__Sym
+Set__Sym is a None
 #+end_src
 
 ** [[file:src/self/builder.org::#til.src.self.builder.Vec__DocEntry][Vec__DocEntry]]
@@ -13392,12 +13459,12 @@ func scalar_block_from_word(shallow t: Type, w: Dynamic, ctx: Context) returns D
 
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS][DISPATCH_SCRATCH_SLOTS]]
 #+begin_src til
-DISPATCH_SCRATCH_SLOTS is a U32
+DISPATCH_SCRATCH_SLOTS is a USize
 #+end_src
 
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.WORD_RING_SLOTS][WORD_RING_SLOTS]]
 #+begin_src til
-WORD_RING_SLOTS is a U32
+WORD_RING_SLOTS is a USize
 #+end_src
 
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.raw_result_drop][raw_result_drop]]
@@ -14691,17 +14758,17 @@ FFI_TYPE_SINT128 is a I64
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.ffi_arg][ffi_arg]]
 #+begin_src til
-ffi_arg
+ffi_arg is a None
 #+end_src
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.ffi_sarg][ffi_sarg]]
 #+begin_src til
-ffi_sarg
+ffi_sarg is a None
 #+end_src
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.ffi_abi][ffi_abi]]
 #+begin_src til
-ffi_abi
+ffi_abi is a None
 #+end_src
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.FFI_FIRST_ABI][FFI_FIRST_ABI]]
@@ -14780,7 +14847,7 @@ namespace:
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.ffi_status][ffi_status]]
 #+begin_src til
-ffi_status
+ffi_status is a None
 #+end_src
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.FFI_OK][FFI_OK]]
@@ -14827,12 +14894,12 @@ FFI_SIZEOF_ARG is a I64
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.ffi_raw][ffi_raw]]
 #+begin_src til
-ffi_raw
+ffi_raw is a None
 #+end_src
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.ffi_java_raw][ffi_java_raw]]
 #+begin_src til
-ffi_java_raw
+ffi_java_raw is a None
 #+end_src
 
 ** [[file:vendor/bindings/libffi.org::#til.vendor.bindings.libffi.ffi_raw_call][ffi_raw_call]]
@@ -15279,7 +15346,7 @@ REPL_BYTE_DEL is a I64
 
 ** [[file:src/self/repl_editor.org::#til.src.self.repl_editor.REPL_HISTORY_MAX][REPL_HISTORY_MAX]]
 #+begin_src til
-REPL_HISTORY_MAX is a U32
+REPL_HISTORY_MAX is a USize
 #+end_src
 
 ** [[file:src/self/repl_editor.org::#til.src.self.repl_editor.REPL_ESC_TIMEOUT_MS][REPL_ESC_TIMEOUT_MS]]
@@ -15296,11 +15363,11 @@ enum EditAction {
     Bell
     ClearScreen
 namespace:
-    Continue
-    Submit
-    Eof
-    Bell
-    ClearScreen
+    Continue : I64
+    Submit : I64
+    Eof : I64
+    Bell : I64
+    ClearScreen : I64
     core_func is(self: EditAction, other: EditAction) returns shallow Bool
     func eq(self: EditAction, other: EditAction) returns shallow Bool
     func delete(own self: EditAction, shallow call_free: Bool)

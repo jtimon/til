@@ -2838,32 +2838,6 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         }
     case:
     }
-    // A by-value Str result must outlive any temporary receiver hidden by the
-    // typer's argument hoisting, so materialize views before returning them.
-    if callee_ret_is_ref.not() {
-        mut return_type := e.til_type().clone()
-        switch return_type {
-        case .Custom(return_type_name): return_type = type_from_name_init(return_type_name, ctx.scope)
-        case:
-        }
-        switch return_type {
-        case .Struct(return_sname):
-            if return_sname == "Str" {
-                ref returned_str : Str = to_ptr(result)
-                if str_cap_at(result, ctx).gte(CAP_VIEW) {
-                    return_count := str_count_at(result, ctx)
-                    if return_count > 0 {
-                        copy : Dynamic = EvalHeap.heap_alloc(return_count.add(1))
-                        memcpy(copy, returned_str.c_str, return_count)
-                        memset(ptr_add(copy, return_count), 0, 1)
-                        write_ptr(result, copy)
-                        str_write_count_cap(result, return_count, return_count, ctx)
-                    }
-                }
-            }
-        case:
-        }
-    }
     result = raw_result_finish(e.til_type(), result, destination, callee_ret_is_ref, ctx)
     scope_free(own call_scope)
     return result

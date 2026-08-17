@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -9,7 +9,7 @@
 :END:
 
 #+begin_src til
-CAP_LIT is a U32
+CAP_LIT is a USize
 #+end_src
 
 * CAP_VIEW
@@ -19,39 +19,7 @@ CAP_LIT is a U32
 :END:
 
 #+begin_src til
-CAP_VIEW is a U32
-#+end_src
-
-* CAP_INLINE
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.str.CAP_INLINE
-:group: Core
-:END:
-
-Reserved for a Str whose bytes live in its own box's tail -- ONE
-allocation for both, so delete releases the box and nothing else. Safe
-because a Str's buffer is never resized: push_str panics on overflow
-rather than growing, so the bytes can never need to move out from under
-the box.
-
-Every reader now ASKS the right question -- "owns a SEPARATE buffer" is
-`cap < CAP_INLINE` -- but nothing produces the tag yet, so the answers
-are unchanged: no Str carries -3, and against every value that does
-occur `< CAP_INLINE` and `< CAP_VIEW` agree. Str.clone starts producing
-it in the next commit, once master's til_boot carries these readers
-compiled in (doc/self.org, "Staged migration across master merges"):
-the FOLD interpreter evaluates the new clone from source while the
-readers around it are whatever til_boot was built with, so a clone that
-tagged inline before those readers shipped freed into the middle of its
-own box.
-
-Ordered BELOW CAP_VIEW on purpose: that keeps all three sentinels at the
-top of the range with every real capacity below them. The readers are
-Str.delete here, the interpreter's str_owns_c_str /
-str_has_owned_storage, and the constfolder's raw_to_expr.
-
-#+begin_src til
-CAP_INLINE is a U32
+CAP_VIEW is a USize
 #+end_src
 
 * format
@@ -293,11 +261,10 @@ without the bounds arithmetic. Allocates nothing: the result shares
 ~s~'s bytes and ~delete~ frees neither them (cap >= CAP_VIEW) nor,
 for a view held inside a container, anything else it does not own.
 
-Compiled, the view and its source share one buffer. The
-INTERPRETER materialises a view when it binds one (as it does for
-substr and from_c_str), so do not write code that depends on
-pointer identity across both modes -- the saving is a compiled-mode
-property; the value semantics below hold everywhere.
+The view and its source share one buffer on BOTH backends -- true
+of substr and from_c_str too. (The interpreter used to copy a Str
+returned by value out of a til function, making pointer identity a
+compiled-mode property; issue #366 removed that copy.)
 
 Use it where a copy would be paid for storage that provably dies
 FIRST -- a lookup key, a set of names collected during one pass

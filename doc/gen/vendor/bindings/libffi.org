@@ -1,5 +1,5 @@
 #+TITLE: vendor/bindings/libffi.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * FFI_TYPE_VOID
@@ -189,7 +189,7 @@ FFI_TYPE_SINT128 is a I64
 :END:
 
 #+begin_src til
-ffi_arg
+ffi_arg is a None
 #+end_src
 
 * ffi_sarg
@@ -199,7 +199,7 @@ ffi_arg
 :END:
 
 #+begin_src til
-ffi_sarg
+ffi_sarg is a None
 #+end_src
 
 * ffi_abi
@@ -209,7 +209,7 @@ ffi_sarg
 :END:
 
 #+begin_src til
-ffi_abi
+ffi_abi is a None
 #+end_src
 
 * FFI_FIRST_ABI
@@ -358,7 +358,7 @@ namespace:
 :END:
 
 #+begin_src til
-ffi_status
+ffi_status is a None
 #+end_src
 
 * FFI_OK
@@ -440,7 +440,7 @@ FFI_SIZEOF_ARG is a I64
 :END:
 
 #+begin_src til
-ffi_raw
+ffi_raw is a None
 #+end_src
 
 * ffi_java_raw
@@ -450,7 +450,7 @@ ffi_raw
 :END:
 
 #+begin_src til
-ffi_java_raw
+ffi_java_raw is a None
 #+end_src
 
 * ffi_raw_call

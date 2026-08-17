@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-c5918d787
+#+SUBTITLE: til 0.0.1-ee4f8fc7
 #+OPTIONS: toc:t
 
 * Primitive
@@ -25,17 +25,17 @@ enum Primitive {
     Bool
     F64
 namespace:
-    I16
-    U16
-    I8
-    U8
-    U32
-    I32
-    U64
-    I64
-    F32
-    Bool
-    F64
+    I16 : I64
+    U16 : I64
+    I8 : I64
+    U8 : I64
+    U32 : I64
+    I32 : I64
+    U64 : I64
+    I64 : I64
+    F32 : I64
+    Bool : I64
+    F64 : I64
     core_func is(self: Primitive, other: Primitive) returns shallow Bool
     func eq(self: Primitive, other: Primitive) returns shallow Bool
     func delete(own self: Primitive, shallow call_free: Bool)
@@ -133,17 +133,17 @@ namespace:
     func is_plain(self: FuncType) returns shallow Bool
     func is_proc(self: FuncType) returns shallow Bool
     func is_bodyless(self: FuncType) returns shallow Bool
-    Func
-    Proc
-    Test
-    Macro
-    ExtFunc
-    ExtProc
-    LazyFunc
-    LazyProc
-    CoreFunc
-    CoreProc
-    CoreLazyFunc
+    Func : I64
+    Proc : I64
+    Test : I64
+    Macro : I64
+    ExtFunc : I64
+    ExtProc : I64
+    LazyFunc : I64
+    LazyProc : I64
+    CoreFunc : I64
+    CoreProc : I64
+    CoreLazyFunc : I64
     core_func is(self: FuncType, other: FuncType) returns shallow Bool
     func eq(self: FuncType, other: FuncType) returns shallow Bool
     func delete(own self: FuncType, shallow call_free: Bool)
@@ -173,9 +173,9 @@ enum OwnType {
     Ref
     Shallow
 namespace:
-    Own
-    Ref
-    Shallow
+    Own : I64
+    Ref : I64
+    Shallow : I64
     core_func is(self: OwnType, other: OwnType) returns shallow Bool
     func eq(self: OwnType, other: OwnType) returns shallow Bool
     func delete(own self: OwnType, shallow call_free: Bool)
@@ -203,9 +203,9 @@ enum GcStorage {
     Stack
     HeapBox
 namespace:
-    Unset
-    Stack
-    HeapBox
+    Unset : I64
+    Stack : I64
+    HeapBox : I64
     core_func is(self: GcStorage, other: GcStorage) returns shallow Bool
     func eq(self: GcStorage, other: GcStorage) returns shallow Bool
     func delete(own self: GcStorage, shallow call_free: Bool)
@@ -284,6 +284,16 @@ a clone would copy a whole subtree and break node identity.
 func Option__Expr.take(own self: Option__Expr) returns Expr
 #+end_src
 
+* declaration_type_from_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.declaration_type_from_name
+:group: Core
+:END:
+
+#+begin_src til
+func declaration_type_from_name(name: Str) returns Type
+#+end_src
+
 * Declaration
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.ast.Declaration
@@ -296,7 +306,6 @@ Variable/field/parameter declaration node.
 struct Declaration {
     mut name : Str
     mut doc : Str
-    mut explicit_type : Str
     mut is_mut : Bool
     mut redundant_mut : Bool
     mut is_priv : Bool
@@ -309,6 +318,7 @@ struct Declaration {
 namespace:
     func eq(a: Declaration, b: Declaration) returns shallow Bool
     func to_str(self: Declaration) returns Str
+    func type_name(self: Declaration) returns Str
     func default_expr(self: Declaration) returns ref Expr
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, shallow call_free: Bool)
@@ -374,8 +384,8 @@ namespace:
 :group: Core
 :END:
 
-Per-callsite data for function calls: parse-time flags (is_splat,
-does_throw, is_bang), own_args bitmap, result type. The variadic
+Per-callsite data for function calls: parse-time flags (does_throw,
+is_bang), argument bitmaps, result type. The variadic
 and kwargs block positions and counts are not stored -- they all
 derive from the resolved callee's param layout plus the structural
 markers in fcall.children:
@@ -390,15 +400,12 @@ markers in fcall.children:
 
 #+begin_src til
 struct FCallData {
-    mut is_splat : Bool
     mut does_throw : Bool
     mut is_bang : Bool
     mut own_args : U64
     mut keep_outer_args : U64
     mut swap_replace : Bool
-    mut direct_callee : Bool
     mut til_type : Type
-    mut noreturn_call : Bool
     mut ref_args : U64
     mut splat_args : U64
 namespace:
@@ -975,18 +982,18 @@ child count, so there is no second copy of the shape to drift.
 struct CaseData {
     mut pattern_count : USize
 namespace:
-    func eq(a: CaseData, b: CaseData) returns shallow Bool
-    func to_str(_self: CaseData) returns Str
-    func clone(self: CaseData) returns CaseData
+    func eq(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func to_str(shallow _self: CaseData) returns Str
+    func clone(shallow self: CaseData) returns shallow CaseData
     func delete(own self: CaseData, shallow call_free: Bool)
-    func hash(self: CaseData, hasher: HashFn) returns shallow U64
-    func cmp(a: CaseData, b: CaseData) returns shallow I64
+    func hash(shallow self: CaseData, hasher: HashFn) returns shallow U64
+    func cmp(shallow a: CaseData, shallow b: CaseData) returns shallow I64
     func size() returns shallow USize
-    func lt(a: CaseData, b: CaseData) returns shallow Bool
-    func gt(a: CaseData, b: CaseData) returns shallow Bool
-    func neq(a: CaseData, b: CaseData) returns shallow Bool
-    func lte(a: CaseData, b: CaseData) returns shallow Bool
-    func gte(a: CaseData, b: CaseData) returns shallow Bool
+    func lt(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func gt(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func neq(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func lte(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
+    func gte(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
 }
 #+end_src
 
