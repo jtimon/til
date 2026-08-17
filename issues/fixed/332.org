@@ -556,9 +556,12 @@ first of them found.*
   - [X] ~til repl~ and bare ~til~ provide the editing/key behavior above on a
         real POSIX terminal.
   - [X] Native Windows uses the same editor state/history and equivalent keys
-        -- compiled and linked (mingw, -Wall -Wextra -Werror, PE32+), never
-        RUN: no Windows machine was available, and CI's windows-host job
-        exercises til.exe's interpret/translate/build, not its REPL.
+        -- compiled and linked (mingw, -Wall -Wextra -Werror, PE32+), and
+        since issue #347 RUN, key by key, on a real windows runner: the
+        windows-x64-host job allocates a console, drives ~til.exe repl~
+        through it and reads the drawn rows back. When this box was first
+        ticked it said "never RUN: no Windows machine was available", and
+        the REPL turned out not to start on windows at all.
   - [X] History persists automatically at the documented per-user path with no
         til-specific flag, environment variable, helper executable, or package
         installation.

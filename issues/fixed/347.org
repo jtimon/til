@@ -1,0 +1,190 @@
+# priority: medium
+# category: cleanups
+** FIXED #347 The Windows REPL has never been run
+
+*** Post-mortem
+
+  It has been run now, key by key, on a real windows runner. The
+  windows-x64-host CI job allocates a console, drives ~til.exe repl~
+  through it and reads the drawn rows back:
+
+    repl_wincon: 1. Home + Delete
+    repl_wincon: 2. Home + End
+    repl_wincon: 3. Left + Delete
+    repl_wincon: 4. Up recall
+    repl_wincon: edited lines evaluated
+    repl_wincon: 5. resize redraw
+    repl_wincon: 6. ESC window against input-record noise
+    repl_wincon: 7. Ctrl-D exit
+    repl_wincon: 8. history persisted to a second process
+    repl_wincon: 9. Ctrl-C exit
+    repl_wincon PASS
+
+  Option (2) of the two this issue offered. Option (1), a hand-run on a
+  windows machine, was never available; the harness is
+  ~test/wincon.c~ (linked with ~link_c()~, so the compiler runtime grows
+  no console-injection surface) plus ~test/repl_wincon.til~, wired into
+  windows-x64-host-build and -run. It reports SKIP on every other host,
+  which keeps both files compiling and linking everywhere so neither can
+  rot between windows runs.
+
+  Piping into ~til.exe repl~ would have proved nothing, exactly as this
+  issue said: ~repl_term_is_interactive~ asks ~GetConsoleMode~ and a pipe
+  fails it. So the driver allocates a real console with ~AllocConsole~,
+  spawns the REPL into it (~Cmd~'s ~CreateProcessA~ passes the std
+  handles through; a child without ~CREATE_NEW_CONSOLE~ attaches to the
+  same console), posts key records with ~WriteConsoleInput~ and reads the
+  screen with ~ReadConsoleOutputCharacter~. ~AllocConsole~ rebinds the
+  WIN32 std handles but not the CRT's file descriptors, which is what
+  lets the driver keep reporting to the job log while the REPL draws.
+
+**** What the runs actually found
+
+  Two real defects, neither of them on this issue's list of suspicions:
+
+  - *The REPL did not start on windows at all.* Every absolute-path test
+    in the loader asked ~starts_with("/")~, which no windows absolute
+    path satisfies, so ~D:/a/til/til/src/std/doc.til~ read as RELATIVE
+    and had the importing file's directory glued in front of it: "could
+    not find import", then "REPL base program failed to load". The REPL
+    is the only thing in the tree that injects an ABSOLUTE import (its
+    base program is a tmp file whose directory floats with the cwd), which
+    is precisely why interpret, translate and build were all green on
+    windows and only the REPL was dead. One shared ~path_is_absolute~
+    answers it now -- a leading "/", or a drive-letter root WITH its
+    separator, since a bare "D:" is the current directory on that drive
+    -- at all five sites. ext.c's ~mkdir_p_cstr~ had known about drive
+    letters all along; the til side had not.
+  - *~system_cmd("mkdir -p tmp")~ ran through cmd.exe*, which has no -p.
+    It printed "A subdirectory or file tmp already exists." over the
+    REPL's own first screen and created a stray directory literally named
+    ~-p~ in the user's project. All five call sites use the portable
+    ~mkdir_p~ binding now.
+
+  One of this issue's five suspicions was real:
+
+  - *The ESC follow-up window restarted per input record.* The console
+    signals its input handle for EVERY record -- mouse moves, focus
+    changes, key-ups -- and ~repl_term_read_event~ filtered those with
+    ~continue~, returned to the top and waited the WHOLE timeout again,
+    so any record arriving inside the window pushed it out by another
+    timeout without bound. Confirmed on hardware exactly as predicted:
+    ~1 + 41~ typed after an ESC reached the editor as ~ + 41~. Moving the
+    mouse while typing is enough. It computes a deadline once now and
+    waits the remaining time. POSIX restarts its ~poll~ only on ~EINTR~,
+    which is why only this side needed it.
+
+  And one was wrong, twice:
+
+  - *~WINDOW_BUFFER_SIZE_EVENT~ -> ~TIL_KEY_REDRAW~ WORKS.* It was the
+    prime suspect going in and again after the first run (~repl_term_begin~
+    never sets ~ENABLE_WINDOW_INPUT~, and the POSIX twin was where #332's
+    last bug lived), and it passes: step 5 blanks the screen without
+    moving the cursor, changes the buffer size, and the row comes back.
+    Fixing it on suspicion would have changed working code and buried the
+    ESC defect underneath. The remaining three suspicions --
+    ~ENABLE_VIRTUAL_TERMINAL_PROCESSING~, ~uChar.AsciiChar~ on the ASCII
+    range, and the Ctrl-C handler's "\r\n" ordering -- are all exercised
+    by the passing session and none was wrong.
+
+**** What the DRIVER got wrong, which cost more rounds than the REPL did
+
+  Four faults, each of which made a run less informative than the one
+  before it:
+
+  - ~Cmd.wait~ blocks forever. The first post-startup run reached the end
+    of its editing steps and then blocked on a child that had not exited,
+    burning nine minutes with no output; the console belongs to the
+    child, so a blocked driver says nothing at all. Every wait is bounded
+    now, each step prints a line to the JOB log as it passes, and the CI
+    step carries ~timeout-minutes: 10~.
+  - An abandoned child held the step's stdout pipe open (it inherits the
+    driver's handles), so ~tee~ never saw EOF and the step ran to its
+    ceiling however promptly the driver had reported. The driver
+    ~TerminateProcess~es the child it gives up on.
+  - The A1/A2/A3 row counts were taken at the END, after step 5's clear
+    had erased them -- failing a test whose subject had passed two steps
+    earlier. Each screen is read where its evidence exists now.
+  - Ctrl-C was unreadable. The driver survived its own probe with
+    ~SetConsoleCtrlHandler(NULL, TRUE)~, an inhibit that CreateProcess
+    passes to children, and it dropped ~GenerateConsoleCtrlEvent~'s
+    result -- so a call that failed and a REPL that ignored the signal
+    produced the same sixty-second timeout. Replacing the inhibit with a
+    real handler (handler FUNCTIONS are per-process and inherited by
+    nobody), checking the result, and probing CTRL_BREAK on failure
+    turned the next run into one line: "Ctrl-C was delivered but did not
+    end the REPL; CTRL_BREAK error=0 ended=true". That is the documented
+    signature of the inherited Ctrl+C inhibit -- CTRL_C_EVENT is not
+    generated for a process that has it, CTRL_BREAK_EVENT is unaffected
+    -- arriving from the CI shell. ~wincon_begin~ clears it with
+    ~SetConsoleCtrlHandler(NULL, FALSE)~ before spawning, so the test
+    measures the REPL instead of its parent chain.
+
+  The lesson the resize path teaches is the one worth keeping: every
+  round that guessed was wrong, and every round that made the failure
+  name itself was right.
+
+  Issue #332 gave ~til repl~ line editing and history on every host, and
+  the native Windows half of that bridge -- ~src/c/ext.c~, the
+  ~#if defined(_WIN32)~ block around ~repl_term_is_interactive~ /
+  ~repl_term_begin~ / ~repl_term_end~ / ~repl_term_read_event~ /
+  ~repl_term_columns~, the ~SetConsoleCtrlHandler~ restore path, and the
+  ~MoveFileExA~ history rename -- has never been executed. Not once, on
+  any machine.
+
+  What IS verified: it cross-compiles and links with mingw under
+  ~-Wall -Wextra -Werror~, and ~bin/til.exe~ comes out PE32+. That is a
+  statement about the C compiler, not about the code.
+
+  What CI covers: ~windows-x64-host-run~ runs ~til.exe interpret~,
+  ~til.exe translate~, ~til.exe build~ and the nng exchange on a real
+  windows runner. None of them opens a console for editing, so the whole
+  editor path is outside the job.
+
+  Concretely unverified, each a plausible defect rather than a
+  hypothetical:
+
+  - ~ENABLE_PROCESSED_INPUT~ is deliberately kept on so Ctrl-C keeps
+    raising a console control event. Whether the editor therefore never
+    sees byte 3, and whether ~repl_term_ctrl_handler~'s ~"\r\n"~ +
+    restore ordering actually leaves the cursor where the next print
+    wants it, is guesswork -- the POSIX equivalent needed two fixes
+    before it behaved.
+  - ~repl_term_read_event~ with ~timeout_ms >= 0~ waits on the console
+    handle, but the handle signals on ANY input record: mouse moves,
+    focus changes, key-ups. Each of those is read, filtered by the
+    ~continue~ arms, and then the loop waits AGAIN with the full
+    timeout. A console that delivers such records can therefore stretch
+    the ESC follow-up window well past ~REPL_ESC_TIMEOUT_MS~, which is
+    the one place the editor's correctness depends on the timeout being
+    short. POSIX restarts its ~poll~ the same way, but only on ~EINTR~
+    -- a signal -- whereas moving the mouse across the console window is
+    an ordinary thing a user does while typing. Neither side computes a
+    deadline; only this one is likely to notice.
+  - ~WINDOW_BUFFER_SIZE_EVENT~ -> ~TIL_KEY_REDRAW~ is the resize path.
+    Its POSIX twin (SIGWINCH) turned out to be untested until the last
+    commit of #332 and would have been the natural place for a bug.
+  - ~ENABLE_VIRTUAL_TERMINAL_PROCESSING~ sits behind an ~#ifdef~. If the
+    mingw headers or the host conhost lack it, the redraw vocabulary
+    (CR, erase-line, cursor-left) prints as literal escape text instead
+    of moving the cursor, and every redraw becomes garbage on screen.
+  - ~uChar.AsciiChar~ is codepage-dependent, and bytes above 127 are
+    dropped on purpose. Whether an ordinary keyboard on a non-ASCII
+    codepage still delivers the ASCII range as expected is unknown.
+
+  Closing this needs a run, and there are two ways to get one:
+
+  1. Run it by hand on a real Windows machine and record what happened,
+     key by key, against the acceptance list in ~issues/fixed/332.org~.
+     Cheapest, but not repeatable and it rots on the next change.
+  2. Drive the REPL from ~windows-x64-host-run~. Note that piping into
+     ~til.exe repl~ proves nothing: ~repl_term_is_interactive~ asks
+     ~GetConsoleMode~, a pipe fails it, and the REPL falls back to the
+     non-editing path -- exactly the path that was already working. It
+     needs the Windows analogue of ~test/repl_pty.til~'s driver: a
+     helper that attaches to a console and posts key records with
+     ~WriteConsoleInput~, then reads the screen back with
+     ~ReadConsoleOutputCharacter~ to assert on the drawn row.
+
+  (2) is the real fix. (1) is worth doing first anyway, because it costs
+  minutes and would catch a path that does not come up at all.
