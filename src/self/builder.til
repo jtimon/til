@@ -7169,7 +7169,10 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
             }
         }
     }
-    f.write("    fprintf(stderr, \"dyn_fn: unknown %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
+    // Same wording as the interpreter's h_dyn_fn: the arms above cover the
+    // kept FuncDef members, so falling through here means "no method by
+    // that name" whether the member is absent or holds a value.
+    f.write("    fprintf(stderr, \"dyn_fn: no method %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
 }

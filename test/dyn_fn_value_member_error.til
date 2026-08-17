@@ -5,6 +5,11 @@ mode script
 // interpreter used to clone that member's slot as a callable, reading the
 // VALUE as the box address (7 -> 0x7) and segfaulting; it now says what is
 // wrong. See hb_func_def / ns_func_def in src/self/interpreter.til.
+//
+// Both backends must answer the same way: interpreted this is h_dyn_fn,
+// compiled it is the emitted dispatcher's fallback (emit_dyn_fn_wrappers),
+// which is built from FuncDef members only and so cannot tell an absent
+// member from a value one -- hence the shared "no method" wording.
 Widget := struct {
     x : I64 = 0
 

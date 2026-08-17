@@ -684,12 +684,21 @@ priv stamp_noreturn_calls := proc(mut e: Expr, noreturn_names: Set(Str)) {
 // clear up-front error. Without this the builder emits C that references an
 // undeclared param (a cryptic -Werror=unused-parameter failure) instead of a
 // usable message. The variadic param is checked by its element type, which is
-// what the builder parses. Runs on the compile path (prepare_program, just
-// before the scavenge); the
-// interpreter additionally guards at runtime in parse_cli_arg.
-priv validate_cli_main := func(lp: LoadedProgram) {
+// what the builder parses. Runs from prepare_program for EVERY command, so
+// interpret and the compiling backends answer the same way; the interpreter
+// additionally guards at runtime in parse_cli_arg.
+//
+// The same front-end position is what makes "no main proc" one diagnostic
+// instead of two. The interpreter said `error: this mode requires a 'main'
+// proc`; the compile path had no check at all and let C say it -- `undefined
+// reference to 'main'` from the linker when the proc was missing, or
+// `'main' is usually a function [-Werror=main]` when the name was bound to a
+// value. Both are the same user mistake, and the message for it now comes
+// from here in both backends.
+priv validate_cli_main := proc(lp: LoadedProgram) {
     if lp.cur_mode.needs_main.not() { return }
     if lp.run_tests { return }
+    mut found_main_proc := false
     for u : ProgramUnit in lp.units {
         for stmt : Expr in lp.ctx.imported[u.path].ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -703,6 +712,7 @@ priv validate_cli_main := func(lp: LoadedProgram) {
             if is_main_decl.not() { continue }
             switch stmt.children[0].node_type {
             case .FuncDef(fdef):
+                found_main_proc = true
                 for p : Declaration in fdef.params {
                     if or(p.explicit_type.eq("Str"),
                           p.explicit_type.eq("I64"),
@@ -726,6 +736,13 @@ priv validate_cli_main := func(lp: LoadedProgram) {
             case:
             }
         }
+    }
+    // A `main` bound to a VALUE is not a main proc, and neither is no main
+    // at all: same message the interpreter has always printed for both.
+    if found_main_proc.not() {
+        eprint_single(lp.path)
+        eprint_single(": error: this mode requires a 'main' proc\n")
+        exit(1)
     }
 }
 

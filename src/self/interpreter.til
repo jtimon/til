@@ -6420,16 +6420,20 @@ priv h_dyn_has_method := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Co
 priv h_dyn_fn := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
+    // One message for both misses, because the emitted C dispatcher cannot
+    // tell them apart: it is built from the FuncDef members alone (one arm
+    // each, kept ones only -- see emit_dyn_fn_wrappers), so an absent member
+    // and a VALUE member both fall off its end. dyn_has_method answers for
+    // value members too, which is how a caller legitimately arrives here
+    // with one; cloning it as a callable read the VALUE as the box address
+    // (`limit : I64 = 7` -> 0x7).
+    // interp_error, not panic: this is the caller's mistake, so the report
+    // names the dyn_fn call site rather than the line of interpreter.til
+    // that noticed.
     stored_o := ns_get(type_name, method, ctx)
-    if stored_o.is_none() {
-        panic("dyn_fn: unknown ", type_name, ".", method)
-    }
-    // dyn_has_method answers for any namespace member, value ones included,
-    // so a caller can legitimately arrive here with a member that cannot be
-    // indirected. Cloning it as a callable read the VALUE as the box address
-    // (`limit : I64 = 7` -> 0x7); say what is wrong instead.
     if ns_func_def(type_name, method, ctx).is_none() {
-        panic("dyn_fn: not a method: ", type_name, ".", method)
+        interp_error(e, format("dyn_fn: no method ", type_name, ".", method), ctx)
+        exit(1)
     }
     write_ptr(r, callable_storage_clone(deref(stored_o.unwrap())))
     return true
