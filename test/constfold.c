@@ -178,8 +178,8 @@ static struct {
 };
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
-static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:137:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:141:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:146:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:150:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_10 = (Str){.c_str = (void *)"test/constfold.til:281:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_16 = (Str){.c_str = (void *)"test/constfold.til:282:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_21 = (Str){.c_str = (void *)"test/constfold.til:283:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -375,7 +375,7 @@ static Str Str_to_str(Str * self) {
 }
 
 static void Str_delete(Str * self, Bool call_free) {
-    Bool hoisted__Bool_0 = ((Bool)(self->cap < CAP_VIEW));
+    Bool hoisted__Bool_0 = ((Bool)(self->cap < CAP_INLINE));
     if (hoisted__Bool_0) {
         free(self->c_str);
     }

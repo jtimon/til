@@ -354,7 +354,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             ref s : Str = to_ptr(raw)
             count := str_count_at(raw, ctx)
             cap := str_cap_at(raw, ctx)
-            if cap.lt(CAP_VIEW).and(cap.gt(count)) { return Option(Expr).None }
+            if cap.lt(CAP_INLINE).and(cap.gt(count)) { return Option(Expr).None }
             view := Str(c_str = s.c_str, count = count, cap = CAP_VIEW)
             escaped := str_to_source_form(view)
             return Option(Expr).Some(Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col))

@@ -7,18 +7,27 @@ import("vec")
 
 CAP_LIT : USize = -1.to_usize()
 CAP_VIEW : USize = -2.to_usize()
-/// Reserved for a Str whose bytes live in its own box's tail -- one
-/// allocation for both, so delete releases the box and nothing else. No
-/// Str carries it YET: this commit only teaches the compiler the name, so
-/// that master's til_boot can bind it when the constructor and destructor
-/// start using it (doc/self.org, "Staged migration across master merges" --
-/// the sentinel is computed by `-3.to_usize()`, not a plain literal, so
-/// only constfolder_register_core_constants can bind it for the fold
-/// interpreter, and HEAD's til_boot has no such registration).
+/// Reserved for a Str whose bytes live in its own box's tail -- ONE
+/// allocation for both, so delete releases the box and nothing else. Safe
+/// because a Str's buffer is never resized: push_str panics on overflow
+/// rather than growing, so the bytes can never need to move out from under
+/// the box.
 ///
-/// Ordered BELOW CAP_VIEW on purpose: "owns a separate buffer" becomes
-/// `cap < CAP_INLINE`, keeping all three sentinels at the top of the range
-/// with every real capacity below them.
+/// Every reader now ASKS the right question -- "owns a SEPARATE buffer" is
+/// `cap < CAP_INLINE` -- but nothing produces the tag yet, so the answers
+/// are unchanged: no Str carries -3, and against every value that does
+/// occur `< CAP_INLINE` and `< CAP_VIEW` agree. Str.clone starts producing
+/// it in the next commit, once master's til_boot carries these readers
+/// compiled in (doc/self.org, "Staged migration across master merges"):
+/// the FOLD interpreter evaluates the new clone from source while the
+/// readers around it are whatever til_boot was built with, so a clone that
+/// tagged inline before those readers shipped freed into the middle of its
+/// own box.
+///
+/// Ordered BELOW CAP_VIEW on purpose: that keeps all three sentinels at the
+/// top of the range with every real capacity below them. The readers are
+/// Str.delete here, the interpreter's str_owns_c_str /
+/// str_has_owned_storage, and the constfolder's raw_to_expr.
 CAP_INLINE : USize = -3.to_usize()
 
 /// Concatenate multiple strings into one.
@@ -164,7 +173,10 @@ namespace:
     /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
     /// static literal wrapper, so call_free does not free that wrapper either.
     delete := func(own self: Str, call_free: Bool = true) {
-        if self.cap < CAP_VIEW { free(own self.c_str) }
+        // Only a SEPARATE buffer is freed here: an inline Str's bytes are
+        // inside the box the next line releases, a view borrows them, and
+        // a literal's are static.
+        if self.cap < CAP_INLINE { free(own self.c_str) }
         if call_free.and(self.cap.neq(CAP_LIT)) { free(own self) }
     }
 
