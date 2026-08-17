@@ -5,13 +5,36 @@ import("../src/core/str")
 import("../src/std/sys")
 import("../src/std/file")
 
-main := proc() {
+// #78: a link_c program must not drag the til helper the scavenger
+// dropped into the generated C. The check is on the OUTPUT of a
+// translate, so this test spawns the compiler as a subprocess.
+//
+// The compiler to spawn is an ARGUMENT, not the hardcoded "bin/til" it
+// used to be. The suite hands every other test its --til-bin, and under
+// `make test` that is bin/til_asan: this one quietly translated with the
+// non-ASAN bin/til instead, testing a binary the run was not about and
+// depending on one nobody had told it to expect. When that binary was
+// mid-rewrite by another build, the shell answered ETXTBSY, spawn_cmd
+// returned 126, and `exit(ec)` propagated it with not one word printed --
+// `FAIL: ffi_scavenge_link_c_run exit=126 expected=0` and nothing else to
+// go on. Both halves of that are fixed here.
+main := proc(til_bin: Str) {
     out_path := "tmp/ffi_scavenge_link_c.c"
     log_path := "tmp/ffi_scavenge_link_c.log"
-    cmd := format("bin/til translate -c ", out_path,
+    cmd := format(til_bin, " translate -c ", out_path,
         " examples/ffi/ext_module.til > ", log_path, " 2>&1")
     ec := wait_cmd(spawn_cmd(cmd))
-    if ec.neq(0) { exit(ec) }
+    if ec.neq(0) {
+        eprint_single(format("ffi_scavenge_link_c: translate failed (exit ", ec.to_str(), ")\n"))
+        eprint_single(format("  command: ", cmd, "\n"))
+        // 126 is the shell's "found it, could not run it": no permission,
+        // or the binary is being written right now by another build.
+        if ec.eq(126) {
+            eprint_single(format("  (126: ", til_bin, " is not executable -- being rebuilt concurrently?)\n"))
+        }
+        eprint_single(File.readfile(log_path))
+        exit(ec)
+    }
 
     generated := File.readfile(out_path)
     if generated.contains("bug78_unused_til_helper") {

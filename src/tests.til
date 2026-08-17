@@ -1224,8 +1224,11 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag, " examples/ffi/ext_module.til"))
     ffi_scavenge_exp := "gen/out/expected/ffi_scavenge.out"
     File.writefile(ffi_scavenge_exp, "ok")
+    // The compiler under test is passed IN: the program spawns a translate,
+    // and it used to spawn the hardcoded bin/til even when the suite was
+    // running bin/til_asan -- see the file's own comment.
     add_single(tests, "ffi_scavenge_link_c_run", "ffi", 0, ffi_scavenge_exp,
-        format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til"))
+        format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til ", til_bin))
     // Issue #283: a real dlopen failure must be reported loudly at RUNTIME.
     // The diagnostic's eprint_single/ffi_last_error are ext_proc so the
     // const-folder never executes them at build time (which printed a bogus
@@ -1240,6 +1243,10 @@ main := proc(args: ..Str) {
     // reports the FFI load problem at runtime rather than swallowing it.
     mut dlopen_fail_pat := "dlopen failed"
     if host_os() == "macos" { dlopen_fail_pat = "failed to compile FFI library" }
+    // No paired compiled row, unlike the diagnostics below: compiling links
+    // the symbol statically, so the same mistake is caught by ld with a
+    // toolchain-worded message rather than by til. Asserting on that text
+    // would be asserting on the linker.
     add_count(tests, "ffi_dlopen_fail_interp", "ffi", dlopen_fail_pat, 1,
         format(til_bin, " interpret test/ffi_dlopen_fail.til"))
 
@@ -1328,15 +1335,33 @@ main := proc(args: ..Str) {
         format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 212,
+    //
+    // Every diagnostic FILE is checked under both backends. They share one
+    // front end, but not one configuration: ctx.compile_mode is false for
+    // `interpret` and true for every compiling command, so "the typer says
+    // the same thing either way" is a property to pin, not an identity --
+    // #342's splat rows below are there because the two disagreed once.
+    // The compiled half counts the file's total, while the per-message
+    // needles stay single-sided: a diagnostic that appeared, vanished, or
+    // moved backends shows up in the total, and re-running one command
+    // seven times to re-read seven substrings of the same output would
+    // not add to that.
+    add_count(tests, "typer_errors_interp", "typer", "error:", 212,
         format(til_bin, " interpret test/typer_errors.til"))
+    add_count(tests, "typer_errors_build", "typer", "error:", 212,
+        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #342: a splat whose elements do not match is reported, not passed
     // through to crash the callee -- four variadic shapes, the two literals,
-    // and a Vec source, which the two backends used to disagree about.
-    add_count(tests, "splat_elem_type", "typer", "splat of", 8,
+    // and a Vec source, which the two backends used to disagree about. That
+    // history is why this one is paired rather than left interpret-only.
+    add_count(tests, "splat_elem_type_interp", "typer", "splat of", 8,
         format(til_bin, " interpret test/typer_errors.til"))
+    add_count(tests, "splat_elem_type_build", "typer", "splat of", 8,
+        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
-    add_count(tests, "fcall_arg_parity_total", "typer", "error:", 12, parity_cmd)
+    add_count(tests, "fcall_arg_parity_total_interp", "typer", "error:", 12, parity_cmd)
+    add_count(tests, "fcall_arg_parity_total_build", "typer", "error:", 12,
+        format(til_bin, " build", asan_flag, " test/fcall_arg_parity_error.til"))
     add_count(tests, "fcall_arg_parity_duplicate", "typer",
         "duplicate argument for parameter", 2, parity_cmd)
     add_count(tests, "fcall_arg_parity_missing", "typer",
@@ -1351,26 +1376,41 @@ main := proc(args: ..Str) {
         "must be marked", 2, parity_cmd)
     // #342: a `..` past the last bit of the per-argument bitmap is refused,
     // not silently dropped into the lowering as an ordinary element.
-    add_count(tests, "splat_arg_limit", "typer",
+    add_count(tests, "splat_arg_limit_interp", "typer",
         "must be among the first 63 arguments", 1,
         format(til_bin, " interpret test/splat_arg_limit_error.til"))
-    add_count(tests, "capture_block_error", "typer",
+    add_count(tests, "splat_arg_limit_build", "typer",
+        "must be among the first 63 arguments", 1,
+        format(til_bin, " build", asan_flag, " test/splat_arg_limit_error.til"))
+    add_count(tests, "capture_block_error_interp", "typer",
         "is not captured", 2,
         format(til_bin, " interpret test/capture_block_error.til"))
-    add_count(tests, "capture_func_error", "typer",
+    add_count(tests, "capture_block_error_build", "typer",
+        "is not captured", 2,
+        format(til_bin, " build", asan_flag, " test/capture_block_error.til"))
+    add_count(tests, "capture_func_error_interp", "typer",
         "cannot capture immutable", 1,
         format(til_bin, " interpret test/capture_func_error.til"))
+    add_count(tests, "capture_func_error_build", "typer",
+        "cannot capture immutable", 1,
+        format(til_bin, " build", asan_flag, " test/capture_func_error.til"))
     // #54: an `[own x]` block capture consumes x; a later use is rejected.
-    add_count(tests, "capture_block_own_error", "typer",
+    add_count(tests, "capture_block_own_error_interp", "typer",
         "after ownership transfer", 1,
         format(til_bin, " interpret test/capture_block_own_error.til"))
+    add_count(tests, "capture_block_own_error_build", "typer",
+        "after ownership transfer", 1,
+        format(til_bin, " build", asan_flag, " test/capture_block_own_error.til"))
     // #288: a core_func / core_proc is an inline-only primitive intrinsic and
     // cannot be indirected -- dyn_fn on one is a typer error (2 cases). Count
     // the enforcement substring, not "error:", since dyn_fn's Dynamic result
     // also (correctly) trips the "store Dynamic in '_'" diagnostic.
-    add_count(tests, "core_func_errors", "typer",
+    add_count(tests, "core_func_errors_interp", "typer",
         "cannot be indirected via dyn_fn", 2,
         format(til_bin, " interpret test/core_func_errors.til"))
+    add_count(tests, "core_func_errors_build", "typer",
+        "cannot be indirected via dyn_fn", 2,
+        format(til_bin, " build", asan_flag, " test/core_func_errors.til"))
     // A scope/namespace slot is only an Expr when the binding is callable.
     // Each of these used to deref a VALUE as a def and segfault the
     // interpreter; they now reach the diagnostic that was always there --
@@ -1405,54 +1445,99 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag, " test/closures_interp.til"))
     add_single(tests, "closures_compile_escape", "closures", 0, "",
         format(til_bin, " run", asan_flag, " test/closures_compile_escape.til"))
-    add_count(tests, "capture_escape_error", "typer",
+    add_count(tests, "capture_escape_error_interp", "typer",
         "returned closure borrows captured local", 1,
         format(til_bin, " interpret test/capture_escape_error.til"))
+    add_count(tests, "capture_escape_error_build", "typer",
+        "returned closure borrows captured local", 1,
+        format(til_bin, " build", asan_flag, " test/capture_escape_error.til"))
     // #54: the same escape via a GLOBAL slot rather than a return.
-    add_count(tests, "capture_global_escape_error", "typer",
+    add_count(tests, "capture_global_escape_error_interp", "typer",
         "borrows captured local", 1,
         format(til_bin, " interpret test/capture_global_escape_error.til"))
+    add_count(tests, "capture_global_escape_error_build", "typer",
+        "borrows captured local", 1,
+        format(til_bin, " build", asan_flag, " test/capture_global_escape_error.til"))
     // #54: and via a global's FIELD.
-    add_count(tests, "capture_global_field_escape_error", "typer",
+    add_count(tests, "capture_global_field_escape_error_interp", "typer",
         "borrows captured local", 1,
         format(til_bin, " interpret test/capture_global_field_escape_error.til"))
+    add_count(tests, "capture_global_field_escape_error_build", "typer",
+        "borrows captured local", 1,
+        format(til_bin, " build", asan_flag, " test/capture_global_field_escape_error.til"))
     // #54: a callee that STORES a parameter globally must own it.
-    add_count(tests, "capture_callee_escape_error", "typer",
+    add_count(tests, "capture_callee_escape_error_interp", "typer",
         "is stored where it outlives this call", 1,
         format(til_bin, " interpret test/capture_callee_escape_error.til"))
-    add_count(tests, "capture_own_arg_escape_error", "typer",
+    add_count(tests, "capture_callee_escape_error_build", "typer",
+        "is stored where it outlives this call", 1,
+        format(til_bin, " build", asan_flag, " test/capture_callee_escape_error.til"))
+    add_count(tests, "capture_own_arg_escape_error_interp", "typer",
         "own argument closure borrows captured local", 1,
         format(til_bin, " interpret test/capture_own_arg_escape_error.til"))
-    add_count(tests, "capture_mut_escape_error", "typer",
+    add_count(tests, "capture_own_arg_escape_error_build", "typer",
+        "own argument closure borrows captured local", 1,
+        format(til_bin, " build", asan_flag, " test/capture_own_arg_escape_error.til"))
+    add_count(tests, "capture_mut_escape_error_interp", "typer",
         "returned closure borrows captured local", 1,
         format(til_bin, " interpret test/capture_mut_escape_error.til"))
-    add_count(tests, "qualifier_shallow_local_error", "parser",
+    add_count(tests, "capture_mut_escape_error_build", "typer",
+        "returned closure borrows captured local", 1,
+        format(til_bin, " build", asan_flag, " test/capture_mut_escape_error.til"))
+    add_count(tests, "qualifier_shallow_local_error_interp", "parser",
         "locals cannot use", 1,
         format(til_bin, " interpret test/qualifier_shallow_local_error.til"))
-    add_count(tests, "qualifier_ref_param_error", "parser",
+    add_count(tests, "qualifier_shallow_local_error_build", "parser",
+        "locals cannot use", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_shallow_local_error.til"))
+    add_count(tests, "qualifier_ref_param_error_interp", "parser",
         "parameters are borrowed by default", 1,
         format(til_bin, " interpret test/qualifier_ref_param_error.til"))
-    add_count(tests, "qualifier_returns_own_error", "parser",
+    add_count(tests, "qualifier_ref_param_error_build", "parser",
+        "parameters are borrowed by default", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_ref_param_error.til"))
+    add_count(tests, "qualifier_returns_own_error_interp", "parser",
         "returns are owned by default", 1,
         format(til_bin, " interpret test/qualifier_returns_own_error.til"))
-    add_count(tests, "qualifier_const_local_error", "parser",
+    add_count(tests, "qualifier_returns_own_error_build", "parser",
+        "returns are owned by default", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_returns_own_error.til"))
+    add_count(tests, "qualifier_const_local_error_interp", "parser",
         "on local: locals are immutable by default", 1,
         format(til_bin, " interpret test/qualifier_const_local_error.til"))
-    add_count(tests, "qualifier_const_param_error", "parser",
+    add_count(tests, "qualifier_const_local_error_build", "parser",
+        "on local: locals are immutable by default", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_const_local_error.til"))
+    add_count(tests, "qualifier_const_param_error_interp", "parser",
         "on parameter: parameters are immutable by default", 1,
         format(til_bin, " interpret test/qualifier_const_param_error.til"))
-    add_count(tests, "qualifier_mut_payload_error", "parser",
+    add_count(tests, "qualifier_const_param_error_build", "parser",
+        "on parameter: parameters are immutable by default", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_const_param_error.til"))
+    add_count(tests, "qualifier_mut_payload_error_interp", "parser",
         "on variant payload: payloads are mutable by default", 1,
         format(til_bin, " interpret test/qualifier_mut_payload_error.til"))
-    add_count(tests, "qualifier_mut_field_error", "typer",
+    add_count(tests, "qualifier_mut_payload_error_build", "parser",
+        "on variant payload: payloads are mutable by default", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_mut_payload_error.til"))
+    add_count(tests, "qualifier_mut_field_error_interp", "typer",
         "on struct field", 1,
         format(til_bin, " interpret test/qualifier_mut_field_error.til"))
-    add_count(tests, "qualifier_const_namespace_error", "parser",
+    add_count(tests, "qualifier_mut_field_error_build", "typer",
+        "on struct field", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_mut_field_error.til"))
+    add_count(tests, "qualifier_const_namespace_error_interp", "parser",
         "on namespace declaration: namespace decls are immutable by default", 1,
         format(til_bin, " interpret test/qualifier_const_namespace_error.til"))
-    add_count(tests, "const_payload_error", "typer",
+    add_count(tests, "qualifier_const_namespace_error_build", "parser",
+        "on namespace declaration: namespace decls are immutable by default", 1,
+        format(til_bin, " build", asan_flag, " test/qualifier_const_namespace_error.til"))
+    add_count(tests, "const_payload_error_interp", "typer",
         "cannot assign to immutable variable", 1,
         format(til_bin, " interpret test/const_payload_error.til"))
+    add_count(tests, "const_payload_error_build", "typer",
+        "cannot assign to immutable variable", 1,
+        format(til_bin, " build", asan_flag, " test/const_payload_error.til"))
     add_count(tests, "priv_error_interp", "typer",
         "is private to", 4,
         format(til_bin, " interpret test/priv_error.til"))
@@ -1460,19 +1545,28 @@ main := proc(args: ..Str) {
         "is private to", 4,
         format(til_bin, " build", asan_flag, " test/priv_error.til"))
     // #154: unused-import check, on by default. The same file with an
-    // unused import passes with --check-unused-imports=false.
-    add_count(tests, "unused_import_error", "typer",
+    // unused import passes with --check-unused-imports=false. The two
+    // clean-file rows stay interpret-only: a false positive in compile mode
+    // has no hiding place, since every add_both compile in this suite would
+    // fail on it.
+    add_count(tests, "unused_import_error_interp", "typer",
         "unused import", 1,
         format(til_bin, " interpret test/unused_import_error.til"))
+    add_count(tests, "unused_import_error_build", "typer",
+        "unused import", 1,
+        format(til_bin, " build", asan_flag, " test/unused_import_error.til"))
     add_single(tests, "unused_import_error_off", "typer", 0, "",
         format(til_bin, " interpret --check-unused-imports=false test/unused_import_error.til"))
     add_single(tests, "unused_import_ok", "typer", 0, "",
         format(til_bin, " interpret test/unused_import_ok.til"))
     // Namespace-import alias: a member outside the imported file's
     // public decls fails at load time.
-    add_count(tests, "import_ns_unknown_symbol", "typer",
+    add_count(tests, "import_ns_unknown_symbol_interp", "typer",
         "no public symbol", 1,
         format(til_bin, " interpret test/import_ns_unknown_symbol.til"))
+    add_count(tests, "import_ns_unknown_symbol_build", "typer",
+        "no public symbol", 1,
+        format(til_bin, " build", asan_flag, " test/import_ns_unknown_symbol.til"))
     add_count(tests, "priv_unused_error_interp", "typer",
         "unused priv", 7,
         format(til_bin, " interpret test/priv_unused_error.til"))
@@ -1503,9 +1597,12 @@ main := proc(args: ..Str) {
         format(til_bin, " build", asan_flag, " test/cli_unsupported_main.til"))
     // #242: missing-required-field cases live in test/typer_errors.til.
     // A no-default field with no explicit type stays illegal (parser).
-    add_count(tests, "required_field_no_type_error", "parser",
+    add_count(tests, "required_field_no_type_error_interp", "parser",
         "expected", 1,
         format(til_bin, " interpret test/required_field_no_type_error.til"))
+    add_count(tests, "required_field_no_type_error_build", "parser",
+        "expected", 1,
+        format(til_bin, " build", asan_flag, " test/required_field_no_type_error.til"))
 
     // === CLI tests ===
     exp := "gen/out/expected/"
