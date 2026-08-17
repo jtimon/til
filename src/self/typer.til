@@ -2366,6 +2366,92 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
     }
 }
 
+// Issue #275 step 3: copying a managed aggregate's BYTES duplicates every
+// owned pointer inside it. The source keeps its ownership and the
+// destination now holds the same addresses, so one buffer has two owners
+// -- a state til's model does not have (ownership.org: owned XOR borrowed,
+// no shared pointers). What made it invisible is type erasure: the
+// duplication goes `to_ptr(...) -> Dynamic -> memcpy`, and once a value is
+// a Dynamic the typer sees `memcpy(Dynamic, Dynamic, n)` with no idea
+// those bytes carry an owned `c_str`. So the check can only fire over a
+// TYPED source, which is exactly what this asks the binding for.
+//
+// Answered from the BINDING, never the argument's stamp -- memcpy's params
+// are Dynamic and rewrite_til_type_arg re-types the node before the args
+// are validated, so the node cannot say what it started as (the same
+// reasoning arg_is_scalar_value_binding documents for #357).
+//
+// "Managed" is the tree's existing notion, borrowed from
+// check_free_managed_local: the type has a `delete`. A type with a
+// destructor is precisely one whose bytes cannot be duplicated without
+// duplicating whatever that destructor would release. Raw buffers (U8,
+// Dynamic) have no `delete`, so byte-blitting them stays legal.
+//
+// `ref` and parameter sources are NOT exempt: borrowing a managed value
+// does not make copying its owned pointers out of it any safer. The way
+// to get a second independent value is the type's own `clone`.
+priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Context) {
+    if e.children.len() < 3 { return }
+    // The typer's own move-out block is the one legitimate byte copy out of
+    // a non-`own` binding: make_payload_steal_block copies an inline enum
+    // payload into a fresh box and then frees only the enum shell, so the
+    // nested ownership MOVES rather than being duplicated. It is recognised
+    // the same way the #321 own-a-ref-result exemption above recognises it
+    // -- by the `_steal_` destination temp -- and a leading underscore is
+    // reserved for codegen temporaries, so no user-writable spelling gains
+    // the exemption.
+    switch e.children[1].node_type {
+    case .Ident(dn):
+        if dn.ident_name().starts_with("_steal_") { return }
+    case:
+    }
+    // `to_ptr(x)` is the documented laundering step: it is how a typed
+    // managed value became the Dynamic that memcpy then blitted. Looking
+    // through it is what lets this fire on the shape the issue recorded,
+    // rather than only on the naked-identifier one.
+    ref mut src : Expr = e.children[2]
+    switch src.node_type {
+    case .FCall:
+        if src.children.len() == 2 {
+            mut inner_callee := ""
+            switch src.children[0].node_type {
+            case .Ident(cn): inner_callee = Str.clone(cn.ident_name())
+            case:
+            }
+            if inner_callee == "to_ptr" { src = src.children[1] }
+        }
+    case:
+    }
+    switch src.node_type {
+    case .Ident(an):
+        sf := scope.find(an.ident_name())
+        switch sf {
+        case .Found(b):
+            // An `own` binding's holder already has the right to move the
+            // value on. That is `core/mem.til`'s `adopt` -- the sanctioned
+            // move primitive, `memcpy(dest, src, T.size())` over an
+            // `own src: T` parameter, with the `free(own src)` box release
+            // right after. A borrowed or `ref` source has no such right,
+            // which is the case this ban is for.
+            if b.own_type.is(OwnType.Own) { return }
+            tn := til_type_name(b.type)
+            if tn.len() == 0 { return }
+            sdef_o := scope.get_struct(tn)
+            if sdef_o.is_none() { return }
+            ref sdef : Expr = sdef_o.unwrap()
+            if find_namespace_func(sdef, "delete", scope).is_none() { return }
+            src.type_error(format(
+                "memcpy duplicates the owned pointers inside managed type '", tn,
+                "': both '", Str.clone(an.ident_name()), "' and the destination would own them, and ",
+                tn, ".delete would run twice over the same buffer -- to COPY use ",
+                tn, ".clone, to MOVE use adopt_from(dest, src, size), which blanks the source",
+            ), ctx)
+        case:
+        }
+    case:
+    }
+}
+
 // Issue #212: byte size of an integer primitive Type, or 0 for any
 // non-integer-reinterpret-able type. F32 (4 bytes) and Bool are
 // deliberately excluded -- `cast` is a bit reinterpret, not a value
@@ -3559,6 +3645,7 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     callee_bind_o = scope.get_binding(name)
     if callee_is_indirect.not().and(name == "free") { check_free_managed_local(scope, e, ctx) }
     if callee_is_indirect.not().and(name == "is_null") { check_is_null_arg_dynamic(scope, e, ctx) }
+    if callee_is_indirect.not().and(name == "memcpy") { check_memcpy_managed_src(scope, e, ctx) }
     // (check_move_managed_dest retired with the raw byte-move: `move` is
     // now the typed ownership primitive that destroys dest's old value
     // itself -- the guard's premise is gone, #302.)

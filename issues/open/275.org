@@ -54,9 +54,34 @@ Two concrete slices HAVE landed since:
 
 *** What is actually left
 
-  1. Step 3 below -- typer enforcement -- never happened. Nothing forbids
-     copying a managed aggregate's bytes; the ban would have to live over
-     TYPED pointers, since a ~Dynamic~ erases the owned pointer it carries.
+Items 1-3 have all LANDED. What remains is the last TODO in the next
+section, restated here because the verification it asked for came back
+positive -- there IS a shortcut:
+
+  0. ~dyn_call~'s reflective path special-cases ~delete~ and never runs
+     the interpreted method body. ~interpreter.til~'s
+     ~if method == "delete"~ arm calls ~heap_drop_by_type~ +
+     ~EvalHeap.heap_free~ directly instead of dispatching to the type's
+     own ~delete~, so a user-defined ~delete~ with any behaviour beyond
+     releasing fields does not run on that path -- a divergence from the
+     compiled backend, and the last piece of "interpret the AST's
+     delete/free, do not reimplement it". Found by carrying out this
+     issue's own TODO; not yet fixed.
+
+  1. DONE. Step 3 below -- typer enforcement. ~check_memcpy_managed_src~
+     rejects a ~memcpy~ whose source names a binding of a type with a
+     ~delete~, looking through the ~to_ptr(x)~ laundering this issue
+     recorded. It fires only over TYPED sources, exactly as predicted: a
+     ~Dynamic~ source still erases the owned pointer, so ~heap_clone~'s
+     own ~memcpy(dst_data, data, sz)~ over a ~Dynamic~ parameter stays
+     invisible to it. Three exemptions, each a real move rather than a
+     duplication: an ~own~ source binding (core's ~adopt~), the typer's
+     own ~_steal_~ move-out temps (the same prefix the #321 own-a-ref
+     exemption already recognises), and everything without a ~delete~.
+     The ban then found three hand-rolled ~memcpy~+~memset~ pairs that
+     already had a primitive -- ~intern_type_box~, the FFI-entry
+     registration, and ~test/templ_vec.til~'s clone -- all now spelled
+     with core's ~adopt_from~, which is the manual island shrinking.
   2. (DONE 2026-08) The #245 / #239 workaround is gone. ~stable_type_name~
      is deleted and the three clone sites pass the Declaration's own name
      straight through: the memcpy-duplication that made an owned name
@@ -64,15 +89,10 @@ Two concrete slices HAVE landed since:
      canonicalising to program-lifetime storage -- and the linear scan over
      ~interp_type_defs~ it did on every nested clone goes with it. Full
      suite green, ASAN included.
-  3. A related divergence found while sweeping #357: a by-value scalar
-     passed to a pointer position (~ptr_add(q, 1)~ on a ~q : U8~ param)
-     reads through the value in compiled C and yields 0 interpreted. The
-     fix needs exactly what item 1 needs -- a way to tell a #302
-     raw-allocation binding from a same-typed scalar. Note for whoever
-     takes it: builtin / core_func calls bypass ~validate_fcall_arg~
-     entirely (the callee has no TypeBinding, so the arg loop returns
-     before validating), so a diagnostic there needs the builtin call
-     path, not just the user-function one.
+  3. DONE in ee4f8fc7 (the #357 family commit): a by-value scalar passed
+     to a pointer position (~ptr_add(q, 1)~ on a ~q : U8~ param) is now a
+     type error, keyed per-parameter on the builtins that take an address
+     in argument one, answered from ~TypeBinding.is_raw_alloc~.
 
 *** The original mechanism, kept for the record
 
@@ -119,11 +139,11 @@ idea those bytes contain an owned ~c_str~.
     value/heap model against today's ~HeapBinding~ is still worth doing.
     (Could not access rstil source from the build sandbox -- ~git clone~ of
     any repo but jtimon/til is denied.)
-  - Verify ~Type.delete~ / ~free~ are interpreted with NO shortcuts:
-    ~free(own x)~ dispatches to the ~h_free~ builtin, ~Type.delete(own x)~
-    to the interpreted method body whose ~free(own self)~ tail reaches
-    ~h_free~. Confirm no ~.delete~/~.free~ special-case in call dispatch
-    bypasses the body.
+  - DONE, and the answer was "there is one": ~Type.delete~ / ~free~ are
+    interpreted without shortcuts on the ORDINARY call path -- there is no
+    ~.delete~ / ~.free~ special-case in it -- but ~dyn_call~'s REFLECTIVE
+    path has exactly the special-case this asked about. See item 0 above,
+    which is now what is left of this issue.
 
 *** Relation to #272
 

@@ -1312,3 +1312,25 @@ terr357b_ok := proc() {
     println(z3.to_i64().to_str())
     free(own b)
 }
+
+// #275 step 3: copying a managed aggregate's BYTES duplicates every owned
+// pointer inside it -- the source keeps its own and the destination now
+// holds the same addresses, so `delete` runs twice over one buffer. Both
+// the naked form and the `to_ptr` laundering the issue recorded ("once a
+// value is a Dynamic the typer sees memcpy(Dynamic, Dynamic, n) with no
+// idea those bytes contain an owned c_str") are rejected.
+terr275_dup_managed := proc() {
+    s := format("dup", "licate")
+    d : I8 = malloc(16)
+    memcpy(d, s, 16)
+    println(s)
+    free(own d)
+}
+
+terr275_dup_laundered := proc() {
+    s := format("dup", "licate")
+    d : I8 = malloc(16)
+    memcpy(d, to_ptr(s), 16)
+    println(s)
+    free(own d)
+}

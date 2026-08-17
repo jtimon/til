@@ -1471,9 +1471,9 @@ main := proc(args: ..Str) {
     // moved backends shows up in the total, and re-running one command
     // seven times to re-read seven substrings of the same output would
     // not add to that.
-    add_count(tests, "typer_errors_interp", "typer", "error:", 217,
+    add_count(tests, "typer_errors_interp", "typer", "error:", 219,
         format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "typer_errors_build", "typer", "error:", 217,
+    add_count(tests, "typer_errors_build", "typer", "error:", 219,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #342: a splat whose elements do not match is reported, not passed
     // through to crash the callee -- four variadic shapes, the two literals,
@@ -1482,6 +1482,16 @@ main := proc(args: ..Str) {
     add_count(tests, "splat_elem_type_interp", "typer", "splat of", 8,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "splat_elem_type_build", "typer", "splat of", 8,
+        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
+    // #275 step 3: byte-copying a managed aggregate duplicates its owned
+    // pointers. Both the naked source and the `to_ptr` laundering are
+    // rejected, and the needle is separate from the total above so the two
+    // cannot silently trade places with an unrelated diagnostic. Paired
+    // because a ban the compiled backend did not also enforce would let the
+    // duplication through in exactly the builds that keep the bytes.
+    add_count(tests, "memcpy_managed_src_interp", "typer", "memcpy duplicates", 2,
+        format(til_bin, " interpret test/typer_errors.til"))
+    add_count(tests, "memcpy_managed_src_build", "typer", "memcpy duplicates", 2,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
     add_count(tests, "fcall_arg_parity_total_interp", "typer", "error:", 12, parity_cmd)

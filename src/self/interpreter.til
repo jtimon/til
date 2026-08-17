@@ -4331,8 +4331,7 @@ priv intern_prim_index := func(p: Primitive) returns USize {
 priv intern_type_box := func(shallow t: Type) returns Dynamic {
     raw : Dynamic = malloc(Type.size())
     cloned := t.clone()
-    memcpy(raw, cloned, Type.size())
-    memset(cloned, 0, Type.size())
+    adopt_from(raw, cloned, Type.size())
     return raw
 }
 
@@ -8547,9 +8546,11 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     // this replaces was #324's hole (own-passing ref fields).
     if ctx.ffi.entries.has(name) { ctx.ffi.entries.remove(name) }
     val : FFIEntry = malloc(FFIEntry.size())
-    // Manual island byte-move (#286): erased slot, sized copy.
-    memcpy(val, entry, FFIEntry.size())
-    memset(entry, 0, FFIEntry.size())
+    // #275: the byte-move goes through core's `adopt_from` rather than a
+    // hand-rolled memcpy+memset pair. Same two instructions, but it says
+    // MOVE at the call site instead of leaving a bare copy of a managed
+    // aggregate's bytes for a reader (or the typer) to have to prove safe.
+    adopt_from(val, entry, FFIEntry.size())
     ctx.ffi.entries.set(name, own val)
 }
 

@@ -78,9 +78,13 @@ namespace:
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
             mut cloned : T = src.clone()
-            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), to_ptr(cloned), T.size().cast(U64))
-            // ownership of cloned's heap (if any) moves into the buffer
-            memset(to_ptr(cloned), 0, T.size().cast(U64))
+            // Ownership of cloned's heap (if any) MOVES into the buffer.
+            // Spelled with core's adopt_from rather than a hand-rolled
+            // memcpy+memset pair: the two are the same instructions, but a
+            // bare memcpy of a managed aggregate's bytes is the shape #275
+            // bans, since nothing at that node says whether the source is
+            // giving the pointers up or keeping them.
+            adopt_from(ptr_add(new_data, i.mul(T.size()).cast(U64)), to_ptr(cloned), T.size().cast(U64))
         }
         return TemplVec(T)(data = new_data, count = self.count, cap = self.cap)
     }
