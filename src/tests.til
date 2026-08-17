@@ -669,11 +669,26 @@ main := proc(args: ..Str) {
         "StackValue346 value = {0};", 1,
         format(til_bin, " translate -c gen/c/aggregate_local_stack.c test/structs.til '&&' cat gen/c/aggregate_local_stack.c"))
     add_count(tests, "aggregate_own_param_value_return", "build",
-        "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", 2,
+        "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 value)", 2,
         format(til_bin, " translate -c gen/c/aggregate_own_return.c test/structs.til '&&' cat gen/c/aggregate_own_return.c"))
     add_count(tests, "aggregate_own_escape_boxes", "build",
-        "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", 2,
+        "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", 1,
         format(til_bin, " translate -c gen/c/aggregate_own_escape.c test/structs.til '&&' cat gen/c/aggregate_own_escape.c"))
+    add_count(tests, "funcsig_own_param_value_abi", "build",
+        "static USize consume_owned_box346(ReturnBox346 box)", 2,
+        format(til_bin, " translate -c gen/c/aggregate_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/aggregate_param_funcsig.c"))
+    add_count(tests, "closure_own_param_value_abi", "build",
+        "static USize closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 box)", 1,
+        format(til_bin, " translate -c gen/c/aggregate_param_closure.c test/closures.til '&&' cat gen/c/aggregate_param_closure.c"))
+    add_count(tests, "self_method_own_param_value_abi", "build",
+        "static void Expr_add_child(Expr * self, Expr child)", 2,
+        "cat boot/til.c")
+    add_count(tests, "self_template_own_param_value_abi", "build",
+        "static void Vec__Expr_push(Vec__Expr * self, Expr val)", 2,
+        "cat boot/til.c")
+    add_count(tests, "delete_own_param_pointer_abi", "build",
+        "static void Str_delete(Str * self, Bool call_free)", 2,
+        "cat boot/til.c")
     add_count(tests, "expr_new_value_return_abi", "build",
         "static Expr Expr_new(NodeType * data, U32 line, U32 col)", 2,
         "cat boot/til.c")

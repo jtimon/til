@@ -305,3 +305,20 @@ test_owned_aggregate_return_abi := test() {
 
     assert_eq(Str, type_name_return346(I64), "I64")
 }
+
+OwnedBoxValueFn346 := func(own ReturnBox346) returns USize
+
+consume_owned_box346 := func(own box: ReturnBox346) returns USize {
+    return box.value.len()
+}
+
+apply_owned_box346 := func(f: OwnedBoxValueFn346, own box: ReturnBox346) returns USize {
+    return f(own box)
+}
+
+test_owned_aggregate_parameter_abi := test() {
+    direct := ReturnBox346(value = "direct")
+    assert_eq(USize, consume_owned_box346(own direct), 6)
+    indirect := ReturnBox346(value = "indirect")
+    assert_eq(USize, apply_owned_box346(consume_owned_box346, own indirect), 8)
+}

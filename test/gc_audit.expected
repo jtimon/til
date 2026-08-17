@@ -10,8 +10,8 @@ GC-LIVE local s entry=1 in=0,1
 GC-AUDIT body test/gc_audit.til:20:5 locals=3
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local s type=Str decl=-1 last_use=2 own_transfer=-1 heap=1 skip=0
-GC-AUDIT site 2 delete Str.delete(s) call_free=1 own=1
+GC-AUDIT local s type=Str decl=-1 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT site 2 delete Str.delete(s) call_free=0
 GC-CFG body test/gc_audit.til:25:5 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=25:5 span=0..3 succs=0
@@ -24,8 +24,8 @@ GC-LIVE local v entry=1 in=0,1
 GC-AUDIT body test/gc_audit.til:25:5 locals=3
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local v type=Vec__I64 decl=-1 last_use=2 own_transfer=-1 heap=1 skip=0
-GC-AUDIT site 2 delete Vec__I64.delete(v) call_free=1 own=1
+GC-AUDIT local v type=Vec__I64 decl=-1 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT site 2 delete Vec__I64.delete(v) call_free=0
 GC-CFG body test/gc_audit.til:32:5 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=32:5 span=0..8 succs=0
@@ -270,8 +270,8 @@ GC-LIVE local hoisted__I64_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local s entry=1 in=0,1,0,1,1
 GC-AUDIT body test/gc_audit.til:112:5 locals=2
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local s type=Str decl=-1 last_use=0 own_transfer=0 heap=1 skip=0
-GC-AUDIT site 0.if1.0 delete Str.delete(s) call_free=1 own=1
+GC-AUDIT local s type=Str decl=-1 last_use=0 own_transfer=0 heap=0 skip=0
+GC-AUDIT site 0.if1.0 delete Str.delete(s) call_free=0
 GC-CFG body test/gc_audit.til:121:15 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=121:15 span=0..2 succs=0
@@ -290,8 +290,8 @@ GC-LIVE local hoisted__I64_#0 entry=0 in=0,0,0,0
 GC-LIVE local s entry=1 in=0,1,1,0
 GC-AUDIT body test/gc_audit.til:121:5 locals=2
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local s type=Str decl=-1 last_use=2 own_transfer=1 heap=1 skip=0
-GC-AUDIT site 0.if0.1 delete Str.delete(s) call_free=1 own=1
+GC-AUDIT local s type=Str decl=-1 last_use=2 own_transfer=1 heap=0 skip=0
+GC-AUDIT site 0.if0.1 delete Str.delete(s) call_free=0
 GC-CFG body test/gc_audit.til:129:5 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=129:5 span=0..5 succs=0
@@ -1467,9 +1467,9 @@ GC-AUDIT local hoisted__U32_#4 type=U32 decl=13 last_use=14 own_transfer=-1 heap
 GC-AUDIT local hoisted__U32_#5 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=9 last_use=11 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local needed type=U32 decl=3 last_use=14 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local other type=Vec__I64 decl=-1 last_use=14 own_transfer=-1 heap=1 skip=0
-GC-AUDIT site 2.if0.0 delete Vec__I64.delete(other) call_free=1 own=1
-GC-AUDIT site 15 delete Vec__I64.delete(other) call_free=1 own=1
+GC-AUDIT local other type=Vec__I64 decl=-1 last_use=14 own_transfer=-1 heap=0 skip=0
+GC-AUDIT site 2.if0.0 delete Vec__I64.delete(other) call_free=0
+GC-AUDIT site 15 delete Vec__I64.delete(other) call_free=0
 GC-CFG body test/gc_audit.til:131:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=131:9 span=0..4 succs=0
@@ -1537,17 +1537,17 @@ GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0,0,0,0,0,0
 GC-LIVE local self entry=1 in=0,1,1,1,1,1,1,1,1,1
 GC-AUDIT body test/gc_audit.til:148:9 locals=2
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local self type=Vec__I64 decl=-1 last_use=3 own_transfer=-1 heap=1 skip=0
+GC-AUDIT local self type=Vec__I64 decl=-1 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 0.body.2.while.7 delete I64.delete(hoisted__I64_#0) call_free=0 own=1
 GC-AUDIT site 1 free(<expr>) own=1
-GC-AUDIT site 4 delete Vec__I64.delete(self) call_free=1 own=1
+GC-AUDIT site 4 delete Vec__I64.delete(self) call_free=0
 GC-CFG body test/gc_audit.til:161:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=161:9 span=0..1 succs=0
 GC-FLOW local other entry=O exit=M out=M,M
 GC-LIVE local other entry=1 in=0,1
 GC-AUDIT body test/gc_audit.til:161:9 locals=1
-GC-AUDIT local other type=Vec__I64 decl=-1 last_use=0 own_transfer=0 heap=1 skip=0
+GC-AUDIT local other type=Vec__I64 decl=-1 last_use=0 own_transfer=0 heap=0 skip=0
 GC-CFG body test/gc_audit.til:170:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=170:9 span=0..4 succs=0
@@ -3136,9 +3136,9 @@ GC-AUDIT local hoisted__U32_#4 type=U32 decl=13 last_use=14 own_transfer=-1 heap
 GC-AUDIT local hoisted__U32_#5 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=9 last_use=11 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local needed type=U32 decl=3 last_use=14 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local other type=Vec__U8 decl=-1 last_use=14 own_transfer=-1 heap=1 skip=0
-GC-AUDIT site 2.if0.0 delete Vec__U8.delete(other) call_free=1 own=1
-GC-AUDIT site 15 delete Vec__U8.delete(other) call_free=1 own=1
+GC-AUDIT local other type=Vec__U8 decl=-1 last_use=14 own_transfer=-1 heap=0 skip=0
+GC-AUDIT site 2.if0.0 delete Vec__U8.delete(other) call_free=0
+GC-AUDIT site 15 delete Vec__U8.delete(other) call_free=0
 GC-CFG body test/gc_audit.til:131:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=131:9 span=0..4 succs=0
@@ -3206,17 +3206,17 @@ GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0,0,0,0,0,0
 GC-LIVE local self entry=1 in=0,1,1,1,1,1,1,1,1,1
 GC-AUDIT body test/gc_audit.til:148:9 locals=2
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local self type=Vec__U8 decl=-1 last_use=3 own_transfer=-1 heap=1 skip=0
+GC-AUDIT local self type=Vec__U8 decl=-1 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 0.body.2.while.7 delete U8.delete(hoisted__U8_#0) call_free=0 own=1
 GC-AUDIT site 1 free(<expr>) own=1
-GC-AUDIT site 4 delete Vec__U8.delete(self) call_free=1 own=1
+GC-AUDIT site 4 delete Vec__U8.delete(self) call_free=0
 GC-CFG body test/gc_audit.til:161:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=161:9 span=0..1 succs=0
 GC-FLOW local other entry=O exit=M out=M,M
 GC-LIVE local other entry=1 in=0,1
 GC-AUDIT body test/gc_audit.til:161:9 locals=1
-GC-AUDIT local other type=Vec__U8 decl=-1 last_use=0 own_transfer=0 heap=1 skip=0
+GC-AUDIT local other type=Vec__U8 decl=-1 last_use=0 own_transfer=0 heap=0 skip=0
 GC-CFG body test/gc_audit.til:170:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=170:9 span=0..4 succs=0

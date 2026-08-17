@@ -339,9 +339,13 @@ stack-owned for locals.
 
 ~OwnType~ records semantics only. ~Declaration.gc_storage~ is the sole
 authority for a local's outer C storage: ~Stack~ for ordinary values and
-~HeapBox~ only for raw allocations or pointer-shaped callable storage. An own
-parameter boundary may allocate a temporary box, but that does not change the
-source local's recorded storage.
+~HeapBox~ only for raw allocations or pointer-shaped callable storage. In a
+closed-world executable, ordinary non-mut own aggregate parameters use C values
+and transfer directly from their source storage. External ABI boundaries,
+mutable parameters, destructor outer-storage parameters, and other
+pointer-shaped callable storage still receive pointers. This representation
+choice does not change the source local's recorded storage or ownership
+semantics.
 
 
 ** Visibility (priv keyword)

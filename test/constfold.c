@@ -100,11 +100,11 @@ static Str Str_to_str(Str * self);
 static void Str_delete(Str * self, Bool call_free);
 static Bool Str_neq(Str * a, Str * b);
 static Array__Str Array__Str_new(USize cap);
-static void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
-static void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
+static void Array__Str_unsafe_set(Array__Str * self, USize i, Str val);
+static void Array__Str_set(Array__Str * self, USize i, Str val, I64 * _err_kind);
 static void Array__Str_delete(Array__Str * self, Bool call_free);
 static Array__Str Array__Str_clone(Array__Str * self);
-static void adopt__Str(void * dest, Str * src);
+static void adopt__Str(void * dest, Str src);
 static Str U64_to_str(U64 val);
 static Str I64_to_str(I64 val);
 static void I64_delete(I64 * self, Bool call_free);
@@ -323,7 +323,7 @@ static void Str_push_str(Str * self, Str * s) {
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
         static Str hoisted__Str_Str_push_str_2 = (Str){.c_str = (void *)"Str.push_str: cannot mutate a string view or literal", .count = 52ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_Str_push_str_2, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, hoisted__Str_Str_push_str_2, &_va_Array_0_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }), &hoisted__Str_Str_push_str_3);
         Str_delete(&hoisted__Str_Str_push_str_3, 0);
     }
@@ -335,7 +335,7 @@ static void Str_push_str(Str * self, Str * s) {
         I64 _va_Array_1_ek = 0;
         U32 hoisted__U32_5 = 0;
         static Str hoisted__Str_Str_push_str_6 = (Str){.c_str = (void *)"Str.push_str: capacity exceeded", .count = 31ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_1, hoisted__U32_5, &hoisted__Str_Str_push_str_6, &_va_Array_1_ek);
+        Array__Str_set(&_va_Array_1, hoisted__U32_5, hoisted__Str_Str_push_str_6, &_va_Array_1_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_1; _oa; }), &hoisted__Str_Str_push_str_7);
         Str_delete(&hoisted__Str_Str_push_str_7, 0);
     }
@@ -399,14 +399,14 @@ static Array__Str Array__Str_new(USize cap) {
     return hoisted__Array__Str_1;
 }
 
-static void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val) {
+static void Array__Str_unsafe_set(Array__Str * self, USize i, Str val) {
     Str *hoisted__Str_Array__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(self->data) + (((U32)(i * 16))))));
     Str_delete(hoisted__Str_Array__Str_unsafe_set_0, 0);
     Str *hoisted__Str_Array__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(self->data) + (((U32)(i * 16))))));
     adopt__Str(hoisted__Str_Array__Str_unsafe_set_1, val);
 }
 
-static void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind) {
+static void Array__Str_set(Array__Str * self, USize i, Str val, I64 * _err_kind) {
     Bool hoisted__Bool_1 = ((Bool)(i >= self->cap));
     if (hoisted__Bool_1) {
         I64 hoisted__I64_0 = 1;
@@ -417,7 +417,7 @@ static void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kin
     if (hoisted__Bool_3) {
         Array__Str_unsafe_set(self, i, val);
     } else {
-        Str_delete(val, 1);
+        Str_delete(&val, 0);
     }
 }
 
@@ -466,7 +466,7 @@ static Array__Str Array__Str_clone(Array__Str * self) {
             U32 hoisted__U32_4 = 16;
             U32 hoisted__U32_5 = ((U32)(i * hoisted__U32_4));
             void *hoisted__v_6 = ((void *)((U8 *)(new_data) + (hoisted__U32_5)));
-            adopt__Str(hoisted__v_6, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = cloned; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }));
+            adopt__Str(hoisted__v_6, cloned);
         }
     }
     Array__Str hoisted__Array__Str_8 = {0};
@@ -475,10 +475,10 @@ static Array__Str Array__Str_clone(Array__Str * self) {
     return hoisted__Array__Str_8;
 }
 
-static void adopt__Str(void * dest, Str * src) {
+static void adopt__Str(void * dest, Str src) {
     U32 hoisted__U32_0 = 16;
-    memcpy(dest, src, hoisted__U32_0);
-    if ((src)->cap != TIL_CAP_LIT) { free(src); };
+    memcpy(dest, &src, hoisted__U32_0);
+    ((void)0);
 }
 
 static Str U64_to_str(U64 val) {
@@ -499,10 +499,10 @@ static Str I64_to_str(I64 val) {
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_3 = 0;
         static Str hoisted__Str_I64_to_str_4 = (Str){.c_str = (void *)"-", .count = 1ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_I64_to_str_4, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, hoisted__Str_I64_to_str_4, &_va_Array_0_ek);
         U32 hoisted__U32_5 = 1;
         Str hoisted__Str_I64_to_str_6 = U64_to_str(mag);
-        Array__Str_set(&_va_Array_0, hoisted__U32_5, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_I64_to_str_6; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_5, hoisted__Str_I64_to_str_6, &_va_Array_0_ek);
         Str hoisted__Str_I64_to_str_7 = format(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }));
         { Str _ret = hoisted__Str_I64_to_str_7; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
@@ -523,14 +523,14 @@ static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     I64 _va_Array_0_ek = 0;
     U32 hoisted__U32_1 = 0;
     Str hoisted__Str_panic_2 = Str_clone(loc);
-    Array__Str_set(&_va_Array_0, hoisted__U32_1, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_panic_2; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+    Array__Str_set(&_va_Array_0, hoisted__U32_1, hoisted__Str_panic_2, &_va_Array_0_ek);
     U32 hoisted__U32_3 = 1;
     static Str hoisted__Str_panic_4 = (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_panic_4, &_va_Array_0_ek);
+    Array__Str_set(&_va_Array_0, hoisted__U32_3, hoisted__Str_panic_4, &_va_Array_0_ek);
     Array__Str hoisted__Array__Str_5 = Array__Str_clone(parts);
     U32 hoisted__U32_6 = 2;
     Str hoisted__Str_panic_7 = format(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = hoisted__Array__Str_5; _oa; }));
-    Array__Str_set(&_va_Array_0, hoisted__U32_6, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_panic_7; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+    Array__Str_set(&_va_Array_0, hoisted__U32_6, hoisted__Str_panic_7, &_va_Array_0_ek);
     println(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }));
     Array__Str_delete(parts, 1);
     I64 hoisted__I64_8 = 1;
@@ -547,7 +547,7 @@ static __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc)
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
         static Str hoisted__Str_UNREACHABLE_2 = (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_UNREACHABLE_2, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, hoisted__Str_UNREACHABLE_2, &_va_Array_0_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }), loc);
     } else {
         U32 hoisted__U32_3 = 2;
@@ -555,11 +555,11 @@ static __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc)
         I64 _va_Array_1_ek = 0;
         U32 hoisted__U32_4 = 0;
         static Str hoisted__Str_UNREACHABLE_5 = (Str){.c_str = (void *)"unreachable: ", .count = 13ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_1, hoisted__U32_4, &hoisted__Str_UNREACHABLE_5, &_va_Array_1_ek);
+        Array__Str_set(&_va_Array_1, hoisted__U32_4, hoisted__Str_UNREACHABLE_5, &_va_Array_1_ek);
         Array__Str hoisted__Array__Str_6 = Array__Str_clone(parts);
         U32 hoisted__U32_7 = 1;
         Str hoisted__Str_UNREACHABLE_8 = format(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = hoisted__Array__Str_6; _oa; }));
-        Array__Str_set(&_va_Array_1, hoisted__U32_7, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_UNREACHABLE_8; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_1_ek);
+        Array__Str_set(&_va_Array_1, hoisted__U32_7, hoisted__Str_UNREACHABLE_8, &_va_Array_1_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_1; _oa; }), loc);
     }
     Array__Str_delete(parts, 1);
@@ -573,7 +573,7 @@ static void assert(Bool cond, Str * loc) {
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
         static Str hoisted__Str_assert_2 = (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_assert_2, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, hoisted__Str_assert_2, &_va_Array_0_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }), loc);
     }
 }
@@ -586,11 +586,11 @@ static void expect(Bool cond, Array__Str * parts, Str * loc) {
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
         static Str hoisted__Str_expect_2 = (Str){.c_str = (void *)"assert failed: ", .count = 15ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_expect_2, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, hoisted__Str_expect_2, &_va_Array_0_ek);
         Array__Str hoisted__Array__Str_3 = Array__Str_clone(parts);
         U32 hoisted__U32_4 = 1;
         Str hoisted__Str_expect_5 = format(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = hoisted__Array__Str_3; _oa; }));
-        Array__Str_set(&_va_Array_0, hoisted__U32_4, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_expect_5; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_4, hoisted__Str_expect_5, &_va_Array_0_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }), loc);
     }
     Array__Str_delete(parts, 1);
@@ -919,7 +919,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_0_ek = 0;
     U32 hoisted__U32_7 = 0;
     static Str hoisted__Str_test_const_and_or_fold_8 = (Str){.c_str = (void *)"and(T,T)", .count = 8ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_0, hoisted__U32_7, &hoisted__Str_test_const_and_or_fold_8, &_va_Array_0_ek);
+    Array__Str_set(&_va_Array_0, hoisted__U32_7, hoisted__Str_test_const_and_or_fold_8, &_va_Array_0_ek);
     Bool hoisted__Bool_9 = 1;
     expect(hoisted__Bool_9, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }), &hoisted__Str_test_const_and_or_fold_10);
     Str_delete(&hoisted__Str_test_const_and_or_fold_10, 0);
@@ -928,7 +928,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_1_ek = 0;
     U32 hoisted__U32_12 = 0;
     static Str hoisted__Str_test_const_and_or_fold_13 = (Str){.c_str = (void *)"and(T,F)", .count = 8ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_12, &hoisted__Str_test_const_and_or_fold_13, &_va_Array_1_ek);
+    Array__Str_set(&_va_Array_1, hoisted__U32_12, hoisted__Str_test_const_and_or_fold_13, &_va_Array_1_ek);
     Bool hoisted__Bool_15 = 1;
     expect(hoisted__Bool_15, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_1; _oa; }), &hoisted__Str_test_const_and_or_fold_16);
     Str_delete(&hoisted__Str_test_const_and_or_fold_16, 0);
@@ -937,7 +937,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_2_ek = 0;
     U32 hoisted__U32_18 = 0;
     static Str hoisted__Str_test_const_and_or_fold_19 = (Str){.c_str = (void *)"and x3 T", .count = 8ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_2, hoisted__U32_18, &hoisted__Str_test_const_and_or_fold_19, &_va_Array_2_ek);
+    Array__Str_set(&_va_Array_2, hoisted__U32_18, hoisted__Str_test_const_and_or_fold_19, &_va_Array_2_ek);
     Bool hoisted__Bool_20 = 1;
     expect(hoisted__Bool_20, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_2; _oa; }), &hoisted__Str_test_const_and_or_fold_21);
     Str_delete(&hoisted__Str_test_const_and_or_fold_21, 0);
@@ -946,7 +946,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_3_ek = 0;
     U32 hoisted__U32_23 = 0;
     static Str hoisted__Str_test_const_and_or_fold_24 = (Str){.c_str = (void *)"and x3 with F", .count = 13ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_23, &hoisted__Str_test_const_and_or_fold_24, &_va_Array_3_ek);
+    Array__Str_set(&_va_Array_3, hoisted__U32_23, hoisted__Str_test_const_and_or_fold_24, &_va_Array_3_ek);
     Bool hoisted__Bool_26 = 1;
     expect(hoisted__Bool_26, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_3; _oa; }), &hoisted__Str_test_const_and_or_fold_27);
     Str_delete(&hoisted__Str_test_const_and_or_fold_27, 0);
@@ -955,7 +955,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_4_ek = 0;
     U32 hoisted__U32_29 = 0;
     static Str hoisted__Str_test_const_and_or_fold_30 = (Str){.c_str = (void *)"or(F,T)", .count = 7ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_4, hoisted__U32_29, &hoisted__Str_test_const_and_or_fold_30, &_va_Array_4_ek);
+    Array__Str_set(&_va_Array_4, hoisted__U32_29, hoisted__Str_test_const_and_or_fold_30, &_va_Array_4_ek);
     Bool hoisted__Bool_31 = 1;
     expect(hoisted__Bool_31, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_4; _oa; }), &hoisted__Str_test_const_and_or_fold_32);
     Str_delete(&hoisted__Str_test_const_and_or_fold_32, 0);
@@ -964,7 +964,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_5_ek = 0;
     U32 hoisted__U32_34 = 0;
     static Str hoisted__Str_test_const_and_or_fold_35 = (Str){.c_str = (void *)"or(F,F)", .count = 7ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_5, hoisted__U32_34, &hoisted__Str_test_const_and_or_fold_35, &_va_Array_5_ek);
+    Array__Str_set(&_va_Array_5, hoisted__U32_34, hoisted__Str_test_const_and_or_fold_35, &_va_Array_5_ek);
     Bool hoisted__Bool_37 = 1;
     expect(hoisted__Bool_37, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_5; _oa; }), &hoisted__Str_test_const_and_or_fold_38);
     Str_delete(&hoisted__Str_test_const_and_or_fold_38, 0);
@@ -973,7 +973,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_6_ek = 0;
     U32 hoisted__U32_40 = 0;
     static Str hoisted__Str_test_const_and_or_fold_41 = (Str){.c_str = (void *)"or x3 with T", .count = 12ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_6, hoisted__U32_40, &hoisted__Str_test_const_and_or_fold_41, &_va_Array_6_ek);
+    Array__Str_set(&_va_Array_6, hoisted__U32_40, hoisted__Str_test_const_and_or_fold_41, &_va_Array_6_ek);
     Bool hoisted__Bool_42 = 1;
     expect(hoisted__Bool_42, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_6; _oa; }), &hoisted__Str_test_const_and_or_fold_43);
     Str_delete(&hoisted__Str_test_const_and_or_fold_43, 0);
@@ -982,7 +982,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_7_ek = 0;
     U32 hoisted__U32_45 = 0;
     static Str hoisted__Str_test_const_and_or_fold_46 = (Str){.c_str = (void *)"or x3 F", .count = 7ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_7, hoisted__U32_45, &hoisted__Str_test_const_and_or_fold_46, &_va_Array_7_ek);
+    Array__Str_set(&_va_Array_7, hoisted__U32_45, hoisted__Str_test_const_and_or_fold_46, &_va_Array_7_ek);
     Bool hoisted__Bool_48 = 1;
     expect(hoisted__Bool_48, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_7; _oa; }), &hoisted__Str_test_const_and_or_fold_49);
     Str_delete(&hoisted__Str_test_const_and_or_fold_49, 0);
@@ -991,7 +991,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_8_ek = 0;
     U32 hoisted__U32_51 = 0;
     static Str hoisted__Str_test_const_and_or_fold_52 = (Str){.c_str = (void *)"T.and(T)", .count = 8ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_8, hoisted__U32_51, &hoisted__Str_test_const_and_or_fold_52, &_va_Array_8_ek);
+    Array__Str_set(&_va_Array_8, hoisted__U32_51, hoisted__Str_test_const_and_or_fold_52, &_va_Array_8_ek);
     Bool hoisted__Bool_53 = 1;
     expect(hoisted__Bool_53, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_8; _oa; }), &hoisted__Str_test_const_and_or_fold_54);
     Str_delete(&hoisted__Str_test_const_and_or_fold_54, 0);
@@ -1011,7 +1011,7 @@ static void test_const_and_or_fold(void) {
     I64 _va_Array_9_ek = 0;
     U32 hoisted__U32_56 = 0;
     static Str hoisted__Str_test_const_and_or_fold_57 = (Str){.c_str = (void *)"F.or(T)", .count = 7ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_9, hoisted__U32_56, &hoisted__Str_test_const_and_or_fold_57, &_va_Array_9_ek);
+    Array__Str_set(&_va_Array_9, hoisted__U32_56, hoisted__Str_test_const_and_or_fold_57, &_va_Array_9_ek);
     expect(_m_Bool_0, ({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_9; _oa; }), &hoisted__Str_test_const_and_or_fold_58);
     Str_delete(&hoisted__Str_test_const_and_or_fold_58, 0);
 }
@@ -1037,17 +1037,17 @@ static void assert_eq__I64(I64 a, I64 b, Str * loc) {
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &_til_str_lits.h44abcb58cde4, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, _til_str_lits.h44abcb58cde4, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
         Str hoisted__Str_assert_eq__I64_4 = I64_to_str(a);
-        Array__Str_set(&_va_Array_0, hoisted__U32_3, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_assert_eq__I64_4; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, hoisted__Str_assert_eq__I64_4, &_va_Array_0_ek);
         U32 hoisted__U32_5 = 2;
-        Array__Str_set(&_va_Array_0, hoisted__U32_5, &_til_str_lits.h15a1180c089b, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_5, _til_str_lits.h15a1180c089b, &_va_Array_0_ek);
         U32 hoisted__U32_7 = 3;
         Str hoisted__Str_assert_eq__I64_8 = I64_to_str(b);
-        Array__Str_set(&_va_Array_0, hoisted__U32_7, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_assert_eq__I64_8; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_7, hoisted__Str_assert_eq__I64_8, &_va_Array_0_ek);
         U32 hoisted__U32_9 = 4;
-        Array__Str_set(&_va_Array_0, hoisted__U32_9, &_til_str_lits.h00000002b5cc, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_9, _til_str_lits.h00000002b5cc, &_va_Array_0_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }), loc);
     }
 }
@@ -1059,17 +1059,17 @@ static void assert_eq__Str(Str * a, Str * b, Str * loc) {
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &_til_str_lits.h44abcb58cde4, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, _til_str_lits.h44abcb58cde4, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
         Str hoisted__Str_assert_eq__Str_4 = Str_to_str(a);
-        Array__Str_set(&_va_Array_0, hoisted__U32_3, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_assert_eq__Str_4; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, hoisted__Str_assert_eq__Str_4, &_va_Array_0_ek);
         U32 hoisted__U32_5 = 2;
-        Array__Str_set(&_va_Array_0, hoisted__U32_5, &_til_str_lits.h15a1180c089b, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_5, _til_str_lits.h15a1180c089b, &_va_Array_0_ek);
         U32 hoisted__U32_7 = 3;
         Str hoisted__Str_assert_eq__Str_8 = Str_to_str(b);
-        Array__Str_set(&_va_Array_0, hoisted__U32_7, ({ Str *_oa = malloc(TIL_BOX(Str)); *_oa = hoisted__Str_assert_eq__Str_8; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_7, hoisted__Str_assert_eq__Str_8, &_va_Array_0_ek);
         U32 hoisted__U32_9 = 4;
-        Array__Str_set(&_va_Array_0, hoisted__U32_9, &_til_str_lits.h00000002b5cc, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_9, _til_str_lits.h00000002b5cc, &_va_Array_0_ek);
         panic(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_0; _oa; }), loc);
     }
 }

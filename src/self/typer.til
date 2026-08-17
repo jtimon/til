@@ -4737,7 +4737,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
             if fdef.captures.len() > 0 {
                 capture_private_mut_end(scope, fdef.captures, capture_source_muts, capture_source_written)
             }
-            garbager_destroy_body(ctx, expr.children[0], func_scope)
+            garbager_destroy_func_body(ctx, expr.children[0], func_scope, fdef)
             // Issue #54: for a capturing function/lambda, validate the
             // captures against the enclosing scope and enforce that the
             // body only touches captured outer locals (plus params,

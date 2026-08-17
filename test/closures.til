@@ -212,3 +212,17 @@ test_capturing_closure_owned_aggregate_return := test() {
     box := make()
     assert_eq(Str, box.value, "captured")
 }
+
+ClosureOwnedBoxFn346 := func(own ClosureBox346) returns USize
+
+make_closure_owned_box_consumer346 := func(offset: USize) returns ClosureOwnedBoxFn346 {
+    return func(own box: ClosureBox346) returns USize [shallow offset] {
+        return box.value.len().add(offset)
+    }
+}
+
+test_capturing_closure_owned_aggregate_parameter := test() {
+    consume := make_closure_owned_box_consumer346(3)
+    box := ClosureBox346(value = "value")
+    assert_eq(USize, consume(own box), 8)
+}

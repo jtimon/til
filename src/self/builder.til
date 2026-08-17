@@ -132,9 +132,9 @@ priv use_dot_access := func(obj: Expr, mut ctx: Context) returns Bool {
     case .Ident(ident):
         if is_stack_local(ident.ident_name(), ctx) { return true }
         if is_value_global(ident.ident_name(), ctx) { return true }
-        // Issue #223 step 3: a shallow (value) param -- e.g. an auto-shallow
-        // small struct passed by value -- is accessed with '.' not '->'.
-        if is_shallow_param(ident.ident_name(), ctx) { return true }
+        // Value parameters, whether shallow or an owned aggregate, use '.'
+        // rather than '->'.
+        if is_value_param(ident.ident_name(), ctx) { return true }
     case:
     }
     return false
@@ -447,7 +447,7 @@ priv builder_fa_is_ns := func(e: Expr, ctx: Context) returns Bool {
     }
 }
 
-priv is_shallow_param := func(name: Str, mut ctx: Context) returns Bool {
+priv is_value_param := func(name: Str, mut ctx: Context) returns Bool {
     // #327: a nested block re-binding this name shadows the parameter, so
     // the ident is the block's local, not the param.
     if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
@@ -456,9 +456,9 @@ priv is_shallow_param := func(name: Str, mut ctx: Context) returns Bool {
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
-        for p : Declaration in fd.params {
-            if p.own_type.is(OwnType.Shallow) {
-                if p.name == name { return true }
+        for i in 0..fd.params.len() {
+            if fd.params[i].name == name {
+                return func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope)
             }
         }
         return false
@@ -471,15 +471,19 @@ priv is_shallow_param := func(name: Str, mut ctx: Context) returns Bool {
     }
 }
 
-priv is_own_param := func(name: Str, mut ctx: Context) returns Bool {
+priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
     if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
     switch ctx.current_fdef {
     case .None: return false
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
-        for p : Declaration in fd.params {
-            if p.name == name { return p.own_type.is(OwnType.Own) }
+        for i in 0..fd.params.len() {
+            ref p : Declaration = fd.params[i]
+            if p.name == name {
+                return p.own_type.is(OwnType.Own)
+                    .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope).not())
+            }
         }
         return false
     case .BodyValue:
@@ -533,7 +537,7 @@ priv delete_call_free_lit := func(type_name: Str, set_free: Bool, ctx: Context) 
     }
 }
 
-priv callee_param_is_shallow := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
+priv callee_param_passes_c_value := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
     fdef_o := find_callee_fdef(callee_name, ctx)
     if fdef_o.is_none() { return false }
     ref fdef : Expr = fdef_o.unwrap()
@@ -541,7 +545,7 @@ priv callee_param_is_shallow := func(callee_name: Str, arg_index: USize, ctx: Co
     case .FuncDef(fd):
         if arg_index >= fd.params.len() { return false }
         if fd.params.len() == 0 { return false }
-        return fd.params[arg_index].own_type.is(OwnType.Shallow)
+        return func_param_passes_c_value(fd, arg_index, ctx.param_value_abi_ok, ctx.scope)
     case:
         return false
     }
@@ -956,7 +960,9 @@ priv param_ctype := func(fd: FunctionDef, i: USize, mut ctx: Context) returns St
     ref p : Declaration = fd.params[i]
     if ii == fd.variadic_index { return builder_variadic_array_ctype(ctx, p.explicit_type) }
     if ii == fd.kwargs_index { return type_name_to_c(p.explicit_type, ctx) }
-    if p.own_type.is(OwnType.Shallow) { return type_name_to_c_value(p.explicit_type, ctx) }
+    if func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope) {
+        return type_name_to_c_value(p.explicit_type, ctx)
+    }
     return type_name_to_c(p.explicit_type, ctx)
 }
 
@@ -1030,9 +1036,8 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
 
 priv emit_field := proc(f: File, var: Str, field: Str, mut ctx: Context) {
     f.write(var)
-    // Issue #223 step 3: shallow (value) params join stack locals / value
-    // globals on the dot-access path.
-    if is_stack_local(var, ctx).or(is_value_global(var, ctx)).or(is_shallow_param(var, ctx)) {
+    // Value params join stack locals / value globals on the dot-access path.
+    if is_stack_local(var, ctx).or(is_value_global(var, ctx)).or(is_value_param(var, ctx)) {
         f.write(".")
     } else {
         f.write("->")
@@ -1172,6 +1177,45 @@ priv emit_til_closure_cleanup := proc(f: File, name: Str) {
     f.fwrite("if (", name, " && ", name, "->drop) { ", name, "->drop(", name, "->env); free(", name, "); }")
 }
 
+priv own_value_arg_has_outer_ptr := func(e: Expr, mut ctx: Context) returns Bool {
+    if e.til_type().is(Type.Dynamic).or(type_is_callable_storage(e.til_type())) { return false }
+    switch e.node_type {
+    case .Ident(id):
+        if ctx.closure_emit_captures.has(ctx.symbols.intern(id.ident_name())) { return true }
+        return is_value_param(id.ident_name(), ctx).not()
+            .and(is_stack_local(id.ident_name(), ctx).not())
+            .and(is_value_global(id.ident_name(), ctx).not())
+    case .FCall: return fcall_returns_c_value(e, ctx).not()
+    case .FieldAccess: return builder_fa_is_ptr(e, ctx)
+    case: return false
+    }
+}
+
+// Move an owned aggregate through a C value parameter. Pointer-backed sources
+// are evaluated once, copied out, and lose only their outer wrapper; nested
+// ownership moves into the callee. keep_outer is the destructor(false) case.
+priv emit_own_value_arg := proc(f: File, e: Expr, depth: I32, keep_outer: Bool, mut ctx: Context) {
+    if own_value_arg_has_outer_ptr(e, ctx).not() {
+        emit_deref(f, e, depth, ctx)
+        return
+    }
+    e_sname_o := expr_type_name_ref(e)
+    mut ctype := c_type_name(e.til_type(), "", ctx)
+    if e_sname_o.is_some() { ctype = c_type_name(e.til_type(), e_sname_o.unwrap(), ctx) }
+    f.write("({ ").write(ctype).write(" *_op = (").write(ctype).write(" *)")
+    emit_expr(f, e, depth, ctx)
+    f.write("; ").write(ctype).write(" _ov = *_op; ")
+    if keep_outer.not() {
+        if ctype == "Str" {
+            f.write("if (_op->cap != TIL_CAP_LIT) { free(_op); } ")
+            f.write("if (_ov.cap == TIL_CAP_LIT) { _ov.cap = TIL_CAP_VIEW; } ")
+        } else {
+            f.write("free(_op); ")
+        }
+    }
+    f.write("_ov; })")
+}
+
 priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32, mut ctx: Context, wrap_inline_closures: Bool) {
     for i in 1..e.children.len() {
         if i > 1 { f.write(", ") }
@@ -1190,8 +1234,12 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
         if emitted_inline_closure { continue }
         if ext_c_string_param(callee_name, i - 1, ctx).and(c_str_arg_needs_nul_check(arg)) {
             emit_checked_c_str(f, arg, depth, ctx)
-        } else if callee_param_is_shallow(callee_name, i - 1, ctx) {
-            emit_deref(f, arg, depth, ctx)
+        } else if callee_param_passes_c_value(callee_name, i - 1, ctx) {
+            if callee_param_is_own(callee_name, i - 1, ctx) {
+                emit_own_value_arg(f, arg, depth, get_keep_outer_arg(e, i), ctx)
+            } else {
+                emit_deref(f, arg, depth, ctx)
+            }
         } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
             f.write("USIZE_REF(").emit_deref(arg, depth, ctx).write(")")
         } else if callee_param_is_uptr(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
@@ -1202,7 +1250,7 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             if own_arg.and(callee_param_explicit_type(callee_name, i - 1, ctx).eq("Dynamic")) {
                 ctx.builder_func.force_heap_stack_lit_str_own = true
             }
-            emit_as_ptr(f, arg, depth, own_arg, ctx)
+            emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).not()), ctx)
             ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
         }
     }
@@ -2187,7 +2235,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     case .Ident(rv_ident):
         if type_is_callable_storage(rv.til_type()).not()
         .and(ctx.builder_func.heap_locals.has(ctx.symbols.intern(rv_ident.ident_name()))
-            .or(is_own_param(rv_ident.ident_name(), ctx))) {
+            .or(is_own_heap_param(rv_ident.ident_name(), ctx))) {
             heap_return_name = builder_resolve_c_ident_name(rv_ident.ident_name(), ctx)
         }
     case:
@@ -2774,7 +2822,7 @@ priv funcptr_call_ret_ctype := func(e: Expr, sig: Expr) returns Str {
     }
 }
 
-priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
+priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, mut ctx: Context) {
     ref sfd : FunctionDef = funcdef_of(sig)
     ret_c := funcptr_call_ret_ctype(e, sig)
     f.write("((")
@@ -2783,31 +2831,11 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
     f.write("void *")
     for i in 1..e.children.len() {
         f.write(", ")
-        ref arg : Expr = e.children[i]
-        mut arg_shallow := false
         if i - 1 < sfd.params.len() {
-            ref p : Declaration = sfd.params[i - 1]
-            arg_shallow = p.own_type.is(OwnType.Shallow)
+            f.write(param_ctype(sfd, i - 1, ctx))
+        } else {
+            f.write("void *")
         }
-        mut arg_c := "void *"
-        if arg.til_type().is(Type.Unknown).not().and(arg.til_type().is(Type.Dynamic).not()) {
-            arg_c = til_type_to_c(arg.til_type())
-            if arg.til_type().is(Type.Struct).or(arg.til_type().is(Type.Enum)) {
-                arg_sname_o := expr_type_name_ref(arg)
-                if arg_sname_o.is_some() {
-                    ref arg_sname : Str = arg_sname_o.unwrap()
-                    arg_c = arg_sname.clone()
-                }
-            }
-            // A funcptr/closure arg is already `TilClosure *`; the closure
-            // ABI passes it BY VALUE (the param_ctype the wrapper declares
-            // is the funcsig typedef, not a pointer-to-it), so it must NOT
-            // get the extra by-address ` *` value types take. Matches the
-            // thunk arg `&_lambda_N` (a `TilClosure *`) a first-class lazy
-            // call emits (#262).
-            if arg_shallow.not().and(arg.til_type().is_funcptr().not()) { arg_c = format(arg_c, " *") }
-        }
-        f.write(arg_c)
     }
 }
 
@@ -2850,7 +2878,7 @@ emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, depth
     }
     f.write("); ")
     if has_cap.and(ret_ctype.len() > 0) { f.fwrite(ret_ctype, " til_closure_result = ") }
-    emit_fcall_funcptr_cast(f, e, sig)
+    emit_fcall_funcptr_cast(f, e, sig, ctx)
     f.write("))til_closure->call)(til_closure->env")
     if e.children.len() > 1 {
         f.write(", ")
@@ -2899,13 +2927,21 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
             }
         }
         if emitted_inline { continue }
-        mut arg_shallow := false
+        mut arg_value := false
+        mut arg_own := false
         if i - 1 < sfd.params.len() {
             ref p : Declaration = sfd.params[i - 1]
-            arg_shallow = p.own_type.is(OwnType.Shallow)
+            arg_value = func_param_passes_c_value(sfd, i - 1, ctx.param_value_abi_ok, ctx.scope)
+            arg_own = p.own_type.is(OwnType.Own)
         }
-        if arg_shallow { emit_deref(f, e.children[i], depth, ctx) }
-        else { emit_as_ptr(f, e.children[i], depth, get_own_arg(e, i), ctx) }
+        if arg_value.and(arg_own) {
+            emit_own_value_arg(f, e.children[i], depth, get_keep_outer_arg(e, i), ctx)
+        } else if arg_value {
+            emit_deref(f, e.children[i], depth, ctx)
+        } else {
+            emit_as_ptr(f, e.children[i], depth,
+                get_own_arg(e, i).and(get_keep_outer_arg(e, i).not()), ctx)
+        }
     }
 }
 
@@ -3261,8 +3297,12 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 f.write("(")
                 for i in 1..e.children.len() {
                     if i > 1 { f.write(", ") }
-                    if callee_param_is_shallow(flat, i - 1, ctx) {
-                        emit_deref(f, e.children[i], depth, ctx)
+                    if callee_param_passes_c_value(flat, i - 1, ctx) {
+                        if callee_param_is_own(flat, i - 1, ctx) {
+                            emit_own_value_arg(f, e.children[i], depth, get_keep_outer_arg(e, i), ctx)
+                        } else {
+                            emit_deref(f, e.children[i], depth, ctx)
+                        }
                     } else if callee_param_is_usize(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()).and(callee_param_writes_back(flat, i - 1, ctx).not()) {
                         f.write("USIZE_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else if callee_param_is_uptr(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()).and(callee_param_writes_back(flat, i - 1, ctx).not()) {
@@ -3273,7 +3313,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                         if own_arg.and(callee_param_explicit_type(flat, i - 1, ctx).eq("Dynamic")) {
                             ctx.builder_func.force_heap_stack_lit_str_own = true
                         }
-                        emit_as_ptr(f, e.children[i], depth, own_arg, ctx)
+                        emit_as_ptr(f, e.children[i], depth,
+                            own_arg.and(get_keep_outer_arg(e, i).not()), ctx)
                         ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
                     }
                 }
@@ -3292,9 +3333,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             memset_arg_type := c_type_name(memset_arg.til_type(), memset_arg_sname, ctx)
             if memset_arg_type == "Str" {
                 f.write("if ((")
-                emit_expr(f, memset_arg, depth, ctx)
+                emit_as_ptr(f, memset_arg, depth, false, ctx)
                 f.write(")->cap != TIL_CAP_LIT) { memset(")
-                emit_expr(f, memset_arg, depth, ctx)
+                emit_as_ptr(f, memset_arg, depth, false, ctx)
                 f.write(", ")
                 emit_deref(f, e.children[2], depth, ctx)
                 f.write(", ")
@@ -3307,6 +3348,18 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             }
         } else if name.ident_name().eq("free").and(e.children.len().eq(2)) {
             ref free_arg : Expr = e.children[1]
+            mut free_value_param := false
+            switch free_arg.node_type {
+            case .Ident(free_id): free_value_param = is_value_param(free_id.ident_name(), ctx)
+            case:
+            }
+            if free_value_param {
+                // Ownership already moved through the C value parameter; it
+                // has no outer wrapper. Keep the source-level free as the
+                // transfer marker, but emit no physical free.
+                f.write("((void)0)")
+                return f
+            }
             mut free_arg_sname := ""
             free_arg_sname_o := expr_type_name_ref(free_arg)
             if free_arg_sname_o.is_some() {
@@ -4016,8 +4069,8 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
         case .Ident(ident):
             // Issue #223 step 3: a ref local is unambiguously a borrowed
             // pointer and must be DEREF'd, even if its name happens to
-            // collide with a shallow parameter of another function (the
-            // is_shallow_param check below matches by name and can false-
+            // collide with a value parameter of another function (the
+            // is_value_param check below matches by name and can false-
             // positive across funcs). Check ref-local before that shortcut,
             // but after the ref-Dynamic case (#185), which needs a typed cast.
             if ctx.builder_func.ref_dyn_locals.has(ctx.symbols.intern(ident.ident_name())) {
@@ -4029,7 +4082,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
                 f.write("DEREF((").write(ctype).write(" *)").emit_expr(e, depth, ctx).write(")")
             } else if is_ref_local(ident.ident_name(), ctx) {
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
-            } else if is_shallow_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
+            } else if is_value_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
                 emit_expr(f, e, depth, ctx)
             } else {
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
@@ -4093,7 +4146,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             emit_expr(f, e, depth, ctx)
             return f
         }
-        if is_shallow_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
+        if is_value_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
             if is_own {
                 existing_o := get_stack_local_ctype(ident.ident_name(), ctx)
                 mut ctype := ""
@@ -4262,17 +4315,17 @@ priv cli_view_box := func(ctype: Str, conv: Str, arg: Str) returns Str {
 }
 
 // Value-yielding twin of cli_view_box: same parse, but evaluates to the
-// scalar itself instead of a fresh heap box. Used for main()'s SHALLOW
-// params, whose C convention is by-value (param_ctype), so the body's
-// emitters see the same shape they see for any other shallow param.
+// scalar itself instead of a fresh heap box. Used for main() parameters whose
+// C convention is by-value (param_ctype), so the body's emitters see the same
+// shape they see for any other value parameter.
 priv cli_view_value := func(ctype: Str, conv: Str, arg: Str) returns Str {
     return "({ Str _cvv = Str_from_c_str(".format(arg, "); Str *_cv = &_cvv; ", ctype, " _v = ", conv,
         "; Str_delete(&_cvv, (Bool){0}); _v; })")
 }
 
-// C expression evaluating to a freshly heap-allocated `<ttype> *` parsed from
-// the argv c-string `arg`, for every CLI arg type. Returns "" for unsupported
-// types. Str is the one outlier: it owns a deep copy of the bytes (Str_clone)
+// C expression evaluating to a boxed or by-value `<ttype>` parsed from the
+// argv c-string `arg`, for every CLI arg type. Returns "" for unsupported
+// types. Str owns a deep copy of the bytes (Str_clone)
 // rather than parsing a borrowed view, so it can't share the from_c_str
 // pipeline. Bool's conversion is an inline ternary that bails via exit(1) on a
 // non-true/false value (consistent with the other CLI validation in main()).
@@ -4285,8 +4338,11 @@ priv cli_view_scalar := func(by_value: Bool, ctype: Str, conv: Str, arg: Str) re
 priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
     switch ttype {
     case "Str":
-        // The variadic-array fill path consumes a pointer slot; adapt the
-        // ordinary by-value Str.clone result once at this boundary.
+        if by_value {
+            return "Str_clone(&(Str){.c_str = (void *)".format(
+                arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT})")
+        }
+        // The variadic-array fill path consumes a pointer slot.
         return "({ Str *_p = malloc(TIL_BOX(Str)); *_p = Str_clone(&(Str){.c_str = (void *)".format(
             arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT}); _p; })")
     case "I64":   return cli_view_scalar(by_value, "I64", "Str_to_i64(_cv)", arg)
@@ -4323,9 +4379,8 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
         f.write(ind).write("fprintf(stderr, \"error: unsupported CLI argument type '").write(ttype).write("'\\n\"); return 1;\n")
         return
     }
-    // Shallow scalars bind by value (matching param_ctype's convention for a
-    // shallow param); Str and the variadic element temp stay boxed pointers.
-    if by_value.and(ttype != "Str") {
+    // Value parameters bind directly; variadic element temps stay boxed.
+    if by_value {
         f.write(ind).write(ttype).write(" ").write(var).write(" = ").write(expr).write(";\n")
         return
     }
@@ -4446,7 +4501,8 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     f.write("    }\n")
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")
-                    emit_cli_parse_value(f, "    ", p.explicit_type, p.name, arg, p.own_type.is(OwnType.Shallow))
+                    emit_cli_parse_value(f, "    ", p.explicit_type, p.name, arg,
+                        func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope))
                     argi++
                 }
             }
@@ -4457,9 +4513,9 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         lp.ctx.in_main_func = true
         // Every other body emission sets current_fdef (plain funcs and
         // closures below); the main entry wrapper did not, so name-keyed
-        // per-function queries -- is_shallow_param above all -- answered
+        // per-function queries -- is_value_param above all -- answered
         // from whatever function happened to be emitted last. A main local
-        // whose name collided with that stale function's shallow param was
+        // whose name collided with that stale function's value param was
         // then emitted without its DEREF: `main(w: I64) { id(w) }` passed
         // the pointer when `id`'s param was also named `w` (and compiled
         // fine when it was named anything else).
@@ -7034,7 +7090,7 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
         if p > 0 { f.write(", ") }
         ref pp : Declaration = fd.params[p]
         is_call_free := method_name.eq("delete").and(p.gt(0))
-        if pp.own_type.is(OwnType.Shallow).and(is_call_free.not()) {
+        if func_param_passes_c_value(fd, p, ctx.param_value_abi_ok, ctx.scope).and(is_call_free.not()) {
             f.write("*(").write(type_name_to_c_value(pp.explicit_type, ctx)).write(" *)_a"); emit_i32(f, p.to_i32())
         } else {
             f.write("_a"); emit_i32(f, p.to_i32())

@@ -733,9 +733,9 @@ BuilderFuncScratch := struct {
     ptr_locals := Set(Sym).new()
     // #327: parameter names that a NESTED block currently re-binds. The
     // builder's ident queries match by name, so inside such a block
-    // `is_shallow_param` would otherwise report the parameter's shape for
+    // `is_value_param` would otherwise report the parameter's shape for
     // what is really the block's local -- a pointer local shadowing a
-    // shallow parameter got `&w` (address of a pointer) instead of `w`.
+    // value parameter got `&w` (address of a pointer) instead of `w`.
     // emit_body adds a block's shadowing decls on entry and drops them on
     // exit, so the parameter's shape is restored once the block closes.
     // Same-scope re-binding cannot reach here: the typer rejects it.
@@ -1252,6 +1252,10 @@ Context := struct {
     // build instead of a periodic survey. Headers set it false: a static
     // declaration in another translation unit's header declares nothing.
     builder_static_ok := false
+    // Closed-world ordinary callables may pass owned aggregates as C values.
+    // Libraries, declaration-only output, link_c consumers, bodyless C
+    // declarations, and generated lifecycle helpers retain pointer parameters.
+    param_value_abi_ok := false
     // #326: library output keeps its exported ABI whether or not anything
     // internal uses it, so the two site-driven gates above stand down there
     // -- a consumer can call any exported constructor or `size`, and no
@@ -1854,6 +1858,28 @@ func_returns_c_value := func(fd: FunctionDef) returns Bool {
     // word as the concrete C value.
     if fd.return_type == "Dynamic" { return false }
     return true
+}
+
+// C parameter representation is separate from semantic ownership. Shallow
+// parameters are always values. In a closed world, an ordinary owned
+// aggregate can also transfer its value directly; pointer-shaped boundaries
+// and generated lifecycle helpers retain their established ABI.
+func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool, scope: TypeScope) returns Bool {
+    if i >= fd.params.len() { return false }
+    if i.to_i32() == fd.variadic_index { return false }
+    if i.to_i32() == fd.kwargs_index { return false }
+    ref p : Declaration = fd.params[i]
+    if p.own_type.is(OwnType.Shallow) { return true }
+    if value_abi_ok.not() { return false }
+    if p.own_type.is(OwnType.Own).not().or(p.is_mut) { return false }
+    if fd.func_type.is_bodyless() { return false }
+    // delete(self, call_free) owns a pointer specifically so call_free can
+    // release that outer storage; generated cleanup sites pass its address.
+    if fd.params.len() > 1 {
+        if fd.params[1].name == "call_free" { return false }
+    }
+    pt := type_from_name_init(resolve_type_alias(scope, p.explicit_type), scope)
+    return pt.is(Type.Struct).or(pt.is(Type.Enum))
 }
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {

@@ -1538,12 +1538,10 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
     return bf
 }
 
-priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, mut locals_vec: Vec(LocalInfo)) {
+priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, value_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
     for b in scope.bindings.values {
-        // main()'s non-Own params are heap-allocated by the builder's CLI
-        // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
-        // main itself; skip the usual is_param filter so they get a
-        // scope-end delete.
+        // Non-Own parameters borrow their storage; their caller or generated
+        // entry wrapper owns any setup storage.
         if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
         // These two ask whether THIS scope registers the name as a type
         // or a function; the binding came out of this scope's own map,
@@ -1631,18 +1629,8 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
                 }
             }
         }
-        // Ref bindings normally don't own data and skip cleanup, except
-        // main()'s non-Own params: the builder heap-allocates their
-        // wrappers from argv[] and there is no caller to free them, so
-        // they need a scope-end delete despite the Ref default.
-        //
-        // SHALLOW params are excluded, because the builder does NOT
-        // heap-allocate those: a scalar CLI param is parsed straight
-        // into a C value (`I8 a = ...` in the main prologue). Calling
-        // them heap boxes made the pass emit a call_free=1 destructor
-        // for a stack value, which emit_as_ptr could only satisfy by
-        // boxing it first -- a malloc, a copy and a free per scalar
-        // param, to run `if (call_free) free(self);` on the copy.
+        // Ref bindings do not own data and skip cleanup. Shallow parameters
+        // are C values and were filtered with the other non-Own parameters.
         if b.own_type.is(OwnType.Ref) { skip_scope_delete = true }
         if skip_scope_delete.not() {
             if aliased_by_returned_ref(body, b.name) { skip_scope_delete = true }
@@ -1660,11 +1648,12 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
             li.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[own_transfer.to_usize()], b.name, scope)
         }
         // #346: semantic Own does not imply a heap wrapper. Ordinary
-        // aggregate locals are values. Own parameters are transfer boundaries
-        // whose C ABI receives an allocated outer pointer; raw allocations,
-        // Dynamic, and allocated callable objects are the other exceptions.
+        // aggregate locals are values. Closed-world ordinary Own aggregate
+        // parameters are values too; pointer-boundary Own parameters, raw
+        // allocations, Dynamic, and allocated callable objects are exceptions.
+        value_own_param := b.is_param.and(decl_idx.lt(0)).and(value_own_params.has(b.name))
         li.is_heap = b.own_type.is(OwnType.Own)
-            .and(b.type.is(Type.Dynamic).or(b.is_param.and(decl_idx.lt(0))))
+            .and(b.type.is(Type.Dynamic).or(b.is_param.and(decl_idx.lt(0)).and(value_own_param.not())))
         if type_is_callable_storage(b.type).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
         if decl_idx >= 0 {
             ref li_stmt : Expr = body.children[decl_idx.to_usize()]
@@ -3134,7 +3123,7 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
     }
 }
 
-priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
+priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32, value_own_params: Set(Str)) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_none()
 
@@ -3160,7 +3149,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     // every body (~9% of a translate went into building facts).
     fidx := fact_universe(body, scope)
     mut facts := body_stmt_facts(body, scope, true, fidx)
-    collect_scope_locals(body, scope, is_program_scope, facts, fidx, locals_vec)
+    collect_scope_locals(body, scope, is_program_scope, facts, fidx, value_own_params, locals_vec)
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
@@ -3263,7 +3252,18 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
 garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
-    return insert_free_calls(ctx, body, scope, 1)
+    return insert_free_calls(ctx, body, scope, 1, Set(Str).new())
+}
+
+garbager_destroy_func_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns Bool {
+    mut value_own_params := Set(Str).new()
+    for i in 0..fd.params.len() {
+        ref p : Declaration = fd.params[i]
+        if p.own_type.is(OwnType.Own).and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope)) {
+            value_own_params.add(own p.name.clone())
+        }
+    }
+    return insert_free_calls(ctx, body, scope, 1, value_own_params)
 }
 
 // Phase entry point. Runs the asap-destruction pass on every
@@ -3285,7 +3285,7 @@ garbager_destroy := proc(mut ctx: Context) {
     saved_path := ctx.path.clone()
     for path, mut iu in ctx.imported {
         ctx.path = path.clone()
-        insert_free_calls(ctx, iu.ast, ctx.scope, 1)
+        insert_free_calls(ctx, iu.ast, ctx.scope, 1, Set(Str).new())
     }
     ctx.path = saved_path
 }

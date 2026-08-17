@@ -1011,8 +1011,8 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
 priv seed_cli_arg_helpers := func(tname: Str, mut worklist: Vec(Str)) {
     // Str parses inline to a Str_clone of a CAP_LIT view; clone is already
     // an unconditional root because ext.c calls it. Every OTHER type goes
-    // through the from_c_str pipeline -- `({ Str *_cv = Str_from_c_str(a);
-    // T _v = <conv>; Str_delete(_cv, true); _v; })` (cli_view_value /
+    // through the from_c_str pipeline -- `({ Str _cvv = Str_from_c_str(a);
+    // T _v = <conv>; Str_delete(&_cvv, false); _v; })` (cli_view_value /
     // cli_view_box) -- so those two come with any scalar parameter.
     if tname == "Str" { return }
     push_qn(worklist, "Str", "from_c_str")
