@@ -747,6 +747,22 @@ BuilderFuncScratch := struct {
     shadowed_params := Set(Sym).new()
 }
 
+// #246 step 4: interpreter dispatch and libffi state share one runtime
+// lifetime. FFIEntry / ExprPtrBox / FFITypePtrBox are defined in
+// interpreter.til and resolve here through whole-program type resolution.
+// ffi_cleanup drains the owned C allocations before Context teardown, so the
+// generated delete only sees empty containers after normal interpreter use.
+FfiState := struct {
+    dispatch_map := Map(Str, Dynamic).new()
+    dispatch_inited := false
+    entries := Map(Str, FFIEntry).new()
+    entries_inited := false
+    loaded := false
+    struct_defs := Map(Str, ExprPtrBox).new()
+    type_cache := Vec(FFITypePtrBox).new()
+    type_cache_inited := false
+}
+
 // #286 follow-up: canonical heap Type blocks that HeapBinding.til_type
 // borrows. A binding's type must outlive the binding, but neither
 // TypeScope.bindings values (sorted-Vec Map: realloc/memmove on insert)
@@ -1335,21 +1351,9 @@ Context := struct {
     // interpreter.til is the only writer).
     interned_types := InternedTypes()
 
-    // Dispatch / FFI runtime state (previously module-level globals in
-    // the interpreter's FFI dispatch code). FFIEntry / FFITypePtrBox are
-    // defined in interpreter.til but resolve here via whole-program merge
-    // (same whole-program type resolution as ns_fields).
-    // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
-    // these maps to fresh, so Context's auto-delete only ever frees empty
-    // containers -- no double free of the libffi allocations.
-    dispatch_map := Map(Str, Dynamic).new()
-    dispatch_inited := false
-    ffi_map := Map(Str, FFIEntry).new()
-    ffi_map_inited := false
-    ffi_loaded := false
-    ffi_struct_defs := Map(Str, ExprPtrBox).new()
-    ffi_type_cache := Vec(FFITypePtrBox).new()
-    ffi_type_cache_inited := false
+    // Interpreter-only dispatch/libffi runtime state, grouped so Context no
+    // longer exposes each phase-local table and lifecycle flag separately.
+    ffi := FfiState()
 
     // Kept last so every Context-owned AST/registry using symbols is deleted
     // before the canonical name table that gives those symbols meaning.

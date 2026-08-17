@@ -5371,7 +5371,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     // has to be restamped on each turn's Context.
     lp.ctx.repl_session = session.is_repl
     // Ensure builtin dispatch table is initialized deterministically.
-    if lp.ctx.dispatch_inited.not() { dispatch_init(lp.ctx) }
+    if lp.ctx.ffi.dispatch_inited.not() { dispatch_init(lp.ctx) }
 
     // FFI init: reset, load the shared lib, then scan per-file ASTs.
     ffi_reset(lp.ctx)
@@ -5847,7 +5847,7 @@ FFIEntry := struct {
     own cif : ffi_cif
     own arg_types : U8 = 0
 namespace:
-    // The REPL clones the whole LoadedProgram -- Context and ffi_map
+    // The REPL clones the whole LoadedProgram -- Context and ffi.entries
     // included -- on every turn (repl_clone_loaded_program), and
     // interp_session_prepare_context ffi_reset()s the clone before any
     // call goes through it, so a cloned entry only ever lives to be
@@ -5927,11 +5927,11 @@ namespace:
 
 // Reset all FFI state so a fresh scan can run.
 ffi_reset := proc(mut ctx: Context) {
-    if ctx.ffi_loaded.or(ctx.ffi_map_inited).or(ctx.ffi_type_cache_inited) {
+    if ctx.ffi.loaded.or(ctx.ffi.entries_inited).or(ctx.ffi.type_cache_inited) {
         ffi_cleanup(ctx)
     }
     // Always ensure struct defs map exists.
-    ctx.ffi_struct_defs = Map(Str, ExprPtrBox).new()
+    ctx.ffi.struct_defs = Map(Str, ExprPtrBox).new()
 }
 
 // libffi exposes its primitive ffi_type descriptors as global symbols
@@ -6097,11 +6097,11 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
 }
 
 priv ffi_init_struct_defs := func(program: Expr, mut ctx: Context) {
-    ctx.ffi_struct_defs = Map(Str, ExprPtrBox).new()
+    ctx.ffi.struct_defs = Map(Str, ExprPtrBox).new()
     ffi_init_struct_defs_append(program, ctx)
 }
 
-// Append struct defs found in program into ctx.ffi_struct_defs (does not reset).
+// Append struct defs found in program into ctx.ffi.struct_defs (does not reset).
 ffi_init_struct_defs_append := func(program: Expr, mut ctx: Context) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
@@ -6115,7 +6115,7 @@ ffi_init_struct_defs_append := func(program: Expr, mut ctx: Context) {
         case .Decl(dd):
             key := Str(c_str = dd.name.c_str, count = dd.name.count, cap = CAP_VIEW)
             box := ExprPtrBox(ptr = sdef)
-            ctx.ffi_struct_defs.set(key, own box)
+            ctx.ffi.struct_defs.set(key, own box)
         case:
         }
     }
@@ -7013,8 +7013,8 @@ priv known_ffi_type := func(type_name: Str, mut ctx: Context) returns Option(ref
     case "Dynamic": return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_pointer"))
     case:
     }
-    if ctx.ffi_struct_defs.has(type_name) {
-        ref box : ExprPtrBox = ctx.ffi_struct_defs[type_name]
+    if ctx.ffi.struct_defs.has(type_name) {
+        ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
         return Option(ref ffi_type).Some(build_struct_ffi_type(box.ptr, ctx))
     }
     return Option(ref ffi_type).None
@@ -7038,9 +7038,9 @@ priv field_ffi_type := func(dd: Declaration, mut ctx: Context) returns ref ffi_t
 }
 
 priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context) returns ref ffi_type {
-    if ctx.ffi_type_cache_inited.not() {
-        ctx.ffi_type_cache = Vec(FFITypePtrBox).new()
-        ctx.ffi_type_cache_inited = true
+    if ctx.ffi.type_cache_inited.not() {
+        ctx.ffi.type_cache = Vec(FFITypePtrBox).new()
+        ctx.ffi.type_cache_inited = true
     }
     switch struct_def.node_type {
     case .StructDef(bsf_sdd):
@@ -7067,8 +7067,8 @@ priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context) returns r
         st.type = FFI_TYPE_STRUCT.to_u16()
         st.elements = elements
         box := FFITypePtrBox(ptr = st)
-        ctx.ffi_type_cache.push(own box)
-        ref cached : FFITypePtrBox = ctx.ffi_type_cache[ctx.ffi_type_cache.len() - 1]
+        ctx.ffi.type_cache.push(own box)
+        ref cached : FFITypePtrBox = ctx.ffi.type_cache[ctx.ffi.type_cache.len() - 1]
         return cached.ptr
     case:
         panic(__LOC__, "build_struct_ffi_type: node is not a StructDef")
@@ -7514,11 +7514,11 @@ priv DispatchFn := proc(Scope, Expr, Dynamic, Context) returns Bool
 priv reg_dispatch := func(name: Str, handler: DispatchFn, mut ctx: Context) {
     v : UPtr = malloc(UPtr.size())
     write_ptr(v, handler)
-    ctx.dispatch_map.set(name, own v)
+    ctx.ffi.dispatch_map.set(name, own v)
 }
 
 priv dispatch_init := func(mut ctx: Context) {
-    ctx.dispatch_map = Map(Str, Dynamic).new()
+    ctx.ffi.dispatch_map = Map(Str, Dynamic).new()
     reg_dispatch("print_single", h_print_single, ctx)
     reg_dispatch("print_flush", h_print_flush, ctx)
     reg_dispatch("and", h_Bool_and, ctx)
@@ -7595,11 +7595,11 @@ priv dispatch_init := func(mut ctx: Context) {
     reg_dispatch("cfile_seek_cur", h_cfile_seek_cur, ctx)
     reg_dispatch("cfile_seek_end", h_cfile_seek_end, ctx)
     reg_dispatch("cfile_read_n", h_cfile_read_n, ctx)
-    ctx.dispatch_inited = true
+    ctx.ffi.dispatch_inited = true
 }
 
 priv ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, result: Dynamic, ctx: Context) returns Bool {
-    ref dm : Map(Str, Dynamic) = ctx.dispatch_map
+    ref dm : Map(Str, Dynamic) = ctx.ffi.dispatch_map
     if dm.has(name) {
         ref slot : Dynamic = dm[name]
         ref fp : DispatchFn = to_ptr(slot)
@@ -7834,8 +7834,8 @@ priv ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns Option(
     if ffi_cif_rtype_is_struct(fe.cif).not() { return Option(ref Expr).None }
     if fe.return_type.is_none() { return Option(ref Expr).None }
     ref fe_rt : Str = fe.return_type.unwrap()
-    if ctx.ffi_struct_defs.has(fe_rt).not() { return Option(ref Expr).None }
-    ref box : ExprPtrBox = ctx.ffi_struct_defs[fe_rt]
+    if ctx.ffi.struct_defs.has(fe_rt).not() { return Option(ref Expr).None }
+    ref box : ExprPtrBox = ctx.ffi.struct_defs[fe_rt]
     return Option(ref Expr).Some(box.ptr)
 }
 
@@ -7916,10 +7916,10 @@ priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: U
 }
 
 priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
-    if ctx.ffi_loaded.not() { return false }
-    if ctx.ffi_map.has(name).not() { return false }
+    if ctx.ffi.loaded.not() { return false }
+    if ctx.ffi.entries.has(name).not() { return false }
 
-    ref mut fe : FFIEntry = ctx.ffi_map[name]
+    ref mut fe : FFIEntry = ctx.ffi.entries[name]
     nargs := e.children.len() - 1
     mut alloc_n := nargs
     if alloc_n == 0 { alloc_n = 1 }
@@ -8083,7 +8083,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                 mut owned_ret : Dynamic = raw_ptr
                 free(own owned_ret)
             }
-        } else if ctx.ffi_struct_defs.has(fe.return_type.unwrap()) {
+        } else if ctx.ffi.struct_defs.has(fe.return_type.unwrap()) {
             // `returns ref T` hands back a borrowed pointer into foreign / C
             // memory; flag the wrapper borrowed so the garbager's deep delete
             // does not free a buffer the runtime never malloc'd (ext_libc:
@@ -8440,7 +8440,7 @@ priv enum_core_is_eval := proc(name: Str, mut scope: Scope, mut e: Expr, result:
 }
 
 priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
-    if ctx.dispatch_inited.not() { dispatch_init(ctx) }
+    if ctx.ffi.dispatch_inited.not() { dispatch_init(ctx) }
     if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
     if scalar_core_op_eval(name, scope, e, result, ctx) { return true }
     if enum_core_is_eval(name, scope, e, result, ctx) { return true }
@@ -8528,7 +8528,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     entry.return_is_shallow = ret_shallow
     entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
 
-    // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
+    // Store in ctx.ffi.entries. Map.set borrows the key and deep-clones it
     // internally (ELEM_BOXED), so `name` can be passed directly; the
     // old clone+box dance here leaked both the box and the cloned Str.
     // The value box is a transient that Map.set consumes.
@@ -8538,26 +8538,26 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     // loop and also descends into nested function bodies, so a name seen
     // twice orphaned the previous entry's libffi cif + arg-type array --
     // a translate-time leak ffi_cleanup never saw (the stale pointers had
-    // already left ffi_map). Free them first, exactly as ffi_cleanup does
+    // already left the entries map). Free them first, exactly as ffi_cleanup does
     // for each live entry.
     // Re-registering a name overwrites its FFIEntry. Map.set's overwrite
     // path does NOT run the typed value delete, so drop the old entry
     // explicitly first: remove's value drop runs FFIEntry.delete, whose
     // `own` fields free the four raw allocations. The manual quad-free
     // this replaces was #324's hole (own-passing ref fields).
-    if ctx.ffi_map.has(name) { ctx.ffi_map.remove(name) }
+    if ctx.ffi.entries.has(name) { ctx.ffi.entries.remove(name) }
     val : FFIEntry = malloc(FFIEntry.size())
     // Manual island byte-move (#286): erased slot, sized copy.
     memcpy(val, entry, FFIEntry.size())
     memset(entry, 0, FFIEntry.size())
-    ctx.ffi_map.set(name, own val)
+    ctx.ffi.entries.set(name, own val)
 }
 
 
 ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
-    if ctx.ffi_map_inited.not() {
-        ctx.ffi_map = Map(Str, FFIEntry).new()
-        ctx.ffi_map_inited = true
+    if ctx.ffi.entries_inited.not() {
+        ctx.ffi.entries = Map(Str, FFIEntry).new()
+        ctx.ffi.entries_inited = true
     }
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
@@ -8634,9 +8634,9 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
 }
 
 priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut ctx: Context) returns I32 {
-    if ctx.ffi_loaded {
+    if ctx.ffi.loaded {
         ffi_cleanup(ctx)
-        ctx.ffi_map_inited = false
+        ctx.ffi.entries_inited = false
     }
     mut so_path := ""
     if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, so_path).eq(0).not() {
@@ -8645,27 +8645,27 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     ffi_init_link_libs(link_flags)
     ffi_init_struct_defs(program, ctx)
     ffi_init_scan_program(program, ctx)
-    ctx.ffi_loaded = true
+    ctx.ffi.loaded = true
     if so_path.len() > 0 { File.remove(so_path) }
     return 0
 }
 ffi_cleanup := proc(mut ctx: Context) {
-    if ctx.ffi_loaded { ffi_close_user_so() }
-    if ctx.ffi_map_inited {
+    if ctx.ffi.loaded { ffi_close_user_so() }
+    if ctx.ffi.entries_inited {
         // The reset's drain runs FFIEntry.delete per entry, whose `own`
         // fields free the four raw allocations -- the manual per-entry
         // quad-free this replaces was #324's hole and, with owned fields,
         // a double free (ASAN caught it via Map delete -> FFIEntry_delete).
-        ctx.ffi_map = Map(Str, FFIEntry).new()
-        ctx.ffi_struct_defs = Map(Str, ExprPtrBox).new()
-        ctx.ffi_map_inited = false
+        ctx.ffi.entries = Map(Str, FFIEntry).new()
+        ctx.ffi.struct_defs = Map(Str, ExprPtrBox).new()
+        ctx.ffi.entries_inited = false
     }
-    ctx.ffi_loaded = false
-    if ctx.ffi_type_cache_inited {
+    ctx.ffi.loaded = false
+    if ctx.ffi.type_cache_inited {
         // The reset's drain runs FFITypePtrBox.delete per entry, which owns
         // its descriptor, which owns its elements array -- the manual free
         // loop this replaces was #324's hole (own-passing ref fields).
-        ctx.ffi_type_cache = Vec(FFITypePtrBox).new()
-        ctx.ffi_type_cache_inited = false
+        ctx.ffi.type_cache = Vec(FFITypePtrBox).new()
+        ctx.ffi.type_cache_inited = false
     }
 }

@@ -1,6 +1,15 @@
 # priority: low
 # category: cleanups
-** OPEN #246 Slim down the cross-phase ~Context~ toward the rstil shape
+** WIP #246 Slim down the cross-phase ~Context~ toward the rstil shape
+
+*** Progress
+
+   - [X] Step 4: grouped the eight dispatch/libffi tables and lifecycle flags
+     under one ~Context.ffi : FfiState~ field. Interpreter and loader users now
+     access ~dispatch_map~, registered entries, struct definitions, the
+     aggregate type cache, and their initialization flags through that
+     interpreter-owned state.
+   - [ ] Steps 1-3 and the remaining Context cache audit in step 5.
 
 Companion to [[./247.org][#247]] (move layout facts off the AST). #246 = Context
 carries phase-local scratch; #247 = the AST carries non-syntax layout
@@ -76,7 +85,7 @@ Context. And runtime eval state lives in ~EvalHeap~, not on Context.
    ~has_continue~/~return_value~ + ~ns_*~ + ~cached_*~) into an
    eval-state struct, the way rstil keeps it in ~EvalHeap~.
    - Same CROSS-DEP with #247 step 3 for the interpreter's layout reads.
-4. Group FFI/dispatch state (~dispatch_*~, ~ffi_*~) into one
+4. DONE -- Group FFI/dispatch state (~dispatch_*~, ~ffi_*~) into one
    ~FfiState~ field. (No #247 interaction.)
 5. Keep the genuine cross-phase caches on ~Context~ -- import memo sets,
    ~imported~, ~func_defs~ / ~struct_def_exprs~ / ~interp_type_defs~,

@@ -455,7 +455,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         // just registered. Built-in ext_funcs (I64_add etc.) are statically
         // linked, so no .so needs dlopen'ing for constfolder's eval-based fold
         // to call them.
-        lp.ctx.ffi_loaded = true
+        lp.ctx.ffi.loaded = true
 
         // 3) Fold calls in every file. The known-fold map lives on ctx
         // (ctx.constfolder_known); constfolder_reset_state below clears it.
@@ -531,7 +531,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
         }
         ffi_init_struct_defs_append(delta, lp.ctx)
         ffi_init_scan_program(delta, lp.ctx)
-        lp.ctx.ffi_loaded = true
+        lp.ctx.ffi.loaded = true
 
         ref root : ProgramUnit = lp.units[lp.units.len() - 1]
         context_enter_file(lp.ctx, root.path)
