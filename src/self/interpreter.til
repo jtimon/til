@@ -2905,26 +2905,31 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         switch callee_expr.node_type {
         case .FieldAccess(callee_field):
-            mut fallback_enum_name := ""
-            ref enum_name : Str = field_access_sname(callee_expr, fallback_enum_name)
-            enum_def_o := lookup_interp_type_def(enum_name, ctx)
-            if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
-                ref enum_def : Expr = enum_def_o.unwrap()
-                mut enum_raw : Dynamic = destination
-                if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
-                if enum_method_dispatch(callee_field.field_access_name(), scope, enum_def, enum_name, e, enum_raw, ctx) {
-                    // A prim-stamped result (is() -> Bool) collapses to an
-                    // inline word; enum values stay blocks. A caller-provided
-                    // destination stays the caller's storage -- free only a
-                    // block this call allocated itself.
-                    if raw_type_is_prim(call_type, ctx) {
-                        prim_w : Dynamic = scalar_word_load(call_type, enum_raw, ctx)
-                        if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
-                        return prim_w
+            // The synthetic enum paths are variant constructors (Enum result)
+            // and the tag test `is`; ordinary methods need no enum-def probe.
+            enum_dispatch_shape := call_type.is(Type.Enum).or(callee_field.field_access_name() == "is")
+            if enum_dispatch_shape {
+                mut fallback_enum_name := ""
+                ref enum_name : Str = field_access_sname(callee_expr, fallback_enum_name)
+                enum_def_o := lookup_interp_type_def(enum_name, ctx)
+                if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
+                    ref enum_def : Expr = enum_def_o.unwrap()
+                    mut enum_raw : Dynamic = destination
+                    if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
+                    if enum_method_dispatch(callee_field.field_access_name(), scope, enum_def, enum_name, e, enum_raw, ctx) {
+                        // A prim-stamped result (is() -> Bool) collapses to an
+                        // inline word; enum values stay blocks. A caller-provided
+                        // destination stays the caller's storage -- free only a
+                        // block this call allocated itself.
+                        if raw_type_is_prim(call_type, ctx) {
+                            prim_w : Dynamic = scalar_word_load(call_type, enum_raw, ctx)
+                            if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
+                            return prim_w
+                        }
+                        return enum_raw
                     }
-                    return enum_raw
+                    if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
                 }
-                if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
             }
         case:
         }
