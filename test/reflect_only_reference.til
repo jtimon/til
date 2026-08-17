@@ -1,0 +1,53 @@
+mode test
+
+// Types whose ONLY mention in the program is the string literal inside a
+// reflection call. Nothing constructs them, nothing names them in a type
+// position -- the reflection call is the whole reason they exist.
+//
+// They used to be swept anyway. The reachability walk has arms meant to
+// root exactly this, but the front end hoists the literal out of the call
+// before the walk runs, so the argument they inspect is
+// `Ident hoisted__Str_<owner>_<n>` and the literal is elsewhere; nothing
+// matched, the type went, and both backends then answered about a type
+// they no longer had -- "type 'X' not found" interpreted, "index 0 out of
+// range" from the emitted dispatcher falling off its strcmp chain.
+//
+// A type name computed at RUNTIME still cannot be rooted (there is no
+// literal to read); that is a limit of reflection, not a bug this pins.
+
+OnlyReflected := struct {
+    a : I64 = 0
+    b : Str = ""
+}
+
+OnlyReflectedEnum := enum { Alpha, Beta: I64 }
+
+OnlyReflectedSig := func(I64) returns Str
+
+// Unfoldable: the constfolder resolves a constant index at compile time,
+// where the metadata is still there either way. A runtime index is what
+// needs the type to have SURVIVED.
+runtime_zero := func() returns I64 {
+    mut v := Vec(I64).new()
+    v.push(own 0)
+    ref got : I64 = v.get(0)!
+    return got.clone()
+}
+
+test_struct_named_only_by_reflection := test() {
+    i := runtime_zero()
+    assert_eq(Str, struct_field_name("OnlyReflected", i), "a")
+    assert_eq(Str, struct_field_type("OnlyReflected", i.add(1)), "Str")
+}
+
+test_enum_named_only_by_reflection := test() {
+    i := runtime_zero()
+    assert_eq(Str, enum_variant_name("OnlyReflectedEnum", i), "Alpha")
+    assert_eq(Str, enum_variant_payload_type("OnlyReflectedEnum", i.add(1)), "I64")
+}
+
+test_funcsig_named_only_by_reflection := test() {
+    i := runtime_zero()
+    assert_eq(Str, func_sig_param_type("OnlyReflectedSig", i), "I64")
+    assert_eq(Str, func_sig_return_type("OnlyReflectedSig", i), "Str")
+}

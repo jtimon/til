@@ -1193,6 +1193,9 @@ main := proc(args: ..Str) {
     // the emitted dispatchers instead of folding. Both backends, because
     // the compiled half is the one that could not be built at all.
     add_both(tests, "test/reflect_runtime_index.til", flags)
+    // ...and the types that ONLY a reflection call names, which the sweep
+    // used to take with it.
+    add_both(tests, "test/reflect_only_reference.til", flags)
     add_both(tests, "test/generic_infer_imports.til", flags)
     add_both(tests, "test/closures.til", flags)
     add_both(tests, "test/regression.til", flags)

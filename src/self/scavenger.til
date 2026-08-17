@@ -51,6 +51,88 @@ priv push_builtin_methods := func(mut v: Vec(Str), builtin_name: Str, m1: Str, m
     v.push(own qualified_name(builtin_name, m3))
 }
 
+// --- Rooting the types that only a reflection call names ---
+//
+// `struct_field_name("Point", i)` is the only mention of Point in some
+// programs, and the type has to survive to runtime for either backend to
+// answer: the interpreter reads the def, the emitted dispatcher is a
+// strcmp chain built from the defs that are still there. collect_refs has
+// arms meant to root exactly this (struct_def_of's says so in its own
+// comment) and they never fired, because by the time the reachability
+// walk runs the literal is not the argument any more -- the front end
+// hoists it, and the node is `Ident hoisted__Str_main_4`. Point was
+// swept, and both backends then answered about a type they no longer had:
+// "type 'Point' not found" from the interpreter, "index 0 out of range"
+// from the dispatcher falling off its chain.
+//
+// So resolve the hoist. One pass records what each hoisted Str temp
+// holds, the second roots the type each reflection call names. A type
+// name computed at RUNTIME cannot be rooted by anything (there is no
+// literal to read) and stays a limit of reflection.
+priv scav_is_reflect_type_arg_callee := func(name: Str) returns Bool {
+    if name.eq("struct_def_of").or(name.eq("enum_def_of")) { return true }
+    if name.starts_with("struct_field_") { return true }
+    if name.starts_with("enum_variant_") { return true }
+    return name.starts_with("func_sig_")
+}
+
+priv scav_collect_hoisted_strs := func(e: Expr, mut out: Map(Str, Str)) {
+    switch e.node_type {
+    case .Decl(hd):
+        if hd.name.starts_with("hoisted__Str").and(e.children.len() > 0) {
+            switch e.children[0].node_type {
+            case .Literal(Literal.Str(hs)):
+                out.set(hd.name, own Str.clone(hs))
+            case:
+            }
+        }
+    case:
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref hns : Vec(Declaration) = def_ns_decls(e)
+        for hd2 : Declaration in hns {
+            if hd2.default_value.is_some() { scav_collect_hoisted_strs(hd2.default_expr(), out) }
+        }
+    }
+    for hc : Expr in e.children {
+        scav_collect_hoisted_strs(hc, out)
+    }
+}
+
+// The type name a reflection argument stands for: the literal itself, or
+// the text of the hoisted temp it was moved into. "" when neither.
+priv scav_reflect_type_arg := func(arg: Expr, hoisted: Map(Str, Str)) returns Str {
+    switch arg.node_type {
+    case .Literal(Literal.Str(s)): return Str.clone(s)
+    case .Ident(id):
+        if hoisted.has(id.ident_name()) { return Str.clone(hoisted[id.ident_name()]) }
+    case:
+    }
+    return ""
+}
+
+priv scav_seed_reflect_roots := func(e: Expr, hoisted: Map(Str, Str), mut worklist: Vec(Str)) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len() >= 2) {
+        switch e.children[0].node_type {
+        case .Ident(rc):
+            if scav_is_reflect_type_arg_callee(rc.ident_name()) {
+                tname := scav_reflect_type_arg(e.children[1], hoisted)
+                if tname.len() > 0 { vec_push_str(worklist, tname) }
+            }
+        case:
+        }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref rns : Vec(Declaration) = def_ns_decls(e)
+        for rd : Declaration in rns {
+            if rd.default_value.is_some() { scav_seed_reflect_roots(rd.default_expr(), hoisted, worklist) }
+        }
+    }
+    for rc2 : Expr in e.children {
+        scav_seed_reflect_roots(rc2, hoisted, worklist)
+    }
+}
+
 collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 
     // #210/#326: a swap_replace call on a Str target never emits its
@@ -209,6 +291,9 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                     // the introspection primitives for type X. Pull X out
                     // of the string-literal arg so the underlying decl
                     // isn't scavenged as unused.
+                    // Kept for the shape where the literal is still inline;
+                    // the hoisted shape is rooted by seed_reflect_type_roots,
+                    // which is what actually fires today.
                     switch e.children[1].node_type {
                     case .Literal(Literal.Str(tname2)):
                         vec_push_str(refs, tname2)
@@ -1258,6 +1343,28 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     vec_push_str(worklist, "CAP_LIT")
     vec_push_str(worklist, "CAP_VIEW")
     vec_push_str(worklist, "CAP_INLINE")
+    // The types named only by a reflection call, resolved through the
+    // hoist that hid them from collect_refs (see scav_seed_reflect_roots).
+    // Unconditional, like `*.size` above: whether the metadata is read by
+    // the interpreter or by an emitted strcmp chain is the backend's
+    // business, and both need the type to still be here.
+    mut hoisted_strs := Map(Str, Str).new()
+    for u : ProgramUnit in lp.units {
+        scav_collect_hoisted_strs(lp.ctx.imported[u.path].ast, hoisted_strs)
+    }
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            scav_collect_hoisted_strs(lp.ctx.imported[u.path].ast, hoisted_strs)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        scav_seed_reflect_roots(lp.ctx.imported[u.path].ast, hoisted_strs, worklist)
+    }
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            scav_seed_reflect_roots(lp.ctx.imported[u.path].ast, hoisted_strs, worklist)
+        }
+    }
     if is_library {
         seed_library_roots(lp, worklist)
     } else if is_cli {
@@ -1453,8 +1560,23 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     // func_def pointer out into func_defs), and the interpreter still
     // resolves types through them at runtime -- erasing them broke
     // test/hashes.til's funcptr-typed global.
+    //
+    // ctx.interp_type_defs is the same kind of registry and was NOT being
+    // erased: populate_cached_aggregate_defs stores a malloc'd cell holding
+    // the StructDef/EnumDef Expr pointer, and the sweep freed the node
+    // under it. Proven by pointing a lookup at it after a sweep -- the read
+    // came back a node whose kind had already been reused, so the caller
+    // was told a struct was "not a struct". Nothing consults it after this
+    // point today, which is what kept it latent; erase it here rather than
+    // leave the next reader to find out.
     for swept_n : Str in swept_names {
         lp.ctx.scope.erase_ast_decl(swept_n, false)
+        // remove() drops the value with the entry, and the cell is the
+        // Map's (see the ownership note on ctx.func_defs) -- freeing it
+        // here first is the double free that says so.
+        if lp.ctx.interp_type_defs.has(swept_n) {
+            lp.ctx.interp_type_defs.remove(swept_n)
+        }
     }
     if swept_names.len() > 0 { lp.ctx.scope.refresh_lookup_filters() }
 
