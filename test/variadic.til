@@ -214,7 +214,7 @@ test_mixed_splat_ufcs := test() {
     assert_eq(Str, h.join(..a, "x"), "T:abx")
     // the receiver written out, which never went through the shift
     assert_eq(Str, SplatHolder.join(h, "x", ..a), "T:xab")
-    // and the pure-splat form, which reads is_splat rather than the bitmap
+    // and the pure-splat form, which derives the presence from the same bitmap
     assert_eq(Str, h.join(..a), "T:ab")
 }
 

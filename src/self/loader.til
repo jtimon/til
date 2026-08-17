@@ -2327,7 +2327,7 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
 //   }
 // The body is a single `return match <xs> { ... }` with exactly two arms: an
 // empty-list-pattern base case and a head/tail cons case whose value contains
-// exactly one recursive tail call `self(..tl)` (an is_splat FCall of the tail
+// exactly one recursive tail call `self(..tl)` (a splat FCall of the tail
 // ident). Each call site is unrolled bottom-up over its compile-time-known
 // operands: expand(k) = base-arm value at k == N, else the cons-arm value with
 // head -> operand k and the tail call replaced by expand(k+1). Call-by-name,
@@ -2348,12 +2348,12 @@ priv lazy_count_ident_uses := func(e: Expr, name: Str) returns USize {
     return n
 }
 
-// True if `e` is a recursive tail splat call `<callee>(..tail_name)`: an
-// is_splat FCall with exactly one argument, the bare Ident `tail_name`.
+// True if `e` is a recursive tail splat call `<callee>(..tail_name)`: a
+// splat FCall with exactly one argument, the bare Ident `tail_name`.
 priv lazy_is_tail_splat_call := func(e: Expr, tail_name: Str) returns Bool {
     switch e.node_type {
     case .FCall(fcd):
-        if fcd.is_splat.not() { return false }
+        if fcd.splat_args == 0 { return false }
         if e.children.len() != 2 { return false }
         switch e.children[1].node_type {
         case .Ident(arg_id): return arg_id.ident_name() == tail_name

@@ -363,8 +363,8 @@ namespace:
 }
 
 // --- FCall payload struct ---
-/// Per-callsite data for function calls: parse-time flags (is_splat,
-/// does_throw, is_bang), own_args bitmap, result type. The variadic
+/// Per-callsite data for function calls: parse-time flags (does_throw,
+/// is_bang), argument bitmaps, result type. The variadic
 /// and kwargs block positions and counts are not stored -- they all
 /// derive from the resolved callee's param layout plus the structural
 /// markers in fcall.children:
@@ -377,7 +377,6 @@ namespace:
 ///     post-desugar. Step 7 of #147 closes here: the trailing typer
 ///     resolution artifact is gone.
 FCallData := struct {
-    is_splat := false
     // Issue #198: parser sets this when the call is followed by ~?~,
     // marking it as a call to a throwing function. The typer
     // validates that does_throw matches the callee's throws set.
@@ -408,8 +407,8 @@ FCallData := struct {
     // Appended at the END so the committed boot's layout stays stable.
     ref_args : U64 = 0
     // #342: bitmap of `..`-splatted arguments, mirroring own_args' /
-    // ref_args' indexing. `is_splat` records only THAT some argument
-    // carried `..`; this records WHICH, which is what a mixed variadic
+    // ref_args' indexing. Nonzero records THAT some argument carried
+    // `..`, and each bit records WHICH, which is what a mixed variadic
     // block (`format("<", ..arr)`) needs in order to lower -- without it
     // the desugar cannot tell the splatted array from an ordinary
     // element and wraps it as one, so the callee reads the Array

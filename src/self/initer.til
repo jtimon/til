@@ -4010,7 +4010,6 @@ priv generic_rewrite_call := func(mut parent: Expr, call_idx: USize, mono: Str, 
     case .FCall(old_fd):
         switch newcall.node_type {
         case .FCall(new_fd):
-            new_fd.is_splat = old_fd.is_splat
             new_fd.does_throw = old_fd.does_throw
             new_fd.is_bang = old_fd.is_bang
         case:
@@ -4028,9 +4027,8 @@ priv generic_rewrite_call := func(mut parent: Expr, call_idx: USize, mono: Str, 
         }
         if drop_arg { continue }
         src_own := get_own_arg(call, k)
-        // #342: splat_args rides along exactly like the own bits. is_splat
-        // above says only THAT an argument carried `..`; without moving WHICH
-        // one, dropping the `Type` slot left the bit on the position that
+        // #342: splat_args rides along exactly like the own bits. Without
+        // moving it, dropping the `Type` slot left the bit on the position that
         // token used to hold and the mixed-splat lowering read the wrong
         // argument -- `gjoin(Str, "x", ..c)` silently lost an element.
         src_splat := get_splat_arg(call, k)

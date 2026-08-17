@@ -5011,8 +5011,7 @@ priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) ret
 // Returns true if it rewrote fcall in place. Caller is responsible for
 // pushing the (now mutated) stmt into new_ch.
 // #342: does any argument of the `count`-long block starting at absolute child
-// index `start` carry `..`? get_splat_arg reads the bitmap the parser records
-// (is_splat only says SOME argument did).
+// index `start` carry `..`? get_splat_arg reads the bitmap the parser records.
 priv block_has_splat := func(fcall: Expr, start: USize, count: USize) returns Bool {
     switch fcall.node_type {
     case .FCall(fcd):
@@ -5194,7 +5193,7 @@ priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
     if vc < 2 { return false }
     switch e.node_type {
     case .FCall(fcd):
-        if fcd.is_splat.not() { return false }
+        if fcd.splat_args == 0 { return false }
     case:
         return false
     }
@@ -5216,7 +5215,7 @@ priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
     }
     e.children.move_from(own fresh)
     switch e.node_type {
-    case .FCall(fcd2): fcd2.is_splat = false
+    case .FCall(fcd2): fcd2.splat_args = 0
     case:
     }
     set_own_arg(e, vi_u)
@@ -5226,13 +5225,13 @@ priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
 priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, vi: I32, vc: USize) returns Bool {
     ref mut fcd : FCallData = fcall_of(fcall)
     if vc.eq(1).not() { return false }
-    if fcd.is_splat.not() { return false }
+    if fcd.splat_args == 0 { return false }
 
     mut old_args := fcall.children.take()
 
     ref splat_in : Expr = old_args[vi.to_usize()]
     mut splat := splat_in.clone()
-    fcd.is_splat = false
+    fcd.splat_args = 0
     if splat_in.node_type.is(NodeType.Ident) {
         splat = make_clone_call(array_type, Type.Struct(array_type.clone()), splat_in, splat_in)
     }

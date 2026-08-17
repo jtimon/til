@@ -462,7 +462,6 @@ typedef struct Declaration {
 
 
 typedef struct FCallData {
-    Bool is_splat;
     Bool does_throw;
     Bool is_bang;
     U64 own_args;

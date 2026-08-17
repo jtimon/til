@@ -1389,7 +1389,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                     // desugar_mixed_splat_variadic_call folds the block into
                     // one Array, so the mixed form lowers correctly.
                     //
-                    // is_splat used to gate the whole block out of validation:
+                    // A splat used to gate the whole block out of validation:
                     // a splatted argument is the run, not an element, so
                     // checking it AS an element would reject every splat. That
                     // left a mismatched one -- `format(..ints)` against

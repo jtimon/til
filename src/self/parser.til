@@ -1220,7 +1220,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
 }
 
 // Flip a single parse-time flag on an FCall node. The parser builds the
-// FCall first, then sets does_throw/is_bang/is_splat from postfix tokens;
+// FCall first, then sets does_throw/is_bang from postfix tokens;
 // these collapse the repeated `switch ... case FCall(fcd): fcd.X = true`
 // boilerplate to one call. Parser-only, so they live here rather than in
 // ast.til (unlike set_own_arg, which the typer/initer also use).
@@ -1232,11 +1232,6 @@ priv set_fcall_throw := func(mut fcall: Expr) {
 priv set_fcall_bang := func(mut fcall: Expr) {
     ref mut fcd : FCallData = fcall_of(fcall)
     fcd.is_bang = true
-}
-
-priv set_fcall_splat := func(mut fcall: Expr) {
-    ref mut fcd : FCallData = fcall_of(fcall)
-    fcd.is_splat = true
 }
 
 // parse_named_arg: if the cursor is at `IDENT '='`, parse the named
@@ -1357,8 +1352,8 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         if parse_named_arg(p, call) { continue }
         // Splat arg: ..expr  OR  rest-pattern marker `..` (followed by
-        // a comma or the closing paren, no expression). Splat sets the
-        // FCall's is_splat flag and continues to parse the expression.
+        // a comma or the closing paren, no expression). Splat records the
+        // argument's bit and continues to parse the expression.
         // Rest-pattern emits a RestPattern child and skips to the next
         // arg.
         mut is_splat := false
@@ -1408,7 +1403,6 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
             set_ref_arg(call, call.children.len())
         }
         if is_splat {
-            set_fcall_splat(call)
             set_splat_arg(call, call.children.len())
         }
         // Issue #56/#57: append_arg resolves a bare anonymous
@@ -1461,7 +1455,7 @@ priv fold_const_and_or := func(own call: Expr) returns Expr {
     if is_and.or(name.eq("or")).not() { return call }
     switch call.node_type {
     case .FCall(fcd):
-        if fcd.is_splat.or(fcd.own_args.neq(0)).or(fcd.ref_args.neq(0)) { return call }
+        if fcd.splat_args.neq(0).or(fcd.own_args.neq(0)).or(fcd.ref_args.neq(0)) { return call }
     case:
     }
     // Collect every operand; bail unless all of them are Bool literals.
@@ -1517,7 +1511,7 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     mut plain := true
     switch call.node_type {
     case .FCall(fcd):
-        if fcd.is_splat { plain = false }
+        if fcd.splat_args != 0 { plain = false }
         if fcd.own_args != 0 { plain = false }
         if fcd.ref_args != 0 { plain = false }
     case:
@@ -2801,7 +2795,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 
 // #320: ref-qualified TYPE argument markers (`make_opt(ref T)`), same
 // bit indexing as own_args.
-// #342: record WHICH argument carried `..`, beside is_splat's "some did".
+// #342: record which argument carried `..`; nonzero also means some did.
 set_splat_arg := func(mut fcall: Expr, arg_index: USize) {
     ref mut fcd : FCallData = fcall_of(fcall)
     mut bit : U64 = 1
