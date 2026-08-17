@@ -309,8 +309,31 @@ really is pure -- often the right fix is to flip *it* to
 ~ffi.h~, and writes the output to
 ~vendor/bindings/{raylib,tinyfd,nng,libffi}.til~.
 
-*This destroys any hand-edits.*  Re-do the audit (see above)
-before committing the regenerated files.
+*The audit survives.*  The committed ~.til~ IS the audit record, so
+the generator reads the file it is about to overwrite and keeps what
+it finds there: every declaration whose name the header still
+produces is re-emitted verbatim -- ~ext_proc~ tags, ~own~/~ref~
+overrides, ~Option~ re-typings, struct FIELD qualifiers -- along with
+the comment block above it.  Struct and alias lines are preserved
+too, deliberately: ~nng_sockaddr_ipc~'s own C tag is a decision, not
+a transcription.  A regen over an untouched checkout reproduces the
+committed file byte for byte, which ~bindgen_preserves_audit~ pins
+for tinyfd.
+
+Two things it cannot preserve, both reported on stderr rather than
+lost silently:
+
+- *Declarations the header does not produce.*  Hand-ADDED bindings
+  (the three below) name no generated line to attach to, and keeping
+  unmatched declarations would resurrect symbols C deleted.  The
+  generator lists them by name at the end of a run; re-add them.
+- *A changed parameter count.*  An audit answers the signature it
+  was written for.  When C's arity moves under a preserved name the
+  line is still kept, but the run says which one to re-audit.
+
+So the workflow below is now: regenerate, read the warnings,
+re-add what they name, and diff to review the C-side changes -- not
+re-derive 161 ~ext_proc~ flips for raylib and 354 for nng by hand.
 
 *libffi is generated from a BUILD ARTIFACT, not from tracked
 source.*  ~LIBFFI_BINDGEN_INCDIR~ points at
@@ -435,13 +458,18 @@ regens" in ~vendor/bindings/libffi.til~:
 
 Useful workflow:
 
-1. Save the current ~vendor/bindings/raylib.til~ somewhere
-   outside the repo as a reference for the previous audit.
-2. Run ~make update_c_libs~.
-3. Diff against the saved file; transfer every ~ext_proc~
-   tag, every ~own~/~ref~ override, and every comment that
-   explained a non-obvious choice.  New C-side additions
-   (new raylib functions) get fresh audits.
+1. Run ~make update_c_libs~ on a clean checkout, so the files it
+   reads back are the committed audits.
+2. Read the warnings.  Re-add every declaration it lists as not
+   produced by the header (the ones below), and re-audit every
+   name whose parameter count it reports as changed.  Exception:
+   raylib.til is two headers in one file, so its two passes each
+   list the OTHER half as "not produced" (the raylib pass names the
+   rcamera tail, the rcamera pass names the whole raylib half) --
+   that is the split talking, not a loss; the flow reunites them.
+3. ~git diff vendor/bindings/~ is now the C-side change alone:
+   new functions in their generated (unaudited) form, deleted ones
+   gone.  Audit the new ones; everything else is already right.
 4. Run ~make clean && make test~.  If a wrapper in
    ~src/modes/gui.til~ used a renamed-or-deleted C symbol,
    the build will tell you.

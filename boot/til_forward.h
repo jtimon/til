@@ -359,6 +359,9 @@ typedef struct Vec__InterpAlias Vec__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
+typedef struct priv___src_self_binder_til__AuditedDecl priv___src_self_binder_til__AuditedDecl;
+typedef struct Map__Str_AuditedDecl Map__Str_AuditedDecl;
+typedef struct Vec__AuditedDecl Vec__AuditedDecl;
 enum {
     EditAction_TAG_Continue,
     EditAction_TAG_Submit,
@@ -1232,6 +1235,20 @@ typedef struct priv___src_self_binder_til__BinderState {
 } priv___src_self_binder_til__BinderState;
 
 
+typedef struct priv___src_self_binder_til__AuditedDecl {
+    Str comments;
+    Str line;
+    Bool seen;
+} priv___src_self_binder_til__AuditedDecl;
+
+
+typedef struct Vec__AuditedDecl {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__AuditedDecl;
+
+
 struct EditAction {
     U8 tag;
 };
@@ -1555,6 +1572,12 @@ typedef struct Map__Str_HeapBinding {
     Vec__Str keys;
     Vec__HeapBinding values;
 } Map__Str_HeapBinding;
+
+
+typedef struct Map__Str_AuditedDecl {
+    Vec__Str keys;
+    Vec__AuditedDecl values;
+} Map__Str_AuditedDecl;
 
 
 typedef struct TypeScope {
@@ -2003,6 +2026,7 @@ void adopt_from(void * dest, void * src, UPtr size);
 Str File_readfile(Str * path);
 void File_writefile(Str * path, Str * content);
 void File_remove(Str * path);
+Bool File_exists(Str * path);
 File File_new(Str * path, Bool * is_write);
 File * File_write(File * self, Str * s);
 Str File_read_all(File * self);
@@ -4325,7 +4349,25 @@ Bool priv___src_self_binder_til__path_in_dir(Str * marker_path, Str * incdir);
 Bool priv___src_self_binder_til__looks_like_macro_fragment(Str * line);
 Vec__Str priv___src_self_binder_til__filter_preprocessed(Str * pre, Str * incdir);
 Str priv___src_self_binder_til__collapse_blank_runs(Str * s);
+USize priv___src_self_binder_til__decl_param_count(Str * line);
+Str priv___src_self_binder_til__any_decl_name(Str * line);
+Str priv___src_self_binder_til__field_decl_name(Str * line);
+Bool priv___src_self_binder_til__line_opens_body(Str * line);
+void priv___src_self_binder_til__AuditedDecl_delete(priv___src_self_binder_til__AuditedDecl * self, Bool call_free);
+Bool priv___src_self_binder_til__line_is_comment(Str * line);
+Map__Str_AuditedDecl priv___src_self_binder_til__load_audited_decls(Str * source);
+Str priv___src_self_binder_til__reapply_audited_decls(Str * generated, Map__Str_AuditedDecl * prev, Str * out_path);
 void generate_bindings(Str * in_path, Str * out_path);
+Map__Str_AuditedDecl Map__Str_AuditedDecl_new(void);
+Bool Map__Str_AuditedDecl_has(Map__Str_AuditedDecl * self, Str * key);
+priv___src_self_binder_til__AuditedDecl * Map__Str_AuditedDecl_get(Map__Str_AuditedDecl * self, Str * key, I64 * _err_kind);
+void Map__Str_AuditedDecl_set(Map__Str_AuditedDecl * self, Str * key, priv___src_self_binder_til__AuditedDecl * val);
+void Map__Str_AuditedDecl_delete(Map__Str_AuditedDecl * self, Bool call_free);
+Vec__AuditedDecl Vec__AuditedDecl_new(void);
+void Vec__AuditedDecl_clear(Vec__AuditedDecl * self);
+void Vec__AuditedDecl_unsafe_set(Vec__AuditedDecl * self, USize i, priv___src_self_binder_til__AuditedDecl * val);
+void Vec__AuditedDecl_delete(Vec__AuditedDecl * self, Bool call_free);
+void adopt__priv___src_self_binder_til__AuditedDecl(void * dest, priv___src_self_binder_til__AuditedDecl * src);
 void ReplEditor_delete(ReplEditor * self, Bool call_free);
 Str priv___src_self_repl_editor_til__byte_str(I64 v);
 Str priv___src_self_repl_editor_til__csi(Str * body);

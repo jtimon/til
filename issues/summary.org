@@ -1,4 +1,6 @@
 * Bugs
+** High
+*** [[./open/364.org][#364]] A conditionally consumed local is freed on every path; cover the ownership-shape matrix
 ** Medium
 *** [[./open/358.org][#358]] array() / vec() literals do not type-check their elements
 *** [[./open/359.org][#359]] One generic applied both explicitly and by deduction is monomorphized twice

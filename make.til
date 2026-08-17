@@ -790,9 +790,17 @@ run_update_c_libs := proc(mut b: Build) {
         "vendor/libffi/x86_64-pc-linux-gnu/include/ffi.h")
     run(TIL, "bindings", "-o", "vendor/bindings/nng.til",
         "vendor/nng/include/nng/nng.h")
-    run(TIL, "bindings", "-o", "tmp/raylib_main.til", "vendor/raylib/src/raylib.h")
+    // raylib.til is TWO headers in one audited file, so both passes must be
+    // seeded from it or the audit-preservation pass reads a stale tmp file
+    // and the 161 raylib audits are lost anyway. Seed the rcamera pass
+    // FIRST (a copy of the whole committed file), then regenerate the
+    // raylib half in place. Each pass lists the OTHER half's declarations
+    // as "not produced by this header" -- expected here, not a loss: the
+    // raylib pass names the rcamera tail (~14), the rcamera pass names the
+    // raylib half (~600), and the append below reunites them.
+    copy("vendor/bindings/raylib.til", "tmp/rcamera.til")
+    run(TIL, "bindings", "-o", "vendor/bindings/raylib.til", "vendor/raylib/src/raylib.h")
     run(TIL, "bindings", "-o", "tmp/rcamera.til", "vendor/raylib/src/rcamera.h")
-    copy("tmp/raylib_main.til", "vendor/bindings/raylib.til")
     File.appendfile("vendor/bindings/raylib.til", without_mode_line(File.readfile("tmp/rcamera.til")))
 }
 

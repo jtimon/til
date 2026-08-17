@@ -1,0 +1,110 @@
+# priority: high
+# category: bugs
+** OPEN #364 A conditionally consumed local is freed on every path; cover the ownership-shape matrix
+
+A local handed to a struct constructor field inside a CONDITIONAL is
+consumed only on the taken path, but end-of-scope cleanup runs as if the
+answer were the same on every path. Both backends get it wrong, each in
+its own way, on this ordinary-looking loop:
+
+#+begin_src til
+mode cli
+
+Holder := struct {
+    line := ""
+}
+
+main := proc() {
+    src := "aa\nbb\ncc\n"
+    mut kept : USize = 0
+    mut pos : USize = 0
+    while pos < src.len() {
+        line := src.substr(pos, 2)
+        // Conditionally hand the view local to a struct ctor field.
+        if line.starts_with("b") {
+            h := Holder(line = line)
+            kept = kept + h.line.len()
+        }
+        pos = pos + 3
+    }
+    println(kept.to_str())
+}
+#+end_src
+
+- COMPILED: ~free(): double free detected in tcache 2~, exit 134. The
+  emitted C has a balancing ~Str_delete(line, 1)~ on the UNTAKEN branch
+  and an unconditional ~if ((line)->cap != TIL_CAP_LIT) { free(line); }~
+  at loop end -- the untaken path frees the wrapper twice.
+- COMPILED UNDER ASAN: ~heap-use-after-free~ at the same site, so the
+  suite's ASAN harness does catch it -- ONCE something in the corpus
+  exercises the shape (see below).
+- INTERPRETED: ~panic: free of moved binding: line~
+  (src/self/interpreter.til, h_free) -- the TAKEN path this time: the
+  ctor marked the binding moved, and the garbager-inserted iteration
+  cleanup frees it anyway.
+
+Three different failures, one root cause: the cleanup decision is made
+per SCOPE while the consume decision is made per PATH. This is exactly
+the rule #302 landed for exit sites -- "all three exit sites free only
+what every path still owns" -- violated at a site that arc did not
+cover: a conditional ctor-field consume inside a loop body. Note the
+typer already handles the STRAIGHT-LINE version of this correctly
+(passing the same binding to two ctors in a row is rejected with "use
+of 'x' after ownership transfer"); it is only the conditional form
+that slips through to codegen instead of being either rejected or
+cleaned up per-path.
+
+*** How it surfaced
+
+Writing load_audited_decls (src/self/binder.til): a substr view local
+conditionally stored into an AuditedDecl field crashed every
+`til bindings` run at teardown, AFTER writing a byte-correct output
+file. The workaround -- build a fresh view per ctor instead of reusing
+the local -- is marked with this issue's number in binder.til. Nothing
+in the suite had ever emitted that shape, which is why a corpus green
+under ASAN proved nothing about it.
+
+*** Fix, part 1: the bug
+
+Per #302's rule, either is correct; silent double-free is not:
+
+- Reject the conditional consume like the straight-line case already
+  is ("use of 'line' after ownership transfer" / demand a clone), or
+- keep the acceptance and make cleanup path-aware (the compiled
+  backend must not emit the loop-end free when a branch consumed the
+  binding; the interpreter's iteration cleanup must skip a moved-out
+  binding rather than panic on it).
+
+Rejecting is the smaller change and matches the existing diagnostic;
+path-aware cleanup is the #302-consistent end state. Whichever lands,
+BOTH backends must agree, and the repro above becomes the regression
+test.
+
+*** Fix, part 2: the layer beneath -- make the class findable
+
+The suite runs everything under ASAN, so memory bugs of this kind are
+caught exactly when the corpus exercises the shape -- and the corpus
+grows by accident, one program at a time. This bug sat reachable from
+a 7-line loop body until a compiler tool happened to write it.
+
+Add an ownership-shape matrix test (e.g. test/ownership_shapes.til,
+add_both so the backends are also checked against each other, ASAN on
+as everywhere): one tiny function per cell of
+
+- binding kind: owned local, ~ref~ local, substr view, literal,
+  owned param, ~ref~ param;
+- consume site: struct ctor field, ~own~ call argument, field assign,
+  ~return~, container ~push(own ...)~;
+- control shape: straight-line, consumed in one branch of an ~if~,
+  consumed in a branch INSIDE a loop body, consumed before an early
+  return.
+
+Cells the typer is supposed to REJECT belong in test/typer_errors.til
+as negative cases; cells it accepts must run clean under ASAN and
+print identical results in both backends. The matrix is finite and
+small (dozens of cells), and every future ownership/garbager change
+gets checked against all of it instead of against whatever shapes the
+compiler's own sources happen to use. This repro is the
+loop+if+ctor-field cell; #325 (literal assign), #357 (Dynamic hop) and
+the #302 exit-site arc are earlier cells of the same table found one
+crash at a time.

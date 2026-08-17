@@ -1242,6 +1242,18 @@ main := proc(args: ..Str) {
     add_single(tests, "bindgen_typechecks", "build", 0, "",
         format(til_bin, " bindings -o tmp/bindgen_raylib.til vendor/raylib/src/raylib.h",
             " '&&' ", til_bin, " translate tmp/bindgen_raylib.til"))
+    // Regenerating over an audited file must reproduce it. A C header cannot
+    // express til's qualifier axes, so every committed binding carries human
+    // answers -- ext_proc tags, own/ref overrides, Option re-typings and the
+    // comments explaining them -- that regeneration used to erase, which is
+    // why nobody ran `make update_c_libs` and the generator drifted until its
+    // output stopped type-checking (#333). tinyfd is the file with no
+    // hand-ADDED declarations, so a byte-identical result is the whole
+    // property, with no manual re-add step to subtract first.
+    add_single(tests, "bindgen_preserves_audit", "build", 0, "",
+        format("cp vendor/bindings/tinyfd.til tmp/audit_probe.til",
+            " '&&' ", til_bin, " bindings -o tmp/audit_probe.til vendor/tinyfiledialogs/tinyfiledialogs.h",
+            " '&&' diff tmp/audit_probe.til vendor/bindings/tinyfd.til"))
     // issues.til is fast enough to keep in the regular suite; it refreshes
     // issues/summary.org from the current issue files.
     add_single(tests, "issues_summary", "build", 0, "",

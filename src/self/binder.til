@@ -1848,6 +1848,306 @@ priv collapse_blank_runs := func(s: Str) returns Str {
     return out
 }
 
+// --- audit preservation ------------------------------------------------
+//
+// A C header cannot express til's qualifier axes (purity, ownership,
+// shallowness), so the generator guesses the safe side of each and a human
+// tunes the rest -- see the `bindings` help and doc/ffi.org. Those answers
+// used to live only in the committed .til, which regeneration overwrote:
+// `make update_c_libs` meant re-deriving 161 ext_proc flips for raylib and
+// 354 for nng by hand, so in practice nobody regenerated and the generator
+// drifted from the language until its output stopped type-checking (#333's
+// audit).
+//
+// The committed file IS the audit record, so it is read back instead: a
+// binding that already exists there keeps its previous line verbatim, plus
+// the comment block above it, and the generated pair is dropped. What a
+// regen then produces is what doc/ffi.org's workflow always asked a human to
+// hand-produce -- new C functions get fresh declarations, deleted ones
+// disappear, and everything audited stays put.
+//
+// Preservation is by NAME, not by shape, because the audit is not only about
+// qualifiers: tinyfd's nullable boundaries were re-typed Option(ref T) (#320
+// / #321), which no comparison against a freshly generated line can
+// recognise. The cost is that a C signature which changed under a preserved
+// name would keep a stale audit, so that case is not silent: the skeletons
+// are compared anyway and every mismatch is reported on stderr, naming the
+// binding to re-audit.
+
+/// How many parameters a declaration line takes: the arity C fixes and an
+/// audit never changes.
+///
+/// Arity, not a full signature comparison, is what an audited line can be
+/// checked against. The audit rewrites TYPES as well as qualifiers --
+/// tinyfd's nullable arguments became Option(ref T) (#320 / #321) -- so
+/// comparing spellings would flag every deliberate re-typing forever and
+/// teach the reader to ignore the warning. A C function that gains or loses
+/// a parameter is the case worth shouting about, and it is exactly the one
+/// arity catches.
+priv decl_param_count := func(line: Str) returns USize {
+    open := line.find("(")
+    if open < 0 { return 0 }
+    mut i : USize = open.to_usize() + 1
+    mut depth : USize = 0
+    mut params : USize = 0
+    mut seen_any := false
+    while i < line.len() {
+        ref b : I8 = line.unsafe_get(i)
+        if b == '(' { depth++ }
+        else if b == ')' {
+            if depth == 0 { break }
+            depth--
+        } else if b.eq(',').and(depth == 0) { params++ }
+        else if bind_is_ws(b).not() { seen_any = true }
+        i++
+    }
+    if seen_any.not() { return 0 }
+    return params + 1
+}
+
+/// Name of whatever a top-level line declares -- function, struct, enum,
+/// alias or constant -- or "" if the line declares nothing. Comments are
+/// preserved for all of these, so a note explaining a struct's layout or an
+/// enum's per-arch values survives a regen the same way a function's does.
+priv any_decl_name := func(line: Str) returns Str {
+    lead := skip_ws(line, 0)
+    if lead >= line.len() { return "" }
+    if lead > 0 { return "" }
+    word_end := skip_word(line, lead)
+    if word_end == lead { return "" }
+    p := skip_ws(line, word_end)
+    if range_eq_lit(line, p, p + 2, ":=") { return line.substr(lead, word_end - lead) }
+    if range_eq_lit(line, p, p + 1, ":") { return line.substr(lead, word_end - lead) }
+    return ""
+}
+
+/// Name of an indented struct FIELD line, or "" for anything else. Fields
+/// carry audits of their own -- libffi's `own elements : U8` and
+/// `ref rtype : ffi_type`, nng's Option-typed url members -- and the C
+/// header determines their types, never their til qualifiers.
+///
+/// Qualifiers come first in a field line (`own elements : U8`), so the NAME
+/// is the last word before the `:`.
+priv field_decl_name := func(line: Str) returns Str {
+    lead := skip_ws(line, 0)
+    if lead == 0 { return "" }
+    if lead >= line.len() { return "" }
+    colon := line.find(" : ")
+    if colon < 0 { return "" }
+    cpos := colon.to_usize()
+    mut start := lead
+    mut p := lead
+    while p < cpos {
+        if bind_is_ws(line.unsafe_get(p)) { start = p + 1 }
+        p++
+    }
+    if start >= cpos { return "" }
+    return line.substr(start, cpos - start)
+}
+
+/// True for a line that opens a struct/enum body, so field lines below it
+/// can be keyed by `Owner.field` instead of by a bare field name that half
+/// the structs share.
+priv line_opens_body := func(line: Str) returns Bool {
+    trimmed := trim_right(line, 0, line.len())
+    if trimmed == 0 { return false }
+    return line.unsafe_get(trimmed - 1) == '{'
+}
+
+/// One audited binding as the committed file spells it: the declaration
+/// line, plus the comment block written directly above it (a human's
+/// "why this is ext_proc" note lives there, and the generator cannot
+/// reproduce it).
+///
+/// Every declaration kind is preserved, not just functions. A struct line
+/// looks like pure transcription and is not: nng_sockaddr_ipc is deliberately
+/// given its OWN C tag rather than the `nng_sockaddr_path` it aliases,
+/// because two til ext_structs sharing one tag made the emitter define that
+/// struct twice and broke `make bin/til`. Regenerating over an audit must
+/// never quietly undo a decision like that.
+///
+/// Both Strs are VIEWS into the old file's buffer (substr allocates
+/// nothing), which generate_bindings keeps alive across the whole run --
+/// nothing here is cloned. `seen` is flipped by reapply_audited_decls so
+/// the leftover entries can be reported without a second name set.
+priv AuditedDecl := struct {
+    comments := ""
+    line := ""
+    seen := false
+}
+
+priv line_is_comment := func(line: Str) returns Bool {
+    lead := skip_ws(line, 0)
+    if lead.add(1) >= line.len() { return false }
+    return line.unsafe_get(lead).eq('/').and(line.unsafe_get(lead + 1).eq('/'))
+}
+
+/// Previous declarations by binding name, as views into `source` (the old
+/// file's whole buffer, which the caller keeps alive). An empty source --
+/// no previous file -- yields an empty map, so a first generation behaves
+/// exactly as it did before.
+///
+/// The comment block above a declaration is tracked as a byte RANGE
+/// [cb_start, line start) and captured as ONE view including its newlines;
+/// nothing is accumulated line by line.
+priv load_audited_decls := func(source: Str) returns Map(Str, AuditedDecl) {
+    mut prev := Map(Str, AuditedDecl).new()
+    // Start of the current comment run; == pos when no run is open.
+    mut cb_start : USize = 0
+    // The struct/enum whose body we are inside, as a range of `source`
+    // (offsets dodge Str ownership questions on a mut local).
+    mut owner_start : USize = 0
+    mut owner_len : USize = 0
+    mut pos : USize = 0
+    while pos < source.len() {
+        mut end := pos
+        while end < source.len() {
+            if source.unsafe_get(end) == 10 { break }
+            end++
+        }
+        line := source.substr(pos, end - pos)
+        name := any_decl_name(line)
+        if name.len() > 0 {
+            // Fresh views for the entry rather than reusing `line`: a local
+            // passed as a conditional ctor field arg gets a balancing delete
+            // on the untaken branch AND the loop-end free -- a double free
+            // (issue #364; reusing `line` here reproduces it).
+            mut entry := AuditedDecl(comments = source.substr(cb_start, pos - cb_start),
+                line = source.substr(pos, end - pos))
+            prev.set(name, own entry)
+            owner_len = 0
+            if line_opens_body(line) {
+                owner_start = pos + skip_ws(line, 0)
+                owner_len = name.len()
+            }
+        } else if line_is_comment(line) {
+            // Keep the run open: cb_start already points at its first line
+            // (every non-comment line below resets it to the line after).
+            pos = end + 1
+            continue
+        } else {
+            fname := field_decl_name(line)
+            if owner_len.gt(0).and(fname.len() > 0) {
+                mut fentry := AuditedDecl(comments = source.substr(cb_start, pos - cb_start),
+                    line = source.substr(pos, end - pos))
+                prev.set(format(source.substr(owner_start, owner_len), ".", fname), own fentry)
+            }
+        }
+        // Any non-comment line ends the run: only comments touching the
+        // declaration belong to it.
+        pos = end + 1
+        cb_start = pos
+    }
+    return prev
+}
+
+/// Replace each generated declaration -- and the comment block the generator
+/// wrote above it -- with the audited predecessor of the same name.
+///
+/// The walk copies nothing per line: it tracks the start of the current
+/// UNCHANGED region and flushes it in one push whenever a substitution
+/// happens, so the cost is a handful of large copies plus one map probe per
+/// declaration line. Generated comment blocks are never buffered either --
+/// when a preserved declaration carries audited comments, the flush simply
+/// stops before the generated block (cb_start) so it is skipped in place.
+priv reapply_audited_decls := proc(generated: Str, mut prev: Map(Str, AuditedDecl), out_path: Str) returns Str {
+    // Preserved comment blocks are additional text, so the result can be
+    // larger than what was generated; Str.push_str panics rather than
+    // growing. nng's audit is the widest case measured (~26KB of notes over
+    // ~750KB of bindings), so doubling plus a fixed slack covers it with
+    // room to spare.
+    mut out := Str.with_capacity(generated.len() * 2 + 65536)
+    // Start of the region of `generated` not yet flushed to `out`.
+    mut span_start : USize = 0
+    // Start of the current comment run (== current line start when none).
+    mut cb_start : USize = 0
+    mut owner_start : USize = 0
+    mut owner_len : USize = 0
+    mut stale : USize = 0
+    mut pos : USize = 0
+    while pos < generated.len() {
+        mut end := pos
+        while end < generated.len() {
+            if generated.unsafe_get(end) == 10 { break }
+            end++
+        }
+        line := generated.substr(pos, end - pos)
+        if line_is_comment(line) {
+            // Keep the run open; nothing to emit yet.
+            pos = end + 1
+            continue
+        }
+        name := any_decl_name(line)
+        mut key := ""
+        if name.len() > 0 {
+            key = name
+            owner_len = 0
+            if line_opens_body(line) {
+                owner_start = pos + skip_ws(line, 0)
+                owner_len = name.len()
+            }
+        } else if owner_len > 0 {
+            fname := field_decl_name(line)
+            if fname.len() > 0 {
+                key = format(generated.substr(owner_start, owner_len), ".", fname)
+            }
+        }
+        if key.len().gt(0).and(prev.has(key)) {
+            ref mut audited : AuditedDecl = prev[key]
+            audited.seen = true
+            // Flush everything unchanged before this declaration. When the
+            // audit carries its own comment block, stop the flush at the
+            // generated block so the audited one replaces it; otherwise the
+            // generated comments are part of the unchanged span.
+            mut cut := pos
+            if audited.comments.len().gt(0).and(cb_start < pos) { cut = cb_start }
+            out.push_str(generated.substr(span_start, cut - span_start))
+            out.push_str(audited.comments)
+            out.push_str(audited.line)
+            if end < generated.len() { out.push_str("\n") }
+            span_start = end + 1
+            // A preserved audit answers the signature it was written for. If
+            // C's arity moved under it, say so instead of shipping a stale
+            // answer quietly. Function declarations only: arity means
+            // nothing for a field or struct line, and an Option-typed field
+            // has parens that would false-fire the count.
+            is_fn := (audited.line.find(" := ext_func(") >= 0).or(audited.line.find(" := ext_proc(") >= 0)
+            if is_fn.and(decl_param_count(audited.line) != decl_param_count(line)) {
+                eprint_single(format("warning: ", out_path, ": '", key,
+                    "' kept its audited declaration, but C's parameter count changed -- re-audit it\n"))
+                stale = stale + 1
+            }
+        }
+        pos = end + 1
+        cb_start = pos
+    }
+    out.push_str(generated.substr(span_start, generated.len() - span_start))
+    if stale > 0 {
+        eprint_single(format("warning: ", out_path, ": ", stale.to_str(),
+            " audited declaration(s) may be stale\n"))
+    }
+    // Whatever the old file declared and this header does not produce is
+    // either a hand-ADDED declaration (libffi's extra_cif_fields, nng's
+    // protocol constructors -- doc/ffi.org lists them) or a binding C
+    // dropped. The generator cannot tell those apart, and resurrecting a
+    // deleted symbol forever would be worse than losing an addition, so it
+    // keeps neither and names them all instead of dropping them silently.
+    mut lost : USize = 0
+    for i in 0..prev.len() {
+        ref k : Str = prev.keys[i]
+        ref e : AuditedDecl = prev[k]
+        if e.seen { continue }
+        if lost == 0 {
+            eprint_single(format("warning: ", out_path,
+                ": declarations in the previous file that this header does not produce,\n",
+                "  re-add by hand if they were deliberate additions (see doc/ffi.org):\n"))
+        }
+        eprint_single(format("    ", k, "\n"))
+        lost = lost + 1
+    }
+    return out
+}
+
 generate_bindings := proc(in_path: Str, out_path: Str) {
     incdir := header_dir_of(in_path)
     mut pre := ""
@@ -1855,10 +2155,16 @@ generate_bindings := proc(in_path: Str, out_path: Str) {
     if ec != 0 { panic("cc preprocessing failed for ", in_path) }
     lines := filter_preprocessed(pre, incdir)
     if lines.len() == 0 { panic("no lines from ", in_path, " after filtering by ", incdir) }
+    // The old file's buffer must outlive `prev`: its entries are views into
+    // these bytes, alive until the reapply below is done with them.
+    mut old := ""
+    if File.exists(out_path) { old = File.readfile(out_path) }
+    mut prev := load_audited_decls(old)
     mut out := Str.with_capacity(262144)
     out.push_str("mode lib\n\n")
     mut bs := BinderState()
     walk_header(bs, out, lines)
     collapsed := collapse_blank_runs(out)
-    File.writefile(out_path, collapsed)
+    audited := reapply_audited_decls(collapsed, prev, out_path)
+    File.writefile(out_path, audited)
 }
