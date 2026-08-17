@@ -1,0 +1,104 @@
+# priority: medium
+# category: bugs
+** FIXED #361 A boxed scalar narrower than a word is copied as a word into a Dynamic slot
+
+*** Post-mortem
+
+The title this was filed under was wrong three ways, and each correction
+made the bug bigger. It is not Bool-only, not interpreter-only, and has
+nothing to do with variadics or splats.
+
+Filed as "a Bool into a ..Dynamic variadic", from the one shape that
+happened to be under test. Sweeping the widths:
+
+    Bool I8 U8 I16 U16 I32 U32 F32   -> heap-buffer-overflow
+    I64 U64 F64                      -> clean
+
+Every scalar NARROWER than a word, not the Bool. And no variadic is
+needed -- three lines reproduce it:
+
+    mut a := Array(Dynamic).new(1)
+    v : I32 = 7
+    a.set(0, own v)!
+
+And it was never interpreter-only: the compiled program overflows too,
+under `bin/til build --asan`. The interpreted trace was just the one I
+looked at first.
+
+*** The actual defect
+
+A value crossing into a ~Dynamic~ slot is copied at Dynamic's width. The
+copy is ~adopt~ (src/core/mem.til:110):
+
+    adopt := func(T: Type, dest: Dynamic, own src: T) {
+        memcpy(dest, src, T.size())
+        free(own src)
+    }
+
+With ~T~ = Dynamic that is a fixed 8 bytes, while ~src~ points at a box
+allocated at the SCALAR's own width -- ~malloc(sizeof(I32))~ in the emit,
+~dispatch_result_alloc~ sized from ~builtin_primitive_size_align~ in the
+interpreter. So the copy read 4 (or 2, or 1) bytes of value and the rest
+from past the end of the allocation.
+
+Nothing was ever wrong with the RESULT: the slack bytes are never
+interpreted, since readers load at the value's own width, and every
+round-trip asserted here returns what was stored, before and after. This
+was pure latent UB -- invisible with a real allocator, whose smallest
+chunk is far larger than any scalar, and reported the instant ASAN looks.
+
+*** The fix
+
+Give a boxed value at least a word, whatever its type's width, so the
+word-width copy is in bounds by construction. That is the invariant every
+word-based reader in this codebase already assumes (~scalar_word_load~,
+the prim->Dynamic coerce, ~adopt~ with T = Dynamic).
+
+- Emit: a ~TIL_BOX(T)~ macro beside ~DEREF~, ~(sizeof(T) < sizeof(void *)
+  ? sizeof(void *) : sizeof(T))~, replacing ~sizeof~ at every
+  ~malloc(sizeof(X))~ box site in builder.til. Only single-value boxes --
+  ~calloc(n, sizeof(elem))~ for array storage and the ~* sizeof(elem)~
+  element stride are untouched, and must stay that way: widening a stride
+  would corrupt indexing.
+- Interpreter: ~dispatch_result_alloc~ widens the ~.Primitive~ arm the
+  same way.
+
+~T.size()~ itself is NOT widened anywhere. It remains the true size, which
+is what strides, copies and the C ABI need; only the ALLOCATION grew.
+
+*** Regression tests
+
+test_dynamic_element_widths (test/arrays.til) stores Bool / I8 / I16 /
+I32 / F32 into an Array(Dynamic) and reads each back, so the suite's ASAN
+run covers every narrow width. test_splat_dynamic_variadic
+(test/variadic.til) gets its Bool argument back, the one #342 had to leave
+out. A Str is still missing from that call: #362, the leak in the
+constfolder's va materialization, is untouched by this and still fires.
+
+*** Where to look
+
+The trace runs through ~ext_dispatch_ffi~ (src/self/interpreter.til): the
+FFI argument marshalling for a value crossing into a ~Dynamic~ slot reads
+a full 8-byte word from the argument's storage, and a Bool's heap cell is
+1 byte. Either the load must honour the value's own width (a
+~scalar_word_load~ at Bool width, then widen), or Bool cells must be
+allocated at word size like the other scalars evidently are. Whichever
+way, the fix is about the DYNAMIC hop -- a ~..Bool~ variadic does not
+overflow, so the plain typed path already gets it right.
+
+Neighbouring work worth reading first: #357 (fixed) was the pointer side
+of the same hop -- a pointer-to-scalar crossing into Dynamic stopped being
+dereferenced once too many. This looks like the width side of the same
+conversion, but the two were never observed together: the repro above was
+last run against a compiler that PREDATES that fix, so re-run it before
+digging, in case #357 closed this too.
+
+*** Regression test
+
+The repro above, plus ~dyn_count(1, "a", true)~ mixing widths in one
+call. Both must be ASAN-clean interpreted and compiled. Until then,
+test_splat_dynamic_variadic (test/variadic.til, #342) deliberately keeps
+Bools out of its ..Dynamic calls -- undo that note when this closes.
+
+Found while testing #342's splat checks; the call shape carries no splat,
+so it is not that issue's to fix.

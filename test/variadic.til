@@ -328,11 +328,9 @@ test_splat_dynamic_variadic := test() {
     assert_eq(USize, splat_dyn_count(..d), 2)
     assert_eq(USize, splat_dyn_count(9, ..d), 3)
     assert_eq(USize, splat_dyn_count(..d, 9), 3)
-    // Only splats and I64 elements here on purpose. A ..Dynamic variadic has
-    // two memory bugs of its own for other plain argument types, both with no
-    // splat anywhere in the call: a Bool is read as 8 bytes off its 1-byte
-    // allocation (#361, heap-buffer-overflow in the ext dispatch), and a Str
-    // leaks its 2-byte clone in the constfolder's va materialization (#362).
-    // Asserting on them here would only pin bugs this issue is not about.
     assert_eq(USize, splat_dyn_count(9, ..d, 9), 4)
+    // A Bool among the plain arguments: narrower than a word, and #361 copied
+    // one as a word off its 1-byte box. No Str here yet -- one still leaks its
+    // clone in the constfolder's va materialization (#362).
+    assert_eq(USize, splat_dyn_count(true, ..d), 3)
 }

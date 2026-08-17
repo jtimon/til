@@ -260,3 +260,34 @@ test_collection_literal_splat_in_arg := test() {
     assert_eq(USize, arg_vec_len(vec(I64, 1, ..inner, 9)), 4)
     assert_eq(USize, inner.len(), 2)
 }
+
+// #361: a boxed scalar gets at least a WORD of storage, whatever its own width
+// is. A value crossing into a Dynamic slot is copied at Dynamic's width --
+// adopt's `memcpy(dest, src, T.size())` with T = Dynamic -- so a 1-byte Bool
+// box or a 4-byte I32 box was read past its own end. Harmless with a real
+// allocator, whose smallest chunk is far larger, but UB that ASAN reports, and
+// BOTH backends did it. The values were always read back correctly and still
+// are; what changed is that the copy now stays inside the allocation.
+test_dynamic_element_widths := test() {
+    mut a := Array(Dynamic).new(5)
+    flag : Bool = true
+    tiny : I8 = -3
+    small : I16 = -300
+    mid : I32 = 70000
+    frac : F32 = 1.5
+    a.set(0, own flag)!
+    a.set(1, own tiny)!
+    a.set(2, own small)!
+    a.set(3, own mid)!
+    a.set(4, own frac)!
+    ref r0 : Bool = a[0]
+    ref r1 : I8 = a[1]
+    ref r2 : I16 = a[2]
+    ref r3 : I32 = a[3]
+    ref r4 : F32 = a[4]
+    assert(r0)
+    assert_eq(I8, r1, -3)
+    assert_eq(I16, r2, -300)
+    assert_eq(I32, r3, 70000)
+    assert_eq(F32, r4, 1.5)
+}

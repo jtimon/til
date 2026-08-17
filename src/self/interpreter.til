@@ -6197,6 +6197,16 @@ priv dispatch_enum_size := func(name: Str, ctx: Context) returns USize {
     return size
 }
 
+// #361: a boxed scalar always gets at least a WORD of storage, however
+// narrow the type is. A value crossing into a Dynamic slot is copied at
+// Dynamic's width -- `adopt(T, dest, own src)` with T = Dynamic memcpy's
+// T.size() from the box -- and every word-based reader here (scalar_word_load,
+// the prim->Dynamic coerce) assumes the same. Sized at the type's own width, a
+// Bool box was 1 byte and an I32 box 4, so that copy read past the end of the
+// allocation: harmless in practice, since malloc's smallest chunk is far
+// larger, but real UB that ASAN reports the moment such a value reaches a
+// container of Dynamic. The slack bytes are never interpreted -- readers load
+// at the value's own width.
 dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
     mut size : USize = 0
     switch t {
@@ -6205,6 +6215,7 @@ dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
     case .Primitive(prim):
         mut align : USize = 0
         builtin_primitive_size_align(prim, size, align)
+        if size < Dynamic.size() { size = Dynamic.size() }
     case .Struct(name):
         size = ctx_total_size(name, ctx)
     case .Enum(name):

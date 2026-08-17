@@ -2090,7 +2090,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     } else {
-                        f.write(ctype).write(" *").write(dd.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
+                        f.write(ctype).write(" *").write(dd.name).write(" = malloc(TIL_BOX(").write(ctype).write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     }
                 } else if rhs.node_type.is_literal_str().and(is_global.not()) {
@@ -2913,7 +2913,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
     switch e.node_type {
     case .FuncDef(fd):
         env_type := format(fd.closure_name, "_env")
-        f.write("({ ").write(env_type).write(" *til_env = malloc(sizeof(").write(env_type).write(")); ")
+        f.write("({ ").write(env_type).write(" *til_env = malloc(TIL_BOX(").write(env_type).write(")); ")
         for cap : Declaration in fd.captures {
             ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), _ctx)
             mut cap_expr := Expr.new(ident_node(cap.name), e.line, e.col)
@@ -2923,7 +2923,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
                 emit_as_ptr(f, cap_expr, _depth, false, _ctx)
                 f.write("; ")
             } else if cap.own_type.is(OwnType.Shallow).or(type_is_callable_storage(cap.til_type)) {
-                f.write("til_env->").write(cap.name).write(" = malloc(sizeof(").write(ctype).write(")); ")
+                f.write("til_env->").write(cap.name).write(" = malloc(TIL_BOX(").write(ctype).write(")); ")
                 f.write("*til_env->").write(cap.name).write(" = ")
                 emit_deref(f, cap_expr, _depth, _ctx)
                 f.write("; ")
@@ -2933,11 +2933,11 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
                 f.write("; ")
             }
         }
-        f.write("TilClosure *til_closure = malloc(sizeof(TilClosure)); ")
+        f.write("TilClosure *til_closure = malloc(TIL_BOX(TilClosure)); ")
         f.write("*til_closure = (TilClosure){ (void *)").write(fd.closure_name).write(", til_env, ").write(fd.closure_name).write("_drop, ").write(fd.closure_name).write("_clone }; til_closure; })")
     case .BodyValue(bd):
         env_type2 := format(bd.closure_name, "_env")
-        f.write("({ ").write(env_type2).write(" *til_env = malloc(sizeof(").write(env_type2).write(")); ")
+        f.write("({ ").write(env_type2).write(" *til_env = malloc(TIL_BOX(").write(env_type2).write(")); ")
         for cap_b : Declaration in bd.captures {
             ctype_b := c_type_name(cap_b.til_type, til_type_name(cap_b.til_type), _ctx)
             mut cap_expr_b := Expr.new(ident_node(cap_b.name), e.line, e.col)
@@ -2947,7 +2947,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
                 emit_as_ptr(f, cap_expr_b, _depth, false, _ctx)
                 f.write("; ")
             } else if cap_b.own_type.is(OwnType.Shallow).or(type_is_callable_storage(cap_b.til_type)) {
-                f.write("til_env->").write(cap_b.name).write(" = malloc(sizeof(").write(ctype_b).write(")); ")
+                f.write("til_env->").write(cap_b.name).write(" = malloc(TIL_BOX(").write(ctype_b).write(")); ")
                 f.write("*til_env->").write(cap_b.name).write(" = ")
                 emit_deref(f, cap_expr_b, _depth, _ctx)
                 f.write("; ")
@@ -2957,7 +2957,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
                 f.write("; ")
             }
         }
-        f.write("TilClosure *til_closure = malloc(sizeof(TilClosure)); ")
+        f.write("TilClosure *til_closure = malloc(TIL_BOX(TilClosure)); ")
         f.write("*til_closure = (TilClosure){ (void *)").write(bd.closure_name).write(", til_env, ").write(bd.closure_name).write("_drop, ").write(bd.closure_name).write("_clone }; til_closure; })")
     case:
         UNREACHABLE("unexpected ", e.node_type.head_str())
@@ -3005,7 +3005,7 @@ priv assign_str_lit_needs_own_box := func(aname: Str, ctype: Str, rhs: Expr, mut
 // owns writable storage the callee can write back into. Same shape as the
 // CAP_LIT -> CAP_VIEW demotion emit_return_box performs.
 priv emit_str_lit_own_box := proc(f: File, s: Str) {
-    f.write("({ Str *_lb = malloc(sizeof(Str)); *_lb = (Str){.c_str = (void *)\"")
+    f.write("({ Str *_lb = malloc(TIL_BOX(Str)); *_lb = (Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
     emit_usize(f, c_lit_byte_count(s))
@@ -3856,7 +3856,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
                             f.write(ct)
                             f.write(" *")
                             f.write(tmp)
-                            f.write(" = malloc(sizeof(")
+                            f.write(" = malloc(TIL_BOX(")
                             f.write(ct)
                             f.write("));\n")
                             emit_ctor_fields(f, tmp, arg, depth, ctx)
@@ -4113,7 +4113,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 } else {
                     f.write("({ ")
                     f.write(ctype)
-                    f.write(" *_oa = malloc(sizeof(")
+                    f.write(" *_oa = malloc(TIL_BOX(")
                     f.write(ctype)
                     f.write(")); *_oa = ")
                     emit_expr(f, e, depth, ctx)
@@ -4152,7 +4152,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     f.write(ctype)
                     f.write(" *_sc")
                     emit_i32(f, id)
-                    f.write(" = malloc(sizeof(")
+                    f.write(" = malloc(TIL_BOX(")
                     f.write(ctype)
                     f.write(")); ")
                     tmp := format("_sc", id.to_str())
@@ -4172,7 +4172,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 else { ctype = c_type_name(e.til_type(), "", ctx) }
             }
             if is_own {
-                f.write("({ ").write(ctype).write(" *_oa = malloc(sizeof(").write(ctype).write(")); *_oa = ")
+                f.write("({ ").write(ctype).write(" *_oa = malloc(TIL_BOX(").write(ctype).write(")); *_oa = ")
                 emit_expr(f, e, depth, ctx)
                 if ctype == "Str" { f.write("; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }") }
                 f.write("; _oa; })")
@@ -4201,7 +4201,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 ref obj_sname : Str = obj_sname_o.unwrap()
                 f.write("({ ")
                 f.write(obj_sname)
-                f.write(" *_oa = malloc(sizeof(")
+                f.write(" *_oa = malloc(TIL_BOX(")
                 f.write(obj_sname)
                 f.write(")); *_oa = (")
                 f.write(obj_sname)
@@ -4257,7 +4257,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
 // sibling args never clash. Inlines what the old cli_parse_* helpers did.
 priv cli_view_box := func(ctype: Str, conv: Str, arg: Str) returns Str {
     return "({ Str _cvv = Str_from_c_str(".format(arg, "); Str *_cv = &_cvv; ", ctype, " _v = ", conv,
-        "; Str_delete(&_cvv, (Bool){0}); ", ctype, " *_p = malloc(sizeof(", ctype,
+        "; Str_delete(&_cvv, (Bool){0}); ", ctype, " *_p = malloc(TIL_BOX(", ctype,
         ")); *_p = _v; _p; })")
 }
 
@@ -4287,7 +4287,7 @@ priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
     case "Str":
         // The variadic-array fill path consumes a pointer slot; adapt the
         // ordinary by-value Str.clone result once at this boundary.
-        return "({ Str *_p = malloc(sizeof(Str)); *_p = Str_clone(&(Str){.c_str = (void *)".format(
+        return "({ Str *_p = malloc(TIL_BOX(Str)); *_p = Str_clone(&(Str){.c_str = (void *)".format(
             arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT}); _p; })")
     case "I64":   return cli_view_scalar(by_value, "I64", "Str_to_i64(_cv)", arg)
     case "U8":    return cli_view_scalar(by_value, "U8", "Str_to_u8(_cv)", arg)
@@ -4425,7 +4425,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     if arr_type == "Array" {
                         f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(elem_c).write("\", .count = "); emit_usize(f, elem_c.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
                     } else {
-                        f.write("malloc(sizeof(").write(arr_type).write("));\n")
+                        f.write("malloc(TIL_BOX(").write(arr_type).write("));\n")
                         f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(elem_c).write("));\n")
                         f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     }
@@ -4512,7 +4512,7 @@ priv emit_closure_env_clone := proc(f: File, closure_name: Str, env_type: Str,
         captures: Vec(Declaration), mut lp: LoadedProgram) {
     f.write("static void *").write(closure_name).write("_clone(void *til_env_raw) {\n")
     f.write("    ").write(env_type).write(" *til_env = (").write(env_type).write(" *)til_env_raw;\n")
-    f.write("    ").write(env_type).write(" *til_clone = malloc(sizeof(").write(env_type).write("));\n")
+    f.write("    ").write(env_type).write(" *til_clone = malloc(TIL_BOX(").write(env_type).write("));\n")
     if captures.len() == 0 { f.write("    til_clone->unused = til_env->unused;\n") }
     for cap : Declaration in captures {
         if cap.own_type.is(OwnType.Ref) {
@@ -4523,12 +4523,12 @@ priv emit_closure_env_clone := proc(f: File, closure_name: Str, env_type: Str,
             clone_type := type_to_name(cap.til_type)
             if is_primitive_type(clone_type) {
                 ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), lp.ctx)
-                f.write("    til_clone->").write(cap.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
+                f.write("    til_clone->").write(cap.name).write(" = malloc(TIL_BOX(").write(ctype).write("));\n")
                 f.write("    *til_clone->").write(cap.name).write(" = *til_env->").write(cap.name).write(";\n")
             } else {
                 clone_name := format(clone_type, "_clone")
                 if callee_returns_c_value(clone_name, lp.ctx) {
-                    f.write("    til_clone->").write(cap.name).write(" = malloc(sizeof(").write(clone_type).write("));\n")
+                    f.write("    til_clone->").write(cap.name).write(" = malloc(TIL_BOX(").write(clone_type).write("));\n")
                     f.write("    *til_clone->").write(cap.name).write(" = ").write(clone_name).write("(til_env->").write(cap.name).write(");\n")
                 } else {
                     f.write("    til_clone->").write(cap.name).write(" = ").write(clone_name).write("(til_env->").write(cap.name).write(");\n")
@@ -6994,7 +6994,7 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     f.write("    (void)_til_env;\n")
     if box_ret {
         rc := type_name_to_c_value(fd.return_type, ctx)
-        f.write("    ").write(rc).write(" *_r = malloc(sizeof(").write(rc).write(")); *_r = ")
+        f.write("    ").write(rc).write(" *_r = malloc(TIL_BOX(").write(rc).write(")); *_r = ")
     } else {
         f.write("    ")
         if has_return {
@@ -7579,7 +7579,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
         } else if vt == "Str" {
             f.write("    case Type_TAG_")
             f.write(vn)
-            f.write(": { Str *r = malloc(sizeof(Str)); *r = Str_clone(&type->data.")
+            f.write(": { Str *r = malloc(TIL_BOX(Str)); *r = Str_clone(&type->data.")
             f.write(vn)
             f.write("); return r; }\n")
         } else {
@@ -7685,7 +7685,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                     if info.nargs == 2 {
                         if info.has_return {
                             if ret_sh {
-                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(sizeof(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
+                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
                             } else {
                                 f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write(");\n")
                             }
@@ -7695,7 +7695,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                     } else {
                         if info.has_return {
                             if ret_sh {
-                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(sizeof(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
+                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
                             } else {
                                 f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(");\n")
                             }
@@ -7763,7 +7763,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                 if info.nargs == 2 {
                     if info.has_return {
                         if ret_sh {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(sizeof(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
                         } else {
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write(");\n")
                         }
@@ -7773,7 +7773,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                 } else {
                     if info.has_return {
                         if ret_sh {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(sizeof(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
                         } else {
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(");\n")
                         }
@@ -7847,11 +7847,11 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
             if dyn_has_shallow {
                 f.write("    if (type_name->count == "); emit_usize(f, dyn_has_tn.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dyn_has_tn).write("\", "); emit_usize(f, dyn_has_tn.len()); f.write("ULL) == 0) return 1;\n")
             } else {
-                f.write("    if (type_name->count == "); emit_usize(f, dyn_has_tn.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dyn_has_tn).write("\", "); emit_usize(f, dyn_has_tn.len()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
+                f.write("    if (type_name->count == "); emit_usize(f, dyn_has_tn.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dyn_has_tn).write("\", "); emit_usize(f, dyn_has_tn.len()); f.write("ULL) == 0) { Bool *r = malloc(TIL_BOX(Bool)); *r = 1; return r; }\n")
             }
         }
         if dyn_has_shallow { f.write("    return 0;\n") }
-        else { f.write("    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n") }
+        else { f.write("    Bool *r = malloc(TIL_BOX(Bool)); *r = 0; return r;\n") }
         f.write("}\n\n")
     }
 }
@@ -7880,7 +7880,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             cn := et.format("_clone")
             is_shallow := callee_returns_c_value(cn, lp.ctx)
             if is_shallow {
-                f.write("        ").write(et).write(" *_val = malloc(sizeof(").write(et).write(")); *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
+                f.write("        ").write(et).write(" *_val = malloc(TIL_BOX(").write(et).write(")); *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             } else {
                 f.write("        ").write(et).write(" *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             }
@@ -7898,7 +7898,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             if arr_type == "Array" {
                 f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
             } else {
-                f.write("malloc(sizeof(").write(arr_type).write("));\n")
+                f.write("malloc(TIL_BOX(").write(arr_type).write("));\n")
                 f.write("    _a->data = calloc(_cap, sizeof(").write(et).write("));\n")
                 f.write("    _a->cap = _cap;\n")
             }
@@ -7908,7 +7908,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             cn := et.format("_clone")
             is_shallow := callee_returns_c_value(cn, lp.ctx)
             if is_shallow {
-                f.write("        ").write(et).write(" *_val = malloc(sizeof(").write(et).write(")); *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
+                f.write("        ").write(et).write(" *_val = malloc(TIL_BOX(").write(et).write(")); *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             } else {
                 f.write("        ").write(et).write(" *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             }
@@ -8471,6 +8471,16 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     emit_all_forward_declarations(f, mode, lp)
 
     f.write("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
+
+    // #361: a boxed value always gets at least a WORD, however narrow its type
+    // is. A value crossing into a Dynamic slot is copied at Dynamic's width --
+    // `adopt(T, dest, own src)` with T = Dynamic memcpy's 8 bytes out of the
+    // box -- so a `malloc(sizeof(Bool))` or `malloc(sizeof(I32))` source read
+    // past its own end. Harmless with a real allocator, whose smallest chunk
+    // is far larger, but UB that ASAN reports as soon as such a value reaches
+    // a container of Dynamic. The slack is never interpreted: readers load at
+    // the value's own width.
+    f.write("#define TIL_BOX(T) (sizeof(T) < sizeof(void *) ? sizeof(void *) : sizeof(T))\n")
 
     // Issue #343: `Str` is pointer + count and a C string parameter reads to
     // a NUL, so the two only line up when the byte at c_str[count] IS one.

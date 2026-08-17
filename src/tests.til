@@ -672,7 +672,7 @@ main := proc(args: ..Str) {
         "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", 2,
         format(til_bin, " translate -c gen/c/aggregate_own_return.c test/structs.til '&&' cat gen/c/aggregate_own_return.c"))
     add_count(tests, "aggregate_own_escape_boxes", "build",
-        "StackValue346 *_oa = malloc(sizeof(StackValue346))", 2,
+        "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", 2,
         format(til_bin, " translate -c gen/c/aggregate_own_escape.c test/structs.til '&&' cat gen/c/aggregate_own_escape.c"))
     add_count(tests, "expr_new_value_return_abi", "build",
         "static Expr Expr_new(NodeType * data, U32 line, U32 col)", 2,

@@ -43,9 +43,11 @@ buffer).
 
 The repro above must be ASAN-clean interpreted. Until then,
 test_splat_dynamic_variadic (test/variadic.til, #342) keeps Str elements
-out of its ..Dynamic calls -- undo that note when this closes. #361 is the
-overflow sibling (Bool, same parameter shape); a fix for either should
-re-run the other's repro.
+out of its ..Dynamic calls -- undo that note when this closes. #361, filed
+as the overflow sibling, turned out to be a different defect entirely (a
+boxed scalar narrower than a word copied as one, in both backends) and is
+fixed; this leak survived that fix, so the two share only the shape that
+found them.
 
 Found while testing #342's splat checks; no splat in the call, so filed
 separately.
