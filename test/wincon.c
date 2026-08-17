@@ -96,6 +96,18 @@ Bool wincon_begin(void) {
     SetStdHandle(STD_INPUT_HANDLE, wincon_in_h);
     SetStdHandle(STD_OUTPUT_HANDLE, wincon_out_h);
     SetStdHandle(STD_ERROR_HANDLE, wincon_out_h);
+    // Restore normal Ctrl+C processing BEFORE any child is spawned. The
+    // "ignore Ctrl+C" attribute that SetConsoleCtrlHandler(NULL, TRUE)
+    // sets is INHERITED, and a process launched by CI arrives with it
+    // already on -- so the REPL inherited it too and CTRL_C_EVENT was
+    // never generated for it, while CTRL_BREAK_EVENT (which the attribute
+    // does not cover) killed it on the spot. That asymmetry is what the
+    // run reported: "Ctrl-C was delivered but did not end the REPL;
+    // CTRL_BREAK error=0 ended=true". Passing NULL with FALSE clears the
+    // attribute for this process, and the children inherit the cleared
+    // state, so the test measures the REPL rather than whatever the
+    // parent chain happened to leave set.
+    SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(wincon_swallow_ctrl, TRUE);
     return 1;
 }
