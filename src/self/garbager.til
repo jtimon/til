@@ -2125,14 +2125,27 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
         }
         // #302: a transfer inside a loop, of a binding declared outside the
         // loop, may run on every iteration -- the second one moves an
-        // already-moved value. A loop that also REASSIGNS the binding is
-        // the legitimate rebind-then-transfer pattern and is skipped (the
-        // index model cannot order the two within an iteration; the CFG
-        // pass will).
-        if local.own_transfer >= 0 {
+        // already-moved value.
+        //
+        // #365: a loop that also REASSIGNS the binding used to be exempt,
+        // read as the legitimate rebind-then-transfer pattern. It is not
+        // legitimate as compiled: the assign's save_old_delete frees the
+        // old value unconditionally, so it frees what the previous
+        // iteration's transfer already freed -- a double free in all four
+        // orderings of rebind and transfer, which the interpreter did not
+        // reproduce because it tracks moved-ness at runtime. Nothing
+        // static can stand in for that flag here: with a loop back edge
+        // the binding is owned on the first iteration and moved on the
+        // rest, so the assign would need a runtime test to know whether
+        // to free. Rejecting says so, and `declare it inside the loop`
+        // is the rewrite every correct version of this wanted anyway.
+        //
+        // Aggregates only: a primitive `own` transfer copies, so there is
+        // nothing to double-free, and the Array index-assign in this very
+        // file (`table[i] = cur`) reads as a transfer of a U8.
+        if local.own_transfer.gte(0).and(is_aggregate(local.type)) {
             ref xstmt : Expr = body.children[local.own_transfer.to_usize()]
-            if transfer_inside_loop(xstmt, local.name, scope, ctx).and(
-                expr_reassigns_var(xstmt, local.name).not()) {
+            if transfer_inside_loop(xstmt, local.name, scope, ctx) {
                 xstmt.type_error(format("ownership of '", local.name,
                     "' transferred inside a loop; a second iteration would use a moved value"), ctx)
                 println("  help: declare '", local.name, "' inside the loop, or pass a clone: own ", local.name, ".clone()")

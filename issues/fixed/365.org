@@ -1,0 +1,79 @@
+# priority: high
+# category: bugs
+** FIXED #365 A loop that rebinds an owned local before transferring it double-frees
+
+*** Post-mortem
+
+Root cause: the assignment's free-the-old is emitted unconditionally,
+and knows nothing about a transfer having moved the binding out. In a
+loop the two alternate, so the assign frees the buffer the previous
+iteration's transfer already freed.
+
+The garbager's loop-transfer diagnostic had an ~expr_reassigns_var~
+exemption that stood down for exactly this shape, reading a rebind as
+"the binding is refilled, so the next iteration is fine". The refill is
+fine; the free that comes with it is not. Removing the exemption is the
+fix -- gated to aggregates, because a primitive `own` transfer copies
+and has nothing to double-free (and the Array index-assign in
+gc_flow_table, ~table[i] = cur~ on a U8, reads as a transfer).
+
+Grafting or suppressing the free was not available. With a loop back
+edge the binding is OWNED coming from the pre-header and MOVED coming
+from the back edge, so the assign's flow verdict is Mixed and no static
+choice is correct on both paths -- it would need a runtime moved-flag,
+which is precisely what the interpreter has and the compiled backend
+does not. The rewrite the diagnostic already recommends (declare the
+local inside the loop) makes every correct version of these programs
+correct in both backends, at no runtime cost.
+
+Blast radius, measured the same way as #364 -- remove the exemption,
+self-compile, read the errors: two hits, both false positives on U8
+locals, which is what the aggregate gate is for. No aggregate in the
+compiler or the corpus relied on the old acceptance.
+
+Regression test: the four orderings are cases 4-7 of
+test/loop_transfer_error.til (registered as loop_transfer_error_interp
+/ _build, now 7 expected diagnostics).
+
+*** How it surfaced
+
+#364 closed by removing the exemption for GUARDED transfers in a loop
+and left ~expr_reassigns_var~ standing as the last way through. Auditing
+that hatch with four probes -- every ordering of rebind and transfer --
+found all four compiled to a double free under ASAN, and three of them
+ran clean interpreted.
+
+#+begin_src til
+mut s := lit.clone()
+for _ in 0..3 {
+    s = lit.clone()
+    kept = kept + take_own(own s)
+}
+#+end_src
+
+Emitted C, on master ~66f18d0~:
+
+#+begin_src c
+{ Str _new = Str_clone(&lit); Str_delete(&s, (Bool){0}); s = _new; }
+U32 hoisted__U32_2 = take_own(s);
+#+end_src
+
+Iteration 0 frees the pre-loop clone, which is right. Iteration 1 frees
+the buffer ~take_own~ freed at the end of iteration 0:
+~AddressSanitizer: attempting double-free~. Interpreted, the same
+program prints 15 and exits clean.
+
+The four probes and their verdicts before the fix:
+
+| probe                                        | correct code | compiled    | interpreted |
+|----------------------------------------------+--------------+-------------+-------------|
+| rebind then transfer, every iteration        | yes          | double-free | pass        |
+| rebind under a guard, transfer unconditional | no           | double-free | panics      |
+| rebind every iteration, transfer under guard | yes          | double-free | pass        |
+| transfer then rebind                         | yes          | double-free | pass        |
+
+The one incorrect program is the only one either backend complained
+about, and only the interpreter did, at runtime. Nothing in the corpus
+wrote any of these shapes, so the suite was green and ASAN never saw
+them -- the same way #364 stayed hidden, and the reason
+test/ownership_shapes.til exists.

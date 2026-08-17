@@ -66,8 +66,75 @@ if_guard_in_one_loop := proc() {
     println(kept.to_str())
 }
 
+// --- rebind-then-transfer (issue #365) ---------------------------------
+//
+// A loop that REASSIGNS the binding before transferring it used to be
+// exempt from the diagnostic, on the reading that the rebind refills what
+// the transfer took. It does not: the assignment's free-the-old is
+// emitted unconditionally, so it frees the buffer the previous
+// iteration's transfer already freed. All four orderings below compiled
+// to a double free, and the interpreter -- which tracks moved-ness at
+// runtime -- disagreed with the compiler on three of them.
+
+// 4. Rebind, then transfer, every iteration.
+rebind_then_transfer := proc() {
+    lit := "hello"
+    mut s := lit.clone()
+    mut kept : USize = 0
+    for _ in 0..3 {
+        s = lit.clone()
+        kept = kept + take_own(own s)
+    }
+    println(kept.to_str())
+}
+
+// 5. Rebind under a guard, transfer every iteration: a genuine
+// use-after-move once the guard stops firing.
+conditional_rebind := proc() {
+    lit := "hello"
+    mut s := lit.clone()
+    mut kept : USize = 0
+    for i in 0..3 {
+        if i == 1 {
+            s = lit.clone()
+        }
+        kept = kept + take_own(own s)
+    }
+    println(kept.to_str())
+}
+
+// 6. Rebind every iteration, transfer under a guard.
+rebind_conditional_transfer := proc() {
+    lit := "hello"
+    mut s := lit.clone()
+    mut kept : USize = 0
+    for i in 0..3 {
+        s = lit.clone()
+        if i == 1 {
+            kept = kept + take_own(own s)
+        }
+    }
+    println(kept.to_str())
+}
+
+// 7. Transfer first, then refill.
+transfer_then_rebind := proc() {
+    lit := "hello"
+    mut s := lit.clone()
+    mut kept : USize = 0
+    for _ in 0..3 {
+        kept = kept + take_own(own s)
+        s = lit.clone()
+    }
+    println(kept.to_str())
+}
+
 main := proc() {
     if_guard_in_nested_loop()
     ctor_field_in_nested_loop()
     if_guard_in_one_loop()
+    rebind_then_transfer()
+    conditional_rebind()
+    rebind_conditional_transfer()
+    transfer_then_rebind()
 }
