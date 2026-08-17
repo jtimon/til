@@ -1,0 +1,75 @@
+# priority: medium
+# category: cleanups
+** OPEN #369 The generated C meets clang on linux, not only on the mac runners
+
+Every linux job compiles the generated C with gcc: ~toolchain_command~
+in src/self/targets.til hardcodes "gcc" for LinuxX64/LinuxX86 and names
+"clang" only for MacosX64/MacosArm64/Wasm32. So the entire test corpus
+is checked under ~-Wall -Wextra -Werror~ by exactly one compiler on
+linux, and clang first sees it on the two slowest jobs in the run.
+
+That is a real gap, not a theoretical one: clang under -Werror rejects
+things gcc accepts in silence, and the emitter already carries four
+separate workarounds for it, two of them charged to #25:
+
+- src/self/builder.til:2354 -- -Wswitch-bool on the niche discriminant
+  (a C comparison switched on directly), fixed with an explicit (int);
+- :2432 -- a til switch with no ~case:~ needs an explicit C ~default:~,
+  because clang rejects a constfolded scrutinee matching no case
+  (~switch (5) { case 1: ... }~); first hit by test/flow.til;
+- :3659 -- -Wgnu-null-pointer-arithmetic on the ~(U8 *)(NULL) + n~ form
+  Apple clang refuses, now a standard (void *)(UPtr) cast;
+- :5093 -- -Wtautological-compare on a two-constant tag compare (below).
+
+Every one of them was found the same way: green linux, red mac. Two of
+those comments say so in as many words.
+
+The most recent one is the argument for filing this. e3085558 taught
+the emitter to spell a bare variant name as its tag; where BOTH
+operands of a tag compare were variant names -- ~match Color.Red
+{ case Color.Red: ... }~, which test/match.til is full of -- the C
+became ~Color_TAG_Red == Color_TAG_Red~. gcc said nothing, the suite
+passed 356/356 on linux, and every master run from e3085558 to
+59ee8153 was red on macos-arm64 and macos-x64 and on nothing else.
+Locally the same failure took about two minutes to reproduce with
+~clang -Wall -Wextra -Werror -fsigned-char -c gen/til/match.c~.
+
+*** The cheap shape
+
+The job that would host this already exists. ~macos (cross-compile on
+linux)~ runs on ubuntu-latest, already apt-installs clang and lld,
+already runs ~make~ for bin/til, and already drives clang through the
+driver with ~--target=macos-arm64~ -- to compile ONE file,
+examples/hello_script.til, in under two minutes. Pointing it at the
+test corpus instead of a single example is the smallest version of
+this, and it needs no compiler-side change at all.
+
+Going through the driver is the point, not an implementation detail. A
+hand-rolled ~for f in gen/til/*.c; do clang -Wall -Wextra -Werror ...~
+sweep was tried while diagnosing 59ee8153 and 4 of 130 files failed for
+reasons that have nothing to do with warnings: usize64.c,
+usize64_comptime.c and usize64_sizes.c only compile at ~--usize=64~,
+and bindgen_raylib.c is a bindgen artifact whose ~format~ has a
+different signature. The driver already knows each file's flags; a
+shell loop has to relearn them and will drift.
+
+*** To settle before implementing
+
+- Coverage: the whole test/ corpus cross-built for mac, or a subset?
+  Cross-building compiles without running, so the cost is compile time
+  only -- but the corpus is 130 files against the current job's one.
+- Whether Wasm32 (also clang, also -Werror) is worth the same
+  treatment, or whether the mac cross target covers the class already.
+- Whether an explicit compiler override -- a ~CC~-style knob that
+  ~toolchain_command~ consults -- is the better general answer, since
+  it would also let a developer run the whole suite under clang locally
+  instead of going through ~--target~. That is a new config surface and
+  a separate decision from the CI job; the job needs no such knob.
+
+*** What it would not catch
+
+The mac natives stay regardless: this only covers what clang rejects at
+COMPILE time. Darwin-runtime behaviour -- the ASAN and leak runs, the
+Guard Malloc probe, and the terminal-state class #25 hit, where the
+kernel raises PENDIN behind tcsetattr -- has no cross-compiled
+equivalent, and those failures are exactly why the mac jobs exist.
