@@ -677,6 +677,9 @@ main := proc(args: ..Str) {
     add_count(tests, "funcsig_own_param_value_abi", "build",
         "static USize consume_owned_box346(ReturnBox346 box)", 2,
         format(til_bin, " translate -c gen/c/aggregate_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/aggregate_param_funcsig.c"))
+    add_count(tests, "funcsig_own_primitive_param_value_abi", "build",
+        "static I64 consume_owned_i64(I64 value)", 2,
+        format(til_bin, " translate -c gen/c/primitive_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/primitive_param_funcsig.c"))
     add_count(tests, "closure_own_param_value_abi", "build",
         "static USize closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 box)", 1,
         format(til_bin, " translate -c gen/c/aggregate_param_closure.c test/closures.til '&&' cat gen/c/aggregate_param_closure.c"))
@@ -686,8 +689,17 @@ main := proc(args: ..Str) {
     add_count(tests, "self_template_own_param_value_abi", "build",
         "static void Vec__Expr_push(Vec__Expr * self, Expr val)", 2,
         "cat boot/til.c")
+    add_count(tests, "self_scalar_own_param_value_abi", "build",
+        "static void Vec__USize_push(Vec__USize * self, USize val)", 2,
+        "cat boot/til.c")
+    add_count(tests, "self_scalar_own_param_no_boxes", "build",
+        "U32 *_oa = malloc(TIL_BOX(U32))", 0,
+        "cat boot/til.c")
     add_count(tests, "delete_own_param_pointer_abi", "build",
         "static void Str_delete(Str * self, Bool call_free)", 2,
+        "cat boot/til.c")
+    add_count(tests, "scalar_delete_own_param_pointer_abi", "build",
+        "static void I64_delete(I64 * self, Bool call_free)", 2,
         "cat boot/til.c")
     add_count(tests, "expr_new_value_return_abi", "build",
         "static Expr Expr_new(NodeType * data, U32 line, U32 col)", 2,

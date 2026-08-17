@@ -471,7 +471,7 @@ static Array__Str Array__Str_clone(Array__Str * self) {
 static void adopt__Str(void * dest, Str src) {
     U32 hoisted__U32_0 = 16;
     memcpy(dest, &src, hoisted__U32_0);
-    ((void)0);
+    ((void)src);
 }
 
 static Str U64_to_str(U64 val) {

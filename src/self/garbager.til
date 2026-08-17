@@ -1648,9 +1648,10 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
             li.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[own_transfer.to_usize()], b.name, scope)
         }
         // #346: semantic Own does not imply a heap wrapper. Ordinary
-        // aggregate locals are values. Closed-world ordinary Own aggregate
-        // parameters are values too; pointer-boundary Own parameters, raw
-        // allocations, Dynamic, and allocated callable objects are exceptions.
+        // aggregate locals are values. Closed-world ordinary Own primitive
+        // and aggregate parameters are values too; pointer-boundary Own
+        // parameters, raw allocations, Dynamic, and allocated callable objects
+        // are exceptions.
         value_own_param := b.is_param.and(decl_idx.lt(0)).and(value_own_params.has(b.name))
         li.is_heap = b.own_type.is(OwnType.Own)
             .and(b.type.is(Type.Dynamic).or(b.is_param.and(decl_idx.lt(0)).and(value_own_param.not())))

@@ -322,3 +322,18 @@ test_owned_aggregate_parameter_abi := test() {
     indirect := ReturnBox346(value = "indirect")
     assert_eq(USize, apply_owned_box346(consume_owned_box346, own indirect), 8)
 }
+
+OwnedI64Fn := func(own I64) returns I64
+
+consume_owned_i64 := func(own value: I64) returns I64 {
+    return value.add(1)
+}
+
+apply_owned_i64 := func(f: OwnedI64Fn, own value: I64) returns I64 {
+    return f(own value)
+}
+
+test_owned_primitive_parameter_abi := test() {
+    assert_eq(I64, consume_owned_i64(own 6), 7)
+    assert_eq(I64, apply_owned_i64(consume_owned_i64, own 8), 9)
+}

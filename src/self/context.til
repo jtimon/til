@@ -1262,7 +1262,7 @@ Context := struct {
     // build instead of a periodic survey. Headers set it false: a static
     // declaration in another translation unit's header declares nothing.
     builder_static_ok := false
-    // Closed-world ordinary callables may pass owned aggregates as C values.
+    // Closed-world ordinary callables may pass owned values directly in C.
     // Libraries, declaration-only output, link_c consumers, bodyless C
     // declarations, and generated lifecycle helpers retain pointer parameters.
     param_value_abi_ok := false
@@ -1882,8 +1882,8 @@ func_returns_c_value := func(fd: FunctionDef) returns Bool {
 
 // C parameter representation is separate from semantic ownership. Shallow
 // parameters are always values. In a closed world, an ordinary owned
-// aggregate can also transfer its value directly; pointer-shaped boundaries
-// and generated lifecycle helpers retain their established ABI.
+// primitive or aggregate can also transfer its value directly. Pointer-shaped
+// boundaries and generated lifecycle helpers retain their established ABI.
 func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool, scope: TypeScope) returns Bool {
     if i >= fd.params.len() { return false }
     if i.to_i32() == fd.variadic_index { return false }
@@ -1899,7 +1899,7 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
         if fd.params[1].name == "call_free" { return false }
     }
     pt := declaration_resolved_type(p, scope)
-    return pt.is(Type.Struct).or(pt.is(Type.Enum))
+    return pt.is(Type.Primitive).or(pt.is(Type.Struct)).or(pt.is(Type.Enum))
 }
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {

@@ -3371,8 +3371,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             if free_value_param {
                 // Ownership already moved through the C value parameter; it
                 // has no outer wrapper. Keep the source-level free as the
-                // transfer marker, but emit no physical free.
-                f.write("((void)0)")
+                // transfer marker and consume the C value, but emit no
+                // physical free.
+                f.write("((void)").emit_expr(free_arg, depth, ctx).write(")")
                 return f
             }
             mut free_arg_sname := ""
