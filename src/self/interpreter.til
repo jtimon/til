@@ -1411,7 +1411,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
     case .FieldAccess(fa):
         mut fallback_sname := ""
         ref sname : Str = field_access_sname(e, fallback_sname)
-        namespace_def_o := interp_fa_namespace_def(scope, e, ctx)
+        namespace_def_o := interp_fa_namespace_def_with_name(scope, e, sname, fallback_sname.len() > 0, ctx)
         if namespace_def_o.is_some() {
             info.is_word = destination.is_null().and(raw_type_is_prim(expr_type, ctx))
             ref namespace_def : Expr = namespace_def_o.unwrap()
@@ -3015,38 +3015,40 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             direct_return_own_type = fdef_ns.return_own_type
             if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init(fdef_ns.return_type, ctx.scope) }
             if fdef_func_type.is_bodyless() {
-                parent_sname_o := expr_type_name_ref(callee_expr.children[0])
-                if parent_sname_o.is_some() {
-                    ref parent_sname : Str = parent_sname_o.unwrap()
-                    // REM: an unbound parent_sname -- or one bound to a VALUE,
-                    // which holds no def to read (hb_func_def) -- is an
-                    // expected miss: namespace-method dispatch is skipped and
-                    // control falls through to the flat-name dispatch.
-                    mut tc_edef_o := Option(ref Expr).None
-                    tc_hb_o := scope_lookup_heap_binding(scope, parent_sname)
-                    if tc_hb_o.is_some() { tc_edef_o = hb_func_def(tc_hb_o.unwrap()) }
-                    if tc_edef_o.is_some() {
-                        ref tc_edef : Expr = tc_edef_o.unwrap()
-                        if tc_edef.node_type.is(NodeType.EnumDef) {
-                            ref callee_ident : FieldAccessData = fieldaccess_of(callee_expr)
-                            mut enum_raw : Dynamic = destination
-                            if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
-                            if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
-                                if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
-                                // A prim-stamped result (is() -> Bool)
-                                // collapses to an inline word.
-                                if raw_type_is_prim(call_type, ctx) {
-                                    prim_w2 : Dynamic = scalar_word_load(call_type, enum_raw, ctx)
-                                    EvalHeap.heap_free(own enum_raw)
-                                    return prim_w2
+                ref fn_name : FieldAccessData = fieldaccess_of(callee_expr)
+                enum_dispatch_shape2 := call_type.is(Type.Enum).or(fn_name.field_access_name() == "is")
+                if enum_dispatch_shape2 {
+                    parent_sname_o := expr_type_name_ref(callee_expr.children[0])
+                    if parent_sname_o.is_some() {
+                        ref parent_sname : Str = parent_sname_o.unwrap()
+                        // REM: an unbound parent_sname -- or one bound to a VALUE,
+                        // which holds no def to read (hb_func_def) -- is an
+                        // expected miss: namespace-method dispatch is skipped and
+                        // control falls through to the flat-name dispatch.
+                        mut tc_edef_o := Option(ref Expr).None
+                        tc_hb_o := scope_lookup_heap_binding(scope, parent_sname)
+                        if tc_hb_o.is_some() { tc_edef_o = hb_func_def(tc_hb_o.unwrap()) }
+                        if tc_edef_o.is_some() {
+                            ref tc_edef : Expr = tc_edef_o.unwrap()
+                            if tc_edef.node_type.is(NodeType.EnumDef) {
+                                mut enum_raw : Dynamic = destination
+                                if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
+                                if enum_method_dispatch(fn_name.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
+                                    if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
+                                    // A prim-stamped result (is() -> Bool)
+                                    // collapses to an inline word.
+                                    if raw_type_is_prim(call_type, ctx) {
+                                        prim_w2 : Dynamic = scalar_word_load(call_type, enum_raw, ctx)
+                                        EvalHeap.heap_free(own enum_raw)
+                                        return prim_w2
+                                    }
+                                    return enum_raw
                                 }
-                                return enum_raw
+                                if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
                             }
-                            if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
                         }
                     }
                 }
-                ref fn_name : FieldAccessData = fieldaccess_of(callee_expr)
                 mut flat_str := Str.clone(fn_name.field_access_name())
                 sn_o := expr_type_name_ref(callee_expr.children[0])
                 // til_type_name returns "" for primitives. For ext_func
@@ -4766,7 +4768,7 @@ priv interp_fa_namespace_def_for := func(obj_expr: Expr, e: Expr, sname: Str, sd
     return Option(ref Expr).None
 }
 
-priv interp_fa_namespace_def := func(mut scope: Scope, e: Expr, ctx: Context) returns Option(ref Expr) {
+priv interp_fa_namespace_def_with_name := func(mut scope: Scope, e: Expr, sname: Str, fallback_name: Bool, ctx: Context) returns Option(ref Expr) {
     ref obj_expr : Expr = e.children[0]
     switch obj_expr.node_type {
     case .Ident(type_ident):
@@ -4786,20 +4788,28 @@ priv interp_fa_namespace_def := func(mut scope: Scope, e: Expr, ctx: Context) re
         }
     case:
     }
+    if fallback_name {
+        if sname.eq("unknown").or(sname.eq("?")).or(sname.eq("Dynamic")) { return Option(ref Expr).None }
+    }
+    return interp_fa_namespace_def_inner(scope, e, sname, ctx)
+}
+
+priv interp_fa_namespace_def := func(mut scope: Scope, e: Expr, ctx: Context) returns Option(ref Expr) {
+    ref obj_expr : Expr = e.children[0]
     sname_o := expr_type_name_ref(obj_expr)
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
-        return interp_fa_namespace_def_inner(scope, e, sname, ctx)
+        return interp_fa_namespace_def_with_name(scope, e, sname, false, ctx)
     }
     switch obj_expr.node_type {
-    case .Ident(ident): return interp_fa_namespace_def_inner(scope, e, ident.ident_name(), ctx)
+    case .Ident(ident): return interp_fa_namespace_def_with_name(scope, e, ident.ident_name(), false, ctx)
     case:
     }
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
     // returns "" for I64/U8/etc, fall back to til_type_name_c.
     tn := til_type_name_c(obj_expr.til_type())
     if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
-        return interp_fa_namespace_def_inner(scope, e, tn, ctx)
+        return interp_fa_namespace_def_with_name(scope, e, tn, false, ctx)
     }
     return Option(ref Expr).None
 }

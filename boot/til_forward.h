@@ -4103,6 +4103,7 @@ void priv___src_self_interpreter_til__callable_box_free(void * ptr);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(Expr * obj_expr, Str * sname, Expr * sdef, Str * fname);
 Option__ref_Expr priv___src_self_interpreter_til__interp_fa_namespace_def_inner(Scope * scope, Expr * e, Str * sname, Context * ctx);
 Option__ref_Expr priv___src_self_interpreter_til__interp_fa_namespace_def_for(Expr * obj_expr, Expr * e, Str * sname, Expr * sdef);
+Option__ref_Expr priv___src_self_interpreter_til__interp_fa_namespace_def_with_name(Scope * scope, Expr * e, Str * sname, Bool * fallback_name, Context * ctx);
 Option__ref_Expr priv___src_self_interpreter_til__interp_fa_namespace_def(Scope * scope, Expr * e, Context * ctx);
 void * priv___src_self_interpreter_til__build_argv_array(Vec__Str * argv, USize offset, USize count, Str * elem_type, Context * ctx);
 void populate_cached_aggregate_defs(Context * ctx, Expr * program);
