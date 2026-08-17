@@ -551,7 +551,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
 // (infer_func_def_expr), so a call only counts as diverging once its
 // CALLEE has already been typed. That is an ORDER dependency, and it is
 // wrong for any unit typed before core/exit.til: there `panic` carries no
-// stamp yet, so a `case: panic(...)` arm does not count as diverging and
+// noreturn fact yet, so a `case: panic(...)` arm does not count as diverging and
 // check_all_paths_return rejects the function. core.til imports ast before
 // exit, which is exactly why src/core/ast.til could not instantiate
 // Option -- Option.unwrap ends in that arm.
@@ -559,11 +559,11 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
 // The whole chain lives in one file (exit is the ext_func seed; panic,
 // TODO, UNREACHABLE, assert, expect and assert_eq are defined there and
 // call each other), so the fixpoint below runs over that file alone and
-// resolves callees against its OWN top-level decls -- no scope lookup, so
-// a local shadowing a noreturn global cannot fool it. Same shape as the
-// extend_throwing_func_sigs sweep below, and idempotent for the same
-// reason: the typer redoes the stamping later and reaches the same answer.
-priv seed_noreturn_chain := proc(mut ast: Expr) {
+// tracks its OWN top-level noreturn decls without consulting compiler scope.
+// Same shape as the extend_throwing_func_sigs sweep below, and idempotent for the same
+// reason: the typer re-derives divergence from resolved callees later and
+// reaches the same answer.
+priv seed_noreturn_chain := func(mut ast: Expr) {
     mut noreturn_names := Set(Str).new()
     // The one primitive that cannot be inferred: an ext_func with no til
     // body, bound to libc exit.
@@ -583,9 +583,9 @@ priv seed_noreturn_chain := proc(mut ast: Expr) {
         case:
         }
     }
-    // Fixpoint: each round stamps the calls whose callee is already known
-    // noreturn, then re-asks fn_never_returns. A chain of length N settles
-    // in N rounds; the guard is the round that adds nothing.
+    // Fixpoint: each round derives divergence against the names already known
+    // noreturn. A chain of length N settles in N rounds; the guard is the
+    // round that adds nothing.
     mut changed := true
     while changed {
         changed = false
@@ -599,9 +599,8 @@ priv seed_noreturn_chain := proc(mut ast: Expr) {
                     if fd.func_type.is_plain().not() { continue }
                     if noreturn_names.has(dd.name) { continue }
                     if rhs.children.len() == 0 { continue }
-                    ref mut body : Expr = rhs.children[0]
-                    stamp_noreturn_calls(body, noreturn_names)
-                    if fn_never_returns(body) {
+                    ref body : Expr = rhs.children[0]
+                    if seed_fn_never_returns(body, noreturn_names) {
                         fd.noreturn = true
                         noreturn_names.add(own dd.name.clone())
                         changed = true
@@ -612,41 +611,71 @@ priv seed_noreturn_chain := proc(mut ast: Expr) {
             }
         }
     }
-    // One last stamping pass so calls inside the functions that settled
-    // early also carry the bit the typer would set later.
-    for mut stmt : Expr in ast.children {
-        if stmt.children.len() == 0 { continue }
-        switch stmt.node_type {
-        case .Decl:
-            ref mut rhs : Expr = stmt.children[0]
-            switch rhs.node_type {
-            case .FuncDef:
-                if rhs.children.len() > 0 { stamp_noreturn_calls(rhs.children[0], noreturn_names) }
-            case:
-            }
-        case:
+}
+
+priv seed_contains_return := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .Return: return true
+    case .FuncDef, .BodyValue: return false
+    case:
+        for c : Expr in e.children {
+            if seed_contains_return(c) { return true }
         }
+        return false
     }
 }
 
-// Mark every FCall in `e` whose callee names one of `noreturn_names`.
-// The typer stamps the same bit from the callee's FunctionDef later; this
-// only makes it available earlier.
-priv stamp_noreturn_calls := proc(mut e: Expr, noreturn_names: Set(Str)) {
+priv seed_has_unnested_break := func(e: Expr) returns Bool {
     switch e.node_type {
-    case .FCall(fcd):
-        if e.children.len() > 0 {
-            switch e.children[0].node_type {
-            case .Ident(cn):
-                if noreturn_names.has(cn.ident_name()) { fcd.noreturn_call = true }
-            case:
-            }
-        }
+    case .Break: return true
+    case .While, .ForIn, .FuncDef, .BodyValue: return false
     case:
+        for c : Expr in e.children {
+            if seed_has_unnested_break(c) { return true }
+        }
+        return false
     }
-    for mut c : Expr in e.children {
-        stamp_noreturn_calls(c, noreturn_names)
+}
+
+priv seed_stmt_always_diverges := func(e: Expr, noreturn_names: Set(Str)) returns Bool {
+    switch e.node_type {
+    case .Return: return true
+    case .FCall:
+        if e.children.len() == 0 { return false }
+        switch e.children[0].node_type {
+        case .Ident(cn): return noreturn_names.has(cn.ident_name())
+        case: return false
+        }
+    case .Body:
+        for c : Expr in e.children {
+            if seed_stmt_always_diverges(c, noreturn_names) { return true }
+        }
+        return false
+    case .If:
+        if e.children.len() <= 2 { return false }
+        return seed_stmt_always_diverges(e.children[1], noreturn_names)
+            .and(seed_stmt_always_diverges(e.children[2], noreturn_names))
+    case .Switch:
+        mut has_default := false
+        for ci in 1..e.children.len() {
+            ref cn : Expr = e.children[ci]
+            if cn.children.len() == 1 { has_default = true }
+            if seed_stmt_always_diverges(cn.children[cn.children.len() - 1], noreturn_names).not() { return false }
+        }
+        return has_default
+    case .While:
+        mut literal_true := false
+        switch e.children[0].node_type {
+        case .Literal(Literal.Bool(b)): literal_true = b
+        case:
+        }
+        return literal_true.and(seed_has_unnested_break(e.children[1]).not())
+    case: return false
     }
+}
+
+priv seed_fn_never_returns := func(body: Expr, noreturn_names: Set(Str)) returns Bool {
+    return seed_contains_return(body).not().and(seed_stmt_always_diverges(body, noreturn_names))
 }
 
 // Types that a CLI argument can be parsed into. Must match the builder's
@@ -686,22 +715,23 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
             case .FuncDef(fdef):
                 found_main_proc = true
                 for p : Declaration in fdef.params {
-                    if or(p.explicit_type.eq("Str"),
-                          p.explicit_type.eq("I64"),
-                          p.explicit_type.eq("U8"),
-                          p.explicit_type.eq("I8"),
-                          p.explicit_type.eq("I16"),
-                          p.explicit_type.eq("U16"),
-                          p.explicit_type.eq("I32"),
-                          p.explicit_type.eq("U32"),
-                          p.explicit_type.eq("U64"),
-                          p.explicit_type.eq("USize"),
-                          p.explicit_type.eq("UPtr"),
-                          p.explicit_type.eq("Bool"),
-                          p.explicit_type.eq("F32"),
-                          p.explicit_type.eq("F64")).not() {
+                    ptype := p.type_name()
+                    if or(ptype.eq("Str"),
+                          ptype.eq("I64"),
+                          ptype.eq("U8"),
+                          ptype.eq("I8"),
+                          ptype.eq("I16"),
+                          ptype.eq("U16"),
+                          ptype.eq("I32"),
+                          ptype.eq("U32"),
+                          ptype.eq("U64"),
+                          ptype.eq("USize"),
+                          ptype.eq("UPtr"),
+                          ptype.eq("Bool"),
+                          ptype.eq("F32"),
+                          ptype.eq("F64")).not() {
                         loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
-                        panic("main parameter '", p.name, "': type '", p.explicit_type,
+                        panic("main parameter '", p.name, "': type '", ptype,
                             "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, F64, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)", loc = loc)
                     }
                 }
@@ -1231,10 +1261,10 @@ priv append_fn_signature := func(mut out: Str, fd: FunctionDef) {
         is_variadic := i.to_i64() == var_idx_i64
         if is_variadic.not() { append_qualifier_prefix(out, p, OwnType.Ref) }
         out.push_str(p.name)
-        if p.explicit_type.len() > 0 {
+        if p.til_type.is(Type.Unknown).not() {
             out.push_str(": ")
             if is_variadic { out.push_str("..") }
-            out.push_str(p.explicit_type)
+            out.push_str(p.type_name())
         }
     }
     out.push_str(")")
@@ -1334,9 +1364,9 @@ priv append_field_indented := func(mut out: Str, dname: Str, d: Declaration) {
     out.push_str("    ")
     append_qualifier_prefix(out, d, OwnType.Shallow)
     out.push_str(dname)
-    if d.explicit_type.len() > 0 {
+    if d.til_type.is(Type.Unknown).not() {
         out.push_str(" : ")
-        out.push_str(d.explicit_type)
+        out.push_str(d.type_name())
     }
 }
 
@@ -1357,9 +1387,9 @@ priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration)
     }
     if handled.not() {
         out.push_str(dname)
-        if d.explicit_type.len() > 0 {
+        if d.til_type.is(Type.Unknown).not() {
             out.push_str(" : ")
-            out.push_str(d.explicit_type)
+            out.push_str(d.type_name())
         }
     }
 }
@@ -1371,8 +1401,8 @@ priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) retur
     if type_str.is_empty().not() {
         return name.format(" is a ", type_str)
     }
-    if dd.explicit_type.len() > 0 {
-        return format(name, " is a ", dd.explicit_type)
+    if dd.til_type.is(Type.Unknown).not() {
+        return format(name, " is a ", dd.type_name())
     }
     return name
 }
@@ -1380,7 +1410,7 @@ priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) retur
 priv format_func_info := func(name: Str, fd: FunctionDef) returns Str {
     mut cap : USize = name.len().add(fd.return_type.len()) + 64
     for p : Declaration in fd.params {
-        cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
+        cap = cap.add(p.name.len()).add(p.type_name().len()) + 48
     }
     mut out := Str.with_capacity(cap)
     out.push_str(func_kind(fd.func_type))
@@ -1399,7 +1429,7 @@ priv add_ns_method_capacity := func(d: Declaration, mut cap: USize) {
     case .FuncDef(fd):
         cap = cap.add(fd.return_type.len()) + 48
         for p : Declaration in fd.params {
-            cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
+            cap = cap.add(p.name.len()).add(p.type_name().len()) + 48
         }
     case:
     }
@@ -1409,7 +1439,7 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     mut cap : USize = name.len() + 128
     mut cfi : USize = 0
     for f : Declaration in sdef.fields {
-        cap = cap.add(sdef.field_name_at(cfi).len()).add(f.explicit_type.len()).add(f.doc.len() * 2) + 128
+        cap = cap.add(sdef.field_name_at(cfi).len()).add(f.type_name().len()).add(f.doc.len() * 2) + 128
         cfi = cfi + 1
     }
     mut cni : USize = 0
@@ -1501,7 +1531,7 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
 
 format_member_info := func(type_name: Str, dname: Str, d: Declaration) returns Str {
     qual := type_name.format(".", dname)
-    mut cap := qual.len().add(d.explicit_type.len()) + 128
+    mut cap := qual.len().add(d.type_name().len()) + 128
     add_ns_method_capacity(d, cap)
     mut out := Str.with_capacity(cap)
     if d.default_value.is_some() {
@@ -1517,22 +1547,22 @@ format_member_info := func(type_name: Str, dname: Str, d: Declaration) returns S
     }
     out.push_str("member ")
     out.push_str(qual)
-    if d.explicit_type.len() > 0 {
+    if d.til_type.is(Type.Unknown).not() {
         out.push_str(" : ")
-        out.push_str(d.explicit_type)
+        out.push_str(d.type_name())
     }
     return out
 }
 
 format_field_info := func(type_name: Str, field_name: Str, field: Declaration) returns Str {
     qual := type_name.format(".", field_name)
-    mut out := Str.with_capacity(qual.len().add(field.explicit_type.len()) + 64)
+    mut out := Str.with_capacity(qual.len().add(field.type_name().len()) + 64)
     out.push_str("field ")
     append_qualifier_prefix(out, field, OwnType.Shallow)
     out.push_str(qual)
-    if field.explicit_type.len() > 0 {
+    if field.til_type.is(Type.Unknown).not() {
         out.push_str(" : ")
-        out.push_str(field.explicit_type)
+        out.push_str(field.type_name())
     }
     return out
 }
@@ -2750,7 +2780,7 @@ priv lazy_build_subs := func(call: Expr, fdef: Expr) returns Map(Str, Expr) {
 }
 
 priv lazy_make_temp_decl := func(name: Str, type_name: Str, own init: Expr, line: U32, col: U32) returns Expr {
-    mut dd := decl_typed(name = name, explicit_type = type_name, is_mut = true)
+    mut dd := decl_typed(name = name, type_name = type_name, is_mut = true)
     mut decl := Expr.new(NodeType.Decl(dd), line, col)
     decl.add_child(own init)
     return decl
@@ -3319,9 +3349,9 @@ priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) retur
     fd.return_own_type = OwnType.Own
     fd.variadic_index = -1
     fd.kwargs_index = -1
-    fd.params.push(own decl_typed(name = "done", explicit_type = "Bool", own_type = OwnType.Ref, is_mut = true))
-    fd.params.push(own decl_typed(name = "cache", explicit_type = ret_type, own_type = OwnType.Ref, is_mut = true))
-    fd.params.push(own decl_typed(name = "th", explicit_type = fn_ret, own_type = OwnType.Ref, is_mut = false))
+    fd.params.push(own decl_typed(name = "done", type_name = "Bool", own_type = OwnType.Ref, is_mut = true))
+    fd.params.push(own decl_typed(name = "cache", type_name = ret_type, own_type = OwnType.Ref, is_mut = true))
+    fd.params.push(own Declaration(name = "th", til_type = Type.FuncPtrSig(fn_ret), own_type = OwnType.Ref))
 
     // then: cache = th() ; done = true
     mut th_call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -3386,12 +3416,12 @@ priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pen
         case:
         }
         unit_ast.add_child(own pstmt.clone())
-        ref pushed : Expr = unit_ast.children[unit_ast.children.len() - 1]
+        ref mut pushed : Expr = unit_ast.children[unit_ast.children.len() - 1]
         if name.starts_with("_force_once_") {
             // The binding TYPE is the helper's RETURN type (not None) -- a call
             // resolves its result type from here (register_function_def_for_stmt).
             ret_type := name.strip_prefix("_force_once_")
-            rt := til_type_from_explicit_type(ret_type)
+            rt := declaration_type_from_name(ret_type)
             lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow)
             lp.ctx.scope.set_func_def(name, pushed.children[0])
             ref mut fb : TypeBinding = lp.ctx.scope.get_binding(name).unwrap()
@@ -3412,7 +3442,7 @@ priv lazy_make_memo_decls := func(pname: Str, ret_type: Str, line: U32, col: U32
     mut d := Expr.new(NodeType.Decl(Declaration(name = format("_memo_", pname, "_done"), is_mut = true)), line, col)
     d.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), line, col))
     out.push(own d)
-    mut v := Expr.new(NodeType.Decl(decl_typed(name = format("_memo_", pname, "_v"), explicit_type = ret_type, own_type = OwnType.Shallow, is_mut = true)), line, col)
+    mut v := Expr.new(NodeType.Decl(decl_typed(name = format("_memo_", pname, "_v"), type_name = ret_type, own_type = OwnType.Shallow, is_mut = true)), line, col)
     v.add_child(own make_default_value_expr(ret_type, line, col))
     out.push(own v)
     return out
@@ -3451,7 +3481,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
             mut cnt : I64 = 0
             if use_counts.has(p.name) { cnt = use_counts.get(p.name)! }
             if cnt >= 2 {
-                orig_t := p.explicit_type.clone()
+                orig_t := p.type_name()
                 lazy_register_force_once(lp, orig_t, fdef.line, fdef.col, seen_fo, pending)
                 memo.set(p.name, own format("_force_once_", orig_t))
                 mut decls := lazy_make_memo_decls(p.name, orig_t, fdef.line, fdef.col)
@@ -3467,10 +3497,9 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
         if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
         else { fd.func_type = FuncType.Proc }
         for mut param : Declaration in fd.params {
-            ret_type := param.explicit_type.clone()
+            ret_type := param.type_name()
             lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
-            param.explicit_type = format("_Fn_ret_", ret_type)
-            param.til_type = til_type_from_explicit_type(param.explicit_type)
+            param.til_type = Type.FuncPtrSig(format("_Fn_ret_", ret_type))
         }
     case:
         return
@@ -3506,10 +3535,9 @@ priv lazy_lower_funcsig := func(mut lp: LoadedProgram,
         else if fd.func_type.is(FuncType.LazyProc) { fd.func_type = FuncType.Proc }
         else { return }
         for mut param : Declaration in fd.params {
-            ret_type := param.explicit_type.clone()
+            ret_type := param.type_name()
             lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
-            param.explicit_type = format("_Fn_ret_", ret_type)
-            param.til_type = til_type_from_explicit_type(param.explicit_type)
+            param.til_type = Type.FuncPtrSig(format("_Fn_ret_", ret_type))
         }
     case:
         return
@@ -3608,7 +3636,7 @@ priv lazy_thunk_collect_captures := func(e: Expr, scope: TypeScope,
 
 // Wrap each argument of a call to a thunk-lowered def in a synthesized closure
 // `func() returns T [caps] { return <arg> }` (call-by-name). `T` is the param's
-// ORIGINAL return type, recovered from the param's `_Fn_ret_<T>` explicit_type;
+// ORIGINAL return type, recovered from the param's `_Fn_ret_<T>` type name;
 // `caps` is the arg expression's enclosing-local free variables (by reference).
 // A thunk with no captures is left non-capturing, so the lambda lifter hoists
 // it to a plain top-level function -- exactly like any other non-capturing
@@ -3644,7 +3672,7 @@ priv lazy_make_thunk := func(own eff: Expr, ret_type: Str, scope: TypeScope) ret
 // `f(a, b)` and UFCS `a.f(b)` calls reduce to the same bare form (the receiver
 // is effective arg 0), so a thunk -- which is not a UFCS receiver -- is never
 // left in receiver position. `ret_type` per param is recovered from its
-// `_Fn_ret_<T>` explicit_type. Mirrors lazy_build_fold's bare-normalization.
+// `_Fn_ret_<T>` type name. Mirrors lazy_build_fold's bare-normalization.
 priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method: Bool, scope: TypeScope) returns Expr {
     line := call.line
     col := call.col
@@ -3654,7 +3682,8 @@ priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method:
     case .FuncDef(fd):
         for j in 0..fd.params.len() {
             ref param : Declaration = fd.params[j]
-            ret_type := param.explicit_type.strip_prefix("_Fn_ret_")
+            param_type := param.type_name()
+            ret_type := param_type.strip_prefix("_Fn_ret_")
             nc.add_child(own lazy_make_thunk(own lazy_eff_arg_clone(call, is_method, j), ret_type, scope))
         }
     case:
@@ -3676,7 +3705,8 @@ priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: Type
     case .FuncDef(fd):
         for j in 0..fd.params.len() {
             ref param : Declaration = fd.params[j]
-            ret_type := param.explicit_type.strip_prefix("_Fn_ret_")
+            param_type := param.type_name()
+            ret_type := param_type.strip_prefix("_Fn_ret_")
             nc.add_child(own lazy_make_thunk(own call.children[j + 1].clone(), ret_type, scope))
         }
     case:
@@ -3793,7 +3823,8 @@ priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: Ty
         fld_o := member_get(sdd.fields_index, sdd.fields, field_name)
         if fld_o.is_some() {
             ref fld : Declaration = fld_o.unwrap()
-            if lazy_sigs.has(fld.explicit_type) { return fld.explicit_type.clone() }
+            fname := fld.type_name()
+            if lazy_sigs.has(fname) { return fname }
             return ""
         }
     case:
@@ -3831,11 +3862,12 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
     switch e.node_type {
     case .FuncDef(efd):
         for p : Declaration in efd.params {
-            if p.explicit_type.len() == 0 { continue }
-            if lazy_sigs.has(p.explicit_type) {
-                aliases.set(p.name, own p.explicit_type.clone())
-            } else if scope.get_struct(p.explicit_type).is_some() {
-                struct_of.set(p.name, own p.explicit_type.clone())
+            if p.til_type.is(Type.Unknown) { continue }
+            pname := p.type_name()
+            if lazy_sigs.has(pname) {
+                aliases.set(p.name, own pname)
+            } else if scope.get_struct(pname).is_some() {
+                struct_of.set(p.name, own pname)
             }
         }
     case:
@@ -3936,10 +3968,11 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
         switch cc.node_type {
         case .Decl(dd):
             if dd.name.len() > 0 {
-                if dd.explicit_type.len().gt(0).and(lazy_sigs.has(dd.explicit_type)) {
-                    aliases.set(dd.name, own dd.explicit_type.clone())
-                } else if dd.explicit_type.len().gt(0).and(scope.get_struct(dd.explicit_type).is_some()) {
-                    struct_of.set(dd.name, own dd.explicit_type.clone())
+                dname := dd.type_name()
+                if dd.til_type.is(Type.Unknown).not().and(lazy_sigs.has(dname)) {
+                    aliases.set(dd.name, own dname)
+                } else if dd.til_type.is(Type.Unknown).not().and(scope.get_struct(dname).is_some()) {
+                    struct_of.set(dd.name, own dname)
                 } else if cc.children.len() > 0 {
                     switch cc.children[0].node_type {
                     case .Ident(rid):

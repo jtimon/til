@@ -1047,7 +1047,7 @@ main := proc(args: ..Str) {
     add_count(tests, "til_header_hides_tu_local_globals", "build", "extern Str VERSION;", 0,
         "cat gen/til/til_forward.h")
     // ...while the ext.c boundary globals stay: ext.c reads CAP_LIT.
-    add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern U32 CAP_LIT;", 1,
+    add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern USize CAP_LIT;", 1,
         "cat gen/til/til_forward.h")
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
         format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
@@ -1373,9 +1373,9 @@ main := proc(args: ..Str) {
     // moved backends shows up in the total, and re-running one command
     // seven times to re-read seven substrings of the same output would
     // not add to that.
-    add_count(tests, "typer_errors_interp", "typer", "error:", 213,
+    add_count(tests, "typer_errors_interp", "typer", "error:", 214,
         format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "typer_errors_build", "typer", "error:", 213,
+    add_count(tests, "typer_errors_build", "typer", "error:", 214,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #342: a splat whose elements do not match is reported, not passed
     // through to crash the callee -- four variadic shapes, the two literals,

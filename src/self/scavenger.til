@@ -251,8 +251,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         // Type enum and its Primitive payload.
         cr_is_macro := fdef.func_type.is(FuncType.Macro)
         for p : Declaration in fdef.params {
-            if p.explicit_type.len().gt(0).and(cr_is_macro.not()) {
-                vec_push_str(refs, p.explicit_type)
+            if p.til_type.is(Type.Unknown).not().and(cr_is_macro.not()) {
+                vec_push_str(refs, p.type_name())
             }
         }
         if fdef.variadic_index >= 0 {
@@ -295,8 +295,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             }
         }
     case .Decl(decl):
-        if decl.explicit_type.len() > 0 {
-            vec_push_str(refs, decl.explicit_type)
+        if decl.til_type.is(Type.Unknown).not() {
+            vec_push_str(refs, decl.type_name())
         }
     case:
     }
@@ -314,10 +314,10 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             // constructor ever omits the field: examples/lib/alphabeta.til
             // declares `h : Heuristic = default_heuristic` and chess always
             // supplies h, yet default_heuristic was emitted with no caller.
-            // The field's explicit_type stays -- that one is the struct's
+            // The field's declared type stays -- that one is the struct's
             // layout, not a default.
-            if cr_fd.explicit_type.len() > 0 {
-                vec_push_str(refs, cr_fd.explicit_type)
+            if cr_fd.til_type.is(Type.Unknown).not() {
+                vec_push_str(refs, cr_fd.type_name())
             }
         }
     case:
@@ -1055,8 +1055,8 @@ priv seed_cli_main_arg_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) 
             case .FuncDef(fdef):
                 mut pi : I32 = 0
                 for p : Declaration in fdef.params {
-                    seed_cli_arg_helpers(p.explicit_type, worklist)
-                    if pi == fdef.variadic_index { push_qn(worklist, p.explicit_type, "delete") }
+                    seed_cli_arg_helpers(p.type_name(), worklist)
+                    if pi == fdef.variadic_index { push_qn(worklist, p.type_name(), "delete") }
                     pi++
                 }
             case:
@@ -1340,8 +1340,8 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         // #326: a field DEFAULT is not a reachability edge --
                         // see collect_refs. Only the field's type is, because
                         // that is the struct's layout.
-                        if bfs_fd.explicit_type.len() > 0 {
-                            vec_push_str(worklist, bfs_fd.explicit_type)
+                        if bfs_fd.til_type.is(Type.Unknown).not() {
+                            vec_push_str(worklist, bfs_fd.type_name())
                         }
                     }
                 case .EnumDef(bfs_edd):
@@ -1370,8 +1370,8 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         // #326: a field DEFAULT is not a reachability edge --
                         // see collect_refs. Only the field's type is, because
                         // that is the struct's layout.
-                        if bfs_fd2.explicit_type.len() > 0 {
-                            vec_push_str(worklist, bfs_fd2.explicit_type)
+                        if bfs_fd2.til_type.is(Type.Unknown).not() {
+                            vec_push_str(worklist, bfs_fd2.type_name())
                         }
                     }
                 case .EnumDef(bfs_edd2):

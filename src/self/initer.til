@@ -141,7 +141,7 @@ priv generate_struct_cmp_method := func(mut struct_def: Expr, sname: Str, line: 
         mut cmp_call := make_method_call_fcall(own a_field, "cmp", line, col)
         mut b_field := make_struct_field_access("b", cmp_fname, line, col)
         cmp_call.add_child(own b_field)
-        mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), explicit_type = "I64")), line, col)
+        mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), til_type = Type.Primitive(Primitive.I64))), line, col)
         tmp_decl.add_child(own cmp_call)
         func_body.add_child(own tmp_decl)
 
@@ -171,8 +171,8 @@ priv generate_struct_cmp_method := func(mut struct_def: Expr, sname: Str, line: 
         a_name = "_a"
         b_name = "_b"
     }
-    fdecl.params.push(own decl_typed(name = a_name, explicit_type = sname, own_type = OwnType.Ref))
-    fdecl.params.push(own decl_typed(name = b_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = a_name, type_name = sname, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = b_name, type_name = sname, own_type = OwnType.Ref))
     fdecl.return_type = "I64"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -221,8 +221,8 @@ priv generate_struct_eq_method := func(mut struct_def: Expr, sname: Str, line: U
         self_name = "_self"
         other_name = "_other"
     }
-    fdecl.params.push(own decl_typed(name = self_name, explicit_type = sname, own_type = OwnType.Ref))
-    fdecl.params.push(own decl_typed(name = other_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = self_name, type_name = sname, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = other_name, type_name = sname, own_type = OwnType.Ref))
     fdecl.return_type = "Bool"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -276,7 +276,7 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
     fdecl.func_type = FuncType.Func
     mut self_name := "self"
     if field_count == 0 { self_name = "_self" }
-    fdecl.params.push(own decl_typed(name = self_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = self_name, type_name = sname, own_type = OwnType.Ref))
     fdecl.return_type = "Str"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -371,7 +371,7 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
         func_decl.func_type = FuncType.Func
         mut self_pname := "self"
         if sdd.fields.len() == 0 { self_pname = "_self" }
-        func_decl.params.push(own decl_typed(name = self_pname, explicit_type = sname, own_type = OwnType.Ref))
+        func_decl.params.push(own decl_typed(name = self_pname, type_name = sname, own_type = OwnType.Ref))
         func_decl.return_type = sname.clone()
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
@@ -393,7 +393,7 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
         mut pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
         for d_pod : Declaration in sdd.fields {
             if d_pod.own_type.is(OwnType.Ref) { continue }
-            if d_pod.explicit_type.len().gt(0).and(type_is_callable_storage(type_from_name_init(d_pod.explicit_type, scope))) {
+            if d_pod.til_type.is(Type.Unknown).not().and(type_is_callable_storage(declaration_resolved_type(d_pod, scope))) {
                 pod_no_field_deletes = false
             }
         }
@@ -411,7 +411,7 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
                 mut field_acc := Expr.new(field_access_node(dl_fname), stmt.line, stmt.col)
                 field_acc.add_child(own self_id)
 
-                if fd.explicit_type.len().gt(0).and(type_is_callable_storage(type_from_name_init(fd.explicit_type, scope))) {
+                if fd.til_type.is(Type.Unknown).not().and(type_is_callable_storage(declaration_resolved_type(fd, scope))) {
                     mut closure_del := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
                     mut closure_del_id := Expr.new(ident_node("til_closure_delete"), stmt.line, stmt.col)
                     closure_del.add_child(own closure_del_id)
@@ -470,12 +470,12 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
 
         mut proc_decl := FunctionDef(auto_generated = true)
         proc_decl.func_type = FuncType.Func
-        proc_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Own))
+        proc_decl.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Own))
         // Issue #223: call_free is a primitive (Bool), so emit it as a
         // plain borrowed param (Ref) and let step-1 auto-shallow normalize
         // it to value -- same as a hand-written delete. (An explicit Shallow
         // here would trip the step-2 redundant-shallow check.)
-        proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))))
+        proc_decl.params.push(own Declaration(name = "call_free", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))))
         proc_decl.variadic_index = -1
         proc_decl.kwargs_index = -1
 
@@ -545,8 +545,8 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
 
             mut hash_decl := FunctionDef(auto_generated = true)
             hash_decl.func_type = FuncType.Func
-            hash_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Ref))
-            hash_decl.params.push(own Declaration(name = "hasher", explicit_type = "HashFn", til_type = Type.FuncPtrSig("HashFn"), own_type = OwnType.Ref))
+            hash_decl.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Ref))
+            hash_decl.params.push(own Declaration(name = "hasher", til_type = Type.FuncPtrSig("HashFn"), own_type = OwnType.Ref))
             hash_decl.return_type = "U64"
             hash_decl.variadic_index = -1
             hash_decl.kwargs_index = -1
@@ -638,7 +638,7 @@ priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, 
             // #320: a `ref Type` payload is a borrow -- the ctor takes
             // the arg borrowed (no ownership transfer at call sites).
             if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
-            param := decl_typed(name = "val", explicit_type = vtype, own_type = payload_own_type)
+            param := decl_typed(name = "val", type_name = vtype, own_type = payload_own_type)
             func_decl.params.push(own param)
         }
         func_decl.return_type = ename.clone()
@@ -677,8 +677,8 @@ priv generate_enum_is_method := func(mut enum_def: Expr, ename: Str, line: U32, 
     // return would make callers deref+free the value.
     mut func_decl := FunctionDef(auto_generated = true)
     func_decl.func_type = FuncType.CoreFunc
-    self_param := decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref)
-    other_param := decl_typed(name = "other", explicit_type = ename, own_type = OwnType.Ref)
+    self_param := decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref)
+    other_param := decl_typed(name = "other", type_name = ename, own_type = OwnType.Ref)
     func_decl.params.push(own self_param)
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
@@ -798,8 +798,8 @@ priv generate_enum_eq_chain := func(mut enum_def: Expr, ename: Str, line: U32, c
 priv finish_enum_eq_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, own func_body: Expr) {
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref))
-    fdecl.params.push(own decl_typed(name = "other", explicit_type = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "other", type_name = ename, own_type = OwnType.Ref))
     fdecl.return_type = "Bool"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -883,8 +883,8 @@ priv generate_enum_cmp_method := func(mut enum_def: Expr, ename: Str, line: U32,
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own decl_typed(name = "a", explicit_type = ename, own_type = OwnType.Ref))
-    fdecl.params.push(own decl_typed(name = "b", explicit_type = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "a", type_name = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "b", type_name = ename, own_type = OwnType.Ref))
     fdecl.return_type = "I64"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -983,11 +983,11 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Own))
+    fdecl.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Own))
     // Issue #223: call_free is a primitive (Bool) -> emit a plain borrowed
     // param (Ref) and let step-1 auto-shallow normalize it to value, matching
     // a hand-written delete. (An explicit Shallow trips the step-2 check.)
-    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own default_true.clone())))
+    fdecl.params.push(own Declaration(name = "call_free", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own default_true.clone())))
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
 
@@ -1086,7 +1086,7 @@ priv generate_enum_to_str_method := func(mut enum_def: Expr, ename: Str, line: U
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref))
     fdecl.return_type = "Str"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -1262,7 +1262,7 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref))
     fdecl.return_type = ename.clone()
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -1363,10 +1363,11 @@ priv gen_missing_enum_clone_for_stmt := func(mut stmt: Expr, scope: TypeScope) {
 // Issue #262: the lazy thunk-lowering pass in loader.til registers
 // synthetic `_Fn_ret_<T>` funcptr aliases through this same path, so it
 // is non-priv (called from loader.til too).
-register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, mut scope: TypeScope) {
+register_funcsig_alias_for_stmt := func(ctx: Context, mut stmt: Expr, mut scope: TypeScope) {
     if is_func_decl(stmt).not() { return }
     if stmt.children[0].children.len() != 0 { return }
-    ref sdecl : Declaration = decl_of(stmt)
+    ref mut sdecl : Declaration = decl_of(stmt)
+    sdecl.til_type = Type.FuncPtrSig(sdecl.name.clone())
     scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
     scope.set_func_def(sdecl.name, stmt.children[0])
     ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
@@ -1430,7 +1431,7 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, mut scope: T
         // constant (CamelCase heuristic doesn't work). The Found
         // arm above handles user-defined types when the target file
         // was already init'd. #165.
-        til_type := til_type_from_explicit_type(target_name)
+        til_type := declaration_type_from_name(target_name)
         if til_type.is(Type.Unknown) { return }
         if til_type.is(Type.Custom) { return }
         scope.set(sdecl.name, til_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -1449,7 +1450,7 @@ priv register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, mut sco
     if rhs.node_type.is(NodeType.Ident) {
         switch stmt.node_type {
         case .Decl(sdecl0):
-            if sdecl0.explicit_type.len() == 0 {
+            if sdecl0.til_type.is(Type.Unknown) {
                 switch rhs.node_type {
                 case .Ident(rhs_name):
                     if type_from_name_init(rhs_name.ident_name(), scope).is(Type.Unknown).not() {
@@ -1504,8 +1505,9 @@ register_function_def_for_stmt := func(ctx: Context, mut stmt: Expr, mut scope: 
         return
     }
 
-    if sdecl.explicit_type.len() > 0 {
-        fsb_fd_o := scope.lookup_func(sdecl.explicit_type)
+    if sdecl.til_type.is(Type.Unknown).not() {
+        sig_name := sdecl.type_name()
+        fsb_fd_o := scope.lookup_func(sig_name)
         if fsb_fd_o.is_some() {
             ref fsb_fd : Expr = fsb_fd_o.unwrap()
             if fsb_fd.children.len() == 0 {
@@ -1517,22 +1519,20 @@ register_function_def_for_stmt := func(ctx: Context, mut stmt: Expr, mut scope: 
                         __LOC__,
                         ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                         ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
-                        " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
+                        " params but FuncSig '", sig_name, "' has ", sigdef.params.len().to_str(),
                     )
                 }
                 fdef.func_type = sigdef.func_type
                 for j in 0..sigdef.params.len() {
                     ref mut dp : Declaration = fdef.params[j]
                     ref sp : Declaration = sigdef.params[j]
-                    dp.explicit_type = sp.explicit_type
                     dp.til_type = sp.til_type.clone()
                     dp.is_mut = sp.is_mut
                     dp.own_type = sp.own_type
                 }
                 fdef.return_type = sigdef.return_type
                 fdef.return_own_type = sigdef.return_own_type
-                sdecl.explicit_type = ""
-                sdecl.til_type = Type.Unknown
+                sdecl.til_type = Type.FuncPtrSig(sig_name)
             }
         }
     }
@@ -1541,7 +1541,7 @@ register_function_def_for_stmt := func(ctx: Context, mut stmt: Expr, mut scope: 
     ft := fdef.func_type
     mut rt := Type.None
     if fdef.return_type.len() > 0 {
-        rt = init_type_from_explicit_type(fdef.return_type, scope)
+        rt = type_from_declaration_name(fdef.return_type, scope)
     }
     scope.set(sdecl.name, rt, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
     scope.set_func_def(sdecl.name, stmt.children[0])
@@ -1662,7 +1662,7 @@ gen_unity_derived_for_stmt := func(mut stmt: Expr) {
 
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        param := decl_typed(name = "self", explicit_type = sname, is_mut = true, own_type = OwnType.Ref)
+        param := decl_typed(name = "self", type_name = sname, is_mut = true, own_type = OwnType.Ref)
         func_decl.params.push(own param)
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
@@ -1712,8 +1712,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1748,8 +1748,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1781,8 +1781,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1812,8 +1812,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1843,8 +1843,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1874,8 +1874,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1943,7 +1943,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                 fsz = UPtr.size()
                 falign = UPtr.size()
 
-                mut ftype := fd.explicit_type
+                mut ftype := fd.type_name()
                 if ftype.len() == 0 {
                     if fd.default_value.is_some() {
                         ref def_val : Expr = fd.default_expr()
@@ -1973,8 +1973,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                             }
                         }
                         if ftype.len() > 0 {
-                            fd.explicit_type = ftype
-                            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                            fd.til_type = declaration_type_from_name(ftype)
                         }
                     }
                 }
@@ -2011,7 +2010,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                 }
 
             } else {
-                mut ftype := fd.explicit_type
+                mut ftype := fd.type_name()
                 if ftype.len() == 0 {
                     if fd.default_value.is_some() {
                         ref def_val : Expr = fd.default_expr()
@@ -2046,14 +2045,13 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                             }
                         }
                         if ftype.len() > 0 {
-                            fd.explicit_type = ftype
-                            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                            fd.til_type = declaration_type_from_name(ftype)
                         }
                     }
                 }
 
                 // #192: USize/UPtr are target-dependent aliases. KEEP the
-                // alias name on fd.explicit_type so the C emitter spells the
+                // alias name on fd.til_type so the C emitter spells the
                 // field with the USize/UPtr typedef -- ext.h's typedef is the
                 // single source of truth for the field's ABI width, so a field
                 // stays consistent no matter which compiler (til_boot or
@@ -2073,13 +2071,10 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                 // so it is 8 in a 64-bit-hosted til and 4 in a 32-bit-hosted
                 // one (#232) -- matching the running binary's ext.h typedef.
                 if ftype.eq("USize").or(ftype.eq("UPtr")) {
-                    mut resolved := scope_target_usize_pname(scope).clone()
                     mut host_prim := host_usize_pname()
                     if ftype.eq("UPtr") {
-                        resolved = scope_target_uptr_pname(scope).clone()
                         host_prim = host_uptr_pname()
                     }
-                    fd.til_type = til_type_from_explicit_type(resolved)
                     ftype = host_prim
                 } else {
                     ab_o := scope.get_binding(ftype)
@@ -2088,8 +2083,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                         if ab.is_type_alias {
                             if ab.alias_target.is_empty().not() {
                                 ftype = ab.alias_target
-                                fd.explicit_type = ftype
-                                fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                                fd.til_type = declaration_type_from_name(ftype)
                             }
                         }
                     }
@@ -2306,8 +2300,8 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
 
     switch stmt.node_type {
     case .Decl(dd):
-        if dd.explicit_type.len() > 0 {
-            out_type = init_type_from_explicit_type(dd.explicit_type, scope)
+        if dd.til_type.is(Type.Unknown).not() {
+            out_type = declaration_resolved_type(dd, scope)
             return out_type.is(Type.Unknown).not()
         }
     case:
@@ -2421,7 +2415,7 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
 // appended to program.children, and replaced in the original body slot
 // with an empty inner Body (no-op `{}` in C). References to the
 // original name within the parent body (Ident, FieldAccess base,
-// FCall callee, Decl explicit_type, FuncDef return_type and param
+// FCall callee, Decl type, FuncDef return_type and param
 // types, struct field types, enum variant payload types) are
 // rewritten in-place through a single recursive walk in
 // init_rewrite_refs.
@@ -2486,10 +2480,10 @@ priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map(Str, Str)) {
 }
 
 priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map(Str, Str)) {
-    if dd.explicit_type.len() == 0 { return }
-    new_t := init_lookup_name(renamings, dd.explicit_type)
+    if dd.til_type.is(Type.Unknown) { return }
+    new_t := init_lookup_name(renamings, dd.type_name())
     if new_t.len() > 0 {
-        dd.explicit_type = new_t
+        dd.til_type = declaration_type_from_name(new_t)
     }
 }
 
@@ -2733,14 +2727,13 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
     switch e.node_type {
     case .Decl(dd):
         // Issue #243: a body-local declaration (`ref x : T = ...`,
-        // `mut y : T = ...`) carries its type as a Declaration.explicit_type
-        // string, not an Ident expr, so substitute it here too -- otherwise
+        // `mut y : T = ...`) carries its type on Declaration.til_type, not an
+        // Ident expr, so substitute it here too -- otherwise
         // T stays unresolved inside macro-templated method bodies. Then fall
         // through to recurse into the RHS value child below.
-        new_type := init_subst_ident_name(subs, ref_params, dd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, dd.type_name())
         if new_type.len() > 0 {
-            dd.explicit_type = new_type.clone()
-            dd.til_type = til_type_from_explicit_type(dd.explicit_type)
+            dd.til_type = declaration_type_from_name(new_type)
         }
     case:
     }
@@ -2812,21 +2805,19 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr),
         // (borrowed) field of the substituted type; with no default it is
         // mandatory at instantiation (#242), matching hand-written ref
         // fields.
-        if ref_params.has(fd.explicit_type) { fd.own_type = OwnType.Ref }
-        new_type := init_subst_ident_name(subs, ref_params, fd.explicit_type)
+        if ref_params.has(fd.type_name()) { fd.own_type = OwnType.Ref }
+        new_type := init_subst_ident_name(subs, ref_params, fd.type_name())
         if new_type.len() > 0 {
-            fd.explicit_type = new_type.clone()
-            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+            fd.til_type = declaration_type_from_name(new_type)
         }
         if fd.default_value.is_some() {
             init_subst_default_slot(fd, subs, ref_params)
         }
     }
     for mut nd : Declaration in sdef.ns_decls {
-        new_type := init_subst_ident_name(subs, ref_params, nd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, nd.type_name())
         if new_type.len() > 0 {
-            nd.explicit_type = new_type.clone()
-            nd.til_type = til_type_from_explicit_type(nd.explicit_type)
+            nd.til_type = declaration_type_from_name(new_type)
         }
         if nd.default_value.is_some() {
             // Issue #243: a namespace method's value is a FuncDef. Recurse
@@ -2856,10 +2847,9 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref
         }
     }
     for mut nd : Declaration in edef.ns_decls {
-        new_type := init_subst_ident_name(subs, ref_params, nd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, nd.type_name())
         if new_type.len() > 0 {
-            nd.explicit_type = new_type.clone()
-            nd.til_type = til_type_from_explicit_type(nd.explicit_type)
+            nd.til_type = declaration_type_from_name(new_type)
         }
         if nd.default_value.is_some() {
             // Issue #243 follow-up: same FuncDef dispatch as
@@ -2879,10 +2869,9 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref
 
 priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), ref_params: Set(Str)) {
     for mut pd : Declaration in fdd.params {
-        new_type := init_subst_ident_name(subs, ref_params, pd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, pd.type_name())
         if new_type.len() > 0 {
-            pd.explicit_type = new_type.clone()
-            pd.til_type = til_type_from_explicit_type(pd.explicit_type)
+            pd.til_type = declaration_type_from_name(new_type)
         }
         if pd.default_value.is_some() {
             init_subst_default_slot(pd, subs, ref_params)
@@ -3150,7 +3139,7 @@ priv init_macro_call_is_type_application := func(e: Expr, macro_fdef: Expr, macr
     case .FuncDef(mfd):
         if mfd.params.len() == 0 { return true }
         for p : Declaration in mfd.params {
-            if p.explicit_type.eq("Type").not() { return true }
+            if p.type_name().eq("Type").not() { return true }
         }
     case:
         return true
@@ -3205,7 +3194,7 @@ priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr, sc
             case:
             }
             for p : Declaration in mfd.params {
-                if p.explicit_type.eq("Type").and(p.name.eq(arg_name)) {
+                if p.type_name().eq("Type").and(p.name.eq(arg_name)) {
                     if scope.get_struct(arg_name).is_none() { return true }
                 }
             }
@@ -3314,7 +3303,7 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
         case .FuncDef(mfd):
             pidx := k - 1
             if pidx < mfd.params.len() {
-                is_type_arg = mfd.params[pidx].explicit_type == "Type"
+                is_type_arg = mfd.params[pidx].type_name() == "Type"
             }
         case:
         }
@@ -3588,7 +3577,7 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
     case .FuncDef(fd):
         if fd.variadic_index >= 0 {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
-            elem_type := resolve_type_alias_for_name(scope, p.explicit_type).clone()
+            elem_type := resolve_type_alias_for_name(scope, p.type_name()).clone()
             genname := format("Array__", elem_type)
             if seen.has(genname).not() {
                 synthesized.push(own init_synth_array_inst_decl(elem_type, e.line, e.col))
@@ -3681,7 +3670,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
 
     mut drop_idxs := Vec(I64).new()
     for i in 0..program.children.len() {
-        ref stmt : Expr = program.children[i]
+        ref mut stmt : Expr = program.children[i]
         mut keep := true
         if init_is_direct_macro_inst_decl(stmt, macros, scope, ctx) {
             ref rhs : Expr = stmt.children[0]
@@ -3927,7 +3916,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
         mut first := true
         mut new_idx : I64 = 0
         for p : Declaration in gfd.params {
-            if p.explicit_type.eq("Type").not() {
+            if p.type_name().eq("Type").not() {
                 // A fresh box per push: Vec.push CONSUMES its argument, so
                 // pushing the running counter itself would free it.
                 kept_pos : I64 = new_idx
@@ -3967,7 +3956,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
                     mut kidx : I32 = cfd.kwargs_index
                     for ci in 0..cfd.params.len() {
                         ref kp : Declaration = cfd.params[ci]
-                        if kp.explicit_type == "Type" {
+                        if kp.type_name() == "Type" {
                             // Removing a param shifts every later block
                             // marker down by one.
                             cpos : I32 = ci.to_i64().to_i32()
@@ -4089,7 +4078,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
             // fills its default into the monomorphized call later. Bailing on
             // a missing value-arg (the old behaviour) left the generic call
             // un-monomorphized and tripped desugar's UNREACHABLE.
-            if p.explicit_type.eq("Type").not() {
+            if p.type_name().eq("Type").not() {
                 // #320: a ref bit on a VALUE-arg position would be
                 // silently lost by the rewrite below -- reject it loudly.
                 argi_v := i + 1
@@ -4450,7 +4439,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, mut scope: TypeScope
                     if j + 1 >= rhs.children.len() { break }
                     ref param : Declaration = mfd.params[j]
                     ref arg : Expr = rhs.children[j + 1]
-                    if param.explicit_type.eq("Type").and(arg.node_type.is(NodeType.Ident)) {
+                    if param.type_name().eq("Type").and(arg.node_type.is(NodeType.Ident)) {
                         if get_ref_arg(rhs, j + 1) { ref_params.add(own param.name.clone()) }
                         switch arg.node_type {
                         case .Ident(an):
@@ -4555,7 +4544,7 @@ priv init_seed_declarations_unit := proc(path: Str, mut program: Expr, mut scope
 // drops or clones the defs. Over-approximates (shadowed names count as
 // uses), which only makes the unused-import check quieter, never wrong.
 priv note_template_decl_use := func(d: Declaration, scope: TypeScope, mut ctx: Context) {
-    note_cross_file_type_use(scope, ctx, d.explicit_type)
+    note_cross_file_type_use(scope, ctx, d.type_name())
     if d.default_value.is_some() {
         note_template_uses_walk(d.default_expr(), scope, ctx)
     }
@@ -4605,13 +4594,13 @@ priv note_template_body_uses := func(program: Expr, scope: TypeScope, mut ctx: C
 // (the address of a zero word) where master passed NULL, so a
 // `destination.is_null()` guard read false and a struct-sized result was
 // memcpy'd into a one-word box. Doing it here -- syntactically, on
-// explicit_type, before desugar/type/fill -- makes every later copy carry
+// til_type, before desugar/type/fill -- makes every later copy carry
 // the null node.
 priv init_normalize_dynamic_zero_defaults := func(mut e: Expr) {
     switch e.node_type {
     case .FuncDef(nz_fd):
         for mut pd : Declaration in nz_fd.params {
-            if pd.explicit_type.eq("Dynamic").not() { continue }
+            if pd.til_type.is(Type.Dynamic).not() { continue }
             if pd.default_value.is_none() { continue }
             mut is_zero := false
             switch pd.default_expr().node_type {
@@ -4778,7 +4767,7 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
     }
 
     for i in 0..program.children.len() {
-        ref stmt : Expr = program.children[i]
+        ref mut stmt : Expr = program.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef) {
@@ -4849,11 +4838,11 @@ priv gen_interface_box_fields_for_stmt := func(mut stmt: Expr) {
     case .StructDef(sdd):
         if sdd.is_interface.not() { return }
         if sdd.fields_index.has("iface_type_name") { return }
-        mut tag_decl := Declaration(name = "iface_type_name", explicit_type = "Str",
+        mut tag_decl := Declaration(name = "iface_type_name", til_type = Type.Struct("Str"),
             is_mut = true, own_type = OwnType.Shallow,
             default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Str("")), stmt.line, stmt.col)))
         sdd.push_field(own tag_decl)
-        mut val_decl := Declaration(name = "iface_val", explicit_type = "Dynamic",
+        mut val_decl := Declaration(name = "iface_val", til_type = Type.Dynamic,
             is_mut = true, own_type = OwnType.Ref,
             default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Null), stmt.line, stmt.col)))
         sdd.push_field(own val_decl)
@@ -4863,7 +4852,7 @@ priv gen_interface_box_fields_for_stmt := func(mut stmt: Expr) {
         // of the concrete. The custom clone/delete below branch on this:
         // owned boxes deep-clone / free iface_val via dyn_call; borrowed boxes
         // leave it alone, exactly as before.
-        mut owned_decl := Declaration(name = "iface_owned", explicit_type = "Bool",
+        mut owned_decl := Declaration(name = "iface_owned", til_type = Type.Primitive(Primitive.Bool),
             is_mut = true, own_type = OwnType.Shallow,
             default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col)))
         sdd.push_field(own owned_decl)
@@ -4966,7 +4955,7 @@ priv gen_interface_clone_delete_for_stmt := func(mut stmt: Expr) {
 
             mut clone_decl := FunctionDef(auto_generated = true)
             clone_decl.func_type = FuncType.Func
-            clone_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Ref))
+            clone_decl.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Ref))
             clone_decl.return_type = sname.clone()
             clone_decl.variadic_index = -1
             clone_decl.kwargs_index = -1
@@ -5009,8 +4998,8 @@ priv gen_interface_clone_delete_for_stmt := func(mut stmt: Expr) {
 
             mut del_decl := FunctionDef(auto_generated = true)
             del_decl.func_type = FuncType.Func
-            del_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Own))
-            del_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))))
+            del_decl.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Own))
+            del_decl.params.push(own Declaration(name = "call_free", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))))
             del_decl.variadic_index = -1
             del_decl.kwargs_index = -1
             mut del_def := Expr.new(NodeType.FuncDef(del_decl), stmt.line, stmt.col)
@@ -5094,7 +5083,7 @@ priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: 
     switch fexpr.node_type {
     case .FuncDef(fd):
         for mut pd : Declaration in fd.params {
-            if pd.explicit_type == from_name { pd.explicit_type = to_name.clone() }
+            if pd.type_name() == from_name { pd.til_type = declaration_type_from_name(to_name) }
         }
         if fd.return_type == from_name { fd.return_type = to_name.clone() }
     case:

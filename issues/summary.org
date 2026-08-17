@@ -12,7 +12,6 @@
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
 *** [[./open/124.org][#124]] Remove remaining manual frees for typed raw-buffer locals
 *** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
-*** [[./open/147.org][#147]] AST/Context redesign: lessons from rstil
 *** [[./open/158.org][#158]] One pass per phase across the whole pipeline
 *** [[./open/163.org][#163]] Per-file AST/import graph + Context.path (prep for removing Expr.path)
 *** [[./open/165.org][#165]] Declaration order should not matter inside a file or across imports

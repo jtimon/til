@@ -219,15 +219,15 @@ static Str hoisted__Str_test_variadic_direct_fold_31 = (Str){.c_str = (void *)"t
 static Str hoisted__Str_test_variadic_fold_3 = (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_variadic_fold_8 = (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 
-U32 CAP_LIT;
-U32 CAP_VIEW;
-static U32 CAP_INLINE;
+USize CAP_LIT;
+USize CAP_VIEW;
+static USize CAP_INLINE;
 
 static Str format(Array__Str * parts) {
-    U32 total = 0;
+    USize total = 0;
     {
         Array__Str *_fc_Array__Str_0 = parts;
-        U32 _fi_USize_0 = 0;
+        USize _fi_USize_0 = 0;
         while (1) {
             U32 hoisted__U32_2 = (_fc_Array__Str_0->cap);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_2));
@@ -247,7 +247,7 @@ static Str format(Array__Str * parts) {
     Str out = Str_with_capacity(total);
     {
         Array__Str *_fc_Array__Str_7 = parts;
-        U32 _fi_USize_7 = 0;
+        USize _fi_USize_7 = 0;
         while (1) {
             U32 hoisted__U32_9 = (_fc_Array__Str_7->cap);
             Bool _wcond_Bool_8 = ((Bool)(_fi_USize_7 < hoisted__U32_9));
@@ -294,12 +294,11 @@ static Str Str_with_capacity(USize n) {
     I32 hoisted__I32_4 = 0;
     U64 hoisted__U64_5 = 1ULL;
     memset(buf, hoisted__I32_4, hoisted__U64_5);
-    I64 hoisted__I64_6 = 0;
-    Str hoisted__Str_Str_with_capacity_7 = {0};
-    hoisted__Str_Str_with_capacity_7.c_str = buf;
-    hoisted__Str_Str_with_capacity_7.count = hoisted__I64_6;
-    hoisted__Str_Str_with_capacity_7.cap = n;
-    { Str _ret = hoisted__Str_Str_with_capacity_7; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    Str hoisted__Str_Str_with_capacity_6 = {0};
+    hoisted__Str_Str_with_capacity_6.c_str = buf;
+    hoisted__Str_Str_with_capacity_6.count = 0;
+    hoisted__Str_Str_with_capacity_6.cap = n;
+    { Str _ret = hoisted__Str_Str_with_capacity_6; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
 static void Str_push_str(Str * self, Str * s) {
@@ -591,7 +590,7 @@ static void expect(Bool cond, Array__Str * parts, Str * loc) {
 static void println(Array__Str * parts) {
     {
         Array__Str *_fc_Array__Str_0 = parts;
-        U32 _fi_USize_0 = 0;
+        USize _fi_USize_0 = 0;
         while (1) {
             U32 hoisted__U32_2 = (_fc_Array__Str_0->cap);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_2));

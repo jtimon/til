@@ -261,12 +261,12 @@ typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
 typedef struct HashMap__Str_Str HashMap__Str_Str;
 typedef struct HashMap__Str_USize HashMap__Str_USize;
-typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
 typedef struct Option__ref_Declaration Option__ref_Declaration;
+typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__U32 Vec__U32;
 typedef struct Vec__Mode Vec__Mode;
@@ -449,7 +449,6 @@ struct Option__Expr {
 typedef struct Declaration {
     Str name;
     Str doc;
-    Str explicit_type;
     Bool is_mut;
     Bool redundant_mut;
     Bool is_priv;
@@ -469,9 +468,7 @@ typedef struct FCallData {
     U64 own_args;
     U64 keep_outer_args;
     Bool swap_replace;
-    Bool direct_callee;
     Type til_type;
-    Bool noreturn_call;
     U64 ref_args;
     U64 splat_args;
 } FCallData;
@@ -765,10 +762,6 @@ typedef struct HashMap__Str_USize {
 } HashMap__Str_USize;
 
 
-struct Option__ref_Expr {
-    Expr *data;
-};
-
 typedef struct Map__Str_Dynamic {
     Vec__Str keys;
     Vec__Dynamic values;
@@ -784,6 +777,10 @@ typedef struct Vec__FFITypePtrBox {
 
 struct Option__ref_Declaration {
     Declaration *data;
+};
+
+struct Option__ref_Expr {
+    Expr *data;
 };
 
 typedef struct Vec__TypeBinding {
@@ -1765,6 +1762,6 @@ typedef struct Scope {
 
 Str Str_clone(Str * val);
 
-extern U32 CAP_LIT;
-extern U32 CAP_VIEW;
+extern USize CAP_LIT;
+extern USize CAP_VIEW;
 

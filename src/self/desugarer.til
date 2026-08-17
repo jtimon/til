@@ -249,7 +249,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
             mut is_template_lift := mtg_ret_lift
             if is_template_lift.not() {
                 for tmp_param_lift : Declaration in lift_fd_check.params {
-                    if tmp_param_lift.explicit_type == "Type" {
+                    if tmp_param_lift.type_name() == "Type" {
                         is_template_lift = true
                     }
                 }
@@ -464,7 +464,7 @@ priv guess_local_type := func(scope: TypeScope, e: Expr, var_name: Str) returns 
         switch e.node_type {
         case .Decl(dn):
             if dn.name == var_name {
-                if dn.explicit_type.len() > 0 { return dn.explicit_type.clone() }
+                if dn.til_type.is(Type.Unknown).not() { return dn.type_name() }
                 if e.children.len() > 0 {
                     ref rhs : Expr = e.children[0]
                     switch rhs.node_type {
@@ -545,7 +545,7 @@ priv guess_prior_local_type_in_vec := func(scope: TypeScope, stmts: Vec(Expr), u
 priv seed_local_type_from_stmt := func(mut ctx: Context, stmt: Expr) {
     switch stmt.node_type {
     case .Decl(dd):
-        mut tn := dd.explicit_type.clone()
+        mut tn := dd.type_name()
         if tn.len().eq(0).and(stmt.children.len().gt(0)) {
             ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
@@ -826,8 +826,8 @@ priv annotate_throw_types_in := proc(ctx: Context, mut e: Expr, root_body: Expr)
                                 switch prior_stmt.node_type {
                                 case .Decl(dd):
                                     if dd.name == idn.name {
-                                        if dd.explicit_type.len() > 0 {
-                                            tn = dd.explicit_type.clone()
+                                        if dd.til_type.is(Type.Unknown).not() {
+                                            tn = dd.type_name()
                                         } else if prior_stmt.children.len() > 0 {
                                             switch prior_stmt.children[0].node_type {
                                             case .FCall:
@@ -929,11 +929,11 @@ append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str
     while params.len() > split {
         tail.push(own params.pop())
     }
-    params.push(own Declaration(name = "_err_kind", explicit_type = "I64",
-        til_type = Type.Primitive(Primitive.I64), is_mut = true, own_type = OwnType.Ref, used = true))
+    params.push(own Declaration(name = "_err_kind", til_type = Type.Primitive(Primitive.I64),
+        is_mut = true, own_type = OwnType.Ref, used = true))
     for tn : Str in throw_types {
         if throw_type_has_payload(ctx, tn).not() { continue }
-        params.push(own decl_typed(name = err_slot_name(tn), explicit_type = tn,
+        params.push(own decl_typed(name = err_slot_name(tn), type_name = tn,
             is_mut = true, own_type = OwnType.Ref, used = true))
     }
     // Restore the trailing defaults (popping again undoes the reversal).
@@ -949,7 +949,7 @@ make_int_lit := func(n: I64, line: U32, col: U32) returns Expr {
 priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, line: U32, col: U32) returns Expr {
     mut dd := decl_typed(
         name = name,
-        explicit_type = type_name,
+        type_name = type_name,
         is_mut = true
     )
     mut decl := Expr.new(NodeType.Decl(dd), line, col)
@@ -1075,7 +1075,7 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
         // observes it. The tag alone is sufficient for the common case.
         if subtree_references_name(orig_body, var_name) {
             mut err_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name,
-                explicit_type = type_name)), line, col)
+                type_name = type_name)), line, col)
             err_decl.add_child(own make_default_value_expr(type_name, line, col))
             new_body.add_child(own err_decl)
         }
@@ -1412,7 +1412,7 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
         fd_o := member_get(sd.fields_index, sd.fields, field_name)
         if fd_o.is_some() {
             ref fd : Declaration = fd_o.unwrap()
-            if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
+            if fd.til_type.is(Type.Unknown).not() { return fd.type_name() }
             tn := til_type_name(fd.til_type)
             if tn.len() > 0 { return tn }
             // Field declared without an explicit type AND its
@@ -1541,7 +1541,7 @@ priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, met
         mut derived := Vec(Str).new()
         for p : Declaration in fd.params {
             if p.name.starts_with("_err_").and(p.name.eq("_err_kind").not()) {
-                if p.explicit_type.len() > 0 { derived.push(own p.explicit_type.clone()) }
+                if p.til_type.is(Type.Unknown).not() { derived.push(own p.type_name()) }
             }
         }
         if derived.len() > 0 {
@@ -1767,7 +1767,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: 
     for tn : Str in tts {
         if throw_type_has_payload(ctx, tn).not() { continue }
         mut slot_id := Expr.new(ident_node(err_slot_name(tn)), e.line, e.col)
-        slot_id.set_til_type(til_type_from_explicit_type(tn))
+        slot_id.set_til_type(declaration_type_from_name(tn))
         e.add_child(own slot_id)
     }
     switch e.node_type {
@@ -2319,8 +2319,8 @@ priv process_throw_catch_in_body := proc(
                             switch prior_stmt.node_type {
                             case .Decl(dd):
                                 if dd.name == idn.name {
-                                    if dd.explicit_type.len() > 0 {
-                                        tn = dd.explicit_type.clone()
+                                    if dd.til_type.is(Type.Unknown).not() {
+                                        tn = dd.type_name()
                                     } else if prior_stmt.children.len() > 0 {
                                         switch prior_stmt.children[0].node_type {
                                         case .FCall:
@@ -2385,8 +2385,8 @@ priv process_throw_catch_in_body := proc(
                             if prior_dd.name == idn.name {
                                 prior_dd.used = true
                                 if tn.len() == 0 {
-                                    if prior_dd.explicit_type.len() > 0 {
-                                        tn = prior_dd.explicit_type.clone()
+                                    if prior_dd.til_type.is(Type.Unknown).not() {
+                                        tn = prior_dd.type_name()
                                     } else if prior_stmt.children.len() > 0 {
                                         ref prior_rhs : Expr = prior_stmt.children[0]
                                         switch prior_rhs.node_type {
@@ -2504,8 +2504,7 @@ priv process_throw_catch_in_body := proc(
                 // expected type is the function's return_type, so use it.
                 mut tmp_decl_data := Declaration(name = tmp_name.clone())
                 if return_type.len() > 0 {
-                    tmp_decl_data.explicit_type = return_type.clone()
-                    tmp_decl_data.til_type = til_type_from_explicit_type(return_type)
+                    tmp_decl_data.til_type = declaration_type_from_name(return_type)
                     // Locals are owned by default; only mark Ref-returning
                     // funcs as ref so we don't trip the "no need for 'own'"
                     // diagnostic on the synthesized temp.
@@ -3028,7 +3027,7 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
                                         mut sw_for_gp := sw_ref.clone()
-                                        inner_sw_ref := make_nested_subject(own sw_for_gp, til_type_from_explicit_type(payload_type3), enum_payload_is_pointer_slot(enum_def3, vt_idx3), sw_line, sw_col)
+                                        inner_sw_ref := make_nested_subject(own sw_for_gp, declaration_type_from_name(payload_type3), enum_payload_is_pointer_slot(enum_def3, vt_idx3), sw_line, sw_col)
 
                                         // Recurse on the nested pattern; bindings prepend to case_body
                                         // and use ~get_payload(sw_ref, payload_type)~ as their root.
@@ -3471,7 +3470,7 @@ replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: USize, own block:
 make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool) returns Expr {
     mut wb := Expr.new(NodeType.Body, line, col)
 
-    mut vd := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = elem_type, is_mut = var_is_mut)), line, col)
+    mut vd := Expr.new(NodeType.Decl(decl_typed(name = var_name, type_name = elem_type, is_mut = var_is_mut)), line, col)
     mut cur_ident := Expr.new(ident_node(cur_name), line, col)
     vd.add_child(own cur_ident)
     wb.add_child(own vd)
@@ -4247,7 +4246,7 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     ref fd : FunctionDef = funcdef_of(fdef)
     vi := fd.variadic_index + 1
     vc := fcall_variadic_count(e, fd.params.len(), fd.kwargs_index >= 0)
-    ref elem_type : Str = fd.params[fd.variadic_index.to_usize()].explicit_type
+    elem_type := fd.params[fd.variadic_index.to_usize()].type_name()
     array_type := variadic_array_type_name(scope, elem_type)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc) { return }
     if desugar_mixed_splat_variadic_call(ctx, e, new_ch, scope, elem_type, array_type, vi, vc) { return }
@@ -4504,10 +4503,10 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
         if is_aggregate(ab.type).not() { return }
 
         mut call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        mark_fcall_direct(call)
         call.set_til_type(Type.None)
         fn := Expr.new(ident_node("swap_bytes"), stmt.line, stmt.col)
         call.add_child(own fn)
+        mark_fcall_direct(call)
         mut a := Expr.new(ident_node(stmt_name), stmt.line, stmt.col)
         a.set_til_type(ab.type)
         call.add_child(own a)

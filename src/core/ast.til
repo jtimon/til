@@ -48,13 +48,10 @@ Type := enum {
     // shift everything after it and mis-decode Type values created by
     // master's compiled code while bootstrapping.
     Primitive: Primitive,
-    // Issue #58 / #147 step 5: FuncPtr with the FuncSig alias name
+    // Issue #58 / #147: FuncPtr with the FuncSig alias name
     // (e.g. `Type.FuncPtrSig("BinaryOp")`). Tag-only `Type.FuncPtr` stays
     // for the wildcard "some function pointer" cases; sites that know
-    // the FuncSig name (param decls with `explicit_type` matching a
-    // funcsig binding, struct fields likewise) will migrate to this
-    // variant in follow-up commits so Declaration.explicit_type can
-    // eventually be dropped (#147 step 5). Same append-at-end rule as
+    // the FuncSig name use this variant. Same append-at-end rule as
     // Primitive: keeps the existing tags stable for bootstrapping.
     FuncPtrSig: Str,
     // Issue #55: first-class executable statement bodies. Backends may use
@@ -191,11 +188,35 @@ GcStorage := enum { Unset, Stack, HeapBox }
 // emitters.
 Option__Expr := Option(Expr)
 
+// Construct a declaration type from source/reflection spelling without any
+// scope knowledge. USize/UPtr and user names deliberately remain Custom so
+// declaration spelling survives until a semantic-use site resolves them.
+declaration_type_from_name := func(name: Str) returns Type {
+    if name == "I64"  { return Type.Primitive(Primitive.I64) }
+    if name == "U8"   { return Type.Primitive(Primitive.U8) }
+    if name == "I8"   { return Type.Primitive(Primitive.I8) }
+    if name == "I16"  { return Type.Primitive(Primitive.I16) }
+    if name == "U16"  { return Type.Primitive(Primitive.U16) }
+    if name == "I32"  { return Type.Primitive(Primitive.I32) }
+    if name == "U32"  { return Type.Primitive(Primitive.U32) }
+    if name == "U64"  { return Type.Primitive(Primitive.U64) }
+    if name == "F32"  { return Type.Primitive(Primitive.F32) }
+    if name == "F64"  { return Type.Primitive(Primitive.F64) }
+    if name == "Bool" { return Type.Primitive(Primitive.Bool) }
+    if name == "Str" { return Type.Struct("Str") }
+    if name == "StructDef" { return Type.Struct("StructDef") }
+    if name == "EnumDef" { return Type.Struct("EnumDef") }
+    if name == "Fn" { return Type.FuncPtr }
+    if name == "Body" { return Type.Body }
+    if name == "Dynamic" { return Type.Dynamic }
+    if name.len() == 0 { return Type.Unknown }
+    return Type.Custom(name.clone())
+}
+
 /// Variable/field/parameter declaration node.
 Declaration := struct {
     name := ""
     doc := ""
-    explicit_type := ""
     is_mut := false
     // #211: set by the parser when a struct FIELD carries an explicit
     // `mut`. Fields are mutable by default, so the keyword is redundant
@@ -227,6 +248,35 @@ Declaration := struct {
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }
+    // Source/ABI spelling of this declaration's type. This is intentionally
+    // distinct from semantic resolution so USize/UPtr and aliases survive.
+    type_name := func(self: Declaration) returns Str {
+        switch self.til_type {
+        case .Struct(name): return name.clone()
+        case .Enum(name): return name.clone()
+        case .Custom(name): return name.clone()
+        case .FuncPtrSig(name): return name.clone()
+        case .Primitive(Primitive.I8): return "I8"
+        case .Primitive(Primitive.U8): return "U8"
+        case .Primitive(Primitive.I16): return "I16"
+        case .Primitive(Primitive.U16): return "U16"
+        case .Primitive(Primitive.I32): return "I32"
+        case .Primitive(Primitive.U32): return "U32"
+        case .Primitive(Primitive.I64): return "I64"
+        case .Primitive(Primitive.U64): return "U64"
+        case .Primitive(Primitive.F32): return "F32"
+        case .Primitive(Primitive.F64): return "F64"
+        case .Primitive(Primitive.Bool): return "Bool"
+        case .None: return "None"
+        case .StructDef: return "StructDef"
+        case .EnumDef: return "EnumDef"
+        case .FuncDef: return "FunctionDef"
+        case .FuncPtr: return "Fn"
+        case .Body: return "Body"
+        case .Dynamic: return "Dynamic"
+        case: return ""
+        }
+    }
     /// The default-value expression, borrowed. PANICS on None: callers
     /// either sit under an is_some() guard or know absence is impossible
     /// for their decl kind (e.g. an initer-built member whose default IS
@@ -282,8 +332,8 @@ FunctionDef := struct {
     // whose body cannot reach its end or a return statement (see
     // fn_never_returns in context.til): panic ends in exit, UNREACHABLE
     // and TODO end in panic, and user functions with the same shape
-    // qualify too. Read at FCall infer time to stamp
-    // FCallData.noreturn_call.
+    // qualify too. Read through the resolved direct callee when control-flow
+    // divergence is derived.
     noreturn := false
     // #344: parameter-indexed summary of the borrow this function hands
     // back. Bit i is set when parameter i's storage -- or a borrow that
@@ -340,11 +390,6 @@ FCallData := struct {
     own_args : U64 = 0
     keep_outer_args : U64 = 0
     swap_replace := false
-    // Set by the typer once this call has selected a static function,
-    // constructor, method, or builtin. False means the callee expression is
-    // a runtime callable value. This occupies existing alignment padding, so
-    // all following field offsets and the FCallData size stay unchanged.
-    direct_callee := false
     // Issue #206 slice 3: payload-resident result type. The typer
     // writes the resolved callee return type here via the
     // set_til_type method at FCall infer time, and
@@ -355,15 +400,6 @@ FCallData := struct {
     // "func vs proc is not Pascal", the only rule is "func cannot
     // call proc"; both kinds may or may not return a value).
     til_type := Type.Unknown
-    // #303: stamped true by the typer when the resolved callee's
-    // FunctionDef carries noreturn (control never comes back). The
-    // shared divergence predicate (stmt_always_diverges, context.til)
-    // reads this stamp instead of matching callee names, so both the
-    // typer's all-paths-return check and the builder's
-    // __builtin_unreachable terminator see the same resolved truth --
-    // a user function shadowing e.g. `panic` no longer counts as
-    // diverging unless it really is.
-    noreturn_call := false
     // #320: bitmap of `ref`-qualified TYPE arguments (`make_opt(ref T)`),
     // mirroring own_args' indexing. Only meaningful on type-gen macro
     // instantiations; init expansion consumes it (mangling `__ref_T` and

@@ -792,9 +792,9 @@ terr_missing_return_none := func(terr_mr_y: I64) returns I64 {
 // #303 regression (produces NO errors): a non-void function whose last
 // path ends in a call to an inferred-noreturn function needs no trailing
 // return. terr_nr_abort ends in panic (itself inferred noreturn from core
-// exit), so fn_never_returns marks it and the call in terr_nr_pick is
-// stamped noreturn_call -- the all-paths-return check accepts the missing
-// else-path return. If the inference or stamping breaks, terr_nr_pick
+// exit), so fn_never_returns marks it and the direct call in terr_nr_pick
+// resolves that FunctionDef -- the all-paths-return check accepts the missing
+// else-path return. If the inference or resolution breaks, terr_nr_pick
 // starts erroring and the expected count catches it.
 terr_nr_abort := func(terr_nr_code: I64) {
     panic("terr_nr_abort: ", terr_nr_code.to_str())
@@ -802,6 +802,14 @@ terr_nr_abort := func(terr_nr_code: I64) {
 terr_nr_pick := func(terr_nr_b: Bool) returns I64 {
     if terr_nr_b { return 41 }
     terr_nr_abort(3)
+}
+
+// A runtime callable that shadows the noreturn global `panic` is not direct
+// and therefore cannot make this non-void function count as diverging.
+terr_nr_returns := func() returns I64 { return 0 }
+terr_nr_shadow := func() returns I64 {
+    panic := terr_nr_returns
+    panic()
 }
 
 // #286 follow-up: a ref-returning call's result is BORROWED. The Decl

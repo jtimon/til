@@ -573,12 +573,12 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
         if gok.not() { return false }
         // A `P: Type` param is a generic TYPE-PARAMETER only if its name
         // is actually USED as a type elsewhere in the signature -- as
-        // another param's explicit_type, or as the return type. A plain
+        // another param's declared type, or as the return type. A plain
         // `func(t: Type) returns Str` (where `t` is a runtime Type VALUE
         // never used to type anything, e.g. til_type_name_c) is NOT a
         // generic and must be left untouched.
         for p : Declaration in fd.params {
-            if p.explicit_type.eq("Type").not() { continue }
+            if p.type_name().eq("Type").not() { continue }
             tname := p.name
             // Directly (`v: T`, `returns T`), or as a SEGMENT of a
             // generated instance name: the parser mangles an annotation
@@ -589,7 +589,7 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
             // an undefined type and `T` an unused parameter.
             if type_name_mentions_param(fd.return_type, tname) { return true }
             for q : Declaration in fd.params {
-                if type_name_mentions_param(q.explicit_type, tname) { return true }
+                if type_name_mentions_param(q.type_name(), tname) { return true }
             }
         }
         return false
@@ -634,7 +634,7 @@ generic_source_throws_depend_on_type := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd):
         for p : Declaration in fd.params {
-            if p.explicit_type.eq("Type").not() { continue }
+            if p.type_name().eq("Type").not() { continue }
             for t : Str in fd.throw_types {
                 if type_name_mentions_param(t, p.name) { return true }
             }
@@ -1712,8 +1712,8 @@ make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32)
 make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32) returns Expr {
     mut gp := Expr.new(ident_node("get_payload"), line, col)
     mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
-    mark_fcall_direct(gc)
     gc.add_child(own gp)
+    mark_fcall_direct(gc)
     gc.add_child(own arg)
     gc.set_til_type(payload_type)
     return gc
@@ -1731,8 +1731,8 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
     mut vr := Expr.new(field_access_node(vname), line, col)
     vr.add_child(own et)
     mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    mark_fcall_direct(is_call)
     is_call.add_child(own iv)
+    mark_fcall_direct(is_call)
     is_call.add_child(own arg_id)
     is_call.add_child(own vr)
     mut sz_lit := Expr.new(literal_num_node(tag_size.to_str()), line, col)
@@ -1741,8 +1741,8 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
 }
 
 make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, is_ref_payload: Bool = false, used: Bool = false) returns Expr {
-    mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), line, col)
-    mut decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, explicit_type = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+    mut gc := make_get_payload_fcall(own arg, declaration_type_from_name(vtype), line, col)
+    mut decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
     // REM: gc must be consumed in BOTH branches of a symmetric if/else --
     // an if-with-return plus fall-through consumption is a two-site
     // conditional transfer the garbager miscompiles (double free, found
@@ -1756,7 +1756,7 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
         mut dc := Expr.new(NodeType.FCall(FCallData()), line, col)
         dc.add_child(own dv)
         dc.add_child(own gc)
-        dc.set_til_type(til_type_from_explicit_type(vtype))
+        dc.set_til_type(declaration_type_from_name(vtype))
         decl.add_child(own dc)
     } else {
         decl.add_child(own gc)
@@ -1792,7 +1792,7 @@ make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, v
     if expr_contains_ident_named(arg, bind_name) {
         out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, is_ref_payload, used))
         mut alias_rhs := Expr.new(ident_node(fresh_name), line, col)
-        mut alias_decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, explicit_type = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+        mut alias_decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
         alias_decl.add_child(own alias_rhs)
         out.push(own alias_decl)
     } else {
@@ -1838,8 +1838,7 @@ is_type_metatype := func(t: Type) returns Bool {
 // name). Master's structural Type-eq (Issue #165) would otherwise treat
 // `Type.FuncPtr` and `Type.FuncPtrSig("X")` as distinct because the
 // tags AND payloads differ; this helper restores the wildcard semantic
-// the migration needs while the FuncSig name moves off
-// `Declaration.explicit_type` and onto the type itself.
+// the migration needs while preserving the FuncSig name on the type itself.
 funcptr_eq := func(a: Type, b: Type) returns Bool {
     if a.is_funcptr().not() { return false }
     if b.is_funcptr().not() { return false }
@@ -1889,7 +1888,7 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
     if fd.params.len() > 1 {
         if fd.params[1].name == "call_free" { return false }
     }
-    pt := type_from_name_init(resolve_type_alias(scope, p.explicit_type), scope)
+    pt := declaration_resolved_type(p, scope)
     return pt.is(Type.Struct).or(pt.is(Type.Enum))
 }
 
@@ -1919,16 +1918,12 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
         }
         // A FuncSig alias (`Op := func(x: I64) returns I64`, registered
         // bodyless with a bare Type.FuncPtr binding by
-        // register_function_def_for_stmt). The nameless spelling is
-        // deliberate here: this is init's PROVISIONAL answer, the typer
-        // re-registers the binding as Type.FuncPtrSig when it reaches the
-        // function's own Decl, and paying a Str clone per resolution to
-        // pre-empt that would tax every declaration to serve the one call
-        // shape that reads the type early (infer_funcptr_call_via_cast,
-        // which recovers the name from the callee's FuncDef instead).
+        // register_funcsig_alias_for_stmt). Declaration now has one type
+        // field, so this resolution must carry the alias name itself.
         if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
-            return Type.FuncPtr
+            return Type.FuncPtrSig(name.clone())
         }
+        if b.is_func_decl.and(b.type.is(Type.FuncPtrSig)) { return b.type.clone() }
     }
     sdef_o := scope.get_struct_fp(name, fp)
     if sdef_o.is_some() {
@@ -1941,22 +1936,22 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     return Type.Unknown
 }
 
-init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
-    mut resolved := name.clone()
-    b_o := scope.get_binding(name)
-    if b_o.is_some() {
-        ref b : TypeBinding = b_o.unwrap()
-        if b.is_type_alias {
-            if b.alias_target.is_empty().not() {
-                resolved = b.alias_target.clone()
-            }
-        }
+type_from_declaration_name := func(name: Str, scope: TypeScope) returns Type {
+    resolved := type_from_name_init(name, scope)
+    if resolved.is(Type.Unknown).not() { return resolved }
+    return declaration_type_from_name(name)
+}
+
+// Resolve a declaration type for semantic use. Only Custom is unresolved;
+// all refined and tag-only variants already carry the semantic answer.
+declaration_resolved_type := func(decl: Declaration, scope: TypeScope) returns Type {
+    switch decl.til_type {
+    case .Custom(name):
+        resolved := type_from_name_init(name, scope)
+        if resolved.is(Type.Unknown).not() { return resolved }
+    case:
     }
-    resolved_type := type_from_name_init(resolved, scope)
-    if resolved_type.is(Type.Unknown).not() {
-        return resolved_type
-    }
-    return til_type_from_explicit_type(resolved)
+    return decl.til_type.clone()
 }
 
 // The type-application spelling a method call's RECEIVER names, or "":
@@ -1992,7 +1987,7 @@ priv type_application_name := func(callee: Expr) returns Str {
 }
 
 field_inferred_type_name := func(fd: Declaration) returns Str {
-    if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
+    if fd.til_type.is(Type.Unknown).not() { return fd.type_name() }
     if fd.default_value.is_none() { return "" }
     ref def_val : Expr = fd.default_expr()
     switch def_val.node_type {
@@ -2521,8 +2516,8 @@ priv contains_return := func(e: Expr) returns Bool {
 // records the result on FunctionDef.noreturn; callees typed earlier
 // (imports, earlier in the file) are already marked, so chains like
 // exit -> panic -> UNREACHABLE resolve without any name matching.
-fn_never_returns := func(body: Expr) returns Bool {
-    return contains_return(body).not().and(stmt_always_diverges(body))
+fn_never_returns := func(body: Expr, scope: TypeScope) returns Bool {
+    return contains_return(body).not().and(stmt_always_diverges(body, scope))
 }
 
 priv is_literal_true := func(e: Expr) returns Bool {
@@ -2555,27 +2550,28 @@ priv has_unnested_break := func(e: Expr) returns Bool {
 
 // `match` never appears here: it is value-position only, so it always rides
 // inside a Return or a Decl, not as a bare statement.
-stmt_always_diverges := func(e: Expr) returns Bool {
+stmt_always_diverges := func(e: Expr, scope: TypeScope) returns Bool {
     switch e.node_type {
     case .Return:
         return true
-    case .FCall(fcd):
-        // #303: the typer stamps noreturn_call after resolving the callee
-        // to a FunctionDef with noreturn set -- no name matching, so a
-        // user function shadowing panic/exit/etc. does not count unless
-        // it is itself inferred noreturn.
-        return fcd.noreturn_call
+    case .FCall:
+        fd_o := resolve_direct_fcall(e, scope)
+        if fd_o.is_none() { return false }
+        switch fd_o.unwrap().node_type {
+        case .FuncDef(fd): return fd.noreturn
+        case: return false
+        }
     case .Body:
         // Never falls through iff one statement doesn't: control cannot reach
         // anything past a diverging statement.
         for c : Expr in e.children {
-            if stmt_always_diverges(c) { return true }
+            if stmt_always_diverges(c, scope) { return true }
         }
         return false
     case .If:
         // Needs an else branch (children[2]) AND both branches diverging.
         if e.children.len() <= 2 { return false }
-        return stmt_always_diverges(e.children[1]).and(stmt_always_diverges(e.children[2]))
+        return stmt_always_diverges(e.children[1], scope).and(stmt_always_diverges(e.children[2], scope))
     case .Switch:
         // Exhaustive (a `case:` wildcard -> C default) and every arm diverges.
         // A pattern arm is [pattern x N, body]; the wildcard arm is [body].
@@ -2584,7 +2580,7 @@ stmt_always_diverges := func(e: Expr) returns Bool {
         for ci in 1..e.children.len() {
             ref cn : Expr = e.children[ci]
             if cn.children.len() == 1 { has_default = true }
-            if stmt_always_diverges(cn.children[cn.children.len() - 1]).not() { return false }
+            if stmt_always_diverges(cn.children[cn.children.len() - 1], scope).not() { return false }
         }
         return has_default
     case .While:
@@ -2773,12 +2769,10 @@ is_primitive := func(t: Type) returns Bool {
     return t.is(Type.Primitive)
 }
 
-// Issue #58 / #147 step 5: a FuncSig-typed value can carry the alias
+// Issue #58 / #147: a FuncSig-typed value can carry the alias
 // name in ~Type.FuncPtrSig: Str~ or remain anonymous as ~Type.FuncPtr~.
 // Callers asking "is this a function pointer at all?" use this helper
-// so callsites work transparently across both shapes during the
-// migration that moves the FuncSig name off ~Declaration.explicit_type~
-// and onto the type itself.
+// so callsites work transparently across both shapes.
 is_funcptr := func(t: Type) returns Bool {
     return t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig))
 }
@@ -2793,7 +2787,7 @@ is_aggregate := func(t: Type) returns Bool {
 
 fcall_is_direct := func(e: Expr) returns Bool {
     switch e.node_type {
-    case .FCall(fd): return fd.direct_callee
+    case .FCall: return e.children[0].til_type().is(Type.FuncDef)
     case: UNREACHABLE("expected FCall, got ", e.node_type.head_str())
     }
     return false
@@ -2801,8 +2795,50 @@ fcall_is_direct := func(e: Expr) returns Bool {
 
 mark_fcall_direct := func(mut e: Expr) {
     switch e.node_type {
-    case .FCall(fd): fd.direct_callee = true
+    case .FCall: e.children[0].set_til_type(Type.FuncDef)
     case: UNREACHABLE("expected FCall, got ", e.node_type.head_str())
+    }
+}
+
+// Resolve the FunctionDef selected by a typed direct call. Directness lives
+// on the callee expression's Type.FuncDef stamp; runtime callable values keep
+// FuncPtr, FuncPtrSig, or Body and therefore never resolve through a same-name
+// global. FieldAccess covers both namespace calls and pre-rewrite UFCS calls.
+resolve_direct_fcall := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
+    if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if fcall.children.len() == 0 { return Option(ref Expr).None }
+    ref callee : Expr = fcall.children[0]
+    if callee.til_type().is(Type.FuncDef).not() { return Option(ref Expr).None }
+    switch callee.node_type {
+    case .Ident(cn):
+        cb_o := scope.get_binding(cn.ident_name())
+        if cb_o.is_none() { return Option(ref Expr).None }
+        return scope.lookup_func(cb_o.unwrap().name)
+    case .FieldAccess(cfa):
+        if callee.children.len() == 0 { return Option(ref Expr).None }
+        ref recv : Expr = callee.children[0]
+        mut sdef_o := Option(ref Expr).None
+        recv_name_o := expr_type_name_ref(recv)
+        if recv_name_o.is_some() {
+            sdef_o = scope.get_struct(recv_name_o.unwrap())
+        } else {
+            switch recv.node_type {
+            case .Ident(rid): sdef_o = scope.get_struct(rid.ident_name())
+            case:
+            }
+        }
+        if sdef_o.is_none() { return Option(ref Expr).None }
+        nd_o := def_ns_get(sdef_o.unwrap(), cfa.field_access_name())
+        if nd_o.is_none() { return Option(ref Expr).None }
+        ref nd : Declaration = nd_o.unwrap()
+        if nd.default_value.is_none() { return Option(ref Expr).None }
+        ref dv : Expr = nd.default_expr()
+        if dv.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(dv) }
+        switch dv.node_type {
+        case .Ident(did): return scope.lookup_func(did.ident_name())
+        case: return Option(ref Expr).None
+        }
+    case: return Option(ref Expr).None
     }
 }
 

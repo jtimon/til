@@ -317,8 +317,8 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
                 if payload_o.is_none() { return Option(Expr).None }
                 mut payload : Expr = Option(Expr).take(own payload_o)
                 mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-                mark_fcall_direct(call)
                 call.add_child(own variant)
+                mark_fcall_direct(call)
                 call.add_child(own payload)
                 call.set_til_type(t)
                 // A fresh FCallData starts with an EMPTY own_args bitmap,
@@ -341,8 +341,8 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
             clone_callee.add_child(own clone_recv)
             mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-            mark_fcall_direct(clone_call)
             clone_call.add_child(own clone_callee)
+            mark_fcall_direct(clone_call)
             clone_call.add_child(own variant_expr)
             clone_call.set_til_type(t)
             return Option(Expr).Some(own clone_call)
@@ -363,10 +363,10 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         switch sdef.node_type {
         case .StructDef(sfd):
             mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-            mark_fcall_direct(ctor)
             mut callee := Expr.new(ident_node(sname), src.line, src.col)
             callee.set_til_type(t)
             ctor.add_child(own callee)
+            mark_fcall_direct(ctor)
             // sl.fields is positionally parallel to sfd.fields, so each
             // field's layout row comes from its position -- no name probe.
             ref rte_sl : StructLayout = ctx.struct_layouts[sname]
@@ -497,7 +497,7 @@ priv func_sig_has_dynamic := func(fdef: Expr) returns Bool {
     case .FuncDef(fd):
         if fd.return_type == "Dynamic" { return true }
         for p : Declaration in fd.params {
-            if p.explicit_type == "Dynamic" { return true }
+            if p.til_type.is(Type.Dynamic) { return true }
         }
     case:
     }
@@ -845,9 +845,9 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // Build a call with literal args for the interpreter
     nargs := fcall.children.len() - 1
     mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
-    mark_fcall_direct(ec)
     ec.set_til_type(fcall.til_type())
     ec.add_child(own fcall.children[0].clone())
+    mark_fcall_direct(ec)
 
     for i in 0..nargs {
         ref arg : Expr = fcall.children[i + 1]
@@ -918,8 +918,8 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                         atok_fa.add_child(own atok_recv)
                         mut atok_strlit := Expr.new(NodeType.Literal(Literal.Str(atok_name)), arg.line, arg.col)
                         mut atok_ctor := Expr.new(NodeType.FCall(FCallData()), arg.line, arg.col)
-                        mark_fcall_direct(atok_ctor)
                         atok_ctor.add_child(own atok_fa)
+                        mark_fcall_direct(atok_ctor)
                         atok_ctor.add_child(own atok_strlit)
                         atok_ctor.set_til_type(Type.Enum("Type"))
                         ec.add_child(own atok_ctor)

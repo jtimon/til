@@ -1,6 +1,30 @@
 # priority: high
 # category: cleanups
-** OPEN #147 AST/Context redesign: lessons from rstil
+** FIXED #147 AST/Context redesign: lessons from rstil
+
+*** Post-mortem
+
+   Root cause: later phases needed call classification and declaration type
+   information, so til stored derived ~direct_callee~ / ~noreturn_call~ stamps
+   and duplicated declaration spelling between ~explicit_type~ and ~til_type~.
+   The declaration cleanup was blocked while ~Type.FuncPtr~ could not retain a
+   named FuncSig alias; #58 removed that representation gap with
+   ~Type.FuncPtrSig(name)~.
+
+   The final cleanup derives directness from the callee's resolved
+   ~Type.FuncDef~, derives noreturn behavior from the resolved
+   ~FunctionDef.noreturn~, and removes both stamps from ~FCallData~.
+   ~Declaration~ now has one authoritative ~til_type~: the parser preserves
+   unresolved spelling as ~Type.Custom(name)~, named FuncSig declarations use
+   ~Type.FuncPtrSig(name)~, and semantic consumers resolve aliases through
+   Context. ~explicit_type~ and all synchronization writes are gone.
+
+   Regression coverage: ~test_direct_and_indirect_callee_identity~,
+   ~test_builtin_name_callable_shadows~, and
+   ~test_block_callable_shadow_identity~ in ~test/first_class.til~, plus the
+   shadowed-noreturn ~terr_nr_shadow~ case in ~test/typer_errors.til~. The
+   declaration migration is also covered by ~test/parsing.til~,
+   ~test/types.til~, and the named FuncSig cases in ~test/fn_ptr.til~.
 
 rstil (the previous Rust implementation, at ~../rstil~) was slower and
    leakier than current til, but several of its architectural choices around
@@ -103,32 +127,18 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      its way out, leaving ~si.struct_name~ dangling for any subsequent
      dereference. See [[./239.org][#239]] for the pattern + remediation plan.
 
-   Partial:
+   Done (final):
 
-   - Step 5 -- ~Declaration.til_type~ exists and stays in sync with
-     ~explicit_type~ at write sites (the parser already derives
-     ~til_type~ via ~til_type_from_explicit_type~, #252), and ~198~
-     ~explicit_type~ read sites across ~src/self/*~ still pivot on the
-     string. *Blocked, not mechanical.* The decisive finding: ~til_type~
-     is *lossy* relative to ~explicit_type~ for FuncPtr-typed decls.
-     A FuncPtr param/field/local stores its FuncSig *alias name* in
-     ~explicit_type~ (e.g. ~explicit_type = "MyCmpFn"~) but its
-     ~til_type~ is the payload-less ~Type.FuncPtr~ -- the name is gone.
-     That name is load-bearing: ~is_funcsig_type(dd.explicit_type, ctx)~
-     ([[file:../../src/self/builder.til][src/self/builder.til]] sig-typedef emit) and
-     ~get_binding(fd.explicit_type)~ ([[file:../../src/self/typer.til][src/self/typer.til]] sig
-     resolution) both look the sig up *by that name*. Dropping
-     ~explicit_type~ therefore requires somewhere else to keep the sig
-     alias name -- i.e. a ~Type.FuncPtr~ that carries a name (or the
-     broader FuncSig representation work). That is step 8 / ~[[./58.org][#58]]~
-     territory: step 5 cannot land before the FuncPtr/FuncSig type
-     gains a name payload. (The earlier "wrong direction / cache-as-
-     database" framing still holds for the non-FuncPtr readers, but the
-     FuncPtr name-loss is the hard blocker.)
-   - Step 8 -- FuncSig/FuncDef split tracked under ~[[./58.org][#58]]~. Lambdas (~[[./61.org][#61]]~)
-     already lift FuncSig-form expressions, so the type-level shape
-     exists in flight; the ~FunctionDef~ struct in ~core/ast.til~ still
-     mixes sig and body.
+   - Step 5 -- ~Declaration.explicit_type~ removed. The parser writes
+     unresolved names as ~Type.Custom(name)~; semantic consumers resolve
+     them through Context, while declaration spelling remains available from
+     the single ~til_type~ field.
+   - Step 7 -- the remaining scalar call stamps ~direct_callee~ and
+     ~noreturn_call~ removed. Consumers derive them from the resolved callee
+     type and FunctionDef.
+   - Step 8 -- FuncSig/FuncDef representation work completed under
+     ~[[./58.org][#58]]~; ~Type.FuncPtrSig(name)~ preserves the alias identity
+     needed to finish step 5.
 
    Done (continued):
 
@@ -155,10 +165,10 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | Struct        | til (now)                                                                                                                              | rstil                                                          |
    |---------------+----------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------|
    | ~Expr~        | 4 fields: ~node_type, children, line, col~ (post #206: ~til_type~ removed, derived on demand from node_type + payload)                  | 4 fields: ~node_type, params, line, col~                       |
-   | ~Declaration~ | 11 fields: ~name, doc, explicit_type, is_mut, redundant_mut, is_priv, used, own_type, til_type, default_value, orig_name~ (post step 4: ~field_offset~, ~field_size~, ~field_struct_def~ gone -- layout in ~ctx.struct_layouts~; ~explicit_type~/~til_type~ duplication is step 5, blocked on #58 / FuncPtr name-loss) | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
+   | ~Declaration~ | 10 fields: ~name, doc, is_mut, redundant_mut, is_priv, used, own_type, til_type, default_value, orig_name~. Unresolved declaration spelling is represented by ~Type.Custom(name)~; named FuncSig aliases use ~Type.FuncPtrSig(name)~. | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
    | ~Context~     | ~73 fields. Genuine cross-phase caches stay here (~struct_layouts~, ~interp_type_defs~, ~func_defs~, ~struct_def_exprs~, ~imported~, ~imports_*_done~ Sets); per-phase scratch state (constfolder tables, interpreter runtime flags, typer/builder transients) is the #246 slimming surface. | 19 fields (rstil): mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_constfolder_func, constfolder_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
    | ~TypeBinding~ | 19 fields (zero ref Expr): ~name, type, is_mut, is_priv, path, line, col, is_param, own_type, is_alias, is_type_alias, is_func_decl, alias_target, func_type, is_builtin, used, written, mut_explicit, orig_name~. The FuncDef/StructDef Exprs live in ~scope.func_defs~/~scope.struct_defs~ (commits ~1c9265a~, ~0d967a8~). | n/a (rstil scope stores names + computes lookups on demand)    |
-   | ~FCallData~   | 11 fields: parse facts ~is_splat, does_throw, is_bang, own_args, ref_args, splat_args~; rewrite markers ~keep_outer_args, swap_replace~; typer stamps ~direct_callee, noreturn_call~; and payload type ~til_type~. Counts and indices for variadic/kwargs remain derived via scope helpers (~fcall_kwargs_count~, ~fcall_variadic_count~, ~fcall_kwargs_index_via_scope~, ~fcall_variadic_index_via_scope~). | 2 fields: ~does_throw, is_bang~                                |
+   | ~FCallData~   | 9 fields: parse facts ~is_splat, does_throw, is_bang, own_args, ref_args, splat_args~; rewrite markers ~keep_outer_args, swap_replace~; and payload type ~til_type~. Direct and noreturn classification plus variadic/kwargs counts and indices are derived. | 2 fields: ~does_throw, is_bang~                                |
    | ~StructDef~   | 3 fields: ~fields, ns_decls, c_tag~ (post step 4: ~total_struct_size~ gone -- total in ~ctx.struct_layouts~)                            | 3 fields: ~members, default_values, ns~                        |
    | ~EnumDef~     | 4 fields: ~ns_decls, variants, payload_types, payload_consts~ (post step 4: ~total_enum_size~ gone -- total in ~ctx.struct_layouts~)   | 3 fields: ~variants, methods, ns~                              |
 
@@ -187,13 +197,10 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      in the same commit.
 
    ~TypeBinding~ now carries no ~ref Expr~ into the parse tree at all.
-   ~FCallData~ still carries scalar cross-phase facts
-   (~direct_callee~, ~noreturn_call~, and payload ~til_type~); they do
-   not restore the dangling-ref hazard, but they are deliberate
-   AST-as-cache exceptions to the issue's root pattern. The remaining
-   Declaration duplication is step 5 (~Declaration.explicit_type~),
-   which is blocked on the FuncPtr name-loss described above (#58 /
-   step 8).
+   ~FCallData~ retains only its payload ~til_type~; direct and noreturn
+   classification are derived from authoritative resolved types/definitions.
+   ~Declaration~ retains one ~til_type~ field, with unresolved source names
+   represented inside Type rather than duplicated in a string.
 
    **** ~Expr.til_type~ reads/writes by phase
 
@@ -257,14 +264,11 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    Bottom line: ~Expr.til_type~ removal landed via #206 (hybrid
    payload-storage path; full side-table-with-node-id rejected, as
    was direct rstil-style derive-from-Context+AST in hot paths). Step
-   7's borrowed-ref and positional-field purge is done; later scalar
-   call-classification stamps remain on ~FCallData~. The remaining dangerous-ref
-   work (~field_struct_def~, then ~TypeBinding.struct_def~ /
-   ~func_def~) is the actionable next structural move. Both also help
-   leak reduction (cloners no longer need to keep referenced nodes
-   live just for the ref).
+   7's borrowed-ref, positional-field, and scalar call-classification
+   purge is done. The dangerous AST/scope refs cataloged here are also
+   gone; cloners no longer keep referenced nodes live just for those refs.
 
-*** Anti-pattern catalog (the remaining work, organized)
+*** Anti-pattern catalog
 
    **** Layout cache on AST nodes (steps 3-4) -- DONE
 
@@ -319,34 +323,19 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    template the rest of the dangerous-ref purge follows.
 
    Subsequent work added ~direct_callee~ and ~noreturn_call~ as scalar
-   typer stamps. They preserve no AST refs and do not undo the variadic
-   cleanup, but they are stored derived facts. Deriving them on demand or
-   moving them to a non-AST home remains compatible with this issue's
-   broader architectural direction.
+   typer stamps. This final change removes them: directness follows from the
+   callee's ~Type.FuncDef~, and noreturn follows from the resolved
+   ~FunctionDef.noreturn~.
 
-   **** explicit_type / til_type duplication (step 5 finish)
+   **** explicit_type / til_type duplication (step 5) -- DONE
 
-   ~Declaration~ now carries both ~explicit_type : Str~ and
-   ~til_type : Type~ kept in sync at write sites (~5f822fc~,
-   ~8e72cd3~). ~243~ ~explicit_type~ read sites across
-   ~src/self/*~ still pivot on the string.
+   ~Declaration~ now carries only ~til_type : Type~. The parser preserves
+   unresolved spelling as ~Type.Custom(name)~ and named FuncSig aliases as
+   ~Type.FuncPtrSig(name)~; later phases resolve those through Context.
 
-   The naive plan ("migrate readers to ~til_type~, drop
-   ~explicit_type~") is the wrong direction. ~explicit_type~ is the
-   parse-time fact; ~til_type~ is filled in by the typer. Dropping
-   the parse fact while keeping the typer-mutated cache makes the
-   cache the database -- the AST-as-cache antipattern. It also makes
-   step 11 (~Expr.til_type~ removal) /harder/, because step 11 wants
-   re-derivation from parse facts + scope, not trust in a cache.
-
-   The correct shape, matching rstil's single-field
-   ~Declaration.value_type~: have the parser write
-   ~til_type = Type.Custom(name)~ at parse time (the unresolved form),
-   stop writing ~explicit_type~, then migrate readers and drop
-   ~explicit_type~. The typer's job becomes refining ~Type.Custom~ ->
-   ~Type.Struct~ / ~Type.Enum~ / ... where it can, not filling an
-   empty slot. This is larger than a mechanical reader migration and
-   is best done as part of the step-11 push, not before.
+   This follows the intended rstil-style single-field shape: the parse-time
+   fact lives in Type itself instead of a parallel string, and semantic
+   consumers explicitly resolve aliases where needed.
 
    **** Expr.til_type per-node cache (step 11, stretch) -- DONE
 
@@ -358,11 +347,11 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    The rstil-style derive-from-Context+AST shape (no payload
    storage at all) was not pursued.
 
-   **** Dangerous ~ref mut .. : Expr = NULL~ refs (cross-cutting)
+   **** Dangerous ~ref mut .. : Expr = NULL~ refs (cross-cutting) -- DONE
 
-   Raw refs into the parse tree, scattered across structs that outlive
-   or pre-date the nodes they point at. When any pass clones-and-filters
-   ~body.children~ the refs can dangle. Catalog:
+   Raw refs into the parse tree were scattered across structs that outlived
+   or pre-dated the nodes they pointed at. When a pass clone-and-filtered
+   ~body.children~ the refs could dangle. Removed catalog:
 
    - ~Declaration.field_struct_def~ -- *removed* (~2417f71~). The
      defensive ~resolve_field_struct_defs~ /

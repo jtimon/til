@@ -37,15 +37,15 @@ priv interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
 // struct shell and downstream callers would try to clone its bytes
 // as a nested struct).
 priv field_nested_def := func(dd: Declaration, ctx: Context) returns Option(ref Expr) {
-    if is_primitive(dd.til_type) { return Option(ref Expr).None }
-    return lookup_interp_type_def(dd.explicit_type, ctx)
+    resolved := declaration_resolved_type(dd, ctx.scope)
+    if is_primitive(resolved) { return Option(ref Expr).None }
+    return lookup_interp_type_def(resolved_type_name(resolved), ctx)
 }
 
 priv decl_is_funcsig := func(dd: Declaration, ctx: Context) returns Bool {
-    if type_is_callable_storage(dd.til_type) { return true }
-    if dd.explicit_type == "Fn" { return true }
-    if dd.explicit_type == "Body" { return true }
-    tdef_o := lookup_interp_type_def(dd.explicit_type, ctx)
+    resolved := declaration_resolved_type(dd, ctx.scope)
+    if type_is_callable_storage(resolved) { return true }
+    tdef_o := lookup_interp_type_def(resolved_type_name(resolved), ctx)
     if tdef_o.is_none() { return false }
     ref tdef : Expr = tdef_o.unwrap()
     if tdef.node_type.is(NodeType.FuncDef) {
@@ -66,7 +66,7 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
         if decl_is_funcsig(dd, ctx) { return false }
-        if dd.explicit_type == "Str" { return false }
+        if dd.type_name() == "Str" { return false }
         fsd_o := field_nested_def(dd, ctx)
         if fsd_o.is_some() {
             ref fsd : Expr = fsd_o.unwrap()
@@ -159,7 +159,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
             foff := hc_fl.offset
             cfi = cfi + 1
-            ref ftype : Str = dd.explicit_type
+            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope))
             nested_def_o := field_nested_def(dd, ctx)
             if dd.own_type.is(OwnType.Own) {
                 if decl_is_funcsig(dd, ctx) {
@@ -1455,12 +1455,12 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             exit(1)
         }
         ref fdecl : Declaration = fdecl_o.unwrap()
-        info.source_type_p = to_ptr(interp_intern_type(fdecl.til_type, ctx))
+        info.source_type_p = to_ptr(interp_intern_type(declaration_resolved_type(fdecl, ctx.scope), ctx))
         info.is_ref = decl_is_funcsig(fdecl, ctx).not()
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
-        if (fdecl.explicit_type == "USize").or(fdecl.explicit_type == "UPtr") {
+        if (fdecl.type_name() == "USize").or(fdecl.type_name() == "UPtr") {
             mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
             if (sname == ctx.cached_str_name).and(fa.field_access_name() == "cap").and(fl.size == 4) {
                 field_type = Type.Primitive(Primitive.I32)
@@ -1945,7 +1945,8 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
     }
     ref rhs_type : Type = raw_result_source_type(rhs_info)
     mut decl_type := rhs_type.clone()
-    if dd.explicit_type.len() > 0 { decl_type = type_from_name_init(dd.explicit_type, ctx.scope) }
+    declared_name := dd.type_name()
+    if dd.til_type.is(Type.Unknown).not() { decl_type = declaration_resolved_type(dd, ctx.scope) }
     if decl_type.is(Type.Body).and(rhs_type.is(Type.Enum)) { decl_type = rhs_type.clone() }
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
         decl_type = Type.Body
@@ -1990,7 +1991,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             mut prim_src : Dynamic = source_raw
             if hb_type(source_hb).is(Type.Dynamic) { prim_src = deref(source_raw) }
             mut w : Dynamic = scalar_word_load(prim_value_type, prim_src, ctx)
-            w = raw_widen_numeric(w, prim_value_type, dd.explicit_type, ctx)
+            w = raw_widen_numeric(w, prim_value_type, declared_name, ctx)
             scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, w, ctx), bind_type_w, dd.own_type, ctx)
             return
         }
@@ -2033,7 +2034,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
                 scope_set_heap_owned(scope, dd.name, copied, bind_type_w, dd.own_type, source_hb.ctx, true)
                 return
             }
-            copied = raw_widen_numeric(copied, hb_type(source_hb), dd.explicit_type, ctx)
+            copied = raw_widen_numeric(copied, hb_type(source_hb), declared_name, ctx)
             scope_set_raw_owned(scope, dd.name, copied, bind_type_w, dd.own_type, source_hb.ctx)
         } else {
             mut moved : Dynamic = source_raw
@@ -2056,7 +2057,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
                 scope_set_heap_owned(scope, dd.name, moved, bind_type_w, dd.own_type, source_hb.ctx, true)
                 return
             }
-            moved = raw_widen_numeric(moved, hb_type(source_hb), dd.explicit_type, ctx)
+            moved = raw_widen_numeric(moved, hb_type(source_hb), declared_name, ctx)
             scope_set_raw_owned(scope, dd.name, moved, bind_type_w, dd.own_type, source_hb.ctx)
         }
         return
@@ -2095,7 +2096,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             } else if raw_type_is_prim(rhs_type, ctx) {
                 // A ref prim rhs is a bare source address: load the scalar
                 // word, widen, and give the binding its own block.
-                prim_w : Dynamic = raw_widen_numeric(scalar_word_load(rhs_type, pointed, ctx), rhs_type, dd.explicit_type, ctx)
+                prim_w : Dynamic = raw_widen_numeric(scalar_word_load(rhs_type, pointed, ctx), rhs_type, declared_name, ctx)
                 scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, prim_w, ctx), bind_type_w, dd.own_type, ctx)
             } else if dd.name.starts_with("_steal_") {
                 // #321: the typer's niche move-out temp is the one owned decl
@@ -2419,7 +2420,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                                     base = ptr_add(base, step_off)
                                 }
                                 cur_sdef_o = field_nested_def(step_fd, ctx)
-                                cur_sname = step_fd.explicit_type
+                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope))
                             }
                         }
                     case:
@@ -2571,15 +2572,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
 
 priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, is_variadic: Bool, mut ctx: Context) returns Dynamic {
     if is_variadic { return source_type_w }
-    switch param.til_type {
-    case .Custom(name):
-        binding_o := ctx.scope.get_binding(name)
-        if binding_o.is_none() { panic("interpreter parameter type is not registered: ", name) }
-        ref binding : TypeBinding = binding_o.unwrap()
-        return interp_intern_type(binding.type, ctx)
-    case:
-        return interp_intern_type(param.til_type, ctx)
-    }
+    return interp_intern_type(declaration_resolved_type(param, ctx.scope), ctx)
 }
 
 priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_def: Expr, parent_scope: Scope, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
@@ -2606,7 +2599,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
             ref mut source_hb : HeapBinding = source_hb_o.unwrap()
             if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name()) }
             ref source_raw : Dynamic = to_ptr(source_hb.ptr)
-            if is_variadic_param.not().and(param.explicit_type.eq("Dynamic")).and(hb_type(source_hb).is(Type.Dynamic).not()) {
+            if is_variadic_param.not().and(param.til_type.is(Type.Dynamic)).and(hb_type(source_hb).is(Type.Dynamic).not()) {
                 mut dynamic_data : Dynamic = source_raw
                 if arg_transfers {
                     if source_hb.is_borrowed {
@@ -2656,7 +2649,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     // over-reads on the word load).
                     own_src_w : Dynamic = scalar_word_load(hb_type(source_hb), owned_raw, ctx)
                     EvalHeap.heap_free(own owned_raw)
-                    owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.explicit_type, ctx), ctx)
+                    owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.type_name(), ctx), ctx)
                 } else {
                     owned_raw = raw_coerce_value(owned_raw, hb_type(source_hb), bind_type, ctx, param.own_type)
                 }
@@ -2678,7 +2671,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         // width (a narrow clone bound under a wider type
                         // over-reads on the word load).
                         src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
-                        widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.explicit_type, ctx)
+                        widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.type_name(), ctx)
                         scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type_w, param.own_type, ctx)
                     } else {
                         mut converted : Dynamic = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
@@ -2712,7 +2705,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
             mut arg_info := raw_result_info_new()
             mut arg_raw : Dynamic = eval_expr_raw_info(caller_scope, arg_expr, ctx, arg_info)
             ref arg_source_type : Type = raw_result_source_type(arg_info)
-            if is_variadic_param.not().and(param.explicit_type == "Dynamic") {
+            if is_variadic_param.not().and(param.til_type.is(Type.Dynamic)) {
                 if arg_source_type.is(Type.Dynamic) {
                     if param.own_type.is(OwnType.Ref) {
                         scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, false, true, true)
@@ -2753,7 +2746,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     // compiled build read 2. Copy the scalar instead.
                     if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
                         src_w : Dynamic = scalar_word_load(arg_source_type, arg_raw, ctx)
-                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.explicit_type, ctx), ctx)
+                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.type_name(), ctx), ctx)
                     } else {
                         borrowed = true
                     }
@@ -2979,21 +2972,12 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             // deep-copied a whole callee subtree per
                             // dispatch.
                             mut flat_ident := Expr.new(ident_node(fp_flat), callee_expr.line, callee_expr.col)
-                            flat_ident.set_til_type(callee_expr.til_type())
+                            flat_ident.set_til_type(Type.FuncDef)
                             swap(Expr, e.children[0], flat_ident)
                             e.set_til_type(concrete_result_type)
                             mut concrete_destination : Dynamic = 0
                             if til_type_name_c(concrete_result_type) == til_type_name_c(orig_result_type) { concrete_destination = destination }
-                            // This indirect callable has now resolved to one
-                            // concrete ext-function symbol for the recursive
-                            // dispatch. Restore its runtime-callable identity
-                            // after that temporary direct call returns.
-                            mark_fcall_direct(e)
                             mut result : Dynamic = eval_call(scope, e, ctx, concrete_destination)
-                            switch e.node_type {
-                            case .FCall(fd): fd.direct_callee = false
-                            case:
-                            }
                             e.set_til_type(orig_result_type)
                             swap(Expr, e.children[0], flat_ident)
                             if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
@@ -3067,7 +3051,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 // the unqualified top-level name. Required for and/or/not.
                 orig_direct_result_type := call_type.clone()
                 mut flat_ident2 := Expr.new(ident_node(flat_str), callee_expr.line, callee_expr.col)
-                flat_ident2.set_til_type(callee_expr.til_type())
+                flat_ident2.set_til_type(Type.FuncDef)
                 swap(Expr, e.children[0], flat_ident2)
                 e.set_til_type(direct_result_type)
                 mut direct_destination : Dynamic = 0
@@ -3403,7 +3387,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             arg_is_ref = false
                             arg_is_place = false
                         }
-                        arg_raw = raw_widen_numeric(arg_raw, arg_source_type, fdd.explicit_type, ctx)
+                        arg_raw = raw_widen_numeric(arg_raw, arg_source_type, fdd.type_name(), ctx)
                         ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
                         mut arg_is_null := false
                         switch arg.node_type {
@@ -5754,7 +5738,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         // stride and CLI parsing resolve the width
                         // themselves (elem_size_for_type/parse_cli_arg
                         // both handle USize/UPtr).
-                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].explicit_type).clone()
+                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].type_name()).clone()
                         arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
                         va_array_binding_o := lp.ctx.scope.get_binding(format("Array__", va_elem))
                         if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
@@ -5762,8 +5746,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
                         argi = argi + va_count.to_i32()
                     } else {
-                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.explicit_type, lp.ctx)
-                        scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(param.til_type, lp.ctx), param.own_type, lp.ctx)
+                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.type_name(), lp.ctx)
+                        scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(declaration_resolved_type(param, lp.ctx.scope), lp.ctx), param.own_type, lp.ctx)
                         argi++
                     }
                 }
@@ -6642,7 +6626,7 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx:
         exit(1)
     }
     ref fd : Declaration = sd.field_at(idx)
-    str_copy_into(r, fd.explicit_type, ctx)
+    str_copy_into(r, fd.type_name(), ctx)
     return true
 }
 
@@ -6799,7 +6783,7 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ct
         exit(1)
     }
     ref pd : Declaration = fd.params[idx]
-    str_copy_into(r, pd.explicit_type, ctx)
+    str_copy_into(r, pd.type_name(), ctx)
     return true
 }
 
@@ -7077,8 +7061,8 @@ priv shallow_ffi_type := func(type_name: Str, mut ctx: Context) returns ref ffi_
 
 priv field_ffi_type := func(dd: Declaration, mut ctx: Context) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
-    if dd.explicit_type.len() == 0 { return ffi_type_ref("ffi_type_sint64") }
-    t_o := known_ffi_type(dd.explicit_type, ctx)
+    if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
+    t_o := known_ffi_type(dd.type_name(), ctx)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_sint64")
 }
@@ -7666,9 +7650,9 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context)
     field_access.add_child(own type_ident)
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col)
-    mark_fcall_direct(fake_call)
     fake_call.set_til_type(e.til_type())
     fake_call.add_child(own field_access)
+    mark_fcall_direct(fake_call)
 
     // child 3 is arity literal, actual args start at child 4
     ref arity_expr : Expr = e.children[3]
@@ -7730,9 +7714,9 @@ priv get_elem_size := proc(mut s: Scope, type_name: Str, src: Expr, mut ctx: Con
 
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-    mark_fcall_direct(fake_call)
     fake_call.set_til_type(type_from_name_init("USize", ctx.scope))
     fake_call.add_child(own field_access)
+    mark_fcall_direct(fake_call)
 
     mut result : Dynamic = eval_call(s, fake_call, ctx)
     // A prim-stamped call result is an inline word (canonical
@@ -7954,7 +7938,7 @@ priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: U
     case .FuncDef(fd):
         if arg_index >= fd.params.len() { return false }
         ref p : Declaration = fd.params[arg_index]
-        if p.explicit_type.eq("I8").not() { return false }
+        if p.type_name().eq("I8").not() { return false }
         return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
     case:
         return false
@@ -8505,9 +8489,9 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     for k in 0..np {
         ref pk : Declaration = fd.params[k]
         ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
-        dynamic_slot = type_from_name_init(pk.explicit_type, ctx.scope).is(Type.Dynamic)
+        dynamic_slot = declaration_resolved_type(pk, ctx.scope).is(Type.Dynamic)
         if pk.own_type.is(OwnType.Shallow) {
-            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
+            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.type_name(), ctx))
             has_shallow = true
         } else {
             write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))

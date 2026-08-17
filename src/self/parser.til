@@ -115,11 +115,6 @@ priv expect_text := func(mut p: Parser, type: TokenType) returns Str {
 priv peek_line := func(p: Parser) returns U32 { return peek(p).line }
 priv peek_col := func(p: Parser) returns U32 { return peek(p).col }
 
-// Resolve an explicit type name from the source into a Type. Fixed-name
-// primitives are returned directly. Empty name -> Unknown. Anything else
-// (Str, user-defined structs/enums) becomes Custom(name) so the typer can
-// later refine it into Struct(name) or Enum(name) via scope lookup while
-// keeping the name already provided by the user.
 // Builtin target-independent primitive names. Target-dependent names
 // (USize/UPtr) and scope-resolved user types are handled by each caller.
 builtin_primitive_from_name := func(name: Str, mut out: Primitive) returns Bool {
@@ -167,42 +162,20 @@ builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
     return false
 }
 
-til_type_from_explicit_type := func(name: Str) returns Type {
-    mut bt := Type.Unknown
-    if builtin_type_from_name(name, bt) { return bt }
-    if name.len() == 0   { return Type.Unknown }
-    return Type.Custom(name.clone())
-}
-
-// decl_typed: build a Declaration whose INITIAL ~til_type~ is derived from
-// ~explicit_type~ via ~til_type_from_explicit_type~ (#252). Collapses the
-// sites across parser/initer/typer/context that used to pass both
-// ~explicit_type~ and the mechanically-derived ~til_type~ by hand. The
-// typer still REFINES ~til_type~ later (Custom -> Struct/Enum), so this
-// only sets the initial value. Named-arg defaults mirror Declaration's
-// field defaults, so callers pass only the fields they need; the one
-// field this factory omits is ~default_value~ (set after construction at
-// the single site that needs it). Lives in the self layer next to the
-// mapping it calls -- every call site is already a self-layer module that
-// sees ~til_type_from_explicit_type~, so no core move is required.
-decl_typed := func(explicit_type: Str, name: Str = "", doc: Str = "",
+// Build a Declaration whose initial til_type preserves the declared spelling.
+// The typer refines Custom to Struct/Enum/FuncPtrSig at semantic-use sites.
+decl_typed := func(type_name: Str, name: Str = "", doc: Str = "",
         is_mut: Bool = false, redundant_mut: Bool = false,
         is_priv: Bool = false, used: Bool = false,
         own_type: OwnType = OwnType.Shallow) returns Declaration {
     return Declaration(name = name.clone(), doc = doc.clone(),
-        explicit_type = explicit_type.clone(),
-        til_type = til_type_from_explicit_type(explicit_type),
+        til_type = declaration_type_from_name(type_name),
         is_mut = is_mut, redundant_mut = redundant_mut,
         is_priv = is_priv, used = used, own_type = own_type)
 }
 
-// set_decl_type: set a Declaration's explicit_type and the matching
-// til_type from one source name in a single call. Collapses the repeated
-// `d.explicit_type = name; d.til_type = til_type_from_explicit_type(name)`
-// pair the parser writes at every type-annotation site.
 priv set_decl_type := func(mut d: Declaration, name: Str) {
-    d.explicit_type = name.clone()
-    d.til_type = til_type_from_explicit_type(name)
+    d.til_type = declaration_type_from_name(name)
 }
 
 // --- Parsing functions ---
@@ -225,7 +198,7 @@ priv anon_decl_key := func(dname: Str, d: Declaration) returns Str {
     // default-value tree, so present-vs-absent yields distinct keys.
     mut dv_key := "-"
     if d.default_value.is_some() { dv_key = d.default_expr().to_str() }
-    return format(dname, ":", d.explicit_type, ":", mut_tag, own_tag, ":",
+    return format(dname, ":", d.type_name(), ":", mut_tag, own_tag, ":",
         dv_key, ";")
 }
 
@@ -445,7 +418,7 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     fd.variadic_index = -1
     fd.kwargs_index = -1
     for i in 0..ptypes.len() {
-        fd.params.push(own decl_typed(explicit_type = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref))
+        fd.params.push(own decl_typed(type_name = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref))
     }
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
 
@@ -529,7 +502,7 @@ priv parse_expr_for_decl_type := proc(mut p: Parser, type_name: Str) returns Exp
 // Issue #267 / #58: parse an optional `<T: Type, ...>` generic-parameter
 // list. Shared by struct<T>/enum<T> type templates (parse_struct_def /
 // parse_enum_def) and func<T> generic functions (parse_func_def). Returns
-// the collected Declarations (own_type Ref, explicit_type "Type" unless a
+// the collected Declarations (own_type Ref, type "Type" unless a
 // `: <Type>` annotation narrows it); an empty Vec when the next token is
 // not `<`. Each generic param defaults to `: Type` when the colon is
 // omitted, so `<T>` means `<T: Type>`.
@@ -685,10 +658,10 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         }
 
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
-        if param_decl.explicit_type == "Fn" {
+        if param_decl.til_type.is(Type.FuncPtr) {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
             if syn_name.len() > 0 {
-                set_decl_type(param_decl, syn_name)
+                param_decl.til_type = Type.FuncPtrSig(syn_name)
             }
         }
 
@@ -696,7 +669,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut has_default := false
         if check(p, TokenType.Eq) {
             advance(p)
-            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, param_decl.explicit_type))
+            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, param_decl.type_name()))
             has_default = true
         }
         if fd.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
@@ -816,7 +789,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
 // and enum body loops, which differ only in the push target (sdd.push_member
 // vs edd.push_member) and where the leading `priv` is consumed.
 priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration {
-    mut ns_explicit_type := ""
+    mut ns_type_name := ""
     mut ns_is_mut := false
     if check(p, TokenType.KwConst) {
         parse_fail(p, peek_line(p), peek_col(p), "redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
@@ -827,13 +800,13 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
         advance(p)
     } else if check(p, TokenType.Colon) {
         advance(p)
-        ns_explicit_type = parse_type_ref(p)
+        ns_type_name = parse_type_ref(p)
         expect_token(p, TokenType.Eq)
     }
     ns_doc := p.pending_doc.clone()
     p.pending_doc = ""
     mut ns_decl := decl_typed(name = ns_name,
-        is_mut = ns_is_mut, explicit_type = ns_explicit_type,
+        is_mut = ns_is_mut, type_name = ns_type_name,
         doc = ns_doc,
         is_priv = member_priv)
     // Assign the parsed value directly (a temporary -> move), NOT via a
@@ -841,7 +814,7 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     // literal Str in the value tree and leaking it with the AST -- the
     // #252 regression). decl_typed does not touch the parser, so parsing
     // here keeps the same token position as the old constructor form.
-    ns_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, ns_explicit_type))
+    ns_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, ns_type_name))
     return ns_decl
 }
 
@@ -975,7 +948,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             if check(p, TokenType.KwConst) { advance(p); f_is_mut = false }
             else if check(p, TokenType.KwMut) { advance(p); f_redundant_mut = true }
             f_name := expect_text(p, TokenType.Ident)
-            mut f_explicit_type := ""
+            mut f_type_name := ""
             // #242: a field declared with an explicit `: Type` may omit
             // the default entirely (`b : Str`), making it a required
             // argument at instantiation. Without an explicit type a
@@ -983,7 +956,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut f_has_default := true
             if check(p, TokenType.Colon) {
                 advance(p)
-                f_explicit_type = parse_type_ref(p)
+                f_type_name = parse_type_ref(p)
                 if check(p, TokenType.Eq) { advance(p) }
                 else if check(p, TokenType.ColonEq) { advance(p) }
                 else { f_has_default = false }
@@ -997,11 +970,11 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             // function params without a default are recorded.
             mut f_dd := decl_typed(name = f_name, is_mut = f_is_mut,
                 redundant_mut = f_redundant_mut,
-                own_type = f_own_type, explicit_type = f_explicit_type,
+                own_type = f_own_type, type_name = f_type_name,
                 doc = f_doc,
                 is_priv = member_priv)
             if f_has_default {
-                f_dd.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, f_explicit_type))
+                f_dd.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, f_type_name))
             }
             sdd.push_field(own f_dd)
         }
@@ -1058,12 +1031,12 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             member_priv = true
         }
         m_name := expect_text(p, TokenType.Ident)
-        mut m_explicit_type := ""
+        mut m_type_name := ""
         if check(p, TokenType.ColonEq) {
             advance(p)
         } else if check(p, TokenType.Colon) {
             advance(p)
-            m_explicit_type = parse_type_ref(p)
+            m_type_name = parse_type_ref(p)
             expect_token(p, TokenType.Eq)
         } else {
             expect_token(p, TokenType.ColonEq)
@@ -1077,8 +1050,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
         // kind. No body-stripping.
         m_value := parse_expression(p)
         mut m_dd := Declaration(name = m_name,
-            is_mut = false, explicit_type = m_explicit_type,
-            til_type = til_type_from_explicit_type(m_explicit_type),
+            is_mut = false, til_type = declaration_type_from_name(m_type_name),
             doc = m_doc,
             is_priv = member_priv,
             default_value = Option(Expr).Some(own m_value))
@@ -2053,7 +2025,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 switch stmt.node_type {
                 case .Decl(dd):
                     mut ns_dd := Declaration(name = dd.name.clone(), is_mut = dd.is_mut,
-                        explicit_type = dd.explicit_type.clone(), til_type = dd.til_type.clone(), own_type = dd.own_type)
+                        til_type = dd.til_type.clone(), own_type = dd.own_type)
                     if stmt.children.len() > 0 {
                         ns_dd.default_value = Option(Expr).Some(own stmt.children[0].clone())
                     }
@@ -2155,15 +2127,15 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 ffd.captures.move_from(own captures)
                 mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col)
                 fdef.add_child(own body)
-                // Wrap in NODE_DECL with explicit_type
-                mut dd := decl_typed(name = name, explicit_type = type_name, is_mut = is_mut, own_type = own_type)
+                // Wrap in NODE_DECL with its declared type.
+                mut dd := decl_typed(name = name, type_name = type_name, is_mut = is_mut, own_type = own_type)
                 mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
                 decl.add_child(own fdef)
                 return decl
             }
         }
 
-        mut dd := decl_typed(name = name, explicit_type = type_name, is_mut = is_mut, own_type = own_type)
+        mut dd := decl_typed(name = name, type_name = type_name, is_mut = is_mut, own_type = own_type)
         mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
         decl.add_child(own parse_expr_for_decl_type(p, type_name))
         return decl
@@ -2551,12 +2523,12 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         i_col := peek_col(p)
         iname := expect_text(p, TokenType.Ident)
         mut fid := ForInData(name = iname, is_mut = for_is_mut)
-        mut has_explicit_type := false
-        mut explicit_type := Type.Unknown
+        mut has_declared_type := false
+        mut declared_type := Type.Unknown
         if check(p, TokenType.Colon) {
             advance(p)
-            explicit_type = Type.Custom(expect_text(p, TokenType.Ident))
-            has_explicit_type = true
+            declared_type = Type.Custom(expect_text(p, TokenType.Ident))
+            has_declared_type = true
         }
         // Two-variable key/value form: `for [mut] k, [mut] v in map`.
         if check(p, TokenType.Comma) {
@@ -2568,8 +2540,8 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             fid.name2 = expect_text(p, TokenType.Ident)
         }
         mut node := Expr.new(NodeType.ForIn(fid), i_line, i_col)
-        if has_explicit_type {
-            node.set_til_type(explicit_type)
+        if has_declared_type {
+            node.set_til_type(declared_type)
         }
         expect_token(p, TokenType.KwIn)
         node.add_child(own parse_expression(p))

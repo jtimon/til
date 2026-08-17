@@ -25,7 +25,7 @@ test_declaration := test() {
     switch decl.node_type {
     case NodeType.Decl(dd):
         assert_eq(Str, dd.name, "x")
-        assert_eq(Str, dd.explicit_type, "")
+        expect(dd.til_type.is(Type.Unknown), "untyped declaration starts unknown")
     case:
         UNREACHABLE()
     }
@@ -40,7 +40,7 @@ test_typed_decl := test() {
     switch decl.node_type {
     case NodeType.Decl(dd):
         assert_eq(Str, dd.name, "x")
-        assert_eq(Str, dd.explicit_type, "I64")
+        assert_eq(Str, dd.type_name(), "I64")
     case:
         UNREACHABLE()
     }

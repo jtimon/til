@@ -41,7 +41,7 @@ types_double := func(n: I64) returns I64 {
     return n.mul(2)
 }
 
-test_explicit_types := test() {
+test_declared_types := test() {
     x : I64 = 35
     assert_eq(I64, x, 35)
     greeting : Str = "Hi there"

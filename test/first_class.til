@@ -1054,9 +1054,9 @@ test_macro_func_gen_str := test() {
 // A macro param like `N: I64` is a regular value, not a type; the
 // inliner substitutes Ident(N) inside the function body's expressions
 // with a clone of the call-site arg, so `make_adder(5)` bakes the
-// literal 5 into the generated function. Type-name explicit_type
-// strings (`x: T`) still substitute the receiver's ident name; value
-// args leave those strings unchanged.
+// literal 5 into the generated function. Declaration types (`x: T`)
+// still substitute the receiver's ident name; value args leave those
+// types unchanged.
 
 make_adder := macro(N: I64) returns FuncDef {
     return func(x: I64) returns I64 { return x.add(N) }
@@ -1177,11 +1177,13 @@ test_struct_def_of := test() {
     // #307: names live in the map keys; read via the decl-order accessors.
     assert_eq(Str, "x", def.field_name_at(0))
     ref f0 : Declaration = def.field_at(0)
-    assert_eq(Str, "I64", f0.explicit_type)
+    expect(f0.til_type.is(Type.Unknown).not(), "f0 type is known")
+    assert_eq(Str, "I64", f0.type_name())
     expect(f0.is_mut, "f0 is_mut")
     assert_eq(Str, "y", def.field_name_at(1))
     ref f1 : Declaration = def.field_at(1)
-    assert_eq(Str, "I64", f1.explicit_type)
+    expect(f1.til_type.is(Type.Unknown).not(), "f1 type is known")
+    assert_eq(Str, "I64", f1.type_name())
 }
 
 // --- Enum introspection primitives (issue #57/#58) ---
@@ -1290,8 +1292,10 @@ test_func_sig_of := test() {
     sig := func_sig_of("BinaryOp")
     assert_eq(USize, sig.params.len(), 2)
     ref p0 : Declaration = sig.params[0]
-    assert_eq(Str, "I64", p0.explicit_type)
-    assert_eq(Str, "I64", sig.params[1].explicit_type)
+    expect(p0.til_type.is(Type.Unknown).not(), "first param type is known")
+    expect(sig.params[1].til_type.is(Type.Unknown).not(), "second param type is known")
+    assert_eq(Str, "I64", p0.type_name())
+    assert_eq(Str, "I64", sig.params[1].type_name())
     assert_eq(Str, "I64", sig.return_type)
     assert_eq(USize, sig.throw_types.len(), 0)
 }
