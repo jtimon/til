@@ -21,3 +21,23 @@ ref b0 : U8 = ptr_add(view, 0)
 println(b0.to_i64().to_str())
 
 free(own buf)
+
+buf2 : U8 = malloc(4)
+memset(buf2, 67, 4)
+memcpy(ptr_add(buf2, 1), 68, 1)
+
+// Same family, assignment side: a `ref` pointer FIELD assigned a concrete
+// raw pointer stores the ADDRESS. The interpreter's write_field filled the
+// stored pointer in only for a Dynamic source and otherwise wrote NULL, so
+// the next ptr_add handed 0x1 to the FFI marshaller and segfaulted --
+// interpreter-only; the compiled backend stored the address all along.
+Box := struct {
+    ref p : U8
+    n := 0
+}
+
+mut bx := Box(p = buf2)
+bx.p = buf2
+ref c1 : U8 = ptr_add(bx.p, 1)
+println(c1.to_i64().to_str())
+free(own buf2)

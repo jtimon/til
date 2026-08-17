@@ -1715,7 +1715,7 @@ main := proc(args: ..Str) {
     // and, once that was fixed, the init declared a shadowing local instead
     // of assigning the global. Compiled-only; the interpreter always read it
     // right, so both backends must agree here.
-    File.writefile(format(exp, "script_dynamic_global_ptr.out"), format("66", NL, "65", NL))
+    File.writefile(format(exp, "script_dynamic_global_ptr.out"), format("66", NL, "65", NL, "68", NL))
     add_cli_pair(tests, "script_dynamic_global_ptr", "test/script_dynamic_global_ptr.til",
         "", 0, format(exp, "script_dynamic_global_ptr.out"), til_bin, asan_flag)
 

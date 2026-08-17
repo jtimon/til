@@ -5196,7 +5196,15 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
     case:
     }
     if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-        mut source : Dynamic = 0
+        // The field stores a POINTER, so the value written is the source
+        // ADDRESS. Only a Dynamic source hides it one level down (the slot
+        // holds the pointer word). This started at 0 and was filled in for
+        // the Dynamic case alone, so assigning a concrete raw pointer --
+        // `bx.p = b` for `ref p : U8` with `b : U8 = malloc(n)` -- wrote
+        // NULL into the field: the next `ptr_add(bx.p, 1)` handed 0x1 to
+        // the FFI marshaller and the interpreter segfaulted, while the
+        // compiled backend stored the address and read it back fine.
+        mut source : Dynamic = raw
         if raw_type.is(Type.Dynamic) { source = deref(raw) }
         if dd.own_type.is(OwnType.Own) {
             ref old : Dynamic = deref(dst)
