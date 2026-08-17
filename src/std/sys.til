@@ -289,7 +289,16 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
         _ec := wait_cmd(_mk)
         if _ec < 0 { }
     }
-    tmpf := "tmp/_run_cmd_out"
+    // Per-PROCESS capture file. One fixed `tmp/_run_cmd_out` made every
+    // concurrent run_cmd in the tree fight over the same bytes: the suite
+    // runs its tests in parallel (bin/tests -j), and two `til bindings`
+    // jobs -- bindgen_typechecks and bindgen_preserves_audit -- each shell
+    // out to `cc -E` through here. Whichever redirect truncated the file
+    // last won, and the loser read someone else's output or an empty file,
+    // surfacing as "no lines from <header> after filtering" from a binder
+    // that had done nothing wrong. Racy by scheduling, so it passed
+    // repeatedly before it failed.
+    tmpf := format("tmp/_run_cmd_out_", process_id().to_str())
     pid := spawn_cmd(cmd.format(" > ", tmpf, " 2>&1"))
     ec := wait_cmd(pid)
     content := File.readfile(tmpf)

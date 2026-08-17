@@ -1094,6 +1094,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/vecs.til", flags)
     add_both(tests, "test/dyn_vecs.til", flags)
     add_both(tests, "test/eval_heap.til", flags)
+    add_both(tests, "test/ownership_shapes.til", flags)
     add_both(tests, "test/dynamic_ptr.til", flags)
     add_both(tests, "test/templ_vec.til", flags)
     add_both(tests, "test/templ_cross_unit.til", flags)

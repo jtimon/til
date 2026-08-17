@@ -1,0 +1,265 @@
+mode test
+
+// #364 part 2: the ownership-shape matrix.
+//
+// Memory bugs in the cleanup logic are caught by the suite's ASAN runs
+// exactly when some program in the corpus writes the shape that trips them
+// -- and the corpus grows by accident, one program at a time. #364 sat
+// reachable from a 7-line loop body until a compiler tool happened to write
+// it; #325 (a literal ASSIGN), #357 (a pointer through Dynamic) and the
+// #302 exit-site arc were each found the same way, one crash at a time.
+//
+// This file writes the cells on purpose: binding kind x consume site x
+// control shape, one tiny function per cell, run in BOTH backends (so they
+// are also checked against each other) and under ASAN like everything else.
+// A cell that leaks, double-frees or reads freed memory fails here instead
+// of waiting for someone to need that shape.
+//
+// Cells the typer is supposed to REJECT are negative cases and belong in
+// test/typer_errors.til, not here.
+
+Holder := struct {
+    s := ""
+}
+
+RefHolder := struct {
+    ref r : Str
+}
+
+// --- consume sites -----------------------------------------------------
+
+take_own := func(own s: Str) returns USize {
+    n := s.len()
+    Str.delete(own s)
+    return n
+}
+
+// --- owned local -------------------------------------------------------
+
+/// Straight-line: a ctor field consumes an owned local.
+own_local_ctor_straight := test() {
+    lit := "hello"
+    s := lit.clone()
+    h := Holder(s = s)
+    assert_eq(USize, h.s.len(), 5)
+}
+
+/// Straight-line: an `own` argument consumes an owned local.
+own_local_own_arg_straight := test() {
+    lit := "hello"
+    s := lit.clone()
+    assert_eq(USize, take_own(own s), 5)
+}
+
+/// The transfer happens in ONE branch; the other path must still free.
+own_local_ctor_in_branch := test() {
+    lit := "hello"
+    mut kept : USize = 0
+    for i in 0..2 {
+        s := lit.clone()
+        if i == 1 {
+            h := Holder(s = s)
+            kept = kept + h.s.len()
+        }
+    }
+    assert_eq(USize, kept, 5)
+}
+
+/// Same, with an `own` argument rather than a ctor field.
+own_local_own_arg_in_branch := test() {
+    lit := "hello"
+    mut kept : USize = 0
+    for i in 0..2 {
+        s := lit.clone()
+        if i == 1 {
+            kept = kept + take_own(own s)
+        }
+    }
+    assert_eq(USize, kept, 5)
+}
+
+/// Consumed in a branch INSIDE a while body -- the #364 cell. The local is
+/// per-iteration, so every iteration must free it exactly once.
+own_local_ctor_in_branch_in_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut kept : USize = 0
+    mut pos : USize = 0
+    while pos < src.len() {
+        seg := src.substr(pos, 2)
+        line := seg.clone()
+        if line.starts_with("b") {
+            h := Holder(s = line)
+            kept = kept + h.s.len()
+        }
+        pos = pos + 3
+    }
+    assert_eq(USize, kept, 2)
+}
+
+/// Consumed before an early return on one path only.
+own_local_consumed_before_return := func(flag: Bool) returns USize {
+    lit := "hello"
+    s := lit.clone()
+    if flag {
+        return take_own(own s)
+    }
+    return s.len()
+}
+
+own_local_early_return_paths := test() {
+    assert_eq(USize, own_local_consumed_before_return(true), 5)
+    assert_eq(USize, own_local_consumed_before_return(false), 5)
+}
+
+// --- view local (substr) -----------------------------------------------
+//
+// A view owns its wrapper but not its bytes, so cleanup must free the
+// wrapper exactly once and never the borrowed buffer.
+
+/// The #364 repro shape: a view local conditionally stored in a ctor field.
+view_local_ctor_in_branch_in_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut kept : USize = 0
+    mut pos : USize = 0
+    while pos < src.len() {
+        line := src.substr(pos, 2)
+        if line.starts_with("b") {
+            h := Holder(s = line)
+            kept = kept + h.s.len()
+        }
+        pos = pos + 3
+    }
+    assert_eq(USize, kept, 2)
+}
+
+/// Straight-line view into a ctor field.
+view_local_ctor_straight := test() {
+    src := "hello world"
+    v := src.substr(0, 5)
+    h := Holder(s = v)
+    assert_eq(USize, h.s.len(), 5)
+}
+
+/// A view that is never consumed at all still has a wrapper to reclaim.
+view_local_unconsumed_in_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut total : USize = 0
+    mut pos : USize = 0
+    while pos < src.len() {
+        line := src.substr(pos, 2)
+        total = total + line.len()
+        pos = pos + 3
+    }
+    assert_eq(USize, total, 6)
+}
+
+// --- literal local -----------------------------------------------------
+//
+// A literal's buffer is static: cleanup must free neither it nor anything
+// reachable from it. #325 was this row.
+
+literal_local_ctor_in_branch := test() {
+    mut kept : USize = 0
+    for i in 0..2 {
+        s := "hello"
+        if i == 1 {
+            h := Holder(s = s)
+            kept = kept + h.s.len()
+        }
+    }
+    assert_eq(USize, kept, 5)
+}
+
+/// A `mut` local reassigned to a literal inside a nested block, then
+/// consumed: #325's shape, kept here as a matrix cell.
+literal_assign_in_block_then_ctor := test() {
+    lit := "aaa"
+    mut t := lit.clone()
+    if lit.len() == 3 {
+        t = "zz"
+    }
+    h := Holder(s = t)
+    assert_eq(USize, h.s.len(), 2)
+}
+
+// --- ref local / ref field ---------------------------------------------
+//
+// A borrow is never freed by the holder. RefHolder parks one in a field --
+// the provenance side of that is #360's business; here it is only about
+// cleanup not touching the borrowed value.
+
+ref_local_into_ref_field := test() {
+    lit := "hello"
+    base := lit.clone()
+    ref borrowed : Str = base
+    rh := RefHolder(r = borrowed)
+    assert_eq(USize, rh.r.len(), 5)
+    assert_eq(USize, base.len(), 5)
+}
+
+ref_local_into_ref_field_in_branch := test() {
+    lit := "hello"
+    base := lit.clone()
+    mut kept : USize = 0
+    for i in 0..2 {
+        ref borrowed : Str = base
+        if i == 1 {
+            rh := RefHolder(r = borrowed)
+            kept = kept + rh.r.len()
+        }
+    }
+    assert_eq(USize, kept, 5)
+    assert_eq(USize, base.len(), 5)
+}
+
+// --- container push ----------------------------------------------------
+
+/// push(own ...) in a branch: the vec owns the element afterwards.
+own_local_push_in_branch_in_loop := test() {
+    lit := "hello"
+    mut v := Vec(Str).new()
+    for i in 0..3 {
+        s := lit.clone()
+        if i == 1 {
+            v.push(own s)
+        }
+    }
+    assert_eq(USize, v.len(), 1)
+    assert_eq(USize, v[0].len(), 5)
+}
+
+/// A view pushed into a container that outlives the loop.
+view_local_push_in_branch_in_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut v := Vec(Str).new()
+    mut pos : USize = 0
+    while pos < src.len() {
+        line := src.substr(pos, 2)
+        if line.starts_with("b") {
+            v.push(own line)
+        }
+        pos = pos + 3
+    }
+    assert_eq(USize, v.len(), 1)
+    assert_eq(USize, v[0].len(), 2)
+}
+
+// --- owned parameter ---------------------------------------------------
+
+own_param_ctor_in_branch := func(own s: Str, flag: Bool) returns USize {
+    if flag {
+        h := Holder(s = s)
+        return h.s.len()
+    }
+    n := s.len()
+    Str.delete(own s)
+    return n
+}
+
+own_param_paths := test() {
+    lit := "hello"
+    a := lit.clone()
+    b := lit.clone()
+    assert_eq(USize, own_param_ctor_in_branch(own a, true), 5)
+    assert_eq(USize, own_param_ctor_in_branch(own b, false), 5)
+}

@@ -3250,6 +3250,7 @@ void priv___src_self_garbager_til__flag_outer_assign_rebinds(Expr * body, Vec__L
 void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch, priv___src_self_garbager_til__BodyFacts * facts, FactIndex * fi, USize stmt_idx);
 Bool priv___src_self_garbager_til__stmt_is_conditional_container(Expr * stmt);
 Bool priv___src_self_garbager_til__add_delete_to_branch(Expr * branch, priv___src_self_garbager_til__LocalInfo * local, Expr * src, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__sink_transfer_path_wrapper_free(Expr * node, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__sink_nontransfer_paths(Expr * node, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__record_storage_decisions(Expr * body, Vec__LocalInfo * locals);

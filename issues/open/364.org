@@ -1,6 +1,6 @@
 # priority: high
 # category: bugs
-** OPEN #364 A conditionally consumed local is freed on every path; cover the ownership-shape matrix
+** WIP #364 A conditionally consumed local is freed on every path; cover the ownership-shape matrix
 
 A local handed to a struct constructor field inside a CONDITIONAL is
 consumed only on the taken path, but end-of-scope cleanup runs as if the
@@ -127,3 +127,43 @@ compiler's own sources happen to use. This repro is the
 loop+if+ctor-field cell; #325 (literal assign), #357 (Dynamic hop) and
 the #302 exit-site arc are earlier cells of the same table found one
 crash at a time.
+
+*** Progress
+
+- [X] Part 2, the matrix. test/ownership_shapes.til, 16 cells over
+      binding kind x consume site x control shape, add_both so the
+      backends are checked against each other, ASAN on like everything
+      else. It earned its place immediately: it found a LIVE 16-byte
+      leak that nothing else in the corpus reached (below), and it
+      pins the two shapes this issue was filed for.
+
+- [X] Part 1 for the ctor-field cells, both directions of the same
+      defect:
+
+      The double free this issue opened with is gone from master
+      independently -- #346 stopped heap-boxing owned aggregate
+      locals, so `line` is a value with no wrapper to free twice --
+      and the matrix now holds that ground.
+
+      The other direction was still live and is fixed here. When a
+      transfer diverges (the transferring path returns, so a later
+      use is legal), check_use_after_own_transfer CLEARS own_transfer
+      to give the local ordinary cleanup on the surviving paths. That
+      also discarded the fact that a SHALLOW-field ctor arg leaves the
+      wrapper orphaned on the path that DID transfer: every later
+      consumer is gated on own_transfer >= 0, so nothing freed it.
+      Measured on the matrix's own-param row -- 16 bytes per call,
+      invisible to both backends' output and to plain glibc, reported
+      only by ASAN. sink_transfer_path_wrapper_free now grafts the
+      wrapper free onto the transferring path, immediately after the
+      transferring statement (not at the branch end: that arm often
+      `return`s, which would strand the free behind it), before the
+      record is cleared.
+
+- [ ] Remaining: the matrix is 16 cells, not the whole table. Field
+      assign as a consume site, `ref` params, Map/Set inserts, switch
+      arms and nested loops are not written yet, and each is a cheap
+      addition to the same file. Add them as they are needed rather
+      than in one sitting -- the point of the file is that a cell
+      costs a dozen lines, so a future ownership change can bring its
+      own.

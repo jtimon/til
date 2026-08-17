@@ -2088,7 +2088,7 @@ priv expr_reassigns_var := func(e: Expr, name: Str) returns Bool {
     return false
 }
 
-priv check_use_after_own_transfer := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) {
+priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) {
     for mut local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             // #302 stage 3: path-sensitive. When every path reaching the
@@ -2100,6 +2100,19 @@ priv check_use_after_own_transfer := proc(body: Expr, mut locals: Vec(LocalInfo)
             // alone LEAKED (the index model's transfer stand-down left
             // the fall-through with no delete, verified 2026-07-11).
             if gc_flow_owned_at_stmt(body, local, scope, ctx, local.last_use) {
+                // #364: clearing the transfer hands the local ordinary
+                // cleanup on the paths that still own it -- but a
+                // SHALLOW-field ctor arg leaves an orphaned wrapper on the
+                // path that DID transfer, and that knowledge dies with the
+                // record. insert_post_stmt_deletes is gated on
+                // own_transfer >= 0, so nothing frees it: 16 bytes per call,
+                // which is what the ownership-shape matrix's own-param row
+                // caught. Graft the wrapper free onto the transferring path
+                // before the record goes.
+                if local.shallow_copy_transfer {
+                    ref mut xfer_stmt : Expr = body.children[local.own_transfer.to_usize()]
+                    sink_transfer_path_wrapper_free(xfer_stmt, local, scope, ctx)
+                }
                 local.own_transfer = -1
                 local.dtor_transfer = false
             } else {
@@ -2420,8 +2433,18 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
                         // `free(local)` after the transfer stmt to release
                         // the wrapper without touching the inner data.
                         if local.shallow_copy_transfer {
-                            free_call := make_free_call(local.name, local.type, stmt)
-                            new_ch.push(own free_call)
+                            // #364: after the STATEMENT is only right when
+                            // the transfer is unconditional. A ctor inside a
+                            // branch makes this statement an if/switch whose
+                            // other paths never transferred -- and already
+                            // carry the sink's full delete -- so the wrapper
+                            // free is grafted onto the transferring path
+                            // instead. Falls back to the flat emission when
+                            // no branch claims it (an unconditional ctor).
+                            if sink_transfer_path_wrapper_free(stmt, local, scope, ctx).not() {
+                                free_call := make_free_call(local.name, local.type, stmt)
+                                new_ch.push(own free_call)
+                            }
                         }
                     }
                 }
@@ -2670,6 +2693,81 @@ priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr,
     branch_live.push(own local.clone())
     insert_exit_deletes(branch, branch_live, false, scope, ctx)
     branch.add_child(own del)
+    return true
+}
+
+// #364: the mirror of sink_nontransfer_paths, for the ONE cleanup that
+// belongs on the transferring path instead of the others.
+//
+// A ctor arg into a SHALLOW field is a value-copy: the field's destructor
+// frees the inner data, and the local's heap WRAPPER is left orphaned, so
+// insert_post_stmt_deletes emits a bare `free(local)` to release it. That
+// free is unconditional code placed after the transfer STATEMENT -- correct
+// only when the transfer itself is unconditional. When the ctor sits in one
+// branch, the statement is an `if`, and the same free then runs on paths
+// that never transferred, where sink_nontransfer_paths has already grafted a
+// full delete: the wrapper is freed twice (#364's double free, which glibc
+// stopped reporting on 133ef49 while ASAN still called it a
+// heap-use-after-free). Omitting it instead just moves the bug: the
+// transferring path then leaks the wrapper -- 16 bytes per call, which is
+// what the ownership-shape matrix caught on the own-param row.
+//
+// So it is grafted, not emitted after the statement: appended at the end of
+// the branch that actually transfers, the same placement rule
+// add_delete_to_branch uses for the paths that do not.
+priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
+    if node.node_type.is(NodeType.If).or(node.node_type.is(NodeType.Switch)) {
+        mut any := false
+        mut ci : USize = 1
+        while ci < node.children.len() {
+            ref mut child : Expr = node.children[ci]
+            ci++
+            mut bi : USize = 0
+            if child.node_type.is(NodeType.Case) {
+                if child.children.len() == 0 { continue }
+                bi = child.children.len() - 1
+            }
+            ref mut arm : Expr = child
+            if child.node_type.is(NodeType.Case) { arm = child.children[bi] }
+            if expr_transfers_own(arm, local.name, scope, ctx).not() { continue }
+            if sink_transfer_path_wrapper_free(arm, local, scope, ctx) { any = true }
+        }
+        return any
+    }
+    if node.node_type.is(NodeType.Body).not() { return false }
+    // Find the statement that actually transfers and put the free right
+    // AFTER it. Not at the end of the branch: an arm that `return`s after
+    // the ctor -- `if flag { h := Holder(s = s); return h.s.len() }`, the
+    // own-param row of the matrix -- would leave the free unreachable
+    // behind the return. Immediately after the transfer is also the
+    // narrowest correct window: the local is consumed from there on.
+    mut idx : USize = 0
+    mut found := false
+    while idx < node.children.len() {
+        ref mut child : Expr = node.children[idx]
+        if is_compile_directive(child).not() {
+            if child.node_type.is(NodeType.If).or(child.node_type.is(NodeType.Switch)).or(child.node_type.is(NodeType.Body)) {
+                if expr_transfers_own(child, local.name, scope, ctx) {
+                    if sink_transfer_path_wrapper_free(child, local, scope, ctx) { return true }
+                }
+            } else if expr_transfers_own(child, local.name, scope, ctx) {
+                found = true
+                break
+            }
+        }
+        idx++
+    }
+    if found.not() { return false }
+    mut old := node.children.take()
+    mut new_ch := Vec(Expr).new()
+    for i in 0..old.len() {
+        new_ch.push_take(old, i)
+        if i == idx {
+            free_call := make_free_call(local.name, local.type, node)
+            new_ch.push(own free_call)
+        }
+    }
+    node.children.move_from(own new_ch)
     return true
 }
 
