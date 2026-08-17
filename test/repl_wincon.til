@@ -252,6 +252,20 @@ main := proc(args: ..Str) {
     }
     step("4. Up recall")
 
+    // What steps 1-4 EVALUATED, read here and not at the end: step 5
+    // blanks the whole buffer, which is what makes its redraw check mean
+    // anything, and that erases these rows along with everything else.
+    // Counting them afterwards found zero of each and failed a test whose
+    // subject had already passed.
+    screen_edit := wincon_screen()
+    a1 := count_rows(screen_edit, "A1")
+    a2 := count_rows(screen_edit, "A2")
+    a3 := count_rows(screen_edit, "A3")
+    if a1 != 2 { fail(format("A1 drawn ", a1.to_str(), " times, expected 2"), screen_edit) }
+    if a2 != 1 { fail(format("A2 drawn ", a2.to_str(), " times, expected 1"), screen_edit) }
+    if a3 != 1 { fail(format("A3 drawn ", a3.to_str(), " times, expected 1"), screen_edit) }
+    step("edited lines evaluated")
+
     // 5. The resize path. The screen is blanked WITHOUT moving the
     //    cursor and the buffer height is changed; a
     //    WINDOW_BUFFER_SIZE_EVENT that reaches the editor as
@@ -290,11 +304,12 @@ main := proc(args: ..Str) {
     }
     step("6. ESC window against input-record noise")
 
+    // Both `1 + 41` submissions -- the redrawn one from step 5 and the
+    // post-ESC one from step 6 -- evaluated. These rows postdate the
+    // clear, so this screen still holds them.
     screen_a := wincon_screen()
-    a1 := count_rows(screen_a, "A1")
-    a2 := count_rows(screen_a, "A2")
-    a3 := count_rows(screen_a, "A3")
     answers := count_rows(screen_a, "42")
+    if answers != 2 { fail(format("42 drawn ", answers.to_str(), " times, expected 2"), screen_a) }
 
     // 7. Ctrl-D on an empty line ends the session, cleanly.
     wincon_key(0, CTRL_D)
@@ -302,10 +317,6 @@ main := proc(args: ..Str) {
     mode_after_a := wincon_in_mode()
     step("7. Ctrl-D exit")
 
-    if a1 != 2 { fail(format("A1 drawn ", a1.to_str(), " times, expected 2"), screen_a) }
-    if a2 != 1 { fail(format("A2 drawn ", a2.to_str(), " times, expected 1"), screen_a) }
-    if a3 != 1 { fail(format("A3 drawn ", a3.to_str(), " times, expected 1"), screen_a) }
-    if answers != 2 { fail(format("42 drawn ", answers.to_str(), " times, expected 2"), screen_a) }
     if status_a != 0 { fail(format("Ctrl-D exited with ", status_a.to_str()), screen_a) }
     if mode_after_a != mode_before {
         fail(format("console input mode not restored after Ctrl-D: ",
