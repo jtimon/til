@@ -605,6 +605,31 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
         refs.add(own Str.clone(name.ident_name()))
     case .Assign(adata):
         refs.add(own adata.name.clone())
+    // A capture list NAMES the enclosing local: the emitted env init reads
+    // it (`til_env->x = &x`), so it is a real reference even when nothing
+    // in the closure BODY mentions it anymore. Captures are Declaration
+    // metadata, not child Exprs, so the walk below cannot see them -- and
+    // the constfolder routinely erases the body's own mention (a closure
+    // returning `norm(msg)` over a known-constant `msg` folds to the
+    // literal). Without this the candidate looked dead, its Decl was
+    // dropped, and the env init referenced a local that no longer existed:
+    // "'msg' undeclared" from the C compiler, "closure capture binding not
+    // found" from the interpreter.
+    case .FuncDef(fd):
+        for cap : Declaration in fd.captures {
+            refs.add(own cap.name.clone())
+        }
+    // A capture BLOCK only reads through an env when it was lowered to a
+    // closure (closure_name set). An inlined block reads the local
+    // directly from the body, so its list adds nothing -- and pinning a
+    // local whose only mention the constfolder erased would trip
+    // -Werror=unused-variable on the emitted C.
+    case .CaptureBlock(cbd):
+        if cbd.closure_name.len() > 0 {
+            for bcap : Declaration in cbd.captures {
+                refs.add(own bcap.name.clone())
+            }
+        }
     case:
     }
     is_body := e.node_type.is(NodeType.Body)

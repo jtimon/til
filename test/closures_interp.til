@@ -88,6 +88,25 @@ test_closure_return_owns_str := test() {
     assert_eq(Str, get_msg(), "hello")
 }
 
+// The capture list is the only surviving reference to `msg` here: `msg`
+// holds a compile-time constant, so the constfolder evaluates
+// `bracket(msg)` and leaves the body a bare literal. Body DCE used to
+// read that folded body, see no mention of `msg`, and drop its Decl --
+// while the env init still assigned from it. Compiled: "'msg' undeclared";
+// interpreted: "closure capture binding not found: msg". A captured name
+// counts as a use, so the local stays.
+priv bracket := func(s: Str) returns Str { return format("[", s, "]") }
+
+make_folded_supplier := func() returns StrSupplier {
+    msg := "folded"
+    return func() returns Str [own msg] { return bracket(msg) }
+}
+
+test_closure_capture_survives_folded_body := test() {
+    get_msg := make_folded_supplier()
+    assert_eq(Str, get_msg(), "[folded]")
+}
+
 make_box_supplier := func() returns BoxSupplier {
     box := WordBox(text = "boxed")
     return func() returns WordBox [own box] { return box.clone() }
