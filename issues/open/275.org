@@ -19,9 +19,61 @@ the AST, and free its OWN bookkeeping (the malloc'd ~Cell~/~Binding~/~Scope~).
 It should never manufacture double-ownership, and it should never compensate
 with manual reclamation.
 
-*** The exact mechanism (double-ownership at construction)
+*** STATUS 2026-08: the mechanism below is HISTORICAL
 
-~Token.Name("hello")~ in interpret mode:
+The code this issue described no longer exists. Verified against the tree
+at the time of writing:
+
+  - ~Value~ / ~StructInstance~ / ~EnumInstance~, ~shallow_copy_value~,
+    ~val_enum_flat~ and ~src/self/dispatch.til~ are all gone. The
+    interpreter binds through ~HeapBinding~ (interpreter.til) over typed
+    raw blocks, with ~Scope.heap_bindings~ holding the metadata.
+  - ~scope_free~ has no ~deep~ flag: its signature is
+    ~scope_free := func(own s: Scope)~ and it reclaims the binding maps,
+    not program payloads.
+  - The ~is_str~ cache is gone; the surviving ~is_str~ is a ~FieldLayout~
+    fast-path stamped by the initer.
+  - ~check_move_managed_dest~ retired with the raw byte-move (see the note
+    at typer.til's move handling).
+
+The double-ownership itself was probed and did not reproduce: building an
+enum payload and a struct field from owned locals, plus ~test/enums.til~,
+run clean under ASAN with leak detection on.
+
+Two concrete slices HAVE landed since:
+
+  - The raw-allocation half of "reclaim only your own bookkeeping":
+    ~scope_drop_owned_bindings~ / ~scope_free~ skip ~is_raw_alloc~
+    bindings, because a #302 raw allocation binds the BLOCK as its datum
+    and the compiled backend never auto-frees one. Freeing it at teardown
+    manufactured a second owner and double-freed whatever an alias had
+    already released through the AST's ~free~.
+  - ~write_field~'s pointer-field arm stores the source ADDRESS for a
+    concrete pointer (it used to write NULL unless the source was
+    Dynamic).
+
+*** What is actually left
+
+  1. Step 3 below -- typer enforcement -- never happened. Nothing forbids
+     copying a managed aggregate's bytes; the ban would have to live over
+     TYPED pointers, since a ~Dynamic~ erases the owned pointer it carries.
+  2. The #245 / #239 deep fix this gates: making
+     ~StructInstance.struct_name~-style type names OWNED rather than
+     borrowed through the ~stable_type_name~ workaround. That workaround
+     is still in place.
+  3. A related divergence found while sweeping #357: a by-value scalar
+     passed to a pointer position (~ptr_add(q, 1)~ on a ~q : U8~ param)
+     reads through the value in compiled C and yields 0 interpreted. The
+     fix needs exactly what item 1 needs -- a way to tell a #302
+     raw-allocation binding from a same-typed scalar. Note for whoever
+     takes it: builtin / core_func calls bypass ~validate_fcall_arg~
+     entirely (the callee has no TypeBinding, so the arg loop returns
+     before validating), so a diagnostic there needs the builtin call
+     path, not just the user-function one.
+
+*** The original mechanism, kept for the record
+
+~Token.Name("hello")~ in interpret mode, as the code stood in 2026-06:
 
   1. ~enum_method_dispatch~ (dispatch.til) evals the arg -> a
      ~Value.Struct(Str)~ that OWNS a heap ~c_str~ (call it A). The garbager
@@ -32,76 +84,43 @@ with manual reclamation.
      Str struct bytes, i.e. the c_str pointer A, into the enum's calloc'd
      buffer.
 
-After step 3, A has TWO owners: the tracked source Value and the raw enum
+After step 3, A had TWO owners: the tracked source Value and the raw enum
 buffer. til's model (ownership.org) is owned XOR borrowed -- there are NO
-shared pointers -- so this is a flat violation, created by copying an owned
-pointer's bits without a transfer. The current code papers over it by setting
-~payload.borrowed = true~ to forge a move, and then the enum-payload c_str
-fix (this branch / #272) bolts on manual frees so the duplicate is reclaimed.
+shared pointers -- so this was a flat violation, created by copying an owned
+pointer's bits without a transfer. The code papered over it by setting
+~payload.borrowed = true~ to forge a move, then bolted on manual frees.
 
-*** Why the typer is blind to it
+The TYPE ERASURE point still stands and still explains item 1 above: the
+duplication went through ~to_ptr(...) -> Dynamic -> memcpy~, and once a
+value is a ~Dynamic~ the typer sees ~memcpy(Dynamic, Dynamic, n)~ with no
+idea those bytes contain an owned ~c_str~.
 
-The duplication goes through ~to_ptr(...) -> Dynamic -> memcpy~. ownership.org
-is explicit: a ~Dynamic~ IS owned ("owned raw pointer ... you must
-~free(own buf)~ or transfer it"); what the garbager opts out of is
-AUTO-destruction ("there is no type to call delete on"), NOT ownership. But
-once a value is a ~Dynamic~, the typer sees ~memcpy(Dynamic, Dynamic, n)~ with
-no idea those bytes contain an owned ~c_str~. The TYPE ERASURE at ~to_ptr~ is
-what hides the owned pointer from static analysis, so the single-owner
-invariant cannot be checked at that point.
+*** The fix (original plan; step 3 is what remains)
 
-*** The manual-reclamation layer that compensates (all of it should die)
+  1. Construct interpreter aggregates with a real MOVE rather than a
+     ~memcpy~ duplication. Moot as written -- those construction sites are
+     gone -- except that ~write_field~ still clones for inline aggregate
+     fields, which is a copy by design for a borrowed source.
+  2. Then DELETE the manual layer. Done: no ~deep~ flag, no
+     StructInstance/EnumInstance payload frees, no ~is_str~ cache.
+  3. Typer enforcement, so double-ownership is forbidden in the first
+     place: extend the ban on ~move()~ onto a managed dest with its dual --
+     forbid copying a managed aggregate's bytes. This can only fire over
+     TYPED pointers. STILL OPEN, and it is the gate on #245/#239.
 
-Because construction duplicates ownership, the interpreted AST ~delete~/~free~
-either double-frees (so the source is forged ~borrowed = true~) or leaves the
-duplicate unreclaimed (a leak), so successive fixes added a SECOND manual
-layer that fights the deletes:
+*** Open questions / TODO
 
-  - ~scope_free~'s ~deep~ flag: re-frees Struct/Str payloads in cells that the
-    interpreted AST deletes were supposed to reclaim -- which is exactly why it
-    double-frees and why it could not be turned on for block scopes.
-  - ~StructInstance.delete~ / ~EnumInstance.delete~ doing payload heap work and
-    the ~is_str~ cache.
-  - per-site frees in dispatch / construction.
-
-~scope_free~ should reclaim ONLY its own bookkeeping (the ~Cell~/~Binding~
-mallocs), never the values -- those are the AST deletes' job.
-
-*** The fix
-
-  1. Construct interpreter aggregates with a real MOVE: consume the source
-     (single owner) instead of ~memcpy~-duplicating its bytes. Inventory and
-     convert every ~to_ptr(value.data) + memcpy/write_ptr~ construction site:
-     enum payloads (~val_enum_flat~), struct fields (~write_field~), FFI
-     marshaling, and the ~Value~ copy helpers (~shallow_copy_value~ et al).
-  2. Then DELETE the manual layer: ~scope_free~'s ~deep~ flag, the
-     StructInstance/EnumInstance payload frees and ~is_str~, the dispatch
-     frees, the ~borrowed = true~ forgeries -- and let the interpreted AST
-     ~delete~/~free~ stand alone.
-  3. Typer enforcement, so double-ownership is forbidden in the first place:
-     extend ~check_move_managed_dest~ (which already forbids ~move()~ onto a
-     managed dest) with its dual -- forbid copying a managed aggregate's bytes.
-     This can only fire over TYPED pointers, so it goes hand in hand with (1):
-     stop constructing managed values through raw ~Dynamic~ memcpy.
-
-*** Open questions / TODO (needs rstil + deeper verification)
-
-  - Does the interpreter need the ~Value~ representation at all? rstil (the
-    Rust prototype, ~src/rstil.rs~ / ~src/rs/~,
-    https://github.com/jtimon/rstil) interpreted WITHOUT this ~Value~
-    boilerplate and -- per discussion -- without manufacturing
-    double-ownership. Compare rstil's eval value/heap model and decide whether
-    til's ~Value~ union is necessary or can be replaced by the rstil approach.
-    (Could not access rstil source from the build sandbox -- ~git clone~ of any
-    repo but jtimon/til is denied; left for whoever can read ~src/rstil.rs~.)
-  - Verify ~Type.delete~ / ~free~ are interpreted with NO shortcuts. From the
-    2026-06 sessions: ~free(own x)~ dispatches to the ~h_free~ builtin (frees
-    the Value's payload); ~Type.delete(own x)~ dispatches to the interpreted
-    method body (the ~free(own self)~ tail reaches ~h_free~); the interpreter's
-    OWN Value locals get garbager-inserted ~Value.delete -> StructInstance /
-    EnumInstance.delete~. Confirm there is no ~.delete~/~.free~ special-case in
-    the call dispatch that bypasses the body -- that is the precondition for
-    ripping the manual layer out.
+  - Does the interpreter need its ~Value~-era shape at all? rstil (the Rust
+    prototype, ~src/rstil.rs~ / ~src/rs/~, https://github.com/jtimon/rstil)
+    interpreted without manufacturing double-ownership. Comparing its eval
+    value/heap model against today's ~HeapBinding~ is still worth doing.
+    (Could not access rstil source from the build sandbox -- ~git clone~ of
+    any repo but jtimon/til is denied.)
+  - Verify ~Type.delete~ / ~free~ are interpreted with NO shortcuts:
+    ~free(own x)~ dispatches to the ~h_free~ builtin, ~Type.delete(own x)~
+    to the interpreted method body whose ~free(own self)~ tail reaches
+    ~h_free~. Confirm no ~.delete~/~.free~ special-case in call dispatch
+    bypasses the body.
 
 *** Relation to #272
 
