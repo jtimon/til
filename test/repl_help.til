@@ -33,7 +33,17 @@ main := proc() {
     // never touched by the suite).
     _clean := system_cmd("rm -rf tmp/repl_help_state tmp/repl_help_home")
     pid := spawn_cmd("XDG_STATE_HOME=tmp/repl_help_state HOME=tmp/repl_help_home bin/til < tmp/repl_help_input > tmp/repl_help_output 2>&1")
-    _exit_code := wait_cmd(pid)
+    exit_code := wait_cmd(pid)
+    // A REPL that never started is not a failed assertion. The exit code
+    // used to be dropped on the floor, so a bin/til that could not be
+    // exec'd -- no permission, or mid-rewrite by another build (126) --
+    // reported as every single check counting zero, with an empty capture
+    // underneath. Say what actually happened instead.
+    if exit_code.eq(126).or(exit_code.eq(127)) {
+        println("repl_help FAIL: could not run bin/til (exit ", exit_code.to_str(),
+            "): not executable, or being rebuilt concurrently")
+        exit(1)
+    }
 
     output := File.readfile("tmp/repl_help_output")
     // A redirected REPL neither creates the state directory nor writes a

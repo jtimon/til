@@ -1161,6 +1161,10 @@ main := proc(args: ..Str) {
     add_both(tests, "test/tuples.til", flags)
     add_both(tests, "test/auto.til", flags)
     add_both(tests, "test/first_class.til", flags)
+    // The reflect primitives with a RUNTIME index -- the shape that reaches
+    // the emitted dispatchers instead of folding. Both backends, because
+    // the compiled half is the one that could not be built at all.
+    add_both(tests, "test/reflect_runtime_index.til", flags)
     add_both(tests, "test/generic_infer_imports.til", flags)
     add_both(tests, "test/closures.til", flags)
     add_both(tests, "test/regression.til", flags)

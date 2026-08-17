@@ -1,0 +1,66 @@
+mode test
+
+// Reflection whose INDEX is only known at runtime, which is the shape the
+// emitted dispatchers exist for: a constant index folds at compile time
+// and never reaches them.
+//
+// Such a call used to make the program uncompilable. One mention of any
+// member recorded its whole family ("struct_field_" and friends), the
+// builder emitted all four/seven/six bodies, and the three nobody called
+// were static functions nothing referenced -- so -Werror=unused-function
+// refused the build. `til interpret` ran the same file fine. Each member
+// is gated on its own name now.
+//
+// The types below are used for real as well as introspected: a type whose
+// ONLY mention is a reflect string literal is swept before either backend
+// can answer about it -- both agree in failing, which is a rooting bug of
+// its own and not what this test is about.
+
+Point := struct {
+    x : I64 = 0
+    const cy : Str = ""
+    y : Str = ""
+}
+
+Color := enum { Red, Green: I64 }
+
+Combine := func(I64, Str) returns I64
+apply_combine := func(f: Combine, a: I64, b: Str) returns I64 { return f(a, b) }
+real_combine := func(a: I64, b: Str) returns I64 { return a.add(b.len().to_i64()) }
+
+// Unfoldable by construction: the value comes back from a runtime call.
+runtime_zero := func() returns I64 {
+    mut v := Vec(I64).new()
+    v.push(own 0)
+    ref got : I64 = v.get(0)!
+    return got.clone()
+}
+
+test_struct_field_runtime_index := test() {
+    p := Point(x = 1, y = "a")
+    assert_eq(I64, p.x, 1)
+    i := runtime_zero()
+    assert_eq(Str, struct_field_name("Point", i), "x")
+    assert_eq(Str, struct_field_type("Point", i), "I64")
+    // Fields are mutable by default; `cy` is the const one at index 1.
+    assert_eq(I64, struct_field_is_mut("Point", i), 1)
+    assert_eq(I64, struct_field_is_mut("Point", i.add(1)), 0)
+}
+
+test_enum_variant_runtime_index := test() {
+    c := Color.Red
+    assert(c.eq(Color.Red))
+    i := runtime_zero()
+    assert_eq(Str, enum_variant_name("Color", i), "Red")
+    assert_eq(I64, enum_variant_has_payload("Color", i), 0)
+    assert_eq(I64, enum_variant_has_payload("Color", i.add(1)), 1)
+    assert_eq(Str, enum_variant_payload_type("Color", i.add(1)), "I64")
+}
+
+test_func_sig_runtime_index := test() {
+    assert_eq(I64, apply_combine(real_combine, 1, "xy"), 3)
+    i := runtime_zero()
+    assert_eq(Str, func_sig_param_type("Combine", i), "I64")
+    assert_eq(Str, func_sig_param_type("Combine", i.add(1)), "Str")
+    assert_eq(Str, func_sig_return_type("Combine", i), "I64")
+}

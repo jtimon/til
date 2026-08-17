@@ -6477,6 +6477,15 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Conte
     type_name := resolve_type_alias(ctx.scope, eval_str_owned(s, e.children[1], ctx)).clone()
     mut sz : USize = 8
     if type_name_is_callable_storage(type_name, ctx).not() {
+        // The emitted dispatcher is one `if (name == T) return sizeof(T);`
+        // per known type and says "dyn_size_of: unknown type T" when it
+        // runs off the end. Say the same here instead of get_elem_size's
+        // "T has no size() method", which is about a different question
+        // and left the two backends wording the same miss differently.
+        if ns_get(type_name, "size", ctx).is_none() {
+            interp_error(e, format("dyn_size_of: unknown type ", type_name), ctx)
+            exit(1)
+        }
         sz = get_elem_size(s, type_name, e, ctx)
     }
     // The result is a USize, so it must be written at the TARGET USize
@@ -6492,7 +6501,10 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Conte
     return true
 }
 
-priv storage_kind_for_type_name := func(type_name: Str, ctx: Context) returns USize {
+// The caller's Expr comes in so an unknown name is reported the way the
+// emitted dispatcher reports it -- same text, at the call site -- rather
+// than as a panic naming the line of interpreter.til that noticed.
+priv storage_kind_for_type_name := proc(type_name: Str, src: Expr, ctx: Context) returns USize {
     resolved := type_from_name_init(type_name, ctx.scope)
     if is_primitive(resolved).or(resolved.is(Type.Dynamic)) { return ELEM_POD }
     if type_is_callable_storage(resolved) { return ELEM_FN }
@@ -6504,13 +6516,14 @@ priv storage_kind_for_type_name := func(type_name: Str, ctx: Context) returns US
             if tdef.children.len() == 0 { return ELEM_FN }
         }
     }
-    panic("dyn_storage_kind: unknown type ", type_name)
+    interp_error(src, format("dyn_storage_kind: unknown type ", type_name), ctx)
+    exit(1)
     return ELEM_POD
 }
 
 priv h_dyn_storage_kind := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    kind := storage_kind_for_type_name(type_name, ctx)
+    kind := storage_kind_for_type_name(type_name, e, ctx)
     tw := ctx.target_usize_bytes
     switch tw {
     case 2: write_u16(r, kind.to_i64().to_u16())

@@ -216,6 +216,19 @@ main := proc() {
         return
     }
 
+    // Preflight: every session below drives `bin/til repl` from inside a
+    // pty, where a compiler that cannot be exec'd is invisible -- `script`
+    // starts fine, the inner sh fails, and the report is seven sessions'
+    // worth of missing markers rather than the one fact that matters. An
+    // actual exec (not `test -x`) is what catches a binary that is present
+    // and permitted but being rewritten right now: 126 either way.
+    probe_rc := wait_cmd(spawn_cmd("bin/til help > /dev/null 2>&1"))
+    if probe_rc.eq(126).or(probe_rc.eq(127)) {
+        println("repl_pty FAIL: could not run bin/til (exit ", probe_rc.to_str(),
+            "): not executable, or being rebuilt concurrently")
+        exit(1)
+    }
+
     _rm := system_cmd(format("rm -rf ", DIR))
     _mk := system_cmd(format("mkdir -p ", DIR, "/state ", DIR, "/home"))
     // A regular FILE where session 6's history directory would go, so
