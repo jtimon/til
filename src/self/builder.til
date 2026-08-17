@@ -2055,7 +2055,14 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // REM Type alias -- no-op
     } else {
         if dd.own_type.is(OwnType.Ref) {
-            is_rg := is_ref_global(dd.name, ctx).and(ctx.in_func_def.not())
+            // A Dynamic global carries VALUE storage (`void *x` -- the
+            // pointer IS the value, see global_is_pointer_storage), so a
+            // ref-stamped Dynamic decl lands in script_globals rather than
+            // ref_globals. Its initializer is still the same plain
+            // assignment; without this it declared a fresh local that
+            // shadowed the global, leaving the global unset and unused.
+            is_rg := is_ref_global(dd.name, ctx).or(
+                e.til_type().is(Type.Dynamic).and(is_value_global(dd.name, ctx))).and(ctx.in_func_def.not())
             if is_rg.not() {
                 ctx.builder_func.ref_locals.add(own ctx.symbols.intern(dd.name))
                 // #185: track ref-Dynamic locals so emit_deref can typed-
@@ -8034,6 +8041,17 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
     }
 }
 
+// A script-scope global gets POINTER storage when its declaration is a
+// borrow (`ref`) or when its initializer's value is already an address
+// (#302 raw allocation, or the pointer-field read #357's family missed).
+// A Dynamic global is excluded: `void *` IS the pointer, so the extra star
+// emitted `void **x` and the init `x = <address>` no longer type-checked.
+priv global_is_pointer_storage := func(stmt: Expr, dd: Declaration) returns Bool {
+    if stmt.til_type().is(Type.Dynamic) { return false }
+    if dd.own_type.is(OwnType.Ref) { return true }
+    return rhs_is_allocator_call(stmt.children[0])
+}
+
 priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
     lp.ctx.script_globals = Set(Sym).new()
     lp.ctx.ref_globals = Set(Sym).new()
@@ -8050,7 +8068,7 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
                 // `buf : U8 = malloc(n)` allocate, copy one indeterminate
                 // byte into the global, free the block, and then let every
                 // memset/ptr_add on it write past a one-byte object.
-                if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
+                if global_is_pointer_storage(stmt, dd) {
                     f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" *").write(dd.name).write(";\n")
                     lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
                 } else {
@@ -8067,7 +8085,7 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
             ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
             ref dd : Declaration = decl_of(stmt)
             // Same raw-allocator pointer rule as the core-unit loop above.
-            if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
+            if global_is_pointer_storage(stmt, dd) {
                 f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" *").write(dd.name).write(";\n")
                 lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
             } else {

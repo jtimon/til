@@ -1369,9 +1369,9 @@ main := proc(args: ..Str) {
     // moved backends shows up in the total, and re-running one command
     // seven times to re-read seven substrings of the same output would
     // not add to that.
-    add_count(tests, "typer_errors_interp", "typer", "error:", 212,
+    add_count(tests, "typer_errors_interp", "typer", "error:", 213,
         format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "typer_errors_build", "typer", "error:", 212,
+    add_count(tests, "typer_errors_build", "typer", "error:", 213,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #342: a splat whose elements do not match is reported, not passed
     // through to crash the callee -- four variadic shapes, the two literals,
@@ -1688,6 +1688,15 @@ main := proc(args: ..Str) {
     File.writefile(format(exp, "script_dynamic_free.out"), format("ok", NL, "ok2", NL))
     add_cli_pair(tests, "script_dynamic_free", "test/script_dynamic_free.til",
         "", 0, format(exp, "script_dynamic_free.out"), til_bin, asan_flag)
+
+    // #357 family at script scope: a Dynamic GLOBAL taking a pointer keeps
+    // the address. The declaration used to gain a second star (`void **x`)
+    // and, once that was fixed, the init declared a shadowing local instead
+    // of assigning the global. Compiled-only; the interpreter always read it
+    // right, so both backends must agree here.
+    File.writefile(format(exp, "script_dynamic_global_ptr.out"), format("66", NL, "65", NL))
+    add_cli_pair(tests, "script_dynamic_global_ptr", "test/script_dynamic_global_ptr.til",
+        "", 0, format(exp, "script_dynamic_global_ptr.out"), til_bin, asan_flag)
 
     // The bang's synthesized panic prints the source location ONCE (via
     // panic's `loc` param) and a readable message; it used to pass the

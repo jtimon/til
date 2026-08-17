@@ -6053,6 +6053,28 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 stmt.type_error(format("no need for 'own' on local '", sdecl.name, "'; locals are owned by default"), ctx)
             }
         }
+        // #357 family: a `ref` FIELD holding a pointer-to-scalar (`ref buf :
+        // U8`, C `U8 *buf`) is a borrow, so binding it needs `ref` too. The
+        // un-labelled form read as an owned scalar local and the two backends
+        // then disagreed: the interpreter bound the ADDRESS and indexed
+        // through it, while codegen emitted `U8 x = h.buf` -- gcc's "makes
+        // integer from pointer without a cast", so the program did not build
+        // at all. `ref x : U8 = h.buf` already compiles and runs correctly in
+        // both, so name the fix in the message rather than silently picking
+        // one meaning.
+        // A Dynamic destination is exempt: `p : Dynamic = <pointer field>`
+        // is #357's own supported form -- Dynamic IS a pointer, so it takes
+        // the address by design and both backends agree on it.
+        if in_type_body.eq(0).and(sdecl.own_type.is(OwnType.Ref).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
+            if rhs.node_type.is(NodeType.FieldAccess).and(rhs.til_type().is(Type.Primitive)) {
+                if fa_own_type(rhs, scope).is(OwnType.Ref) {
+                    stmt.type_error(format("'", sdecl.name,
+                        "' binds the borrowed pointer field '", til_type_name_c(rhs.til_type()),
+                        "'; declare it 'ref ", sdecl.name, " : ", sdecl.explicit_type,
+                        " = ...' -- the holder does not own it"), ctx)
+                }
+            }
+        }
         // #327: reject re-binding a name already bound in THIS scope -- a
         // second `x := ...` in one block, or a body-level local reusing a
         // parameter's name (parameters live in the same scope as the body's

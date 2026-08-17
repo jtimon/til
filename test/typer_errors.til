@@ -1250,3 +1250,25 @@ terr360_poke := func(s: Terr351Src) {
     h2 := terr360_mk(s)
     h2.r.n = h2.r.n + 1
 }
+
+// #357 family: a `ref` FIELD holding a pointer-to-scalar is a borrow, so
+// binding it needs `ref` too. Unlabelled, the interpreter bound the ADDRESS
+// and read through it while codegen emitted `U8 x = h.buf` -- gcc's "makes
+// integer from pointer without a cast", so the program did not build at
+// all. `ref x : U8 = h.buf` (used by terr357_ok below) is the spelling that
+// always worked in both backends.
+Terr357Holder := struct {
+    ref buf : U8
+}
+
+terr357_bad := proc(h: Terr357Holder) {
+    x : U8 = h.buf
+    ref v : U8 = ptr_add(x, 0)
+    println(v.to_i64().to_str())
+}
+
+terr357_ok := proc(h: Terr357Holder) {
+    ref x : U8 = h.buf
+    ref v : U8 = ptr_add(x, 0)
+    println(v.to_i64().to_str())
+}

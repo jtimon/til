@@ -1,0 +1,23 @@
+mode script
+
+// #357 family, script scope: a Dynamic GLOBAL taking a pointer keeps the
+// address. `void *` already IS the pointer, so the global-declaration rule
+// that adds a star for a borrow emitted `void **x` -- and the init
+// `x = <address>` no longer type-checked. Reclassifying it as value storage
+// then exposed the second half: the ref-stamped decl declared a fresh local
+// that shadowed the global, leaving the global unset. Both halves are
+// compiled-only; the interpreter read the address correctly throughout.
+
+buf : U8 = malloc(4)
+memset(buf, 65, 4)
+memcpy(ptr_add(buf, 1), 66, 1)
+
+view : Dynamic = buf
+
+// Read PAST offset 0: offset 0 was right even when the pointer was mangled.
+ref b1 : U8 = ptr_add(view, 1)
+println(b1.to_i64().to_str())
+ref b0 : U8 = ptr_add(view, 0)
+println(b0.to_i64().to_str())
+
+free(own buf)
