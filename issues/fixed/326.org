@@ -739,6 +739,13 @@ landing order:
   prefix-matching til's own helpers into all seven ~enum_variant_*~
   stubs, and ~emit_script_main~ leaking a previous function's name-keyed
   locals into the global-vs-local decision.
+- An enum's auto-generated ~eq~ and its variant constructors are ordinary
+  namespace members, so the member walk forward-declares them; the
+  enum-auto-helper block below it is only for the enums whose members
+  that walk SKIPS, and running it unconditionally wrote 105 duplicate
+  prototypes across the corpus (38 in test/enums.til alone).  What was
+  written is RECORDED rather than re-derived: the four member loops do
+  not all skip the same things, and a mirror of them would drift.
 - Deleting an IMMUTABLE Str-literal local cannot do anything: both of
   Str.delete's branches test the cap, and such a local IS the CAP_LIT
   wrapper (its own file-scope static, or a member of the shared pool), so

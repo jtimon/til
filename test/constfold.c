@@ -135,8 +135,6 @@ static void test_mixed_fold(void);
 static void test_fold_reads_global_const(void);
 static void assert_eq__I64(I64 a, I64 b, Str * loc);
 static void assert_eq__Str(Str * a, Str * b, Str * loc);
-static Bool Color_eq(Color *, Color *);
-static Token Token_Num(I64 *);
 
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))

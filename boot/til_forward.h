@@ -1702,6 +1702,7 @@ typedef struct Context {
     Set__Str builder_collection_elem_types;
     Set__Str builder_used_ctypes;
     Set__Str builder_omitted_core_funcs;
+    Set__Str builder_forward_declared;
     Bool builder_static_ok;
     Bool param_value_abi_ok;
     Bool builder_keep_all_exports;

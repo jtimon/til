@@ -5378,6 +5378,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
     // else is static in the .c, so a prototype here advertises a symbol
     // that cannot be linked -- 2,674 of boot/til_forward.h's 2,676.
     if lp_header_hides(name, ctx) { return }
+    if ctx.builder_forward_declared.has(name).not() { ctx.builder_forward_declared.add(own name.clone()) }
     ret := func_return_ctype(fd, ctx)
     if builder_func_is_tu_local(name, ctx) { f.write("static ") }
     // #303: mirror the typer's noreturn knowledge in the C, so the C
@@ -5729,13 +5730,19 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = decl_of(stmt)
+            // #326: only for the enums whose members the walk above SKIPPED
+            // -- `eq` and the variant constructors are ordinary namespace
+            // members, so for every other enum this block wrote the
+            // prototype a second time.
             if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not()
-                .and(lp_header_hides(dd.name.format("_eq"), lp.ctx).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
+                .and(lp_header_hides(dd.name.format("_eq"), lp.ctx).not())
+                .and(lp.ctx.builder_forward_declared.has(dd.name.format("_eq")).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name)
             for hdr_vd : VariantDef in hdr_edd.variants {
                 if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
                 if lp_header_hides(dd.name.concat3("_", hdr_vd.name), lp.ctx) { continue }
+                if lp.ctx.builder_forward_declared.has(dd.name.concat3("_", hdr_vd.name)) { continue }
                 if hdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                     f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
@@ -5768,6 +5775,7 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
 
 build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I32 {
     lp.ctx.builder_static_ok = false
+    lp.ctx.builder_forward_declared = Set(Str).new()
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -5781,6 +5789,7 @@ build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I3
 
 priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     lp.ctx.builder_static_ok = false
+    lp.ctx.builder_forward_declared = Set(Str).new()
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -6902,11 +6911,15 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
                 if stmt.children.len() == 0 { continue }
                 if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
                 ref dd : Declaration = decl_of(stmt)
-                if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
+                // #326: only for the enums whose members the walk above
+                // SKIPPED -- see the same guard in the header emitter.
+                if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not()
+                    .and(lp.ctx.builder_forward_declared.has(dd.name.format("_eq")).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
                 ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
                 ctor_ret := enum_ctor_ret_c(dd.name)
                 for shdr_vd : VariantDef in shdr_edd.variants {
                     if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
+                    if lp.ctx.builder_forward_declared.has(dd.name.concat3("_", shdr_vd.name)) { continue }
                     if shdr_vd.payload_type.len() > 0 {
                         tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
                         f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
@@ -6925,11 +6938,15 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case .Decl(dd):
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
+            // #326: only for the enums whose members the walk above SKIPPED
+            // -- see the same guard in the header emitter.
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not()
+                .and(lp.ctx.builder_forward_declared.has(dd.name.format("_eq")).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
             ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name)
             for shdr_vd : VariantDef in shdr_edd.variants {
                 if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
+                if lp.ctx.builder_forward_declared.has(dd.name.concat3("_", shdr_vd.name)) { continue }
                 if shdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
                     f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
@@ -8675,6 +8692,7 @@ builder_prepare_emit := proc(mut lp: LoadedProgram) {
 priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: LoadedProgram) returns I32 {
     is_lib := mode.is_library
     lp.ctx.builder_static_ok = is_lib.not().and(mode.decls_only.not()).and(lp.link_c_paths.len().eq(0))
+    lp.ctx.builder_forward_declared = Set(Str).new()
     f := File.new(c_output_path, true)
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")

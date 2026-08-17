@@ -1037,6 +1037,17 @@ main := proc(args: ..Str) {
     // arms (840 duplicated statements across the corpus).
     add_count(tests, "enums_unused_guard_emitted_once", "build", "(void)_n;", 9,
         format(til_bin, " translate -c gen/c/enums_ug.c test/enums.til '&&' cat gen/c/enums_ug.c"))
+    // Issue #326: an enum's auto-generated `eq` and its variant
+    // constructors are ordinary namespace members, so the member walk
+    // forward-declares them; the enum-auto-helper block that follows is
+    // only for the enums whose members that walk SKIPS. It used to run
+    // unconditionally -- 105 duplicate prototypes across the corpus, 38 in
+    // this fixture alone. Two witnesses, one per family: the `eq`...
+    add_count(tests, "enums_eq_declared_once", "build", "static Bool Color_eq(Color", 2,
+        format(til_bin, " translate -c gen/c/enums_dp.c test/enums.til '&&' cat gen/c/enums_dp.c"))
+    // ...and a payload constructor (one prototype, one definition each).
+    add_count(tests, "enums_variant_ctor_declared_once", "build", "static Token Token_Num(I64", 2,
+        format(til_bin, " translate -c gen/c/enums_dc.c test/enums.til '&&' cat gen/c/enums_dc.c"))
     // The forward header is written BEFORE the .c, so it has to gate on
     // the same settled inventory -- it used to see an empty one and omit
     // every lifecycle method the .c then defined. ext.c compiles against

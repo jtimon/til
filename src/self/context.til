@@ -1245,6 +1245,16 @@ Context := struct {
     // by the definition pass, the forward-declaration pass and the
     // string-literal registrar, so all three agree on what exists.
     builder_omitted_core_funcs := Set(Str).new()
+    // #326: what emit_func_forward_decl has already written in THIS
+    // emission (the .c, or either header -- each resets it). An enum's
+    // auto-generated `eq` and its variant constructors are ordinary
+    // namespace members with FuncDef bodies, so the member walk declares
+    // them, and the enum-auto-helper block that follows declared them a
+    // second time: 105 duplicate prototypes across the corpus, 38 in
+    // test/enums.til alone. Recording what was written beats re-deriving
+    // which members the walk skipped -- its four loops do not all skip the
+    // same things, and a mirror of them would drift.
+    builder_forward_declared := Set(Str).new()
     // #326: true while emitting the monolithic .c of a CLOSED WORLD -- a
     // program (not a library), with no link_c handing the C to a stranger.
     // Its til functions are emitted `static`, which is what lets the C
