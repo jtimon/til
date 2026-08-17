@@ -8632,9 +8632,9 @@ static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_37 = (Str){.c_s
 static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7224:13", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_46 = (Str){.c_str = (void *)"./src/self/interpreter.til:7246:9", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7228:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_clone_39 = (Str){.c_str = (void *)"./src/self/interpreter.til:208:25", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_heap_clone_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:147:13", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_clone_41 = (Str){.c_str = (void *)"./src/self/interpreter.til:208:25", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_clone_77 = (Str){.c_str = (void *)"./src/self/interpreter.til:127:33", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_clone_75 = (Str){.c_str = (void *)"./src/self/interpreter.til:127:33", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_heap_clone_by_type_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:4171:9", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_heap_drop_struct_19 = (Str){.c_str = (void *)"./src/self/interpreter.til:3621:13", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_heap_drop_struct_33 = (Str){.c_str = (void *)"./src/self/interpreter.til:3637:9", .count = 33ULL, .cap = TIL_CAP_LIT};
@@ -196114,43 +196114,43 @@ static void priv___src_self_interpreter_til__clone_str_storage_into(void * dst, 
 
 static void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx) {
     I64 _err_kind = 0;
-    Option__ref_Expr hoisted__Option__ref_Expr_76 = lookup_interp_type_def(struct_name, ctx);
-    Expr *struct_def = Option__ref_Expr_unwrap(&hoisted__Option__ref_Expr_76);
-    StructDef *sdef_data = structdef_of(struct_def, &hoisted__Str_self_interpreter_heap_clone_77);
+    Option__ref_Expr hoisted__Option__ref_Expr_74 = lookup_interp_type_def(struct_name, ctx);
+    Expr *struct_def = Option__ref_Expr_unwrap(&hoisted__Option__ref_Expr_74);
+    StructDef *sdef_data = structdef_of(struct_def, &hoisted__Str_self_interpreter_heap_clone_75);
     U32 sz = ctx_total_size(struct_name, ctx);
     void * dst_data = EvalHeap_heap_alloc(sz);
     memcpy(dst_data, data, sz);
-    Bool hoisted__Bool_79 = Str_eq(struct_name, &_til_str_lits.h00000b88235e);
-    if (hoisted__Bool_79) {
+    Bool hoisted__Bool_77 = Str_eq(struct_name, &_til_str_lits.h00000b88235e);
+    if (hoisted__Bool_77) {
         priv___src_self_interpreter_til__clone_str_storage_into(dst_data, data, ctx);
     } else {
-        Bool hoisted__Bool_69 = Str_eq(struct_name, &_til_str_lits.h0652af49316e);
-        if (hoisted__Bool_69) {
+        Bool hoisted__Bool_67 = Str_eq(struct_name, &_til_str_lits.h0652af49316e);
+        if (hoisted__Bool_67) {
             priv___src_self_interpreter_til__clone_dyn_vec_buffer(data, dst_data, ctx);
         } else {
-            Bool hoisted__Bool_67 = Str_eq(struct_name, &_til_str_lits.he5bba4e6b00f);
-            if (hoisted__Bool_67) {
+            Bool hoisted__Bool_65 = Str_eq(struct_name, &_til_str_lits.he5bba4e6b00f);
+            if (hoisted__Bool_65) {
                 priv___src_self_interpreter_til__clone_dyn_array_buffer(data, dst_data, ctx);
             } else {
-                Bool hoisted__Bool_65 = Str_eq(struct_name, &_til_str_lits.h0652af4924bc);
-                if (hoisted__Bool_65) {
+                Bool hoisted__Bool_63 = Str_eq(struct_name, &_til_str_lits.h0652af4924bc);
+                if (hoisted__Bool_63) {
                     priv___src_self_interpreter_til__clone_dyn_set_buffer(data, dst_data, ctx);
                 } else {
-                    Str hoisted__Str_self_interpreter_heap_clone_60 = priv___src_self_interpreter_til__container_elem_type(struct_name, ctx);
-                    U32 hoisted__U32_61 = (hoisted__Str_self_interpreter_heap_clone_60.count);
-                    Str_delete(&hoisted__Str_self_interpreter_heap_clone_60, 0);
-                    U32 hoisted__U32_62 = 0;
-                    Bool hoisted__Bool_63 = ((Bool)(hoisted__U32_61 > hoisted__U32_62));
-                    if (hoisted__Bool_63) {
+                    Str hoisted__Str_self_interpreter_heap_clone_58 = priv___src_self_interpreter_til__container_elem_type(struct_name, ctx);
+                    U32 hoisted__U32_59 = (hoisted__Str_self_interpreter_heap_clone_58.count);
+                    Str_delete(&hoisted__Str_self_interpreter_heap_clone_58, 0);
+                    U32 hoisted__U32_60 = 0;
+                    Bool hoisted__Bool_61 = ((Bool)(hoisted__U32_59 > hoisted__U32_60));
+                    if (hoisted__Bool_61) {
                         priv___src_self_interpreter_til__clone_container_buffer(struct_name, data, dst_data, ctx);
                     } else {
-                        Bool hoisted__Bool_59 = priv___src_self_interpreter_til__struct_def_shallow_safe(sdef_data, ctx);
-                        if (hoisted__Bool_59) {
+                        Bool hoisted__Bool_57 = priv___src_self_interpreter_til__struct_def_shallow_safe(sdef_data, ctx);
+                        if (hoisted__Bool_57) {
                         } else {
                             StructLayout *hc_sl = Map__Str_StructLayout_get(&ctx->struct_layouts, struct_name, &_err_kind);
-                            I64 hoisted__I64_57 = 4;
-                            Bool hoisted__Bool_58 = ((Bool)(_err_kind == hoisted__I64_57));
-                            if (hoisted__Bool_58) {
+                            I64 hoisted__I64_55 = 4;
+                            Bool hoisted__Bool_56 = ((Bool)(_err_kind == hoisted__I64_55));
+                            if (hoisted__Bool_56) {
                                 I64 hoisted__I64_0 = 0;
                                 _err_kind = hoisted__I64_0;
                                 U32 hoisted__U32_1 = 1;
@@ -196165,29 +196165,29 @@ static void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, voi
                                 Vec__Declaration *_fc_Vec__Declaration_5 = sdef_data->fields;
                                 USize _fi_USize_5 = 0;
                                 while (1) {
-                                    U32 hoisted__U32_44 = (_fc_Vec__Declaration_5->count);
-                                    Bool _wcond_Bool_6 = ((Bool)(_fi_USize_5 < hoisted__U32_44));
+                                    U32 hoisted__U32_42 = (_fc_Vec__Declaration_5->count);
+                                    Bool _wcond_Bool_6 = ((Bool)(_fi_USize_5 < hoisted__U32_42));
                                     if (_wcond_Bool_6) {
                                     } else {
                                         break;
                                     }
                                     Declaration *dd = ((Declaration *)((void *)((U8 *)(_fc_Vec__Declaration_5->data) + (((U32)(_fi_USize_5 * 96))))));
-                                    U32 hoisted__U32_45 = 1;
-                                    U32 hoisted__U32_46 = ((U32)(_fi_USize_5 + hoisted__U32_45));
-                                    _fi_USize_5 = hoisted__U32_46;
+                                    U32 hoisted__U32_43 = 1;
+                                    U32 hoisted__U32_44 = ((U32)(_fi_USize_5 + hoisted__U32_43));
+                                    _fi_USize_5 = hoisted__U32_44;
                                     FieldLayout *hc_fl = ((FieldLayout *)((void *)((U8 *)(hc_sl->fields.data) + (((U32)(cfi * 32))))));
                                     U32 foff = hc_fl->offset;
-                                    U32 hoisted__U32_47 = 1;
-                                    U32 hoisted__U32_48 = ((U32)(cfi + hoisted__U32_47));
-                                    cfi = hoisted__U32_48;
-                                    Type hoisted__Type_49 = declaration_resolved_type(dd, &ctx->scope);
-                                    Str ftype = resolved_type_name(&hoisted__Type_49);
-                                    Type_delete(&hoisted__Type_49, 0);
+                                    U32 hoisted__U32_45 = 1;
+                                    U32 hoisted__U32_46 = ((U32)(cfi + hoisted__U32_45));
+                                    cfi = hoisted__U32_46;
+                                    Type hoisted__Type_47 = declaration_resolved_type(dd, &ctx->scope);
+                                    Str ftype = resolved_type_name(&hoisted__Type_47);
+                                    Type_delete(&hoisted__Type_47, 0);
                                     Option__ref_Expr nested_def_o = priv___src_self_interpreter_til__field_nested_def(dd, ctx);
-                                    Bool hoisted__Bool_50 = ((Bool)((((OwnType *)(&dd->own_type))->tag) == OwnType_TAG_Own));
-                                    if (hoisted__Bool_50) {
-                                        Bool hoisted__Bool_19 = priv___src_self_interpreter_til__decl_is_funcsig(dd, ctx);
-                                        if (hoisted__Bool_19) {
+                                    Bool hoisted__Bool_48 = ((Bool)((((OwnType *)(&dd->own_type))->tag) == OwnType_TAG_Own));
+                                    if (hoisted__Bool_48) {
+                                        Bool hoisted__Bool_17 = priv___src_self_interpreter_til__decl_is_funcsig(dd, ctx);
+                                        if (hoisted__Bool_17) {
                                             void *hoisted__v_9 = ((void *)((U8 *)(data) + (foff)));
                                             void *src_callable = deref(hoisted__v_9);
                                             Bool hoisted__Bool_10 = ((Bool)((UPtr)(src_callable) == 0));
@@ -196200,101 +196200,99 @@ static void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, voi
                                             Str_delete(&ftype, 0);
                                             continue;
                                         }
-                                        void *hoisted__v_20 = ((void *)((U8 *)(data) + (foff)));
-                                        void *src_ptr = deref(hoisted__v_20);
-                                        Bool hoisted__Bool_21 = ((Bool)((UPtr)(src_ptr) == 0));
-                                        Bool hoisted__Bool_22 = ((Bool)(!(hoisted__Bool_21)));
-                                        if (hoisted__Bool_22) {
-                                            Bool hoisted__Bool_18 = Option__ref_Expr_is_some(nested_def_o);
-                                            if (hoisted__Bool_18) {
+                                        void *hoisted__v_18 = ((void *)((U8 *)(data) + (foff)));
+                                        void *src_ptr = deref(hoisted__v_18);
+                                        Bool hoisted__Bool_19 = ((Bool)((UPtr)(src_ptr) == 0));
+                                        Bool hoisted__Bool_20 = ((Bool)(!(hoisted__Bool_19)));
+                                        if (hoisted__Bool_20) {
+                                            Bool hoisted__Bool_16 = Option__ref_Expr_is_some(nested_def_o);
+                                            if (hoisted__Bool_16) {
                                                 Expr *nested_def = Option__ref_Expr_unwrap(&nested_def_o);
-                                                Bool hoisted__Bool_17 = ((Bool)((((NodeType *)(&nested_def->node_type))->tag) == NodeType_TAG_EnumDef));
-                                                if (hoisted__Bool_17) {
-                                                    void *hoisted__v_12 = to_ptr(src_ptr);
-                                                    U32 hoisted__U32_13 = ctx_total_size(&ftype, ctx);
-                                                    void * cloned_enum = priv___src_self_interpreter_til__heap_clone_enum(&ftype, hoisted__v_12, hoisted__U32_13, ctx);
-                                                    void *hoisted__v_14 = ((void *)((U8 *)(dst_data) + (foff)));
-                                                    write_ptr(hoisted__v_14, cloned_enum);
+                                                Bool hoisted__Bool_15 = ((Bool)((((NodeType *)(&nested_def->node_type))->tag) == NodeType_TAG_EnumDef));
+                                                if (hoisted__Bool_15) {
+                                                    U32 hoisted__U32_12 = ctx_total_size(&ftype, ctx);
+                                                    void * cloned_enum = priv___src_self_interpreter_til__heap_clone_enum(&ftype, src_ptr, hoisted__U32_12, ctx);
+                                                    void *hoisted__v_13 = ((void *)((U8 *)(dst_data) + (foff)));
+                                                    write_ptr(hoisted__v_13, cloned_enum);
                                                 } else {
-                                                    void *hoisted__v_15 = to_ptr(src_ptr);
-                                                    void * cloned_struct = priv___src_self_interpreter_til__heap_clone(&ftype, hoisted__v_15, ctx);
-                                                    void *hoisted__v_16 = ((void *)((U8 *)(dst_data) + (foff)));
-                                                    write_ptr(hoisted__v_16, cloned_struct);
+                                                    void * cloned_struct = priv___src_self_interpreter_til__heap_clone(&ftype, src_ptr, ctx);
+                                                    void *hoisted__v_14 = ((void *)((U8 *)(dst_data) + (foff)));
+                                                    write_ptr(hoisted__v_14, cloned_struct);
                                                 }
                                             }
                                         }
                                         Str_delete(&ftype, 0);
                                         continue;
                                     }
-                                    Bool hoisted__Bool_51 = ((Bool)((((OwnType *)(&dd->own_type))->tag) == OwnType_TAG_Ref));
-                                    if (hoisted__Bool_51) {
+                                    Bool hoisted__Bool_49 = ((Bool)((((OwnType *)(&dd->own_type))->tag) == OwnType_TAG_Ref));
+                                    if (hoisted__Bool_49) {
                                         Str_delete(&ftype, 0);
                                         continue;
                                     }
-                                    Bool hoisted__Bool_52 = priv___src_self_interpreter_til__decl_is_funcsig(dd, ctx);
-                                    if (hoisted__Bool_52) {
-                                        void *hoisted__v_25 = ((void *)((U8 *)(data) + (foff)));
-                                        void *src_callable2 = deref(hoisted__v_25);
-                                        Bool hoisted__Bool_26 = ((Bool)((UPtr)(src_callable2) == 0));
-                                        Bool hoisted__Bool_27 = ((Bool)(!(hoisted__Bool_26)));
-                                        if (hoisted__Bool_27) {
-                                            void *hoisted__v_23 = ((void *)((U8 *)(dst_data) + (foff)));
-                                            void * hoisted__v_24 = priv___src_self_interpreter_til__callable_storage_clone(src_callable2);
-                                            write_ptr(hoisted__v_23, hoisted__v_24);
+                                    Bool hoisted__Bool_50 = priv___src_self_interpreter_til__decl_is_funcsig(dd, ctx);
+                                    if (hoisted__Bool_50) {
+                                        void *hoisted__v_23 = ((void *)((U8 *)(data) + (foff)));
+                                        void *src_callable2 = deref(hoisted__v_23);
+                                        Bool hoisted__Bool_24 = ((Bool)((UPtr)(src_callable2) == 0));
+                                        Bool hoisted__Bool_25 = ((Bool)(!(hoisted__Bool_24)));
+                                        if (hoisted__Bool_25) {
+                                            void *hoisted__v_21 = ((void *)((U8 *)(dst_data) + (foff)));
+                                            void * hoisted__v_22 = priv___src_self_interpreter_til__callable_storage_clone(src_callable2);
+                                            write_ptr(hoisted__v_21, hoisted__v_22);
                                         }
                                         Str_delete(&ftype, 0);
                                         continue;
                                     }
-                                    Bool hoisted__Bool_54 = Str_eq(&ftype, &_til_str_lits.h00000b88235e);
-                                    if (hoisted__Bool_54) {
-                                        void *hoisted__v_28 = ((void *)((U8 *)(dst_data) + (foff)));
-                                        void *hoisted__v_29 = ((void *)((U8 *)(data) + (foff)));
-                                        priv___src_self_interpreter_til__clone_str_storage_into(hoisted__v_28, hoisted__v_29, ctx);
+                                    Bool hoisted__Bool_52 = Str_eq(&ftype, &_til_str_lits.h00000b88235e);
+                                    if (hoisted__Bool_52) {
+                                        void *hoisted__v_26 = ((void *)((U8 *)(dst_data) + (foff)));
+                                        void *hoisted__v_27 = ((void *)((U8 *)(data) + (foff)));
+                                        priv___src_self_interpreter_til__clone_str_storage_into(hoisted__v_26, hoisted__v_27, ctx);
                                         Str_delete(&ftype, 0);
                                         continue;
                                     }
-                                    Bool hoisted__Bool_55 = Option__ref_Expr_is_some(nested_def_o);
-                                    if (hoisted__Bool_55) {
+                                    Bool hoisted__Bool_53 = Option__ref_Expr_is_some(nested_def_o);
+                                    if (hoisted__Bool_53) {
                                         Expr *nested_def = Option__ref_Expr_unwrap(&nested_def_o);
-                                        Bool hoisted__Bool_32 = ((Bool)((((NodeType *)(&nested_def->node_type))->tag) == NodeType_TAG_EnumDef));
-                                        if (hoisted__Bool_32) {
-                                            Bool hoisted__Bool_31 = enum_has_payloads(nested_def);
-                                            if (hoisted__Bool_31) {
-                                                void *hoisted__v_30 = ((void *)((U8 *)(dst_data) + (foff)));
-                                                priv___src_self_interpreter_til__enum_payload_deep_clone(&ftype, hoisted__v_30, ctx);
+                                        Bool hoisted__Bool_30 = ((Bool)((((NodeType *)(&nested_def->node_type))->tag) == NodeType_TAG_EnumDef));
+                                        if (hoisted__Bool_30) {
+                                            Bool hoisted__Bool_29 = enum_has_payloads(nested_def);
+                                            if (hoisted__Bool_29) {
+                                                void *hoisted__v_28 = ((void *)((U8 *)(dst_data) + (foff)));
+                                                priv___src_self_interpreter_til__enum_payload_deep_clone(&ftype, hoisted__v_28, ctx);
                                                 Str_delete(&ftype, 0);
                                                 continue;
                                             }
                                         }
                                     }
-                                    Bool hoisted__Bool_56 = Option__ref_Expr_is_some(nested_def_o);
-                                    if (hoisted__Bool_56) {
+                                    Bool hoisted__Bool_54 = Option__ref_Expr_is_some(nested_def_o);
+                                    if (hoisted__Bool_54) {
                                         Expr *nested_def = Option__ref_Expr_unwrap(&nested_def_o);
-                                        Bool hoisted__Bool_42 = ((Bool)((((NodeType *)(&nested_def->node_type))->tag) == NodeType_TAG_EnumDef));
-                                        Bool hoisted__Bool_43 = ((Bool)(!(hoisted__Bool_42)));
-                                        if (hoisted__Bool_43) {
+                                        Bool hoisted__Bool_40 = ((Bool)((((NodeType *)(&nested_def->node_type))->tag) == NodeType_TAG_EnumDef));
+                                        Bool hoisted__Bool_41 = ((Bool)(!(hoisted__Bool_40)));
+                                        if (hoisted__Bool_41) {
                                             switch ((nested_def->node_type).tag) {
                                             case NodeType_TAG_StructDef: {
-                                                void *hoisted__v_33 = ((void *)((U8 *)(data) + (foff)));
-                                                void * cloned_ptr2 = priv___src_self_interpreter_til__heap_clone(&ftype, hoisted__v_33, ctx);
-                                                void *hoisted__v_34 = ((void *)((U8 *)(dst_data) + (foff)));
-                                                U32 hoisted__U32_35 = ctx_total_size(&ftype, ctx);
-                                                memcpy(hoisted__v_34, cloned_ptr2, hoisted__U32_35);
+                                                void *hoisted__v_31 = ((void *)((U8 *)(data) + (foff)));
+                                                void * cloned_ptr2 = priv___src_self_interpreter_til__heap_clone(&ftype, hoisted__v_31, ctx);
+                                                void *hoisted__v_32 = ((void *)((U8 *)(dst_data) + (foff)));
+                                                U32 hoisted__U32_33 = ctx_total_size(&ftype, ctx);
+                                                memcpy(hoisted__v_32, cloned_ptr2, hoisted__U32_33);
                                                 EvalHeap_heap_free(cloned_ptr2);
                                                 break;
                                             }
                                             default: {
-                                                U32 hoisted__U32_36 = 2;
-                                                Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_36);
+                                                U32 hoisted__U32_34 = 2;
+                                                Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_34);
                                                 (void)_va_Array_1;
                                                 I64 _va_Array_1_ek = 0;
                                                 (void)_va_Array_1_ek;
-                                                U32 hoisted__U32_37 = 0;
-                                                Array__Str_set(&_va_Array_1, hoisted__U32_37, _til_str_lits.hec5f08ee5b81, &_va_Array_1_ek);
-                                                U32 hoisted__U32_39 = 1;
-                                                Str hoisted__Str_self_interpreter_heap_clone_40 = NodeType_head_str(&nested_def->node_type);
-                                                Array__Str_set(&_va_Array_1, hoisted__U32_39, hoisted__Str_self_interpreter_heap_clone_40, &_va_Array_1_ek);
-                                                UNREACHABLE(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_1; _oa; }), &hoisted__Str_self_interpreter_heap_clone_41);
+                                                U32 hoisted__U32_35 = 0;
+                                                Array__Str_set(&_va_Array_1, hoisted__U32_35, _til_str_lits.hec5f08ee5b81, &_va_Array_1_ek);
+                                                U32 hoisted__U32_37 = 1;
+                                                Str hoisted__Str_self_interpreter_heap_clone_38 = NodeType_head_str(&nested_def->node_type);
+                                                Array__Str_set(&_va_Array_1, hoisted__U32_37, hoisted__Str_self_interpreter_heap_clone_38, &_va_Array_1_ek);
+                                                UNREACHABLE(({ Array__Str *_oa = malloc(TIL_BOX(Array__Str)); *_oa = _va_Array_1; _oa; }), &hoisted__Str_self_interpreter_heap_clone_39);
                                                 break;
                                             }
                                             }
@@ -196316,17 +196314,17 @@ static void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, voi
             FieldLayout *type_fl = ctx_field_layout(struct_name, &_til_str_lits.hdf075f30c45e, ctx);
             Str *type_name = ((void *)((U8 *)(data) + (type_fl->offset)));
             FieldLayout *val_fl = ctx_field_layout(struct_name, &_til_str_lits.hcbc3f47b36df, ctx);
-            void *hoisted__v_72 = ((void *)((U8 *)(data) + (val_fl->offset)));
-            void *src_val = deref(hoisted__v_72);
-            Type hoisted__Type_73 = type_from_name_init(type_name, &ctx->scope);
-            void * cloned_val = priv___src_self_interpreter_til__heap_clone_by_type(hoisted__Type_73, src_val, ctx);
-            Type_delete(&hoisted__Type_73, 0);
-            void *hoisted__v_74 = ((void *)((U8 *)(dst_data) + (val_fl->offset)));
-            write_ptr(hoisted__v_74, cloned_val);
+            void *hoisted__v_70 = ((void *)((U8 *)(data) + (val_fl->offset)));
+            void *src_val = deref(hoisted__v_70);
+            Type hoisted__Type_71 = type_from_name_init(type_name, &ctx->scope);
+            void * cloned_val = priv___src_self_interpreter_til__heap_clone_by_type(hoisted__Type_71, src_val, ctx);
+            Type_delete(&hoisted__Type_71, 0);
+            void *hoisted__v_72 = ((void *)((U8 *)(dst_data) + (val_fl->offset)));
+            write_ptr(hoisted__v_72, cloned_val);
         }
     }
-    Bool hoisted__Bool_81 = Str_eq(struct_name, &_til_str_lits.h00310e311d8f);
-    if (hoisted__Bool_81) {
+    Bool hoisted__Bool_79 = Str_eq(struct_name, &_til_str_lits.h00310e311d8f);
+    if (hoisted__Bool_79) {
         priv___src_self_interpreter_til__clone_tuple_buffer(data, dst_data, ctx);
     }
     return dst_data;
@@ -233895,7 +233893,7 @@ int main(int argc, char **argv) {
     REPL_BYTE_DEL = 127;
     REPL_HISTORY_MAX = 1000;
     REPL_ESC_TIMEOUT_MS = 50;
-    VERSION = (Str){.c_str=(void*)"0.0.1-6b18ae61e", .count=15ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str=(void*)"0.0.1-ec2078b08", .count=15ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str * args = malloc(TIL_BOX(Array__Str));

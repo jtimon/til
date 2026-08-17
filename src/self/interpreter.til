@@ -165,10 +165,10 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                     if nested_def_o.is_some() {
                         ref nested_def : Expr = nested_def_o.unwrap()
                         if nested_def.node_type.is(NodeType.EnumDef) {
-                            cloned_enum : Dynamic = heap_clone_enum(ftype, to_ptr(src_ptr), ctx_total_size(ftype, ctx), ctx)
+                            cloned_enum : Dynamic = heap_clone_enum(ftype, src_ptr, ctx_total_size(ftype, ctx), ctx)
                             write_ptr(ptr_add(dst_data, foff), cloned_enum)
                         } else {
-                            cloned_struct : Dynamic = heap_clone(ftype, to_ptr(src_ptr), ctx)
+                            cloned_struct : Dynamic = heap_clone(ftype, src_ptr, ctx)
                             write_ptr(ptr_add(dst_data, foff), cloned_struct)
                         }
                     }
