@@ -4989,6 +4989,23 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
         f.write("))->data != NULL)")
         return
     }
+    // A bare variant name IS its tag. Emitting the general form here built
+    // a whole enum value just to read back the constant it was initialised
+    // with -- `(((NodeType *)(&(NodeType){.tag = NodeType_TAG_Body}))->tag)`
+    // for what is spelled `NodeType_TAG_Body`. Every `x.is(E.V)` and every
+    // arm of a switch the typer left as an if-chain carries one, 2,842 of
+    // them in the compiler's own C, on the hottest paths it has
+    // (Expr.til_type alone is a 30-arm chain over NodeType).
+    mut const_vname := ""
+    switch operand.node_type {
+    case .FieldAccess(cfa):
+        if builder_fa_is_ns(operand, ctx) { const_vname = Str.clone(cfa.field_access_name()) }
+    case:
+    }
+    if const_vname.len() > 0 {
+        f.write(enum_c).write("_TAG_").write(const_vname)
+        return
+    }
     f.write("(((").write(enum_c).write(" *)(")
     emit_as_ptr(f, operand, depth, get_own_arg(e, idx), ctx)
     f.write("))->tag)")

@@ -821,15 +821,15 @@ static Bool Color_eq(Color * self, Color * other) {
 }
 
 static Color Color_clone(Color * self) {
-    Bool hoisted__Bool_0 = ((Bool)((((Color *)(self))->tag) == (((Color *)(&(Color){.tag = Color_TAG_Red}))->tag)));
+    Bool hoisted__Bool_0 = ((Bool)((((Color *)(self))->tag) == Color_TAG_Red));
     if (hoisted__Bool_0) {
         return (Color){.tag = Color_TAG_Red};
     }
-    Bool hoisted__Bool_1 = ((Bool)((((Color *)(self))->tag) == (((Color *)(&(Color){.tag = Color_TAG_Green}))->tag)));
+    Bool hoisted__Bool_1 = ((Bool)((((Color *)(self))->tag) == Color_TAG_Green));
     if (hoisted__Bool_1) {
         return (Color){.tag = Color_TAG_Green};
     }
-    Bool hoisted__Bool_2 = ((Bool)((((Color *)(self))->tag) == (((Color *)(&(Color){.tag = Color_TAG_Blue}))->tag)));
+    Bool hoisted__Bool_2 = ((Bool)((((Color *)(self))->tag) == Color_TAG_Blue));
     if (hoisted__Bool_2) {
         return (Color){.tag = Color_TAG_Blue};
     }
@@ -862,12 +862,12 @@ static Token Token_Num(I64 * val) {
     return r;
 }
 static void Token_delete(Token * self, Bool call_free) {
-    Bool hoisted__Bool_2 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
+    Bool hoisted__Bool_2 = ((Bool)((((Token *)(self))->tag) == Token_TAG_Num));
     if (hoisted__Bool_2) {
         I64 *hoisted__I64_0 = ((void *)((U8 *)(self) + offsetof(Token, data)));
         I64_delete(hoisted__I64_0, 0);
     }
-    Bool hoisted__Bool_3 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Name}))->tag)));
+    Bool hoisted__Bool_3 = ((Bool)((((Token *)(self))->tag) == Token_TAG_Name));
     if (hoisted__Bool_3) {
         Str *hoisted__Str_Token_delete_1 = ((void *)((U8 *)(self) + offsetof(Token, data)));
         Str_delete(hoisted__Str_Token_delete_1, 0);
@@ -880,10 +880,10 @@ static void Token_delete(Token * self, Bool call_free) {
 
 static void test_enum_payload_fold(void) {
     Token t = Token_Num(&(I64){42});
-    Bool hoisted__Bool_1 = ((Bool)((((Token *)(&t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
+    Bool hoisted__Bool_1 = ((Bool)((((Token *)(&t))->tag) == Token_TAG_Num));
     assert(hoisted__Bool_1, &hoisted__Str_test_enum_payload_fold_2);
     Str_delete(&hoisted__Str_test_enum_payload_fold_2, 0);
-    Bool hoisted__Bool_3 = ((Bool)((((Token *)(&t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
+    Bool hoisted__Bool_3 = ((Bool)((((Token *)(&t))->tag) == Token_TAG_Eof));
     Bool hoisted__Bool_4 = ((Bool)(!(hoisted__Bool_3)));
     assert(hoisted__Bool_4, &hoisted__Str_test_enum_payload_fold_5);
     Str_delete(&hoisted__Str_test_enum_payload_fold_5, 0);
@@ -903,10 +903,10 @@ static void test_enum_return_fold(void) {
 
 static void test_enum_payload_return_fold(void) {
     Token t = Token_Num(&(I64){7});
-    Bool hoisted__Bool_1 = ((Bool)((((Token *)(&t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
+    Bool hoisted__Bool_1 = ((Bool)((((Token *)(&t))->tag) == Token_TAG_Num));
     assert(hoisted__Bool_1, &hoisted__Str_test_enum_payload_return_fold_2);
     Str_delete(&hoisted__Str_test_enum_payload_return_fold_2, 0);
-    Bool hoisted__Bool_3 = ((Bool)((((Token *)(&t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
+    Bool hoisted__Bool_3 = ((Bool)((((Token *)(&t))->tag) == Token_TAG_Eof));
     Bool hoisted__Bool_4 = ((Bool)(!(hoisted__Bool_3)));
     assert(hoisted__Bool_4, &hoisted__Str_test_enum_payload_return_fold_5);
     Str_delete(&hoisted__Str_test_enum_payload_return_fold_5, 0);
