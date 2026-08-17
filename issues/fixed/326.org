@@ -739,6 +739,14 @@ landing order:
   prefix-matching til's own helpers into all seven ~enum_variant_*~
   stubs, and ~emit_script_main~ leaking a previous function's name-keyed
   locals into the global-vs-local decision.
+- Deleting an IMMUTABLE Str-literal local cannot do anything: both of
+  Str.delete's branches test the cap, and such a local IS the CAP_LIT
+  wrapper (its own file-scope static, or a member of the shared pool), so
+  the buffer is static and ~call_free.and(cap.neq(CAP_LIT))~ is false
+  whatever call_free says -- 16,387 of the corpus's 20,628 Str_delete
+  calls.  A `ref` decl's deliberately-unused ~(void)~ guard was also
+  written twice, once in the Ref arm and once by the shared tail that
+  covers both arms.  boot/til.c: 242,411 -> 234,086 lines.
 - The forward header declares that same boundary and nothing else: with
   everything else static in the .c, a prototype there advertises a
   symbol no translation unit can link -- 2,674 of boot/til_forward.h's

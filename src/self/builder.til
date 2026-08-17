@@ -2077,16 +2077,9 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             if is_rg { f.write(dd.name).write(" = ") }
             else { f.fwrite(ctype, " *", dd.name, " = ") }
             emit_as_ptr(f, rhs, depth, false, ctx); f.write(";\n")
-            // `_x` Ref decls (e.g. switch-case payload binds named `_s`)
-            // are til's deliberately-unused convention; the typer skips
-            // them in check_unused_locals, so we need a (void) guard to
-            // keep C's -Wunused-variable quiet. #326: ONLY `_`-prefixed
-            // names get one -- a dead `hoisted__` temp must reach gcc as
-            // -Werror=unused-variable so the pass that orphaned it is fixed
-            // -- and only when the binding is actually unread.
-            if builder_needs_unused_cast(dd.name, ctx) {
-                emit_indent(f, depth); f.write("(void)").write(builder_resolve_c_ident_name(dd.name, ctx)).write(";\n")
-            }
+            // REM the (void) guard for a Ref decl is the shared one below,
+            // which runs for BOTH arms of this if -- a second copy here
+            // wrote every ref binding's cast twice (840 across the corpus).
         } else {
             ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), dd.type_name(), ctx)
             is_global := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
@@ -2282,6 +2275,16 @@ priv is_noop_delete_stmt := func(e: Expr, mut ctx: Context) returns Bool {
     ref c1 : Expr = e.children[1]
     switch c1.node_type {
     case .Ident(del_arg):
+        // #326: an immutable Str-literal local IS the CAP_LIT wrapper --
+        // either its own file-scope static or a member of the shared pool.
+        // BOTH of Str.delete's branches test that cap: the char data is
+        // static (`cap < CAP_INLINE` is false for the largest USize) and
+        // `call_free.and(cap.neq(CAP_LIT))` is false whatever call_free
+        // says. So the call cannot do anything, and nothing can change the
+        // cap out from under it -- the binding is immutable and a write
+        // through a pointer into the pool is what TIL_LIT_GUARD panics on.
+        // 16,387 of the corpus's 20,628 Str_delete calls were this.
+        if ctx.builder_func.stack_lit_str_locals.has(ctx.symbols.intern(del_arg.ident_name())) { return true }
         if is_stack_local(del_arg.ident_name(), ctx).not() { return false }
         if c1.til_type().is(Type.Enum) {
             // POD enum (no variant payload): destructor is just

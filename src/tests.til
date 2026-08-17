@@ -1020,6 +1020,23 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/tilminal_vc.c examples/tilminal.til '&&' cat gen/c/tilminal_vc.c"))
     add_count(tests, "str_clone_value_abi", "build", "Str Str_clone(Str * val)", 2,
         format(til_bin, " translate -c gen/c/hs_sc.c examples/hello_script.til '&&' cat gen/c/hs_sc.c"))
+    // Issue #326: deleting an IMMUTABLE Str-literal local cannot do
+    // anything. Both of Str.delete's branches test the cap, and such a
+    // local IS the CAP_LIT wrapper -- its own file-scope static or a member
+    // of the shared pool -- so the buffer is static and `call_free.and(cap
+    // .neq(CAP_LIT))` is false whatever call_free says. 16,387 of the
+    // corpus's 20,628 Str_delete calls were this; til.c lost 8,320 lines.
+    add_count(tests, "structs_no_pool_literal_deletes", "build", "Str_delete(&_til_str_lits", 0,
+        format(til_bin, " translate -c gen/c/structs_nd.c test/structs.til '&&' cat gen/c/structs_nd.c"))
+    // ...and a MUTABLE one keeps its delete: `mut out := "..."` is
+    // reassigned, so by the delete the cap is whatever the last write left.
+    add_count(tests, "strings_keeps_mut_literal_delete", "build", "Str_delete(&out, 0);", 2,
+        format(til_bin, " translate -c gen/c/strings_md.c test/strings.til '&&' cat gen/c/strings_md.c"))
+    // A `ref` decl's deliberately-unused (void) guard was written twice --
+    // once in the Ref arm and once by the shared tail that runs for both
+    // arms (840 duplicated statements across the corpus).
+    add_count(tests, "enums_unused_guard_emitted_once", "build", "(void)_n;", 9,
+        format(til_bin, " translate -c gen/c/enums_ug.c test/enums.til '&&' cat gen/c/enums_ug.c"))
     // The forward header is written BEFORE the .c, so it has to gate on
     // the same settled inventory -- it used to see an empty one and omit
     // every lifecycle method the .c then defined. ext.c compiles against
