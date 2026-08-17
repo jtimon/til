@@ -1,0 +1,49 @@
+# priority: medium
+# category: features
+** OPEN #367 The NUL guarantee in the type: #343's route 2
+
+#343 shipped its route 1: the ext-call boundary panics when a Str whose
+~c_str~ feeds a C string parameter is not NUL-terminated (the compiled
+~TIL_CSTR~ macro, mirrored in the interpreter's FFI marshalling). That
+is a runtime backstop, and it sees only the direct ~expr.c_str~ form: a
+pointer laundered through an ~I8~ local first escapes it, and so does a
+binding's own C side. The rules in doc/ffi.org remain the rules; the
+check just turns getting them wrong into a panic naming the cause.
+
+Route 2 is the honest fix #343 recorded and deferred: make the
+guarantee VISIBLE IN THE TYPE, so ~s : Str~ stops meaning two different
+things ("length-counted bytes" and "C-ready string") depending on which
+caller you ask. A distinct type or qualifier for "NUL-terminated Str"
+that ~clone~ / ~format~ / ~with_capacity~ / string literals produce and
+~substr~ / ~trim~ views do not, checked at TYPECHECK time:
+
+- an ext binding's C-string parameter demands the terminated type, so
+  passing a view is a type error at the call site instead of a runtime
+  panic at the boundary;
+- ~clone()~ is the blessed conversion, exactly the idiom doc/ffi.org
+  already teaches -- the type makes the existing rule mechanical instead
+  of remembered;
+- core/str.til's own view-consuming functions (~eq~'s memcmp, ~substr~
+  chaining, ~hash~) keep taking plain ~Str~, so views stay first-class
+  everywhere the count is authoritative -- which is everywhere except
+  the C boundary.
+
+Why it is large, recorded so the estimate survives: it touches every
+signature that currently says ~Str~ and means "C-ready" -- the ext
+bindings in vendor/bindings/*.til with ~I8~ string params, their
+wrappers (src/modes/gui.til, std/sys's ~get_env~), and the binder's
+generation so regenerated bindings come out with the right type. The
+design question to settle first is the SHAPE: a wrapper type
+(~CStr~-like, with an explicit accessor), a qualifier on Str, or a
+refinement the typer tracks. The wrapper is the smallest honest
+version: no inference machinery, conversions are spelled, and the
+runtime representation stays a Str whose invariant is established at
+construction.
+
+Keep route 1's runtime check even after route 2 lands: the type governs
+til call sites, while the macro also catches invariant breakage coming
+from the C side (an ext function returning a Str it forgot to
+terminate), which no til-side type can see. #343's NUL audit -- every
+allocating Str path reserves count+1 -- is the invariant both routes
+stand on; ~test_file_readfile_is_nul_terminated~ and the boundary tests
+(~cstr_view_interp~ / ~cstr_view_run~) pin it.

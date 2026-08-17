@@ -1,0 +1,59 @@
+# priority: high
+# category: bugs
+** OPEN #366 substr returns an owned copy interpreted and a view compiled
+
+The two backends do not agree on what ~substr~ RETURNS. Measured, not
+inferred (the probe is three lines; both runs on the same master):
+
+    s := format("TIL_ISSUE", "_343_VIEW")
+    v := s.substr(0, 13)
+
+    interpreted:  v.cap=13         byte13=0    same_buf=false
+    compiled:     v.cap=CAP_VIEW   byte13='_'  same_buf=true
+
+Compiled is what core/str.til writes: a real ~CAP_VIEW~ into the base's
+buffer, unterminated, sharing storage. Interpreted materializes an owned
+copy -- fresh buffer, ~cap = count~, NUL at the end. Same expression, two
+different values.
+
+Why it is expensive rather than cosmetic: every view-lifetime bug is
+UNREPRODUCIBLE interpreted. A dangling view reads freed memory only when
+it aliases the freed buffer, and a missing NUL only bites when the bytes
+are shared -- interpreted, neither is ever true, so such a bug passes the
+interpreted half of every ~both~ test and ships in the binary. This has
+cost real time twice already:
+
+- #350's dangling hoisted views passed every interpreted run and
+  surfaced only compiled.
+- #343's first regression fixture used ~substr~ and PASSED compiled
+  while FAILING interpreted -- the check fired on the compiled view and
+  had nothing to fire on interpreted, because there was no view. The
+  landed fixture spells the view with the ~Str~ constructor instead,
+  with a comment explaining why; that comment is this issue's pointer.
+
+doc/ffi.org mentions the divergence in one sentence ("it only bites in
+COMPILED code -- the interpreter materialises ~substr~ as an owned
+copy") but nothing tracks it and no test pins it either way.
+
+Two honest resolutions; pick one, do not leave it implicit:
+
+1. *Interpreter aliases like the compiler.* The interpreter's Str
+   evaluation builds a view over the base's interned buffer, cap =
+   CAP_VIEW, no copy. Both backends then hold the same value, and the
+   view-lifetime machinery (#350's taint pass, #343's boundary check)
+   becomes exercisable by interpreted tests -- which is most of the
+   suite. The likely cost is the interpreter's teardown paths, which
+   today can assume every Str it produced owns its buffer.
+2. *The divergence is declared deliberate, in writing.* If the
+   interpreter's copying is load-bearing (its heap model may not have a
+   sane owner for a borrowed view), then doc/self.org or doc/ffi.org
+   states it as a rule with the reasoning, and the consequence is
+   accepted: view bugs are compiled-only bugs, and every regression
+   test for one must either run compiled or spell its view with the
+   ~Str~ constructor, never ~substr~ / ~trim~ / ~trim_start~.
+
+(1) is the honest fix and should be tried first; (2) is the fallback if
+(1)'s cost turns out structural. Either way a ~both~ test pins the
+chosen behavior -- e.g. assert ~v.c_str.ptr_eq(s.c_str)~ (choice 1) or
+document-and-pin the copy (choice 2) -- so the next divergence in this
+family fails a test instead of costing another #343-shaped detour.

@@ -1,4 +1,6 @@
 * Bugs
+** High
+*** [[./open/366.org][#366]] substr returns an owned copy interpreted and a view compiled
 ** Medium
 *** [[./open/358.org][#358]] array() / vec() literals do not type-check their elements
 *** [[./open/359.org][#359]] One generic applied both explicitly and by deduction is monomorphized twice
@@ -43,6 +45,7 @@
 ** Medium
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
+*** [[./open/367.org][#367]] The NUL guarantee in the type: #343's route 2
 ** Low
 *** [[./open/63.org][#63]] User-defined modes
 *** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
