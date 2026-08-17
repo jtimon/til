@@ -31,17 +31,36 @@ main := proc() {
 }
 #+end_src
 
+Symptoms as first seen, on master ~848c25d~:
+
 - COMPILED: ~free(): double free detected in tcache 2~, exit 134. The
   emitted C has a balancing ~Str_delete(line, 1)~ on the UNTAKEN branch
   and an unconditional ~if ((line)->cap != TIL_CAP_LIT) { free(line); }~
   at loop end -- the untaken path frees the wrapper twice.
-- COMPILED UNDER ASAN: ~heap-use-after-free~ at the same site, so the
-  suite's ASAN harness does catch it -- ONCE something in the corpus
-  exercises the shape (see below).
+- COMPILED UNDER ASAN: ~heap-use-after-free~ at the same site.
 - INTERPRETED: ~panic: free of moved binding: line~
   (src/self/interpreter.til, h_free) -- the TAKEN path this time: the
   ctor marked the binding moved, and the garbager-inserted iteration
   cleanup frees it anyway.
+
+*** IT WENT QUIET, it did not get fixed (re-checked on master ~133ef49~)
+
+Two of those three symptoms are gone and the bug is not:
+
+- COMPILED: exit 0, prints the right answer. The emitted C still has
+  BOTH frees -- ~Holder_delete(h, 1)~ (which frees ~h->line~'s buffer
+  through the field) and the unconditional loop-end
+  ~if ((line)->cap != TIL_CAP_LIT) { free(line); }~ -- glibc's tcache
+  simply no longer notices, so the program reads freed memory and
+  happens to get 2.
+- INTERPRETED: exit 0, prints the right answer, no panic.
+- COMPILED UNDER ASAN: still ~heap-use-after-free~, at
+  ~h->line = DEREF(line)~'s scope end.
+
+So do NOT close this on "cannot reproduce": run the repro under ASAN,
+which is the only surviving detector, and read the emitted C. A silent
+wrong-lifetime is worse than the loud version it replaced -- and it is
+precisely why part 2 below matters more than part 1.
 
 Three different failures, one root cause: the cleanup decision is made
 per SCOPE while the consume decision is made per PATH. This is exactly
