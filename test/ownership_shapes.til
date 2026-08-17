@@ -16,7 +16,12 @@ mode test
 // of waiting for someone to need that shape.
 //
 // Cells the typer is supposed to REJECT are negative cases and belong in
-// test/typer_errors.til, not here.
+// test/typer_errors.til, not here. Cells that are ACCEPTED and still wrong
+// belong in the issue as repros until they are fixed -- see #364's
+// nested-loop finding; adding them here would just paint the suite red.
+
+import("../src/std/hashmap")
+import("../src/std/hashset")
 
 Holder := struct {
     s := ""
@@ -26,12 +31,21 @@ RefHolder := struct {
     ref r : Str
 }
 
+Tag := enum { A, B, C }
+
 // --- consume sites -----------------------------------------------------
 
 take_own := func(own s: Str) returns USize {
     n := s.len()
     Str.delete(own s)
     return n
+}
+
+// til has no `ref` qualifier on parameters -- they are borrowed by
+// default ("no need for 'ref' on parameter"), so this IS the borrowed-
+// parameter row. The callee must never free what it was lent.
+borrow_len := func(s: Str) returns USize {
+    return s.len()
 }
 
 // --- owned local -------------------------------------------------------
@@ -262,4 +276,199 @@ own_param_paths := test() {
     b := lit.clone()
     assert_eq(USize, own_param_ctor_in_branch(own a, true), 5)
     assert_eq(USize, own_param_ctor_in_branch(own b, false), 5)
+}
+
+// --- borrowed parameter -------------------------------------------------
+
+ref_param_into_ref_field := func(s: Str) returns USize {
+    rh := RefHolder(r = s)
+    return rh.r.len()
+}
+
+borrowed_param_straight := test() {
+    lit := "hello"
+    base := lit.clone()
+    assert_eq(USize, borrow_len(base), 5)
+    assert_eq(USize, base.len(), 5)
+}
+
+borrowed_param_in_branch_in_loop := test() {
+    lit := "hello"
+    base := lit.clone()
+    mut kept : USize = 0
+    for i in 0..3 {
+        if i == 1 {
+            kept = kept + borrow_len(base)
+        }
+    }
+    assert_eq(USize, kept, 5)
+    assert_eq(USize, base.len(), 5)
+}
+
+/// A borrowed parameter parked in a `ref` field: the holder must not free
+/// it, and the caller's value must survive the call.
+borrowed_param_parked_in_ref_field := test() {
+    lit := "hello"
+    base := lit.clone()
+    assert_eq(USize, ref_param_into_ref_field(base), 5)
+    assert_eq(USize, base.len(), 5)
+}
+
+// --- field assign as a consume site -------------------------------------
+
+own_local_field_assign_straight := test() {
+    lit := "hello"
+    s := lit.clone()
+    mut h := Holder()
+    h.s = s
+    assert_eq(USize, h.s.len(), 5)
+}
+
+own_local_field_assign_in_branch_in_loop := test() {
+    lit := "hello"
+    mut kept : USize = 0
+    for i in 0..3 {
+        s := lit.clone()
+        if i == 1 {
+            mut h := Holder()
+            h.s = s
+            kept = kept + h.s.len()
+        }
+    }
+    assert_eq(USize, kept, 5)
+}
+
+view_local_field_assign_in_branch_in_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut kept : USize = 0
+    mut pos : USize = 0
+    while pos < src.len() {
+        line := src.substr(pos, 2)
+        if line.starts_with("b") {
+            mut h := Holder()
+            h.s = line
+            kept = kept + h.s.len()
+        }
+        pos = pos + 3
+    }
+    assert_eq(USize, kept, 2)
+}
+
+// --- Map / Set inserts --------------------------------------------------
+
+own_local_map_set_in_branch_in_loop := test() {
+    lit := "hello"
+    mut m := HashMap(Str, Str).new()
+    for i in 0..3 {
+        s := lit.clone()
+        if i == 1 {
+            m.set("k", own s)
+        }
+    }
+    assert_eq(USize, m.len(), 1)
+}
+
+view_local_map_set_in_branch_in_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut m := HashMap(Str, Str).new()
+    mut pos : USize = 0
+    while pos < src.len() {
+        line := src.substr(pos, 2)
+        if line.starts_with("b") {
+            m.set("k", own line)
+        }
+        pos = pos + 3
+    }
+    assert_eq(USize, m.len(), 1)
+}
+
+own_local_set_add_in_branch_in_loop := test() {
+    lit := "hello"
+    mut hs := HashSet(Str).new()
+    for i in 0..3 {
+        s := lit.clone()
+        if i == 1 {
+            hs.add(own s)
+        }
+    }
+    assert_eq(USize, hs.len(), 1)
+}
+
+// --- switch arms --------------------------------------------------------
+
+own_local_ctor_in_switch_arm := test() {
+    lit := "hello"
+    t := Tag.B
+    s := lit.clone()
+    mut kept : USize = 0
+    switch t {
+    case Tag.B:
+        h := Holder(s = s)
+        kept = h.s.len()
+    case:
+        kept = take_own(own s)
+    }
+    assert_eq(USize, kept, 5)
+}
+
+view_local_own_arg_in_switch_arm_in_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut kept : USize = 0
+    mut pos : USize = 0
+    while pos < src.len() {
+        line := src.substr(pos, 2)
+        t := Tag.A
+        switch t {
+        case Tag.A:
+            if line.starts_with("b") {
+                kept = kept + take_own(own line)
+            }
+        case:
+            UNREACHABLE()
+        }
+        pos = pos + 3
+    }
+    assert_eq(USize, kept, 2)
+}
+
+// --- nested loops -------------------------------------------------------
+//
+// These cells declare the local in the INNERMOST body, so its graft view
+// is the loop body it lives in and no While wraps the transfer. The
+// dangerous variant -- a local declared in the OUTER body and consumed
+// under an `if` in the inner loop -- is neither rejected nor cleaned up;
+// it leaks, and repeats double-free. Both repros live in #364 rather
+// than here, because a failing cell would just paint the suite red.
+
+own_local_ctor_in_nested_loop := test() {
+    lit := "hello"
+    mut kept : USize = 0
+    for i in 0..3 {
+        for j in 0..3 {
+            s := lit.clone()
+            if i == j {
+                h := Holder(s = s)
+                kept = kept + h.s.len()
+            }
+        }
+    }
+    assert_eq(USize, kept, 15)
+}
+
+view_local_own_arg_in_nested_loop := test() {
+    src := "aa\nbb\ncc\n"
+    mut kept : USize = 0
+    mut outer : USize = 0
+    while outer < 2 {
+        mut pos : USize = 0
+        while pos < src.len() {
+            line := src.substr(pos, 2)
+            if line.starts_with("b") {
+                kept = kept + take_own(own line)
+            }
+            pos = pos + 3
+        }
+        outer = outer + 1
+    }
+    assert_eq(USize, kept, 4)
 }

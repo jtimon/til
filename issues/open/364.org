@@ -160,10 +160,61 @@ crash at a time.
       `return`s, which would strand the free behind it), before the
       record is cleared.
 
-- [ ] Remaining: the matrix is 16 cells, not the whole table. Field
-      assign as a consume site, `ref` params, Map/Set inserts, switch
-      arms and nested loops are not written yet, and each is a cheap
-      addition to the same file. Add them as they are needed rather
-      than in one sitting -- the point of the file is that a cell
-      costs a dozen lines, so a future ownership change can bring its
-      own.
+- [X] The rest of the listed rows: field assign as a consume site,
+      borrowed params (til has no `ref` qualifier on parameters -- they
+      are borrowed by default, so that row IS the ordinary parameter),
+      HashMap.set / HashSet.add, switch arms, and nested loops. 13 more
+      cells, 29 in the file, clean in both backends under ASAN.
+
+      Writing them found the nested-loop row below, which is why the
+      row is worth its dozen lines even when it passes.
+
+- [ ] Remaining: a local declared in an OUTER loop body and consumed
+      under an `if` in an INNER loop is neither rejected nor cleaned
+      up. Two symptoms, one gate. Repro A leaks:
+
+      #+begin_src til
+      for i in 0..2 {
+          s := lit.clone()
+          for _ in 0..1 {
+              if i == 1 { kept = kept + take_own(own s) }
+          }
+      }
+      #+end_src
+
+      The emitted C has NO `Str_delete(&s, ...)` anywhere, so the
+      i == 0 clone is lost: 6 bytes, reported by ASAN only. Swap the
+      inner `for` for a plain `{ }` block and the graft appears
+      (`else { Str_delete(&s, 0); }`) and the leak is gone -- it is the
+      LOOP between declaration and consume that loses it, not the
+      condition. Interpreted, repro A passes silently.
+
+      Repro B is the same shape with an inner loop that trips 3 times
+      while the condition stays true, so `s` is consumed three times:
+      compiled gives ~AddressSanitizer: attempting double-free~,
+      interpreted gives ~panic: argument from moved binding: s~. The
+      UNCONDITIONAL version (~for _ in 0..3 { take_own(own s) }~) is
+      rejected with "ownership of 's' transferred inside a loop"; the
+      `if` makes that diagnostic back off.
+
+      Both trace to ~transfer_lex_inside_while~
+      (src/self/garbager.til:2058), consulted at :2123 (the
+      diagnostic, via ~while_spine_transfers~ skipping If-guarded arms)
+      and at :2910 (the per-path graft). The stand-down is deliberate
+      and correct for the desugarer's splat push,
+      ~for j { if ji == vi { push(own splat) } }~, where the condition
+      fires exactly once across all iterations and a per-path delete
+      would free a value a later iteration still needs. The shape then
+      falls between the two: not rejected, not cleaned up.
+
+      Separating the two cases means telling "fires at most once across
+      the loop" from "fires per iteration", which is not decidable
+      statically in general. The general answer is a runtime moved-flag
+      per local (free at scope end iff not transferred), which changes
+      emitted C and costs a byte plus a branch per affected local; the
+      narrow answer is to reject the ambiguous shape and let the splat
+      push carry an annotation. Both are calls for the human.
+
+      The matrix's nested-loop cells that DO pass declare the local in
+      the innermost body, so its graft view is the loop body it lives
+      in and no While wraps the transfer.
