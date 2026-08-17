@@ -37,3 +37,40 @@
     objects) is the cautionary precedent for both: keep the desugared
     loop close to raw arithmetic, not per-element FuncPtr dispatch.
 
+
+  2026-08-17 status sweep (with the for-in / interfaces landscape):
+  - The METHOD-DRIVEN generalization this issue and [[./34.org][#34]]
+    aimed at already holds on both sides: collection for-in iterates any
+    struct with ~len()~ + ~unsafe_get(i)~ ([[./34.org][#34]],
+    [[./284.org][#284]], both fixed -- and the builder inlines both
+    accessors, #300/#326, so a conforming user struct iterates at
+    pointer-arithmetic cost, no call per element). Range covers the
+    range side for the builtin integer element types via the typer
+    desugar ([[./100.org][#100]]).
+  - Range is now the EXAMPLE of iterating a container-like value
+    without container cost, and the bar this issue's implementation has
+    to clear: ~a..b~ never materialises a Range object -- the desugar
+    is a counter, a bound and a while, and when the direction is
+    statically known (literal bounds, or a 0 start with an unsigned
+    element -- 418 of the repo's 535 range loops) only ONE loop body is
+    built and emitted (-11.2% generated C, -6.0% instructions when that
+    landed). Whatever generalizes Range to user types with inc/dec must
+    keep that: specialize per element type at desugar time; do not
+    reintroduce the FuncPtr-field Range object recorded above as the
+    bootstrap slowdown.
+  - The interfaces machinery this could ride on EXISTS now:
+    ~interface~ + ~implements~ with typechecked conformance
+    ([[../fixed/251.org][#251]], fixed) and interface-typed values with
+    dynamic dispatch ([[../fixed/269.org][#269]], fixed). A
+    conformance-checked ~Iterable~ / ~Steppable~ interface is the clean
+    spelling for "for-in accepts any struct with the right methods" --
+    but for-in must keep binding the methods STATICALLY at desugar time
+    (the #269 dyn-dispatch box is for interface-typed VALUES, and a
+    dispatch per element is exactly the recorded slowdown).
+  - Unblocked since the blocker list above: the #368 fix removed the
+    last ownership landmine in the range desugar itself (its arms
+    early-return per proven direction again, the natural shape), the
+    scavenger's member sweep is #326-era and no longer blanket-removes
+    ns methods, and [[./79.org][#79]]'s USize-width alias plumbing
+    landed via #309. The wip_94 branch predates ALL of that; a fresh
+    attempt should start from the current desugar, not the branch.
