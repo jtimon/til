@@ -57,10 +57,13 @@ Two concrete slices HAVE landed since:
   1. Step 3 below -- typer enforcement -- never happened. Nothing forbids
      copying a managed aggregate's bytes; the ban would have to live over
      TYPED pointers, since a ~Dynamic~ erases the owned pointer it carries.
-  2. The #245 / #239 deep fix this gates: making
-     ~StructInstance.struct_name~-style type names OWNED rather than
-     borrowed through the ~stable_type_name~ workaround. That workaround
-     is still in place.
+  2. (DONE 2026-08) The #245 / #239 workaround is gone. ~stable_type_name~
+     is deleted and the three clone sites pass the Declaration's own name
+     straight through: the memcpy-duplication that made an owned name
+     double-free no longer exists, so the borrow no longer needs
+     canonicalising to program-lifetime storage -- and the linear scan over
+     ~interp_type_defs~ it did on every nested clone goes with it. Full
+     suite green, ASAN included.
   3. A related divergence found while sweeping #357: a by-value scalar
      passed to a pointer position (~ptr_add(q, 1)~ on a ~q : U8~ param)
      reads through the value in compiled C and yields 0 interpreted. The
@@ -143,13 +146,13 @@ This issue is the hub of the *memory-ownership* track:
     SAME workaround: keep the field a borrow, but canonicalise the name to
     program-lifetime scope storage (~stable_type_name~) so it can't dangle.
   - The DEEP fix for #239/#245 -- making those names *owned* ~Str~ -- was
-    tried and reverted: it double-frees because ~shallow_copy_value~ is a
-    literal ~memcpy~ that duplicates the owned ~c_str~. So owning the names
-    is GATED on this issue: once aggregate construction/copy moves instead of
-    memcpy-duplicating (step 1 + the ~shallow_copy_value~ rework), the names
-    (and other owned heap fields) can finally be owned, and the
-    ~stable_type_name~ borrow workaround can be deleted. i.e. #275 is the
-    follow-up that unblocks the #245 deep fix.
+    tried and reverted back then: it double-freed because
+    ~shallow_copy_value~ was a literal ~memcpy~ that duplicated the owned
+    ~c_str~. Both the offending copy and the types that carried those
+    fields are gone, and with them the reason for the workaround:
+    ~stable_type_name~ was deleted in 2026-08 and the clone sites pass the
+    borrowed name directly (suite green, ASAN included). Nothing here is
+    gated on this issue any more.
   - #109 (interpreter leak baseline) and #147 (AST-as-cache / dangerous AST
     refs) are where #245's post-mortem parked the deeper rework; #272 is the
     governing principle (single ownership authority). All of these resolve

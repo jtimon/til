@@ -54,13 +54,6 @@ priv decl_is_funcsig := func(dd: Declaration, ctx: Context) returns Bool {
     return false
 }
 
-priv stable_type_name := func(name: Str, ctx: Context) returns ref Str {
-    for registered, _ in ctx.interp_type_defs {
-        if registered == name { return registered }
-    }
-    panic("interpreter type name is not registered: ", name)
-}
-
 priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns Bool {
     for dd : Declaration in sdef_data.fields {
         if dd.own_type.is(OwnType.Own) { return false }
@@ -171,12 +164,11 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 if src_ptr.is_null().not() {
                     if nested_def_o.is_some() {
                         ref nested_def : Expr = nested_def_o.unwrap()
-                        ref stable_ftype : Str = stable_type_name(ftype, ctx)
                         if nested_def.node_type.is(NodeType.EnumDef) {
-                            cloned_enum : Dynamic = heap_clone_enum(stable_ftype, to_ptr(src_ptr), ctx_total_size(stable_ftype, ctx), ctx)
+                            cloned_enum : Dynamic = heap_clone_enum(ftype, to_ptr(src_ptr), ctx_total_size(ftype, ctx), ctx)
                             write_ptr(ptr_add(dst_data, foff), cloned_enum)
                         } else {
-                            cloned_struct : Dynamic = heap_clone(stable_ftype, to_ptr(src_ptr), ctx)
+                            cloned_struct : Dynamic = heap_clone(ftype, to_ptr(src_ptr), ctx)
                             write_ptr(ptr_add(dst_data, foff), cloned_struct)
                         }
                     }
@@ -199,8 +191,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 ref nested_def : Expr = nested_def_o.unwrap()
                 if nested_def.node_type.is(NodeType.EnumDef) {
                     if enum_has_payloads(nested_def) {
-                        ref stable_enum_name : Str = stable_type_name(ftype, ctx)
-                        enum_payload_deep_clone(stable_enum_name, ptr_add(dst_data, foff), ctx)
+                        enum_payload_deep_clone(ftype, ptr_add(dst_data, foff), ctx)
                         continue
                     }
                 }
@@ -210,8 +201,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 if nested_def.node_type.is(NodeType.EnumDef).not() {
                     switch nested_def.node_type {
                     case .StructDef:
-                        ref stable_ftype2 : Str = stable_type_name(ftype, ctx)
-                        cloned_ptr2 : Dynamic = heap_clone(stable_ftype2, ptr_add(data, foff), ctx)
+                        cloned_ptr2 : Dynamic = heap_clone(ftype, ptr_add(data, foff), ctx)
                         memcpy(ptr_add(dst_data, foff), cloned_ptr2, ctx_total_size(ftype, ctx))
                         EvalHeap.heap_free(own cloned_ptr2)
                     case:
