@@ -354,7 +354,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             ref s : Str = to_ptr(raw)
             count := str_count_at(raw, ctx)
             cap := str_cap_at(raw, ctx)
-            if cap.lt(CAP_INLINE).and(cap.gt(count)) { return Option(Expr).None }
+            if cap.lt(CAP_VIEW).and(cap.gt(count)) { return Option(Expr).None }
             view := Str(c_str = s.c_str, count = count, cap = CAP_VIEW)
             escaped := str_to_source_form(view)
             return Option(Expr).Some(Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col))
@@ -1686,11 +1686,6 @@ constfolder_register_core_constants := func(mut global: Scope, usize_name: Str, 
         cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
         write_u64(cap_lit_raw, lit64)
         scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, interp_intern_type(Type.Primitive(Primitive.U64), ctx), OwnType.Shallow, ctx)
-        mut inline64 : U64 = 2
-        inline64 = inline64.bnot()     // -3 as U64
-        cap_inline_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
-        write_u64(cap_inline_raw, inline64)
-        scope_set_raw_owned(global, "CAP_INLINE", cap_inline_raw, interp_intern_type(Type.Primitive(Primitive.U64), ctx), OwnType.Shallow, ctx)
     } else if usize_name == "U32" {
         cap_view_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_view_raw, 4294967294)
@@ -1698,9 +1693,6 @@ constfolder_register_core_constants := func(mut global: Scope, usize_name: Str, 
         cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_lit_raw, 4294967295)
         scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, interp_intern_type(Type.Primitive(Primitive.U32), ctx), OwnType.Shallow, ctx)
-        cap_inline_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
-        write_u32(cap_inline_raw, 4294967293)
-        scope_set_raw_owned(global, "CAP_INLINE", cap_inline_raw, interp_intern_type(Type.Primitive(Primitive.U32), ctx), OwnType.Shallow, ctx)
     } else {
         // USize is an interface: its width is per-build, and each width
         // needs its own sentinel encoding here. Unknown widths must fail

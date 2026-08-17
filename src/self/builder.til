@@ -2288,7 +2288,7 @@ priv is_noop_delete_stmt := func(e: Expr, mut ctx: Context) returns Bool {
         // #326: an immutable Str-literal local IS the CAP_LIT wrapper --
         // either its own file-scope static or a member of the shared pool.
         // BOTH of Str.delete's branches test that cap: the char data is
-        // static (`cap < CAP_INLINE` is false for the largest USize) and
+        // static (`cap < CAP_VIEW` is false for the largest USize) and
         // `call_free.and(cap.neq(CAP_LIT))` is false whatever call_free
         // says. So the call cannot do anything, and nothing can change the
         // cap out from under it -- the binding is immutable and a write

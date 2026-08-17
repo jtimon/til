@@ -170,8 +170,8 @@ static struct {
 #define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); if (_g >= (UPtr)(const void *)&_til_str_lits && _g < (UPtr)(const void *)(&_til_str_lits + 1)) { fprintf(stderr, "panic: write through a shared string literal\n"); exit(1); } } while (0)
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
-static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:146:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:150:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:124:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:128:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_10 = (Str){.c_str = (void *)"test/constfold.til:297:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_16 = (Str){.c_str = (void *)"test/constfold.til:298:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_21 = (Str){.c_str = (void *)"test/constfold.til:299:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -225,7 +225,6 @@ static Str hoisted__Str_test_variadic_fold_8 = (Str){.c_str = (void *)"test/cons
 
 USize CAP_LIT;
 USize CAP_VIEW;
-static USize CAP_INLINE;
 
 static Str format(Array__Str * parts) {
     USize total = 0;
@@ -367,7 +366,7 @@ static Str Str_to_str(Str * self) {
 }
 
 static void Str_delete(Str * self, Bool call_free) {
-    Bool hoisted__Bool_0 = ((Bool)(self->cap < CAP_INLINE));
+    Bool hoisted__Bool_0 = ((Bool)(self->cap < CAP_VIEW));
     if (hoisted__Bool_0) {
         free(self->c_str);
     }
@@ -1008,7 +1007,6 @@ static void assert_eq__Str(Str * a, Str * b, Str * loc) {
 int main(void) {
     CAP_LIT = 4294967295;
     CAP_VIEW = 4294967294;
-    CAP_INLINE = 4294967293;
     test_simple_add();
     fprintf(stderr, "  pass: %s\n", "test_simple_add");
     test_nested_arithmetic();

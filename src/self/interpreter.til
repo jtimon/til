@@ -98,16 +98,14 @@ priv check_c_string_terminator := func(s_base: Dynamic, ctx: Context) {
     }
 }
 
-// `< CAP_INLINE` is "owns a SEPARATE buffer" -- the thing worth freeing on
-// its own. An inline Str's bytes ride inside its box and go with it.
 priv str_owns_c_str := func(s_base: Dynamic, ctx: Context) returns Bool {
     ref s : Str = to_ptr(s_base)
-    return s.c_str.is_null().not().and(str_cap_at(s_base, ctx).lt(CAP_INLINE)).and(str_cap_at(s_base, ctx).gt(0))
+    return s.c_str.is_null().not().and(str_cap_at(s_base, ctx).lt(CAP_VIEW)).and(str_cap_at(s_base, ctx).gt(0))
 }
 
 priv str_has_owned_storage := func(ptr: Dynamic, ctx: Context) returns Bool {
     ref s : Str = to_ptr(ptr)
-    return s.c_str.is_null().not().and(str_cap_at(ptr, ctx).lt(CAP_INLINE)).and(str_cap_at(ptr, ctx).gt(0))
+    return s.c_str.is_null().not().and(str_cap_at(ptr, ctx).lt(CAP_VIEW)).and(str_cap_at(ptr, ctx).gt(0))
 }
 
 priv free_str_owned_storage := func(ptr: Dynamic, ctx: Context) {
