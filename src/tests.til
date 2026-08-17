@@ -946,6 +946,14 @@ main := proc(args: ..Str) {
     // A program's GLOBALS are static too, which puts -Wunused-variable on
     // duty beside -Wunused-function. CAP_LIT/CAP_VIEW stay extern: the
     // hand-written ext.c stamps them, the same boundary as Str_clone.
+    // TIL_CSTR's #define was unconditional -- a dead line in 121 of the
+    // corpus's 140 generated files. It is emitted when some surviving
+    // call actually passes a Str where an ext C function wants a char*,
+    // asked with the same two predicates the emitter chooses on.
+    add_count(tests, "hello_no_unused_cstr_macro", "build", "#define TIL_CSTR", 0,
+        format(til_bin, " translate -c gen/c/hs_cs.c examples/hello_script.til '&&' cat gen/c/hs_cs.c"))
+    add_count(tests, "cstr_view_keeps_cstr_macro", "build", "#define TIL_CSTR", 1,
+        format(til_bin, " translate -c gen/c/cv_cs.c test/cstr_view.til '&&' cat gen/c/cv_cs.c"))
     add_count(tests, "hello_globals_are_tu_local", "build", "static U32 CAP_LIT;", 0,
         format(til_bin, " translate -c gen/c/hs_gs.c examples/hello_script.til '&&' cat gen/c/hs_gs.c"))
     // Counted against gen/til/til.c, which `make` ALREADY produced to

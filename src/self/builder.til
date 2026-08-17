@@ -8511,7 +8511,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     // staying terminated, so a cap test would fire on safe values. Reading
     // it is always in bounds: every allocating Str path reserves count+1
     // (issue #343's audit) and a view's end never passes its base's.
-    f.write("#define TIL_CSTR(s) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, \"panic: Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first\\n\"); exit(1); } _cs->c_str; })\n")
+    if lp.ctx.builder_cstr_used {
+        f.write("#define TIL_CSTR(s) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, \"panic: Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first\\n\"); exit(1); } _cs->c_str; })\n")
+    }
 
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
     f.write("#define TIL_CAP_VIEW ((USize)-2)\n")
@@ -10782,6 +10784,33 @@ priv builder_collect_dyn_fn_targets := proc(e: Expr, mut targets: Set(Str)) {
         builder_collect_dyn_fn_targets(cdt_c, targets)
     }
 }
+// #326: the TIL_CSTR sites, asked the way the emitter asks -- the same
+// pair of predicates emit_fcall_args uses to choose emit_checked_c_str.
+priv builder_collect_cstr_use := func(e: Expr, mut used: Bool, ctx: Context) {
+    if used { return }
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gt(0)) {
+        bcu_name := resolve_callee_name(e)
+        if bcu_name.len() > 0 {
+            for bcu_i in 1..e.children.len() {
+                if ext_c_string_param(bcu_name, bcu_i - 1, ctx)
+                    .and(c_str_arg_needs_nul_check(e.children[bcu_i])) { used = true return }
+            }
+        }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref bcu_ns : Vec(Declaration) = def_ns_decls(e)
+        for bcu_d : Declaration in bcu_ns {
+            if bcu_d.default_value.is_none() { continue }
+            builder_collect_cstr_use(bcu_d.default_expr(), used, ctx)
+            if used { return }
+        }
+    }
+    for bcu_ch : Expr in e.children {
+        builder_collect_cstr_use(bcu_ch, used, ctx)
+        if used { return }
+    }
+}
+
 priv builder_collect_lit_guard_use := func(e: Expr, mut used: Bool) {
     if used { return }
     switch e.node_type {
@@ -10902,6 +10931,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     lp.ctx.builder_dyn_fn_targets = Set(Str).new()
     lp.ctx.builder_ns_member_sites = Set(Str).new()
     lp.ctx.builder_lit_guard_used = false
+    lp.ctx.builder_cstr_used = false
     // A library's exported ABI is roots by policy (seed_library_roots), so
     // the site-driven gates -- which can only see calls made by THIS
     // program -- must not drop an exported constructor or `size` a
@@ -10916,6 +10946,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
         builder_collect_reflect_inventory(lp.ctx.imported[upath].ast, lp.ctx.builder_reflect_inventory)
         builder_collect_dyn_fn_targets(lp.ctx.imported[upath].ast, lp.ctx.builder_dyn_fn_targets)
         builder_collect_lit_guard_use(lp.ctx.imported[upath].ast, lp.ctx.builder_lit_guard_used)
+        builder_collect_cstr_use(lp.ctx.imported[upath].ast, lp.ctx.builder_cstr_used, lp.ctx)
         collect_collection_builtins(lp.ctx.imported[upath].ast, inv_coll_infos)
     }
     // Which METHODS the dyn_call/dyn_call_ret bodies dispatch, not just that

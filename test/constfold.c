@@ -149,7 +149,6 @@ static Token Token_Num(I64 *);
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
 #define TIL_BOX(T) (sizeof(T) < sizeof(void *) ? sizeof(void *) : sizeof(T))
-#define TIL_CSTR(s) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, "panic: Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first\n"); exit(1); } _cs->c_str; })
 #define TIL_CAP_LIT ((USize)-1)
 #define TIL_CAP_VIEW ((USize)-2)
 static void print_single(Str *s) {

@@ -1708,6 +1708,7 @@ typedef struct Context {
     Bool builder_static_ok;
     Bool builder_keep_all_exports;
     Bool builder_lit_guard_used;
+    Bool builder_cstr_used;
     Option__ref_Expr current_fdef;
     Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
@@ -3906,6 +3907,7 @@ Bool priv___src_self_builder_til__builder_is_reflect_builtin_name(Str * n);
 void priv___src_self_builder_til__builder_record_reflect_name(Str * n, Set__Str * inv);
 void priv___src_self_builder_til__builder_collect_reflect_inventory(Expr * e, Set__Str * inv);
 void priv___src_self_builder_til__builder_collect_dyn_fn_targets(Expr * e, Set__Str * targets);
+void priv___src_self_builder_til__builder_collect_cstr_use(Expr * e, Bool * used, Context * ctx);
 void priv___src_self_builder_til__builder_collect_lit_guard_use(Expr * e, Bool * used);
 void priv___src_self_builder_til__collect_dyn_methods(Expr * e, Vec__DynCallInfo * methods);
 void priv___src_self_builder_til__collect_collection_builtins(Expr * e, Vec__CollectionInfo * infos);

@@ -1265,6 +1265,11 @@ Context := struct {
     // under-answering is an undefined-macro build error, so the collector
     // takes the conservative side on every shape it is unsure of.
     builder_lit_guard_used := false
+    // #326: does any surviving call pass a Str where an ext C function
+    // wants a `char *`? Only then does the emitter write TIL_CSTR, and
+    // only then is its #define anything but a dead line -- it was
+    // unconditional, dead in 139 of the corpus's 140 generated files.
+    builder_cstr_used := false
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 
