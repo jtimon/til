@@ -3680,7 +3680,7 @@ Bool priv___src_self_builder_til__builder_ns_has_func(Expr * def, Str * method);
 Bool priv___src_self_builder_til__builder_ns_func_returns_c_value(Expr * def, Str * method);
 Bool priv___src_self_builder_til__builder_ns_func_param_shallow(Expr * def, Str * method);
 Str priv___src_self_builder_til__enum_ctor_ret_c(Str * ename);
-void priv___src_self_builder_til__emit_enum_eq_ext_decl(File * f, Str * enum_name, Expr * enum_def);
+void priv___src_self_builder_til__emit_enum_eq_ext_decl(File * f, Str * enum_name, Expr * enum_def, Str * st);
 void priv___src_self_builder_til__emit_header_defs_and_funcs_lp(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_header_global_decls_lp(File * f, LoadedProgram * lp);
 I32 build_forward_header_lp(Str * fwd_path, LoadedProgram * lp);

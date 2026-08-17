@@ -4891,7 +4891,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
         for vd : VariantDef in edd.variants {
             ref vn : Str = vd.name
             if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
-            f.write(name).write(" ").write(name).write("_").write(vn).write("() {\n")
+            f.write(builder_static_prefix(lp.ctx)).write(name).write(" ").write(name).write("_").write(vn).write("() {\n")
             f.write("    ").write(name).write(" r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
             f.write("    return r;\n").write("}\n")
         }
@@ -4903,7 +4903,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
             ref vn : Str = vd.name
             if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             vt := enum_variant_type(enum_def, i.to_i32())
-            f.write(name).write(" ").write(name).write("_").write(vn).write("(")
+            f.write(builder_static_prefix(lp.ctx)).write(name).write(" ").write(name).write("_").write(vn).write("(")
             if vt.len() > 0 { f.write(type_name_to_c(vt, lp.ctx)).write(" val") }
             f.write(") {\n")
             f.write("    ").write(name).write(" r;\n")
@@ -4919,14 +4919,14 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
             if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             vt := enum_variant_type(enum_def, i.to_i32())
             if vt.len() == 0 {
-                f.write(name).write(" ").write(name).write("_").write(vn).write("() {\n")
+                f.write(builder_static_prefix(lp.ctx)).write(name).write(" ").write(name).write("_").write(vn).write("() {\n")
                 f.write("    ").write(name).write(" r = {0};\n")
                 f.write("    r.tag = ").write(name).write("_TAG_").write(vn).write(";\n")
                 f.write("    return r;\n").write("}\n")
                 continue
             }
             ptype := type_name_to_c(vt, lp.ctx)
-            f.write(name).write(" ").write(name).write("_").write(vn).write("(").write(ptype).write(" val) {\n")
+            f.write(builder_static_prefix(lp.ctx)).write(name).write(" ").write(name).write("_").write(vn).write("(").write(ptype).write(" val) {\n")
             f.write("    ").write(name).write(" r = {0};\n")
             f.write("    r.tag = ").write(name).write("_TAG_").write(vn).write(";\n")
             if enum_variant_payload_ref(enum_def, i.to_i32()) {
@@ -5516,13 +5516,13 @@ priv enum_ctor_ret_c := func(ename: Str) returns Str {
     return format(ename, " ")
 }
 
-priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
+priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr, st: Str) {
     if builder_ns_has_func(enum_def, "eq").not() { return }
     mut eq_ret := "Bool *"
     if builder_ns_func_returns_c_value(enum_def, "eq") { eq_ret = "Bool" }
     mut eq_param := format(enum_name, " *")
     if builder_ns_func_param_shallow(enum_def, "eq") { eq_param = enum_name.clone() }
-    f.fwrite(eq_ret, " ", enum_name, "_eq(", eq_param, ", ", eq_param, ");\n")
+    f.fwrite(st, eq_ret, " ", enum_name, "_eq(", eq_param, ", ", eq_param, ");\n")
 }
 
 priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
@@ -5617,16 +5617,16 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = decl_of(stmt)
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name)
             for hdr_vd : VariantDef in hdr_edd.variants {
                 if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
                 if hdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
-                    f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
+                    f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
                 } else {
-                    f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("();\n")
+                    f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("();\n")
                 }
             }
         }
@@ -6787,16 +6787,16 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
                 if stmt.children.len() == 0 { continue }
                 if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
                 ref dd : Declaration = decl_of(stmt)
-                if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
+                if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
                 ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
                 ctor_ret := enum_ctor_ret_c(dd.name)
                 for shdr_vd : VariantDef in shdr_edd.variants {
                     if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                     if shdr_vd.payload_type.len() > 0 {
                         tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
-                        f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
+                        f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
                     } else {
-                        f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("();\n")
+                        f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("();\n")
                     }
                 }
             }
@@ -6810,16 +6810,16 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case .Decl(dd):
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
             ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name)
             for shdr_vd : VariantDef in shdr_edd.variants {
                 if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                 if shdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
-                    f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
+                    f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
                 } else {
-                    f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("();\n")
+                    f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("();\n")
                 }
             }
             case:
@@ -6838,15 +6838,15 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     for info : DynCallInfo in dyn_methods {
         if info.has_return {
             if info.nargs == 1 {
-                f.write("void *dyn_call_").write(info.method).write("(Str *type_name, void *val);\n")
+                f.write(builder_static_prefix(lp.ctx)).write("void *dyn_call_").write(info.method).write("(Str *type_name, void *val);\n")
             } else {
-                f.write("void *dyn_call_").write(info.method).write("(Str *type_name, void *val, void *arg2);\n")
+                f.write(builder_static_prefix(lp.ctx)).write("void *dyn_call_").write(info.method).write("(Str *type_name, void *val, void *arg2);\n")
             }
         } else {
             if info.nargs == 1 {
-                f.write("void dyn_call_").write(info.method).write("(Str *type_name, void *val);\n")
+                f.write(builder_static_prefix(lp.ctx)).write("void dyn_call_").write(info.method).write("(Str *type_name, void *val);\n")
             } else {
-                f.write("void dyn_call_").write(info.method).write("(Str *type_name, void *val, void *arg2);\n")
+                f.write(builder_static_prefix(lp.ctx)).write("void dyn_call_").write(info.method).write("(Str *type_name, void *val, void *arg2);\n")
             }
         }
     }
@@ -6867,39 +6867,39 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     // gates in emit_program). An unreferenced prototype is not a warning,
     // but it advertises a definition that no longer exists.
     if builder_needs_reflect("dyn_fn", lp.ctx) {
-        f.write("void *dyn_fn(Str *type_name, Str *method);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("void *dyn_fn(Str *type_name, Str *method);\n")
     }
     if builder_needs_reflect("dyn_size_of", lp.ctx) {
-        f.write("USize dyn_size_of(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("USize dyn_size_of(Str *type_name);\n")
     }
     if builder_needs_reflect("dyn_storage_kind", lp.ctx) {
-        f.write("USize dyn_storage_kind(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("USize dyn_storage_kind(Str *type_name);\n")
     }
     if builder_needs_reflect("struct_field_", lp.ctx) {
-        f.write("I64 struct_field_count(Str *type_name);\n")
-        f.write("Str *struct_field_name(Str *type_name, I64 *index);\n")
-        f.write("I64 struct_field_is_mut(Str *type_name, I64 *index);\n")
-        f.write("Str *struct_field_type(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_count(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_name(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_is_mut(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index);\n")
     }
     if builder_needs_reflect("enum_variant_", lp.ctx) {
-        f.write("I64 enum_variant_count(Str *type_name);\n")
-        f.write("Str *enum_variant_name(Str *type_name, I64 *index);\n")
-        f.write("I64 enum_variant_has_payload(Str *type_name, I64 *index);\n")
-        f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index);\n")
-        f.write("I64 enum_variant_tag_value(Str *type_name, I64 *index);\n")
-        f.write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index);\n")
-        f.write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_count(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_name(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_has_payload(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_payload_type(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_tag_value(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index);\n")
     }
     if builder_needs_reflect("func_sig_", lp.ctx) {
-        f.write("I64 func_sig_param_count(Str *type_name);\n")
-        f.write("Str *func_sig_param_type(Str *type_name, I64 *index);\n")
-        f.write("I64 func_sig_return_count(Str *type_name);\n")
-        f.write("Str *func_sig_return_type(Str *type_name, I64 *index);\n")
-        f.write("I64 func_sig_throw_count(Str *type_name);\n")
-        f.write("Str *func_sig_throw_type(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_count(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_param_type(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_count(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_return_type(Str *type_name, I64 *index);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_throw_type(Str *type_name, I64 *index);\n")
     }
     if has_dyn_type_to_str {
-        f.write("Str *dyn_type_to_str(Type *type);\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *dyn_type_to_str(Type *type);\n")
     }
     f.write("\n")
 
@@ -6926,7 +6926,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
         collect_dyn_has_methods(iu.ast, has_methods)
     }
     for method : Str in has_methods {
-        f.write(dyn_has_ret).write(" dyn_has_").write(method).write("(Str *type_name);\n")
+        f.write(builder_static_prefix(lp.ctx)).write(dyn_has_ret).write(" dyn_has_").write(method).write("(Str *type_name);\n")
     }
     if has_methods.len() > 0 { f.write("\n") }
 
@@ -7102,7 +7102,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
         }
     }
     // Emit dyn_fn dispatch
-    f.write("void *dyn_fn(Str *type_name, Str *method) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("void *dyn_fn(Str *type_name, Str *method) {\n")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -7184,7 +7184,7 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
     // Returns USize, not a hardwired U32: the til binding is
     // `returns shallow USize`, so a --usize=64 build would otherwise
     // disagree with its own declaration.
-    f.write("USize dyn_size_of(Str *type_name) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("USize dyn_size_of(Str *type_name) {\n")
     f.write("    if (type_name->count == 7ULL && memcmp(type_name->c_str, \"Dynamic\", 7ULL) == 0) return sizeof(Dynamic);\n")
     // Primitives and the width aliases. Only struct/enum decls were emitted
     // below, so a primitive name reached the "unknown type" exit whenever the
@@ -7238,7 +7238,7 @@ priv emit_dyn_funcsig_storage_branches_prog := proc(f: File, prog: Expr, mut ctx
 }
 
 priv emit_dyn_storage_kind_body := proc(f: File, mut lp: LoadedProgram) {
-    f.write("USize dyn_storage_kind(Str *type_name) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("USize dyn_storage_kind(Str *type_name) {\n")
     emit_dyn_name_return_branch(f, "Dynamic", "0")
     emit_dyn_name_return_branch(f, "I64", "0")
     emit_dyn_name_return_branch(f, "U8", "0")
@@ -7323,19 +7323,19 @@ priv emit_struct_field_branches := proc(f: File, kind: I32, mut lp: LoadedProgra
 // primitives, mirroring rstil's emit_introspection_metadata. Each is a
 // strcmp chain over every loaded struct type.
 priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
-    f.write("I64 struct_field_count(Str *type_name) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_count(Str *type_name) {\n")
     emit_struct_field_branches(f, 0, lp)
     f.write("    fprintf(stderr, \"struct_field_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
-    f.write("Str *struct_field_name(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_name(Str *type_name, I64 *index) {\n")
     emit_struct_field_branches(f, 1, lp)
     f.write("    fprintf(stderr, \"struct_field_name: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("I64 struct_field_is_mut(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_is_mut(Str *type_name, I64 *index) {\n")
     emit_struct_field_branches(f, 2, lp)
     f.write("    fprintf(stderr, \"struct_field_is_mut: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("Str *struct_field_type(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index) {\n")
     emit_struct_field_branches(f, 3, lp)
     f.write("    fprintf(stderr, \"struct_field_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 }
@@ -7396,31 +7396,31 @@ priv emit_enum_variant_branches := proc(f: File, kind: I32, mut lp: LoadedProgra
 // Issue #57/#58: emit the C bodies for the enum_variant_* introspection
 // primitives. Each is a strcmp chain over every loaded enum type.
 priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
-    f.write("I64 enum_variant_count(Str *type_name) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_count(Str *type_name) {\n")
     emit_enum_variant_branches(f, 0, lp)
     f.write("    fprintf(stderr, \"enum_variant_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
-    f.write("Str *enum_variant_name(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_name(Str *type_name, I64 *index) {\n")
     emit_enum_variant_branches(f, 1, lp)
     f.write("    fprintf(stderr, \"enum_variant_name: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("I64 enum_variant_has_payload(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_has_payload(Str *type_name, I64 *index) {\n")
     emit_enum_variant_branches(f, 2, lp)
     f.write("    fprintf(stderr, \"enum_variant_has_payload: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_payload_type(Str *type_name, I64 *index) {\n")
     emit_enum_variant_branches(f, 3, lp)
     f.write("    fprintf(stderr, \"enum_variant_payload_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("I64 enum_variant_tag_value(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_tag_value(Str *type_name, I64 *index) {\n")
     emit_enum_variant_branches(f, 4, lp)
     f.write("    fprintf(stderr, \"enum_variant_tag_value: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index) {\n")
     emit_enum_variant_branches(f, 5, lp)
     f.write("    fprintf(stderr, \"enum_variant_payload_is_const: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index) {\n")
     emit_enum_variant_branches(f, 6, lp)
     f.write("    fprintf(stderr, \"enum_variant_payload_is_ref: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 }
@@ -7485,27 +7485,27 @@ priv emit_funcsig_branches := proc(f: File, kind: I32, mut lp: LoadedProgram) {
 // Issue #58: emit the C bodies for the func_sig_* introspection
 // primitives. Each is a strcmp chain over every loaded FuncSig type.
 priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
-    f.write("I64 func_sig_param_count(Str *type_name) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_count(Str *type_name) {\n")
     emit_funcsig_branches(f, 0, lp)
     f.write("    fprintf(stderr, \"func_sig_param_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
-    f.write("Str *func_sig_param_type(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_param_type(Str *type_name, I64 *index) {\n")
     emit_funcsig_branches(f, 1, lp)
     f.write("    fprintf(stderr, \"func_sig_param_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("I64 func_sig_return_count(Str *type_name) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_count(Str *type_name) {\n")
     emit_funcsig_branches(f, 2, lp)
     f.write("    fprintf(stderr, \"func_sig_return_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
-    f.write("Str *func_sig_return_type(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_return_type(Str *type_name, I64 *index) {\n")
     emit_funcsig_branches(f, 3, lp)
     f.write("    fprintf(stderr, \"func_sig_return_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 
-    f.write("I64 func_sig_throw_count(Str *type_name) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name) {\n")
     emit_funcsig_branches(f, 4, lp)
     f.write("    fprintf(stderr, \"func_sig_throw_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 
-    f.write("Str *func_sig_throw_type(Str *type_name, I64 *index) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_throw_type(Str *type_name, I64 *index) {\n")
     emit_funcsig_branches(f, 5, lp)
     f.write("    fprintf(stderr, \"func_sig_throw_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
 }
@@ -7559,7 +7559,7 @@ priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), 
 // migrating a primitive in/out of Type doesn't require editing
 // this function in lockstep.
 priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
-    f.write("Str *dyn_type_to_str(Type *type) {\n")
+    f.write(builder_static_prefix(lp.ctx)).write("Str *dyn_type_to_str(Type *type) {\n")
     mut variant_names := Vec(Str).new()
     mut variant_types := Vec(Str).new()
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() {
@@ -7627,9 +7627,9 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
         mut ret_type := "void "
         if info.has_return { ret_type = "void *" }
         if info.nargs == 1 {
-            f.write(ret_type).write("dyn_call_").write(method).write("(Str *type_name, void *val) {\n")
+            f.write(builder_static_prefix(lp.ctx)).write(ret_type).write("dyn_call_").write(method).write("(Str *type_name, void *val) {\n")
         } else {
-            f.write(ret_type).write("dyn_call_").write(method).write("(Str *type_name, void *val, void *arg2) {\n")
+            f.write(builder_static_prefix(lp.ctx)).write(ret_type).write("dyn_call_").write(method).write("(Str *type_name, void *val, void *arg2) {\n")
         }
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
@@ -7841,7 +7841,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
         }
         mut dyn_has_pname := "type_name"
         if dyn_has_arms.len() == 0 { dyn_has_pname = "_type_name" }
-        f.write(dyn_has_ret).write(" dyn_has_").write(method).write("(Str *").write(dyn_has_pname).write(") {\n")
+        f.write(builder_static_prefix(lp.ctx)).write(dyn_has_ret).write(" dyn_has_").write(method).write("(Str *").write(dyn_has_pname).write(") {\n")
         if dyn_has_arms.len() == 0 { f.write("    (void)_type_name;\n") }
         for dyn_has_tn : Str in dyn_has_arms {
             if dyn_has_shallow {
@@ -10661,11 +10661,33 @@ priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Contex
 priv builder_needs_reflect := func(name: Str, ctx: Context) returns Bool {
     return ctx.builder_reflect_inventory.has(name)
 }
+// #326: the reflection builtins, by NAME. This used to prefix-match --
+// any `dyn_`, `struct_field_`, `enum_variant_` or `func_sig_` ident --
+// which is not a namespace anyone reserved: til's own compiler names
+// helpers `enum_variant_tag`, `enum_variant_index`, `enum_variant_type`
+// (context.til) and `dyn_call_real_arg_count` (scavenger.til), so a
+// self-translate claimed to need reflection it never calls and emitted
+// all seven enum_variant_* stubs, ~1,400 lines, with no caller. An
+// exact list is the only honest test: these are C functions THIS emitter
+// writes, not a family users may extend.
 priv builder_is_reflect_builtin_name := func(n: Str) returns Bool {
-    if n.starts_with("dyn_") { return true }
-    if n.starts_with("struct_field_") { return true }
-    if n.starts_with("enum_variant_") { return true }
-    return n.starts_with("func_sig_")
+    switch n {
+    case "dyn_fn", "dyn_size_of", "dyn_storage_kind", "dyn_type_to_str",
+         "dyn_call", "dyn_call_ret", "dyn_has_method":
+        return true
+    case "struct_field_count", "struct_field_name", "struct_field_is_mut",
+         "struct_field_type":
+        return true
+    case "enum_variant_count", "enum_variant_name", "enum_variant_has_payload",
+         "enum_variant_payload_type", "enum_variant_tag_value",
+         "enum_variant_payload_is_const", "enum_variant_payload_is_ref":
+        return true
+    case "func_sig_param_count", "func_sig_param_type", "func_sig_return_count",
+         "func_sig_return_type", "func_sig_throw_count", "func_sig_throw_type":
+        return true
+    case:
+    }
+    return false
 }
 priv builder_record_reflect_name := func(n: Str, mut inv: Set(Str)) {
     if inv.has(n).not() { inv.add(own Str.clone(n)) }

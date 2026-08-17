@@ -937,6 +937,17 @@ main := proc(args: ..Str) {
     // only to fill the closure value beside it, and the print prelude is
     // the program's own. Both bypassed emit_func_def, so both stayed
     // extern and unaudited -- ~1,870 definitions across the corpus.
+    // The reflection stubs and variant constructors join too, and the
+    // audit immediately found what the coarse name test had been hiding:
+    // `builder_is_reflect_builtin_name` PREFIX-matched, so til's own
+    // enum_variant_tag / _index / _type helpers made every self-translate
+    // claim it needed reflection, emitting all seven enum_variant_* stubs
+    // with no caller. The test names the builtins exactly now.
+    add_count(tests, "til_no_unneeded_reflect_family", "build", "static I64 enum_variant_count(", 0,
+        format(til_bin, " translate -c gen/c/til_rf.c src/til.til '&&' cat gen/c/til_rf.c"))
+    // ...and a program that really does reflect still gets them.
+    add_count(tests, "first_class_keeps_reflect_family", "build", "static I64 enum_variant_count(", 2,
+        format(til_bin, " translate -c gen/c/fc_rf.c test/first_class.til '&&' cat gen/c/fc_rf.c"))
     add_count(tests, "closures_dyn_wrapper_is_tu_local", "build", "static void *Mode_clone_dyn(", 1,
         format(til_bin, " translate -c gen/c/ci_dw.c test/closures_interp.til '&&' cat gen/c/ci_dw.c"))
     add_count(tests, "hello_print_prelude_is_tu_local", "build", "static void print_single(Str *s)", 2,

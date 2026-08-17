@@ -143,8 +143,8 @@ static void test_mixed_fold(void);
 static void test_fold_reads_global_const(void);
 static void assert_eq__I64(I64 a, I64 b, Str * loc);
 static void assert_eq__Str(Str * a, Str * b, Str * loc);
-Bool Color_eq(Color *, Color *);
-Token Token_Num(I64 *);
+static Bool Color_eq(Color *, Color *);
+static Token Token_Num(I64 *);
 
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
@@ -854,7 +854,7 @@ static void test_enum_fold(void) {
     Str_delete(&hoisted__Str_test_enum_fold_4, 0);
 }
 
-Token Token_Num(I64 * val) {
+static Token Token_Num(I64 * val) {
     Token r = {0};
     r.tag = Token_TAG_Num;
     r.data.Num = *val;
