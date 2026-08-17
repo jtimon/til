@@ -729,6 +729,23 @@ landing order:
   121 of 139 files; the aliased vendor structs left every gui fixture.
 - A niche enum emits no tag enumerators -- it has no tag field to name
   (121 dead blocks).
+- The auditor: a closed world (a program, no ~link_c~) emits its
+  functions and globals ~static~, so gcc's -Wunused-function /
+  -Wunused-variable under -Werror enforce this issue's invariant on
+  every build instead of by periodic survey.  Only the hand-written
+  src/c/ext.c boundary stays extern (~main~, ~Str_clone~, ~CAP_LIT~,
+  ~CAP_VIEW~).  It found what the surveys had missed: a shadowing local
+  ~run_cmd~ in the test runner, the reflect-builtin name check
+  prefix-matching til's own helpers into all seven ~enum_variant_*~
+  stubs, and ~emit_script_main~ leaking a previous function's name-keyed
+  locals into the global-vs-local decision.
+- The forward header declares that same boundary and nothing else: with
+  everything else static in the .c, a prototype there advertises a
+  symbol no translation unit can link -- 2,674 of boot/til_forward.h's
+  2,676, plus 110 ~extern~ globals whose definitions are static.  The
+  enum auto-helper families (~eq~, variant constructors) bypass
+  emit_func_forward_decl and gate on the same predicate.  A library's
+  header is its ABI and keeps everything.
 
 End state, measured across test/ + examples/ + til itself: never-called
 functions only in exported library ABI and the Str_clone ext.c boundary;

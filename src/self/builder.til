@@ -5329,6 +5329,19 @@ priv builder_static_prefix := func(ctx: Context) returns Str {
     return ""
 }
 
+// True when this header must NOT declare `name`: we are writing a header
+// (not the .c) for a closed-world program, so the .c will make the symbol
+// static and no other translation unit can ever reach it. Exactly the
+// complement of builder_func_is_tu_local / builder_global_static_prefix,
+// which is why it names both boundary pairs: the only reader of
+// til_forward.h is the hand-written src/c/ext.c.
+priv lp_header_hides := func(name: Str, ctx: Context) returns Bool {
+    if ctx.builder_static_ok { return false }
+    if ctx.builder_prog_closed_world.not() { return false }
+    if name.eq("main").or(name.eq("Str_clone")) { return false }
+    return name.eq("CAP_LIT").or(name.eq("CAP_VIEW")).not()
+}
+
 priv builder_func_is_tu_local := func(name: Str, ctx: Context) returns Bool {
     if ctx.builder_static_ok.not() { return false }
     if name.eq("main") { return false }
@@ -5349,6 +5362,11 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
     // covers them.
     if top_level.and(fd.func_type.is_bodyless()) { return }
     if name == "main" { return }
+    // #326: a HEADER (builder_static_ok false) for a CLOSED WORLD declares
+    // only what another translation unit can actually call. Everything
+    // else is static in the .c, so a prototype here advertises a symbol
+    // that cannot be linked -- 2,674 of boot/til_forward.h's 2,676.
+    if lp_header_hides(name, ctx) { return }
     ret := func_return_ctype(fd, ctx)
     if builder_func_is_tu_local(name, ctx) { f.write("static ") }
     // #303: mirror the typer's noreturn knowledge in the C, so the C
@@ -5700,11 +5718,13 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = decl_of(stmt)
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not()
+                .and(lp_header_hides(dd.name.format("_eq"), lp.ctx).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name)
             for hdr_vd : VariantDef in hdr_edd.variants {
                 if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
+                if lp_header_hides(dd.name.concat3("_", hdr_vd.name), lp.ctx) { continue }
                 if hdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                     f.write(builder_static_prefix(lp.ctx)).write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
@@ -5723,6 +5743,7 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
         for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
             ref dd : Declaration = decl_of(stmt)
+            if lp_header_hides(dd.name, lp.ctx) { continue }
             ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
             if dd.own_type.is(OwnType.Ref) {
                 f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
@@ -8564,6 +8585,8 @@ builder_prepare_emit := proc(mut lp: LoadedProgram) {
     // After the emit inventory: the used-ctype walk asks the same gates
     // (omission, variant ctors, dyn targets, collection elem types) the
     // emitters will, and those answer from the inventory just filled.
+    lp.ctx.builder_prog_closed_world = lp.cur_mode.is_library.not()
+        .and(lp.cur_mode.decls_only.not()).and(lp.link_c_paths.len().eq(0))
     builder_fill_used_ctypes(lp)
 }
 

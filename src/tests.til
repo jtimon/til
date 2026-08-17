@@ -1026,6 +1026,29 @@ main := proc(args: ..Str) {
     // this header, so Str_clone's value prototype is the witness.
     add_count(tests, "forward_header_gates_on_same_inventory", "build", "Str Str_clone(Str * val);", 1,
         format(til_bin, " translate -c gen/c/hs_fh.c examples/hello_script.til '&&' cat gen/c/hs_fh_forward.h"))
+    // Issue #326: for a closed world every function in the .c is static, so
+    // a prototype in the header advertises a symbol nothing can link --
+    // 2,674 of boot/til_forward.h's 2,676. The header now declares only the
+    // src/c/ext.c boundary, and that includes the two families that bypass
+    // emit_func_forward_decl: an enum's auto-generated `eq`...
+    add_count(tests, "enums_header_hides_enum_eq", "build", "Color_eq(", 0,
+        format(til_bin, " translate -c gen/c/en_hdr.c test/enums.til '&&' cat gen/c/en_hdr_forward.h"))
+    // ...and its variant constructors.
+    add_count(tests, "enums_header_hides_variant_ctors", "build", "Color_Red(", 0,
+        format(til_bin, " translate -c gen/c/en_hdrc.c test/enums.til '&&' cat gen/c/en_hdrc_forward.h"))
+    // A LIBRARY's header is its ABI: nothing is static there, so the same
+    // two families stay declared.
+    add_count(tests, "pure_lib_header_keeps_exports", "build", "Color_Red(", 1,
+        format(til_bin, " translate -c gen/c/pure_hdr.c test/pure.til '&&' cat gen/c/pure_hdr_forward.h"))
+    // Exported globals get the same treatment -- til's own header used to
+    // declare 110 of them `extern` while til.c defined every one `static`.
+    // Counted against the gen/til/ pair `make` already produced, never a
+    // second self-translate (see til_no_unneeded_reflect_family).
+    add_count(tests, "til_header_hides_tu_local_globals", "build", "extern Str VERSION;", 0,
+        "cat gen/til/til_forward.h")
+    // ...while the ext.c boundary globals stay: ext.c reads CAP_LIT.
+    add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern U32 CAP_LIT;", 1,
+        "cat gen/til/til_forward.h")
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
         format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,

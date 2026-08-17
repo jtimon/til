@@ -1279,6 +1279,12 @@ Context := struct {
     // values themselves -- and its 8-line definition went into every
     // program, unused in 124 of the corpus's 152 generated files.
     builder_closure_rt_used := false
+    // #326: is this program a closed world (a program, not a library,
+    // with no link_c)? builder_static_ok says "we are emitting the .c of
+    // one"; this stays true while the HEADERS are written, which is how
+    // they know a symbol they would declare is going to be static -- and
+    // therefore not something any other translation unit can call.
+    builder_prog_closed_world := false
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 
