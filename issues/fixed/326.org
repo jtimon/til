@@ -739,6 +739,28 @@ landing order:
   prefix-matching til's own helpers into all seven ~enum_variant_*~
   stubs, and ~emit_script_main~ leaking a previous function's name-keyed
   locals into the global-vs-local decision.
+- The initer asks ~init_delete_is_noop~ -- "does deleting a value of this
+  type do anything?" -- where it used to ask ~is_pod_type_for_clone~,
+  which is the COPY question.  They agree on shape and part ways on a
+  hand-written ~delete~: the POD proxy cannot see one, so the whole-struct
+  shortcut it drove would have skipped ~test/structs.til~'s
+  ~DeleteCustom~ (POD-shaped, counts its own calls) had any struct held
+  one.  The new predicate reads the body wherever one exists -- generated
+  or hand-written -- and falls back to the same recursion over fields and
+  payloads before one is written.  Asked per field it also subsumes the
+  shortcut, which is gone, and per payload it drops an arm whose payload
+  is itself a payload-less enum (core's ~Type.Primitive(Primitive)~).
+  The body-shape test is one function now, shared with the builder gate.
+- The no-op-delete gate reads the DESTRUCTOR BODY, so a POD struct field
+  and a payload-less enum field answer it too -- but it only knew the
+  garbager's ~T.delete(x, false)~ shape, and the initer's generated
+  cleanup is a METHOD call, ~<place>.delete(false)~, whose target is the
+  field access's own child.  Asking about both shapes took the last call
+  off ~Color_delete~, ~DotShape_delete~ and friends, and the site
+  inventory -- the same question -- then omitted the definitions.  Reading
+  the body rather than a POD-ness proxy is what makes this safe:
+  ~test/structs.til~'s ~DeleteCustom~ is POD-shaped and has a hand-written
+  delete that counts its calls, so it keeps every one.
 - An enum's generated destructor drops the whole arm for an INLINE
   PRIMITIVE payload -- a tag compare, a payload pointer and a call that
   does nothing.  In a niche's pointer slot the payload IS a box and

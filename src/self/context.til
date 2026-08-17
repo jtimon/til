@@ -2059,6 +2059,73 @@ array_vec_elem_type_name := func(fcall: Expr) returns Str {
     }
 }
 
+// #326: is this `delete` body nothing but the `if call_free { free(own
+// self) }` tail? That is what the initer generates for a type holding
+// nothing that needs cleanup, and what core writes by hand for every
+// primitive -- reached with call_free false it does nothing at all. Both
+// the initer (deciding whether to GENERATE a cleanup call) and the
+// builder (deciding whether to EMIT one) ask it, of the same body.
+delete_body_is_free_only := func(fdef: Expr) returns Bool {
+    if fdef.children.len() == 0 { return false }
+    ref dbf_body : Expr = fdef.children[0]
+    if dbf_body.children.len() != 1 { return false }
+    ref dbf_only : Expr = dbf_body.children[0]
+    if dbf_only.node_type.is(NodeType.If).not() { return false }
+    if dbf_only.children.len() == 0 { return false }
+    switch dbf_only.children[0].node_type {
+    case .Ident(dbf_cond):
+        return dbf_cond.ident_name().eq("call_free")
+    case:
+        return false
+    }
+}
+
+// #326: does deleting a value of this type do ANYTHING? A HAND-WRITTEN
+// delete may (test/structs.til's DeleteCustom counts its calls), so the
+// answer is read off the body wherever there is one -- the generated ones
+// this pass has already written included. Before one is written the shape
+// decides, and that is the recursion is_pod_type_for_clone does: a
+// primitive needs nothing, a struct needs whatever its fields need, an
+// enum whatever its payloads need. Order-independent either way, because
+// a hand-written member is in the def from parse time.
+//
+// This is the delete question; is_pod_type_for_clone is the copy
+// question. They agree on shape and part ways on the hand-written member,
+// which is exactly what a POD-ness proxy cannot see.
+init_delete_is_noop := func(type_name: Str, scope: TypeScope) returns Bool {
+    if type_name.len() == 0 { return false }
+    idn_t := type_from_name_init(type_name, scope)
+    if is_primitive(idn_t) { return true }
+    if type_is_callable_storage(idn_t) { return false }
+    def_o := scope.get_struct(type_name)
+    if def_o.is_none() { return false }
+    ref idn_def : Expr = def_o.unwrap()
+    del_o := def_ns_get(idn_def, "delete")
+    if del_o.is_some() {
+        ref idn_del : Declaration = del_o.unwrap()
+        if idn_del.default_value.is_none() { return false }
+        return delete_body_is_free_only(idn_del.default_expr())
+    }
+    switch idn_def.node_type {
+    case .StructDef(idn_sd):
+        if idn_sd.fields.len() == 0 { return false }
+        for idn_fd : Declaration in idn_sd.fields {
+            if idn_fd.own_type.is(OwnType.Ref) { continue }
+            if idn_fd.own_type.is(OwnType.Own) { return false }
+            if init_delete_is_noop(field_inferred_type_name(idn_fd), scope).not() { return false }
+        }
+        return true
+    case .EnumDef(idn_ed):
+        for idn_vd : VariantDef in idn_ed.variants {
+            if idn_vd.payload_type.len() == 0 { continue }
+            if init_delete_is_noop(idn_vd.payload_type, scope).not() { return false }
+        }
+        return true
+    case:
+        return false
+    }
+}
+
 is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if type_name.len() == 0 { return false }
     t := type_from_name_init(type_name, scope)

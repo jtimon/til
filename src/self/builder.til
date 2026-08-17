@@ -10694,9 +10694,36 @@ priv builder_place_root := func(a: Expr) returns Option(ref Str) {
     }
 }
 
+// A delete's TARGET, whatever shape the call has. The garbager writes
+// `T.delete(x, false)` -- [callee, target, call_free]. The initer's
+// generated field and payload cleanup writes `<place>.delete(false)` --
+// a method call, so the target is the field access's own child and the
+// literal moves up to children[1].
+priv builder_delete_target := func(e: Expr) returns Option(ref Expr) {
+    if e.children.len() >= 3 { return Option(ref Expr).Some(e.children[1]) }
+    if e.children.len() == 2 {
+        ref bdt_fa : Expr = e.children[0]
+        if bdt_fa.children.len() > 0 { return Option(ref Expr).Some(bdt_fa.children[0]) }
+    }
+    return Option(ref Expr).None
+}
+
+priv builder_delete_call_free_is_false := func(e: Expr) returns Bool {
+    mut bcf_i : USize = 2
+    if e.children.len() == 2 { bcf_i = 1 }
+    if e.children.len() < 2 { return false }
+    switch e.children[bcf_i].node_type {
+    case .Literal(Literal.Bool(bcf_lit)):
+        return bcf_lit.not()
+    case:
+        return false
+    }
+}
+
 builder_delete_arg_root := func(e: Expr) returns Option(ref Str) {
-    if e.children.len() < 2 { return Option(ref Str).None }
-    return builder_place_root(e.children[1])
+    tgt_o := builder_delete_target(e)
+    if tgt_o.is_none() { return Option(ref Str).None }
+    return builder_place_root(tgt_o.unwrap())
 }
 
 // True when `<type_name>.delete`'s body is nothing but the
@@ -10707,19 +10734,7 @@ builder_delete_arg_root := func(e: Expr) returns Option(ref Str) {
 priv builder_delete_body_is_free_only := func(type_name: Str, ctx: Context) returns Bool {
     fdef_o := find_callee_fdef(type_name.format("_delete"), ctx)
     if fdef_o.is_none() { return false }
-    ref bdf : Expr = fdef_o.unwrap()
-    if bdf.children.len() == 0 { return false }
-    ref bdf_body : Expr = bdf.children[0]
-    if bdf_body.children.len() != 1 { return false }
-    ref bdf_only : Expr = bdf_body.children[0]
-    if bdf_only.node_type.is(NodeType.If).not() { return false }
-    if bdf_only.children.len() == 0 { return false }
-    switch bdf_only.children[0].node_type {
-    case .Ident(bdf_cond):
-        return bdf_cond.ident_name().eq("call_free")
-    case:
-        return false
-    }
+    return delete_body_is_free_only(fdef_o.unwrap())
 }
 
 priv builder_delete_type_free_only := func(type_name: Str, mut ctx: Context) returns Bool {
@@ -10734,22 +10749,22 @@ priv builder_delete_type_free_only := func(type_name: Str, mut ctx: Context) ret
     return answer
 }
 
-// #326: `T.delete(x, false)` where T's whole destructor is the
-// `if call_free { free(own self) }` tail cannot do anything -- the one
-// branch it has is not taken. Cheapest tests first: the shape (a false
-// call_free literal, a borrowed place argument) rejects almost every
-// delete in the program without a single lookup, and only the survivors
-// reach the memoized per-type answer.
+// #326: a delete whose type's whole destructor is the `if call_free {
+// free(own self) }` tail cannot do anything -- the one branch it has is
+// not taken. What makes dropping the statement safe is that the target is
+// a PLACE: a name or a field path off one, nothing to evaluate. An `own`
+// marking on a place is a compile-time ownership record with no emitted
+// consequence once the destructor does nothing, so it is not asked about;
+// a consuming delete of a CALL (`T.delete(own self.unsafe_get(i), false)`)
+// is rejected by the place test itself, which is what that rule was ever
+// protecting. Cheapest tests first: the shape rejects almost every delete
+// in the program without a single lookup, and only the survivors reach
+// the memoized per-type answer.
 priv builder_delete_call_is_free_only := func(e: Expr, mut ctx: Context) returns Bool {
-    if e.children.len() < 3 { return false }
-    switch e.children[2].node_type {
-    case .Literal(Literal.Bool(bdn_cf)):
-        if bdn_cf { return false }
-    case:
-        return false
-    }
-    if get_own_arg(e, 1) { return false }
-    ref bdn_arg : Expr = e.children[1]
+    if builder_delete_call_free_is_false(e).not() { return false }
+    tgt_o := builder_delete_target(e)
+    if tgt_o.is_none() { return false }
+    ref bdn_arg : Expr = tgt_o.unwrap()
     if builder_place_root(bdn_arg).is_none() { return false }
     bdn_tn_o := expr_type_name_ref(bdn_arg)
     if bdn_tn_o.is_none() { return false }

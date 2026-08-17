@@ -383,24 +383,10 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
     }
 
     if has_delete.not() {
-        // POD shortcut: when every field is value-copy-safe per
-        // is_pod_type_for_clone, no field needs deep cleanup --
-        // the per-field `.delete(false)` calls would all bottom
-        // out in no-ops -- so emit just the `if call_free: free`
-        // tail and skip the field loop entirely.  Saves both
-        // compile-time codegen and runtime call frames per POD
-        // struct destruction.
-        mut pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
-        for d_pod : Declaration in sdd.fields {
-            if d_pod.own_type.is(OwnType.Ref) { continue }
-            if d_pod.til_type.is(Type.Unknown).not().and(type_is_callable_storage(declaration_resolved_type(d_pod, scope))) {
-                pod_no_field_deletes = false
-            }
-        }
         // #307: emit the per-field cleanup directly off sdd.fields (the
         // del_field_* gather vecs were a porting artifact).
         mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-        if pod_no_field_deletes.not() {
+        {
             mut dlr : USize = 0
             for fd : Declaration in sdd.fields {
                 ref dl_fname : Str = sdd.field_name_at(dlr)
@@ -419,21 +405,16 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
                     proc_body.add_child(own closure_del)
                     continue
                 }
-                // #326: a BORROWED primitive field's cleanup is core's
-                // `if call_free { free(own self) }` reached with call_free
-                // false -- a call that returns having done nothing (1,115
-                // of them across the corpus). The all-POD shortcut above
-                // already says as much for a struct whose fields are ALL
-                // like this; a struct with one Str among its I64s got the
-                // dead calls anyway. Not generating the node is the whole
-                // fix: nothing downstream has to recognize and drop it,
-                // and the interpreter stops evaluating it too. An `own`
-                // primitive field is a box the delete really does free.
+                // #326: a BORROWED field whose type needs no cleanup gets
+                // a call that returns having done nothing. This replaces
+                // the all-POD shortcut that used to skip the whole loop:
+                // asked per field it also covers the mixed struct (one Str
+                // among the I64s), and asked as init_delete_is_noop rather
+                // than as POD-ness it stops skipping a HAND-WRITTEN delete
+                // that does real work. An `own` field is a box the delete
+                // really does free.
                 if fd.own_type.is(OwnType.Own).not() {
-                    // Same two questions is_pod_type_for_clone opens with,
-                    // and the same field-type inference: this pass runs
-                    // before the typer, so `age := 0` has no til_type yet.
-                    if is_primitive(type_from_name_init(field_inferred_type_name(fd), scope)) { continue }
+                    if init_delete_is_noop(field_inferred_type_name(fd), scope) { continue }
                 }
 
                 mut del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
@@ -945,13 +926,11 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             if enum_variant_payload_ref(enum_def, j.to_i32()) { continue }
             vt_to_str_resolved := type_from_name_init(vtype, scope)
             if vt_to_str_resolved.is_funcptr().or(vt_to_str_resolved.is(Type.Body)) { continue }
-            // #326: an INLINE primitive payload needs no cleanup -- its
-            // delete is core's `if call_free { free(own self) }` and
-            // call_free is false, so the whole arm (a tag compare, a
-            // payload pointer, the call) does nothing. In a niche's
-            // pointer slot the payload IS a box and call_free is true, so
-            // that one keeps its arm.
-            if is_primitive(vt_to_str_resolved).and(payload_in_slot.not()) { continue }
+            // #326: an INLINE payload whose type needs no cleanup makes
+            // the whole arm -- a tag compare, a payload pointer, the call
+            // -- do nothing. In a niche's pointer slot the payload IS a
+            // box and call_free is true, so that one keeps its arm.
+            if init_delete_is_noop(vtype, scope).and(payload_in_slot.not()) { continue }
 
             mut is_call := make_is_tag_check_fcall("self", ename, variant_names[j], enum_tag_size(enum_def), line, col)
 
