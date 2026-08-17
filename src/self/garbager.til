@@ -1996,23 +1996,33 @@ priv extend_hoist_view_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo),
     propagate_borrow_edges(edges, locals)
 }
 
-// A while body whose UNGUARDED spine transfers `name` -- i.e. the
-// transfer re-runs on every iteration. Three exemptions keep this an
-// errors-only check under the index model:
-//   - an If/Switch-guarded transfer is exempt: the guard may hold for
-//     exactly one iteration (desugarer's `if ji == vi` splat push);
+// A while body that can transfer `name` on an iteration -- i.e. the
+// transfer may re-run. Two exemptions keep this an errors-only check
+// under the index model:
 //   - a spine containing a direct Break or Return executes at most once
 //     in full, so its transfer cannot re-run (Continue does NOT exempt:
 //     `{ consume(own s); continue }` still re-runs);
-//   - nested If/Switch bodies are skipped wholesale; a nested While's
-//     condition and spine re-run, so they are checked.
+//   - a nested While's condition and spine re-run, so they are checked
+//     recursively.
+//
+// #364: an If/Switch-guarded transfer used to be exempt, on the theory
+// that the guard might hold for exactly one iteration -- which the
+// desugarer's splat push (`for j { if ji == vi { push(own splat) } }`)
+// really did. Nothing static can tell that apart from a guard that holds
+// on every iteration, and BOTH ways of being wrong were live: the
+// non-transferring iterations got no cleanup at all (a leak only ASAN
+// saw), and a guard true twice freed the same buffer twice. The splat
+// push was the only site in the compiler relying on the exemption and is
+// now written straight-line, so the guard no longer buys anything.
 priv while_spine_transfers := func(wbody: Expr, name: Str, scope: TypeScope, ctx: Context) returns Bool {
     for sp : Expr in wbody.children {
         if sp.node_type.is(NodeType.Break).or(sp.node_type.is(NodeType.Return)) { return false }
     }
     for sp : Expr in wbody.children {
         switch sp.node_type {
-        case .If, .Switch: continue
+        case .If, .Switch:
+            if expr_transfers_own(sp, name, scope, ctx) { return true }
+            continue
         case .While:
             if expr_transfers_own(sp.children[0], name, scope, ctx) { return true }
             if while_spine_transfers(sp.children[1], name, scope, ctx) { return true }
@@ -2045,16 +2055,17 @@ priv transfer_inside_loop := func(stmt: Expr, name: Str, scope: TypeScope, ctx: 
 }
 
 // True when a transfer of `name` sits lexically under ANY While inside
-// `e` -- cond or body, conditional or not. Distinct from
-// while_spine_transfers (which asks "does every iteration's spine
-// transfer" and deliberately skips If-guarded arms): a loop-INVARIANT
-// local transferred once across all iterations (the desugarer's splat
-// push: `for j { if ji == vi { push(own splat) } }`) is legal code
-// whose per-iteration paths disagree, and grafting per-path deletes
-// there double-frees -- the transfer belongs to a DIFFERENT iteration
-// than the grafted path. Per-iteration locals never hit this: their
-// graft view is the loop body itself, where no While wraps the
-// transfer.
+// `e` -- cond or body, conditional or not. Grafting per-path deletes
+// there double-frees: the transfer belongs to a DIFFERENT iteration than
+// the grafted path, so the delete would free a value a later iteration
+// still needs. Per-iteration locals never hit this: their graft view is
+// the loop body itself, where no While wraps the transfer.
+//
+// #364 rejects most of what used to reach here. What still does is the
+// rebind-then-transfer pattern the diagnostic exempts by
+// expr_reassigns_var -- a loop that reassigns the binding before
+// transferring it owns a fresh value each iteration, so there is no
+// use-after-move to report and no static path for a graft either.
 priv transfer_lex_inside_while := func(e: Expr, name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.While) {
         return expr_transfers_own(e, name, scope, ctx)
@@ -2892,14 +2903,14 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // wrapper double-frees, the failure that reverted the bare Body
         // gate. Two gates make the graft precise:
         //   1. transfer_lex_inside_while: the transfer must NOT sit
-        //      under a While inside the wrapper. A loop-invariant local
-        //      transferred once across iterations (the splat push) has
-        //      per-iteration paths that disagree, but the transfer
+        //      under a While inside the wrapper, because the transfer
         //      belongs to a different ITERATION than any grafted path
         //      -- per-path deletes there free a value a later iteration
         //      still needs. (Per-iteration locals are unaffected: their
         //      graft view IS the loop body, no While wraps the
-        //      transfer there.)
+        //      transfer there.) #364 turned the shapes that used to
+        //      reach this gate into errors; the rebind-then-transfer
+        //      pattern is what is left.
         //   2. gc_flow_exit_is_mixed: some path must leave the view
         //      still owning the local (a bare-block wrapper whose
         //      transfer covers every path shows uniform Moved and

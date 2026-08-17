@@ -1,6 +1,58 @@
 # priority: high
 # category: bugs
-** WIP #364 A conditionally consumed local is freed on every path; cover the ownership-shape matrix
+** FIXED #364 A conditionally consumed local is freed on every path; cover the ownership-shape matrix
+
+*** Post-mortem
+
+Root cause, one sentence for all three parts: the cleanup decision was
+made per SCOPE while the consume decision was made per PATH, so a
+conditionally consumed local was freed on paths that no longer owned it,
+or on no path at all.
+
+Part 1 (the ctor-field cells) went two ways. The double free the issue
+opened with disappeared on its own when #346 stopped heap-boxing owned
+aggregate locals; the matrix now holds that ground. The other direction
+was live: when a transfer diverged, check_use_after_own_transfer cleared
+own_transfer to restore ordinary cleanup and threw away the fact that a
+shallow-field ctor arg had orphaned its wrapper on the transferring path
+-- 16 bytes per call, invisible outside ASAN.
+sink_transfer_path_wrapper_free now grafts that free onto the
+transferring path before the record is cleared.
+
+Part 2 was the ownership-shape matrix, test/ownership_shapes.til: 29
+cells over binding kind x consume site x control shape, add_both so the
+backends check each other, ASAN on like everything else. It paid for
+itself twice -- it found the 16-byte leak above, and writing its last
+rows found the nested-loop bug below.
+
+Part 3, the nested loop. A local declared outside a loop and consumed
+under a guard inside it was neither rejected nor cleaned up: the emitted
+C carried no delete at all (the non-transferring iterations leaked), and
+an inner loop tripping twice with the guard true freed the same buffer
+twice. Both symptoms came from one exemption -- while_spine_transfers
+skipped If/Switch-guarded arms, on the theory that a guard might hold on
+exactly one iteration.
+
+That theory had exactly one true instance in the whole compiler:
+desugar_pure_splat_variadic_call wrote
+~for j { if ji == vi { push(own splat) } }~. Measured by making the rule
+strict and self-compiling: one error, one site. Rewriting that loop
+straight-line (two loops around the splat position, no guard) removed
+the last user, so the exemption went, and the shape is now rejected by
+the diagnostic that already existed for its unguarded twin. No runtime
+cost, no moved-flag: the earlier note here that a runtime flag was
+needed was wrong, and the measurement is what corrected it. Nothing in
+the corpus depended on the old acceptance -- the full suite passes.
+
+Grafting was never an option, which is worth recording: the graft
+machinery has no case for a While at own_transfer, and removing the
+transfer_lex_inside_while gate alone changed nothing. There is no static
+graft point, because ownership at scope exit genuinely depends on
+control flow inside the loop.
+
+Regression tests: test/ownership_shapes.til (the accepted cells) and
+test/loop_transfer_error.til (3 rejected cells, registered as
+loop_transfer_error_interp / _build).
 
 A local handed to a struct constructor field inside a CONDITIONAL is
 consumed only on the taken path, but end-of-scope cleanup runs as if the
@@ -169,9 +221,10 @@ crash at a time.
       Writing them found the nested-loop row below, which is why the
       row is worth its dozen lines even when it passes.
 
-- [ ] Remaining: a local declared in an OUTER loop body and consumed
-      under an `if` in an INNER loop is neither rejected nor cleaned
-      up. Two symptoms, one gate. Repro A leaks:
+- [X] The nested loop those rows turned up: a local declared in an
+      OUTER loop body and consumed under an `if` in an INNER loop was
+      neither rejected nor cleaned up. Two symptoms, one gate. Repro A
+      leaked:
 
       #+begin_src til
       for i in 0..2 {
@@ -197,24 +250,16 @@ crash at a time.
       rejected with "ownership of 's' transferred inside a loop"; the
       `if` makes that diagnostic back off.
 
-      Both trace to ~transfer_lex_inside_while~
-      (src/self/garbager.til:2058), consulted at :2123 (the
-      diagnostic, via ~while_spine_transfers~ skipping If-guarded arms)
-      and at :2910 (the per-path graft). The stand-down is deliberate
-      and correct for the desugarer's splat push,
-      ~for j { if ji == vi { push(own splat) } }~, where the condition
-      fires exactly once across all iterations and a per-path delete
-      would free a value a later iteration still needs. The shape then
-      falls between the two: not rejected, not cleaned up.
+      Both came from ~while_spine_transfers~ skipping If/Switch-guarded
+      arms, on the theory that the guard might hold for exactly one
+      iteration. It held for exactly one site in the compiler, the
+      desugarer's splat push
+      ~for j { if ji == vi { push(own splat) } }~; that loop is now
+      written straight-line, the exemption is gone, and the shape is
+      rejected by the diagnostic its unguarded twin already had. See the
+      post-mortem at the top for the measurement and for why grafting
+      was never available.
 
-      Separating the two cases means telling "fires at most once across
-      the loop" from "fires per iteration", which is not decidable
-      statically in general. The general answer is a runtime moved-flag
-      per local (free at scope end iff not transferred), which changes
-      emitted C and costs a byte plus a branch per affected local; the
-      narrow answer is to reject the ambiguous shape and let the splat
-      push carry an annotation. Both are calls for the human.
-
-      The matrix's nested-loop cells that DO pass declare the local in
-      the innermost body, so its graft view is the loop body it lives
+      The matrix's nested-loop cells that still pass declare the local
+      in the innermost body, so its graft view is the loop body it lives
       in and no While wraps the transfer.

@@ -1,0 +1,73 @@
+mode script
+
+// Negative test (issue #364): a local declared OUTSIDE a loop and consumed
+// under a guard INSIDE it is rejected, exactly like the unguarded form.
+//
+// The guard used to exempt the transfer from this diagnostic, on the
+// grounds that it might fire on exactly one iteration. Nothing static can
+// know that, and the two ways of being wrong both happened: the paths that
+// did NOT transfer got no cleanup at all (a leak ASAN saw and nobody else
+// did), and an inner loop that tripped twice with the guard true freed the
+// same buffer twice. The guarded form is now rejected; the fix the help
+// line names -- declare the local inside the loop, or pass a clone -- is
+// what the correct programs wanted anyway.
+
+Holder := struct {
+    s := ""
+}
+
+take_own := func(own s: Str) returns USize {
+    n := s.len()
+    Str.delete(own s)
+    return n
+}
+
+// 1. `own` argument, guarded by an `if` in a nested loop.
+if_guard_in_nested_loop := proc() {
+    lit := "hello"
+    mut kept : USize = 0
+    for i in 0..2 {
+        s := lit.clone()
+        for _ in 0..3 {
+            if i == 1 {
+                kept = kept + take_own(own s)
+            }
+        }
+    }
+    println(kept.to_str())
+}
+
+// 2. Ctor field, same shape: the consume site does not change the answer.
+ctor_field_in_nested_loop := proc() {
+    lit := "hello"
+    mut kept : USize = 0
+    for i in 0..2 {
+        s := lit.clone()
+        for _ in 0..3 {
+            if i == 1 {
+                h := Holder(s = s)
+                kept = kept + h.s.len()
+            }
+        }
+    }
+    println(kept.to_str())
+}
+
+// 3. A single loop is enough -- the local just has to outlive it.
+if_guard_in_one_loop := proc() {
+    lit := "hello"
+    s := lit.clone()
+    mut kept : USize = 0
+    for i in 0..3 {
+        if i == 1 {
+            kept = kept + take_own(own s)
+        }
+    }
+    println(kept.to_str())
+}
+
+main := proc() {
+    if_guard_in_nested_loop()
+    ctor_field_in_nested_loop()
+    if_guard_in_one_loop()
+}

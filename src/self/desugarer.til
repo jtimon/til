@@ -5236,17 +5236,23 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
     if splat_in.node_type.is(NodeType.Ident) {
         splat = make_clone_call(array_type, Type.Struct(array_type.clone()), splat_in, splat_in)
     }
+    // Straight-line, not `for j { if j == vi { push(own splat) } }`: the
+    // conditional form transfers an outer-scope local from inside a loop,
+    // which is legal here only because the guard fires exactly once -- a
+    // fact no static rule can see. It was the ONLY such site in the
+    // compiler, and it is what forced the garbager's blanket "a transfer
+    // under a While is nobody's business" exemption (#364).
+    vi_u := vi.to_usize()
     mut fcall_new_ch := Vec(Expr).new()
-    for j in 0..old_args.len() {
-        ji := j.to_i32()
-        if ji == vi {
-            fcall_new_ch.push(own splat)
-        } else {
-            fcall_new_ch.push_take(old_args, j)
-        }
+    for j in 0..vi_u {
+        fcall_new_ch.push_take(old_args, j)
+    }
+    fcall_new_ch.push(own splat)
+    for j in vi_u.add(1)..old_args.len() {
+        fcall_new_ch.push_take(old_args, j)
     }
     fcall.children.move_from(own fcall_new_ch)
-    set_own_arg(fcall, vi.to_usize())
+    set_own_arg(fcall, vi_u)
     return true
 }
 
