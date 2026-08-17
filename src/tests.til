@@ -1032,6 +1032,26 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/tilminal_vc.c examples/tilminal.til '&&' cat gen/c/tilminal_vc.c"))
     add_count(tests, "str_clone_value_abi", "build", "Str Str_clone(Str * val)", 2,
         format(til_bin, " translate -c gen/c/hs_sc.c examples/hello_script.til '&&' cat gen/c/hs_sc.c"))
+    // Issue #326: the same for an enum's INLINE primitive payload -- the
+    // generated destructor drops the whole arm (a tag compare, a payload
+    // pointer, the call). The one survivor here is Vec(I64).clear's
+    // per-element drop, where the delete is its temp's only reader and
+    // retiring the binding with it is #302's.
+    add_count(tests, "enums_primitive_payload_arm_dropped", "build", "I64_delete(hoisted__I64", 1,
+        format(til_bin, " translate -c gen/c/enums_pp.c test/enums.til '&&' cat gen/c/enums_pp.c"))
+    // ...and a Str payload keeps its arm: that one has real cleanup.
+    add_count(tests, "enums_keeps_str_payload_delete", "build", "Str_delete(hoisted__Str_Token_delete", 1,
+        format(til_bin, " translate -c gen/c/enums_sp.c test/enums.til '&&' cat gen/c/enums_sp.c"))
+    // Issue #326: a generated destructor's per-field cleanup skips a
+    // BORROWED primitive field -- its delete is core's `if call_free {
+    // free(own self) }` reached with call_free false. The all-POD
+    // shortcut said as much for a struct whose fields are ALL like this;
+    // `Person { name := "unknown", age := 0 }` got the dead call anyway.
+    add_count(tests, "structs_no_primitive_field_delete", "build", "I64_delete(&self->age, 0);", 0,
+        format(til_bin, " translate -c gen/c/structs_pf.c test/structs.til '&&' cat gen/c/structs_pf.c"))
+    // ...and a field whose type has real cleanup keeps its call.
+    add_count(tests, "structs_keeps_str_field_delete", "build", "Str_delete(&self->name, 0);", 3,
+        format(til_bin, " translate -c gen/c/structs_sf.c test/structs.til '&&' cat gen/c/structs_sf.c"))
     // Issue #326: a destructor whose whole body is the `if call_free {
     // free(own self) }` tail -- every POD struct, every payload-less enum,
     // every primitive -- does nothing when call_free is false, so the call

@@ -419,6 +419,22 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
                     proc_body.add_child(own closure_del)
                     continue
                 }
+                // #326: a BORROWED primitive field's cleanup is core's
+                // `if call_free { free(own self) }` reached with call_free
+                // false -- a call that returns having done nothing (1,115
+                // of them across the corpus). The all-POD shortcut above
+                // already says as much for a struct whose fields are ALL
+                // like this; a struct with one Str among its I64s got the
+                // dead calls anyway. Not generating the node is the whole
+                // fix: nothing downstream has to recognize and drop it,
+                // and the interpreter stops evaluating it too. An `own`
+                // primitive field is a box the delete really does free.
+                if fd.own_type.is(OwnType.Own).not() {
+                    // Same two questions is_pod_type_for_clone opens with,
+                    // and the same field-type inference: this pass runs
+                    // before the typer, so `age := 0` has no til_type yet.
+                    if is_primitive(type_from_name_init(field_inferred_type_name(fd), scope)) { continue }
+                }
 
                 mut del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
                 del_acc.add_child(own field_acc)
@@ -896,6 +912,29 @@ priv generate_enum_cmp_method := func(mut enum_def: Expr, ename: Str, line: U32,
 
 priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
     mut proc_body := Expr.new(NodeType.Body, line, col)
+    // #321: a payload in a NICHE's pointer slot is its own heap box, so its
+    // delete must free the box: call_free TRUE. An inline payload keeps
+    // false -- its storage IS the enum's, and freeing it would free the
+    // enum out from under the caller. Borrowed payloads never reach the
+    // loop below (they are skipped there).
+    //
+    // enum_payload_is_pointer_slot cannot answer this: it now answers the
+    // deref-WRAPPER question (false for a niche, whose get_payload loads
+    // its own slot), and this generator runs before the EnumDef's variants
+    // are populated besides. Decide from the variant lists passed in,
+    // mirroring enum_is_niche's rule exactly -- including the funcsig
+    // exclusion, via the def's stamped flag. The answer is a property of
+    // the ENUM, so it is settled once rather than rebuilt per variant.
+    mut nfl_payload_less := 0
+    mut nfl_boxed := 0
+    for nk in 0..variant_types.len() {
+        ref nvt : Str = variant_types[nk]
+        if nvt.len() == 0 { nfl_payload_less = nfl_payload_less + 1; continue }
+        if enum_variant_payload_ref(enum_def, nk.to_i32()) { continue }
+        if enum_variant_payload_funcsig(enum_def, nk.to_i32()) { continue }
+        if niche_payload_is_owned_box(nvt) { nfl_boxed = nfl_boxed + 1 }
+    }
+    payload_in_slot := variant_types.len().eq(2).and(nfl_payload_less == 1).and(nfl_boxed == 1)
     if has_payloads {
         for j in 0..variant_names.len() {
             ref vtype : Str = variant_types[j]
@@ -906,6 +945,13 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             if enum_variant_payload_ref(enum_def, j.to_i32()) { continue }
             vt_to_str_resolved := type_from_name_init(vtype, scope)
             if vt_to_str_resolved.is_funcptr().or(vt_to_str_resolved.is(Type.Body)) { continue }
+            // #326: an INLINE primitive payload needs no cleanup -- its
+            // delete is core's `if call_free { free(own self) }` and
+            // call_free is false, so the whole arm (a tag compare, a
+            // payload pointer, the call) does nothing. In a niche's
+            // pointer slot the payload IS a box and call_free is true, so
+            // that one keeps its arm.
+            if is_primitive(vt_to_str_resolved).and(payload_in_slot.not()) { continue }
 
             mut is_call := make_is_tag_check_fcall("self", ename, variant_names[j], enum_tag_size(enum_def), line, col)
 
@@ -929,31 +975,7 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             self_arg.set_til_type(Type.Enum(ename.clone()))
             mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), line, col)
             set_own_arg(del_call, del_call.children.len())
-            // #321: a payload in a NICHE's pointer slot is its own heap box,
-            // so its delete must free the box: call_free TRUE. An inline
-            // payload keeps false -- its storage IS the enum's, and freeing
-            // it would free the enum out from under the caller. Borrowed
-            // payloads never reach here (they continue'd above).
-            //
-            // enum_payload_is_pointer_slot cannot answer this: it now answers
-            // the deref-WRAPPER question (false for a niche, whose
-            // get_payload loads its own slot), and this generator runs before
-            // the EnumDef's variants are populated besides. Decide from the
-            // variant lists passed in, mirroring enum_is_niche's rule
-            // exactly -- including the funcsig exclusion, via the def's
-            // stamped flag.
             del_call.add_child(own gc)
-            mut nfl_payload_less := 0
-            mut nfl_boxed := 0
-            for nk in 0..variant_types.len() {
-                ref nvt : Str = variant_types[nk]
-                if nvt.len() == 0 { nfl_payload_less = nfl_payload_less + 1; continue }
-                if enum_variant_payload_ref(enum_def, nk.to_i32()) { continue }
-                if enum_variant_payload_funcsig(enum_def, nk.to_i32()) { continue }
-                if niche_payload_is_owned_box(nvt) { nfl_boxed = nfl_boxed + 1 }
-            }
-            payload_in_slot := variant_types.len().eq(2).and(nfl_payload_less == 1).and(nfl_boxed == 1)
-
             mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(payload_in_slot)), line, col)
             del_call.add_child(own false_lit)
             then_body.add_child(own del_call)

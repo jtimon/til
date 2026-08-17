@@ -99,7 +99,6 @@ static Array__Str Array__Str_clone(Array__Str * self);
 static void adopt__Str(void * dest, Str src);
 static Str U64_to_str(U64 val);
 static Str I64_to_str(I64 val);
-static void I64_delete(I64 * self, Bool call_free);
 static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 static __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 static void assert(Bool cond, Str * loc);
@@ -503,12 +502,6 @@ static Str I64_to_str(I64 val) {
     { Str _ret = hoisted__Str_I64_to_str_11; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
-static void I64_delete(I64 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     U32 hoisted__U32_0 = 3;
     Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
@@ -810,15 +803,10 @@ static Token Token_Num(I64 * val) {
     return r;
 }
 static void Token_delete(Token * self, Bool call_free) {
-    Bool hoisted__Bool_2 = ((Bool)((((Token *)(self))->tag) == Token_TAG_Num));
-    if (hoisted__Bool_2) {
-        I64 *hoisted__I64_0 = ((void *)((U8 *)(self) + offsetof(Token, data)));
-        I64_delete(hoisted__I64_0, 0);
-    }
-    Bool hoisted__Bool_3 = ((Bool)((((Token *)(self))->tag) == Token_TAG_Name));
-    if (hoisted__Bool_3) {
-        Str *hoisted__Str_Token_delete_1 = ((void *)((U8 *)(self) + offsetof(Token, data)));
-        Str_delete(hoisted__Str_Token_delete_1, 0);
+    Bool hoisted__Bool_1 = ((Bool)((((Token *)(self))->tag) == Token_TAG_Name));
+    if (hoisted__Bool_1) {
+        Str *hoisted__Str_Token_delete_0 = ((void *)((U8 *)(self) + offsetof(Token, data)));
+        Str_delete(hoisted__Str_Token_delete_0, 0);
     }
     if (call_free) {
         free(self);

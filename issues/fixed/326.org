@@ -739,6 +739,23 @@ landing order:
   prefix-matching til's own helpers into all seven ~enum_variant_*~
   stubs, and ~emit_script_main~ leaking a previous function's name-keyed
   locals into the global-vs-local decision.
+- An enum's generated destructor drops the whole arm for an INLINE
+  PRIMITIVE payload -- a tag compare, a payload pointer and a call that
+  does nothing.  In a niche's pointer slot the payload IS a box and
+  call_free is true, so that one keeps its arm.  The niche question is a
+  property of the ENUM, so it moved out of the per-variant loop it was
+  being rebuilt in.
+- A generated destructor's per-field cleanup is not emitted for a
+  BORROWED PRIMITIVE field: its delete is core's ~if call_free { free(own
+  self) }~ reached with call_free false.  The all-POD shortcut already
+  said as much for a struct whose fields are ALL like this; a struct with
+  one Str among its I64s got the dead calls anyway (1,115 across the
+  corpus, fixtures 1,718 -> 844).  Fixed where the node is CREATED, so
+  nothing downstream has to recognize and drop it and the interpreter
+  stops evaluating it too -- and the same field-type inference
+  is_pod_type_for_clone uses, because the initer runs before the typer and
+  ~age := 0~ has no til_type yet.  An ~own~ primitive field is a box its
+  delete really frees.
 - A destructor whose whole body is the ~if call_free { free(own self) }~
   tail -- what the initer generates for every POD struct and every
   payload-less enum, and what core writes by hand for every primitive --
