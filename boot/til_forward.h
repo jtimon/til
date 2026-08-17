@@ -4445,6 +4445,7 @@ Option__ref_ffi_type Option__ref_ffi_type_Some(ffi_type *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
+extern U32 CAP_INLINE;
 extern U32 ELEM_POD;
 extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;

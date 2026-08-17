@@ -1226,12 +1226,13 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     // program, so whatever IT needs from til is an unconditional root. That
     // set is exactly three symbols -- `nm -u` on ext.o resolves everything
     // else to libc or libffi: Str_clone (the cwd, env and blob helpers each
-    // return an owned empty Str that way) and the two capacity sentinels the
+    // return an owned empty Str that way) and the capacity sentinels the
     // Str writers stamp. The blanket lifecycle rooting and the blanket core
     // value rooting used to supply them by accident.
     push_qn(worklist, "Str", "clone")
     vec_push_str(worklist, "CAP_LIT")
     vec_push_str(worklist, "CAP_VIEW")
+    vec_push_str(worklist, "CAP_INLINE")
     if is_library {
         seed_library_roots(lp, worklist)
     } else if is_cli {

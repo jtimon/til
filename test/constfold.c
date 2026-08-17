@@ -178,8 +178,8 @@ static struct {
 };
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
-static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:124:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:128:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:137:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:141:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_10 = (Str){.c_str = (void *)"test/constfold.til:281:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_16 = (Str){.c_str = (void *)"test/constfold.til:282:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_21 = (Str){.c_str = (void *)"test/constfold.til:283:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -230,6 +230,7 @@ static Str hoisted__Str_test_variadic_fold_8 = (Str){.c_str = (void *)"test/cons
 
 U32 CAP_LIT;
 U32 CAP_VIEW;
+static U32 CAP_INLINE;
 
 static Str format(Array__Str * parts) {
     U32 total = 0;
@@ -1077,6 +1078,7 @@ static void assert_eq__Str(Str * a, Str * b, Str * loc) {
 int main(void) {
     CAP_LIT = 4294967295;
     CAP_VIEW = 4294967294;
+    CAP_INLINE = 4294967293;
     test_simple_add();
     fprintf(stderr, "  pass: %s\n", "test_simple_add");
     test_nested_arithmetic();

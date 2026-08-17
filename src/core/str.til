@@ -7,6 +7,19 @@ import("vec")
 
 CAP_LIT : USize = -1.to_usize()
 CAP_VIEW : USize = -2.to_usize()
+/// Reserved for a Str whose bytes live in its own box's tail -- one
+/// allocation for both, so delete releases the box and nothing else. No
+/// Str carries it YET: this commit only teaches the compiler the name, so
+/// that master's til_boot can bind it when the constructor and destructor
+/// start using it (doc/self.org, "Staged migration across master merges" --
+/// the sentinel is computed by `-3.to_usize()`, not a plain literal, so
+/// only constfolder_register_core_constants can bind it for the fold
+/// interpreter, and HEAD's til_boot has no such registration).
+///
+/// Ordered BELOW CAP_VIEW on purpose: "owns a separate buffer" becomes
+/// `cap < CAP_INLINE`, keeping all three sentinels at the top of the range
+/// with every real capacity below them.
+CAP_INLINE : USize = -3.to_usize()
 
 /// Concatenate multiple strings into one.
 ///
