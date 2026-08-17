@@ -241,6 +241,22 @@ test_enum_fold := test() {
     assert(c.eq(Color.Green).not())
 }
 
+// Test 11b: BOTH sides of a tag compare are variant names -- a `match` over a
+// literal variant and the `is` spelling of the same question, the language's
+// two tag-compare lowerings. The answer is known before the backend runs, so
+// the arms must reach the C as 1 and 0. This is here because the fixture is
+// where the emitted form gets reviewed: when a bare variant name started
+// emitting as its tag, the one-sided compares in this file all looked right
+// and nothing showed what the two-sided ones had become --
+// `Color_TAG_Red == Color_TAG_Red`, which gcc accepts silently and clang
+// rejects outright under -Werror (-Wtautological-compare), so only the mac CI
+// ever saw it.
+test_enum_literal_fold := test() {
+    assert_eq(Str, match Color.Red { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" }, "r")
+    assert(Color.Blue.is(Color.Blue))
+    assert(Color.Blue.is(Color.Red).not())
+}
+
 Token := enum { Num: I64, Name: Str, Eof }
 
 // Test 12: Payload enum construction folded at compile time.

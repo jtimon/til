@@ -3248,7 +3248,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                     // niche landed because Option's own is_some/is_none go
                     // through a switch, so no niche enum reached `is` until
                     // an ordinary two-variant enum became one. Delegating to
-                    // emit_is_n_operand keeps the two lowerings from drifting
+                    // emit_is_n_compare keeps the two lowerings from drifting
                     // apart again.
                     mut is_op_niche := false
                     is_op_def_o := find_struct_def(sname, ctx)
@@ -3256,13 +3256,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                         ref is_op_def : Expr = is_op_def_o.unwrap()
                         if is_op_def.node_type.is(NodeType.EnumDef) { is_op_niche = enum_is_niche(is_op_def) }
                     }
-                    f.write("((")
-                    f.write(core_ret_c)
-                    f.write(")(")
-                    emit_is_n_operand(f, e, 1, sname, is_op_niche, depth, ctx)
-                    f.write(" == ")
-                    emit_is_n_operand(f, e, 2, sname, is_op_niche, depth, ctx)
-                    f.write("))")
+                    emit_is_n_compare(f, e, core_ret_c, sname, is_op_niche, depth, ctx)
                 } else {
                     core_c_op := core_binop_to_c(core_op)
                     if core_c_op.len() == 0 { panic(__LOC__, ": core_func backend lowering: unknown op '", core_op, "'") }
@@ -3585,11 +3579,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 ref isn_def : Expr = isn_def_o.unwrap()
                 if isn_def.node_type.is(NodeType.EnumDef) { isn_niche = enum_is_niche(isn_def) }
             }
-            f.write("((").write(isn_ret_c).write(")(")
-            emit_is_n_operand(f, e, 1, enum_c, isn_niche, depth, ctx)
-            f.write(" == ")
-            emit_is_n_operand(f, e, 2, enum_c, isn_niche, depth, ctx)
-            f.write("))")
+            emit_is_n_compare(f, e, isn_ret_c, enum_c, isn_niche, depth, ctx)
         } else if name.ident_name().eq("is_null").and(builder_callee_is_core(name.ident_name(), ctx)) {
             // is_null core_func: lower is_null(p) to a direct null test
             // inline, dropping the call (6.2M --prof calls). The Dynamic arg
@@ -5029,21 +5019,28 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
     }
 }
 
+// A bare variant name IS a compile-time constant tag -- `E.V` written where
+// an is_n operand goes, the shape make_is_tag_check_fcall builds and every
+// `x.is(E.V)` in the language carries. Both tag-compare emitters ask here, so
+// they agree on what counts as one.
+priv is_n_const_vname := func(operand: Expr, ctx: Context) returns Str {
+    switch operand.node_type {
+    case .FieldAccess(fa):
+        if builder_fa_is_ns(operand, ctx) { return Str.clone(fa.field_access_name()) }
+    case:
+    }
+    return ""
+}
+
 // #320: emit one operand of an is_n tag comparison. A tagged enum reads
 // its `tag` field; a NICHE enum has no tag, so the discriminant is "is the
-// pointer non-null". For a niche enum a bare variant name (the shape
-// make_is_tag_check_fcall builds: `is_n(x, E.Variant, w)`) has no value to
+// pointer non-null". For a niche enum a bare variant name has no value to
 // materialise -- it IS the constant answer, 1 for the payload variant and
 // 0 for the payload-less one.
 priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_niche: Bool, depth: I32, mut ctx: Context) {
     ref operand : Expr = e.children[idx]
+    vname := is_n_const_vname(operand, ctx)
     if is_niche {
-        mut vname := ""
-        switch operand.node_type {
-        case .FieldAccess(fa):
-            if builder_fa_is_ns(operand, ctx) { vname = Str.clone(fa.field_access_name()) }
-        case:
-        }
         if vname.len() > 0 {
             // The niche branch above already resolved this enum's def.
             ref vdef : Expr = find_struct_def(enum_c, ctx).unwrap()
@@ -5063,19 +5060,43 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
     // arm of a switch the typer left as an if-chain carries one, 2,842 of
     // them in the compiler's own C, on the hottest paths it has
     // (Expr.til_type alone is a 30-arm chain over NodeType).
-    mut const_vname := ""
-    switch operand.node_type {
-    case .FieldAccess(cfa):
-        if builder_fa_is_ns(operand, ctx) { const_vname = Str.clone(cfa.field_access_name()) }
-    case:
-    }
-    if const_vname.len() > 0 {
-        f.write(enum_c).write("_TAG_").write(const_vname)
+    if vname.len() > 0 {
+        f.write(enum_c).write("_TAG_").write(vname)
         return
     }
     f.write("(((").write(enum_c).write(" *)(")
     emit_as_ptr(f, operand, depth, get_own_arg(e, idx), ctx)
     f.write("))->tag)")
+}
+
+// Both tag-compare lowerings -- the `is` core_func and is_n -- end in the
+// same shape: a return-type cast around `<operand> == <operand>`. They share
+// this so they cannot drift apart, and so the fold below has one home.
+//
+// When BOTH operands are variant names the answer is known right here, and
+// asking a backend to compute it is asking it to evaluate `Red == Red`:
+// `match Color.Red { case Color.Red: ... }` and every other switch over a
+// literal enum value builds exactly that. Once emit_is_n_operand started
+// spelling a bare variant name as its tag, the two sides stopped being
+// distinct C expressions and became the same enum constant twice, which
+// clang rejects outright under -Werror (-Wtautological-compare: "self-
+// comparison always evaluates to true"). Fold it here instead: the operands
+// carry no side effects to preserve -- a variant name materialises nothing.
+priv emit_is_n_compare := proc(f: File, e: Expr, ret_c: Str, enum_c: Str, is_niche: Bool, depth: I32, mut ctx: Context) {
+    f.write("((").write(ret_c).write(")(")
+    lhs_v := is_n_const_vname(e.children[1], ctx)
+    rhs_v := is_n_const_vname(e.children[2], ctx)
+    if (lhs_v.len() > 0).and(rhs_v.len() > 0) {
+        // Same name, same tag. A niche enum has exactly two variants, one
+        // payload-carrying and one payload-less, so the names decide its
+        // null-or-not discriminant just as surely.
+        if lhs_v.eq(rhs_v) { f.write("1") } else { f.write("0") }
+    } else {
+        emit_is_n_operand(f, e, 1, enum_c, is_niche, depth, ctx)
+        f.write(" == ")
+        emit_is_n_operand(f, e, 2, enum_c, is_niche, depth, ctx)
+    }
+    f.write("))")
 }
 
 // #326: a variant constructor is an ns member like every other method, so
