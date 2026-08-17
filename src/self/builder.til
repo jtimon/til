@@ -2275,13 +2275,13 @@ priv is_noop_delete_stmt := func(e: Expr, mut ctx: Context) returns Bool {
     // #326: the destructor itself does nothing when call_free is false --
     // see builder_delete_call_does_nothing, which the site inventory asks
     // too so the definition and its calls disappear together.
-    nds_root := builder_delete_arg_root(e)
-    mut nds_read := false
-    if nds_root.len() > 0 {
-        nds_sym := ctx.symbols.intern(nds_root)
-        nds_read = ctx.builder_func.body_refs.has(nds_sym)
+    if builder_delete_call_is_free_only(e, ctx) {
+        nds_root_o := builder_delete_arg_root(e)
+        if nds_root_o.is_some() {
+            nds_sym := ctx.symbols.intern(nds_root_o.unwrap())
+            if ctx.builder_func.body_refs.has(nds_sym) { return true }
+        }
     }
-    if builder_delete_call_does_nothing(e, nds_read, ctx) { return true }
     ref c1 : Expr = e.children[1]
     switch c1.node_type {
     case .Ident(del_arg):
@@ -10682,20 +10682,20 @@ priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns Option(ref Ex
 // call, a subscript, an index expression. `T.delete(own self.unsafe_get(i),
 // false)` hoists its receiver, and pruning the statement would orphan that
 // temp.
-priv builder_place_root := func(a: Expr) returns Str {
+priv builder_place_root := func(a: Expr) returns Option(ref Str) {
     switch a.node_type {
     case .Ident(bpr_id):
-        return Str.clone(bpr_id.ident_name())
+        return Option(ref Str).Some(bpr_id.ident_name())
     case .FieldAccess:
-        if a.children.len() == 0 { return "" }
+        if a.children.len() == 0 { return Option(ref Str).None }
         return builder_place_root(a.children[0])
     case:
-        return ""
+        return Option(ref Str).None
     }
 }
 
-builder_delete_arg_root := func(e: Expr) returns Str {
-    if e.children.len() < 2 { return "" }
+builder_delete_arg_root := func(e: Expr) returns Option(ref Str) {
+    if e.children.len() < 2 { return Option(ref Str).None }
     return builder_place_root(e.children[1])
 }
 
@@ -10705,7 +10705,6 @@ builder_delete_arg_root := func(e: Expr) returns Str {
 // for every primitive. Asked of the AST that WILL be emitted, not of a
 // POD-ness proxy: the body is the thing that has to do nothing.
 priv builder_delete_body_is_free_only := func(type_name: Str, ctx: Context) returns Bool {
-    if type_name.len() == 0 { return false }
     fdef_o := find_callee_fdef(type_name.format("_delete"), ctx)
     if fdef_o.is_none() { return false }
     ref bdf : Expr = fdef_o.unwrap()
@@ -10723,23 +10722,25 @@ priv builder_delete_body_is_free_only := func(type_name: Str, ctx: Context) retu
     }
 }
 
-// #326: `T.delete(x, false)` on such a type cannot do anything -- the one
-// branch the destructor has is not taken. 4,497 of these across the
-// corpus, 2,169 in til's own output. BOTH the statement emitter
-// (is_noop_delete_stmt) and the site inventory ask this: a site recorded
-// for a call that is not emitted keeps a definition nothing calls, which
-// is the -Werror=unused-function this issue exists to keep loud.
-// `arg_is_read` is the caller's answer to "does anything OTHER than a
-// delete read this argument's root binding in the body being walked?"
-// (builder_collect_body_reads already treats every delete argument as a
-// non-read, so its set answers exactly that). It has to be true: dropping
-// the last reader of a binding leaves a declaration nothing reads, and
-// REMOVING that declaration is the ownership rewrite #302 owns -- gcc
-// would rightly call the leftover an unused variable. Where the no-op
-// delete is a binding's only reader the binding is dead in the til source,
-// and the call stays until #302 can retire both together.
-priv builder_delete_call_does_nothing := func(e: Expr, arg_is_read: Bool, ctx: Context) returns Bool {
-    if arg_is_read.not() { return false }
+priv builder_delete_type_free_only := func(type_name: Str, mut ctx: Context) returns Bool {
+    if type_name.len() == 0 { return false }
+    if ctx.builder_free_only_delete.has(type_name) {
+        ref bdt_hit : Bool = ctx.builder_free_only_delete[type_name]
+        if bdt_hit { return true }
+        return false
+    }
+    answer := builder_delete_body_is_free_only(type_name, ctx)
+    ctx.builder_free_only_delete.set(type_name, own answer.clone())
+    return answer
+}
+
+// #326: `T.delete(x, false)` where T's whole destructor is the
+// `if call_free { free(own self) }` tail cannot do anything -- the one
+// branch it has is not taken. Cheapest tests first: the shape (a false
+// call_free literal, a borrowed place argument) rejects almost every
+// delete in the program without a single lookup, and only the survivors
+// reach the memoized per-type answer.
+priv builder_delete_call_is_free_only := func(e: Expr, mut ctx: Context) returns Bool {
     if e.children.len() < 3 { return false }
     switch e.children[2].node_type {
     case .Literal(Literal.Bool(bdn_cf)):
@@ -10749,15 +10750,49 @@ priv builder_delete_call_does_nothing := func(e: Expr, arg_is_read: Bool, ctx: C
     }
     if get_own_arg(e, 1) { return false }
     ref bdn_arg : Expr = e.children[1]
+    if builder_place_root(bdn_arg).is_none() { return false }
     bdn_tn_o := expr_type_name_ref(bdn_arg)
     if bdn_tn_o.is_none() { return false }
-    return builder_delete_body_is_free_only(bdn_tn_o.unwrap(), ctx)
+    return builder_delete_type_free_only(bdn_tn_o.unwrap(), ctx)
 }
 
-priv builder_pod_site_spliced := func(e: Expr, member: Str, arg_is_read: Bool, stack_names: Set(Str), dup_names: Set(Str), ctx: Context) returns Bool {
+// BOTH the statement emitter (is_noop_delete_stmt) and the site inventory
+// ask the above: a site recorded for a call that is not emitted keeps a
+// definition nothing calls, which is the -Werror=unused-function this
+// issue exists to keep loud. They also both ask whether anything OTHER
+// than a delete reads the argument's root binding, because dropping the
+// last reader of a binding leaves a declaration nothing reads, and
+// REMOVING that declaration is the ownership rewrite #302 owns -- gcc
+// would rightly call the leftover an unused variable. Where the no-op
+// delete is a binding's only reader the binding is dead in the til source,
+// and the call stays until #302 can retire both together.
+priv builder_delete_call_does_nothing := func(e: Expr, reads: Set(U32), mut ctx: Context) returns Bool {
+    if builder_delete_call_is_free_only(e, ctx).not() { return false }
+    root_o := builder_delete_arg_root(e)
+    if root_o.is_none() { return false }
+    bdn_sym := ctx.symbols.intern(root_o.unwrap())
+    return reads.has(bdn_sym)
+}
+
+// #326: does this body contain a delete the gate above will drop? The
+// per-body read set costs a walk that INTERNS every ident, and the site
+// inventory rebuilds it on every fixpoint round -- this scan visits the
+// same nodes, allocates nothing, and short-circuits, so bodies with no
+// such delete (most of them) never pay for the set.
+priv builder_body_has_free_only_delete := func(e: Expr, mut ctx: Context) returns Bool {
+    if builder_is_delete_call(e) {
+        if builder_delete_call_is_free_only(e, ctx) { return true }
+    }
+    for bhd_ch : Expr in e.children {
+        if builder_body_has_free_only_delete(bhd_ch, ctx) { return true }
+    }
+    return false
+}
+
+priv builder_pod_site_spliced := func(e: Expr, member: Str, reads: Set(U32), stack_names: Set(Str), dup_names: Set(Str), mut ctx: Context) returns Bool {
     if member.eq("delete").not() { return false }
     if e.children.len() < 2 { return false }
-    if builder_delete_call_does_nothing(e, arg_is_read, ctx) { return true }
+    if builder_delete_call_does_nothing(e, reads, ctx) { return true }
     ref bps_arg : Expr = e.children[1]
     if bps_arg.node_type.is(NodeType.Ident).not() { return false }
     if bps_arg.til_type().is(Type.Enum).not() { return false }
@@ -10785,8 +10820,14 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         // walker -- a second implementation of the rule would drift, and
         // the two answers must agree or a call outlives its definition.
         mut bvs_fn_reads := Set(U32).new()
-        for bvs_fn_rch : Expr in e.children {
-            builder_collect_body_reads(bvs_fn_rch, bvs_fn_reads, ctx)
+        mut bvs_fn_needs := false
+        for bvs_fn_sch : Expr in e.children {
+            if builder_body_has_free_only_delete(bvs_fn_sch, ctx) { bvs_fn_needs = true break }
+        }
+        if bvs_fn_needs {
+            for bvs_fn_rch : Expr in e.children {
+                builder_collect_body_reads(bvs_fn_rch, bvs_fn_reads, ctx)
+            }
         }
         for bvs_fn_ch : Expr in e.children {
             builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_reads, "", ctx)
@@ -10865,13 +10906,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
                 recv_type_o := expr_type_name_ref(bvs_fa.children[0])
                 if recv_type_o.is_some() {
                     ref recv_type : Str = recv_type_o.unwrap()
-                    bvs_droot := builder_delete_arg_root(e)
-                    mut bvs_dread := false
-                    if bvs_droot.len() > 0 {
-                        bvs_dsym := ctx.symbols.intern(bvs_droot)
-                        bvs_dread = reads.has(bvs_dsym)
-                    }
-                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), bvs_dread, stack_names, dup_names, ctx).not() {
+                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), reads, stack_names, dup_names, ctx).not() {
                         sites.add(own recv_type.concat3(".", bvs_f.field_access_name()))
                     }
                 }
@@ -11288,6 +11323,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     lp.ctx.builder_reflect_inventory = Set(Str).new()
     lp.ctx.builder_dyn_fn_targets = Set(Str).new()
     lp.ctx.builder_ns_member_sites = Set(Str).new()
+    lp.ctx.builder_free_only_delete = Map(Str, Bool).new()
     lp.ctx.builder_lit_guard_used = false
     lp.ctx.builder_cstr_used = false
     lp.ctx.builder_closure_rt_used = false
@@ -11348,7 +11384,14 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
             // Top-level statements become main's body, and the emitter's
             // liveness for those is this same whole-unit walk.
             mut inv_unit_reads := Set(U32).new()
-            builder_collect_body_reads(lp.ctx.imported[upath].ast, inv_unit_reads, lp.ctx)
+            mut inv_unit_needs := false
+            for inv_tl : Expr in lp.ctx.imported[upath].ast.children {
+                if is_func_decl(inv_tl) { continue }
+                if builder_body_has_free_only_delete(inv_tl, lp.ctx) { inv_unit_needs = true break }
+            }
+            if inv_unit_needs {
+                builder_collect_body_reads(lp.ctx.imported[upath].ast, inv_unit_reads, lp.ctx)
+            }
             builder_collect_ns_member_sites(lp.ctx.imported[upath].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_unit_reads, "", lp.ctx)
         }
         n_sites := inv_round_sites.len()

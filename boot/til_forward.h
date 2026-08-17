@@ -261,6 +261,7 @@ typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
 typedef struct HashMap__Str_Str HashMap__Str_Str;
 typedef struct HashMap__Str_USize HashMap__Str_USize;
+typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
@@ -759,6 +760,12 @@ typedef struct HashMap__Str_USize {
     Vec__I64 nexts;
     Vec__U64 hashes;
 } HashMap__Str_USize;
+
+
+typedef struct Map__Str_Bool {
+    Vec__Str keys;
+    Vec__Bool values;
+} Map__Str_Bool;
 
 
 typedef struct Map__Str_Dynamic {
@@ -1702,6 +1709,7 @@ typedef struct Context {
     Set__Str builder_used_ctypes;
     Set__Str builder_omitted_core_funcs;
     Set__Str builder_forward_declared;
+    Map__Str_Bool builder_free_only_delete;
     Bool builder_static_ok;
     Bool param_value_abi_ok;
     Bool builder_keep_all_exports;

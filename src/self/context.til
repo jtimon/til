@@ -1255,6 +1255,13 @@ Context := struct {
     // which members the walk skipped -- its four loops do not all skip the
     // same things, and a mirror of them would drift.
     builder_forward_declared := Set(Str).new()
+    // #326: memo for builder_delete_type_free_only, keyed by type name.
+    // The answer is a property of the type's `delete` body, asked once per
+    // delete SITE otherwise -- and the site inventory asks it again on
+    // every fixpoint round. Each miss costs a Str allocation for the
+    // `<T>_delete` key plus a scope-chain lookup; the corpus has ~20k
+    // delete sites and a few dozen distinct types.
+    builder_free_only_delete := Map(Str, Bool).new()
     // #326: true while emitting the monolithic .c of a CLOSED WORLD -- a
     // program (not a library), with no link_c handing the C to a stranger.
     // Its til functions are emitted `static`, which is what lets the C
