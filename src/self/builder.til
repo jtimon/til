@@ -5241,6 +5241,16 @@ priv builder_core_func_omitted := func(name: Str, mut lp: LoadedProgram) returns
 // never for the two names something outside the .c calls by name: main
 // (the C runtime) and Str_clone (the hand-written ext.c).
 // "static " when the generated families may be TU-local, "" otherwise.
+// A GLOBAL may be static on the same closed-world argument as a
+// function, minus the two the hand-written ext.c reads by name: the
+// capacity sentinels every Str writer stamps. Making them static puts
+// -Wunused-variable on duty over the program's globals.
+priv builder_global_static_prefix := func(name: Str, ctx: Context) returns Str {
+    if ctx.builder_static_ok.not() { return "" }
+    if name.eq("CAP_LIT").or(name.eq("CAP_VIEW")) { return "" }
+    return "static "
+}
+
 priv builder_static_prefix := func(ctx: Context) returns Str {
     if ctx.builder_static_ok { return "static " }
     return ""
@@ -7944,10 +7954,10 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
                 // byte into the global, free the block, and then let every
                 // memset/ptr_add on it write past a one-byte object.
                 if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
-                    f.write(ctype).write(" *").write(dd.name).write(";\n")
+                    f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" *").write(dd.name).write(";\n")
                     lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
                 } else {
-                    f.write(ctype).write(" ").write(dd.name).write(";\n")
+                    f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" ").write(dd.name).write(";\n")
                     lp.ctx.script_globals.add(own lp.ctx.symbols.intern(dd.name))
                 }
             }
@@ -7961,10 +7971,10 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
             ref dd : Declaration = decl_of(stmt)
             // Same raw-allocator pointer rule as the core-unit loop above.
             if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
-                f.write(ctype).write(" *").write(dd.name).write(";\n")
+                f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" *").write(dd.name).write(";\n")
                 lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
             } else {
-                f.write(ctype).write(" ").write(dd.name).write(";\n")
+                f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" ").write(dd.name).write(";\n")
                 lp.ctx.script_globals.add(own lp.ctx.symbols.intern(dd.name))
             }
         }
@@ -8073,7 +8083,17 @@ priv emit_test_main := proc(f: File, mut lp: LoadedProgram) {
 priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1, lp)
-        lp.ctx.builder_func.unsafe_to_hoist = Set(Sym).new()
+    // main's body is a FUNCTION body like any other, so it starts from
+    // fresh per-function scratch. Clearing only unsafe_to_hoist left the
+    // previously emitted function's locals in stack_locals / ptr_locals,
+    // and those sets are NAME-keyed: is_value_global's shadowing guard
+    // then denied a top-level global that happened to share a name with
+    // some unrelated function's local. examples/sender.til is the case --
+    // `check` has an `I8 *msg`, so the script's `msg := "..."` was emitted
+    // as a shadowing local static in main while its file-scope global was
+    // left declared and never assigned. Any OTHER function reading it
+    // would have read that uninitialized global.
+    builder_reset_func_scratch(lp.ctx)
     // Collect hoist restrictions across all user units.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]

@@ -943,8 +943,18 @@ main := proc(args: ..Str) {
     // enum_variant_tag / _index / _type helpers made every self-translate
     // claim it needed reflection, emitting all seven enum_variant_* stubs
     // with no caller. The test names the builtins exactly now.
+    // A program's GLOBALS are static too, which puts -Wunused-variable on
+    // duty beside -Wunused-function. CAP_LIT/CAP_VIEW stay extern: the
+    // hand-written ext.c stamps them, the same boundary as Str_clone.
+    add_count(tests, "hello_globals_are_tu_local", "build", "static U32 CAP_LIT;", 0,
+        format(til_bin, " translate -c gen/c/hs_gs.c examples/hello_script.til '&&' cat gen/c/hs_gs.c"))
+    // Counted against gen/til/til.c, which `make` ALREADY produced to
+    // build bin/til -- the first version re-translated src/til.til here,
+    // adding a second copy of the suite's single slowest job in a
+    // wall-visible category (the exact mistake self_translate's comment
+    // warns about; the merge box's wall_ms jumped ~23s and stayed there).
     add_count(tests, "til_no_unneeded_reflect_family", "build", "static I64 enum_variant_count(", 0,
-        format(til_bin, " translate -c gen/c/til_rf.c src/til.til '&&' cat gen/c/til_rf.c"))
+        "cat gen/til/til.c")
     // ...and a program that really does reflect still gets them.
     add_count(tests, "first_class_keeps_reflect_family", "build", "static I64 enum_variant_count(", 2,
         format(til_bin, " translate -c gen/c/fc_rf.c test/first_class.til '&&' cat gen/c/fc_rf.c"))
