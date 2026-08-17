@@ -52,6 +52,16 @@ static Str *wincon_str(const char *data, size_t len) {
 static HANDLE wincon_in_h = INVALID_HANDLE_VALUE;
 static HANDLE wincon_out_h = INVALID_HANDLE_VALUE;
 
+// Consume the console control events this driver raises at the REPL, so
+// the probe does not kill the process running it. TRUE means "handled",
+// and handler FUNCTIONS are per-process -- unlike the
+// SetConsoleCtrlHandler(NULL, TRUE) inhibit, nothing here is inherited by
+// the children, which must still take the signal.
+static BOOL WINAPI wincon_swallow_ctrl(DWORD type) {
+    (void)type;
+    return TRUE;
+}
+
 Bool wincon_begin(void) {
     // Whatever console the job process has (usually none -- the runner
     // redirects to pipes) is not one we can drive, so start a fresh one.
@@ -86,6 +96,7 @@ Bool wincon_begin(void) {
     SetStdHandle(STD_INPUT_HANDLE, wincon_in_h);
     SetStdHandle(STD_OUTPUT_HANDLE, wincon_out_h);
     SetStdHandle(STD_ERROR_HANDLE, wincon_out_h);
+    SetConsoleCtrlHandler(wincon_swallow_ctrl, TRUE);
     return 1;
 }
 
@@ -168,14 +179,30 @@ void wincon_resize(I64 rows) {
     SetConsoleScreenBufferSize(wincon_out_h, size);
 }
 
-// Ctrl-C as the console raises it, which is the only way to reach
-// repl_term_ctrl_handler: an injected key record is not processed into a
-// control event. The ignore flag is set HERE and not in wincon_begin
-// because CreateProcess passes it to children -- the REPL was spawned
-// before this runs, so it still takes the event.
-void wincon_ctrl_c(void) {
-    SetConsoleCtrlHandler(NULL, TRUE);
-    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+// Ctrl-C and Ctrl-Break as the console raises them, which is the only way
+// to reach repl_term_ctrl_handler: an injected key record is never
+// processed into a control event. Both return 0 on success and
+// GetLastError otherwise -- a call that quietly failed looks exactly like
+// a REPL that ignored the signal, and the first Ctrl-C run could not tell
+// the two apart.
+//
+// The driver survives its own probe through the real handler installed in
+// wincon_begin, not through SetConsoleCtrlHandler(NULL, TRUE): that
+// inhibit is INHERITED by children created afterwards, and MSDN documents
+// CTRL_C_EVENT as not generated for a process that has Ctrl+C disabled --
+// enough ambiguity to make a failure unreadable.
+I64 wincon_ctrl_c(void) {
+    if (GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)) return 0;
+    return (I64)GetLastError();
+}
+
+// The same handler, reached by a signal the Ctrl-C inhibit does not cover
+// (repl_term_ctrl_handler ignores its type argument, so both arrive at
+// the same code). Used only to report WHICH half is wrong when Ctrl-C
+// leaves the REPL running: delivery, or the handler.
+I64 wincon_ctrl_break(void) {
+    if (GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0)) return 0;
+    return (I64)GetLastError();
 }
 
 // The visible screen: every row up to the cursor's, right-trimmed and
@@ -264,7 +291,8 @@ void wincon_key(I64 vk, I64 ch) { (void)vk; (void)ch; }
 void wincon_noise(I64 count) { (void)count; }
 void wincon_clear(void) {}
 void wincon_resize(I64 rows) { (void)rows; }
-void wincon_ctrl_c(void) {}
+I64 wincon_ctrl_c(void) { return -1; }
+I64 wincon_ctrl_break(void) { return -1; }
 Str *wincon_screen(void) { return wincon_str("", 0); }
 I64 wincon_in_mode(void) { return -1; }
 I64 wincon_cursor_col(void) { return -1; }

@@ -47,7 +47,8 @@ wincon_key := ext_proc(shallow vk: I64, shallow ch: I64) {}
 wincon_noise := ext_proc(shallow count: I64) {}
 wincon_clear := ext_proc() {}
 wincon_resize := ext_proc(shallow rows: I64) {}
-wincon_ctrl_c := ext_proc() {}
+wincon_ctrl_c := ext_proc() returns shallow I64 {}
+wincon_ctrl_break := ext_proc() returns shallow I64 {}
 wincon_screen := ext_proc() returns Str {}
 wincon_in_mode := ext_proc() returns shallow I64 {}
 wincon_cursor_col := ext_proc() returns shallow I64 {}
@@ -157,19 +158,26 @@ step := proc(what: Str) {
     println("repl_wincon: ", what)
 }
 
+// Poll for the child to end, WITHOUT deciding anything: session B needs
+// to know whether it died so it can report what did and did not reach it.
+ended := proc(c: Cmd) returns Bool {
+    mut n : I64 = 0
+    while n < POLL_LIMIT {
+        if c.poll() { live_child = 0; return true }
+        sleep_ms(POLL_MS)
+        n++
+    }
+    return false
+}
+
 // Cmd.wait blocks forever. In a driver that means the CI job sits until
 // its own six-hour timeout instead of reporting, and the screen -- the
 // one thing that would explain the stall -- is never dumped. Poll with
 // the same budget every other wait uses, and treat running out as an
-// ordinary failure: a REPL that does not act on Ctrl-D or Ctrl-C is a
-// finding, not a reason to hang.
+// ordinary failure: a REPL that does not act on Ctrl-D is a finding, not
+// a reason to hang.
 wait_exit := proc(c: Cmd, what: Str) returns I64 {
-    mut n : I64 = 0
-    while n < POLL_LIMIT {
-        if c.poll() { live_child = 0; return c.status() }
-        sleep_ms(POLL_MS)
-        n++
-    }
+    if ended(c) { return c.status() }
     fail(format(what, " did not end the REPL within the poll budget"), wincon_screen())
     return -1
 }
@@ -345,8 +353,28 @@ main := proc(args: ..Str) {
     // interrupted -- so whatever prints next does not land on top of the
     // prompt -- and puts the console modes back before the default
     // handler kills the process.
-    wincon_ctrl_c()
-    status_b := wait_exit(repl2, "Ctrl-C")
+    // A call that quietly failed and a REPL that ignored the signal look
+    // identical from here, and the first Ctrl-C run could not tell them
+    // apart -- so ask the API whether it delivered, and if the REPL
+    // outlives it, ask CTRL_BREAK too. Break reaches the SAME handler
+    // (repl_term_ctrl_handler ignores its type argument) without being
+    // subject to the Ctrl-C inhibit, so which of the two ends the REPL
+    // says whether the fault is delivery or the handler. Ctrl-C is still
+    // what has to work; the break is a diagnostic, never a pass.
+    ctrl_c_err := wincon_ctrl_c()
+    if ctrl_c_err != 0 {
+        fail(format("GenerateConsoleCtrlEvent(CTRL_C_EVENT) failed with error ",
+                    ctrl_c_err.to_str()), wincon_screen())
+    }
+    if ended(repl2).not() {
+        brk_err := wincon_ctrl_break()
+        mut brk_ended := false
+        if brk_err == 0 { brk_ended = ended(repl2) }
+        fail(format("Ctrl-C was delivered but did not end the REPL; ",
+                    "CTRL_BREAK error=", brk_err.to_str(),
+                    " ended=", brk_ended.to_str()), wincon_screen())
+    }
+    status_b := repl2.status()
     step("9. Ctrl-C exit")
     col_b := wincon_cursor_col()
     mode_after_b := wincon_in_mode()
