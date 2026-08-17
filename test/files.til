@@ -274,6 +274,47 @@ test_file_path_types := test() {
     File.remove_tree(dir)
 }
 
+// File.is_absolute asks about the STRING, so unlike everything else in
+// this file it needs no fixture and holds on every host: a windows path
+// is absolute when read on linux too, which is the entire point.
+//
+// Issue #347: this decision used to live in the loader as
+// `starts_with("/")` alone, and no windows absolute path satisfies that.
+// Every one of them read as RELATIVE and had the importing file's
+// directory glued in front of it, which is why `til.exe repl` could not
+// start on windows at all -- the REPL is the only thing in the tree that
+// injects an absolute import. It took the windows console session in CI
+// to find that, because nothing could ask the question here.
+test_path_is_absolute_posix := test() {
+    assert(File.is_absolute("/"))
+    assert(File.is_absolute("/usr/lib/til/src/std/doc.til"))
+    assert(File.is_absolute("//server/share/x.til"))
+}
+
+test_path_is_absolute_windows := test() {
+    // get_bin_dir normalizes '\' to '/', so the first is the spelling the
+    // REPL actually builds -- but user source may write either.
+    assert(File.is_absolute("D:/a/til/til/src/std/doc.til"))
+    assert(File.is_absolute("C:\\Program Files\\til\\lib.til"))
+    assert(File.is_absolute("z:/lower/drive/letter"))
+    assert(File.is_absolute("C:/"))
+}
+
+test_path_is_absolute_relative_stays_relative := test() {
+    assert(File.is_absolute("").not())
+    assert(File.is_absolute("std/doc").not())
+    assert(File.is_absolute("../src/std/doc").not())
+    assert(File.is_absolute("./x").not())
+    // A bare drive is the process's CURRENT directory on that drive:
+    // relative, and joining it to a base is as wrong as not joining a
+    // rooted one.
+    assert(File.is_absolute("D:").not())
+    assert(File.is_absolute("D:x").not())
+    // Not a drive letter, so the colon is just a character in a name.
+    assert(File.is_absolute("1:/x").not())
+    assert(File.is_absolute("ab:/x").not())
+}
+
 // Dir.list reports the entries themselves, never "." or ".." -- every
 // caller that forgot to skip those walked its own parent.
 test_dir_list := test() {

@@ -6313,7 +6313,7 @@ priv resolve_target_archives := proc(flags: Str, ext_c_path: Str) returns Str {
     for tok : Str in flags.split(" ") {
         if tok.len() == 0 { continue }
         mut resolved := tok.clone()
-        if tok.ends_with(".a").and(path_is_absolute(tok).not()) {
+        if tok.ends_with(".a").and(File.is_absolute(tok).not()) {
             if realpath_str(tok).len() == 0 {
                 root_candidate := format(root, "/", tok)
                 if realpath_str(root_candidate).len() > 0 { resolved = root_candidate }

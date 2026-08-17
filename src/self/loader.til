@@ -22,34 +22,6 @@ realpath_str := ext_proc(path: Str) returns Str {}
 
 // --- Leaf helpers ---
 
-/// Is `p` a path that must be used AS IS rather than joined to a base
-/// directory? POSIX spells that with a leading "/"; Windows spells it
-/// with a drive-letter root, `D:/...` or `D:\...`.
-///
-/// Issue #347: every site below used to ask `starts_with("/")` alone, so
-/// on Windows an absolute path read as RELATIVE and got a base directory
-/// glued in front of it. That is what stopped `til.exe repl` from
-/// starting at all -- the REPL injects an absolute std/doc import built
-/// from get_bin_dir, and it resolved to
-/// `D:/a/til/til/winhost/D:/a/til/til/src/std/doc.til`, reported as "could
-/// not find import" and then "REPL base program failed to load". Nothing
-/// else in the tree injects an absolute import, which is why interpret,
-/// translate and build were fine on windows and only the REPL was dead.
-/// ext.c's mkdir_p_cstr already knew about drive letters; the til side
-/// did not.
-path_is_absolute := func(p: Str) returns Bool {
-    if p.starts_with("/") { return true }
-    // A drive root is exactly three characters of shape <letter> ':' <sep>.
-    // "D:" alone is the process's CURRENT directory on that drive, which is
-    // relative, so the separator is required.
-    if p.len() < 3 { return false }
-    if p.get(1).neq(':') { return false }
-    if p.get(2).neq('/').and(p.get(2).neq('\\')) { return false }
-    ref c : I8 = p.get(0)
-    if c.gte('A').and(c.lte('Z')) { return true }
-    return c.gte('a').and(c.lte('z'))
-}
-
 REPL_DOC_INDEX := "doc/gen/index.org"
 
 priv normalize_mode_name := func(mode_name: Str) returns Str {
@@ -64,7 +36,7 @@ priv normalize_mode_name := func(mode_name: Str) returns Str {
 priv display_path := func(p: Str, cwd: Str) returns Str {
     prefix := format(cwd, "/")
     rel := p.strip_prefix(prefix)
-    if path_is_absolute(rel) {
+    if File.is_absolute(rel) {
         return rel
     }
     if rel.starts_with("./") {
@@ -101,7 +73,7 @@ priv dir_of := func(abs: Str) returns Str {
 }
 
 priv resolve_link_path := proc(base_dir: Str, root_dir: Str, path: Str) returns Str {
-    if path_is_absolute(path) {
+    if File.is_absolute(path) {
         return path
     }
     rel_candidate := base_dir.format("/", path)
@@ -132,7 +104,7 @@ priv resolve_import_disps := proc(import_paths: Vec(Str), base_dir: Str, lib_dir
         // An absolute import path is used as-is (the REPL injects one for
         // std/doc, since its tmp file's directory floats with the cwd).
         mut abs := ""
-        if path_is_absolute(import_path) {
+        if File.is_absolute(import_path) {
             abs = realpath_str(import_path)
         } else {
             mut try_path := base_dir.format("/", import_path)
@@ -207,7 +179,7 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             // Absolute paths are used as-is (REPL std/doc injection); else
             // try relative to the importing file's directory, then lib_dir
             mut abs := ""
-            if path_is_absolute(import_path) {
+            if File.is_absolute(import_path) {
                 abs = realpath_str(import_path)
             } else {
                 mut try_path := base_dir.format("/", import_path)

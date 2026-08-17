@@ -109,6 +109,32 @@ namespace:
         return cpath_is_file(path)
     }
 
+    /// True when ~path~ is ROOTED -- one that must be used as it stands
+    /// rather than joined to a base directory. POSIX spells that with a
+    /// leading "/", Windows with a drive-letter root (~D:/...~ or
+    /// ~D:\...~). A bare ~D:~ is the process's current directory on that
+    /// drive, so it is relative and the separator is required.
+    ///
+    /// Unlike its neighbours this asks about the STRING, hence ~func~: it
+    /// never touches the file system, and says nothing about whether the
+    /// path exists.
+    ///
+    /// Issue #347: this used to be a private ~starts_with("/")~ in the
+    /// loader, which no windows absolute path satisfies -- so every one of
+    /// them read as relative and got a base directory glued in front.
+    /// ~til.exe repl~ could not start at all, because the REPL is the only
+    /// thing that injects an ABSOLUTE import. ext.c's ~mkdir_p_cstr~ had
+    /// known about drive letters all along.
+    is_absolute := func(path: Str) returns Bool {
+        if path.starts_with("/") { return true }
+        if path.len() < 3 { return false }
+        if path.get(1).neq(':') { return false }
+        if path.get(2).neq('/').and(path.get(2).neq('\\')) { return false }
+        ref c : I8 = path.get(0)
+        if c.gte('A').and(c.lte('Z')) { return true }
+        return c.gte('a').and(c.lte('z'))
+    }
+
     /// Remove ~path~ and everything under it, like ~rm -rf~: a file, or a
     /// directory with its whole subtree. A path that does not exist is
     /// already removed and reports success; a symlink is unlinked, never
