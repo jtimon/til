@@ -1,0 +1,64 @@
+# priority: high
+# category: bugs
+** OPEN #368 Multiple own-transfer sites on returning paths miscompile SILENTLY since #364/#365
+
+An owned local transferred on one early-return path and again on the
+fall-through path -- two transfer sites, no path transferring twice --
+used to make the BUILD abort loudly: the emitted C deleted the local on
+the fall-through path after that path had already transferred it, and
+bin/make died with `free(): invalid pointer` / `double free or
+corruption` the moment the fold interpreter ran the function. That
+loud failure is what the range-desugar commit ("a range whose direction
+is known emits one loop, not two", 2026-08) worked around by funneling
+every arm into a single `block.add_child` + transfer site; its commit
+message records the shape.
+
+Re-tested on master a80d70dc (after #364's ownership-shape matrix and
+#365's loop-rebind rule): the failure mode got WORSE, not better. The
+minimal in-situ diff -- add to desugar_for_in_range_stmt one early
+return arm above the existing tail, transferring the same `own block`:
+
+    if dir > 0 {
+        mut pa_cur := Expr.new(ident_node(cur_name), line, col)
+        mut pa_cmp := make_method_call_fcall(own pa_cur, "lt", line, col)
+        mut pa_end := Expr.new(ident_node(end_name), line, col)
+        pa_cmp.add_child(own pa_end)
+        mut pa_while := Expr.new(NodeType.While, line, col)
+        pa_while.add_child(own pa_cmp)
+        pa_while.add_child(own make_for_in_range_while_body(var_name,
+            cur_name, "inc", for_body, line, col, elem_type, forin_is_mut))
+        block.add_child(own pa_while)
+        replace_body_stmt_with_block(body, stmt_idx, own block)
+        return true
+    }
+    // ...existing code unchanged, ending in the same transfer...
+
+now BUILDS CLEAN (make exits 0, no abort) and produces a compiler that
+is wrong on every input: `println("hi")`, a bare block, and the
+self-translate all panic with
+
+    ./src/self/typer.til:5310:36: panic: uncaught throw 'OutOfBounds'
+
+(5310 is infer_if_stmt's `stmt.children[0]` read, i.e. an If node
+reached the typer with no children -- corrupted AST, nowhere near the
+edited function). A control build without the diff is fine. So the
+pre-#364 symptom (loud allocator abort at the source) has become a
+silently corrupt artifact that passes the build and dies later on
+unrelated input -- the exact failure mode CLAUDE.md's no-silent-
+fallbacks section exists to prevent.
+
+Standalone reduction FAILED twice, including a close mimic (recursive
+struct holding Vec of itself, accumulate-then-transfer, cross-module
+callee taking `own` as a non-final parameter, two early-return transfer
+sites) -- both behaved correctly. The trigger is narrower than "own
+local transferred on multiple returning paths"; whatever the extra
+ingredient is (the callee being replace_body_stmt_with_block? the
+transfer argument being a body slot the caller keeps walking? the
+sheer size of desugar_for_in_range_stmt?), the in-situ diff above
+reproduces it every time and is the working repro.
+
+Suggested attack: apply the diff, then byte-diff the emitted C of
+desugar_for_in_range_stmt (and its callees) against the single-site
+form -- the corruption must enter as a concrete wrong delete/move in
+that function's C, and the gc_audit dump (TIL_GC_AUDIT) of the body
+should show which path's verdict is wrong.
