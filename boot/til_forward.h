@@ -1710,6 +1710,7 @@ typedef struct Context {
     Bool builder_keep_all_exports;
     Bool builder_lit_guard_used;
     Bool builder_cstr_used;
+    Bool builder_closure_rt_used;
     Option__ref_Expr current_fdef;
     Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
@@ -3779,7 +3780,9 @@ void priv___src_self_builder_til__emit_function_bodies(File * f, Mode * mode, Lo
 void priv___src_self_builder_til__emit_ext_func_declarations(File * f, Expr * program, Context * ctx);
 void priv___src_self_builder_til__emit_lib_init(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__builder_used_ctype_add(Str * tname, Set__Str * used);
-void priv___src_self_builder_til__builder_collect_used_ctypes_expr(Expr * e, Set__Str * used);
+Bool priv___src_self_builder_til__builder_type_is_closure_rt(Type * t);
+Bool priv___src_self_builder_til__builder_name_is_closure_rt(Str * n, Context * ctx);
+void priv___src_self_builder_til__builder_collect_used_ctypes_expr(Expr * e, Set__Str * used, Context * ctx);
 void priv___src_self_builder_til__builder_fill_used_ctypes(LoadedProgram * lp);
 Bool priv___src_self_builder_til__builder_ctype_def_kept(Str * name, Context * ctx);
 void builder_prepare_emit(LoadedProgram * lp);

@@ -5739,7 +5739,7 @@ build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I3
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
-    emit_closure_runtime_types(f)
+    if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)
     emit_funcsig_typedefs_lp(f, lp)
     emit_header_defs_and_funcs_lp(f, lp)
@@ -5752,7 +5752,7 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
-    emit_closure_runtime_types(f)
+    if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)
     emit_funcsig_typedefs_lp(f, lp)
     emit_header_defs_and_funcs_lp(f, lp)
@@ -6763,7 +6763,7 @@ priv builder_program_declares := func(name: Str, lp: LoadedProgram) returns Bool
 
 priv emit_monolithic_header_lp := proc(f: File, mut lp: LoadedProgram) {
     f.write("#include \"ext.h\"\n\n")
-    emit_closure_runtime_types(f)
+    if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)
     emit_funcsig_typedefs_lp(f, lp)
 
@@ -8317,7 +8317,18 @@ priv builder_used_ctype_add := func(tname: Str, mut used: Set(Str)) {
     if used.has(tname).not() { used.add(own tname.clone()) }
 }
 
-priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str)) {
+// True when a til type lowers to `TilClosure *` (til_type_to_c's FuncPtr /
+// FuncPtrSig / Body arms), which is what makes the runtime struct needed.
+priv builder_type_is_closure_rt := func(t: Type) returns Bool {
+    return t.is_funcptr().or(t.is(Type.Body))
+}
+
+priv builder_name_is_closure_rt := func(n: Str, mut ctx: Context) returns Bool {
+    if n.eq("Fn").or(n.eq("Body")) { return true }
+    return is_funcsig_type(n, ctx)
+}
+
+priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str), mut ctx: Context) {
     // A NAMESPACE receiver (`FwdConst.b`, `Color.Red`) is a type-position
     // Ident: it carries the type as its til_type but lowers to a name
     // prefix (`FwdConst_b`) or a spliced value, never to the typedef.
@@ -8342,13 +8353,28 @@ priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str)) {
     }
     switch e.node_type {
     case .Decl(uct_dd):
-        if uct_dd.explicit_type.len() > 0 { builder_used_ctype_add(uct_dd.explicit_type, used) }
+        // The BINDING's type, not every node's: a function body Expr is
+        // itself typed Body, which would make every program claim it needs
+        // the closure runtime. Only a value position lowers to TilClosure*.
+        if builder_type_is_closure_rt(e.til_type()) { ctx.builder_closure_rt_used = true }
+        if uct_dd.explicit_type.len() > 0 {
+            builder_used_ctype_add(uct_dd.explicit_type, used)
+            if builder_name_is_closure_rt(uct_dd.explicit_type, ctx) { ctx.builder_closure_rt_used = true }
+        }
     case .FuncDef(uct_fd):
         for uct_p : Declaration in uct_fd.params {
-            if uct_p.explicit_type.len() > 0 { builder_used_ctype_add(uct_p.explicit_type, used) }
+            if uct_p.explicit_type.len() > 0 {
+                builder_used_ctype_add(uct_p.explicit_type, used)
+                if builder_name_is_closure_rt(uct_p.explicit_type, ctx) { ctx.builder_closure_rt_used = true }
+            }
             builder_used_ctype_add(til_type_name(uct_p.til_type), used)
+            if builder_type_is_closure_rt(uct_p.til_type) { ctx.builder_closure_rt_used = true }
         }
-        if uct_fd.return_type.len() > 0 { builder_used_ctype_add(uct_fd.return_type, used) }
+        if uct_fd.return_type.len() > 0 {
+            builder_used_ctype_add(uct_fd.return_type, used)
+            if builder_name_is_closure_rt(uct_fd.return_type, ctx) { ctx.builder_closure_rt_used = true }
+        }
+        if uct_fd.captures.len() > 0 { ctx.builder_closure_rt_used = true }
     case:
     }
     mut uct_ci : USize = 0
@@ -8356,7 +8382,7 @@ priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str)) {
         cur_uct_ci := uct_ci
         uct_ci = uct_ci + 1
         if uct_ns_recv.and(cur_uct_ci == 0) { continue }
-        builder_collect_used_ctypes_expr(uct_c, used)
+        builder_collect_used_ctypes_expr(uct_c, used, ctx)
     }
 }
 
@@ -8370,7 +8396,7 @@ priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() {
                 // Executable top-level statement: becomes main()'s body.
-                builder_collect_used_ctypes_expr(stmt, used)
+                builder_collect_used_ctypes_expr(stmt, used, lp.ctx)
                 continue
             }
             if stmt.children.len() == 0 { continue }
@@ -8394,9 +8420,9 @@ priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
                         // The auto-size body is `return sizeof(Owner);` --
                         // generated at emission, not in this AST.
                         if uct_mname.eq("size") { builder_used_ctype_add(dd.name, used) }
-                        builder_collect_used_ctypes_expr(uct_nsd.default_expr(), used)
+                        builder_collect_used_ctypes_expr(uct_nsd.default_expr(), used, lp.ctx)
                     case:
-                        builder_collect_used_ctypes_expr(uct_nsd.default_expr(), used)
+                        builder_collect_used_ctypes_expr(uct_nsd.default_expr(), used, lp.ctx)
                     }
                 }
                 // A kept variant constructor returns the enum by name.
@@ -8419,7 +8445,7 @@ priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
                 // its own. A lazy recursive variadic def emits nothing.
                 if builder_is_type_gen_macro_def(rhs) { continue }
                 if lazy_recursive_variadic_def(rhs) { continue }
-                builder_collect_used_ctypes_expr(stmt, used)
+                builder_collect_used_ctypes_expr(stmt, used, lp.ctx)
             case:
                 // A type ALIAS (`Quaternion := Vector4`: value Decl, bare
                 // Ident RHS, type None) emits no C of its own -- walking it
@@ -8427,7 +8453,7 @@ priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
                 // type and initializer both emit.
                 mut uct_is_alias := false
                 if stmt.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { uct_is_alias = true }
-                if uct_is_alias.not() { builder_collect_used_ctypes_expr(stmt, used) }
+                if uct_is_alias.not() { builder_collect_used_ctypes_expr(stmt, used, lp.ctx) }
             }
         }
     }
@@ -8476,6 +8502,15 @@ priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
             }
         }
     }
+    // The closure VALUES the dyn families emit are `static TilClosure X`,
+    // and no type in the walked AST announces them -- they come from the
+    // dispatch inventory, exactly like the reflection stubs' sizeof arms.
+    if lp.ctx.closure_value_names.len() > 0 { lp.ctx.builder_closure_rt_used = true }
+    if lp.ctx.builder_dyn_fn_targets.len() > 0 { lp.ctx.builder_closure_rt_used = true }
+    // dyn_size_of / dyn_storage_kind emit `sizeof(TilClosure *)` arms for
+    // the Fn and Body type names whether or not this program has either.
+    if builder_needs_reflect("dyn_size_of", lp.ctx) { lp.ctx.builder_closure_rt_used = true }
+    if builder_needs_reflect("dyn_storage_kind", lp.ctx) { lp.ctx.builder_closure_rt_used = true }
     lp.ctx.builder_used_ctypes = used.clone()
 }
 
@@ -11008,6 +11043,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     lp.ctx.builder_ns_member_sites = Set(Str).new()
     lp.ctx.builder_lit_guard_used = false
     lp.ctx.builder_cstr_used = false
+    lp.ctx.builder_closure_rt_used = false
     // A library's exported ABI is roots by policy (seed_library_roots), so
     // the site-driven gates -- which can only see calls made by THIS
     // program -- must not drop an exported constructor or `size` a

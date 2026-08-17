@@ -7,14 +7,6 @@
 
 #include "ext.h"
 
-typedef struct TilClosure TilClosure;
-struct TilClosure {
-    void *call;
-    void *env;
-    void (*drop)(void *);
-    void *(*clone)(void *);
-};
-
 typedef struct Str Str;
 typedef struct Array__Str Array__Str;
 typedef struct CfVec2 CfVec2;

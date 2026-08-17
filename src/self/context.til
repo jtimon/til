@@ -1274,6 +1274,11 @@ Context := struct {
     // only then is its #define anything but a dead line -- it was
     // unconditional, dead in 139 of the corpus's 140 generated files.
     builder_cstr_used := false
+    // #326: does anything in the emitted C spell `TilClosure`? It is the C
+    // type of every FuncPtr / FuncPtrSig / Body value, plus the closure
+    // values themselves -- and its 8-line definition went into every
+    // program, unused in 124 of the corpus's 152 generated files.
+    builder_closure_rt_used := false
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 
