@@ -1280,3 +1280,35 @@ terr357_ok := proc(h: Terr357Holder) {
     ref v : U8 = ptr_add(x, 0)
     println(v.to_i64().to_str())
 }
+
+// #357 family: a Dynamic parameter takes any raw WORD -- `memcpy(buf, byte,
+// 1)` in str.til passes a U8 value on purpose -- so a scalar there is not
+// wrong by itself. It IS wrong in an ADDRESS position, where the callee
+// dereferences it: the two backends did not even agree on the garbage,
+// compiled C reading through the value while the interpreter yielded 0.
+// terr357b_ok covers the three spellings that carry an address.
+terr357b_bad_param := proc(q : U8) {
+    ref z : U8 = ptr_add(q, 1)
+    println(z.to_i64().to_str())
+}
+
+terr357b_bad_local := proc() {
+    x : U8 = 5
+    ref z : U8 = ptr_add(x, 1)
+    println(z.to_i64().to_str())
+}
+
+terr357b_ok := proc() {
+    b : U8 = malloc(4)
+    memset(b, 65, 4)
+    memcpy(ptr_add(b, 1), 66, 1)
+    ref v : U8 = ptr_add(b, 0)
+    d : Dynamic = b
+    ref z1 : U8 = ptr_add(b, 1)
+    ref z2 : U8 = ptr_add(v, 1)
+    ref z3 : U8 = ptr_add(d, 1)
+    println(z1.to_i64().to_str())
+    println(z2.to_i64().to_str())
+    println(z3.to_i64().to_str())
+    free(own b)
+}

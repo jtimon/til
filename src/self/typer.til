@@ -1314,6 +1314,49 @@ priv validate_splat_elem_type := proc(scope: TypeScope, arg: Expr, want_name: St
         "' (a splat is not coerced element by element the way a plain argument is)"), ctx)
 }
 
+// #357 family: which builtins REQUIRE an address in their first argument.
+// A Dynamic parameter otherwise doubles as a raw WORD -- `memcpy(buf, byte,
+// 1)` in str.til passes a U8 value on purpose -- so "scalar at a Dynamic
+// param" is not wrong by itself; it is wrong exactly where the callee
+// dereferences it. Name-keyed like the existing pointer-builtin handling.
+priv builtin_first_arg_is_address := func(name: Str) returns Bool {
+    if name.eq("ptr_add") { return true }
+    if name.eq("deref") { return true }
+    if name.eq("write_ptr") { return true }
+    if name.eq("memset") { return true }
+    if name.eq("memcpy") { return true }
+    return false
+}
+
+// True when the argument names a binding holding a scalar VALUE rather than
+// an address. Answered from the BINDING, never the argument's stamp:
+// rewrite_til_type_arg re-types the node to the param's Dynamic before the
+// args are validated, so the node cannot say what it started as.
+priv arg_is_scalar_value_binding := func(arg: Expr, scope: TypeScope) returns Bool {
+    switch arg.node_type {
+    case .Ident(id):
+        b_o := scope.get_binding(id.ident_name())
+        if b_o.is_none() { return false }
+        ref b : TypeBinding = b_o.unwrap()
+        if b.type.is(Type.Dynamic) { return false }
+        if b.is_raw_alloc { return false }
+        if b.type.is(Type.Primitive).not() { return false }
+        // An `own` parameter receives the BOX it now owns -- a pointer --
+        // so zeroing it (`memset(val, 0, T.size())` after a move, in
+        // TemplVec.push) is an address position and correct.
+        if b.own_type.is(OwnType.Own) { return false }
+        // "Parameters are borrowed by default" makes every other param wear
+        // OwnType.Ref, but a borrowed PRIMITIVE parameter is passed by value
+        // in C (`void sink(U8 q)`): that borrow is a fiction the ABI does
+        // not keep, and it is the shape that read a byte as an address. A
+        // `ref` LOCAL really is `T *x`.
+        if b.is_param { return true }
+        return b.own_type.is(OwnType.Ref).not()
+    case:
+        return false
+    }
+}
+
 priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e: Expr, fdef_data: FunctionDef, in_func: I32, mut ctx: Context) {
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
@@ -1457,6 +1500,25 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             }
             ptype := declaration_resolved_type(param2, scope)
             if ptype.is(Type.Dynamic) {
+                // A Dynamic param takes any WORD, so the skip is right in
+                // general -- except in an address position, where a scalar
+                // binding is read as a pointer. Compiled C dereferenced the
+                // VALUE (`ptr_add(q, 1)` on a by-value `q : U8` param) while
+                // the interpreter yielded 0: two wrong answers, unreported.
+                if pi == 0 {
+                    mut callee_nm := ""
+                    switch e.children[0].node_type {
+                    case .Ident(cnm): callee_nm = Str.clone(cnm.ident_name())
+                    case:
+                    }
+                    if builtin_first_arg_is_address(callee_nm) {
+                        if arg_is_scalar_value_binding(e.children[ci], scope) {
+                            e.children[ci].type_error(format("'", callee_nm,
+                                "' needs an address in parameter '", param2.name,
+                                "', but this argument is a scalar value; pass a raw allocation, a 'ref' binding, or a Dynamic"), ctx)
+                        }
+                    }
+                }
                 ci++
                 pi++
                 continue
@@ -6206,6 +6268,8 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 decl_b.borrow_roots = carried_roots
             }
         }
+        // #302: record that this binding's value is an allocation ADDRESS.
+        if raw_alloc_rhs { decl_b.is_raw_alloc = true }
         if sdecl.own_type.is(OwnType.Ref) {
             decl_b.own_type = OwnType.Ref
             // #211: payload binding `ref T = get_payload(<ident>)` is the

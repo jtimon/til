@@ -1433,6 +1433,7 @@ typedef struct TypeBinding {
     Bool used;
     Bool written;
     Bool mut_explicit;
+    Bool is_raw_alloc;
     Str orig_name;
     Str dynvec_elem;
     Str declared_type_name;

@@ -79,6 +79,11 @@ TypeBinding := struct {
     // mut_explicit is set exactly at the typer's Decl handler from
     // sdecl.is_mut.
     mut_explicit := false
+    // #302/#357: this binding's VALUE is a raw allocation ADDRESS (`b : U8
+    // = malloc(n)`), not a scalar of that type. Both wear the same Primitive
+    // type, so without this nothing can tell "U8 that IS an address" from
+    // "U8 that holds a byte".
+    is_raw_alloc := false
     // Issue #93: mirror of Declaration.orig_name -- non-empty means
     // init_declarations_unit hoisted this decl from a function body and
     // the unused-priv check should report it in source terms (original
