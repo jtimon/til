@@ -571,9 +571,49 @@ GC-AUDIT local hoisted__I32_#0 type=I32 decl=1 last_use=3 own_transfer=-1 heap=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#0 type=U64 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local s2 type=Str decl=4 last_use=6 own_transfer=5 heap=0 skip=0
-GC-CFG body test/gc_audit.til:272:15 blocks=2
+GC-CFG body test/gc_audit.til:252:9 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=272:15 span=0..10 succs=0
+GC-CFG block 1 body=252:9 span=0..2 succs=0
+GC-FLOW local hoisted__I64_#0 entry=I exit=O out=O,O
+GC-LIVE local hoisted__I64_#0 entry=0 in=0,0
+GC-AUDIT body test/gc_audit.til:252:9 locals=1
+GC-AUDIT local hoisted__I64_#0 type=I64 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
+GC-CFG body test/gc_audit.til:250:5 blocks=4
+GC-CFG block 0 exit
+GC-CFG block 1 body=250:5 span=0..11 succs=3,2
+GC-CFG block 2 body=250:5 span=11..13 succs=0
+GC-CFG block 3 body=252:9 span=0..2 succs=0
+GC-FLOW local _va_Array_#0 entry=I exit=M out=M,M,M,M
+GC-FLOW local _va_Array__ek#0 entry=I exit=O out=O,O,O,O
+GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,O,I
+GC-FLOW local hoisted__Str_diverged_then_transfer_#0 entry=I exit=M out=M,M,M,M
+GC-FLOW local hoisted__Str_diverged_then_transfer_#1 entry=I exit=M out=M,M,M,M
+GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O
+GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O,O,O
+GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,O,O,O
+GC-FLOW local s entry=I exit=M out=M,O,M,M
+GC-LIVE local _va_Array_#0 entry=0 in=0,0,0,0
+GC-LIVE local _va_Array__ek#0 entry=0 in=0,0,0,0
+GC-LIVE local hoisted__I64_#0 entry=0 in=0,0,0,0
+GC-LIVE local hoisted__Str_diverged_then_transfer_#0 entry=0 in=0,0,0,0
+GC-LIVE local hoisted__Str_diverged_then_transfer_#1 entry=0 in=0,0,0,0
+GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0
+GC-LIVE local hoisted__U32_#1 entry=0 in=0,0,0,0
+GC-LIVE local hoisted__U32_#2 entry=0 in=0,0,0,0
+GC-LIVE local s entry=0 in=0,0,1,1
+GC-AUDIT body test/gc_audit.til:250:5 locals=9
+GC-AUDIT local _va_Array_#0 type=Array__Str decl=1 last_use=12 own_transfer=9 heap=0 skip=0
+GC-AUDIT local _va_Array__ek#0 type=I64 decl=2 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#0 type=I64 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_diverged_then_transfer_#0 type=Str decl=4 last_use=5 own_transfer=5 heap=0 skip=0
+GC-AUDIT local hoisted__Str_diverged_then_transfer_#1 type=Str decl=7 last_use=8 own_transfer=8 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=3 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=6 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local s type=Str decl=9 last_use=12 own_transfer=11 heap=0 skip=0
+GC-CFG body test/gc_audit.til:290:15 blocks=2
+GC-CFG block 0 exit
+GC-CFG block 1 body=290:15 span=0..10 succs=0
 GC-FLOW local _va_Array_#0 entry=I exit=M out=M,M
 GC-FLOW local _va_Array__ek#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__I64_#0 entry=I exit=O out=O,O
@@ -588,7 +628,7 @@ GC-LIVE local hoisted__Str_test_gc_audit_shapes_#0 entry=0 in=0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#1 entry=0 in=0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0
 GC-LIVE local hoisted__U32_#1 entry=0 in=0,0
-GC-AUDIT body test/gc_audit.til:272:15 locals=7
+GC-AUDIT body test/gc_audit.til:290:15 locals=7
 GC-AUDIT local _va_Array_#0 type=Array__Str decl=3 last_use=9 own_transfer=9 heap=0 skip=0
 GC-AUDIT local _va_Array__ek#0 type=I64 decl=4 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
@@ -597,9 +637,9 @@ GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#1 type=Str decl=8 last_use=9 o
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 10 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#1) call_free=0
-GC-CFG body test/gc_audit.til:274:15 blocks=2
+GC-CFG body test/gc_audit.til:292:15 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=274:15 span=0..10 succs=0
+GC-CFG block 1 body=292:15 span=0..10 succs=0
 GC-FLOW local _va_Array_#0 entry=I exit=M out=M,M
 GC-FLOW local _va_Array__ek#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__I64_#0 entry=I exit=O out=O,O
@@ -614,7 +654,7 @@ GC-LIVE local hoisted__Str_test_gc_audit_shapes_#0 entry=0 in=0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#1 entry=0 in=0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0
 GC-LIVE local hoisted__U32_#1 entry=0 in=0,0
-GC-AUDIT body test/gc_audit.til:274:15 locals=7
+GC-AUDIT body test/gc_audit.til:292:15 locals=7
 GC-AUDIT local _va_Array_#0 type=Array__Str decl=3 last_use=9 own_transfer=9 heap=0 skip=0
 GC-AUDIT local _va_Array__ek#0 type=I64 decl=4 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
@@ -623,13 +663,13 @@ GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#1 type=Str decl=8 last_use=9 o
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 10 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#1) call_free=0
-GC-CFG body test/gc_audit.til:242:5 blocks=6
+GC-CFG body test/gc_audit.til:258:5 blocks=6
 GC-CFG block 0 exit
-GC-CFG block 1 body=242:5 span=0..140 succs=3,2
-GC-CFG block 2 body=242:5 span=140..151 succs=5,4
-GC-CFG block 3 body=272:15 span=0..11 succs=2
-GC-CFG block 4 body=242:5 span=151..160 succs=0
-GC-CFG block 5 body=274:15 span=0..11 succs=4
+GC-CFG block 1 body=258:5 span=0..152 succs=3,2
+GC-CFG block 2 body=258:5 span=152..163 succs=5,4
+GC-CFG block 3 body=290:15 span=0..11 succs=2
+GC-CFG block 4 body=258:5 span=163..172 succs=0
+GC-CFG block 5 body=292:15 span=0..11 succs=4
 GC-FLOW local _bang_ret_#0 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local _bang_ret_#1 entry=I exit=O out=O,I,O,I,O,O
 GC-FLOW local _err_kind entry=I exit=O out=O,O,O,O,O,O
@@ -642,14 +682,14 @@ GC-FLOW local hoisted__Bool_#1 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#2 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#3 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#4 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__Bool_#5 entry=I exit=O out=O,I,O,I,O,O
-GC-FLOW local hoisted__Bool_#6 entry=I exit=O out=O,I,O,I,O,O
-GC-FLOW local hoisted__Bool_#7 entry=I exit=O out=O,I,I,I,O,I
-GC-FLOW local hoisted__Bool_#8 entry=I exit=O out=O,I,I,I,O,I
-GC-FLOW local hoisted__Bool_#9 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__Bool_#10 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__Bool_#11 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__Bool_#12 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#5 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#6 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#7 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#8 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#9 entry=I exit=O out=O,I,O,I,O,O
+GC-FLOW local hoisted__Bool_#10 entry=I exit=O out=O,I,O,I,O,O
+GC-FLOW local hoisted__Bool_#11 entry=I exit=O out=O,I,I,I,O,I
+GC-FLOW local hoisted__Bool_#12 entry=I exit=O out=O,I,I,I,O,I
 GC-FLOW local hoisted__Bool_#13 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#14 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#15 entry=I exit=O out=O,O,O,O,O,O
@@ -672,6 +712,10 @@ GC-FLOW local hoisted__Bool_#31 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#32 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#33 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Bool_#34 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#35 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#36 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#37 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Bool_#38 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#0 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#1 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#2 entry=I exit=O out=O,O,O,O,O,O
@@ -680,15 +724,15 @@ GC-FLOW local hoisted__I64_#4 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#5 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#6 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#7 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__I64_#8 entry=I exit=O out=O,I,O,I,O,O
-GC-FLOW local hoisted__I64_#9 entry=I exit=O out=O,I,O,I,O,O
-GC-FLOW local hoisted__I64_#10 entry=I exit=O out=O,I,I,I,O,I
-GC-FLOW local hoisted__I64_#11 entry=I exit=O out=O,I,I,I,O,I
+GC-FLOW local hoisted__I64_#8 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#9 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#10 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#11 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#12 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__I64_#13 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__I64_#14 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__I64_#15 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__I64_#16 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#13 entry=I exit=O out=O,I,O,I,O,O
+GC-FLOW local hoisted__I64_#14 entry=I exit=O out=O,I,O,I,O,O
+GC-FLOW local hoisted__I64_#15 entry=I exit=O out=O,I,I,I,O,I
+GC-FLOW local hoisted__I64_#16 entry=I exit=O out=O,I,I,I,O,I
 GC-FLOW local hoisted__I64_#17 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#18 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#19 entry=I exit=O out=O,O,O,O,O,O
@@ -725,16 +769,20 @@ GC-FLOW local hoisted__I64_#49 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#50 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#51 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__I64_#52 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#53 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#54 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#55 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__I64_#56 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#0 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#1 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#2 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#3 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__Str_test_gc_audit_shapes_#4 entry=I exit=O out=O,I,O,I,O,O
+GC-FLOW local hoisted__Str_test_gc_audit_shapes_#4 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#5 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__Str_test_gc_audit_shapes_#6 entry=I exit=O out=O,I,I,I,O,I
-GC-FLOW local hoisted__Str_test_gc_audit_shapes_#7 entry=I exit=O out=O,I,I,I,O,I
-GC-FLOW local hoisted__Str_test_gc_audit_shapes_#8 entry=I exit=O out=O,O,O,O,O,O
-GC-FLOW local hoisted__Str_test_gc_audit_shapes_#9 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Str_test_gc_audit_shapes_#6 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Str_test_gc_audit_shapes_#7 entry=I exit=O out=O,I,O,I,O,O
+GC-FLOW local hoisted__Str_test_gc_audit_shapes_#8 entry=I exit=O out=O,I,I,I,O,I
+GC-FLOW local hoisted__Str_test_gc_audit_shapes_#9 entry=I exit=O out=O,I,I,I,O,I
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#10 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#11 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#12 entry=I exit=O out=O,O,O,O,O,O
@@ -753,6 +801,8 @@ GC-FLOW local hoisted__Str_test_gc_audit_shapes_#24 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#25 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#26 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__Str_test_gc_audit_shapes_#27 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Str_test_gc_audit_shapes_#28 entry=I exit=O out=O,O,O,O,O,O
+GC-FLOW local hoisted__Str_test_gc_audit_shapes_#29 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,O,I,O,O
@@ -803,6 +853,10 @@ GC-LIVE local hoisted__Bool_#31 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Bool_#32 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Bool_#33 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Bool_#34 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__Bool_#35 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__Bool_#36 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__Bool_#37 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__Bool_#38 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__I64_#0 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__I64_#1 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__I64_#2 entry=0 in=0,0,0,0,0,0
@@ -856,6 +910,10 @@ GC-LIVE local hoisted__I64_#49 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__I64_#50 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__I64_#51 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__I64_#52 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__I64_#53 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__I64_#54 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__I64_#55 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__I64_#56 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#0 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#1 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#2 entry=0 in=0,0,0,0,0,0
@@ -884,6 +942,8 @@ GC-LIVE local hoisted__Str_test_gc_audit_shapes_#24 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#25 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#26 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__Str_test_gc_audit_shapes_#27 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__Str_test_gc_audit_shapes_#28 entry=0 in=0,0,0,0,0,0
+GC-LIVE local hoisted__Str_test_gc_audit_shapes_#29 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__U32_#1 entry=0 in=0,0,0,0,0,0
 GC-LIVE local hoisted__U32_#2 entry=0 in=0,0,0,0,0,0
@@ -892,10 +952,10 @@ GC-LIVE local hoisted__U8_#1 entry=0 in=0,0,0,0,0,0
 GC-LIVE local joined entry=0 in=0,0,0,0,0,0
 GC-LIVE local lit entry=0 in=0,0,0,0,0,0
 GC-LIVE local sco entry=0 in=0,0,1,1,0,0
-GC-AUDIT body test/gc_audit.til:242:5 locals=131
-GC-AUDIT local _bang_ret_#0 type=U8 decl=136 last_use=143 own_transfer=-1 heap=0 skip=1
-GC-AUDIT local _bang_ret_#1 type=U8 decl=147 last_use=154 own_transfer=-1 heap=0 skip=1
-GC-AUDIT local _err_kind type=I64 decl=0 last_use=154 own_transfer=-1 heap=0 skip=0
+GC-AUDIT body test/gc_audit.til:258:5 locals=141
+GC-AUDIT local _bang_ret_#0 type=U8 decl=148 last_use=155 own_transfer=-1 heap=0 skip=1
+GC-AUDIT local _bang_ret_#1 type=U8 decl=159 last_use=166 own_transfer=-1 heap=0 skip=1
+GC-AUDIT local _err_kind type=I64 decl=0 last_use=166 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local a type=Str decl=63 last_use=69 own_transfer=65 heap=0 skip=0
 GC-AUDIT local b type=Str decl=70 last_use=76 own_transfer=72 heap=0 skip=0
 GC-AUDIT local c type=Str decl=77 last_use=83 own_transfer=79 heap=0 skip=0
@@ -904,159 +964,171 @@ GC-AUDIT local hoisted__Bool_#0 type=Bool decl=116 last_use=118 own_transfer=-1 
 GC-AUDIT local hoisted__Bool_#1 type=Bool decl=122 last_use=124 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#2 type=Bool decl=3 last_use=5 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#3 type=Bool decl=128 last_use=130 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#4 type=Bool decl=138 last_use=139 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#5 type=Bool decl=141 last_use=143 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#6 type=Bool decl=149 last_use=150 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#7 type=Bool decl=152 last_use=154 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#8 type=Bool decl=157 last_use=159 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#9 type=Bool decl=8 last_use=10 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#10 type=Bool decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#11 type=Bool decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#12 type=Bool decl=19 last_use=21 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#13 type=Bool decl=22 last_use=23 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#14 type=Bool decl=25 last_use=27 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#15 type=Bool decl=28 last_use=29 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#16 type=Bool decl=31 last_use=33 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#17 type=Bool decl=34 last_use=35 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#18 type=Bool decl=37 last_use=39 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#19 type=Bool decl=42 last_use=44 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#20 type=Bool decl=48 last_use=50 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#21 type=Bool decl=54 last_use=56 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#22 type=Bool decl=59 last_use=61 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#23 type=Bool decl=64 last_use=65 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#24 type=Bool decl=67 last_use=69 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#25 type=Bool decl=71 last_use=72 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#26 type=Bool decl=74 last_use=76 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#27 type=Bool decl=78 last_use=79 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#28 type=Bool decl=81 last_use=83 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#29 type=Bool decl=85 last_use=86 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#30 type=Bool decl=88 last_use=90 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#31 type=Bool decl=93 last_use=95 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#32 type=Bool decl=98 last_use=100 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#33 type=Bool decl=104 last_use=106 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Bool_#34 type=Bool decl=110 last_use=112 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#4 type=Bool decl=131 last_use=132 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#5 type=Bool decl=134 last_use=136 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#6 type=Bool decl=137 last_use=138 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#7 type=Bool decl=140 last_use=142 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#8 type=Bool decl=150 last_use=151 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#9 type=Bool decl=153 last_use=155 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#10 type=Bool decl=161 last_use=162 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#11 type=Bool decl=164 last_use=166 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#12 type=Bool decl=169 last_use=171 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#13 type=Bool decl=8 last_use=10 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#14 type=Bool decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#15 type=Bool decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#16 type=Bool decl=19 last_use=21 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#17 type=Bool decl=22 last_use=23 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#18 type=Bool decl=25 last_use=27 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#19 type=Bool decl=28 last_use=29 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#20 type=Bool decl=31 last_use=33 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#21 type=Bool decl=34 last_use=35 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#22 type=Bool decl=37 last_use=39 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#23 type=Bool decl=42 last_use=44 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#24 type=Bool decl=48 last_use=50 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#25 type=Bool decl=54 last_use=56 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#26 type=Bool decl=59 last_use=61 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#27 type=Bool decl=64 last_use=65 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#28 type=Bool decl=67 last_use=69 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#29 type=Bool decl=71 last_use=72 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#30 type=Bool decl=74 last_use=76 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#31 type=Bool decl=78 last_use=79 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#32 type=Bool decl=81 last_use=83 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#33 type=Bool decl=85 last_use=86 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#34 type=Bool decl=88 last_use=90 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#35 type=Bool decl=93 last_use=95 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#36 type=Bool decl=98 last_use=100 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#37 type=Bool decl=104 last_use=106 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#38 type=Bool decl=110 last_use=112 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=119 last_use=120 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#1 type=I64 decl=120 last_use=122 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#2 type=I64 decl=121 last_use=122 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#3 type=I64 decl=125 last_use=126 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#4 type=I64 decl=126 last_use=128 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#5 type=I64 decl=127 last_use=128 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#6 type=I64 decl=133 last_use=134 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#7 type=I64 decl=137 last_use=138 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#8 type=I64 decl=144 last_use=145 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#9 type=I64 decl=148 last_use=149 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#10 type=I64 decl=155 last_use=157 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#11 type=I64 decl=156 last_use=157 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#6 type=I64 decl=132 last_use=134 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#7 type=I64 decl=133 last_use=134 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#8 type=I64 decl=138 last_use=140 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#9 type=I64 decl=139 last_use=140 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#10 type=I64 decl=145 last_use=146 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#11 type=I64 decl=149 last_use=150 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#12 type=I64 decl=6 last_use=8 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#13 type=I64 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#14 type=I64 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#15 type=I64 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#16 type=I64 decl=17 last_use=19 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#17 type=I64 decl=18 last_use=19 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#18 type=I64 decl=23 last_use=25 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#19 type=I64 decl=24 last_use=25 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#20 type=I64 decl=29 last_use=31 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#21 type=I64 decl=30 last_use=31 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#22 type=I64 decl=35 last_use=37 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#23 type=I64 decl=36 last_use=37 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#24 type=I64 decl=40 last_use=42 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#25 type=I64 decl=41 last_use=42 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#26 type=I64 decl=45 last_use=46 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#27 type=I64 decl=46 last_use=48 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#28 type=I64 decl=47 last_use=48 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#29 type=I64 decl=51 last_use=52 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#30 type=I64 decl=52 last_use=54 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#31 type=I64 decl=53 last_use=54 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#32 type=I64 decl=65 last_use=67 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#33 type=I64 decl=66 last_use=67 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#34 type=I64 decl=72 last_use=74 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#35 type=I64 decl=73 last_use=74 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#36 type=I64 decl=79 last_use=81 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#37 type=I64 decl=80 last_use=81 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#38 type=I64 decl=86 last_use=88 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#39 type=I64 decl=87 last_use=88 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#40 type=I64 decl=91 last_use=93 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#41 type=I64 decl=92 last_use=93 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#42 type=I64 decl=96 last_use=98 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#43 type=I64 decl=97 last_use=98 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#44 type=I64 decl=101 last_use=102 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#45 type=I64 decl=102 last_use=104 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#46 type=I64 decl=103 last_use=104 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#47 type=I64 decl=107 last_use=108 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#48 type=I64 decl=108 last_use=110 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#49 type=I64 decl=109 last_use=110 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#50 type=I64 decl=113 last_use=114 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#51 type=I64 decl=114 last_use=116 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__I64_#52 type=I64 decl=115 last_use=116 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#13 type=I64 decl=156 last_use=157 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#14 type=I64 decl=160 last_use=161 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#15 type=I64 decl=167 last_use=169 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#16 type=I64 decl=168 last_use=169 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#17 type=I64 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#18 type=I64 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#19 type=I64 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#20 type=I64 decl=17 last_use=19 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#21 type=I64 decl=18 last_use=19 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#22 type=I64 decl=23 last_use=25 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#23 type=I64 decl=24 last_use=25 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#24 type=I64 decl=29 last_use=31 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#25 type=I64 decl=30 last_use=31 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#26 type=I64 decl=35 last_use=37 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#27 type=I64 decl=36 last_use=37 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#28 type=I64 decl=40 last_use=42 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#29 type=I64 decl=41 last_use=42 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#30 type=I64 decl=45 last_use=46 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#31 type=I64 decl=46 last_use=48 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#32 type=I64 decl=47 last_use=48 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#33 type=I64 decl=51 last_use=52 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#34 type=I64 decl=52 last_use=54 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#35 type=I64 decl=53 last_use=54 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#36 type=I64 decl=65 last_use=67 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#37 type=I64 decl=66 last_use=67 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#38 type=I64 decl=72 last_use=74 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#39 type=I64 decl=73 last_use=74 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#40 type=I64 decl=79 last_use=81 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#41 type=I64 decl=80 last_use=81 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#42 type=I64 decl=86 last_use=88 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#43 type=I64 decl=87 last_use=88 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#44 type=I64 decl=91 last_use=93 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#45 type=I64 decl=92 last_use=93 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#46 type=I64 decl=96 last_use=98 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#47 type=I64 decl=97 last_use=98 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#48 type=I64 decl=101 last_use=102 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#49 type=I64 decl=102 last_use=104 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#50 type=I64 decl=103 last_use=104 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#51 type=I64 decl=107 last_use=108 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#52 type=I64 decl=108 last_use=110 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#53 type=I64 decl=109 last_use=110 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#54 type=I64 decl=113 last_use=114 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#55 type=I64 decl=114 last_use=116 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#56 type=I64 decl=115 last_use=116 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#0 type=Str decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#1 type=Str decl=117 last_use=118 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#2 type=Str decl=123 last_use=124 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#3 type=Str decl=129 last_use=130 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#4 type=Str decl=142 last_use=143 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#4 type=Str decl=135 last_use=136 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#5 type=Str decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#6 type=Str decl=153 last_use=154 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#7 type=Str decl=158 last_use=159 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#8 type=Str decl=9 last_use=10 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#9 type=Str decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#10 type=Str decl=20 last_use=21 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#11 type=Str decl=26 last_use=27 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#12 type=Str decl=32 last_use=33 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#13 type=Str decl=38 last_use=39 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#14 type=Str decl=43 last_use=44 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#15 type=Str decl=49 last_use=50 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#16 type=Str decl=55 last_use=56 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#17 type=Str decl=57 last_use=59 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#18 type=Str decl=58 last_use=59 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#19 type=Str decl=60 last_use=61 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#20 type=Str decl=68 last_use=69 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#21 type=Str decl=75 last_use=76 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#22 type=Str decl=82 last_use=83 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#23 type=Str decl=89 last_use=90 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#24 type=Str decl=94 last_use=95 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#25 type=Str decl=99 last_use=100 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#26 type=Str decl=105 last_use=106 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#27 type=Str decl=111 last_use=112 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#0 type=U32 decl=131 last_use=132 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=135 last_use=141 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=146 last_use=152 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U8_#0 type=U8 decl=140 last_use=141 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U8_#1 type=U8 decl=151 last_use=152 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#6 type=Str decl=141 last_use=142 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#7 type=Str decl=154 last_use=155 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#8 type=Str decl=165 last_use=166 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#9 type=Str decl=170 last_use=171 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#10 type=Str decl=9 last_use=10 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#11 type=Str decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#12 type=Str decl=20 last_use=21 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#13 type=Str decl=26 last_use=27 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#14 type=Str decl=32 last_use=33 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#15 type=Str decl=38 last_use=39 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#16 type=Str decl=43 last_use=44 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#17 type=Str decl=49 last_use=50 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#18 type=Str decl=55 last_use=56 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#19 type=Str decl=57 last_use=59 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#20 type=Str decl=58 last_use=59 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#21 type=Str decl=60 last_use=61 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#22 type=Str decl=68 last_use=69 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#23 type=Str decl=75 last_use=76 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#24 type=Str decl=82 last_use=83 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#25 type=Str decl=89 last_use=90 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#26 type=Str decl=94 last_use=95 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#27 type=Str decl=99 last_use=100 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#28 type=Str decl=105 last_use=106 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_test_gc_audit_shapes_#29 type=Str decl=111 last_use=112 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#0 type=U32 decl=143 last_use=144 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=147 last_use=153 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=158 last_use=164 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#0 type=U8 decl=152 last_use=153 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#1 type=U8 decl=163 last_use=164 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local joined type=Str decl=1 last_use=5 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local lit type=Str decl=62 last_use=90 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local sco type=Array__U8 decl=132 last_use=154 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local sco type=Array__U8 decl=144 last_use=166 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 4 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#0) call_free=0
 GC-AUDIT site 7 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#5) call_free=0
 GC-AUDIT site 8 delete Str.delete(joined) call_free=0
-GC-AUDIT site 14 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#8) call_free=0
-GC-AUDIT site 20 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#9) call_free=0
-GC-AUDIT site 27 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#10) call_free=0
-GC-AUDIT site 34 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#11) call_free=0
-GC-AUDIT site 41 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#12) call_free=0
-GC-AUDIT site 48 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#13) call_free=0
-GC-AUDIT site 54 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#14) call_free=0
-GC-AUDIT site 61 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#15) call_free=0
-GC-AUDIT site 68 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#16) call_free=0
-GC-AUDIT site 72 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#17) call_free=0
-GC-AUDIT site 73 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#18) call_free=0
-GC-AUDIT site 76 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#19) call_free=0
-GC-AUDIT site 85 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#20) call_free=0
-GC-AUDIT site 93 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#21) call_free=0
-GC-AUDIT site 101 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#22) call_free=0
-GC-AUDIT site 109 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#23) call_free=0
+GC-AUDIT site 14 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#10) call_free=0
+GC-AUDIT site 20 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#11) call_free=0
+GC-AUDIT site 27 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#12) call_free=0
+GC-AUDIT site 34 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#13) call_free=0
+GC-AUDIT site 41 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#14) call_free=0
+GC-AUDIT site 48 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#15) call_free=0
+GC-AUDIT site 54 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#16) call_free=0
+GC-AUDIT site 61 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#17) call_free=0
+GC-AUDIT site 68 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#18) call_free=0
+GC-AUDIT site 72 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#19) call_free=0
+GC-AUDIT site 73 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#20) call_free=0
+GC-AUDIT site 76 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#21) call_free=0
+GC-AUDIT site 85 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#22) call_free=0
+GC-AUDIT site 93 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#23) call_free=0
+GC-AUDIT site 101 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#24) call_free=0
+GC-AUDIT site 109 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#25) call_free=0
 GC-AUDIT site 110 delete Str.delete(lit) call_free=0
-GC-AUDIT site 116 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#24) call_free=0
-GC-AUDIT site 122 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#25) call_free=0
-GC-AUDIT site 129 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#26) call_free=0
-GC-AUDIT site 136 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#27) call_free=0
+GC-AUDIT site 116 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#26) call_free=0
+GC-AUDIT site 122 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#27) call_free=0
+GC-AUDIT site 129 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#28) call_free=0
+GC-AUDIT site 136 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#29) call_free=0
 GC-AUDIT site 143 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#1) call_free=0
 GC-AUDIT site 150 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#2) call_free=0
 GC-AUDIT site 157 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#3) call_free=0
-GC-AUDIT site 166.if0.10 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#28) call_free=0
-GC-AUDIT site 171 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#4) call_free=0
-GC-AUDIT site 178.if0.10 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#29) call_free=0
-GC-AUDIT site 183 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#6) call_free=0
-GC-AUDIT site 184 delete Array__U8.delete(sco) call_free=0
-GC-AUDIT site 190 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#7) call_free=0
+GC-AUDIT site 164 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#4) call_free=0
+GC-AUDIT site 171 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#6) call_free=0
+GC-AUDIT site 180.if0.10 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#30) call_free=0
+GC-AUDIT site 185 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#7) call_free=0
+GC-AUDIT site 192.if0.10 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#31) call_free=0
+GC-AUDIT site 197 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#8) call_free=0
+GC-AUDIT site 198 delete Array__U8.delete(sco) call_free=0
+GC-AUDIT site 204 delete Str.delete(hoisted__Str_test_gc_audit_shapes_#9) call_free=0
 GC-CFG body test/gc_audit.til:24:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=24:9 span=0..2 succs=0
@@ -2694,12 +2766,12 @@ GC-AUDIT body test/gc_audit.til:109:9 locals=3
 GC-AUDIT local hoisted__Array__U8_#0 type=Array__U8 decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local new_data type=U8 decl=1 last_use=4 own_transfer=3 heap=1 skip=0
-GC-CFG body test/gc_audit.til:270:16 blocks=2
+GC-CFG body test/gc_audit.til:288:16 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=270:16 span=0..2 succs=0
+GC-CFG block 1 body=288:16 span=0..2 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0
-GC-AUDIT body test/gc_audit.til:270:16 locals=1
+GC-AUDIT body test/gc_audit.til:288:16 locals=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-CFG body test/gc_audit.til:24:9 blocks=2
 GC-CFG block 0 exit
@@ -3957,7 +4029,7 @@ GC-AUDIT local src type=U8 decl=-1 last_use=2 own_transfer=2 heap=0 skip=0
 GC-AUDIT site 2 free(src) own=1
 GC-CFG body test/gc_audit.til:0:0 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=0:0 span=0..24 succs=0
+GC-CFG block 1 body=0:0 span=0..25 succs=0
 GC-AUDIT body test/gc_audit.til:0:0 locals=0
 Generated: gen/til/gc_audit.c
 Generated: gen/til/gc_audit_forward.h

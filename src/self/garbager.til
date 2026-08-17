@@ -2114,8 +2114,31 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
                     ref mut xfer_stmt : Expr = body.children[local.own_transfer.to_usize()]
                     sink_transfer_path_wrapper_free(xfer_stmt, local, scope, ctx)
                 }
-                local.own_transfer = -1
+                // #368: the surviving path may transfer TOO. The record
+                // holds ONE transfer index, so clearing it to -1 here used
+                // to say "never transferred" and hand the local an ordinary
+                // exit delete -- emitted at last_use, which in that case IS
+                // the second transfer statement. The result was a delete of
+                // a value handed away on the line above: not a leak but a
+                // use-after-transfer, and since #364 removed the loud
+                // double-free it corrupted silently instead.
+                //
+                // So look for the next transfer on the surviving path
+                // rather than dropping to -1, and re-derive the flags that
+                // belong to whichever transfer now holds the record.
+                mut next_xfer : I32 = -1
+                for nj in local.own_transfer.add(1).to_usize()..body.children.len() {
+                    if expr_transfers_own(body.children[nj], local.name, scope, ctx) {
+                        next_xfer = nj.to_i32()
+                        break
+                    }
+                }
+                local.own_transfer = next_xfer
                 local.dtor_transfer = false
+                if next_xfer >= 0 {
+                    local.dtor_transfer = transfer_is_destructor_call(body.children[next_xfer.to_usize()], local.name)
+                    local.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[next_xfer.to_usize()], local.name, scope)
+                }
             } else {
                 ref stmt : Expr = body.children[local.last_use.to_usize()]
                 stmt.type_error(format("use of '", local.name, "' after ownership transfer"), ctx)

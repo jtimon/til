@@ -1,6 +1,4 @@
 * Bugs
-** High
-*** [[./open/368.org][#368]] Multiple own-transfer sites on returning paths miscompile SILENTLY since #364/#365
 ** Medium
 *** [[./open/358.org][#358]] array() / vec() literals do not type-check their elements
 *** [[./open/359.org][#359]] One generic applied both explicitly and by deduction is monomorphized twice

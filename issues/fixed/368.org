@@ -1,6 +1,25 @@
 # priority: high
+# post-mortem: LocalInfo records ONE own_transfer index.
+# check_use_after_own_transfer clears it to -1 when that transfer
+# diverged -- returned before a later use -- so the surviving paths get
+# ordinary owned cleanup, which is right whenever the later use is just
+# a use. It is wrong when the later use IS a second transfer: -1 says
+# "never transferred", the last-use arm then emits an exit delete, and
+# it lands on the statement that just gave the value away. Before #364
+# that was a loud double free at build time; after #364 it corrupted
+# silently, so a compiler built from such source passed `make` and then
+# panicked on every input. Fix: on clearing a diverged transfer, scan
+# forward for the next transfer on the surviving path and record THAT
+# (re-deriving dtor_transfer / shallow_copy_transfer for it) instead of
+# dropping to -1. Diagnosis came from the gc_audit record, not the
+# crash: clean `own_transfer=128` vs two-site `own_transfer=-1` for the
+# same local. Two standalone reductions never reproduced -- the shape
+# needs the diverged transfer AND the surviving path's last use to be a
+# transfer -- so the regression test is a gc_audit fixture,
+# diverged_then_transfer in test/gc_audit.til, whose golden pins
+# own_transfer=11; a regression shows it as -1.
 # category: bugs
-** OPEN #368 Multiple own-transfer sites on returning paths miscompile SILENTLY since #364/#365
+** FIXED #368 Multiple own-transfer sites on returning paths miscompile SILENTLY since #364/#365
 
 An owned local transferred on one early-return path and again on the
 fall-through path -- two transfer sites, no path transferring twice --

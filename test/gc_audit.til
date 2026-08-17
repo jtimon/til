@@ -238,6 +238,22 @@ ctor_adopt := func() returns I64 {
 // file's line numbers -- the audit dump would then couple the golden to
 // core/exit.til's line layout. assert is a plain func typed in its own
 // unit, so it never appears in this unit's dump.
+// Shape 21 (#368): the SAME owned local transferred on an EARLY-RETURN
+// path and again on the fall-through. LocalInfo holds ONE own_transfer
+// index; check_use_after_own_transfer clears it when the recorded
+// transfer diverged (returned before the later use), which is right --
+// but the later "use" here IS the second transfer, and clearing to -1
+// said "never transferred" and handed the local an ordinary exit delete
+// on top of the value it had just given away. The record below pins the
+// surviving path's transfer index, so a regression shows as -1.
+diverged_then_transfer := func(flag: Bool) returns I64 {
+    mut s := format("x", "y")
+    if flag {
+        return consume(own s)
+    }
+    return consume(own s)
+}
+
 test_gc_audit_shapes := test() {
     joined := last_use_and_scope_end()
     assert(joined == "leftright")
@@ -267,6 +283,8 @@ test_gc_audit_shapes := test() {
     assert(switch_break_transfer(3) == 5)
     assert(diverged_use(1) == 7)
     assert(diverged_use(2) == 8)
+    assert(diverged_then_transfer(true) == 2)
+    assert(diverged_then_transfer(false) == 2)
     mut sco := Array(U8).new(1)
     scalar_cond_transfer(1, sco)
     assert(sco[0] == 1)
