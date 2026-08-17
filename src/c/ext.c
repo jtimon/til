@@ -1779,13 +1779,30 @@ void repl_term_end(void) {
 
 I64 repl_term_read_event(I64 timeout_ms) {
     HANDLE hin = repl_term_in();
+    /* A DEADLINE, not a fresh timeout per record. The console signals this
+     * handle for every input record -- mouse moves, focus changes, key-ups
+     * -- and the arms below filter those with `continue`, which came back
+     * here and waited the WHOLE timeout again. So any record arriving
+     * inside the ESC follow-up window pushed the window out by another
+     * timeout, without bound, and the next character typed was decoded as
+     * part of the escape sequence instead of as itself. Issue #347's
+     * windows console session caught exactly that: `1 + 41` typed after an
+     * ESC reached the editor as ` + 41`. Moving the mouse across the
+     * console while typing is enough to trigger it. The POSIX side
+     * restarts its poll only on EINTR -- a signal -- which is why only
+     * this side needed the deadline. */
+    ULONGLONG deadline = 0;
+    if (timeout_ms >= 0) deadline = GetTickCount64() + (ULONGLONG)timeout_ms;
     for (;;) {
         if (repl_term_redraw) {
             repl_term_redraw = 0;
             return TIL_KEY_REDRAW;
         }
         if (timeout_ms >= 0) {
-            DWORD w = WaitForSingleObject(hin, (DWORD)timeout_ms);
+            ULONGLONG now = GetTickCount64();
+            DWORD left = 0;
+            if (now < deadline) left = (DWORD)(deadline - now);
+            DWORD w = WaitForSingleObject(hin, left);
             if (w == WAIT_TIMEOUT) return TIL_KEY_TIMEOUT;
             if (w != WAIT_OBJECT_0) return TIL_KEY_ERROR;
         }

@@ -222,6 +222,17 @@ Str *wincon_screen(void) {
     }
 }
 
+// Kill a child the driver is giving up on. Cmd has no kill, and leaving
+// the REPL running is not merely untidy: it inherited this process's
+// handles, so it holds the step's stdout pipe open and `tee` never sees
+// EOF. The first reporting run printed its failure and then sat there
+// until the ten-minute step timeout, with the runner reaping an orphan
+// `til` and its conhost afterwards. `handle` is what ccmd_start returned.
+void wincon_kill(I64 handle) {
+    if (handle == 0) return;
+    TerminateProcess((HANDLE)(intptr_t)handle, 1);
+}
+
 // The console input mode, for the before/after comparison that `stty -g`
 // makes on POSIX: the REPL must hand the console back exactly as found,
 // on a clean exit and on Ctrl-C alike.
@@ -248,6 +259,7 @@ I64 wincon_cursor_col(void) {
 
 Bool wincon_begin(void) { return 0; }
 void wincon_end(void) {}
+void wincon_kill(I64 handle) { (void)handle; }
 void wincon_key(I64 vk, I64 ch) { (void)vk; (void)ch; }
 void wincon_noise(I64 count) { (void)count; }
 void wincon_clear(void) {}

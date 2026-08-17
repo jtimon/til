@@ -42,6 +42,7 @@ import("../src/std/file")
 
 wincon_begin := ext_proc() returns shallow Bool {}
 wincon_end := ext_proc() {}
+wincon_kill := ext_proc(shallow handle: I64) {}
 wincon_key := ext_proc(shallow vk: I64, shallow ch: I64) {}
 wincon_noise := ext_proc(shallow count: I64) {}
 wincon_clear := ext_proc() {}
@@ -129,11 +130,18 @@ submit := proc(echo: Str) returns Bool {
     return wait_row(PROMPT)
 }
 
+// The child the driver would leave behind if it gave up right now. It
+// inherited this process's handles, so an abandoned REPL holds the step's
+// stdout pipe open and the step hangs until its timeout however promptly
+// the driver reported.
+mut live_child : I64 = 0
+
 fail := proc(what: Str, screen: Str) {
     println("repl_wincon FAIL: ", what)
     println("--- screen ---")
     println(screen)
     println("--- end screen ---")
+    wincon_kill(live_child)
     wincon_end()
     exit(1)
 }
@@ -158,7 +166,7 @@ step := proc(what: Str) {
 wait_exit := proc(c: Cmd, what: Str) returns I64 {
     mut n : I64 = 0
     while n < POLL_LIMIT {
-        if c.poll() { return c.status() }
+        if c.poll() { live_child = 0; return c.status() }
         sleep_ms(POLL_MS)
         n++
     }
@@ -199,7 +207,7 @@ main := proc(args: ..Str) {
     step("console allocated, spawning the REPL")
     repl := Cmd.new(til, "repl")
     repl.env("LOCALAPPDATA", STATE)
-    _pid := repl.start()
+    live_child = repl.start()
 
     if wait_row(PROMPT).not() { fail("the REPL never drew a prompt", wincon_screen()) }
     step("prompt drawn")
@@ -313,7 +321,7 @@ main := proc(args: ..Str) {
     wincon_clear()
     repl2 := Cmd.new(til, "repl")
     repl2.env("LOCALAPPDATA", STATE)
-    _pid2 := repl2.start()
+    live_child = repl2.start()
     if wait_row(PROMPT).not() { fail("the second REPL never drew a prompt", wincon_screen()) }
 
     wincon_key(VK_UP, 0)
