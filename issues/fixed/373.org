@@ -1,0 +1,66 @@
+# priority: medium
+# category: bugs
+** FIXED #373 dyn_call deleting an owned local releases it twice
+
+*** Post-mortem
+
+Root cause. Since #275's ~dyn_call~ fix the ~delete~ arm dispatches the
+type's real ~delete~ body, which is correct -- but the RECEIVER is still a
+live owned local as far as the garbager is concerned, so its scheduled
+delete runs too. The emitted C shows both, back to back:
+
+    dyn_call_delete(..., &r, &hoisted__Bool_0);   // the dispatched body
+    Res_delete(&r, 0);                            // the garbager's delete
+
+~free(): invalid pointer~ and an abort compiled; a segfault interpreted.
+Same source shape, same double release, two different crashes.
+
+What made it a hole rather than a mistake: the transfer CANNOT be spelled.
+Writing ~own r~ to stand the scheduled delete down is rejected --
+~'own' on argument but parameter 'a' is not 'own'~ -- because ~dyn_call~'s
+parameter is not ~own~. So every spelling of "delete this local through
+dyn_call" is broken: without ~own~ it double-frees, with ~own~ it does not
+type.
+
+Not the same bug as the one #371's slot briefly held. That earlier
+description ("the arm skips the interpreted body") was ALSO real and was
+fixed on master by dispatching the body; this is what remained once the
+dispatch was correct, and it is a garbager/ownership problem rather than a
+dispatch one.
+
+What changed. ~check_dyn_call_delete_of_local~ in ~src/self/typer.til~,
+dispatched by callee name next to ~check_free_managed_local~,
+~check_is_null_arg_dynamic~ and ~check_memcpy_managed_src~. It rejects a
+~dyn_call~ whose method literal is ~"delete"~ and whose receiver argument
+names an owned local of a type that has a ~delete~. The message names the
+double release, says why ~own~ will not help, and points at the two
+spellings that work.
+
+This is the same shape ~check_free_managed_local~ rejects for
+~free(own X)~, and for the same reason: a local the AST consumes while the
+garbager still has a delete scheduled for it.
+
+What stays legal, which is what the in-tree callers rely on:
+
+  - ~Tuple.delete~ passes ~ptr_add(self.data, offset)~ -- a raw address,
+    which the garbager schedules nothing for. Master's own
+    ~test_tuple_dyn_delete_runs_user_body~ goes through this path and
+    still passes.
+  - The interface teardown (~initer.til~) passes ~self.iface_val~, a
+    field, likewise untracked.
+  - A ~ref~, an alias, or a parameter receiver: storage this frame does
+    not own and does not free.
+
+Regression test. ~terr373_dyn_call_delete_local~ in
+~test/typer_errors.til~, counted by the corpus total and by its own
+needle. Two notes on why it is a typer fixture rather than a runtime one:
+the failure mode is a double free, so a runtime test would abort the
+suite rather than fail it, and the correct behaviour now IS the
+diagnostic.
+
+Scope note. This closes the source-level hole. It does not make ~delete~
+transferable through ~dyn_call~ -- doing that would mean giving the
+builtin an ~own~ parameter so the garbager could stand the local's delete
+down, which is a signature change to a reflective builtin and wants its
+own issue if it is ever wanted. Rejecting the shape is the smaller and
+safer answer while every legitimate caller passes an untracked address.

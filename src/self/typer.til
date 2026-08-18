@@ -3646,6 +3646,7 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     if callee_is_indirect.not().and(name == "free") { check_free_managed_local(scope, e, ctx) }
     if callee_is_indirect.not().and(name == "is_null") { check_is_null_arg_dynamic(scope, e, ctx) }
     if callee_is_indirect.not().and(name == "memcpy") { check_memcpy_managed_src(scope, e, ctx) }
+    if callee_is_indirect.not().and(name == "dyn_call") { check_dyn_call_delete_of_local(scope, e, ctx) }
     // (check_move_managed_dest retired with the raw byte-move: `move` is
     // now the typed ownership primitive that destroys dest's old value
     // itself -- the guard's premise is gone, #302.)
@@ -8614,6 +8615,62 @@ priv check_str_view_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ct
         "': the result is a view sharing that local's buffer, which dies with this call -- ",
         "return a param's view, or .clone() the result",
     ), ctx)
+}
+
+// Issue #373: `dyn_call(<T>, "delete", <arity>, <owned local>, ...)` deletes
+// the receiver TWICE. Since #275's dyn_call fix the arm dispatches the
+// type's real delete body -- correctly -- but the receiver is still a live
+// owned local, so the garbager's own scheduled delete runs as well:
+//
+//     dyn_call_delete(..., &r, &hoisted__Bool_0);   // the dispatched body
+//     Res_delete(&r, 0);                            // the garbager's delete
+//
+// abort compiled ("free(): invalid pointer"), segfault interpreted.
+//
+// The transfer cannot be spelled: `own r` is rejected because dyn_call's
+// own parameter is not `own`, so there is no way to stand the scheduled
+// delete down. Every spelling of this is broken, which makes it a hole to
+// close rather than a mistake to diagnose more gently.
+//
+// The in-tree callers are unaffected and show what stays legal: Tuple.delete
+// passes `ptr_add(self.data, offset)` and the interface teardown passes
+// `self.iface_val` -- a raw address and a field, neither of which the
+// garbager schedules a delete for. Only a NAMED OWNED LOCAL double-manages,
+// which is the same shape check_free_managed_local rejects for `free(own X)`
+// and for the same reason.
+priv check_dyn_call_delete_of_local := proc(scope: TypeScope, e: Expr, mut ctx: Context) {
+    if e.children.len() < 5 { return }
+    if e.children[2].node_type.is_literal_str().not() { return }
+    mut method := ""
+    switch e.children[2].node_type {
+    case .Literal(Literal.Str(mlit)): method = Str.clone(mlit)
+    case: return
+    }
+    if method != "delete" { return }
+    switch e.children[4].node_type {
+    case .Ident(rid):
+        sf := scope.find(rid.ident_name())
+        switch sf {
+        case .Found(b):
+            if b.is_param.or(b.is_alias).or(b.is_builtin) { return }
+            if b.own_type.is(OwnType.Ref) { return }
+            tn := til_type_name(b.type)
+            if tn.len() == 0 { return }
+            sdef_o := scope.get_struct(tn)
+            if sdef_o.is_none() { return }
+            ref sdef : Expr = sdef_o.unwrap()
+            if find_namespace_func(sdef, "delete", scope).is_none() { return }
+            e.children[4].type_error(format(
+                "dyn_call cannot delete the local '", Str.clone(rid.ident_name()),
+                "': it dispatches ", tn, ".delete AND the local's own scheduled delete still runs, ",
+                "so the value is released twice -- and 'own' cannot mark the transfer here, because ",
+                "dyn_call's parameter is not 'own'. Call ", tn, ".delete(own ",
+                Str.clone(rid.ident_name()), ") directly, or pass a raw address the garbager does not track",
+            ), ctx)
+        case:
+        }
+    case:
+    }
 }
 
 priv check_enum_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ctx: Context) {

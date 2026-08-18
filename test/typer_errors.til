@@ -1360,3 +1360,25 @@ terr372_chained_view := func(n: USize) returns Str {
     base := format("  padded  ", n.to_str())
     return base.trim().substr(0, 3)
 }
+
+// #373: dyn_call dispatching `delete` over an owned LOCAL releases it
+// twice -- the dispatched body runs, and the garbager's own scheduled
+// delete for the local runs as well (abort compiled, segfault
+// interpreted). The transfer cannot be spelled either: `own r` is
+// rejected because dyn_call's parameter is not `own`. A raw address (what
+// Tuple.delete passes) or a field is untracked and stays legal.
+Terr373Res := struct {
+    name := ""
+namespace:
+    delete := proc(own self: Terr373Res, call_free: Bool = true) {
+        println("delete ran")
+        Str.delete(own self.name, true)
+        if call_free { free(own self) }
+    }
+}
+
+terr373_dyn_call_delete_local := proc() {
+    r := Terr373Res(name = "ab")
+    dyn_call("Terr373Res", "delete", 2, r, true)
+    println("unreached")
+}

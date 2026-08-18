@@ -1480,9 +1480,9 @@ main := proc(args: ..Str) {
     // moved backends shows up in the total, and re-running one command
     // seven times to re-read seven substrings of the same output would
     // not add to that.
-    add_count(tests, "typer_errors_interp", "typer", "error:", 222,
+    add_count(tests, "typer_errors_interp", "typer", "error:", 223,
         format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "typer_errors_build", "typer", "error:", 222,
+    add_count(tests, "typer_errors_build", "typer", "error:", 223,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #342: a splat whose elements do not match is reported, not passed
     // through to crash the callee -- four variadic shapes, the two literals,
@@ -1510,6 +1510,15 @@ main := proc(args: ..Str) {
     add_count(tests, "view_of_local_return_interp", "typer", "the result is a view sharing", 3,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "view_of_local_return_build", "typer", "the result is a view sharing", 3,
+        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
+    // #373: dyn_call dispatching `delete` over an owned local releases it
+    // twice -- once through the dispatched body, once through the local's
+    // own scheduled delete -- and `own` cannot mark the transfer because
+    // dyn_call's parameter is not own. A runtime fixture would abort the
+    // suite rather than fail it, so the diagnostic IS the pinned behaviour.
+    add_count(tests, "dyn_call_delete_local_interp", "typer", "dyn_call cannot delete the local", 1,
+        format(til_bin, " interpret test/typer_errors.til"))
+    add_count(tests, "dyn_call_delete_local_build", "typer", "dyn_call cannot delete the local", 1,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
     add_count(tests, "fcall_arg_parity_total_interp", "typer", "error:", 12, parity_cmd)
