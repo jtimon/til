@@ -1,0 +1,53 @@
+# priority: low
+# category: features
+** OPEN #370 til embeds in the lua/lisp sense: host program, guest til
+
+tiled (#83) is emacs/neovim done without the split brain: til for the
+host AND til for the guest. That only works if til can be EMBEDDED the
+way lua and lisp are -- a running program creates an interpreter, feeds
+it source it did not know at build time, and the two exchange values
+and functions. Which language a file is "in" stops being a question;
+what matters is only WHEN it is loaded: compiled into the host, or
+interpreted into it at startup from ~/.tiled/init.til the way emacs
+loads init.el and neovim loads init.lua. Same language on both sides is
+the point -- past the editor wars and past the eclipse: no elisp/vimscript
+/ lua / json split, and no IDE-platform bolted onto a different
+language than the one it edits.
+
+What exists today, and how far it is from embedding:
+
+  - The interpreter IS a library already, in the practical sense: it is
+    ordinary til code (src/self/interpreter.til) linked into bin/til,
+    driven by cmd_interpret / the REPL. Nothing about it is
+    process-shaped except its entry points.
+  - What is missing is the API AROUND it: create a session from inside
+    a running program, eval a string or file into it, look a symbol up,
+    call it, and register HOST functions the guest can call. The REPL
+    does all of these internally; none of them is callable from user
+    til (or from C) as a surface.
+  - The FFI already crosses the other direction (guest calls C via
+    ext_func + libffi), so "host function visible to the guest" has
+    machinery to build on rather than invent.
+
+Shape to aim at (lua's, roughly, spelled in til):
+
+  #+begin_src til
+  mut vm := Interp.new()
+  vm.register("buffer_insert", buffer_insert)  // host fn, guest-callable
+  vm.eval_file(home.concat("/.tiled/init.til"))
+  on_key := vm.lookup("on_key")                // guest fn, host-callable
+  #+end_src
+
+Open questions:
+
+  - Ownership across the boundary: what does a guest-returned Str mean
+    in the host's single-owner model? (The #275 line of work is where
+    those rules live.)
+  - Does the embedded interpreter share the host's type scope or get a
+    fresh one per session? tiled wants fresh-per-config-reload.
+  - Sandboxing: init.til probably runs trusted, but a buffer-local
+    script should not get free rein over the process.
+
+Related: #83 (tiled itself), #84 (mode theme -- one .til theme file
+generating .el/.vim/.json is the same "til as the one config language"
+idea, minus the runtime).

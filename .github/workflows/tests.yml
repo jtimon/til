@@ -254,6 +254,12 @@ jobs:
           file bin/hello_gui.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/hello_gui-x86.exe examples/hello_gui.til
           file bin/hello_gui-x86.exe | grep -q "Intel 80386"
+          # #83: the smoke example proves the toolchain; editor.til proves a
+          # REAL mode-gui app (tiled's seed) keeps cross-building too.
+          ./bin/til build --target=windows-x64 -o bin/editor.exe examples/editor.til
+          file bin/editor.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 -o bin/editor-x86.exe examples/editor.til
+          file bin/editor-x86.exe | grep -q "Intel 80386"
       - name: Upload .exe artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -639,6 +645,41 @@ jobs:
           file bin/hello_script-macos-arm64 | grep -q "Mach-O 64-bit arm64"
           ./bin/til build --target=macos-x64 -o bin/hello_script-macos-x64 examples/hello_script.til
           file bin/hello_script-macos-x64 | grep -q "Mach-O 64-bit x86_64"
+      # Issue #369: put clang over the WHOLE corpus on linux, not just the
+      # one example above. Every linux job compiles the generated C with gcc
+      # (toolchain_command hardcodes it), so clang first saw the corpus on
+      # the two slowest jobs in the run -- and the emitter already carries
+      # four workarounds for things clang rejects and gcc accepts in
+      # silence, every one of them found as "green linux, red mac". The most
+      # recent (e3085558's `Color_TAG_Red == Color_TAG_Red`) passed 356/356
+      # here and reddened both mac jobs and nothing else.
+      #
+      # Going through the DRIVER is the point: it knows each file's flags,
+      # which a hand-rolled `for f in gen/til/*.c; clang ...` sweep has to
+      # relearn and gets wrong (usize64*.c need --usize=64, bindgen_raylib.c
+      # has its own `format` signature).
+      #
+      # A file counts as failing only when clang emits a warning-as-error
+      # -- the `[-W...]` marker. That is exactly the class this exists for,
+      # and it deliberately ignores the two other ways a cross build ends:
+      # til's own type errors (every test/*_error.til is MEANT to fail the
+      # typer, as are the interp-only files) and link failures with no
+      # compile diagnostic (ffi_dlopen_fail.til references an undefined
+      # symbol on purpose; the gui/nng examples want mac frameworks and
+      # native libs that are not vendored here). Keying on the marker needs
+      # no skip list, so a new test cannot silently fall out of coverage.
+      - name: Cross-compile the corpus for macos-arm64 (clang -Werror)
+        run: |
+          status=0
+          for f in test/*.til examples/*.til; do
+            log=$(./bin/til build --target=macos-arm64 -o tmp/xcheck "$f" 2>&1 || true)
+            if printf '%s' "$log" | grep -q '\[-W'; then
+              echo "=== $f"
+              printf '%s\n' "$log" | grep '\[-W' | head -5
+              status=1
+            fi
+          done
+          exit $status
       - name: Upload mac artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -787,6 +828,11 @@ jobs:
           file bin/hello_gui-macos-arm64 | grep -q "Mach-O 64-bit arm64"
           ./bin/til build --target=macos-x64 -o bin/hello_gui-macos-x64 examples/hello_gui.til
           file bin/hello_gui-macos-x64 | grep -q "Mach-O 64-bit x86_64"
+          # #83: same editor.til coverage as the windows gui cross job.
+          ./bin/til build --target=macos-arm64 -o bin/editor-macos-arm64 examples/editor.til
+          file bin/editor-macos-arm64 | grep -q "Mach-O 64-bit arm64"
+          ./bin/til build --target=macos-x64 -o bin/editor-macos-x64 examples/editor.til
+          file bin/editor-macos-x64 | grep -q "Mach-O 64-bit x86_64"
       - name: Upload mac gui artifacts
         uses: actions/upload-artifact@v4
         with:
