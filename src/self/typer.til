@@ -2703,18 +2703,21 @@ priv infer_array_vec_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str,
     // (#154 import credit, #187 used-marking) exactly like any other type
     // annotation. The instance name below resolves the alias away, so this
     // is the only point that sees the spelling the user wrote.
-    _ : Type = type_from_name(elem_type, scope, ctx)
-    // #342: `array` / `vec` are declared `..Dynamic`, so the variadic check in
-    // infer_and_validate_fcall_args_for_fdef skips their block entirely and
-    // the element type the literal NAMES is the only thing a splat can be
-    // measured against. Without this `array(I64, 1, ..strs, 9)` folded an
-    // Array(Str) into an Array(I64) and printed the Str pointers as numbers.
-    // (Plain elements are still unchecked here -- `array(I64, 1, "a")` is the
-    // same garbage and predates splats; that gap is not this issue's.)
+    elem_t := type_from_name(elem_type, scope, ctx)
+    ref resolved_elem_type : Str = resolve_type_alias_for_name(scope, elem_type)
+    // #342 / #358: `array` / `vec` are declared `..Dynamic`, so the ordinary
+    // variadic check skips their block entirely. Validate each argument against
+    // the element type named by the literal instead. A splat contributes a
+    // whole Array's elements; every other argument contributes one value.
+    // Dynamic remains the explicitly unconstrained element type. Unlike a
+    // `..Str` parameter, a collection literal does not apply to_str coercion.
     for si in 2..e.children.len() {
         if get_splat_arg(e, si) {
             validate_splat_elem_type(scope, e.children[si], elem_type,
                 format("the '", elem_type, "' element type of this ", name, "() literal"), ctx)
+        } else if elem_t.is(Type.Dynamic).not() {
+            validate_fcall_arg(e.children[si], elem_t, resolved_elem_type,
+                format(name, "() literal element"), ctx)
         }
     }
     if name == "array" {

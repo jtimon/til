@@ -1382,3 +1382,13 @@ terr373_dyn_call_delete_local := proc() {
     dyn_call("Terr373Res", "delete", 2, r, true)
     println("unreached")
 }
+
+// #358: array()/vec() are declared ..Dynamic, but their plain elements must
+// match the element type named by the literal. The Str case pins that literals
+// are exact containers: they do not inherit a ..Str parameter's to_str coercion.
+terr358_bad_array := array(I64, 1, "a", 9)
+terr358_bad_vec := vec(I64, 1, "a", 9)
+terr358_no_to_str := array(Str, 1)
+
+// Dynamic is the deliberate exception: each element converts independently.
+terr358_dynamic := array(Dynamic, 1, "a")

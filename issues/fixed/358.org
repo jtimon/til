@@ -1,6 +1,22 @@
 # priority: medium
 # category: bugs
-** OPEN #358 array() / vec() literals do not type-check their elements
+** FIXED #358 array() / vec() literals do not type-check their elements
+
+Post-mortem (fixed):
+
+~infer_array_vec_fcall~ inferred literal elements but relied on the ordinary
+variadic argument validator, which deliberately skips the builtins'
+~..Dynamic~ parameter. It now validates every plain element against the type
+named by the literal, beside the existing splat-element validation. A
+~Dynamic~ element type remains unconstrained, numeric literals retain normal
+argument narrowing, and collection literals deliberately do not apply the
+~..Str~ ~to_str~ coercion.
+
+Regression coverage in ~test/typer_errors.til~ rejects mismatched ~array()~
+and ~vec()~ elements at the offending expression, rejects ~array(Str, 1)~,
+and keeps ~array(Dynamic, 1, "a")~ valid. The paired
+~literal_elem_type_interp~ / ~literal_elem_type_build~ checks exercise both
+front-end configurations.
 
 An element whose type is not the literal's element type is accepted in
 silence and read back as the element type -- the reader takes its bytes for
