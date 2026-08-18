@@ -1154,13 +1154,16 @@ priv raw_arg_pointer := func(raw: Dynamic, info: RawResultInfo, ctx: Context) re
     }
 }
 
-priv callable_raw_func_def := func(raw: Dynamic) returns ref Expr {
-    ref stored : Dynamic = deref(raw)
+priv callable_storage_func_def := func(stored: Dynamic) returns ref Expr {
     if callable_box_is(stored) {
         ref box : InterpCallableBox = to_ptr(stored)
         return box.func_def
     }
     return to_ptr(stored)
+}
+
+priv callable_raw_func_def := func(raw: Dynamic) returns ref Expr {
+    return callable_storage_func_def(deref(raw))
 }
 
 priv callable_raw_env := func(raw: Dynamic, fallback: Scope) returns ref Scope {
@@ -1423,6 +1426,14 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             }
             stored_hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fa.field_access_name())
             if stored_hb_o.is_none() {
+                static_fdef_o := def_static_ns_func_def(namespace_def, fa.field_access_name())
+                if static_fdef_o.is_some() {
+                    mut result : Dynamic = destination
+                    if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
+                    write_ptr(result, static_fdef_o.unwrap())
+                    info.source_type_p = to_ptr(interp_intern_type(Type.Body, ctx))
+                    return result
+                }
                 interp_error(e, format("no namespace field '", Str.clone(fa.field_access_name()), "'"), ctx)
                 exit(1)
             }
@@ -2853,7 +2864,6 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
 }
 
 priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Type, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
-    ref c : Context = ctx
     ref mut callee_expr : Expr = e.children[0]
     info.is_ref = false
     info.is_word = destination.is_null().and(raw_type_is_prim(call_type, ctx))
@@ -2914,41 +2924,30 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 ref fp_fdef : FunctionDef = funcdef_of(func_def)
                 fp_func_type = fp_fdef.func_type
                 if fp_func_type.is_ext() {
-                    for qn, nsv_hb in ns_scope(c).heap_bindings {
-                        if heap_type_is_callable(hb_type(nsv_hb)).not() { continue }
-                        ref nsv : Dynamic = to_ptr(nsv_hb.ptr)
-                        ref nsv_fdef : Expr = callable_raw_func_def(nsv)
-                        if nsv_fdef.ptr_eq(func_def) {
-                            fp_flat := qn.replace(".", "_")
-                            orig_result_type := call_type.clone()
-                            mut concrete_result_type := Type.None
-                            mut concrete_return_own_type := OwnType.Shallow
-                            ref concrete_fd : FunctionDef = funcdef_of(nsv_fdef)
-                            concrete_return_own_type = concrete_fd.return_own_type
-                            if concrete_fd.return_type.len() > 0 { concrete_result_type = type_from_name_init(concrete_fd.return_type, ctx.scope) }
-                            // Swapped in, not cloned: the dispatch only
-                            // needs the callee slot to hold a flat Ident
-                            // for the duration of the call, and the old
-                            // callee has to come back afterwards. Cloning
-                            // it (twice: the replacement AND the backup)
-                            // deep-copied a whole callee subtree per
-                            // dispatch.
-                            mut flat_ident := Expr.new(ident_node(fp_flat), callee_expr.line, callee_expr.col)
-                            flat_ident.set_til_type(Type.FuncDef)
-                            swap(Expr, e.children[0], flat_ident)
-                            e.set_til_type(concrete_result_type)
-                            mut concrete_destination : Dynamic = 0
-                            if til_type_name_c(concrete_result_type) == til_type_name_c(orig_result_type) { concrete_destination = destination }
-                            mut result : Dynamic = eval_call(scope, e, ctx, concrete_destination)
-                            e.set_til_type(orig_result_type)
-                            swap(Expr, e.children[0], flat_ident)
-                            if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
-                            if concrete_return_own_type.is(OwnType.Ref).not() {
-                                result = raw_coerce_value(result, concrete_result_type, orig_result_type, ctx, concrete_return_own_type)
-                                result = raw_result_finish(orig_result_type, result, destination, false, ctx)
-                            }
-                            return result
+                    qn := namespace_func_qname(func_def, "", ctx)
+                    if qn.len() > 0 {
+                        fp_flat := qn.replace(".", "_")
+                        orig_result_type := call_type.clone()
+                        mut concrete_result_type := Type.None
+                        concrete_return_own_type := fp_fdef.return_own_type
+                        if fp_fdef.return_type.len() > 0 { concrete_result_type = type_from_name_init(fp_fdef.return_type, ctx.scope) }
+                        // Swapped in, not cloned: the dispatch only needs the
+                        // callee slot to hold a flat Ident for this call.
+                        mut flat_ident := Expr.new(ident_node(fp_flat), callee_expr.line, callee_expr.col)
+                        flat_ident.set_til_type(Type.FuncDef)
+                        swap(Expr, e.children[0], flat_ident)
+                        e.set_til_type(concrete_result_type)
+                        mut concrete_destination : Dynamic = 0
+                        if til_type_name_c(concrete_result_type) == til_type_name_c(orig_result_type) { concrete_destination = destination }
+                        mut result : Dynamic = eval_call(scope, e, ctx, concrete_destination)
+                        e.set_til_type(orig_result_type)
+                        swap(Expr, e.children[0], flat_ident)
+                        if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
+                        if concrete_return_own_type.is(OwnType.Ref).not() {
+                            result = raw_coerce_value(result, concrete_result_type, orig_result_type, ctx, concrete_return_own_type)
+                            result = raw_result_finish(orig_result_type, result, destination, false, ctx)
                         }
+                        return result
                     }
                 }
             }
@@ -3766,23 +3765,9 @@ priv dyn_array_elem_kind := func(data: Dynamic, ctx: Context) returns USize {
 priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Context) returns Str {
     ref fl : FieldLayout = ctx_field_layout(struct_name, "elem_delete", ctx)
     ref stored : Dynamic = deref(ptr_add(data, fl.offset))
-    delete_suffix := ".delete"
-    for qn, nsv_hb in ns_scope(ctx).heap_bindings {
-        // Callable-typed only, like the FuncPtr scan in eval_call_info: a
-        // namespace VALUE named `delete` carries no def to compare against.
-        if heap_type_is_callable(hb_type(nsv_hb)).not() { continue }
-        ref nsv : Dynamic = to_ptr(nsv_hb.ptr)
-        if qn.ends_with(delete_suffix).not() { continue }
-        ref expected : Expr = callable_raw_func_def(nsv)
-        mut matches := stored.ptr_eq(expected)
-        if callable_box_is(stored) {
-            ref stored_box : InterpCallableBox = to_ptr(stored)
-            matches = stored_box.func_def.ptr_eq(expected)
-        }
-        if matches {
-            return qn.substr(0, qn.count - delete_suffix.count)
-        }
-    }
+    ref func_def : Expr = callable_storage_func_def(stored)
+    qn := namespace_func_qname(func_def, "delete", ctx)
+    if qn.len() > 0 { return qn.substr(0, qn.len() - ".delete".len()).clone() }
     panic("erased elem_delete type not found for ", struct_name)
     return ""
 }
@@ -4094,14 +4079,78 @@ hb_func_def := func(hb: HeapBinding) returns Option(ref Expr) {
     return Option(ref Expr).Some(to_ptr(stored))
 }
 
+// Immutable namespace FuncDefs need no runtime slot: their AST node is the
+// callable value. Mutable methods and closures retain storage for assignment
+// and captured state, like rstil's heap_index values.
+priv decl_static_ns_func_def := func(d: Declaration) returns Option(ref Expr) {
+    if d.is_mut.or(d.default_value.is_none()) { return Option(ref Expr).None }
+    ref value : Expr = d.default_expr()
+    switch value.node_type {
+    case .FuncDef(fd):
+        if fd.captures.len() == 0 { return Option(ref Expr).Some(value) }
+    case:
+    }
+    return Option(ref Expr).None
+}
+
+priv def_static_ns_func_def := func(def: Expr, fname: Str) returns Option(ref Expr) {
+    d_o := def_ns_get(def, fname)
+    if d_o.is_none() { return Option(ref Expr).None }
+    return decl_static_ns_func_def(d_o.unwrap())
+}
+
+priv static_ns_func_def := func(sname: Str, fname: Str, ctx: Context) returns Option(ref Expr) {
+    def_o := ctx.scope.get_struct(sname)
+    if def_o.is_none() { return Option(ref Expr).None }
+    return def_static_ns_func_def(def_o.unwrap(), fname)
+}
+
 // The FuncDef behind a namespace member (`Str.size`), or None when the
 // member holds a value. Same slot-is-not-an-Expr reasoning as hb_func_def.
 ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Expr) {
     ref mut c : Context = ctx
-    if c.ns_fields.is_none() { return Option(ref Expr).None }
-    hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
-    if hb_o.is_none() { return Option(ref Expr).None }
-    return hb_func_def(hb_o.unwrap())
+    if c.ns_fields.is_some() {
+        hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
+        if hb_o.is_some() { return hb_func_def(hb_o.unwrap()) }
+    }
+    return static_ns_func_def(sname, fname, ctx)
+}
+
+// Recover the qualified identity of a first-class namespace callable. Static
+// methods live in aggregate ASTs; stateful callable data remains in ns_fields.
+// A static FuncDef belongs to exactly one canonical aggregate declaration.
+priv namespace_func_qname := func(func_def: Expr, member: Str, ctx: Context) returns Str {
+    mut found := ""
+    for sname, def_slot in ctx.interp_type_defs {
+        ref def : Expr = deref(def_slot)
+        ref decls : Vec(Declaration) = def_ns_decls(def)
+        mut i : USize = 0
+        for d : Declaration in decls {
+            ref fname : Str = def_ns_name_at(def, i)
+            i = i + 1
+            if member.len() > 0 {
+                if fname != member { continue }
+            }
+            candidate_o := decl_static_ns_func_def(d)
+            if candidate_o.is_none() { continue }
+            if candidate_o.unwrap().ptr_eq(func_def).not() { continue }
+            if found.len() > 0 { panic(__LOC__, "static namespace FuncDef has multiple qualified names") }
+            found = sname.concat3(".", fname)
+        }
+    }
+    if found.len() > 0 { return found }
+    if ctx.ns_fields.is_none() { return "" }
+    mut suffix := ""
+    if member.len() > 0 { suffix = concat3(".", member, "") }
+    for qn, hb in ns_scope(ctx).heap_bindings {
+        if member.len() > 0 {
+            if qn.ends_with(suffix).not() { continue }
+        }
+        if heap_type_is_callable(hb_type(hb)).not() { continue }
+        ref raw : Dynamic = to_ptr(hb.ptr)
+        if callable_storage_func_def(deref(raw)).ptr_eq(func_def) { return qn.clone() }
+    }
+    return ""
 }
 
 priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Context) {
@@ -4852,6 +4901,7 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
                 nfi = nfi + 1
                 if nsf.default_value.is_none() { continue }
                 if nsf.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+                if decl_static_ns_func_def(nsf).is_some() { continue }
                 fraw : Dynamic = eval_expr_raw(global, nsf.default_expr(), ctx)
                 ns_set(dd.name, def_ns_name_at(sdef, cur_nfi), fraw, Type.Body, ctx)
             }
@@ -6397,7 +6447,7 @@ priv h_spawn_cmd := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context
 priv h_dyn_has_method := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
-    write_bool(r, ns_get(type_name, method, ctx).is_some())
+    write_bool(r, ns_get(type_name, method, ctx).is_some().or(static_ns_func_def(type_name, method, ctx).is_some()))
     return true
 }
 
@@ -6415,11 +6465,20 @@ priv h_dyn_fn := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) r
     // names the dyn_fn call site rather than the line of interpreter.til
     // that noticed.
     stored_o := ns_get(type_name, method, ctx)
-    if ns_func_def(type_name, method, ctx).is_none() {
+    if stored_o.is_some() {
+        if ns_func_def(type_name, method, ctx).is_none() {
+            interp_error(e, format("dyn_fn: no method ", type_name, ".", method), ctx)
+            exit(1)
+        }
+        write_ptr(r, callable_storage_clone(deref(stored_o.unwrap())))
+        return true
+    }
+    static_o := static_ns_func_def(type_name, method, ctx)
+    if static_o.is_none() {
         interp_error(e, format("dyn_fn: no method ", type_name, ".", method), ctx)
         exit(1)
     }
-    write_ptr(r, callable_storage_clone(deref(stored_o.unwrap())))
+    write_ptr(r, static_o.unwrap())
     return true
 }
 
@@ -6435,7 +6494,7 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Conte
         // runs off the end. Say the same here instead of get_elem_size's
         // "T has no size() method", which is about a different question
         // and left the two backends wording the same miss differently.
-        if ns_get(type_name, "size", ctx).is_none() {
+        if ns_func_def(type_name, "size", ctx).is_none() {
             interp_error(e, format("dyn_size_of: unknown type ", type_name), ctx)
             exit(1)
         }
@@ -7318,24 +7377,19 @@ priv h_is_n := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context) ret
             ref other_hb : HeapBinding = other_hb_o.unwrap()
             ref other_raw : Dynamic = to_ptr(other_hb.ptr)
             ref other_def : Expr = callable_raw_func_def(other_raw)
-            for qn, candidate_hb in ns_scope(ctx).heap_bindings {
-                if candidate_hb.is_static_callable.not() { continue }
-                ref candidate_raw : Dynamic = to_ptr(candidate_hb.ptr)
-                if callable_raw_func_def(candidate_raw).ptr_eq(other_def) {
-                    dot := qn.find(".")
-                    if dot > 0 {
-                        zero : USize = 0
-                        enum_name := qn.substr(zero, dot.to_usize())
-                        variant_start := dot.to_usize().add(1)
-                        variant_name := qn.substr(variant_start, qn.len().sub(variant_start))
-                        enum_def_o := lookup_interp_type_def(enum_name, ctx)
-                        if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
-                            ref enum_def : Expr = enum_def_o.unwrap()
-                            write_bool(r, enum_data_tag_key(raw_arg_pointer(a, a_info, ctx), enum_def) == enum_variant_tag(enum_def, variant_name))
-                            raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
-                            return true
-                        }
-                    }
+            qn := namespace_func_qname(other_def, "", ctx)
+            dot := qn.find(".")
+            if dot > 0 {
+                zero : USize = 0
+                enum_name := qn.substr(zero, dot.to_usize())
+                variant_start := dot.to_usize().add(1)
+                variant_name := qn.substr(variant_start, qn.len().sub(variant_start))
+                enum_def_o := lookup_interp_type_def(enum_name, ctx)
+                if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
+                    ref enum_def : Expr = enum_def_o.unwrap()
+                    write_bool(r, enum_data_tag_key(raw_arg_pointer(a, a_info, ctx), enum_def) == enum_variant_tag(enum_def, variant_name))
+                    raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
+                    return true
                 }
             }
         }
@@ -7650,7 +7704,7 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context)
 }
 
 priv get_elem_size := proc(mut s: Scope, type_name: Str, src: Expr, mut ctx: Context) returns USize {
-    if ns_get(type_name, "size", ctx).is_none() {
+    if ns_func_def(type_name, "size", ctx).is_none() {
         interp_error(src, format(type_name, " has no size() method"), ctx)
         exit(1)
     }
