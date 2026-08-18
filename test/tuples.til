@@ -88,3 +88,30 @@ test_tuple_grow := test() {
     assert_eq(I64, first, 1)
     assert_eq(I64, last, 4)
 }
+
+// #275: dyn_call's reflective path DISPATCHES delete, it does not
+// reimplement it. Tuple.delete reaches each element through
+// `dyn_call(tn, "delete", 2, ...)`, and that arm used to call
+// heap_drop_by_type + heap_free directly: a user-defined delete never ran
+// interpreted (the compiled backend ran it), and dropping the fields here
+// AND in the body double-freed. The counter proves the body ran, in both
+// backends -- an assert alone would pass on a delete that never happened.
+mut dyn_delete_ran : I64 = 0
+
+DynDeleteProbe := struct {
+    tag := ""
+namespace:
+    delete := func(own self: DynDeleteProbe, call_free: Bool = true) {
+        dyn_delete_ran = dyn_delete_ran + 1
+        own self.tag.delete(false)
+        if call_free { free(own self) }
+    }
+}
+
+test_tuple_dyn_delete_runs_user_body := test() {
+    dyn_delete_ran = 0
+    mut t := Tuple.new()
+    t.push(DynDeleteProbe, own DynDeleteProbe(tag = "probe"))
+    own t.delete()
+    assert_eq(I64, dyn_delete_ran, 1)
+}

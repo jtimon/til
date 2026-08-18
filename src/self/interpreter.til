@@ -7631,33 +7631,13 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, r: Dynamic, mut ctx: Context)
     case:
         UNREACHABLE("expected LiteralNum, got ", arity_expr.node_type.head_str())
     }
-    if method == "delete" {
-        if nargs == 0 { panic("dyn_call delete without receiver") }
-        ref mut recv_expr : Expr = e.children[4]
-        mut recv_info := raw_result_info_new()
-        mut recv_raw : Dynamic = eval_expr_raw_info(s, recv_expr, ctx, recv_info)
-        mut recv_ptr : Dynamic = raw_arg_pointer(recv_raw, recv_info, ctx)
-        mut call_free := true
-        if nargs > 1 { call_free = narrow_bool_arg(s, e.children[5], ctx) }
-        heap_drop_by_type(type_from_name_init(type_name, ctx.scope), recv_ptr, ctx)
-        if call_free {
-            EvalHeap.heap_free(own recv_ptr)
-            switch recv_expr.node_type {
-            case .FieldAccess(recv_fa):
-                recv_base_o := field_access_base(s, recv_expr.children[0], ctx)
-                if recv_base_o.is_some() {
-                    ref recv_base : Dynamic = recv_base_o.unwrap()
-                    mut fallback_recv_name := ""
-                    ref recv_name : Str = field_access_sname(recv_expr, fallback_recv_name)
-                    ref recv_fl : FieldLayout = ctx_field_layout(recv_name, recv_fa.field_access_name(), ctx)
-                    write_ptr(ptr_add(recv_base, recv_fl.offset), bits_word(0))
-                }
-            case:
-            }
-        }
-        raw_result_drop(recv_expr.til_type(), recv_raw, recv_info.is_ref, ctx)
-        return true
-    }
+    // #275: `delete` takes the SAME fake-call path as every other method.
+    // It used to short-circuit here -- heap_drop_by_type + heap_free plus a
+    // hand-rolled field-slot null -- which reimplemented the destructor
+    // instead of interpreting it: a user-defined delete with any behaviour
+    // beyond releasing fields never ran (the compiled backend runs it), and
+    // dropping the fields here AND in the body double-freed. Memory
+    // management is the AST's job; this path only dispatches.
     for ai in 0..nargs {
         fake_call.push_child_clone(e.children[ai + 4])
     }
