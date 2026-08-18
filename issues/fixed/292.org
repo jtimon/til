@@ -1,6 +1,35 @@
 # priority: high
 # category: optimizations
-** WIP #292 Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
+** FIXED #292 Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
+
+*** Post-mortem
+
+  Root cause: compiler identifiers and field names were owned Strings copied
+  throughout the AST and repeatedly compared through Str-keyed maps. Even
+  read-only accessors cloned those names, so transient compiler operations
+  paid for allocation, copying, comparison, and deletion.
+
+  Fix: name accessors first became borrows, then a Context-owned SymbolPool
+  replaced identifier and field-access payloads and compiler name registries
+  with Sym values. TypeScope bindings and function-definition lookups use
+  symbols directly, while compiler consumers resolve a borrowed Str only at
+  string boundaries. The completed migration improved three self-translations
+  from 19.07s to 18.17s (-4.7%); 50 maps.til translations remained at timer
+  parity (8.12s versus 8.07s on the exact parent).
+
+  A fresh full self-translation profile on 2026-08-18 measured Str_clone at
+  13,804,221 calls, 12,908,281 allocations, and 168,531.4 KiB. Callgrind
+  attributed 996,704 calls (7.7%) to cloning named Type payloads and another
+  311,980 (2.4%) to til_type_name. Together they represented about 0.32% of
+  74,650,850,663 measured instructions. Type.eq performed only 13 named
+  Struct string comparisons. Converting the remaining public Type payloads
+  would therefore add a private duplicate representation or change the public
+  ownership API for a sub-percent CPU result, with no material comparison
+  win. The profile rejects that final stage rather than justifying it.
+
+  Regression coverage: parsing's identifier and field-access assertions and
+  the enum_ctor_named_constructor_payload generated-code count, plus the full
+  suite run for the symbol migration.
 
   After the cast Type_Primitive fix landed, a fresh --prof run
   (`bin/til run examples/profile.til src/til.til`; snapshot in
@@ -69,5 +98,7 @@
     improve from 19.07s to 18.17s (-4.7%).
   - [X] Migrate TypeScope.func_defs and binding-less C aliases to Sym keys;
     function scope walks now compare U32 symbols instead of function names.
-  - [ ] Stage compiler Type-name payload migration after runtime reflection
-    and dyn_type_to_str no longer require Str payloads.
+  - [X] Reprofile compiler Type-name payloads. Their measured cost does not
+    justify changing public Type ownership or adding a private duplicate type
+    representation; retain Str payloads for runtime reflection and
+    dyn_type_to_str.
