@@ -54,12 +54,52 @@ Two concrete slices HAVE landed since:
 
 *** What is actually left
 
-Items 1-3 have all LANDED. What remains is the last TODO in the next
-section, restated here because the verification it asked for came back
-positive -- there IS a shortcut:
+Items 1-3 have all LANDED, and so has the dyn_call shortcut (0). What
+remains is 0b: one teardown gap, reproduced and narrowed but not fixed.
 
-  0. ~dyn_call~'s reflective path special-cases ~delete~ and never runs
-     the interpreted method body. ~interpreter.til~'s
+  0. (DONE) ~dyn_call~ dispatches ~delete~ now; the shortcut and its
+     hand-rolled reclamation are gone.
+
+  0b. OPEN, and the last one: an ~own~-consumed binding at SCRIPT scope is
+     not marked moved-out, so session teardown drops it a second time.
+
+     #+begin_src til
+     mode script
+     mut v := Vec(I64).new()
+     v.push(own 42)
+     own v.delete(true)      // frees data + box
+     #+end_src
+
+     aborts the interpreter ("corrupted double-linked list"); compiled is
+     correct, because the garbager sees the transfer and emits no
+     scope-exit delete. Established by gdb at the teardown loop: the
+     binding arrives ~is_local=true, is_borrowed=false, moved_out=false~,
+     so ~scope_drop_owned_bindings~ reclaims what the AST's delete already
+     released.
+
+     Ruled out, each by experiment:
+     - not the dyn_call shortcut (this reproduces with it removed);
+     - not the UFCS own-bit renumbering -- the explicit
+       ~Vec(I64).delete(own v, true)~ fails identically;
+     - not container-specific (Vec and Tuple both), and not about the
+       method body -- ~Vec.delete~ is an ordinary til func whose body does
+       run;
+     - needs heap CONTENTS: an empty ~Vec(I64).new()~ survives, because
+       there is no second buffer to free twice. A struct whose only field
+       is a literal Str survives for the same reason, which is why this
+       looks like it only affects containers.
+
+     So the gap is the own-ARGUMENT consumption failing to mark the
+     caller's binding when that binding lives in the session/global scope.
+     The interpreted-call path does mark it
+     (~source_hb.moved_out = true~ in the ~arg_transfers~ branch of the
+     param-binding loop), and the ext-dispatch path has its own marking
+     with a comment saying teardown must not reclaim twice -- something
+     between those and a global-scope receiver is not taking effect. That
+     is where the next session should start.
+
+  0c. Historical note -- item 0 as originally written:
+     ~interpreter.til~'s
      ~if method == "delete"~ arm calls ~heap_drop_by_type~ +
      ~EvalHeap.heap_free~ directly instead of dispatching to the type's
      own ~delete~, so a user-defined ~delete~ with any behaviour beyond
