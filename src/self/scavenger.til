@@ -1583,7 +1583,7 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     // point today, which is what kept it latent; erase it here rather than
     // leave the next reader to find out.
     for swept_n : Str in swept_names {
-        lp.ctx.scope.erase_ast_decl(swept_n, false)
+        lp.ctx.scope.erase_ast_decl(swept_n, false, lp.ctx.symbols)
         // remove() drops the value with the entry, and the cell is the
         // Map's (see the ownership note on ctx.func_defs) -- freeing it
         // here first is the double free that says so.

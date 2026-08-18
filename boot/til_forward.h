@@ -256,6 +256,7 @@ typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct Map__U32_TypeBinding Map__U32_TypeBinding;
+typedef struct Map__U32_Dynamic Map__U32_Dynamic;
 typedef struct Option__ref_TypeScope Option__ref_TypeScope;
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Map__U32_Str Map__U32_Str;
@@ -750,6 +751,12 @@ typedef struct Vec__BorrowRoot {
     USize count;
     USize cap;
 } Vec__BorrowRoot;
+
+
+typedef struct Map__U32_Dynamic {
+    Vec__U32 keys;
+    Vec__Dynamic values;
+} Map__U32_Dynamic;
 
 
 struct Option__ref_TypeScope {
@@ -1665,7 +1672,7 @@ typedef struct TypeScope {
     Map__U32_TypeBinding bindings;
     Str target_usize_pname;
     Str target_uptr_pname;
-    Map__Str_Dynamic func_defs;
+    Map__U32_Dynamic func_defs;
     Map__Str_Dynamic struct_defs;
     Option__ref_TypeScope parent;
     Bool is_func_root;

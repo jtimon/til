@@ -4418,14 +4418,14 @@ init_scan_unresolved_generic_calls := proc(program: Expr, scope: TypeScope, mut 
 // before the final AST-backed pointer refresh: erase the scope entries
 // first (a refresh only re-points names that are still declared, it never
 // removes obsolete ones), then drop the declarations.
-init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) returns Bool {
+init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope, symbols: SymbolPool) returns Bool {
     mut drop_idxs := Vec(I64).new()
     for i in 0..program.children.len() {
         ref stmt : Expr = program.children[i]
         if init_stmt_is_generic_source(stmt).not() { continue }
         switch stmt.node_type {
         case .Decl(dd):
-            scope.erase_ast_decl(dd.name, true)
+            scope.erase_ast_decl(dd.name, true, symbols)
         case:
         }
         drop_i : I64 = i.to_i64()

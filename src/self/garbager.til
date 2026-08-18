@@ -1549,7 +1549,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // lookup_func would, without their binding probe.
         bfp := name_fingerprint(b.name)
         if scope.local_struct_def_fp(b.name, bfp).is_some() { continue }
-        if scope.local_func_def_fp(b.name, bfp).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
+        if scope.local_func_def_fp(b.name, ctx.symbols).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
 
         // One name->bit resolution per binding; every per-statement
         // question below is then a bit test.
@@ -3315,11 +3315,11 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
 // it never reads, so reproducing it is not part of what the derivation
 // has to get right. (REPL bodies, for instance, carry type-name bindings
 // like `Array` / `Body` that the struct-def filter drops.)
-priv gc_scope_binding_is_consumed := func(scope: TypeScope, b: TypeBinding) returns Bool {
+priv gc_scope_binding_is_consumed := func(scope: TypeScope, b: TypeBinding, symbols: SymbolPool) returns Bool {
     if b.is_param.and(b.own_type.is(OwnType.Own).not()) { return false }
     bfp := name_fingerprint(b.name)
     if scope.local_struct_def_fp(b.name, bfp).is_some() { return false }
-    if scope.local_func_def_fp(b.name, bfp).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { return false }
+    if scope.local_func_def_fp(b.name, symbols).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { return false }
     return true
 }
 
@@ -3364,7 +3364,7 @@ priv gc_check_derived := func(ctx: Context, live: TypeScope, name: Str, dtype: T
         panic(ctx.path, ": gc scope derivation invented binding '", name, "'")
     }
     ref lb : TypeBinding = lb_o.unwrap()
-    if gc_scope_binding_is_consumed(live, lb).not() { return }
+    if gc_scope_binding_is_consumed(live, lb, ctx.symbols).not() { return }
     if gc_type_tag(lb.type) != gc_type_tag(dtype) {
         panic(ctx.path, ": gc scope derivation type-tag mismatch for '", name,
             "': live=", type_to_name(lb.type), " derived=", type_to_name(dtype))
@@ -3455,7 +3455,7 @@ priv garbager_check_rebuilt_scope := func(ctx: Context, body: Expr, live: TypeSc
     }
 
     for lb : TypeBinding in live.bindings.values {
-        if gc_scope_binding_is_consumed(live, lb).not() { continue }
+        if gc_scope_binding_is_consumed(live, lb, ctx.symbols).not() { continue }
         if gc_ast_declares(body, fdef_o, own_caps, lb.name).not() {
             panic(ctx.path, ": gc scope derivation dropped binding '", lb.name, "'")
         }

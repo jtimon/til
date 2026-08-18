@@ -151,14 +151,30 @@ name_fingerprint := func(name: Str) returns U64 {
     return one.shl(name.len().mul(31).add(name.unsafe_get(0).cast(U8).to_usize()).band(63).to_u64())
 }
 
-// Issue #147: leaf cell-deref for TypeScope.func_defs. Same shape as
-// interpreter.til:lookup_interp_type_def (Map.get(name)? -> deref).
+// Issue #147: leaf cell-deref for the remaining Str-keyed definition maps.
+// Same shape as interpreter.til:lookup_interp_type_def (Map.get(name)? ->
+// deref).
 // Kept as a standalone leaf so the catch/?-unwrap is the function's
 // whole body -- inlining it into lookup_func's parent-walk produced a
 // multi-branch CFG that GCC rejected with -Werror=return-type.
-priv func_defs_lookup_one := func(filt: U64, fp: U64, m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
+priv str_defs_lookup_one := func(filt: U64, fp: U64, m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
     if filt.band(fp) == 0 { return Option(ref Expr).None }
     ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return Option(ref Expr).None }
+    ref fd : Expr = deref(slot)
+    return Option(ref Expr).Some(fd)
+}
+
+priv sym_fingerprint := func(sym: Sym) returns U64 {
+    one : U64 = 1
+    return one.shl(sym.to_u64().band(63))
+}
+
+// #292: the FuncDef registry is keyed by the same interned symbol as the
+// binding registry. A parent walk therefore compares U32s rather than names.
+priv func_defs_lookup_one := func(filt: U64, fp: U64, m: Map(Sym, Dynamic), sym: Sym) returns Option(ref Expr) {
+    if filt.band(fp) == 0 { return Option(ref Expr).None }
+    ref slot : Dynamic = m.get(sym)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
     ref fd : Expr = deref(slot)
     return Option(ref Expr).Some(fd)
@@ -194,14 +210,14 @@ TypeScope := struct {
     bindings := Map(Sym, TypeBinding).new()
     target_usize_pname := "U32"
     target_uptr_pname := "U64"
-    // Issue #147: name -> FuncDef Expr ptr (stored as Dynamic since
+    // Issue #147/#292: Sym -> FuncDef Expr ptr (stored as Dynamic since
     // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
     // by scope.set_func_def_name at every binding write site that used to
     // assign b.func_def; readers use the pool-aware lookup helpers. The
     // builder also stores binding-less C-symbol aliases here through
     // set_func_symbol; lookup_func ignores those because it gates on
     // bindings, while lookup_func_symbol reads them for codegen.
-    func_defs := Map(Str, Dynamic).new()
+    func_defs := Map(Sym, Dynamic).new()
     struct_defs := Map(Str, Dynamic).new()
     // #321: None at the root scope; every lookup below walks the chain
     // until it runs out of parents. Real control flow, not a guard.
@@ -218,14 +234,13 @@ TypeScope := struct {
     // The global root and every function root own one active typer state.
     // Lexical child scopes carry an unused default and resolve through parent.
     typer_func := TyperFuncState()
-    // Membership fingerprints (name_fingerprint) of the three registries'
-    // key sets: the OR of every key's bit. A clear bit PROVES the name is
+    // Membership fingerprints of the three registries' key sets: bindings
+    // and func_defs use sym_fingerprint; struct_defs still uses
+    // name_fingerprint. A clear bit PROVES the key is
     // not in that map, so the chain walk skips the binary search and the
     // KeyNotFound catch at this level -- and skipping is the common case,
     // because a lookup resolves at some outer scope while every level
-    // below it pays a full search first. Str-keyed Map searches are the
-    // compiler's largest CPU cost (Map__Str_TypeBinding_get and
-    // Map__Str_Dynamic_get together are ~57% of all Str_cmp).
+    // below it pays a full search first.
     //
     // Erasing a name temporarily leaves its bit set: a stale bit only costs
     // the search it could have skipped, never a wrong answer. Batch retirement
@@ -389,7 +404,7 @@ namespace:
     // the same name, or a shadowing local var would be misread as a type.
     struct_def_of_sym := func(self: TypeScope, name: Str, sym: Sym, fp: U64) returns Option(ref Expr) {
         if bindings_lookup_one(self.bindings, sym).is_some() {
-            return func_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
+            return str_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
         }
         switch self.parent {
         case .Some(p): return p.struct_def_of_sym(name, sym, fp)
@@ -408,27 +423,27 @@ namespace:
     // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
     // walking lookup. Replaces direct reads of TypeBinding.func_def.
     // The actual cell deref is delegated to func_defs_lookup_one (a
-    // leaf with the exact Map.get(name)? + deref shape proven in
+    // leaf with the exact Map.get(sym)? + deref shape proven in
     // interpreter.til:lookup_interp_type_def) so the `?`/catch desugar
     // doesn't sit in a multi-branch function (which trips
     // -Werror=return-type in the emitted C).
-    lookup_func_sym := func(self: TypeScope, name: Str, sym: Sym, fp: U64) returns Option(ref Expr) {
+    lookup_func_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
         if bindings_lookup_one(self.bindings, sym).is_some() {
-            return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
+            return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
         }
         switch self.parent {
-        case .Some(p): return p.lookup_func_sym(name, sym, fp)
+        case .Some(p): return p.lookup_func_sym(sym, fp)
         case .None: return Option(ref Expr).None
         }
     }
-    lookup_func_by_sym := func(self: TypeScope, sym: Sym, symbols: SymbolPool) returns Option(ref Expr) {
-        ref name : Str = symbols.resolve(sym)
-        return self.lookup_func_sym(name, sym, name_fingerprint(name))
+    lookup_func_by_sym := func(self: TypeScope, sym: Sym, _symbols: SymbolPool) returns Option(ref Expr) {
+        return self.lookup_func_sym(sym, sym_fingerprint(sym))
     }
     lookup_func_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return Option(ref Expr).None }
-        return self.lookup_func_sym(name, sym_o.unwrap(), name_fingerprint(name))
+        sym := sym_o.unwrap()
+        return self.lookup_func_sym(sym, sym_fingerprint(sym))
     }
     // Is ANY function named `name` reachable, IGNORING value bindings
     // that shadow it? The mirror image of lookup_func, which stops at
@@ -438,13 +453,16 @@ namespace:
     // `format` (vendor/bindings/raylib.til's Image/Texture) shadows the
     // global `format` function that the generated `to_str` body calls
     // and actually reaches at run time.
-    any_func_def := func(self: TypeScope, name: Str) returns Bool {
-        return self.any_func_def_fp(name, name_fingerprint(name))
+    any_func_def := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Bool {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return false }
+        sym := sym_o.unwrap()
+        return self.any_func_def_sym(sym, sym_fingerprint(sym))
     }
-    any_func_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Bool {
-        if func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name).is_some() { return true }
+    any_func_def_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Bool {
+        if func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym).is_some() { return true }
         switch self.parent {
-        case .Some(p): return p.any_func_def_fp(name, fp)
+        case .Some(p): return p.any_func_def_sym(sym, fp)
         case .None: return false
         }
         return false
@@ -456,46 +474,41 @@ namespace:
     // (a search of the biggest map in the scope) is dead weight, and so
     // is recomputing the fingerprint for the second question.
     local_struct_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
-        return func_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
+        return str_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
     }
-    local_func_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
-        return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
+    local_func_def_fp := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return Option(ref Expr).None }
+        sym := sym_o.unwrap()
+        return func_defs_lookup_one(self.func_defs_filt, sym_fingerprint(sym), self.func_defs, sym)
     }
-    lookup_func_symbol_sym := func(self: TypeScope, name: Str, sym: Sym, fp: U64) returns Option(ref Expr) {
+    lookup_func_symbol_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
         bo := bindings_lookup_one(self.bindings, sym)
         if bo.is_some() {
             if bo.unwrap().is_func_decl {
-                return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
+                return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
             }
             return Option(ref Expr).None
         }
-        local := func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
+        local := func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
         if local.is_some() { return local }
         switch self.parent {
-        case .Some(p): return p.lookup_func_symbol_sym(name, sym, fp)
+        case .Some(p): return p.lookup_func_symbol_sym(sym, fp)
         case .None: return Option(ref Expr).None
         }
     }
     lookup_func_symbol_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
         sym_o := symbols.lookup(name)
-        fp := name_fingerprint(name)
-        if sym_o.is_some() { return self.lookup_func_symbol_sym(name, sym_o.unwrap(), fp) }
-        // set_func_symbol_name also registers binding-less C aliases. Such
-        // names need not occur in the AST symbol pool, but they still walk
-        // func_defs independently exactly like lookup_func_symbol.
-        local := func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
-        if local.is_some() { return local }
-        switch self.parent {
-        case .Some(p): return p.lookup_func_symbol_name(name, symbols)
-        case .None: return Option(ref Expr).None
-        }
+        if sym_o.is_none() { return Option(ref Expr).None }
+        sym := sym_o.unwrap()
+        return self.lookup_func_symbol_sym(sym, sym_fingerprint(sym))
     }
     // Issue #147: register a binding's FuncDef Expr in the scope-side
     // func_defs map (the replacement for the removed ref func_def
     // field) and cache its FuncType so binding_func_type stays a pure
     // field read.
     //
-    // The func_defs Map stores a Dynamic-pointing-to-Expr-ptr
+    // The Sym-keyed func_defs Map stores a Dynamic-pointing-to-Expr-ptr
     // (malloc'd cell, write_ptr-populated). Mirrors the
     // ctx.interp_type_defs pattern -- the cell is owned by the Map so
     // its cleanup frees the allocation; the Expr it points at lives
@@ -516,18 +529,17 @@ namespace:
         }
         mut cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
-        self.func_defs.set(name, own cell)
-        self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(name))
+        sym := sym_o.unwrap()
+        self.func_defs.set(sym, own cell)
+        self.func_defs_filt = self.func_defs_filt.bor(sym_fingerprint(sym))
     }
-    set_func_symbol_name := func(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool) {
-        sym_o := symbols.lookup(name)
-        if sym_o.is_some() {
-            if self.bindings.has(sym_o.unwrap()) { return }
-        }
+    set_func_symbol_name := func(mut self: TypeScope, name: Str, fdef: Expr, mut symbols: SymbolPool) {
+        sym := symbols.intern(name)
+        if self.bindings.has(sym) { return }
         mut cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
-        self.func_defs.set(name, own cell)
-        self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(name))
+        self.func_defs.set(sym, own cell)
+        self.func_defs_filt = self.func_defs_filt.bor(sym_fingerprint(sym))
     }
     // Issue #147: register a binding's StructDef/EnumDef Expr in the
     // scope-side struct_defs map (the replacement for the removed
@@ -556,8 +568,9 @@ namespace:
     // entries, not re-point them -- init_refresh_seeded_scope_defs only
     // refreshes names that are still declared, so an obsolete one would
     // keep a dangling FuncDef pointer for the backends to find.
-    priv erase_func_def := func(mut self: TypeScope, name: Str) {
-        self.func_defs.remove(name)
+    priv erase_func_def := func(mut self: TypeScope, name: Str, symbols: SymbolPool) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_some() { self.func_defs.remove(sym_o.unwrap()) }
     }
     priv erase_binding := func(mut self: TypeScope, name: Str) {
         for i in 0..self.bindings.values.len() {
@@ -577,8 +590,8 @@ namespace:
     // Expr is freed. Some consumers still need the binding's type metadata
     // after removing the AST (the scavenger); callers that remove the name
     // semantically too request binding erasure.
-    erase_ast_decl := func(mut self: TypeScope, name: Str, erase_decl_binding: Bool) {
-        self.erase_func_def(name)
+    erase_ast_decl := func(mut self: TypeScope, name: Str, erase_decl_binding: Bool, symbols: SymbolPool) {
+        self.erase_func_def(name, symbols)
         self.erase_struct_def(name)
         if erase_decl_binding { self.erase_binding(name) }
     }
@@ -589,8 +602,8 @@ namespace:
         for binding : TypeBinding in self.bindings.values {
             self.bindings_filt = self.bindings_filt.bor(name_fingerprint(binding.name))
         }
-        for func_name : Str in self.func_defs.keys {
-            self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(func_name))
+        for func_sym : Sym in self.func_defs.keys {
+            self.func_defs_filt = self.func_defs_filt.bor(sym_fingerprint(func_sym))
         }
         for struct_name : Str in self.struct_defs.keys {
             self.struct_defs_filt = self.struct_defs_filt.bor(name_fingerprint(struct_name))

@@ -3692,7 +3692,7 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
             // function and it runs (`foo := 0` next to a global `foo` has
             // always called the global). Only a name with no function
             // behind it at all reaches the NULL callee def.
-            if scope.any_func_def(name) { nc_callable = true }
+            if scope.any_func_def(name, ctx.symbols) { nc_callable = true }
             if nc_callable.not() {
                 e.type_error(format("'", name, "' is not callable: it is a ",
                     type_to_name(nc_type), " value, not a function"), ctx)
@@ -5031,7 +5031,7 @@ check_unused_locals := proc(mut scope: TypeScope, path: Str, mut ctx: Context) {
         if b.is_type_alias { continue }
         fp := name_fingerprint(b.name)
         if scope.local_struct_def_fp(b.name, fp).is_some() { continue }
-        if scope.local_func_def_fp(b.name, fp).is_some() { continue }
+        if scope.local_func_def_fp(b.name, ctx.symbols).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         // Hoist temps are compiler-internal and always have their use
@@ -5062,7 +5062,7 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
         if b.is_type_alias { continue }
         fp := name_fingerprint(b.name)
         if scope.local_struct_def_fp(b.name, fp).is_some() { continue }
-        if scope.local_func_def_fp(b.name, fp).is_some() { continue }
+        if scope.local_func_def_fp(b.name, ctx.symbols).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         if b.name.starts_with("hoisted__") { continue }
@@ -5158,7 +5158,7 @@ check_unused_priv_top_level := proc(mut scope: TypeScope, mut ctx: Context) retu
         // alive it was dropped long before this check ran.
         mut b_is_generic_source := false
         fp := name_fingerprint(b.name)
-        b_fd_o := scope.local_func_def_fp(b.name, fp)
+        b_fd_o := scope.local_func_def_fp(b.name, ctx.symbols)
         if b_fd_o.is_some() { b_is_generic_source = init_func_is_generic(b_fd_o.unwrap()) }
         if b_is_generic_source { continue }
         mut kind := "value"
@@ -7056,8 +7056,7 @@ priv reregister_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
                         scope.set_func_def_name(rb.name, rstmt.children[0], symbols)
                         for b in scope.bindings.values {
                             if b.ptr_eq(rb) { continue }
-                            fp := name_fingerprint(b.name)
-                            b_old_fd_o := scope.local_func_def_fp(b.name, fp)
+                            b_old_fd_o := scope.local_func_def_fp(b.name, symbols)
                             if b_old_fd_o.is_none() { continue }
                             if b_old_fd_o.unwrap().ptr_eq(rb_old_fd) {
                                 scope.set_func_def_name(b.name, rstmt.children[0], symbols)

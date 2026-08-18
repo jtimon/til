@@ -4359,12 +4359,12 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // after the whole retirement batch rather than once per unit.
     mut retired_generic_sources := false
     for upath : Str in lp.unit_paths() {
-        if init_retire_generic_sources(lp.ctx.imported[upath].ast, lp.ctx.scope) {
+        if init_retire_generic_sources(lp.ctx.imported[upath].ast, lp.ctx.scope, lp.ctx.symbols) {
             retired_generic_sources = true
         }
     }
     for mfg : Str in lp.mode_files {
-        if init_retire_generic_sources(lp.ctx.imported[mfg].ast, lp.ctx.scope) {
+        if init_retire_generic_sources(lp.ctx.imported[mfg].ast, lp.ctx.scope, lp.ctx.symbols) {
             retired_generic_sources = true
         }
     }
