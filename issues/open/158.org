@@ -91,6 +91,78 @@
    needs either a per-body scope cache on Context or an on-the-fly scope
    rebuild in garbager. See [[../fixed/204.org][#204]] step 3b.
 
+*** Measured: what an on-the-fly scope rebuild can and cannot recover
+
+    The rebuild option was prototyped and measured against the live
+    scopes, to settle it with data instead of argument. A throwaway
+    ~garbager_rebuild_scope~ derived each body's TypeScope from the typed
+    AST (params from ~fd.params~, locals from the body's top-level
+    ~Decl~s, types via ~type_from_name_init~ /
+    ~declaration_resolved_type~ -- deliberately NOT the typer's
+    ~type_from_name_at~, which reports priv-access errors and marks
+    cross-file imports used, so re-running it would duplicate diagnostics
+    and mask unused-import warnings), and an equivalence check compared it
+    against the live scope at every site the pass runs.
+
+    First, the good news, and it is the load-bearing half. The pass reads
+    exactly FOUR binding facts -- ~name~, ~type~, ~own_type~, ~is_param~.
+    No other TypeBinding field is touched anywhere in garbager.til
+    (~is_alias~ / ~is_raw_alloc~ / ~is_str_view~ / ~borrow_roots~ /
+    ~used~ / ~written~ are typer- or diagnostics-only). Over a full
+    self-host -- every body in the compiler -- the rebuild matched the
+    live scope EXACTLY on which names are bound, on params vs locals, and
+    on ownership. Zero dropped bindings, zero invented ones.
+
+    Now the blocker, which is ~own_type~, and it is not a gap that more
+    care in the rebuild closes. THREE registrars create body Decls and
+    each writes a different ~own_type~ to the AST ~Declaration~ than to
+    the ~TypeBinding~, with nothing in the AST marking which one ran:
+
+    - the typer's Decl handler registers the binding ~Shallow~
+      unconditionally, then upgrades to ~Ref~ when ~sdecl.own_type~ is
+      ~Ref~. An ~Own~ on the Declaration never reaches the binding.
+    - ~hoist_to_temp~ registers the hoisted expression's ~til_type~ RAW,
+      so a temp holding a user-enum value keeps ~Custom(name)~ where a
+      source-level local of the same type holds ~Enum(name)~. That is
+      observable -- ~is_aggregate~ is ~Struct or Enum~, so ~Custom~ reads
+      as non-aggregate -- and it accounts for 433 type divergences in a
+      self-host (278 ~Literal~, 155 ~Primitive~), all on ~hoisted__~
+      names.
+    - ~desugar_array_vec_decl~ writes ~own_type = Own~ onto the
+      Declaration while registering the binding ~Shallow~ -- and it does
+      this for the USER'S variable name, not a prefixed temp. The
+      equivalence check caught it on ~gui_files := array(Str, ...)~ in
+      src/tests.til.
+
+    That third case is what settles it: the Declaration's ~own_type~
+    genuinely does not determine the binding's, and there is no
+    syntactic marker to recover which registrar ran. Keying on a name
+    prefix works for ~hoisted__~ and fails here by construction.
+
+    Measured for completeness: resolving every Decl type through
+    ~declaration_resolved_type~ diverges on 433 hoist temps; resolving
+    none (raw ~dd.til_type~) diverges on 1866 source locals. Neither rule
+    is right because the split is not a rule -- it is history.
+
+    So the rebuild needs a PREREQUISITE commit that reconciles the
+    registrars: make ~Declaration.own_type~ and ~TypeBinding.own_type~
+    agree at every site that creates a body Decl (and, for the type,
+    make ~hoist_to_temp~ resolve like the Decl handler). That is an
+    emit-affecting normalization -- it changes what the garbager decides
+    -- so it wants the full suite plus ASAN, and it is worth doing on its
+    own merits: two records of the same fact that disagree is the shape
+    [[./302.org][#302]] has been retiring elsewhere. With the registrars in
+    agreement, the rebuild's remaining derivation is already proven exact
+    by the measurement above.
+
+    The alternative (a per-body scope cache on Context) sidesteps all of
+    this but costs retained memory for every body until typing ends --
+    against the direction [[../fixed/204.org][#204]] / [[./302.org][#302]] took -- and couples two
+    walks by completion order, where a divergence hands a body the wrong
+    scope and miscompiles its frees silently. The rebuild fails loudly;
+    the cache fails quietly. That is why the rebuild is still the
+    recommended route, behind the reconciliation commit.
+
 ** Original report (kept for reference)
 
 Each phase listed in doc/pipeline.org (lex, parse,
