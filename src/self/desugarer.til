@@ -4624,6 +4624,101 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
     return true
 }
 
+priv postfold_arg_is_struct_ctor := func(arg: Expr, scope: TypeScope) returns Bool {
+    if arg.node_type.is(NodeType.FCall).not().or(arg.children.len() == 0) { return false }
+    type_name_o := expr_type_name_ref(arg)
+    if type_name_o.is_none() { return false }
+    ref type_name : Str = type_name_o.unwrap()
+    switch arg.children[0].node_type {
+    case .Ident(callee):
+        if callee.ident_name() != type_name { return false }
+    case:
+        return false
+    }
+    sdef_o := scope.get_struct(type_name)
+    if sdef_o.is_none() { return false }
+    return sdef_o.unwrap().node_type.is(NodeType.StructDef)
+}
+
+// Constfolding runs after body_pre_passes and can replace a pure helper call
+// with a fresh struct constructor. When that constructor is an owned argument
+// whose C ABI borrows a stack outer, name it in the AST just like the ordinary
+// pre-fold hoister does. This keeps storage and evaluation order in the AST;
+// the builder only has to take the resulting local's address.
+priv hoist_postfold_stack_ctor_slot := func(mut ctx: Context, mut src: Vec(Expr),
+        i: USize, mut hoisted: Vec(Expr)) returns Expr {
+    mut decl := Expr.new(NodeType.Decl(Declaration()), src[i].line, src[i].col)
+    decl.children.push_take(src, i)
+    ref val : Expr = decl.children[0]
+    temp_name := format("hoisted__", type_prefix(val.til_type()), "_",
+        synth_suffix(ctx, ctx.hoist_counter.to_str()))
+    ctx.hoist_counter++
+
+    decl.set_til_type(val.til_type())
+    ref mut dd : Declaration = decl_of(decl)
+    dd.name = temp_name.clone()
+    dd.own_type = OwnType.Own
+    // This pass runs after the garbager records local storage decisions.
+    // The temp is the outer slot lent to the consuming call, so record the
+    // same stack decision the pre-fold hoister would have received there.
+    dd.gc_storage = GcStorage.Stack
+
+    mut ident := Expr.new(ident_node(temp_name), val.line, val.col)
+    ident.set_til_type(val.til_type())
+    hoisted.push(own decl)
+    return ident
+}
+
+priv hoist_postfold_stack_ctor_expr := proc(mut ctx: Context, mut expr: Expr,
+        mut hoisted: Vec(Expr), scope: TypeScope) {
+    if expr.node_type.is(NodeType.FuncDef).or(expr.node_type.is(NodeType.StructDef))
+    .or(expr.node_type.is(NodeType.EnumDef)).or(expr.node_type.is(NodeType.Body)) { return }
+
+    for mut child : Expr in expr.children {
+        hoist_postfold_stack_ctor_expr(ctx, child, hoisted, scope)
+    }
+    if expr.node_type.is(NodeType.FCall).not() { return }
+    fdef_o := fcall_callee_fdef(expr, scope)
+    if fdef_o.is_none() { return }
+    switch fdef_o.unwrap().node_type {
+    case .FuncDef(fd):
+        for i in 1..expr.children.len() {
+            if func_param_has_stack_outer(fd, i - 1, ctx.param_value_abi_ok, scope)
+            .and(postfold_arg_is_struct_ctor(expr.children[i], scope)) {
+                expr.children[i] = hoist_postfold_stack_ctor_slot(ctx, expr.children, i, hoisted)
+            }
+        }
+    case:
+    }
+}
+
+priv hoist_postfold_stack_ctor_bodies := proc(mut ctx: Context, mut expr: Expr,
+        scope: TypeScope) {
+    if expr.node_type.is(NodeType.Body) {
+        mut old := expr.children.take()
+        mut new_ch := Vec(Expr).with_capacity(old.len())
+        for i in 0..old.len() {
+            ref mut stmt : Expr = old[i]
+            for mut child : Expr in stmt.children {
+                hoist_postfold_stack_ctor_bodies(ctx, child, scope)
+            }
+            mut hoisted := Vec(Expr).new()
+            hoist_postfold_stack_ctor_expr(ctx, stmt, hoisted, scope)
+            new_ch.append(own hoisted)
+            new_ch.push_take(old, i)
+        }
+        expr.children.move_from(own new_ch)
+        return
+    }
+    for mut child : Expr in expr.children {
+        hoist_postfold_stack_ctor_bodies(ctx, child, scope)
+    }
+}
+
+hoist_constfolded_stack_outer_ctors := proc(mut ctx: Context, mut program: Expr) {
+    hoist_postfold_stack_ctor_bodies(ctx, program, ctx.scope)
+}
+
 // Apply per-stmt hoist (the body_pre_passes equivalent of the old
 // hoist_fcall_args dispatch). Prepends any new temp Decls to new_ch.
 priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) {

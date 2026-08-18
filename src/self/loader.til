@@ -462,6 +462,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         for upath : Str in lp.unit_paths() {
             context_enter_file(lp.ctx, upath)
             process_body(global, lp.ctx.imported[upath].ast, lp.ctx, true)
+            hoist_constfolded_stack_outer_ctors(lp.ctx, lp.ctx.imported[upath].ast)
         }
     }
 
@@ -536,6 +537,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
         ref root : ProgramUnit = lp.units[lp.units.len() - 1]
         context_enter_file(lp.ctx, root.path)
         process_body(global, delta, lp.ctx, true)
+        hoist_constfolded_stack_outer_ctors(lp.ctx, delta)
     }
 
     scope_drop_owned_bindings(global)

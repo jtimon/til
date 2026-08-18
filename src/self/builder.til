@@ -1280,37 +1280,13 @@ priv emit_own_value_arg := proc(f: File, e: Expr, depth: I32, keep_outer: Bool, 
 }
 
 // Pass an owned value through a pointer ABI while lending the callee only the
-// outer slot. Constructor rvalues are built in a local value and moved into a
-// block-lifetime compound literal; other heap-backed sources release their old
-// wrapper, while stack-backed sources pass directly.
+// outer slot. The AST hoister names constructor rvalues before codegen; other
+// heap-backed sources release their old wrapper, while stack-backed sources
+// pass directly.
 priv emit_stack_outer_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     e_sname_o := expr_type_name_ref(e)
     mut ctype := c_type_name(e.til_type(), "", ctx)
     if e_sname_o.is_some() { ctype = c_type_name(e.til_type(), e_sname_o.unwrap(), ctx) }
-    mut struct_ctor_ptr := false
-    switch e.node_type {
-    case .FCall:
-        if e_sname_o.is_some().and(e.children.len() > 0) {
-            switch e.children[0].node_type {
-            case .Ident(callee): struct_ctor_ptr = callee.ident_name() == e_sname_o.unwrap()
-            case:
-            }
-        }
-    case:
-    }
-    if struct_ctor_ptr {
-        ctx.builder_func.ctor_seq++
-        id := ctx.builder_func.ctor_seq
-        stack_value := "_sv".format(id.to_str())
-        stack_ptr := "_sp".format(id.to_str())
-        f.write("&((").write(ctype).write("[]){ ({ ").write(ctype).write(" ")
-            .write(stack_value).write(" = {0}; ").write(ctype).write(" *")
-            .write(stack_ptr).write(" = &").write(stack_value).write(";\n")
-        emit_ctor_fields(f, stack_ptr, e, depth, ctx)
-        emit_indent(f, depth)
-        f.write(stack_value).write("; }) })[0]")
-        return
-    }
     if own_value_arg_has_outer_ptr(e, ctx).not() {
         emit_as_ptr(f, e, depth, false, ctx)
         return
