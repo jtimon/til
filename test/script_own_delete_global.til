@@ -1,0 +1,33 @@
+mode script
+
+// #275: a script-scope binding deleted by the program is NOT dropped again
+// by session teardown. The garbager puts `Vec.delete(v, false)` in the AST
+// for a script global -- drop the innards, leave the box, exactly what the
+// compiled backend emits -- and teardown then ran heap_drop_by_type over
+// the same value, freeing the container's buffer twice (ASAN: double-free
+// through free_container_data; without ASAN, glibc aborted with "corrupted
+// size vs. prev_size"). Compiled mode was correct throughout, so this was
+// an interpreter-only divergence.
+//
+// The reads after each delete are the point: they prove the value was
+// still usable up to the delete, so a fix that simply skipped the delete
+// would not pass.
+
+mut v := Vec(I64).new()
+v.push(own 42)
+v.push(own 7)
+println(v.len().to_str())
+own v.delete(true)
+
+mut t := Tuple.new()
+t.push(I64, own 5)
+println(t.len().to_str())
+own t.delete()
+
+Holder := struct { inner := Vec(I64).new() }
+mut h := Holder()
+h.inner.push(own 9)
+println(h.inner.len().to_str())
+own h.delete()
+
+println("ok")

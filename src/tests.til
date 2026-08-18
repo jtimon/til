@@ -1877,6 +1877,15 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_dynamic_global_ptr", "test/script_dynamic_global_ptr.til",
         "", 0, format(exp, "script_dynamic_global_ptr.out"), til_bin, asan_flag)
 
+    // #275: a script-scope binding the program deletes is not dropped a
+    // second time by session teardown. Interpreter-only: the AST's
+    // garbager-inserted delete released the payload and teardown ran the
+    // destructor again over the same value.
+    File.writefile(format(exp, "script_own_delete_global.out"),
+        format("2", NL, "1", NL, "1", NL, "ok", NL))
+    add_cli_pair(tests, "script_own_delete_global", "test/script_own_delete_global.til",
+        "", 0, format(exp, "script_own_delete_global.out"), til_bin, asan_flag)
+
     // The bang's synthesized panic prints the source location ONCE (via
     // panic's `loc` param) and a readable message; it used to pass the
     // location as a message part too, printing it twice and jamming it

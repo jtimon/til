@@ -1162,6 +1162,7 @@ typedef struct HeapBinding {
     Bool is_static_callable;
     Bool moved_out;
     Bool is_raw_alloc;
+    Bool payload_released;
 } HeapBinding;
 
 

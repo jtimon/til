@@ -60,43 +60,17 @@ remains is 0b: one teardown gap, reproduced and narrowed but not fixed.
   0. (DONE) ~dyn_call~ dispatches ~delete~ now; the shortcut and its
      hand-rolled reclamation are gone.
 
-  0b. OPEN, and the last one: an ~own~-consumed binding at SCRIPT scope is
-     not marked moved-out, so session teardown drops it a second time.
-
-     #+begin_src til
-     mode script
-     mut v := Vec(I64).new()
-     v.push(own 42)
-     own v.delete(true)      // frees data + box
-     #+end_src
-
-     aborts the interpreter ("corrupted double-linked list"); compiled is
-     correct, because the garbager sees the transfer and emits no
-     scope-exit delete. Established by gdb at the teardown loop: the
-     binding arrives ~is_local=true, is_borrowed=false, moved_out=false~,
-     so ~scope_drop_owned_bindings~ reclaims what the AST's delete already
-     released.
-
-     Ruled out, each by experiment:
-     - not the dyn_call shortcut (this reproduces with it removed);
-     - not the UFCS own-bit renumbering -- the explicit
-       ~Vec(I64).delete(own v, true)~ fails identically;
-     - not container-specific (Vec and Tuple both), and not about the
-       method body -- ~Vec.delete~ is an ordinary til func whose body does
-       run;
-     - needs heap CONTENTS: an empty ~Vec(I64).new()~ survives, because
-       there is no second buffer to free twice. A struct whose only field
-       is a literal Str survives for the same reason, which is why this
-       looks like it only affects containers.
-
-     So the gap is the own-ARGUMENT consumption failing to mark the
-     caller's binding when that binding lives in the session/global scope.
-     The interpreted-call path does mark it
-     (~source_hb.moved_out = true~ in the ~arg_transfers~ branch of the
-     param-binding loop), and the ext-dispatch path has its own marking
-     with a comment saying teardown must not reclaim twice -- something
-     between those and a global-scope receiver is not taking effect. That
-     is where the next session should start.
+  0b. (DONE) Session teardown ran a script-scope binding's destructor a
+     SECOND time. The cause was not the missing moved-out mark this text
+     first blamed: the garbager already puts ~Vec.delete(v, false)~ in the
+     AST for a script global -- drop the innards, leave the box, the same
+     shape the compiled backend emits -- and ~scope_drop_owned_bindings~
+     then called ~heap_drop_by_type~ over the same value, freeing the
+     container's buffer twice. ~HeapBinding.payload_released~ records that
+     an interpreted ~delete~ already ran against a named binding, and
+     teardown reclaims only its own slot for those. Teardown still drops
+     bindings the AST never deleted: removing the drop outright leaked
+     9559 bytes across 698 allocations.
 
   0c. Historical note -- item 0 as originally written:
      ~interpreter.til~'s

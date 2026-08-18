@@ -279,6 +279,14 @@ HeapBinding := struct {
     // pointer (malloc family), not a boxed value block. Readers that
     // collapse prim blocks to words must skip these.
     is_raw_alloc := false
+    // #275: an interpreted `<Type>.delete(x, ...)` already ran this
+    // binding's destructor, so its PAYLOAD is gone. Session teardown must
+    // then reclaim only the interpreter's own slot: dropping by type again
+    // runs the destructor twice and frees the container's buffer twice.
+    // The garbager puts exactly such a delete in the AST for every
+    // script-scope binding (`Vec.delete(v, false)` -- drop the innards,
+    // leave the box), which is what the compiled backend emits too.
+    payload_released := false
 }
 
 Scope := struct {
@@ -2195,6 +2203,33 @@ priv eval_fcall := proc(mut scope: Scope, mut stmt: Expr, fcd: FCallData, mut ct
     ref discard_type : Type = stmt.til_type()
     mut discard : Dynamic = eval_call_info(scope, stmt, discard_type, ctx, discard_info)
     raw_result_drop(discard_type, discard, discard_info.is_ref, ctx)
+    // #275: the destructor just ran against a NAMED binding, so its payload
+    // is gone -- record that, or session teardown drops the same value a
+    // second time (ASAN: double-free through free_container_data). This is
+    // bookkeeping about a call the interpreter already dispatched, not a
+    // reimplementation of it: the body ran, as it must.
+    mark_deleted_receiver(scope, stmt)
+}
+
+// True when this statement is a `<Type>.delete(...)` call; the receiver is
+// the first argument (UFCS put it there).
+priv mark_deleted_receiver := func(mut scope: Scope, stmt: Expr) {
+    if stmt.children.len() < 2 { return }
+    mut is_delete := false
+    switch stmt.children[0].node_type {
+    case .FieldAccess(mfa): is_delete = mfa.field_access_name().eq("delete")
+    case .Ident(mid): is_delete = mid.ident_name().ends_with("_delete")
+    case:
+    }
+    if is_delete.not() { return }
+    switch stmt.children[1].node_type {
+    case .Ident(recv_id):
+        mut hb_o := scope_lookup_heap_binding(scope, recv_id.ident_name())
+        if hb_o.is_none() { return }
+        ref mut hb : HeapBinding = hb_o.unwrap()
+        hb.payload_released = true
+    case:
+    }
 }
 
 priv eval_if := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
@@ -4541,7 +4576,7 @@ scope_drop_owned_bindings := func(mut s: Scope) {
         // mode. Leave raw allocations to the interpreted free.
         if hb.is_raw_alloc { continue }
         mut owned_ptr : Dynamic = hb.ptr
-        if hb.is_static_callable.not() { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
+        if hb.is_static_callable.not().and(hb.payload_released.not()) { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
         EvalHeap.heap_free(own owned_ptr)
         hb.ptr = bits_word(0)
         hb.moved_out = true
