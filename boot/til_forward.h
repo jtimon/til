@@ -228,7 +228,14 @@ typedef struct Token Token;
 typedef struct Map__Str_TokenType Map__Str_TokenType;
 typedef struct Vec__Token Vec__Token;
 typedef struct Vec__TokenType Vec__TokenType;
+typedef struct SymbolPool SymbolPool;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
+typedef struct Vec__U32 Vec__U32;
+enum {
+    Option__U32_TAG_None,
+    Option__U32_TAG_Some
+};
+typedef struct Option__U32 Option__U32;
 typedef struct Set__Str Set__Str;
 typedef struct Map__Str_Str Map__Str_Str;
 typedef struct Vec__Bool Vec__Bool;
@@ -245,18 +252,16 @@ typedef struct ImportUnit ImportUnit;
 typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct FfiState FfiState;
 typedef struct InternedTypes InternedTypes;
-typedef struct SymbolPool SymbolPool;
 typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
-typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
+typedef struct Map__U32_TypeBinding Map__U32_TypeBinding;
 typedef struct Option__ref_TypeScope Option__ref_TypeScope;
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Map__U32_Str Map__U32_Str;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
-typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
@@ -272,7 +277,6 @@ typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
-typedef struct Vec__U32 Vec__U32;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Vec__Mode Vec__Mode;
@@ -485,13 +489,13 @@ typedef struct LiteralNumData {
 
 
 typedef struct IdentData {
-    Str name;
+    U32 name;
     Type til_type;
 } IdentData;
 
 
 typedef struct FieldAccessData {
-    Str name;
+    U32 name;
     Type til_type;
 } FieldAccessData;
 
@@ -654,6 +658,21 @@ typedef struct Vec__TokenType {
 } Vec__TokenType;
 
 
+typedef struct Vec__U32 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__U32;
+
+
+struct Option__U32 {
+    U8 tag;
+    union {
+        U32 Some;
+        void *_til_payload_align;
+    } data;
+};
+
 typedef struct Set__Str {
     U8 *data;
     USize count;
@@ -741,6 +760,12 @@ struct Option__ref_TypeBinding {
     TypeBinding *data;
 };
 
+typedef struct Map__U32_Str {
+    Vec__U32 keys;
+    Vec__Str values;
+} Map__U32_Str;
+
+
 typedef struct Vec__FFITypePtrBox {
     U8 *data;
     USize count;
@@ -810,13 +835,6 @@ typedef struct Vec__TypeBinding {
     USize count;
     USize cap;
 } Vec__TypeBinding;
-
-
-typedef struct Vec__U32 {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__U32;
 
 
 typedef struct Vec__FFIEntry {
@@ -934,7 +952,7 @@ typedef struct Vec__I32 {
 
 
 typedef struct priv___src_self_garbager_til__LocalInfo {
-    Str *name;
+    Str name;
     Type type;
     I32 decl_index;
     I32 last_use;
@@ -1418,6 +1436,13 @@ typedef struct Map__Str_TokenType {
 } Map__Str_TokenType;
 
 
+typedef struct SymbolPool {
+    Vec__Str names;
+    Vec__U32 buckets;
+    U32 next;
+} SymbolPool;
+
+
 typedef struct priv___src_self_parser_til__Parser {
     Vec__Token tokens;
     USize pos;
@@ -1433,6 +1458,7 @@ typedef struct priv___src_self_parser_til__Parser {
     I32 error_count;
     Str error_msg;
     Str source;
+    SymbolPool *symbols;
 } priv___src_self_parser_til__Parser;
 
 
@@ -1473,6 +1499,27 @@ typedef struct ImportUnit {
 } ImportUnit;
 
 
+typedef struct BuilderFuncScratch {
+    Map__Str_Dynamic local_fn_sigs;
+    Set__U32 body_refs;
+    Set__U32 body_multi_decls;
+    Set__U32 stack_locals;
+    Set__U32 heap_locals;
+    Map__U32_Str stack_local_types;
+    Set__U32 stack_lit_str_locals;
+    Bool force_heap_stack_lit_str_own;
+    Set__U32 unsafe_to_hoist;
+    Set__U32 ref_locals;
+    Set__U32 ref_dyn_locals;
+    Set__U32 ptr_locals;
+    Set__U32 shadowed_params;
+    I32 ctor_seq;
+    Bool in_func_def;
+    Bool in_main_func;
+    Option__ref_Expr current_fdef;
+} BuilderFuncScratch;
+
+
 typedef struct InternedTypes {
     Vec__Dynamic simples;
     Vec__Dynamic prims;
@@ -1501,16 +1548,10 @@ typedef struct EvalState {
 } EvalState;
 
 
-typedef struct Map__Str_TypeBinding {
-    Vec__Str keys;
-    Vec__TypeBinding values;
-} Map__Str_TypeBinding;
-
-
-typedef struct Map__U32_Str {
+typedef struct Map__U32_TypeBinding {
     Vec__U32 keys;
-    Vec__Str values;
-} Map__U32_Str;
+    Vec__TypeBinding values;
+} Map__U32_TypeBinding;
 
 
 typedef struct Map__Str_FFIEntry {
@@ -1523,12 +1564,6 @@ typedef struct Map__Str_ExprPtrBox {
     Vec__Str keys;
     Vec__ExprPtrBox values;
 } Map__Str_ExprPtrBox;
-
-
-typedef struct Map__Str_U32 {
-    Vec__Str keys;
-    Vec__U32 values;
-} Map__Str_U32;
 
 
 typedef struct Map__Str_Mode {
@@ -1627,7 +1662,7 @@ typedef struct Map__Str_priv___src_self_binder_til__AuditedDecl {
 
 
 typedef struct TypeScope {
-    Map__Str_TypeBinding bindings;
+    Map__U32_TypeBinding bindings;
     Str target_usize_pname;
     Str target_uptr_pname;
     Map__Str_Dynamic func_defs;
@@ -1642,27 +1677,6 @@ typedef struct TypeScope {
 } TypeScope;
 
 
-typedef struct BuilderFuncScratch {
-    Map__Str_Dynamic local_fn_sigs;
-    Set__U32 body_refs;
-    Set__U32 body_multi_decls;
-    Set__U32 stack_locals;
-    Set__U32 heap_locals;
-    Map__U32_Str stack_local_types;
-    Set__U32 stack_lit_str_locals;
-    Bool force_heap_stack_lit_str_own;
-    Set__U32 unsafe_to_hoist;
-    Set__U32 ref_locals;
-    Set__U32 ref_dyn_locals;
-    Set__U32 ptr_locals;
-    Set__U32 shadowed_params;
-    I32 ctor_seq;
-    Bool in_func_def;
-    Bool in_main_func;
-    Option__ref_Expr current_fdef;
-} BuilderFuncScratch;
-
-
 typedef struct FfiState {
     Map__Str_Dynamic dispatch_map;
     Bool dispatch_inited;
@@ -1673,13 +1687,6 @@ typedef struct FfiState {
     Vec__FFITypePtrBox type_cache;
     Bool type_cache_inited;
 } FfiState;
-
-
-typedef struct SymbolPool {
-    Map__Str_U32 by_name;
-    Vec__Str names;
-    U32 next;
-} SymbolPool;
 
 
 typedef struct Context {

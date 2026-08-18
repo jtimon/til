@@ -1,5 +1,5 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
@@ -1739,6 +1739,16 @@ Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
 func Vec__U8.clone(self: Vec__U8) returns Vec__U8
+#+end_src
+
+* swap__priv___src_self_garbager_til__LocalInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.swap__priv___src_self_garbager_til__LocalInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func swap__priv___src_self_garbager_til__LocalInfo(mut a: priv___src_self_garbager_til__LocalInfo, mut b: priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
 * adopt__U8

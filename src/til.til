@@ -165,14 +165,14 @@ repl_source_line_count := func(s: Str) returns U32 {
     return lines
 }
 
-repl_ast_has_loader_directive := func(e: Expr) returns Bool {
+repl_ast_has_loader_directive := func(e: Expr, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
             case .Ident(name):
-                ref cname : Str = name.ident_name()
+                ref cname : Str = name.ident_name(symbols.names)
                 switch cname {
                 case "import", "link", "link_c": return true
                 case:
@@ -183,7 +183,7 @@ repl_ast_has_loader_directive := func(e: Expr) returns Bool {
     case:
     }
     for child : Expr in e.children {
-        if repl_ast_has_loader_directive(child) { return true }
+        if repl_ast_has_loader_directive(child, symbols) { return true }
     }
     return false
 }
@@ -200,14 +200,14 @@ repl_ast_has_lazy_def := func(e: Expr) returns Bool {
     return false
 }
 
-repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
+repl_ast_has_known_variadic_call := func(e: Expr, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
             case .Ident(name):
-                ref cname : Str = name.ident_name()
+                ref cname : Str = name.ident_name(symbols.names)
                 switch cname {
                 case "println", "print", "format", "panic", "TODO",
                      "UNREACHABLE", "expect", "array", "vec": return true
@@ -219,7 +219,7 @@ repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
     case:
     }
     for child : Expr in e.children {
-        if repl_ast_has_known_variadic_call(child) { return true }
+        if repl_ast_has_known_variadic_call(child, symbols) { return true }
     }
     return false
 }
@@ -230,10 +230,10 @@ repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
 // accumulated source -- where every later full load re-parsed it, reprinting
 // the error once per echo-ladder attempt and running nothing new ever again.
 // One `undefined_thing` bricked the prompt.
-repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I64, mut parse_errors: I32 = 0) returns Expr {
+repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0) returns Expr {
     tokens := tokenize(source, path)
     mut mode_out := ""
-    return parse(tokens, source, path, mode_out, anon_type_counter, parse_errors)
+    return parse(tokens, source, path, mode_out, anon_type_counter, symbols, parse_errors)
 }
 
 // Is there an assignment `=` at bracket depth 0? `==` is its own token
@@ -299,26 +299,26 @@ repl_parse_allows_wrap := func(peek_ast: Expr) returns Bool {
     return true
 }
 
-repl_ast_has_help_call := func(e: Expr) returns Bool {
+repl_ast_has_help_call := func(e: Expr, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
             case .Ident(name):
-                if name.ident_name() == "help" { return true }
+                if name.ident_name(symbols.names) == "help" { return true }
             case:
             }
         }
     case:
     }
     for child : Expr in e.children {
-        if repl_ast_has_help_call(child) { return true }
+        if repl_ast_has_help_call(child, symbols) { return true }
     }
     return false
 }
 
-repl_ast_updates_doc_cache := func(e: Expr) returns Bool {
+repl_ast_updates_doc_cache := func(e: Expr, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .Decl, .FuncDef, .StructDef, .EnumDef: return true
     case .FCall:
@@ -326,14 +326,14 @@ repl_ast_updates_doc_cache := func(e: Expr) returns Bool {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
             case .Ident(name):
-                if name.ident_name() == "import" { return true }
+                if name.ident_name(symbols.names) == "import" { return true }
             case:
             }
         }
     case:
     }
     for child : Expr in e.children {
-        if repl_ast_updates_doc_cache(child) { return true }
+        if repl_ast_updates_doc_cache(child, symbols) { return true }
     }
     return false
 }
@@ -372,7 +372,7 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
     }
     user_info_cache = Str.with_capacity(65536)
     user_docs_cache = Str.with_capacity(65536)
-    collect_decl_packed(user_merged, doc_lp.ctx.scope, user_info_cache, user_docs_cache)
+    collect_decl_packed(user_merged, doc_lp.ctx.scope, user_info_cache, user_docs_cache, doc_lp.ctx.symbols)
     ffi_cleanup(doc_lp.ctx)
 }
 
@@ -455,7 +455,8 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
         }
         mut peek_mode_out := ""
         mut peek_parse_errors : I32 = 0
-        mut peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_parse_errors, wrapped)
+        peek_symbols := SymbolPool()
+        mut peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_symbols, peek_parse_errors, wrapped)
         // The wrap only makes sense for a line that IS a single expression.
         // Several statements on one line -- `v.get(5)? catch (err: T) { ... }`,
         // the only way to type a catch at the prompt -- become a syntax error
@@ -466,7 +467,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
             peek_source = block.clone()
             peek_tokens = tokenize(peek_source, "<repl>")
             peek_parse_errors = 0
-            peek_ast = parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_parse_errors)
+            peek_ast = parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_symbols, peek_parse_errors)
         }
         // A syntax error used to end the PROCESS here, so one typo threw away
         // the whole session. parse has already printed it; drop the turn and
@@ -489,10 +490,10 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
         // every later turn, and the statement's own bindings never finished
         // being declared.
         mut turn_aborted := false
-        current_has_help := repl_ast_has_help_call(peek_ast)
-        current_has_loader_directive := repl_ast_has_loader_directive(peek_ast)
+        current_has_help := repl_ast_has_help_call(peek_ast, peek_symbols)
+        current_has_loader_directive := repl_ast_has_loader_directive(peek_ast, peek_symbols)
         current_has_lazy_def := repl_ast_has_lazy_def(peek_ast)
-        current_has_known_variadic_call := repl_ast_has_known_variadic_call(peek_ast)
+        current_has_known_variadic_call := repl_ast_has_known_variadic_call(peek_ast, peek_symbols)
         init_docs_this_turn := current_has_help.and(docs_active.not().or(user_docs_dirty))
         if current_has_help.and(user_docs_dirty) {
             repl_refresh_user_doc_cache(mode_str, accum, tmp_path, bin_dir, cwd, ext_c_path, extra_modes, user_info_cache, user_docs_cache)
@@ -514,7 +515,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                             current_has_lazy_def,
                             repl_has_full_state,
                             current_has_known_variadic_call)
-        commit_compiler_state := use_full_load.not().or(current_has_known_variadic_call.not()).or(repl_ast_updates_doc_cache(peek_ast))
+        commit_compiler_state := use_full_load.not().or(current_has_known_variadic_call.not()).or(repl_ast_updates_doc_cache(peek_ast, peek_symbols))
 
         // Auto-echo, tried in two shapes before giving up on the wrap.
         //
@@ -573,7 +574,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 delta_source = delta_source.format(doc_line)
                 delta_source = delta_source.format(block_eff)
                 mut delta_parse_errs : I32 = 0
-                mut delta := repl_delta_from_source(tmp_path, delta_source, trial_counter, delta_parse_errs)
+                mut delta := repl_delta_from_source(tmp_path, delta_source, trial_counter, run_heap.ctx.symbols, delta_parse_errs)
                 ref run_root : ProgramUnit = run_heap.units[run_heap.units.len() - 1]
                 ref mut run_iu : ImportUnit = run_heap.ctx.imported[run_root.path]
                 run_errs = delta_parse_errs
@@ -641,7 +642,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 delta_source2 = delta_source2.format(doc_line)
                 delta_source2 = delta_source2.format(block_eff)
                 mut delta2_parse_errs : I32 = 0
-                mut delta2 := repl_delta_from_source(tmp_path, delta_source2, trial_counter2, delta2_parse_errs)
+                mut delta2 := repl_delta_from_source(tmp_path, delta_source2, trial_counter2, typed_heap.ctx.symbols, delta2_parse_errs)
                 ref typed_root : ProgramUnit = typed_heap.units[typed_heap.units.len() - 1]
                 ref mut typed_iu : ImportUnit = typed_heap.ctx.imported[typed_root.path]
                 typer_errs = delta2_parse_errs
@@ -675,7 +676,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
         if ran_ok {
             if current_has_help { docs_active = true }
             if init_docs_this_turn { user_docs_dirty = false }
-            if repl_ast_updates_doc_cache(peek_ast) { user_docs_dirty = true }
+            if repl_ast_updates_doc_cache(peek_ast, peek_symbols) { user_docs_dirty = true }
             if turn_out.len() > 0 { print_single(turn_out) }
 
             // Only commit good lines to accumulated source. If typecheck
@@ -688,7 +689,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 accum = accum.format(block_eff)
                 repl_has_loader_directives = repl_has_loader_directives.or(current_has_loader_directive)
                 repl_has_lazy_defs = repl_has_lazy_defs.or(current_has_lazy_def)
-                repl_has_full_state = repl_has_full_state.or(current_has_known_variadic_call.and(repl_ast_updates_doc_cache(peek_ast)))
+                repl_has_full_state = repl_has_full_state.or(current_has_known_variadic_call.and(repl_ast_updates_doc_cache(peek_ast, peek_symbols)))
             }
         }
     }

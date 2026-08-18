@@ -2,6 +2,77 @@ mode lib
 
 import("lexer")
 
+SymbolPool := struct {
+    // Index sym - 1 owns the spelling used by resolve. Borrowed names are
+    // consumed before the next intern may grow this Vec.
+    names := Vec(Str).new()
+    // Open-addressed slots hold symbols; zero is the empty marker. Keeping
+    // only IDs here avoids a second owned copy of every spelling.
+    buckets := Vec(Sym).new()
+    next : Sym = 1
+namespace:
+    hash_name := func(name: Str) returns U64 {
+        mut h : U64 = 0.sub(3750763034362895579)
+        for b : I8 in name {
+            h = h.bxor(b.to_u64()).mul(1099511628211)
+        }
+        return h
+    }
+
+    rebuild := func(mut self: SymbolPool, count: USize) {
+        self.buckets.clear()
+        for _ in 0..count { self.buckets.push(own 0) }
+        for i in 0..self.names.len() {
+            sym := (i + 1).to_u32()
+            mut bi := SymbolPool.hash_name(self.names.unsafe_get(i)).to_usize().mod(count)
+            while self.buckets.unsafe_get(bi) != 0 { bi = (bi + 1).mod(count) }
+            self.buckets.unsafe_set(bi, own sym)
+        }
+    }
+
+    lookup := func(self: SymbolPool, name: Str) returns Option(Sym) {
+        if self.buckets.len() == 0 { return Option(Sym).None }
+        mut bi := SymbolPool.hash_name(name).to_usize().mod(self.buckets.len())
+        while self.buckets.unsafe_get(bi) != 0 {
+            ref sym : Sym = self.buckets.unsafe_get(bi)
+            if self.names.unsafe_get(sym.cast(USize) - 1) == name {
+                return Option(Sym).Some(sym)
+            }
+            bi = (bi + 1).mod(self.buckets.len())
+        }
+        return Option(Sym).None
+    }
+
+    intern := func(mut self: SymbolPool, name: Str) returns Sym {
+        // Core alone exceeds the tiny-table growth ladder; one 4 KB seed
+        // avoids repeated rehashes without making an unused pool allocate.
+        if self.buckets.len() == 0 { self.rebuild(1024) }
+        mut bi := SymbolPool.hash_name(name).to_usize().mod(self.buckets.len())
+        while self.buckets.unsafe_get(bi) != 0 {
+            ref sym : Sym = self.buckets.unsafe_get(bi)
+            if self.names.unsafe_get(sym.cast(USize) - 1) == name { return sym.clone() }
+            bi = (bi + 1).mod(self.buckets.len())
+        }
+
+        sym := self.next
+        self.next++
+        self.names.push(own name.clone())
+        self.buckets.unsafe_set(bi, own sym.clone())
+        if self.names.len() * 4 > self.buckets.len() * 3 {
+            self.rebuild(self.buckets.len() * 2)
+        }
+        return sym
+    }
+
+    resolve := func(self: SymbolPool, sym: Sym) returns ref Str {
+        if sym == 0 { panic("SymbolPool.resolve: symbol zero has no name") }
+        if sym.cast(USize) > self.names.len() {
+            panic("SymbolPool.resolve: symbol ", sym.to_str(), " is outside this pool")
+        }
+        return self.names.unsafe_get(sym.cast(USize) - 1)
+    }
+}
+
 // --- Parser state ---
 
 priv Parser := struct {
@@ -43,6 +114,7 @@ priv Parser := struct {
     // the whole parse; storing a CAP_VIEW (not an owned clone) avoids both a
     // per-file allocation and any double-free of the caller's buffer.
     source := ""
+    ref symbols : SymbolPool
 }
 
 priv peek := func(p: Parser) returns ref Token {
@@ -188,7 +260,7 @@ priv set_decl_type := func(mut d: Declaration, name: Str) {
 // distinct type.
 // #307: member names live in the map keys, so the caller passes the
 // name alongside the (nameless) Declaration.
-priv anon_decl_key := func(dname: Str, d: Declaration) returns Str {
+priv anon_decl_key := func(dname: Str, d: Declaration, symbols: SymbolPool) returns Str {
     mut own_tag := "S"
     if d.own_type.is(OwnType.Own) { own_tag = "O" }
     if d.own_type.is(OwnType.Ref) { own_tag = "R" }
@@ -197,24 +269,24 @@ priv anon_decl_key := func(dname: Str, d: Declaration) returns Str {
     // "-" for a decl with no default: distinct from every real
     // default-value tree, so present-vs-absent yields distinct keys.
     mut dv_key := "-"
-    if d.default_value.is_some() { dv_key = d.default_expr().to_str() }
+    if d.default_value.is_some() { dv_key = d.default_expr().to_str_with_symbols(symbols.names) }
     return format(dname, ":", d.type_name(), ":", mut_tag, own_tag, ":",
         dv_key, ";")
 }
 
-priv anon_def_key := func(def: Expr) returns Str {
+priv anon_def_key := func(def: Expr, symbols: SymbolPool) returns Str {
     switch def.node_type {
     case .StructDef(sdd):
         mut k := "struct{"
         mut fr : USize = 0
         for fd : Declaration in sdd.fields {
-            k = format(k, anon_decl_key(sdd.field_name_at(fr), fd))
+            k = format(k, anon_decl_key(sdd.field_name_at(fr), fd, symbols))
             fr = fr + 1
         }
         k = format(k, "|ns:")
         mut nr : USize = 0
         for nd : Declaration in sdd.ns_decls {
-            k = format(k, anon_decl_key(sdd.member_name_at(nr), nd))
+            k = format(k, anon_decl_key(sdd.member_name_at(nr), nd, symbols))
             nr = nr + 1
         }
         return format(k, "}")
@@ -233,7 +305,7 @@ priv anon_def_key := func(def: Expr) returns Str {
         k = format(k, "|ns:")
         mut nr2 : USize = 0
         for nd2 : Declaration in edd.ns_decls {
-            k = format(k, anon_decl_key(edd.member_name_at(nr2), nd2))
+            k = format(k, anon_decl_key(edd.member_name_at(nr2), nd2, symbols))
             nr2 = nr2 + 1
         }
         return format(k, "}")
@@ -249,7 +321,7 @@ priv anon_def_key := func(def: Expr) returns Str {
 priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) returns Str {
     mut kind := "AnonStruct"
     if def.node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
-    key := anon_def_key(def)
+    key := anon_def_key(def, p.symbols)
     mut result := ""
     if p.anon_cache.has(key) {
         // anon_cache hit: a structurally-identical literal already generated
@@ -276,7 +348,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
 
 priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: Vec(Bool), mangled: Str, line: U32, col: U32) {
     if p.type_gen_seen.has(mangled) { return }
-    mut callee := Expr.new(ident_node(name), line, col)
+    mut callee := Expr.new(ident_node(p.symbols.intern(name)), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
     call.add_child(own callee)
     for i in 0..args.len() {
@@ -284,7 +356,7 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: V
         // the init expansion sees the same bits a value-position
         // `Name(ref X)` instantiation would set.
         if arg_refs[i] { set_ref_arg(call, call.children.len()) }
-        mut arg_expr := Expr.new(ident_node(args[i]), line, col)
+        mut arg_expr := Expr.new(ident_node(p.symbols.intern(args[i])), line, col)
         call.add_child(own arg_expr)
     }
     mut decl := Expr.new(NodeType.Decl(Declaration(name = mangled.clone())), line, col)
@@ -1268,14 +1340,14 @@ priv append_arg := func(mut p: Parser, mut call: Expr, own arg: Expr, is_own_arg
         lifted_name := anon_lift(p, own arg, arg_line, arg_col)
         if is_own_arg {
             set_own_arg(call, call.children.len())
-            mut sd_callee := Expr.new(ident_node(helper), arg_line, arg_col)
+            mut sd_callee := Expr.new(ident_node(p.symbols.intern(helper)), arg_line, arg_col)
             mut sd_strlit := Expr.new(NodeType.Literal(Literal.Str(lifted_name.clone())), arg_line, arg_col)
             mut sd_call := Expr.new(NodeType.FCall(FCallData()), arg_line, arg_col)
             sd_call.add_child(own sd_callee)
             sd_call.add_child(own sd_strlit)
             call.add_child(own sd_call)
         } else {
-            call.add_child(own Expr.new(ident_node(lifted_name), arg_line, arg_col))
+            call.add_child(own Expr.new(ident_node(p.symbols.intern(lifted_name)), arg_line, arg_col))
         }
     } else {
         if is_own_arg { set_own_arg(call, call.children.len()) }
@@ -1324,15 +1396,15 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     if callee.node_type.is(NodeType.FieldAccess).not() { return lhs }
     mut is_get := false
     switch callee.node_type {
-    case .FieldAccess(fad): is_get = fad.name == "get"
+    case .FieldAccess(fad): is_get = fad.field_access_sym() == p.symbols.intern("get")
     case:
     }
     if is_get.not() { return lhs }
     advance(p) // consume '='
     mut rhs := parse_expression(p)
     switch callee.node_type {
-    case .FieldAccess(fad2): fad2.name = "set"
-    case: UNREACHABLE("expected FieldAccess, got ", callee.node_type.head_str())
+    case .FieldAccess(fad2): fad2.name = p.symbols.intern("set")
+    case: UNREACHABLE("expected FieldAccess", loc = __LOC__)
     }
     set_own_arg(lhs, lhs.children.len())
     lhs.add_child(own rhs)
@@ -1414,7 +1486,7 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
     }
     expect_token(p, TokenType.RParen)
     parse_throw_bang_suffix(p, call)
-    return nest_nary_and_or(own fold_const_and_or(own call))
+    return nest_nary_and_or(own fold_const_and_or(own call, p.symbols), p.symbols)
 }
 
 // `and`/`or` are strictly binary primitives, but the Lisp/Clojure spelling
@@ -1437,16 +1509,16 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
 // the nested if-chain is no longer foldable by anything downstream. Applies to
 // the binary form and the n-ary spelling alike (nest_nary_and_or below runs
 // after, on whatever is left).
-priv fold_const_and_or := func(own call: Expr) returns Expr {
+priv fold_const_and_or := func(own call: Expr, symbols: SymbolPool) returns Expr {
     if call.children.len() < 3 { return call }
     mut name := ""
     mut first : USize = 1
     switch call.children[0].node_type {
-    case .Ident(cn): name = Str.clone(cn.ident_name())
+    case .Ident(cn): name = Str.clone(cn.ident_name(symbols.names))
     case .FieldAccess(fa):
         // Method form `a.and(b)`: the receiver is the first operand.
         if call.children[0].children.len() == 1 {
-            name = Str.clone(fa.name)
+            name = Str.clone(fa.field_access_name(symbols.names))
             first = 0
         }
     case:
@@ -1485,7 +1557,7 @@ priv fold_const_and_or := func(own call: Expr) returns Expr {
     return Expr.new(NodeType.Literal(Literal.Bool(acc)), call.line, call.col)
 }
 
-priv nest_nary_and_or := func(own call: Expr) returns Expr {
+priv nest_nary_and_or := func(own call: Expr, mut symbols: SymbolPool) returns Expr {
     if call.children.len() < 3 { return call }
     // Every call with two or more arguments reaches here, so decide on the
     // callee name without copying it.
@@ -1493,12 +1565,12 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     mut keep : USize = 1        // plain form keeps args[1] as the first operand
     switch call.children[0].node_type {
     case .Ident(cn):
-        is_and_or = cn.ident_name().eq("and").or(cn.ident_name().eq("or"))
+        is_and_or = cn.ident_name(symbols.names).eq("and").or(cn.ident_name(symbols.names).eq("or"))
     // Method form (`a.and(b, c)`): the receiver is the first operand, so
     // every argument folds into the single second one.
     case .FieldAccess(fa):
         if call.children[0].children.len() == 1 {
-            is_and_or = fa.name.eq("and").or(fa.name.eq("or"))
+            is_and_or = fa.field_access_sym().eq(symbols.intern("and")).or(fa.field_access_sym().eq(symbols.intern("or")))
             keep = 0
         }
     case:
@@ -1523,9 +1595,9 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     if plain.not() { return call }
     mut name := ""
     switch call.children[0].node_type {
-    case .Ident(cn2):      name = Str.clone(cn2.ident_name())
-    case .FieldAccess(fa2): name = Str.clone(fa2.name)
-    case: UNREACHABLE("unexpected ", call.children[0].node_type.head_str())
+    case .Ident(cn2):      name = Str.clone(cn2.ident_name(symbols.names))
+    case .FieldAccess(fa2): name = Str.clone(fa2.field_access_name(symbols.names))
+    case: UNREACHABLE("unexpected call callee", loc = __LOC__)
     }
     // Fold from the tail: c, then and(b, c), then and(a, and(b, c)). The
     // accumulator lives in `acc` rather than a plain binding: it is moved into
@@ -1537,7 +1609,7 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     while call.children.len() > keep + 1 {
         mut operand := call.children.pop()
         mut inner := Expr.new(NodeType.FCall(FCallData()), operand.line, operand.col)
-        mut inner_callee := Expr.new(ident_node(name), operand.line, operand.col)
+        mut inner_callee := Expr.new(ident_node(symbols.intern(name)), operand.line, operand.col)
         inner.add_child(own inner_callee)
         inner.add_child(own operand)
         mut prev := acc.pop()
@@ -1555,8 +1627,8 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
 // from the result, so `e = make_binop_call(e, ...)` cannot also move `e`
 // out. rhs is taken `own` -- callers never reuse it -- which drops one
 // full AST clone per binary operator.
-priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr) returns Expr {
-    mut callee := Expr.new(field_access_node(method), op_line, op_col)
+priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr, mut symbols: SymbolPool) returns Expr {
+    mut callee := Expr.new(field_access_node(symbols.intern(method)), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
     mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
     Expr.add_child(call, own callee)
@@ -1604,7 +1676,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // Ident cannot come from source (the lexer needs at least one
         // character), so it is an unambiguous marker, and any that
         // survives to the typer outside a case pattern is a hard error.
-        e = Expr.new(ident_node(""), t_line, t_col)
+        e = Expr.new(ident_node(p.symbols.intern("")), t_line, t_col)
         e_set = true
     case .StringTok:
         advance(p)
@@ -1628,7 +1700,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             } else {
                 advance(p) // consume '-'
                 mut operand := parse_primary(p)
-                mut neg_access := Expr.new(field_access_node("neg"), t_line, t_col)
+                mut neg_access := Expr.new(field_access_node(p.symbols.intern("neg")), t_line, t_col)
                 neg_access.add_child(own operand)
                 mut neg_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
                 neg_call.add_child(own neg_access)
@@ -1639,7 +1711,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     case .Bang:
         advance(p) // consume '!'
         mut operand := parse_primary(p)
-        mut not_access := Expr.new(field_access_node("not"), t_line, t_col)
+        mut not_access := Expr.new(field_access_node(p.symbols.intern("not")), t_line, t_col)
         not_access.add_child(own operand)
         mut not_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
         not_call.add_child(own not_access)
@@ -1698,10 +1770,10 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             e = Expr.new(literal_num_node(t_col.to_str()), t_line, t_col)
             e_set = true
         } else if check(p, TokenType.LParen) {
-            e = parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
+            e = parse_call(p, own Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
             e_set = true
         } else {
-            e = Expr.new(ident_node(name), t_line, t_col)
+            e = Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
             e_set = true
         }
     // Function literals and ext_struct return directly, bypassing the
@@ -1719,7 +1791,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // stays a StructDef literal as before (named struct decls, etc).
         if check(p, TokenType.LParen) {
             name := anon_lift(p, own sdef, t_line, t_col)
-            e = parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
+            e = parse_call(p, own Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
             e_set = true
         } else {
             return sdef
@@ -1751,7 +1823,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         mut edef := parse_enum_def(p)
         if check(p, TokenType.Dot) {
             name := anon_lift(p, own edef, t_line, t_col)
-            e = Expr.new(ident_node(name), t_line, t_col)
+            e = Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
             e_set = true
         } else {
             return edef
@@ -1853,7 +1925,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             advance(p) // consume '['
             mut index := parse_expression(p)
             expect_token(p, TokenType.RBracket)
-            mut get_callee := Expr.new(field_access_node("get"), b_line, b_col)
+            mut get_callee := Expr.new(field_access_node(p.symbols.intern("get")), b_line, b_col)
             get_callee.add_child(own e.clone())
             mut get_call := Expr.new(NodeType.FCall(FCallData()), b_line, b_col)
             get_call.add_child(own get_callee)
@@ -1868,11 +1940,11 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         fname := expect_text(p, TokenType.Ident)
         if check(p, TokenType.LParen) {
             // Method call: e.method(args)
-            mut callee := Expr.new(field_access_node(fname), f_line, f_col)
+            mut callee := Expr.new(field_access_node(p.symbols.intern(fname)), f_line, f_col)
             callee.add_child(own take_expr(e))
             e = parse_call(p, own callee, f_line, f_col)
         } else {
-            mut access := Expr.new(field_access_node(fname), f_line, f_col)
+            mut access := Expr.new(field_access_node(p.symbols.intern(fname)), f_line, f_col)
             access.add_child(own take_expr(e))
             e = access
         }
@@ -1882,7 +1954,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         pp_line := peek_line(p)
         pp_col := peek_col(p)
         advance(p)
-        mut inc_access := Expr.new(field_access_node("inc"), pp_line, pp_col)
+        mut inc_access := Expr.new(field_access_node(p.symbols.intern("inc")), pp_line, pp_col)
         inc_access.add_child(own take_expr(e))
         mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         inc_call.add_child(own inc_access)
@@ -1892,7 +1964,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         mm_line := peek_line(p)
         mm_col := peek_col(p)
         advance(p)
-        mut dec_access := Expr.new(field_access_node("dec"), mm_line, mm_col)
+        mut dec_access := Expr.new(field_access_node(p.symbols.intern("dec")), mm_line, mm_col)
         dec_access.add_child(own take_expr(e))
         mut dec_call := Expr.new(NodeType.FCall(FCallData()), mm_line, mm_col)
         dec_call.add_child(own dec_access)
@@ -1965,7 +2037,7 @@ priv parse_binop := proc(mut p: Parser, min_prec: I64) returns Expr {
         method := binop_method(op.type)
         advance(p)
         rhs := parse_binop(p, prec + 1)
-        e = make_binop_call(e, method, op_line, op_col, own rhs)
+        e = make_binop_call(e, method, op_line, op_col, own rhs, p.symbols)
     }
     return e
 }
@@ -1979,8 +2051,8 @@ priv parse_expression := proc(mut p: Parser) returns Expr {
         dt_col := peek_col(p)
         advance(p)
         mut rhs := parse_expression(p)
-        mut range_ident := Expr.new(ident_node("Range"), dt_line, dt_col)
-        mut new_access := Expr.new(field_access_node("new"), dt_line, dt_col)
+        mut range_ident := Expr.new(ident_node(p.symbols.intern("Range")), dt_line, dt_col)
+        mut new_access := Expr.new(field_access_node(p.symbols.intern("new")), dt_line, dt_col)
         new_access.add_child(own range_ident)
         mut rcall := Expr.new(NodeType.FCall(FCallData()), dt_line, dt_col)
         rcall.add_child(own new_access)
@@ -2137,7 +2209,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
 
     // Field access/assign or method call: name.field...
     if check(p, TokenType.Dot) {
-        mut obj := Expr.new(ident_node(name), t_line, t_col)
+        mut obj := Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
         mut last_field := ""
         mut last_line : U32 = 0
         mut last_col : U32 = 0
@@ -2148,14 +2220,14 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             last_field = expect_text(p, TokenType.Ident)
             if check(p, TokenType.Dot) {
                 // More dots -- intermediate access
-                mut access := Expr.new(field_access_node(last_field), last_line, last_col)
+                mut access := Expr.new(field_access_node(p.symbols.intern(last_field)), last_line, last_col)
                 access.add_child(own obj.clone())
                 obj = access
             }
         }
         // Method call: name.method(args)
         if check(p, TokenType.LParen) {
-            mut callee := Expr.new(field_access_node(last_field), last_line, last_col)
+            mut callee := Expr.new(field_access_node(p.symbols.intern(last_field)), last_line, last_col)
             callee.add_child(own obj.clone())
             mut mcall := parse_call(p, own callee, last_line, last_col)
             // Chain further `.method(args)` calls: `f.write("a").write("b")`.
@@ -2169,7 +2241,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 chain_line := peek_line(p)
                 chain_col := peek_col(p)
                 chain_name := expect_text(p, TokenType.Ident)
-                mut chain_callee := Expr.new(field_access_node(chain_name), chain_line, chain_col)
+                mut chain_callee := Expr.new(field_access_node(p.symbols.intern(chain_name)), chain_line, chain_col)
                 chain_callee.add_child(own mcall.clone())
                 mcall = parse_call(p, own chain_callee, chain_line, chain_col)
             }
@@ -2185,9 +2257,9 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             advance(p)
             mut method2 := "dec"
             if is_inc2 { method2 = "inc" }
-            mut facc := Expr.new(field_access_node(last_field), last_line, last_col)
+            mut facc := Expr.new(field_access_node(p.symbols.intern(last_field)), last_line, last_col)
             facc.add_child(own obj.clone())
-            mut inc_acc := Expr.new(field_access_node(method2), pp2_line, pp2_col)
+            mut inc_acc := Expr.new(field_access_node(p.symbols.intern(method2)), pp2_line, pp2_col)
             inc_acc.add_child(own facc)
             mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp2_line, pp2_col)
             inc_call.add_child(own inc_acc)
@@ -2218,7 +2290,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
     // `gswap_angle(I64)(x, y)` mirrors expression-position chaining done
     // by parse_primary).
     if check(p, TokenType.LParen) {
-        mut call := parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
+        mut call := parse_call(p, own Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
         while check(p, TokenType.LParen) {
             pc_line := peek_line(p)
             pc_col := peek_col(p)
@@ -2237,7 +2309,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 mut fa_name := ""
                 switch chained.node_type {
                 case .FieldAccess(fan):
-                    fa_name = Str.clone(fan.field_access_name())
+                    fa_name = Str.clone(fan.field_access_name(p.symbols.names))
                 case:
                     parse_fail(p, t_line, t_col, "left side of '=' is not a field access")
                 }
@@ -2265,8 +2337,8 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         advance(p)
         mut method := "dec"
         if is_inc { method = "inc" }
-        mut ident := Expr.new(ident_node(name), t_line, t_col)
-        mut acc := Expr.new(field_access_node(method), pp_line, pp_col)
+        mut ident := Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
+        mut acc := Expr.new(field_access_node(p.symbols.intern(method)), pp_line, pp_col)
         acc.add_child(own ident)
         mut call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         call.add_child(own acc)
@@ -2349,11 +2421,11 @@ priv parse_case_head := proc(mut p: Parser) returns Expr {
             mut lp := Expr.new(NodeType.ListPattern, lp_line, lp_col)
             if check(p, TokenType.RBracket).not() {
                 head_name := expect_text(p, TokenType.Ident)
-                lp.add_child(own Expr.new(ident_node(head_name), lp_line, lp_col))
+                lp.add_child(own Expr.new(ident_node(p.symbols.intern(head_name)), lp_line, lp_col))
                 expect_token(p, TokenType.Comma)
                 expect_token(p, TokenType.DotDot)
                 tail_name := expect_text(p, TokenType.Ident)
-                lp.add_child(own Expr.new(ident_node(tail_name), lp_line, lp_col))
+                lp.add_child(own Expr.new(ident_node(p.symbols.intern(tail_name)), lp_line, lp_col))
             }
             expect_token(p, TokenType.RBracket)
             cn.add_child(own lp)
@@ -2601,8 +2673,8 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LBrace)
         mut body := parse_block(p)
         mut cn := Expr.new(NodeType.Catch, t_line, t_col)
-        cn.add_child(own Expr.new(ident_node(var_name), v_line, v_col))
-        cn.add_child(own Expr.new(ident_node(type_name), ty_line, ty_col))
+        cn.add_child(own Expr.new(ident_node(p.symbols.intern(var_name)), v_line, v_col))
+        cn.add_child(own Expr.new(ident_node(p.symbols.intern(type_name)), ty_line, ty_col))
         cn.add_child(own body)
         return cn
     case:
@@ -2620,8 +2692,8 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
 // `quiet` suppresses that report for a TRIAL parse whose failure is not the
 // user's error -- the REPL's speculative expression wrap, which retries the
 // raw line and reports only if that fails too.
-parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, mut parse_errors: I32 = 0, quiet: Bool = false) returns Expr {
-    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()), anon_type_counter = anon_type_counter)
+parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0, quiet: Bool = false) returns Expr {
+    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()), anon_type_counter = anon_type_counter, symbols = symbols)
 
     // Parse optional mode declaration
     if check(p, TokenType.Ident).and(tok_text(p, peek(p)).eq("mode")) {
@@ -2760,16 +2832,16 @@ node_name := func(data: NodeType) returns Str {
     }
 }
 
-ident_node := func(name: Str) returns NodeType {
-    return NodeType.Ident(IdentData(name = name.clone()))
+ident_node := func(name: Sym) returns NodeType {
+    return NodeType.Ident(IdentData(name = name))
 }
 
 literal_num_node := func(text: Str) returns NodeType {
     return NodeType.Literal(Literal.Num(LiteralNumData(text = text.clone())))
 }
 
-field_access_node := func(name: Str) returns NodeType {
-    return NodeType.FieldAccess(FieldAccessData(name = name.clone()))
+field_access_node := func(name: Sym) returns NodeType {
+    return NodeType.FieldAccess(FieldAccessData(name = name))
 }
 
 // #342: how many child positions the per-argument bitmaps below can address.

@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -29,7 +29,7 @@ func push_qn(mut v: Vec__Str, type_name: Str, method: Str)
 :END:
 
 #+begin_src til
-func collect_refs(e: Expr, mut refs: Vec__Str)
+func collect_refs(e: Expr, mut refs: Vec__Str, symbols: SymbolPool)
 #+end_src
 
 * scav_value_decl_sweepable
@@ -59,7 +59,7 @@ func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values:
 :END:
 
 #+begin_src til
-proc dce_program_bodies(mut program: Expr)
+proc dce_program_bodies(mut program: Expr, symbols: SymbolPool)
 #+end_src
 
 * scavenge_imported

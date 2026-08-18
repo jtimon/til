@@ -460,33 +460,29 @@ namespace:
 }
 
 IdentData := struct {
-    name := ""
+    name : Sym = 0
     til_type := Type.Unknown
 namespace:
     eq := func(a: IdentData, b: IdentData) returns Bool { return a.name == b.name }
-    to_str := func(self: IdentData) returns Str { return self.name }
-    len := func(self: IdentData) returns U32 { return self.name.len() }
-    is_empty := func(self: IdentData) returns Bool { return self.name.is_empty() }
-    starts_with := func(self: IdentData, prefix: Str) returns Bool { return self.name.starts_with(prefix) }
-    ends_with := func(self: IdentData, suffix: Str) returns Bool { return self.name.ends_with(suffix) }
-    replace := func(self: IdentData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
-    strip_suffix := func(self: IdentData, suffix: Str) returns Str { return self.name.strip_suffix(suffix) }
-    unsafe_get := func(self: IdentData, i: USize) returns ref I8 { return self.name.unsafe_get(i) }
-    get := func(self: IdentData, i: USize) returns ref I8 { return self.name.get(i) }
-    ident_name := func(self: IdentData) returns ref Str { return self.name }
+    ident_sym := func(self: IdentData) returns Sym { return self.name }
+    ident_name := func(self: IdentData, names: Vec(Str)) returns ref Str {
+        return names.unsafe_get(self.name.cast(USize) - 1)
+    }
 }
 
+// Issue #292: a Context-local identifier for one canonical name. Zero is
+// reserved for "not interned", so real symbols start at one.
+Sym := U32
+
 FieldAccessData := struct {
-    name := ""
+    name : Sym = 0
     til_type := Type.Unknown
 namespace:
     eq := func(a: FieldAccessData, b: FieldAccessData) returns Bool { return a.name == b.name }
-    to_str := func(self: FieldAccessData) returns Str { return self.name }
-    len := func(self: FieldAccessData) returns U32 { return self.name.len() }
-    is_empty := func(self: FieldAccessData) returns Bool { return self.name.is_empty() }
-    starts_with := func(self: FieldAccessData, prefix: Str) returns Bool { return self.name.starts_with(prefix) }
-    replace := func(self: FieldAccessData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
-    field_access_name := func(self: FieldAccessData) returns ref Str { return self.name }
+    field_access_sym := func(self: FieldAccessData) returns Sym { return self.name }
+    field_access_name := func(self: FieldAccessData, names: Vec(Str)) returns ref Str {
+        return names.unsafe_get(self.name.cast(USize) - 1)
+    }
 }
 
 /// Struct definition: field declarations, namespace methods, c_tag.
@@ -932,7 +928,7 @@ namespace:
     // Head string used inside the parentheses by Expr.to_str: the NodeType's
     // variant name plus any inline payload (identifier, literal text, decl
     // name, etc.). Names are kept as written in the enum (no case conversion).
-    head_str := func(self: NodeType) returns Str {
+    head_str := func(self: NodeType, names: Vec(Str)) returns Str {
         switch self {
         case .Body:           return "Body"
         case .Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
@@ -941,7 +937,7 @@ namespace:
             if b { return "LiteralBool true" }
             return "LiteralBool false"
         case .Literal(Literal.Null):    return "LiteralNull"
-        case .Ident(s):       return format("Ident ", Str.clone(s.ident_name()))
+        case .Ident(s):       return format("Ident ", Str.clone(s.ident_name(names)))
         case .Decl(d):
             if d.is_mut { return format("Decl mut ", d.name) }
             return format("Decl ", d.name)
@@ -950,7 +946,7 @@ namespace:
         case .FuncDef(f):     return format("FuncDef ", f.func_type.variant_name())
         case .StructDef:      return "StructDef"
         case .EnumDef:        return "EnumDef"
-        case .FieldAccess(s): return format("FieldAccess ", Str.clone(s.field_access_name()))
+        case .FieldAccess(s): return format("FieldAccess ", s.field_access_name(names))
         case .FieldAssign(fad): return format("FieldAssign ", fad.name)
         case .Return:         return "Return"
         case .If:             return "If"
@@ -1158,23 +1154,28 @@ namespace:
     //   with children:             ((Head)\n  c1\n  c2 ...)
     // where Head = NodeType variant name + inline payload (see
     // NodeType.head_str).
-    to_str_indent := func(self: Expr, indent: U32) returns Str {
+    to_str_indent_with_symbols := func(self: Expr, names: Vec(Str), indent: U32) returns Str {
         mut out := ""
         for _ in 0..indent {
             out = format(out, "  ")
         }
-        head := self.node_type.head_str()
+        head := self.node_type.head_str(names)
         if self.children.len() == 0 {
             return format(out, "(", head, ")")
         }
         out = format(out, "((", head, ")")
         for c : Expr in self.children {
-            out = format(out, "\n", c.to_str_indent(indent + 1))
+            out = format(out, "\n", c.to_str_indent_with_symbols(names, indent + 1))
         }
         return format(out, ")")
     }
-    to_str := func(self: Expr) returns Str {
-        return self.to_str_indent(0)
+    to_str_with_symbols := func(self: Expr, names: Vec(Str)) returns Str {
+        return self.to_str_indent_with_symbols(names, 0)
+    }
+    // Generic T.to_str contract. An Expr no longer carries enough state to
+    // render FieldAccess names by itself; every real AST renderer has a pool.
+    to_str := func(_self: Expr) returns Str {
+        panic("Expr.to_str needs a SymbolPool; use to_str_with_symbols")
     }
 }
 
@@ -1205,7 +1206,7 @@ ident_of := func(e: Expr, loc: Str = __LOC__) returns ref IdentData {
     case .Ident(d):
         return d
     case:
-        UNREACHABLE("expected Ident, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected Ident", loc = loc)
     }
 }
 
@@ -1214,7 +1215,7 @@ decl_of := func(e: Expr, loc: Str = __LOC__) returns ref Declaration {
     case .Decl(d):
         return d
     case:
-        UNREACHABLE("expected Decl, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected Decl", loc = loc)
     }
 }
 
@@ -1223,7 +1224,7 @@ fcall_of := func(e: Expr, loc: Str = __LOC__) returns ref FCallData {
     case .FCall(d):
         return d
     case:
-        UNREACHABLE("expected FCall, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected FCall", loc = loc)
     }
 }
 
@@ -1232,7 +1233,7 @@ funcdef_of := func(e: Expr, loc: Str = __LOC__) returns ref FunctionDef {
     case .FuncDef(d):
         return d
     case:
-        UNREACHABLE("expected FuncDef, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected FuncDef", loc = loc)
     }
 }
 
@@ -1241,7 +1242,7 @@ fieldaccess_of := func(e: Expr, loc: Str = __LOC__) returns ref FieldAccessData 
     case .FieldAccess(d):
         return d
     case:
-        UNREACHABLE("expected FieldAccess, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected FieldAccess", loc = loc)
     }
 }
 
@@ -1250,7 +1251,7 @@ structdef_of := func(e: Expr, loc: Str = __LOC__) returns ref StructDef {
     case .StructDef(d):
         return d
     case:
-        UNREACHABLE("expected StructDef, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected StructDef", loc = loc)
     }
 }
 
@@ -1259,7 +1260,7 @@ enumdef_of := func(e: Expr, loc: Str = __LOC__) returns ref EnumDef {
     case .EnumDef(d):
         return d
     case:
-        UNREACHABLE("expected EnumDef, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected EnumDef", loc = loc)
     }
 }
 
@@ -1268,7 +1269,7 @@ case_of := func(e: Expr, loc: Str = __LOC__) returns ref CaseData {
     case .Case(d):
         return d
     case:
-        UNREACHABLE("expected Case, got ", e.node_type.head_str(), loc = loc)
+        UNREACHABLE("expected Case", loc = loc)
     }
 }
 

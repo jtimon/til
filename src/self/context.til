@@ -60,8 +60,8 @@ TypeBinding := struct {
     // `ref func_def : Expr` borrows into the parse tree are both gone.
     // A binding's StructDef/EnumDef/FuncDef Expr now lives in the owning
     // scope's struct_defs / func_defs maps (set by set_struct_def /
-    // set_func_def, read via scope.struct_def_of(name) / get_struct(name)
-    // / lookup_func(name)); func_type caches the FuncType so
+    // set_func_def_name, read via the pool-aware exact-binding helpers and
+    // get_struct); func_type caches the FuncType so
     // binding_func_type doesn't need the Expr at all.
     func_type := FuncType.Func
     is_builtin := false
@@ -170,9 +170,8 @@ priv func_defs_lookup_one := func(filt: U64, fp: U64, m: Map(Str, Dynamic), name
 // scope per lookup, ~850K has() calls per self-host translate); one
 // get()?+catch does it in one probe, mirroring the interpreter's
 // scope-chain collapse.
-priv bindings_lookup_one := func(filt: U64, fp: U64, m: Map(Str, TypeBinding), name: Str) returns Option(ref TypeBinding) {
-    if filt.band(fp) == 0 { return Option(ref TypeBinding).None }
-    ref b : TypeBinding = m.get(name)?
+priv bindings_lookup_one := func(m: Map(Sym, TypeBinding), sym: Sym) returns Option(ref TypeBinding) {
+    ref b : TypeBinding = m.get(sym)?
     catch (e: KeyNotFound) { return Option(ref TypeBinding).None }
     return Option(ref TypeBinding).Some(b)
 }
@@ -192,13 +191,13 @@ TyperFuncState := struct {
 }
 
 TypeScope := struct {
-    bindings := Map(Str, TypeBinding).new()
+    bindings := Map(Sym, TypeBinding).new()
     target_usize_pname := "U32"
     target_uptr_pname := "U64"
     // Issue #147: name -> FuncDef Expr ptr (stored as Dynamic since
     // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
-    // by scope.set_func_def at every binding write site that used to
-    // assign b.func_def; readers use scope.lookup_func(name). The
+    // by scope.set_func_def_name at every binding write site that used to
+    // assign b.func_def; readers use the pool-aware lookup helpers. The
     // builder also stores binding-less C-symbol aliases here through
     // set_func_symbol; lookup_func ignores those because it gates on
     // bindings, while lookup_func_symbol reads them for codegen.
@@ -256,28 +255,58 @@ namespace:
     // The name's fingerprint is computed ONCE here and threaded down the
     // walk (same for every _fp worker below): recomputing it per level
     // would spend on arithmetic what the filter saves on searching.
-    get_binding := func(self: TypeScope, name: Str) returns Option(ref TypeBinding) {
-        return self.get_binding_fp(name, name_fingerprint(name))
+    local_binding_sym := func(self: TypeScope, sym: Sym) returns Option(ref TypeBinding) {
+        return bindings_lookup_one(self.bindings, sym)
     }
-    get_binding_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref TypeBinding) {
-        // Filter miss: this level cannot hold the name (it subsumes the
-        // empty-level skip -- an empty registry filters everything).
-        if self.bindings_filt.band(fp) == 0 {
-            switch self.parent {
-            case .Some(pe): return pe.get_binding_fp(name, fp)
-            case .None: return Option(ref TypeBinding).None
-            }
-        }
-        ref b : TypeBinding = self.bindings.get(name)?
+    local_binding_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref TypeBinding) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return Option(ref TypeBinding).None }
+        return self.local_binding_sym(sym_o.unwrap())
+    }
+    has_local_binding_sym := func(self: TypeScope, sym: Sym) returns Bool {
+        return self.bindings.has(sym)
+    }
+    has_local_binding_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Bool {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return false }
+        return self.has_local_binding_sym(sym_o.unwrap())
+    }
+    get_binding_sym := func(self: TypeScope, sym: Sym) returns Option(ref TypeBinding) {
+        ref b : TypeBinding = self.bindings.get(sym)?
         catch (e: KeyNotFound) {
             switch self.parent {
             case .Some(p):
-                return p.get_binding_fp(name, fp)
+                return p.get_binding_sym(sym)
             case .None:
                 return Option(ref TypeBinding).None
             }
         }
         return Option(ref TypeBinding).Some(b)
+    }
+    get_binding_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref TypeBinding) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return Option(ref TypeBinding).None }
+        return self.get_binding_sym(sym_o.unwrap())
+    }
+    find_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns ScopeFind {
+        bo := self.get_binding_name(name, symbols)
+        if bo.is_some() { return ScopeFind.Found(bo.unwrap().clone()) }
+        return ScopeFind.NotFound
+    }
+    find_sym := func(self: TypeScope, sym: Sym) returns ScopeFind {
+        bo := self.get_binding_sym(sym)
+        if bo.is_some() { return ScopeFind.Found(bo.unwrap().clone()) }
+        return ScopeFind.NotFound
+    }
+    get_type_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Type {
+        bo := self.get_binding_name(name, symbols)
+        if bo.is_some() { return bo.unwrap().type.clone() }
+        return Type.Unknown
+    }
+    get_type_sym := func(self: TypeScope, sym: Sym) returns Type {
+        bo := self.get_binding_sym(sym)
+        if bo.is_some() { return bo.unwrap().type.clone() }
+        return Type.Unknown
     }
     // #327: is `name` already bound by THIS function -- its parameters or a
     // local in an enclosing block of the same body? Walks like get_binding
@@ -294,32 +323,22 @@ namespace:
         }
         return false
     }
-    bound_in_this_func := func(self: TypeScope, name: Str) returns Bool {
-        return self.bound_in_this_func_fp(name, name_fingerprint(name))
-    }
-    bound_in_this_func_fp := func(self: TypeScope, name: Str, fp: U64) returns Bool {
-        if self.bindings_filt.band(fp).neq(0).and(self.bindings.has(name)) { return true }
+    bound_in_this_func_sym := func(self: TypeScope, sym: Sym) returns Bool {
+        if self.bindings.has(sym) { return true }
         if self.is_func_root { return false }
         switch self.parent {
-        case .Some(p): return p.bound_in_this_func_fp(name, fp)
+        case .Some(p): return p.bound_in_this_func_sym(sym)
         case .None: return false
         }
         return false
     }
-    find := func(self: TypeScope, name: Str) returns ScopeFind {
-        bo := self.get_binding(name)
-        if bo.is_some() {
-            return ScopeFind.Found(bo.unwrap().clone())
-        }
-        return ScopeFind.NotFound
+    bound_in_this_func_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Bool {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return false }
+        return self.bound_in_this_func_sym(sym_o.unwrap())
     }
-    get_type := func(self: TypeScope, name: Str) returns Type {
-        bo := self.get_binding(name)
-        if bo.is_some() { return bo.unwrap().type.clone() }
-        return Type.Unknown
-    }
-    get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
-        bo := self.get_binding(name)
+    get_func_type_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow FuncType {
+        bo := self.get_binding_name(name, symbols)
         if bo.is_none() { return FuncType.Func }
         return binding_func_type(bo.unwrap())
     }
@@ -368,17 +387,23 @@ namespace:
     // that binds `name` (mirroring get_binding) and returns that scope's
     // struct def or None -- it must NOT fall through to a parent type of
     // the same name, or a shadowing local var would be misread as a type.
-    struct_def_of := func(self: TypeScope, name: Str) returns Option(ref Expr) {
-        return self.struct_def_of_fp(name, name_fingerprint(name))
-    }
-    struct_def_of_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
-        if bindings_lookup_one(self.bindings_filt, fp, self.bindings, name).is_some() {
+    struct_def_of_sym := func(self: TypeScope, name: Str, sym: Sym, fp: U64) returns Option(ref Expr) {
+        if bindings_lookup_one(self.bindings, sym).is_some() {
             return func_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
         }
         switch self.parent {
-        case .Some(p): return p.struct_def_of_fp(name, fp)
+        case .Some(p): return p.struct_def_of_sym(name, sym, fp)
         case .None: return Option(ref Expr).None
         }
+    }
+    struct_def_of_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return Option(ref Expr).None }
+        return self.struct_def_of_sym(name, sym_o.unwrap(), name_fingerprint(name))
+    }
+    struct_def_of_by_sym := func(self: TypeScope, sym: Sym, symbols: SymbolPool) returns Option(ref Expr) {
+        ref name : Str = symbols.resolve(sym)
+        return self.struct_def_of_sym(name, sym, name_fingerprint(name))
     }
     // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
     // walking lookup. Replaces direct reads of TypeBinding.func_def.
@@ -387,25 +412,23 @@ namespace:
     // interpreter.til:lookup_interp_type_def) so the `?`/catch desugar
     // doesn't sit in a multi-branch function (which trips
     // -Werror=return-type in the emitted C).
-    lookup_func := func(self: TypeScope, name: Str) returns Option(ref Expr) {
-        // Track get_binding's scope resolution exactly: the func_def of
-        // a binding lives in the SAME scope as the binding. Stop at the
-        // first scope that owns the binding and return its func_defs
-        // entry (or None). Walking func_defs independently of bindings
-        // would let a shadowing local in a child scope pick up a parent
-        // function's def -- the bug that broke this migration. Mirrors
-        // how the old per-binding `func_def` field (no parent walk)
-        // behaved.
-        return self.lookup_func_fp(name, name_fingerprint(name))
-    }
-    lookup_func_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
-        if bindings_lookup_one(self.bindings_filt, fp, self.bindings, name).is_some() {
+    lookup_func_sym := func(self: TypeScope, name: Str, sym: Sym, fp: U64) returns Option(ref Expr) {
+        if bindings_lookup_one(self.bindings, sym).is_some() {
             return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
         }
         switch self.parent {
-        case .Some(p): return p.lookup_func_fp(name, fp)
+        case .Some(p): return p.lookup_func_sym(name, sym, fp)
         case .None: return Option(ref Expr).None
         }
+    }
+    lookup_func_by_sym := func(self: TypeScope, sym: Sym, symbols: SymbolPool) returns Option(ref Expr) {
+        ref name : Str = symbols.resolve(sym)
+        return self.lookup_func_sym(name, sym, name_fingerprint(name))
+    }
+    lookup_func_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return Option(ref Expr).None }
+        return self.lookup_func_sym(name, sym_o.unwrap(), name_fingerprint(name))
     }
     // Is ANY function named `name` reachable, IGNORING value bindings
     // that shadow it? The mirror image of lookup_func, which stops at
@@ -438,11 +461,8 @@ namespace:
     local_func_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
         return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
     }
-    lookup_func_symbol := func(self: TypeScope, name: Str) returns Option(ref Expr) {
-        return self.lookup_func_symbol_fp(name, name_fingerprint(name))
-    }
-    lookup_func_symbol_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
-        bo := bindings_lookup_one(self.bindings_filt, fp, self.bindings, name)
+    lookup_func_symbol_sym := func(self: TypeScope, name: Str, sym: Sym, fp: U64) returns Option(ref Expr) {
+        bo := bindings_lookup_one(self.bindings, sym)
         if bo.is_some() {
             if bo.unwrap().is_func_decl {
                 return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
@@ -452,7 +472,21 @@ namespace:
         local := func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
         if local.is_some() { return local }
         switch self.parent {
-        case .Some(p): return p.lookup_func_symbol_fp(name, fp)
+        case .Some(p): return p.lookup_func_symbol_sym(name, sym, fp)
+        case .None: return Option(ref Expr).None
+        }
+    }
+    lookup_func_symbol_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
+        sym_o := symbols.lookup(name)
+        fp := name_fingerprint(name)
+        if sym_o.is_some() { return self.lookup_func_symbol_sym(name, sym_o.unwrap(), fp) }
+        // set_func_symbol_name also registers binding-less C aliases. Such
+        // names need not occur in the AST symbol pool, but they still walk
+        // func_defs independently exactly like lookup_func_symbol.
+        local := func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
+        if local.is_some() { return local }
+        switch self.parent {
+        case .Some(p): return p.lookup_func_symbol_name(name, symbols)
         case .None: return Option(ref Expr).None
         }
     }
@@ -472,9 +506,12 @@ namespace:
     // Dynamic value slot is sized at). I64 happened to work only because
     // both are 8 bytes on 64-bit hosts; on a 32-bit target it allocated 8
     // bytes for a 4-byte slot and called a pointer a signed integer.
-    set_func_def := func(mut self: TypeScope, name: Str, fdef: Expr) {
-        if self.bindings.has(name) {
-            ref mut b : TypeBinding = self.bindings[name]
+    set_func_def_name := func(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { panic("set_func_def_name: binding name is not interned: ", name) }
+        mut b_o := bindings_lookup_one(self.bindings, sym_o.unwrap())
+        if b_o.is_some() {
+            ref mut b : TypeBinding = b_o.unwrap()
             b.func_type = func_def_type(fdef)
         }
         mut cell : UPtr = malloc(UPtr.size())
@@ -482,8 +519,11 @@ namespace:
         self.func_defs.set(name, own cell)
         self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(name))
     }
-    set_func_symbol := func(mut self: TypeScope, name: Str, fdef: Expr) {
-        if self.bindings.has(name) { return }
+    set_func_symbol_name := func(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_some() {
+            if self.bindings.has(sym_o.unwrap()) { return }
+        }
         mut cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
@@ -493,17 +533,22 @@ namespace:
     // scope-side struct_defs map (the replacement for the removed
     // ref struct_def field). Same malloc'd-cell pattern as set_func_def
     // -- the cell is owned by the Map, the Expr lives in the AST.
-    set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr) {
+    set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr, symbols: SymbolPool) {
         if sdef.node_type.is(NodeType.StructDef).not().and(sdef.node_type.is(NodeType.EnumDef).not()) {
-            panic("set_struct_def: expected struct or enum for ", name, ", got ", sdef.node_type.head_str())
+            panic("set_struct_def: expected struct or enum for ", name, ", got ", sdef.node_type.head_str(symbols.names))
         }
         mut cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, sdef)
         self.struct_defs.set(name, own cell)
         self.struct_defs_filt = self.struct_defs_filt.bor(name_fingerprint(name))
     }
-    is_mut := func(self: TypeScope, name: Str) returns Bool {
-        bo := self.get_binding(name)
+    is_mut_sym := func(self: TypeScope, sym: Sym) returns Bool {
+        bo := self.get_binding_sym(sym)
+        if bo.is_some() { return bo.unwrap().is_mut }
+        return false
+    }
+    is_mut_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Bool {
+        bo := self.get_binding_name(name, symbols)
         if bo.is_some() { return bo.unwrap().is_mut }
         return false
     }
@@ -515,7 +560,12 @@ namespace:
         self.func_defs.remove(name)
     }
     priv erase_binding := func(mut self: TypeScope, name: Str) {
-        self.bindings.remove(name)
+        for i in 0..self.bindings.values.len() {
+            if self.bindings.values.unsafe_get(i).name == name {
+                self.bindings.remove(self.bindings.keys.unsafe_get(i))
+                return
+            }
+        }
     }
     // #326: the struct_defs twin of erase_func_def, for the scavenger --
     // a swept type declaration's AST is freed, so its registry entry must
@@ -536,8 +586,8 @@ namespace:
         self.bindings_filt = 0
         self.func_defs_filt = 0
         self.struct_defs_filt = 0
-        for binding_name : Str in self.bindings.keys {
-            self.bindings_filt = self.bindings_filt.bor(name_fingerprint(binding_name))
+        for binding : TypeBinding in self.bindings.values {
+            self.bindings_filt = self.bindings_filt.bor(name_fingerprint(binding.name))
         }
         for func_name : Str in self.func_defs.keys {
             self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(func_name))
@@ -550,9 +600,10 @@ namespace:
         is_mut: Bool,
         path: Str,
         line: U32, col: U32,
-        is_param: Bool, shallow own_type: OwnType) {
-            if self.bindings.has(name) {
-                ref mut b : TypeBinding = self.bindings[name]
+        is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool) {
+            sym := symbols.intern(name)
+            if self.bindings.has(sym) {
+                ref mut b : TypeBinding = self.bindings[sym]
                 b.type = type
                 b.is_mut = is_mut
                 // path/line/col are declaration-site identity. Don't
@@ -569,7 +620,7 @@ namespace:
                 path = path.clone(),
                 line = line, col = col,
                 is_param = is_param, own_type = own_type)
-            self.bindings.set(name, own nb)
+            self.bindings.set(sym, own nb)
             self.bindings_filt = self.bindings_filt.bor(name_fingerprint(name))
         }
 }
@@ -588,10 +639,10 @@ binding_func_type := func(b: TypeBinding) returns shallow FuncType {
 // initer (telling `gid(I64, v)` apart from `gid(v, 42)`), so both phases
 // classify a `Type`-slot argument by exactly one rule. A bodyless FuncDef
 // binding is a FuncSig type name (`BinaryOp := func(a: I64) returns I64`).
-type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) returns Bool {
+type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding, symbols: SymbolPool) returns Bool {
     if b.is_type_alias { return true }
-    if scope.struct_def_of(b.name).is_some() { return true }
-    bfd_o := scope.lookup_func(b.name)
+    if scope.struct_def_of_name(b.name, symbols).is_some() { return true }
+    bfd_o := scope.lookup_func_name(b.name, symbols)
     if bfd_o.is_some() {
         // A BODYLESS FuncDef binding is a FuncSig type name; anything with
         // a body is a function VALUE. This is tested before is_builtin
@@ -872,46 +923,6 @@ namespace:
         own self.customs.delete(false)
         own self.funcsigs.delete(false)
         if call_free { free(own self) }
-    }
-}
-
-// Issue #292: a Context-local identifier for one canonical name. Zero is
-// reserved for "not interned", so real symbols start at one.
-Sym := U32
-
-SymbolPool := struct {
-    by_name := Map(Str, Sym).new()
-    // Index sym - 1 owns the spelling used by resolve. Keeping a separate
-    // insertion-order Vec makes IDs stable when by_name's sorted keys move.
-    names := Vec(Str).new()
-    next : Sym = 1
-namespace:
-    intern := func(mut self: SymbolPool, name: Str) returns Sym {
-        // Search once on the hot existing-name path. Map.set repeats the
-        // search only for a name's first insertion.
-        mut lo : USize = 0
-        mut hi : USize = self.by_name.keys.len()
-        while lo < hi {
-            mid := lo.add(hi.sub(lo) / 2)
-            c := Str.cmp(self.by_name.keys.unsafe_get(mid), name)
-            if c < 0 { lo = mid + 1 }
-            else {
-                if c > 0 { hi = mid }
-                else { return self.by_name.values.unsafe_get(mid).clone() }
-            }
-        }
-        sym := self.next
-        self.next++
-        self.by_name.set(name, own sym.clone())
-        self.names.push(own name.clone())
-        return sym
-    }
-
-    // Return a non-owning value view rather than a ref into names: Vec growth
-    // can move its Str wrappers, but the owned character buffers stay put.
-    resolve := func(self: SymbolPool, sym: Sym) returns Str {
-        if sym == 0 { panic("SymbolPool.resolve: symbol zero has no name") }
-        return self.names[sym.cast(USize) - 1].borrowed_view()
     }
 }
 
@@ -1471,7 +1482,7 @@ note_cross_file_use := func(mut ctx: Context, decl_path: Str) {
 note_cross_file_type_use := func(scope: TypeScope, mut ctx: Context, type_name: Str) {
     if ctx.check_unused_imports.not() { return }
     if type_name.len() == 0 { return }
-    b_o := scope.get_binding(type_name)
+    b_o := scope.get_binding_name(type_name, ctx.symbols)
     if b_o.is_none() { return }
     ref b : TypeBinding = b_o.unwrap()
     note_cross_file_use(ctx, b.path)
@@ -1713,16 +1724,16 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
     }
 }
 
-make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32) returns Expr {
-    mut acc := Expr.new(field_access_node(method), line, col)
+make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
+    mut acc := Expr.new(field_access_node(symbols.intern(method)), line, col)
     acc.add_child(own recv)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
     call.add_child(own acc)
     return call
 }
 
-make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32) returns Expr {
-    mut gp := Expr.new(ident_node("get_payload"), line, col)
+make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
+    mut gp := Expr.new(ident_node(symbols.intern("get_payload")), line, col)
     mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
     gc.add_child(own gp)
     mark_fcall_direct(gc)
@@ -1736,11 +1747,11 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: 
 // exactly `size` bytes; the C backend inlines it to a width-correct
 // ((E*)a)->tag == ((E*)b)->tag compare (see builder.til). The old 4-byte-only
 // `is` builtin was folded into this -- is_n's typed tag read handles any width.
-make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size: USize, line: U32, col: U32) returns Expr {
-    mut iv := Expr.new(ident_node("is_n"), line, col)
-    mut arg_id := Expr.new(ident_node(arg_name), line, col)
-    mut et := Expr.new(ident_node(ename), line, col)
-    mut vr := Expr.new(field_access_node(vname), line, col)
+make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size: USize, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
+    mut iv := Expr.new(ident_node(symbols.intern("is_n")), line, col)
+    mut arg_id := Expr.new(ident_node(symbols.intern(arg_name)), line, col)
+    mut et := Expr.new(ident_node(symbols.intern(ename)), line, col)
+    mut vr := Expr.new(field_access_node(symbols.intern(vname)), line, col)
     vr.add_child(own et)
     mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     is_call.add_child(own iv)
@@ -1752,8 +1763,8 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
     return is_call
 }
 
-make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, is_ref_payload: Bool = false, used: Bool = false) returns Expr {
-    mut gc := make_get_payload_fcall(own arg, declaration_type_from_name(vtype), line, col)
+make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false) returns Expr {
+    mut gc := make_get_payload_fcall(own arg, declaration_type_from_name(vtype), line, col, symbols)
     mut decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
     // REM: gc must be consumed in BOTH branches of a symmetric if/else --
     // an if-with-return plus fall-through consumption is a two-site
@@ -1764,7 +1775,7 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
         // source, so the binding must LOAD the slot, not alias it: wrap in
         // deref(...) (a ref-returning ext_func both backends already
         // handle). Pre-typed to the payload type like get_payload itself.
-        mut dv := Expr.new(ident_node("deref"), line, col)
+        mut dv := Expr.new(ident_node(symbols.intern("deref")), line, col)
         mut dc := Expr.new(NodeType.FCall(FCallData()), line, col)
         dc.add_child(own dv)
         dc.add_child(own gc)
@@ -1777,14 +1788,14 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
 }
 
 // True when `name` occurs as an Ident anywhere in `e`.
-priv expr_contains_ident_named := func(e: Expr, name: Str) returns Bool {
+priv expr_contains_ident_named := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .Ident(idn):
-        if idn.ident_name() == name { return true }
+        if idn.ident_name(symbols.names) == name { return true }
     case:
     }
     for c : Expr in e.children {
-        if expr_contains_ident_named(c, name) { return true }
+        if expr_contains_ident_named(c, name, symbols) { return true }
     }
     return false
 }
@@ -1799,16 +1810,16 @@ priv expr_contains_ident_named := func(e: Expr, name: Str) returns Bool {
 // outer binding/param), then alias the user name to that ref -- a ref-to-ref,
 // so the arm body's uses of `bind_name` need no rewriting. `fresh_name` must be
 // unique (callers derive it from the binding's source location).
-make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, is_ref_payload: Bool = false, used: Bool = false) returns Vec(Expr) {
+make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false) returns Vec(Expr) {
     mut out := Vec(Expr).new()
-    if expr_contains_ident_named(arg, bind_name) {
-        out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, is_ref_payload, used))
-        mut alias_rhs := Expr.new(ident_node(fresh_name), line, col)
+    if expr_contains_ident_named(arg, bind_name, symbols) {
+        out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, symbols, is_ref_payload, used))
+        mut alias_rhs := Expr.new(ident_node(symbols.intern(fresh_name)), line, col)
         mut alias_decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
         alias_decl.add_child(own alias_rhs)
         out.push(own alias_decl)
     } else {
-        out.push(own make_payload_ref_decl(own arg, bind_name, vtype, line, col, is_mut, is_ref_payload, used))
+        out.push(own make_payload_ref_decl(own arg, bind_name, vtype, line, col, is_mut, symbols, is_ref_payload, used))
     }
     return out
 }
@@ -1887,7 +1898,7 @@ func_returns_c_value := func(fd: FunctionDef) returns Bool {
 // can also transfer its value directly. Owned aggregates prefer pointer ABI
 // over caller stack storage. External boundaries and generated lifecycle
 // helpers retain their established ABI.
-func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool, scope: TypeScope) returns Bool {
+func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if i >= fd.params.len() { return false }
     if i.to_i32() == fd.variadic_index { return false }
     if i.to_i32() == fd.kwargs_index { return false }
@@ -1901,7 +1912,7 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
     if fd.params.len() > 1 {
         if fd.params[1].name == "call_free" { return false }
     }
-    pt := declaration_resolved_type(p, scope)
+    pt := declaration_resolved_type(p, scope, symbols)
     return pt.is(Type.Primitive)
 }
 
@@ -1910,7 +1921,7 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
 // contents with call_free=false; generated enum constructors copy their
 // payload inline without freeing the argument pointer. Public and other
 // bodyless boundaries retain the established heap-outer convention.
-func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool, scope: TypeScope) returns Bool {
+func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if stack_abi_ok.not().or(i >= fd.params.len()) { return false }
     ref p : Declaration = fd.params[i]
     if p.own_type.is(OwnType.Own).not().or(p.is_mut) { return false }
@@ -1926,7 +1937,7 @@ func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool
     }
     if fd.func_type.is_bodyless() { return false }
     if i.to_i32() == fd.variadic_index {
-        arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name()))
+        arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name(), symbols))
         return scope.get_struct(arr_name).is_some()
     }
     if i.to_i32() == fd.kwargs_index { return scope.get_struct("KwargsMap").is_some() }
@@ -1935,33 +1946,27 @@ func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool
     if fd.params.len() > 1 {
         if fd.params[1].name == "call_free" { return false }
     }
-    pt := declaration_resolved_type(p, scope)
+    pt := declaration_resolved_type(p, scope, symbols)
     return pt.is(Type.Struct).or(pt.is(Type.Enum))
 }
 
-type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
+type_from_name_init_name := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
-    // #192: USize/UPtr resolve to the loader-stamped per-target primitive
-    // names stored on the root TypeScope, so init agrees with the typer
-    // regardless of the source-alias width.
-    if name == "USize" { return type_from_name_init(scope_target_usize_pname(scope), scope) }
-    if name == "UPtr" { return type_from_name_init(scope_target_uptr_pname(scope), scope) }
-    fp := name_fingerprint(name)
-    b_o := scope.get_binding_fp(name, fp)
+    if name == "USize" { return type_from_name_init_name(scope_target_usize_pname(scope), scope, symbols) }
+    if name == "UPtr" { return type_from_name_init_name(scope_target_uptr_pname(scope), scope, symbols) }
+    b_o := scope.get_binding_name(name, symbols)
     if b_o.is_some() {
         ref b : TypeBinding = b_o.unwrap()
-        if b.is_type_alias {
-            if b.alias_target.is_empty().not() {
-                return type_from_name_init(b.alias_target, scope)
-            }
+        if b.is_type_alias.and(b.alias_target.is_empty().not()) {
+            return type_from_name_init_name(b.alias_target, scope, symbols)
         }
         if b.is_builtin {
             // Builtin type (had a struct_def) vs builtin ext_func
             // (has a func_def): test "builtin and not a func", and
             // clone the owned Type. See the matching note in
             // typer.til:type_from_name.
-            if scope.lookup_func_fp(b.name, fp).is_none() { return b.type.clone() }
+            if scope.lookup_func_name(b.name, symbols).is_none() { return b.type.clone() }
         }
         // A FuncSig alias (`Op := func(x: I64) returns I64`, registered
         // bodyless with a bare Type.FuncPtr binding by
@@ -1972,29 +1977,26 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
         }
         if b.is_func_decl.and(b.type.is(Type.FuncPtrSig)) { return b.type.clone() }
     }
-    sdef_o := scope.get_struct_fp(name, fp)
+    sdef_o := scope.get_struct(name)
     if sdef_o.is_some() {
-        ref sdef : Expr = sdef_o.unwrap()
-        if sdef.node_type.is(NodeType.EnumDef) {
-            return Type.Enum(name.clone())
-        }
+        if sdef_o.unwrap().node_type.is(NodeType.EnumDef) { return Type.Enum(name.clone()) }
         return Type.Struct(name.clone())
     }
     return Type.Unknown
 }
 
-type_from_declaration_name := func(name: Str, scope: TypeScope) returns Type {
-    resolved := type_from_name_init(name, scope)
+type_from_declaration_name := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Type {
+    resolved := type_from_name_init_name(name, scope, symbols)
     if resolved.is(Type.Unknown).not() { return resolved }
     return declaration_type_from_name(name)
 }
 
 // Resolve a declaration type for semantic use. Only Custom is unresolved;
 // all refined and tag-only variants already carry the semantic answer.
-declaration_resolved_type := func(decl: Declaration, scope: TypeScope) returns Type {
+declaration_resolved_type := func(decl: Declaration, scope: TypeScope, symbols: SymbolPool) returns Type {
     switch decl.til_type {
     case .Custom(name):
-        resolved := type_from_name_init(name, scope)
+        resolved := type_from_name_init_name(name, scope, symbols)
         if resolved.is(Type.Unknown).not() { return resolved }
     case:
     }
@@ -2006,34 +2008,34 @@ declaration_resolved_type := func(decl: Declaration, scope: TypeScope) returns T
 // Only all-Ident applications are rendered; anything else (a nested
 // application, a computed receiver) stays "" and the caller falls back to
 // "type unknown here", which is what every reader assumed before.
-priv type_application_name := func(callee: Expr) returns Str {
+priv type_application_name := func(callee: Expr, symbols: SymbolPool) returns Str {
     if callee.children.len() == 0 { return "" }
     ref recv : Expr = callee.children[0]
     // Already monomorphized by the initer (`Vec__Str.new()`): the
     // receiver is a bare type name, which is the answer.
     switch recv.node_type {
-    case .Ident(mn): return Str.clone(mn.ident_name())
+    case .Ident(mn): return Str.clone(mn.ident_name(symbols.names))
     case:
     }
     if recv.node_type.is(NodeType.FCall).not() { return "" }
     if recv.children.len() < 2 { return "" }
     mut base := ""
     switch recv.children[0].node_type {
-    case .Ident(bn): base = Str.clone(bn.ident_name())
+    case .Ident(bn): base = Str.clone(bn.ident_name(symbols.names))
     case: return ""
     }
     mut out := base.format("(")
     for i in 1..recv.children.len() {
         if i > 1 { out = out.format(", ") }
         switch recv.children[i].node_type {
-        case .Ident(an): out = out.format(an.ident_name())
+        case .Ident(an): out = out.format(an.ident_name(symbols.names))
         case: return ""
         }
     }
     return out.format(")")
 }
 
-field_inferred_type_name := func(fd: Declaration) returns Str {
+field_inferred_type_name := func(fd: Declaration, symbols: SymbolPool) returns Str {
     if fd.til_type.is(Type.Unknown).not() { return fd.type_name() }
     if fd.default_value.is_none() { return "" }
     ref def_val : Expr = fd.default_expr()
@@ -2044,7 +2046,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
     case .FCall:
         if def_val.children.len() == 0 { return "" }
         switch def_val.children[0].node_type {
-        case .Ident(cn): return Str.clone(cn.ident_name())
+        case .Ident(cn): return Str.clone(cn.ident_name(symbols.names))
         case .FieldAccess:
             // A template instance built through its own constructor:
             // `lines := Vec(Str).new()`. The callee is a FieldAccess
@@ -2059,7 +2061,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
             // Rebuild the application spelling; downstream resolution
             // already handles it (an explicitly annotated
             // `lines : Vec(Str) = ...` field always worked).
-            return type_application_name(def_val.children[0])
+            return type_application_name(def_val.children[0], symbols)
         case:
         }
     case:
@@ -2075,10 +2077,10 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
 // typer so the initer/desugarer/builder can read the type NAME at compile
 // time and monomorphize into Array__T / Vec__T. Returns "" when child(1) is
 // missing or is not a plain type Ident.
-array_vec_elem_type_name := func(fcall: Expr) returns Str {
+array_vec_elem_type_name := func(fcall: Expr, symbols: SymbolPool) returns Str {
     if fcall.children.len() < 2 { return "" }
     switch fcall.children[1].node_type {
-    case .Ident(tn): return Str.clone(tn.ident_name())
+    case .Ident(tn): return Str.clone(tn.ident_name(symbols.names))
     case:
         return ""
     }
@@ -2090,7 +2092,7 @@ array_vec_elem_type_name := func(fcall: Expr) returns Str {
 // primitive -- reached with call_free false it does nothing at all. Both
 // the initer (deciding whether to GENERATE a cleanup call) and the
 // builder (deciding whether to EMIT one) ask it, of the same body.
-delete_body_is_free_only := func(fdef: Expr) returns Bool {
+delete_body_is_free_only := func(fdef: Expr, symbols: SymbolPool) returns Bool {
     if fdef.children.len() == 0 { return false }
     ref dbf_body : Expr = fdef.children[0]
     if dbf_body.children.len() != 1 { return false }
@@ -2099,7 +2101,7 @@ delete_body_is_free_only := func(fdef: Expr) returns Bool {
     if dbf_only.children.len() == 0 { return false }
     switch dbf_only.children[0].node_type {
     case .Ident(dbf_cond):
-        return dbf_cond.ident_name().eq("call_free")
+        return dbf_cond.ident_name(symbols.names).eq("call_free")
     case:
         return false
     }
@@ -2117,9 +2119,9 @@ delete_body_is_free_only := func(fdef: Expr) returns Bool {
 // This is the delete question; is_pod_type_for_clone is the copy
 // question. They agree on shape and part ways on the hand-written member,
 // which is exactly what a POD-ness proxy cannot see.
-init_delete_is_noop := func(type_name: Str, scope: TypeScope) returns Bool {
+init_delete_is_noop := func(type_name: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if type_name.len() == 0 { return false }
-    idn_t := type_from_name_init(type_name, scope)
+    idn_t := type_from_name_init_name(type_name, scope, symbols)
     if is_primitive(idn_t) { return true }
     if type_is_callable_storage(idn_t) { return false }
     def_o := scope.get_struct(type_name)
@@ -2129,7 +2131,7 @@ init_delete_is_noop := func(type_name: Str, scope: TypeScope) returns Bool {
     if del_o.is_some() {
         ref idn_del : Declaration = del_o.unwrap()
         if idn_del.default_value.is_none() { return false }
-        return delete_body_is_free_only(idn_del.default_expr())
+        return delete_body_is_free_only(idn_del.default_expr(), symbols)
     }
     switch idn_def.node_type {
     case .StructDef(idn_sd):
@@ -2137,13 +2139,13 @@ init_delete_is_noop := func(type_name: Str, scope: TypeScope) returns Bool {
         for idn_fd : Declaration in idn_sd.fields {
             if idn_fd.own_type.is(OwnType.Ref) { continue }
             if idn_fd.own_type.is(OwnType.Own) { return false }
-            if init_delete_is_noop(field_inferred_type_name(idn_fd), scope).not() { return false }
+            if init_delete_is_noop(field_inferred_type_name(idn_fd, symbols), scope, symbols).not() { return false }
         }
         return true
     case .EnumDef(idn_ed):
         for idn_vd : VariantDef in idn_ed.variants {
             if idn_vd.payload_type.len() == 0 { continue }
-            if init_delete_is_noop(idn_vd.payload_type, scope).not() { return false }
+            if init_delete_is_noop(idn_vd.payload_type, scope, symbols).not() { return false }
         }
         return true
     case:
@@ -2151,9 +2153,9 @@ init_delete_is_noop := func(type_name: Str, scope: TypeScope) returns Bool {
     }
 }
 
-is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
+is_pod_type_for_clone := func(type_name: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if type_name.len() == 0 { return false }
-    t := type_from_name_init(type_name, scope)
+    t := type_from_name_init_name(type_name, scope, symbols)
     if is_primitive(t) { return true }
     if type_is_callable_storage(t) { return false }
     sdef_o := scope.get_struct(type_name)
@@ -2165,14 +2167,14 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { continue }
-            ftn := field_inferred_type_name(fd)
-            if is_pod_type_for_clone(ftn, scope).not() { return false }
+            ftn := field_inferred_type_name(fd, symbols)
+            if is_pod_type_for_clone(ftn, scope, symbols).not() { return false }
         }
         return true
     case .EnumDef(edd):
         for vd : VariantDef in edd.variants {
             ref pt : Str = vd.payload_type
-            if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope).not()) { return false }
+            if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope, symbols).not()) { return false }
         }
         return true
     case:
@@ -2254,7 +2256,7 @@ def_ns_has := func(sdef: Expr, name: Str) returns Bool {
     case .EnumDef(ed):
         return ed.ns_index.has(name)
     case:
-        UNREACHABLE("unexpected ", sdef.node_type.head_str())
+        UNREACHABLE("expected StructDef or EnumDef")
         return false
     }
 }
@@ -2268,7 +2270,7 @@ def_ns_get := func(sdef: Expr, name: Str) returns Option(ref Declaration) {
     case .EnumDef(ed):
         return member_get(ed.ns_index, ed.ns_decls, name)
     case:
-        UNREACHABLE("unexpected ", sdef.node_type.head_str())
+        UNREACHABLE("expected StructDef or EnumDef")
         return Option(ref Declaration).None
     }
 }
@@ -2288,7 +2290,7 @@ def_ns_pos := func(sdef: Expr, name: Str) returns I64 {
     case .EnumDef(ed):
         return member_pos(ed.ns_index, name)
     case:
-        UNREACHABLE("unexpected ", sdef.node_type.head_str())
+        UNREACHABLE("expected StructDef or EnumDef")
         return -1
     }
 }
@@ -2309,7 +2311,7 @@ priv ns_decl_is_const := func(d: Declaration) returns Bool {
 // declaration positions ordered so every referenced sibling precedes
 // its referers (declaration order otherwise). A reference cycle is a
 // user error and panics with the member's qualified name.
-ns_const_eval_order := func(tname: Str, sdef: Expr) returns Vec(I64) {
+ns_const_eval_order := func(tname: Str, sdef: Expr, symbols: SymbolPool) returns Vec(I64) {
     ref decls : Vec(Declaration) = def_ns_decls(sdef)
     // I64 positions, not USize: a Vec(USize) local vs a Vec(USize) param
     // monomorphize under different width-alias spellings (Vec__U32 vs
@@ -2319,12 +2321,12 @@ ns_const_eval_order := func(tname: Str, sdef: Expr) returns Vec(I64) {
     mut state := Vec(I64).new()
     for _ in 0..decls.len() { state.push(own 0) }
     for i in 0..decls.len() {
-        ns_const_order_visit(tname, sdef, i, state, order)
+        ns_const_order_visit(tname, sdef, i, state, order, symbols)
     }
     return order
 }
 
-priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state: Vec(I64), mut order: Vec(I64)) {
+priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state: Vec(I64), mut order: Vec(I64), symbols: SymbolPool) {
     ref decls : Vec(Declaration) = def_ns_decls(sdef)
     ref d : Declaration = decls.unsafe_get(pos)
     if ns_decl_is_const(d).not() { return }
@@ -2335,29 +2337,29 @@ priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state:
             tname, ".", def_ns_name_at(sdef, pos), "'")
     }
     state.unsafe_set(pos, own 1)
-    ns_const_order_deps(tname, sdef, d.default_expr(), state, order)
+    ns_const_order_deps(tname, sdef, d.default_expr(), state, order, symbols)
     state.unsafe_set(pos, own 2)
     order.push(own pos.to_i64())
 }
 
 // Walk a constant initializer for `<tname>.<member>` sibling-constant
 // references and visit each first.
-priv ns_const_order_deps := func(tname: Str, sdef: Expr, e: Expr, mut state: Vec(I64), mut order: Vec(I64)) {
+priv ns_const_order_deps := func(tname: Str, sdef: Expr, e: Expr, mut state: Vec(I64), mut order: Vec(I64), symbols: SymbolPool) {
     switch e.node_type {
     case .FieldAccess(fa):
         if e.children.len() > 0 {
             switch e.children[0].node_type {
             case .Ident(rid):
-                if rid.ident_name() == tname {
-                    p := def_ns_pos(sdef, fa.field_access_name())
-                    if p >= 0 { ns_const_order_visit(tname, sdef, p.to_usize(), state, order) }
+                if rid.ident_name(symbols.names) == tname {
+                    p := def_ns_pos(sdef, fa.field_access_name(symbols.names))
+                    if p >= 0 { ns_const_order_visit(tname, sdef, p.to_usize(), state, order, symbols) }
                 }
             case:
             }
         }
     case:
     }
-    for c : Expr in e.children { ns_const_order_deps(tname, sdef, c, state, order) }
+    for c : Expr in e.children { ns_const_order_deps(tname, sdef, c, state, order, symbols) }
 }
 
 enum_has_payloads := func(enum_def: Expr) returns Bool {
@@ -2591,12 +2593,12 @@ enum_has_ref_payload := func(enum_def: Expr) returns Bool {
 // owned heap block: malloc / calloc / realloc. Shared by the garbager
 // (LocalInfo.raw_alloc provenance, #302) and the builder (raw-alloc
 // value-local emit, #303).
-rhs_is_allocator_call := func(e: Expr) returns Bool {
+rhs_is_allocator_call := func(e: Expr, symbols: SymbolPool) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() < 1 { return false }
     switch e.children[0].node_type {
     case .Ident(fid):
-        return fid.ident_name().eq("malloc").or(fid.ident_name().eq("calloc")).or(fid.ident_name().eq("realloc"))
+        return fid.ident_name(symbols.names).eq("malloc").or(fid.ident_name(symbols.names).eq("calloc")).or(fid.ident_name(symbols.names).eq("realloc"))
     case:
         return false
     }
@@ -2626,8 +2628,8 @@ priv contains_return := func(e: Expr) returns Bool {
 // records the result on FunctionDef.noreturn; callees typed earlier
 // (imports, earlier in the file) are already marked, so chains like
 // exit -> panic -> UNREACHABLE resolve without any name matching.
-fn_never_returns := func(body: Expr, scope: TypeScope) returns Bool {
-    return contains_return(body).not().and(stmt_always_diverges(body, scope))
+fn_never_returns := func(body: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    return contains_return(body).not().and(stmt_always_diverges(body, scope, symbols))
 }
 
 priv is_literal_true := func(e: Expr) returns Bool {
@@ -2660,12 +2662,12 @@ priv has_unnested_break := func(e: Expr) returns Bool {
 
 // `match` never appears here: it is value-position only, so it always rides
 // inside a Return or a Decl, not as a bare statement.
-stmt_always_diverges := func(e: Expr, scope: TypeScope) returns Bool {
+stmt_always_diverges := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .Return:
         return true
     case .FCall:
-        fd_o := resolve_direct_fcall(e, scope)
+        fd_o := resolve_direct_fcall(e, scope, symbols)
         if fd_o.is_none() { return false }
         switch fd_o.unwrap().node_type {
         case .FuncDef(fd): return fd.noreturn
@@ -2675,13 +2677,13 @@ stmt_always_diverges := func(e: Expr, scope: TypeScope) returns Bool {
         // Never falls through iff one statement doesn't: control cannot reach
         // anything past a diverging statement.
         for c : Expr in e.children {
-            if stmt_always_diverges(c, scope) { return true }
+            if stmt_always_diverges(c, scope, symbols) { return true }
         }
         return false
     case .If:
         // Needs an else branch (children[2]) AND both branches diverging.
         if e.children.len() <= 2 { return false }
-        return stmt_always_diverges(e.children[1], scope).and(stmt_always_diverges(e.children[2], scope))
+        return stmt_always_diverges(e.children[1], scope, symbols).and(stmt_always_diverges(e.children[2], scope, symbols))
     case .Switch:
         // Exhaustive (a `case:` wildcard -> C default) and every arm diverges.
         // A pattern arm is [pattern x N, body]; the wildcard arm is [body].
@@ -2690,7 +2692,7 @@ stmt_always_diverges := func(e: Expr, scope: TypeScope) returns Bool {
         for ci in 1..e.children.len() {
             ref cn : Expr = e.children[ci]
             if cn.children.len() == 1 { has_default = true }
-            if stmt_always_diverges(cn.children[cn.children.len() - 1], scope).not() { return false }
+            if stmt_always_diverges(cn.children[cn.children.len() - 1], scope, symbols).not() { return false }
         }
         return has_default
     case .While:
@@ -2805,14 +2807,14 @@ lazy_body_stmt_inlinable := func(body: Expr) returns Bool {
 // True when `e` mentions identifier `name` anywhere (an Ident read or an
 // Assign target). Used by lazy_variadic_body_unrollable to ensure the
 // variadic param is consumed ONLY by the for-in loops that get unrolled.
-priv lazy_mentions_ident := func(e: Expr, name: Str) returns Bool {
+priv lazy_mentions_ident := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
     switch e.node_type {
-    case .Ident(idd):  if idd.ident_name() == name { return true }
+    case .Ident(idd):  if idd.ident_name(symbols.names) == name { return true }
     case .Assign(ad):  if ad.name == name { return true }
     case:
     }
     for c : Expr in e.children {
-        if lazy_mentions_ident(c, name) { return true }
+        if lazy_mentions_ident(c, name, symbols) { return true }
     }
     return false
 }
@@ -2829,13 +2831,13 @@ priv lazy_mentions_ident := func(e: Expr, name: Str) returns Bool {
 // short-circuit matches. Zero runtime cost: no thunk, no collection is ever
 // built. The typer accepts a variadic lazy def iff this holds; the loader's
 // inline_variadic_lazy_call performs the matching unroll.
-lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
+lazy_variadic_body_unrollable := func(body: Expr, vname: Str, symbols: SymbolPool) returns Bool {
     if body.node_type.is(NodeType.Body).not() { return false }
     n := body.children.len()
     if n == 0 { return false }
     ref last : Expr = body.children[n - 1]
     if last.node_type.is(NodeType.Return).not().or(last.children.len() < 1) { return false }
-    if lazy_mentions_ident(last, vname) { return false }
+    if lazy_mentions_ident(last, vname, symbols) { return false }
     for i in 0..n - 1 {
         ref stmt : Expr = body.children[i]
         mut is_unroll_loop := false
@@ -2844,7 +2846,7 @@ lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
             if stmt.children.len() < 2 { return false }
             mut iter_is_vname := false
             switch stmt.children[0].node_type {
-            case .Ident(itn): iter_is_vname = itn.ident_name() == vname
+            case .Ident(itn): iter_is_vname = itn.ident_name(symbols.names) == vname
             case:
             }
             if iter_is_vname.not() { return false }        // a foreign loop: not unrollable
@@ -2855,14 +2857,14 @@ lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
             if lbody.children.len() == 0 { return false }
             for lstmt : Expr in lbody.children {
                 if lazy_is_guard(lstmt).not() { return false }
-                if lazy_mentions_ident(lstmt, vname) { return false }
+                if lazy_mentions_ident(lstmt, vname, symbols) { return false }
             }
             is_unroll_loop = true
         case:
         }
         if is_unroll_loop.not() {
             if lazy_is_guard(stmt).not() { return false }
-            if lazy_mentions_ident(stmt, vname) { return false }
+            if lazy_mentions_ident(stmt, vname, symbols) { return false }
         }
     }
     return true
@@ -2898,7 +2900,7 @@ is_aggregate := func(t: Type) returns Bool {
 fcall_is_direct := func(e: Expr) returns Bool {
     switch e.node_type {
     case .FCall: return e.children[0].til_type().is(Type.FuncDef)
-    case: UNREACHABLE("expected FCall, got ", e.node_type.head_str())
+    case: UNREACHABLE("expected FCall")
     }
     return false
 }
@@ -2906,7 +2908,7 @@ fcall_is_direct := func(e: Expr) returns Bool {
 mark_fcall_direct := func(mut e: Expr) {
     switch e.node_type {
     case .FCall: e.children[0].set_til_type(Type.FuncDef)
-    case: UNREACHABLE("expected FCall, got ", e.node_type.head_str())
+    case: UNREACHABLE("expected FCall")
     }
 }
 
@@ -2914,16 +2916,16 @@ mark_fcall_direct := func(mut e: Expr) {
 // on the callee expression's Type.FuncDef stamp; runtime callable values keep
 // FuncPtr, FuncPtrSig, or Body and therefore never resolve through a same-name
 // global. FieldAccess covers both namespace calls and pre-rewrite UFCS calls.
-resolve_direct_fcall := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
+resolve_direct_fcall := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
     if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
     if fcall.children.len() == 0 { return Option(ref Expr).None }
     ref callee : Expr = fcall.children[0]
     if callee.til_type().is(Type.FuncDef).not() { return Option(ref Expr).None }
     switch callee.node_type {
     case .Ident(cn):
-        cb_o := scope.get_binding(cn.ident_name())
+        cb_o := scope.get_binding_sym(cn.ident_sym())
         if cb_o.is_none() { return Option(ref Expr).None }
-        return scope.lookup_func(cb_o.unwrap().name)
+        return scope.lookup_func_name(cb_o.unwrap().name, symbols)
     case .FieldAccess(cfa):
         if callee.children.len() == 0 { return Option(ref Expr).None }
         ref recv : Expr = callee.children[0]
@@ -2933,19 +2935,19 @@ resolve_direct_fcall := func(fcall: Expr, scope: TypeScope) returns Option(ref E
             sdef_o = scope.get_struct(recv_name_o.unwrap())
         } else {
             switch recv.node_type {
-            case .Ident(rid): sdef_o = scope.get_struct(rid.ident_name())
+            case .Ident(rid): sdef_o = scope.get_struct(rid.ident_name(symbols.names))
             case:
             }
         }
         if sdef_o.is_none() { return Option(ref Expr).None }
-        nd_o := def_ns_get(sdef_o.unwrap(), cfa.field_access_name())
+        nd_o := def_ns_get(sdef_o.unwrap(), cfa.field_access_name(symbols.names))
         if nd_o.is_none() { return Option(ref Expr).None }
         ref nd : Declaration = nd_o.unwrap()
         if nd.default_value.is_none() { return Option(ref Expr).None }
         ref dv : Expr = nd.default_expr()
         if dv.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(dv) }
         switch dv.node_type {
-        case .Ident(did): return scope.lookup_func(did.ident_name())
+        case .Ident(did): return scope.lookup_func_name(did.ident_name(symbols.names), symbols)
         case: return Option(ref Expr).None
         }
     case: return Option(ref Expr).None
@@ -2955,19 +2957,19 @@ resolve_direct_fcall := func(fcall: Expr, scope: TypeScope) returns Option(ref E
 // #254 range cases: true when `e` is a `Range.new(lo, hi)` FCall -- the AST
 // shape a `lo..hi` range pattern parses to. Used by the C-like switch path to
 // recognise a `case lo..hi:` arm (emitted as a C case range `lo ... hi`).
-is_range_new_call := func(e: Expr) returns Bool {
+is_range_new_call := func(e: Expr, symbols: SymbolPool) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() != 3 { return false }
     ref callee : Expr = e.children[0]
     // Pre-inference the callee is `Range.new` (FieldAccess); the constructor
     // rewrite later collapses it to a bare `Range` (Ident). Accept both.
     switch callee.node_type {
-    case .Ident(id): return id.ident_name() == "Range"
+    case .Ident(id): return id.ident_name(symbols.names) == "Range"
     case .FieldAccess(fa):
-        if fa.field_access_name().eq("new").not() { return false }
+        if fa.field_access_name(symbols.names).eq("new").not() { return false }
         if callee.children.len() == 0 { return false }
         switch callee.children[0].node_type {
-        case .Ident(bid): return bid.ident_name() == "Range"
+        case .Ident(bid): return bid.ident_name(symbols.names) == "Range"
         case: return false
         }
     case: return false
@@ -2976,7 +2978,7 @@ is_range_new_call := func(e: Expr) returns Bool {
 
 // Debug pretty-printer for an AST subtree (s-expression-ish, one node per
 // line). Not called by the compiler passes; kept for interactive debugging.
-ast_print := proc(e: Expr, indent: U32) {
+ast_print := proc(e: Expr, indent: U32, symbols: SymbolPool) {
     for _ in 0..indent {
         print("  ")
     }
@@ -2986,7 +2988,7 @@ ast_print := proc(e: Expr, indent: U32) {
         print(":", til_type_name_c(et))
     }
     switch e.node_type {
-    case .Ident(s):      print(" \"", s.ident_name(), "\"")
+    case .Ident(s):      print(" \"", s.ident_name(symbols.names), "\"")
     case .Literal(Literal.Str(s)): print(" \"", s, "\"")
     case .Literal(Literal.Num(s)): print(" \"", s.literal_num_text(), "\"")
     case .Literal(Literal.Bool(b)): if b { print(" true") } else { print(" false") }
@@ -3004,7 +3006,7 @@ ast_print := proc(e: Expr, indent: U32) {
     if e.children.len() > 0 {
         println("")
         for e_i : Expr in e.children {
-            ast_print(e_i, indent + 1)
+            ast_print(e_i, indent + 1, symbols)
         }
         for _ in 0..indent {
             print("  ")
@@ -3036,7 +3038,7 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
         }
         return count
     case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
+        UNREACHABLE("expected FCall")
         return 0
     }
 }
@@ -3070,7 +3072,7 @@ fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool
         }
         return fcall.children.len() - nparam
     case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
+        UNREACHABLE("expected FCall")
         return 0
     }
 }

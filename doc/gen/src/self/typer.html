@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee4f8fc7</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -88,19 +88,19 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.fa_is_ns">
 <h2>fa_is_ns</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, scope: TypeScope) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.make_til_type_expr">
 <h2>make_til_type_expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (src: Expr, t: Type) returns Expr
+<pre><code class="language-til">func (src: Expr, t: Type, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.fa_own_type">
 <h2>fa_own_type</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, scope: TypeScope) returns shallow OwnType
+<pre><code class="language-til">func (e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow OwnType
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.I64Name">
@@ -184,7 +184,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.find_namespace_func">
 <h2>find_namespace_func</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (sdef: Expr, method: Str, scope: TypeScope) returns shallow Option__ref_Expr
+<pre><code class="language-til">func (sdef: Expr, method: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.find_ns_decl">
@@ -196,19 +196,19 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.resolve_fn_sig">
 <h2>resolve_fn_sig</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
+<pre><code class="language-til">func (fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.fcall_returns_own">
 <h2>fcall_returns_own</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, scope: TypeScope) returns shallow Bool
+<pre><code class="language-til">func (fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.is_clone_fcall">
 <h2>is_clone_fcall</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.resolve_default_value">
@@ -220,7 +220,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.expr_declared_type_name">
 <h2>expr_declared_type_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (scope: TypeScope, e: Expr) returns Str
+<pre><code class="language-til">func (scope: TypeScope, e: Expr, symbols: SymbolPool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.infer_expr">
@@ -274,7 +274,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.is_compile_directive">
 <h2>is_compile_directive</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.infer_body_stmt">
@@ -286,7 +286,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.reregister_repl_scope_defs">
 <h2>reregister_repl_scope_defs</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (body: Expr, mut scope: TypeScope)
+<pre><code class="language-til">func (body: Expr, mut scope: TypeScope, symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.infer_body">
@@ -298,7 +298,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.normalize_scope_bindings">
 <h2>normalize_scope_bindings</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut scope: TypeScope)
+<pre><code class="language-til">func (mut scope: TypeScope, symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.type_file">
@@ -316,13 +316,13 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.rhs_is_clone_fcall">
 <h2>rhs_is_clone_fcall</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (rhs: Expr) returns shallow Bool
+<pre><code class="language-til">func (rhs: Expr, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.assign_target_is_func_local">
 <h2>assign_target_is_func_local</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut scope: TypeScope, name: Str) returns shallow Bool
+<pre><code class="language-til">func (mut scope: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.is_numeric_type">
@@ -352,13 +352,13 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.resolve_type_alias">
 <h2>resolve_type_alias</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (scope: TypeScope, name: Str) returns ref Str
+<pre><code class="language-til">func (scope: TypeScope, name: Str, symbols: SymbolPool) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.resolve_type_alias_for_name">
 <h2>resolve_type_alias_for_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (scope: TypeScope, name: Str) returns ref Str
+<pre><code class="language-til">func (scope: TypeScope, name: Str, symbols: SymbolPool) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.usize_type">
@@ -376,7 +376,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.expr_uses_var">
 <h2>expr_uses_var</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, name: Str) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.expr_contains_decl">
@@ -388,7 +388,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.expr_used_in_nested_func">
 <h2>expr_used_in_nested_func</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, name: Str) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.type_prefix">
@@ -406,49 +406,49 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.make_closure_delete_call">
 <h2>make_closure_delete_call</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (var_name: Str, src: Expr) returns Expr
+<pre><code class="language-til">func (var_name: Str, src: Expr, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.make_delete_call">
 <h2>make_delete_call</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns shallow Option__Expr
+<pre><code class="language-til">func (var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr, mut symbols: SymbolPool) returns shallow Option__Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.transfer_is_shallow_field_value_copy">
 <h2>transfer_is_shallow_field_value_copy</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, var_name: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.make_free_call">
 <h2>make_free_call</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (var_name: Str, shallow type: Type, src: Expr) returns Expr
+<pre><code class="language-til">func (var_name: Str, shallow type: Type, src: Expr, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.make_clone_call">
 <h2>make_clone_call</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
+<pre><code class="language-til">func (type_name: Str, shallow type: Type, arg: Expr, src: Expr, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.make_ns_call">
 <h2>make_ns_call</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
+<pre><code class="language-til">func (sname: Str, method: Str, shallow ret_type: Type, src: Expr, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.variadic_array_type_name">
 <h2>variadic_array_type_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (scope: TypeScope, elem_type: Str) returns Str
+<pre><code class="language-til">func (scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.arg_addressed_ident">
 <h2>arg_addressed_ident</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (arg: Expr) returns shallow Option__ref_Str
+<pre><code class="language-til">func (arg: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.expr_transfers_own">
@@ -498,19 +498,19 @@ namespace:
 <article class="doc-entry" id="til.src.self.typer.expr_collect_ptr_escapes">
 <h2>expr_collect_ptr_escapes</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, fi: FactIndex, shallow base: USize, mut out: Vec__U64)
+<pre><code class="language-til">func (e: Expr, fi: FactIndex, shallow base: USize, mut out: Vec__U64, symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.expr_collect_stmt_facts">
 <h2>expr_collect_stmt_facts</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64)
+<pre><code class="language-til">func (e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.fcall_returns_dynamic_storage">
 <h2>fcall_returns_dynamic_storage</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, scope: TypeScope) returns shallow Bool
+<pre><code class="language-til">func (fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.RootBits">
@@ -542,13 +542,13 @@ namespace:
 <article class="doc-entry" id="til.src.self.typer.fcall_is_get_method">
 <h2>fcall_is_get_method</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr) returns shallow Bool
+<pre><code class="language-til">func (fcall: Expr, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.fcall_returns_ref">
 <h2>fcall_returns_ref</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, scope: TypeScope) returns shallow I32
+<pre><code class="language-til">func (fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.Vec__CtorArg">

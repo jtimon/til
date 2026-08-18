@@ -4,21 +4,23 @@ import("../src/self/lexer")
 import("../src/self/parser")
 
 // Helper: tokenize + parse
-parse_src := proc(src: Str) returns Expr {
+parse_src := proc(src: Str, symbols: SymbolPool) returns Expr {
     tokens := tokenize(src, "test")
     mut mode_str := ""
     mut anon_counter : I64 = 0
-    return parse(tokens, src, "test", mode_str, anon_counter)
+    return parse(tokens, src, "test", mode_str, anon_counter, symbols)
 }
 
 test_empty := test() {
-    root := parse_src("")
+    symbols := SymbolPool()
+    root := parse_src("", symbols)
     assert(root.node_type.is(NodeType.Body))
     assert_eq(USize, root.children.len(), 0)
 }
 
 test_declaration := test() {
-    root := parse_src("x := 42")
+    symbols := SymbolPool()
+    root := parse_src("x := 42", symbols)
     assert_eq(USize, root.children.len(), 1)
     ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
@@ -35,7 +37,8 @@ test_declaration := test() {
 }
 
 test_typed_decl := test() {
-    root := parse_src("x : I64 = 0")
+    symbols := SymbolPool()
+    root := parse_src("x : I64 = 0", symbols)
     ref decl : Expr = root.children[0]
     switch decl.node_type {
     case NodeType.Decl(dd):
@@ -47,7 +50,8 @@ test_typed_decl := test() {
 }
 
 test_assignment := test() {
-    root := parse_src("x = 1")
+    symbols := SymbolPool()
+    root := parse_src("x = 1", symbols)
     ref assign : Expr = root.children[0]
     assert_eq(Str, node_name(assign.node_type), "assign")
     switch assign.node_type {
@@ -60,7 +64,8 @@ test_assignment := test() {
 }
 
 test_call := test() {
-    root := parse_src("foo(1, 2)")
+    symbols := SymbolPool()
+    root := parse_src("foo(1, 2)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
     assert_eq(USize, call.children.len(), 3)
@@ -68,14 +73,15 @@ test_call := test() {
     assert_eq(Str, node_name(callee.node_type), "ident")
     switch callee.node_type {
     case NodeType.Ident(ci):
-        assert_eq(Str, ci.ident_name(), "foo")
+        assert_eq(Str, ci.ident_name(symbols.names), "foo")
     case:
         UNREACHABLE()
     }
 }
 
 test_method_call := test() {
-    root := parse_src("x.foo(1)")
+    symbols := SymbolPool()
+    root := parse_src("x.foo(1)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
     assert_eq(USize, call.children.len(), 2)
@@ -83,21 +89,22 @@ test_method_call := test() {
     assert_eq(Str, node_name(callee.node_type), "field_access")
     switch callee.node_type {
     case NodeType.FieldAccess(cf):
-        assert_eq(Str, cf.field_access_name(), "foo")
+        assert_eq(Str, cf.field_access_name(symbols.names), "foo")
     case:
         UNREACHABLE()
     }
 }
 
 test_method_call_on_subscript_receiver := test() {
-    root := parse_src("e.children[0].set_til_type(t)")
+    symbols := SymbolPool()
+    root := parse_src("e.children[0].set_til_type(t)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
     ref callee : Expr = call.children[0]
     assert_eq(Str, node_name(callee.node_type), "field_access")
     switch callee.node_type {
     case NodeType.FieldAccess(cf):
-        assert_eq(Str, cf.field_access_name(), "set_til_type")
+        assert_eq(Str, cf.field_access_name(symbols.names), "set_til_type")
     case:
         UNREACHABLE()
     }
@@ -106,14 +113,15 @@ test_method_call_on_subscript_receiver := test() {
 // Statement-level method chain on a call result: the statement parser
 // used to reject the '.' after 'foo()' ("expected statement, found '.'").
 test_stmt_chain_on_call := test() {
-    root := parse_src("foo().bar(1)")
+    symbols := SymbolPool()
+    root := parse_src("foo().bar(1)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
     ref callee : Expr = call.children[0]
     assert_eq(Str, node_name(callee.node_type), "field_access")
     switch callee.node_type {
     case NodeType.FieldAccess(cf):
-        assert_eq(Str, cf.field_access_name(), "bar")
+        assert_eq(Str, cf.field_access_name(symbols.names), "bar")
     case:
         UNREACHABLE()
     }
@@ -124,7 +132,8 @@ test_stmt_chain_on_call := test() {
 // Statement-level field assignment through a call result
 // (`HashMap(I64, I64).hasher = fnv1a` in examples/bench_hashmap.til).
 test_stmt_field_assign_on_call := test() {
-    root := parse_src("box(1).field = 2")
+    symbols := SymbolPool()
+    root := parse_src("box(1).field = 2", symbols)
     ref fa : Expr = root.children[0]
     assert_eq(Str, node_name(fa.node_type), "field_assign")
     switch fa.node_type {
@@ -139,21 +148,24 @@ test_stmt_field_assign_on_call := test() {
 }
 
 test_if_else := test() {
-    root := parse_src("if true { x = 1 } else { x = 2 }")
+    symbols := SymbolPool()
+    root := parse_src("if true { x = 1 } else { x = 2 }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "if")
     assert_eq(USize, node.children.len(), 3)
 }
 
 test_while := test() {
-    root := parse_src("while true { x = 1 }")
+    symbols := SymbolPool()
+    root := parse_src("while true { x = 1 }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "while")
     assert_eq(USize, node.children.len(), 2)
 }
 
 test_func_def := test() {
-    root := parse_src("f := func(x: I64) returns I64 { return x }")
+    symbols := SymbolPool()
+    root := parse_src("f := func(x: I64) returns I64 { return x }", symbols)
     ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
     assert_eq(USize, decl.children.len(), 1)
@@ -170,7 +182,8 @@ test_func_def := test() {
 }
 
 test_struct_def := test() {
-    root := parse_src("P := struct { mut x := 0 }")
+    symbols := SymbolPool()
+    root := parse_src("P := struct { mut x := 0 }", symbols)
     ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
     ref sdef : Expr = decl.children[0]
@@ -184,7 +197,8 @@ test_struct_def := test() {
 }
 
 test_switch := test() {
-    root := parse_src("switch x { case 1: y = 1 case 2: y = 2 case: y = 0 }")
+    symbols := SymbolPool()
+    root := parse_src("switch x { case 1: y = 1 case 2: y = 2 case: y = 0 }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "switch")
     assert_eq(USize, node.children.len(), 4)
@@ -195,7 +209,8 @@ test_switch := test() {
 }
 
 test_for_in := test() {
-    root := parse_src("for i in 0..10 { x = i }")
+    symbols := SymbolPool()
+    root := parse_src("for i in 0..10 { x = i }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "for_in")
     switch node.node_type {

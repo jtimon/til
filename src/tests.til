@@ -720,7 +720,7 @@ main := proc(args: ..Str) {
         "NodeType_Ident(&((IdentData[]){ ({ IdentData _sv", 0,
         "cat boot/til.c")
     add_count(tests, "enum_ctor_named_constructor_payload", "build",
-        "NodeType_Ident(&hoisted__IdentData_", 96,
+        "NodeType_Ident(&hoisted__IdentData_", 2,
         "cat boot/til.c")
     add_count(tests, "enum_ctor_borrows_outer", "build",
         "r.data.FCall = *val;\n    return r;", 1,

@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * Core
@@ -2223,20 +2223,12 @@ func LiteralNumData.is_float(self: LiteralNumData) returns shallow Bool
 ** [[file:src/core/ast.org::#til.src.core.ast.IdentData][IdentData]]
 #+begin_src til
 struct IdentData {
-    mut name : Str
+    mut name : U32
     mut til_type : Type
 namespace:
     func eq(a: IdentData, b: IdentData) returns shallow Bool
-    func to_str(self: IdentData) returns Str
-    func len(self: IdentData) returns shallow U32
-    func is_empty(self: IdentData) returns shallow Bool
-    func starts_with(self: IdentData, prefix: Str) returns shallow Bool
-    func ends_with(self: IdentData, suffix: Str) returns shallow Bool
-    func replace(self: IdentData, old: Str, new: Str) returns Str
-    func strip_suffix(self: IdentData, suffix: Str) returns Str
-    func unsafe_get(self: IdentData, i: USize) returns ref I8
-    func get(self: IdentData, i: USize) returns ref I8
-    func ident_name(self: IdentData) returns ref Str
+    func ident_sym(self: IdentData) returns shallow U32
+    func ident_name(self: IdentData, names: Vec__Str) returns ref Str
     func clone(self: IdentData) returns IdentData
     func delete(own self: IdentData, shallow call_free: Bool)
     func hash(self: IdentData, hasher: HashFn) returns shallow U64
@@ -2244,19 +2236,20 @@ namespace:
 }
 #+end_src
 
+** [[file:src/core/ast.org::#til.src.core.ast.Sym][Sym]]
+#+begin_src til
+Sym is a None
+#+end_src
+
 ** [[file:src/core/ast.org::#til.src.core.ast.FieldAccessData][FieldAccessData]]
 #+begin_src til
 struct FieldAccessData {
-    mut name : Str
+    mut name : U32
     mut til_type : Type
 namespace:
     func eq(a: FieldAccessData, b: FieldAccessData) returns shallow Bool
-    func to_str(self: FieldAccessData) returns Str
-    func len(self: FieldAccessData) returns shallow U32
-    func is_empty(self: FieldAccessData) returns shallow Bool
-    func starts_with(self: FieldAccessData, prefix: Str) returns shallow Bool
-    func replace(self: FieldAccessData, old: Str, new: Str) returns Str
-    func field_access_name(self: FieldAccessData) returns ref Str
+    func field_access_sym(self: FieldAccessData) returns shallow U32
+    func field_access_name(self: FieldAccessData, names: Vec__Str) returns ref Str
     func clone(self: FieldAccessData) returns FieldAccessData
     func delete(own self: FieldAccessData, shallow call_free: Bool)
     func hash(self: FieldAccessData, hasher: HashFn) returns shallow U64
@@ -2678,7 +2671,7 @@ namespace:
     func is_map_lit(self: NodeType) returns shallow Bool
     func is_set_lit(self: NodeType) returns shallow Bool
     func is_nonnull_literal(self: NodeType) returns shallow Bool
-    func head_str(self: NodeType) returns Str
+    func head_str(self: NodeType, names: Vec__Str) returns Str
     ext_func Body() returns NodeType
     ext_func Literal(own val: Literal) returns NodeType
     ext_func Ident(own val: IdentData) returns NodeType
@@ -2711,7 +2704,6 @@ namespace:
     core_func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)
-    func to_str(self: NodeType) returns Str
     func clone(self: NodeType) returns NodeType
     func size() returns shallow USize
 }
@@ -2736,8 +2728,9 @@ namespace:
     func eq(_self: Expr, _other: Expr) returns shallow Bool
     func til_type(self: Expr) returns ref Type
     func set_til_type(mut self: Expr, shallow t: Type)
-    func to_str_indent(self: Expr, shallow indent: U32) returns Str
-    func to_str(self: Expr) returns Str
+    func to_str_indent_with_symbols(self: Expr, names: Vec__Str, shallow indent: U32) returns Str
+    func to_str_with_symbols(self: Expr, names: Vec__Str) returns Str
+    func to_str(_self: Expr) returns Str
     func clone(self: Expr) returns Expr
     func hash(self: Expr, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
@@ -5695,6 +5688,25 @@ func adopt__TokenType(dest: Dynamic, own src: TokenType)
 func adopt__Token(dest: Dynamic, own src: Token)
 #+end_src
 
+** [[file:src/self/parser.org::#til.src.self.parser.SymbolPool][SymbolPool]]
+#+begin_src til
+struct SymbolPool {
+    mut names : Vec__Str
+    mut buckets : Vec__U32
+    mut next : U32
+namespace:
+    func hash_name(name: Str) returns shallow U64
+    func rebuild(mut self: SymbolPool, shallow count: USize)
+    func lookup(self: SymbolPool, name: Str) returns Option__U32
+    func intern(mut self: SymbolPool, name: Str) returns shallow U32
+    func resolve(self: SymbolPool, sym: U32) returns ref Str
+    func clone(self: SymbolPool) returns SymbolPool
+    func delete(own self: SymbolPool, shallow call_free: Bool)
+    func hash(self: SymbolPool, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
 ** [[file:src/self/parser.org::#til.src.self.parser.builtin_primitive_from_name][builtin_primitive_from_name]]
 #+begin_src til
 func builtin_primitive_from_name(name: Str, mut out: Primitive) returns shallow Bool
@@ -5722,7 +5734,7 @@ func take_expr(mut e: Expr) returns Expr
 
 ** [[file:src/self/parser.org::#til.src.self.parser.parse][parse]]
 #+begin_src til
-proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, mut parse_errors: I32, shallow quiet: Bool) returns Expr
+proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32, shallow quiet: Bool) returns Expr
 #+end_src
 
 ** [[file:src/self/parser.org::#til.src.self.parser.expr_type_name_ref][expr_type_name_ref]]
@@ -5742,7 +5754,7 @@ func node_name(data: NodeType) returns Str
 
 ** [[file:src/self/parser.org::#til.src.self.parser.ident_node][ident_node]]
 #+begin_src til
-func ident_node(name: Str) returns NodeType
+func ident_node(shallow name: U32) returns NodeType
 #+end_src
 
 ** [[file:src/self/parser.org::#til.src.self.parser.literal_num_node][literal_num_node]]
@@ -5752,7 +5764,7 @@ func literal_num_node(text: Str) returns NodeType
 
 ** [[file:src/self/parser.org::#til.src.self.parser.field_access_node][field_access_node]]
 #+begin_src til
-func field_access_node(name: Str) returns NodeType
+func field_access_node(shallow name: U32) returns NodeType
 #+end_src
 
 ** [[file:src/self/parser.org::#til.src.self.parser.FCALL_ARG_BITS][FCALL_ARG_BITS]]
@@ -5808,6 +5820,181 @@ func get_keep_outer_arg(fcall: Expr, shallow arg_index: USize) returns shallow B
 ** [[file:src/self/parser.org::#til.src.self.parser.func_type_name][func_type_name]]
 #+begin_src til
 func func_type_name(ft: FuncType) returns Str
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Option__Sym][Option__Sym]]
+#+begin_src til
+Option__Sym is a None
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32][Vec__U32]]
+#+begin_src til
+struct Vec__U32 {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__U32
+    func with_capacity(shallow n: USize) returns Vec__U32
+    func len(self: Vec__U32) returns shallow USize
+    func clear(mut self: Vec__U32)
+    func delete_marked(mut self: Vec__U32, marks: Dynamic)
+    func push(mut self: Vec__U32, own val: U32)
+    func append(mut self: Vec__U32, own other: Vec__U32)
+    func take(mut self: Vec__U32) returns Vec__U32
+    func move_to(own self: Vec__U32, mut dest: Vec__U32)
+    func move_from(mut self: Vec__U32, own other: Vec__U32)
+    func unsafe_get(self: Vec__U32, i: USize) returns ref U32
+    func get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
+    func pop(mut self: Vec__U32) returns shallow U32
+    func remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
+    func truncate(mut self: Vec__U32, shallow n: USize)
+    func unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
+    func set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64)
+    func push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
+    func delete(own self: Vec__U32, shallow call_free: Bool)
+    func clone(self: Vec__U32) returns Vec__U32
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.new][Vec__U32.new]]
+#+begin_src til
+func Vec__U32.new() returns Vec__U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.with_capacity][Vec__U32.with_capacity]]
+#+begin_src til
+func Vec__U32.with_capacity(shallow n: USize) returns Vec__U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.clear][Vec__U32.clear]]
+#+begin_src til
+func Vec__U32.clear(mut self: Vec__U32)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.delete_marked][Vec__U32.delete_marked]]
+#+begin_src til
+func Vec__U32.delete_marked(mut self: Vec__U32, marks: Dynamic)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.push][Vec__U32.push]]
+#+begin_src til
+func Vec__U32.push(mut self: Vec__U32, own val: U32)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.append][Vec__U32.append]]
+#+begin_src til
+func Vec__U32.append(mut self: Vec__U32, own other: Vec__U32)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.take][Vec__U32.take]]
+#+begin_src til
+func Vec__U32.take(mut self: Vec__U32) returns Vec__U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.move_to][Vec__U32.move_to]]
+#+begin_src til
+func Vec__U32.move_to(own self: Vec__U32, mut dest: Vec__U32)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.move_from][Vec__U32.move_from]]
+#+begin_src til
+func Vec__U32.move_from(mut self: Vec__U32, own other: Vec__U32)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.unsafe_get][Vec__U32.unsafe_get]]
+#+begin_src til
+func Vec__U32.unsafe_get(self: Vec__U32, i: USize) returns ref U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.get][Vec__U32.get]]
+#+begin_src til
+func Vec__U32.get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.pop][Vec__U32.pop]]
+#+begin_src til
+func Vec__U32.pop(mut self: Vec__U32) returns shallow U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.remove_at][Vec__U32.remove_at]]
+#+begin_src til
+func Vec__U32.remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.take_prefix][Vec__U32.take_prefix]]
+#+begin_src til
+func Vec__U32.take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.truncate][Vec__U32.truncate]]
+#+begin_src til
+func Vec__U32.truncate(mut self: Vec__U32, shallow n: USize)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.unsafe_set][Vec__U32.unsafe_set]]
+#+begin_src til
+func Vec__U32.unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.set][Vec__U32.set]]
+#+begin_src til
+func Vec__U32.set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.push_take][Vec__U32.push_take]]
+#+begin_src til
+func Vec__U32.push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.delete][Vec__U32.delete]]
+#+begin_src til
+func Vec__U32.delete(own self: Vec__U32, shallow call_free: Bool)
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Vec__U32.clone][Vec__U32.clone]]
+#+begin_src til
+func Vec__U32.clone(self: Vec__U32) returns Vec__U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Option__U32][Option__U32]]
+#+begin_src til
+enum Option__U32 {
+    None
+    Some: U32
+namespace:
+    func is_some(self: Option__U32) returns shallow Bool
+    func is_none(self: Option__U32) returns shallow Bool
+    func unwrap_or(self: Option__U32, shallow default_v: U32) returns shallow U32
+    func unwrap(self: Option__U32) returns shallow U32
+    func take(own self: Option__U32) returns shallow U32
+    ext_func None() returns Option__U32
+    ext_func Some(val: U32) returns Option__U32
+    core_func is(self: Option__U32, other: Option__U32) returns shallow Bool
+    func eq(self: Option__U32, other: Option__U32) returns shallow Bool
+    func delete(own self: Option__U32, shallow call_free: Bool)
+    func cmp(a: Option__U32, b: Option__U32) returns shallow I64
+    func to_str(self: Option__U32) returns Str
+    func clone(self: Option__U32) returns Option__U32
+    func size() returns shallow USize
+    func lt(a: Option__U32, b: Option__U32) returns shallow Bool
+    func gt(a: Option__U32, b: Option__U32) returns shallow Bool
+    func neq(a: Option__U32, b: Option__U32) returns shallow Bool
+    func lte(a: Option__U32, b: Option__U32) returns shallow Bool
+    func gte(a: Option__U32, b: Option__U32) returns shallow Bool
+}
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Option__U32.unwrap][Option__U32.unwrap]]
+#+begin_src til
+func Option__U32.unwrap(self: Option__U32) returns shallow U32
+#+end_src
+
+** [[file:src/self/parser.org::#til.src.self.parser.Option__U32.take][Option__U32.take]]
+#+begin_src til
+func Option__U32.take(own self: Option__U32) returns shallow U32
 #+end_src
 
 ** [[file:src/self/parser.org::#til.src.self.parser.Set__Str][Set__Str]]
@@ -6053,6 +6240,11 @@ func Vec__Bool.clone(self: Vec__Bool) returns Vec__Bool
 func swap__Expr(mut a: Expr, mut b: Expr)
 #+end_src
 
+** [[file:src/self/parser.org::#til.src.self.parser.adopt__U32][adopt__U32]]
+#+begin_src til
+func adopt__U32(dest: Dynamic, own src: U32)
+#+end_src
+
 ** [[file:src/self/parser.org::#til.src.self.parser.adopt__Bool][adopt__Bool]]
 #+begin_src til
 func adopt__Bool(dest: Dynamic, own src: Bool)
@@ -6144,7 +6336,7 @@ func name_fingerprint(name: Str) returns shallow U64
 ** [[file:src/self/context.org::#til.src.self.context.TypeScope][TypeScope]]
 #+begin_src til
 struct TypeScope {
-    mut bindings : Map__Str_TypeBinding
+    mut bindings : Map__U32_TypeBinding
     mut target_usize_pname : Str
     mut target_uptr_pname : Str
     mut func_defs : Map__Str_Dynamic
@@ -6155,36 +6347,45 @@ struct TypeScope {
     mut func_defs_filt : U64
     mut struct_defs_filt : U64
 namespace:
-    func get_binding(self: TypeScope, name: Str) returns shallow Option__ref_TypeBinding
-    func get_binding_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_TypeBinding
+    func local_binding_sym(self: TypeScope, sym: U32) returns shallow Option__ref_TypeBinding
+    func local_binding_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_TypeBinding
+    func has_local_binding_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
+    func has_local_binding_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
+    func get_binding_sym(self: TypeScope, sym: U32) returns shallow Option__ref_TypeBinding
+    func get_binding_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_TypeBinding
+    func find_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow ScopeFind
+    func find_sym(self: TypeScope, shallow sym: U32) returns shallow ScopeFind
+    func get_type_name(self: TypeScope, name: Str, symbols: SymbolPool) returns Type
+    func get_type_sym(self: TypeScope, shallow sym: U32) returns Type
     func in_function(self: TypeScope) returns shallow Bool
-    func bound_in_this_func(self: TypeScope, name: Str) returns shallow Bool
-    func bound_in_this_func_fp(self: TypeScope, name: Str, shallow fp: U64) returns shallow Bool
-    func find(self: TypeScope, name: Str) returns shallow ScopeFind
-    func get_type(self: TypeScope, name: Str) returns Type
-    func get_func_type(self: TypeScope, name: Str) returns shallow FuncType
+    func bound_in_this_func_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
+    func bound_in_this_func_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
+    func get_func_type_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow FuncType
     func get_struct(self: TypeScope, name: Str) returns shallow Option__ref_Expr
     func get_struct_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func struct_def_of(self: TypeScope, name: Str) returns shallow Option__ref_Expr
-    func struct_def_of_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func lookup_func(self: TypeScope, name: Str) returns shallow Option__ref_Expr
-    func lookup_func_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
+    func struct_def_of_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func struct_def_of_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func struct_def_of_by_sym(self: TypeScope, sym: U32, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func lookup_func_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func lookup_func_by_sym(self: TypeScope, sym: U32, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func lookup_func_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
     func any_func_def(self: TypeScope, name: Str) returns shallow Bool
     func any_func_def_fp(self: TypeScope, name: Str, shallow fp: U64) returns shallow Bool
     func local_struct_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
     func local_func_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func lookup_func_symbol(self: TypeScope, name: Str) returns shallow Option__ref_Expr
-    func lookup_func_symbol_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func set_func_def(mut self: TypeScope, name: Str, fdef: Expr)
-    func set_func_symbol(mut self: TypeScope, name: Str, fdef: Expr)
-    func set_struct_def(mut self: TypeScope, name: Str, sdef: Expr)
-    func is_mut(self: TypeScope, name: Str) returns shallow Bool
+    func lookup_func_symbol_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func lookup_func_symbol_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func set_func_def_name(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool)
+    func set_func_symbol_name(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool)
+    func set_struct_def(mut self: TypeScope, name: Str, sdef: Expr, symbols: SymbolPool)
+    func is_mut_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
+    func is_mut_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
     func erase_func_def(mut self: TypeScope, name: Str)
     func erase_binding(mut self: TypeScope, name: Str)
     func erase_struct_def(mut self: TypeScope, name: Str)
     func erase_ast_decl(mut self: TypeScope, name: Str, shallow erase_decl_binding: Bool)
     func refresh_lookup_filters(mut self: TypeScope)
-    func set(mut self: TypeScope, name: Str, type: Type, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType)
+    func set(mut self: TypeScope, name: Str, type: Type, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool)
     func clone(self: TypeScope) returns TypeScope
     func delete(own self: TypeScope, shallow call_free: Bool)
     func hash(self: TypeScope, hasher: HashFn) returns shallow U64
@@ -6199,7 +6400,7 @@ func binding_func_type(b: TypeBinding) returns shallow FuncType
 
 ** [[file:src/self/context.org::#til.src.self.context.type_binding_is_type_token][type_binding_is_type_token]]
 #+begin_src til
-func type_binding_is_type_token(scope: TypeScope, b: TypeBinding) returns shallow Bool
+func type_binding_is_type_token(scope: TypeScope, b: TypeBinding, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.init_func_is_generic][init_func_is_generic]]
@@ -6287,6 +6488,25 @@ namespace:
 }
 #+end_src
 
+** [[file:src/self/context.org::#til.src.self.context.FfiState][FfiState]]
+#+begin_src til
+struct FfiState {
+    mut dispatch_map : Map__Str_Dynamic
+    mut dispatch_inited : Bool
+    mut entries : Map__Str_FFIEntry
+    mut entries_inited : Bool
+    mut loaded : Bool
+    mut struct_defs : Map__Str_ExprPtrBox
+    mut type_cache : Vec__FFITypePtrBox
+    mut type_cache_inited : Bool
+namespace:
+    func clone(self: FfiState) returns FfiState
+    func delete(own self: FfiState, shallow call_free: Bool)
+    func hash(self: FfiState, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
 ** [[file:src/self/context.org::#til.src.self.context.InternedTypes][InternedTypes]]
 #+begin_src til
 struct InternedTypes {
@@ -6300,27 +6520,6 @@ namespace:
     func clone(_self: InternedTypes) returns InternedTypes
     func delete(own self: InternedTypes, shallow call_free: Bool)
     func hash(self: InternedTypes, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Sym][Sym]]
-#+begin_src til
-Sym is a None
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.SymbolPool][SymbolPool]]
-#+begin_src til
-struct SymbolPool {
-    mut by_name : Map__Str_U32
-    mut names : Vec__Str
-    mut next : U32
-namespace:
-    func intern(mut self: SymbolPool, name: Str) returns shallow U32
-    func resolve(self: SymbolPool, shallow sym: U32) returns Str
-    func clone(self: SymbolPool) returns SymbolPool
-    func delete(own self: SymbolPool, shallow call_free: Bool)
-    func hash(self: SymbolPool, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
@@ -6427,14 +6626,7 @@ struct Context {
     mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
     mut interned_types : InternedTypes
-    mut dispatch_map : Map__Str_Dynamic
-    mut dispatch_inited : Bool
-    mut ffi_map : Map__Str_FFIEntry
-    mut ffi_map_inited : Bool
-    mut ffi_loaded : Bool
-    mut ffi_struct_defs : Map__Str_ExprPtrBox
-    mut ffi_type_cache : Vec__FFITypePtrBox
-    mut ffi_type_cache_inited : Bool
+    mut ffi : FfiState
     mut symbols : SymbolPool
 namespace:
     func clone(self: Context) returns Context
@@ -6570,27 +6762,27 @@ func constfolder_classify_stmt(stmt: Expr, mut ctx: Context)
 
 ** [[file:src/self/context.org::#til.src.self.context.make_method_call_fcall][make_method_call_fcall]]
 #+begin_src til
-func make_method_call_fcall(own recv: Expr, method: Str, shallow line: U32, shallow col: U32) returns Expr
+func make_method_call_fcall(own recv: Expr, method: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.make_get_payload_fcall][make_get_payload_fcall]]
 #+begin_src til
-func make_get_payload_fcall(own arg: Expr, shallow payload_type: Type, shallow line: U32, shallow col: U32) returns Expr
+func make_get_payload_fcall(own arg: Expr, shallow payload_type: Type, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.make_is_tag_check_fcall][make_is_tag_check_fcall]]
 #+begin_src til
-func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow tag_size: USize, shallow line: U32, shallow col: U32) returns Expr
+func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow tag_size: USize, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.make_payload_ref_decl][make_payload_ref_decl]]
 #+begin_src til
-func make_payload_ref_decl(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool, shallow is_ref_payload: Bool, shallow used: Bool) returns Expr
+func make_payload_ref_decl(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool, mut symbols: SymbolPool, shallow is_ref_payload: Bool, shallow used: Bool) returns Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.make_payload_ref_decls][make_payload_ref_decls]]
 #+begin_src til
-func make_payload_ref_decls(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool, shallow is_ref_payload: Bool, shallow used: Bool) returns Vec__Expr
+func make_payload_ref_decls(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool, mut symbols: SymbolPool, shallow is_ref_payload: Bool, shallow used: Bool) returns Vec__Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.type_is_primitive][type_is_primitive]]
@@ -6620,37 +6812,47 @@ func func_returns_c_value(fd: FunctionDef) returns shallow Bool
 
 ** [[file:src/self/context.org::#til.src.self.context.func_param_passes_c_value][func_param_passes_c_value]]
 #+begin_src til
-func func_param_passes_c_value(fd: FunctionDef, shallow i: USize, shallow value_abi_ok: Bool, scope: TypeScope) returns shallow Bool
+func func_param_passes_c_value(fd: FunctionDef, shallow i: USize, shallow value_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.type_from_name_init][type_from_name_init]]
+** [[file:src/self/context.org::#til.src.self.context.type_from_name_init_name][type_from_name_init_name]]
 #+begin_src til
-func type_from_name_init(name: Str, scope: TypeScope) returns Type
+func type_from_name_init_name(name: Str, scope: TypeScope, symbols: SymbolPool) returns Type
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.type_from_declaration_name][type_from_declaration_name]]
 #+begin_src til
-func type_from_declaration_name(name: Str, scope: TypeScope) returns Type
+func type_from_declaration_name(name: Str, scope: TypeScope, symbols: SymbolPool) returns Type
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.declaration_resolved_type][declaration_resolved_type]]
 #+begin_src til
-func declaration_resolved_type(decl: Declaration, scope: TypeScope) returns Type
+func declaration_resolved_type(decl: Declaration, scope: TypeScope, symbols: SymbolPool) returns Type
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.field_inferred_type_name][field_inferred_type_name]]
 #+begin_src til
-func field_inferred_type_name(fd: Declaration) returns Str
+func field_inferred_type_name(fd: Declaration, symbols: SymbolPool) returns Str
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.array_vec_elem_type_name][array_vec_elem_type_name]]
 #+begin_src til
-func array_vec_elem_type_name(fcall: Expr) returns Str
+func array_vec_elem_type_name(fcall: Expr, symbols: SymbolPool) returns Str
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.delete_body_is_free_only][delete_body_is_free_only]]
+#+begin_src til
+func delete_body_is_free_only(fdef: Expr, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.init_delete_is_noop][init_delete_is_noop]]
+#+begin_src til
+func init_delete_is_noop(type_name: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.is_pod_type_for_clone][is_pod_type_for_clone]]
 #+begin_src til
-func is_pod_type_for_clone(type_name: Str, scope: TypeScope) returns shallow Bool
+func is_pod_type_for_clone(type_name: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.is_struct_or_enum][is_struct_or_enum]]
@@ -6700,7 +6902,7 @@ func def_ns_pos(sdef: Expr, name: Str) returns shallow I64
 
 ** [[file:src/self/context.org::#til.src.self.context.ns_const_eval_order][ns_const_eval_order]]
 #+begin_src til
-func ns_const_eval_order(tname: Str, sdef: Expr) returns Vec__I64
+func ns_const_eval_order(tname: Str, sdef: Expr, symbols: SymbolPool) returns Vec__I64
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.enum_has_payloads][enum_has_payloads]]
@@ -6780,17 +6982,17 @@ func enum_has_ref_payload(enum_def: Expr) returns shallow Bool
 
 ** [[file:src/self/context.org::#til.src.self.context.rhs_is_allocator_call][rhs_is_allocator_call]]
 #+begin_src til
-func rhs_is_allocator_call(e: Expr) returns shallow Bool
+func rhs_is_allocator_call(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.fn_never_returns][fn_never_returns]]
 #+begin_src til
-func fn_never_returns(body: Expr, scope: TypeScope) returns shallow Bool
+func fn_never_returns(body: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.stmt_always_diverges][stmt_always_diverges]]
 #+begin_src til
-func stmt_always_diverges(e: Expr, scope: TypeScope) returns shallow Bool
+func stmt_always_diverges(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.lazy_body_inlinable][lazy_body_inlinable]]
@@ -6810,7 +7012,7 @@ func lazy_body_stmt_inlinable(body: Expr) returns shallow Bool
 
 ** [[file:src/self/context.org::#til.src.self.context.lazy_variadic_body_unrollable][lazy_variadic_body_unrollable]]
 #+begin_src til
-func lazy_variadic_body_unrollable(body: Expr, vname: Str) returns shallow Bool
+func lazy_variadic_body_unrollable(body: Expr, vname: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.is_primitive][is_primitive]]
@@ -6840,17 +7042,17 @@ func mark_fcall_direct(mut e: Expr)
 
 ** [[file:src/self/context.org::#til.src.self.context.resolve_direct_fcall][resolve_direct_fcall]]
 #+begin_src til
-func resolve_direct_fcall(fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
+func resolve_direct_fcall(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.is_range_new_call][is_range_new_call]]
 #+begin_src til
-func is_range_new_call(e: Expr) returns shallow Bool
+func is_range_new_call(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.ast_print][ast_print]]
 #+begin_src til
-proc ast_print(e: Expr, shallow indent: U32)
+proc ast_print(e: Expr, shallow indent: U32, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.fcall_kwargs_count][fcall_kwargs_count]]
@@ -6876,6 +7078,11 @@ func qname_keys_index(keys: Vec__Str, a: Str, sep: Str, b: Str) returns shallow 
 ** [[file:src/self/context.org::#til.src.self.context.qname_in_set][qname_in_set]]
 #+begin_src til
 func qname_in_set(s: Set__Str, a: Str, sep: Str, b: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Sym_TypeBinding][Map__Sym_TypeBinding]]
+#+begin_src til
+Map__Sym_TypeBinding is a None
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Vec__BorrowRoot][Vec__BorrowRoot]]
@@ -7010,60 +7217,60 @@ func Vec__BorrowRoot.delete(own self: Vec__BorrowRoot, shallow call_free: Bool)
 func Vec__BorrowRoot.clone(self: Vec__BorrowRoot) returns Vec__BorrowRoot
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding][Map__Str_TypeBinding]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding][Map__U32_TypeBinding]]
 #+begin_src til
-struct Map__Str_TypeBinding {
-    mut keys : Vec__Str
+struct Map__U32_TypeBinding {
+    mut keys : Vec__U32
     mut values : Vec__TypeBinding
 namespace:
-    func new() returns Map__Str_TypeBinding
-    func with_capacity(shallow n: USize) returns Map__Str_TypeBinding
-    func len(self: Map__Str_TypeBinding) returns shallow USize
-    func clear(mut self: Map__Str_TypeBinding)
-    func has(self: Map__Str_TypeBinding, key: Str) returns shallow Bool
-    func get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64) returns ref TypeBinding
-    func set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
-    func remove(mut self: Map__Str_TypeBinding, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_TypeBinding, shallow call_free: Bool)
-    func clone(self: Map__Str_TypeBinding) returns Map__Str_TypeBinding
-    func hash(self: Map__Str_TypeBinding, hasher: HashFn) returns shallow U64
+    func new() returns Map__U32_TypeBinding
+    func with_capacity(shallow n: USize) returns Map__U32_TypeBinding
+    func len(self: Map__U32_TypeBinding) returns shallow USize
+    func clear(mut self: Map__U32_TypeBinding)
+    func has(self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
+    func get(self: Map__U32_TypeBinding, key: U32, mut _err_kind: I64) returns ref TypeBinding
+    func set(mut self: Map__U32_TypeBinding, shallow key: U32, own val: TypeBinding)
+    func remove(mut self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
+    func delete(own self: Map__U32_TypeBinding, shallow call_free: Bool)
+    func clone(self: Map__U32_TypeBinding) returns Map__U32_TypeBinding
+    func hash(self: Map__U32_TypeBinding, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding.new][Map__Str_TypeBinding.new]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding.new][Map__U32_TypeBinding.new]]
 #+begin_src til
-func Map__Str_TypeBinding.new() returns Map__Str_TypeBinding
+func Map__U32_TypeBinding.new() returns Map__U32_TypeBinding
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding.with_capacity][Map__Str_TypeBinding.with_capacity]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding.with_capacity][Map__U32_TypeBinding.with_capacity]]
 #+begin_src til
-func Map__Str_TypeBinding.with_capacity(shallow n: USize) returns Map__Str_TypeBinding
+func Map__U32_TypeBinding.with_capacity(shallow n: USize) returns Map__U32_TypeBinding
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding.clear][Map__Str_TypeBinding.clear]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding.clear][Map__U32_TypeBinding.clear]]
 #+begin_src til
-func Map__Str_TypeBinding.clear(mut self: Map__Str_TypeBinding)
+func Map__U32_TypeBinding.clear(mut self: Map__U32_TypeBinding)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding.has][Map__Str_TypeBinding.has]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding.has][Map__U32_TypeBinding.has]]
 #+begin_src til
-func Map__Str_TypeBinding.has(self: Map__Str_TypeBinding, key: Str) returns shallow Bool
+func Map__U32_TypeBinding.has(self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding.get][Map__Str_TypeBinding.get]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding.get][Map__U32_TypeBinding.get]]
 #+begin_src til
-func Map__Str_TypeBinding.get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64) returns ref TypeBinding
+func Map__U32_TypeBinding.get(self: Map__U32_TypeBinding, key: U32, mut _err_kind: I64) returns ref TypeBinding
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding.set][Map__Str_TypeBinding.set]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding.set][Map__U32_TypeBinding.set]]
 #+begin_src til
-func Map__Str_TypeBinding.set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
+func Map__U32_TypeBinding.set(mut self: Map__U32_TypeBinding, shallow key: U32, own val: TypeBinding)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding.remove][Map__Str_TypeBinding.remove]]
+** [[file:src/self/context.org::#til.src.self.context.Map__U32_TypeBinding.remove][Map__U32_TypeBinding.remove]]
 #+begin_src til
-func Map__Str_TypeBinding.remove(mut self: Map__Str_TypeBinding, key: Str) returns shallow Bool
+func Map__U32_TypeBinding.remove(mut self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Option__ref_TypeScope][Option__ref_TypeScope]]
@@ -7184,60 +7391,248 @@ func Map__U32_Str.set(mut self: Map__U32_Str, shallow key: U32, own val: Str)
 func Map__U32_Str.remove(mut self: Map__U32_Str, shallow key: U32) returns shallow Bool
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32][Map__Str_U32]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry][Map__Str_FFIEntry]]
 #+begin_src til
-struct Map__Str_U32 {
+struct Map__Str_FFIEntry {
     mut keys : Vec__Str
-    mut values : Vec__U32
+    mut values : Vec__FFIEntry
 namespace:
-    func new() returns Map__Str_U32
-    func with_capacity(shallow n: USize) returns Map__Str_U32
-    func len(self: Map__Str_U32) returns shallow USize
-    func clear(mut self: Map__Str_U32)
-    func has(self: Map__Str_U32, key: Str) returns shallow Bool
-    func get(self: Map__Str_U32, key: Str, mut _err_kind: I64) returns ref U32
-    func set(mut self: Map__Str_U32, key: Str, own val: U32)
-    func remove(mut self: Map__Str_U32, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_U32, shallow call_free: Bool)
-    func clone(self: Map__Str_U32) returns Map__Str_U32
-    func hash(self: Map__Str_U32, hasher: HashFn) returns shallow U64
+    func new() returns Map__Str_FFIEntry
+    func with_capacity(shallow n: USize) returns Map__Str_FFIEntry
+    func len(self: Map__Str_FFIEntry) returns shallow USize
+    func clear(mut self: Map__Str_FFIEntry)
+    func has(self: Map__Str_FFIEntry, key: Str) returns shallow Bool
+    func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64) returns ref FFIEntry
+    func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
+    func remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
+    func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
+    func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32.new][Map__Str_U32.new]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.new][Map__Str_FFIEntry.new]]
 #+begin_src til
-func Map__Str_U32.new() returns Map__Str_U32
+func Map__Str_FFIEntry.new() returns Map__Str_FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32.with_capacity][Map__Str_U32.with_capacity]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.with_capacity][Map__Str_FFIEntry.with_capacity]]
 #+begin_src til
-func Map__Str_U32.with_capacity(shallow n: USize) returns Map__Str_U32
+func Map__Str_FFIEntry.with_capacity(shallow n: USize) returns Map__Str_FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32.clear][Map__Str_U32.clear]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.clear][Map__Str_FFIEntry.clear]]
 #+begin_src til
-func Map__Str_U32.clear(mut self: Map__Str_U32)
+func Map__Str_FFIEntry.clear(mut self: Map__Str_FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32.has][Map__Str_U32.has]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.has][Map__Str_FFIEntry.has]]
 #+begin_src til
-func Map__Str_U32.has(self: Map__Str_U32, key: Str) returns shallow Bool
+func Map__Str_FFIEntry.has(self: Map__Str_FFIEntry, key: Str) returns shallow Bool
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32.get][Map__Str_U32.get]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.get][Map__Str_FFIEntry.get]]
 #+begin_src til
-func Map__Str_U32.get(self: Map__Str_U32, key: Str, mut _err_kind: I64) returns ref U32
+func Map__Str_FFIEntry.get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64) returns ref FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32.set][Map__Str_U32.set]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.set][Map__Str_FFIEntry.set]]
 #+begin_src til
-func Map__Str_U32.set(mut self: Map__Str_U32, key: Str, own val: U32)
+func Map__Str_FFIEntry.set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_U32.remove][Map__Str_U32.remove]]
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.remove][Map__Str_FFIEntry.remove]]
 #+begin_src til
-func Map__Str_U32.remove(mut self: Map__Str_U32, key: Str) returns shallow Bool
+func Map__Str_FFIEntry.remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox][Map__Str_ExprPtrBox]]
+#+begin_src til
+struct Map__Str_ExprPtrBox {
+    mut keys : Vec__Str
+    mut values : Vec__ExprPtrBox
+namespace:
+    func new() returns Map__Str_ExprPtrBox
+    func with_capacity(shallow n: USize) returns Map__Str_ExprPtrBox
+    func len(self: Map__Str_ExprPtrBox) returns shallow USize
+    func clear(mut self: Map__Str_ExprPtrBox)
+    func has(self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
+    func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64) returns ref ExprPtrBox
+    func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
+    func remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
+    func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
+    func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.new][Map__Str_ExprPtrBox.new]]
+#+begin_src til
+func Map__Str_ExprPtrBox.new() returns Map__Str_ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.with_capacity][Map__Str_ExprPtrBox.with_capacity]]
+#+begin_src til
+func Map__Str_ExprPtrBox.with_capacity(shallow n: USize) returns Map__Str_ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.clear][Map__Str_ExprPtrBox.clear]]
+#+begin_src til
+func Map__Str_ExprPtrBox.clear(mut self: Map__Str_ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.has][Map__Str_ExprPtrBox.has]]
+#+begin_src til
+func Map__Str_ExprPtrBox.has(self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.get][Map__Str_ExprPtrBox.get]]
+#+begin_src til
+func Map__Str_ExprPtrBox.get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64) returns ref ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.set][Map__Str_ExprPtrBox.set]]
+#+begin_src til
+func Map__Str_ExprPtrBox.set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.remove][Map__Str_ExprPtrBox.remove]]
+#+begin_src til
+func Map__Str_ExprPtrBox.remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox][Vec__FFITypePtrBox]]
+#+begin_src til
+struct Vec__FFITypePtrBox {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__FFITypePtrBox
+    func with_capacity(shallow n: USize) returns Vec__FFITypePtrBox
+    func len(self: Vec__FFITypePtrBox) returns shallow USize
+    func clear(mut self: Vec__FFITypePtrBox)
+    func delete_marked(mut self: Vec__FFITypePtrBox, marks: Dynamic)
+    func push(mut self: Vec__FFITypePtrBox, own val: FFITypePtrBox)
+    func append(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
+    func take(mut self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
+    func move_to(own self: Vec__FFITypePtrBox, mut dest: Vec__FFITypePtrBox)
+    func move_from(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
+    func unsafe_get(self: Vec__FFITypePtrBox, i: USize) returns ref FFITypePtrBox
+    func get(self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
+    func pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
+    func remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USize) returns Vec__FFITypePtrBox
+    func truncate(mut self: Vec__FFITypePtrBox, shallow n: USize)
+    func unsafe_set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox)
+    func set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox, mut _err_kind: I64)
+    func push_take(mut self: Vec__FFITypePtrBox, mut src: Vec__FFITypePtrBox, shallow i: USize)
+    func delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
+    func clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.new][Vec__FFITypePtrBox.new]]
+#+begin_src til
+func Vec__FFITypePtrBox.new() returns Vec__FFITypePtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.with_capacity][Vec__FFITypePtrBox.with_capacity]]
+#+begin_src til
+func Vec__FFITypePtrBox.with_capacity(shallow n: USize) returns Vec__FFITypePtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.clear][Vec__FFITypePtrBox.clear]]
+#+begin_src til
+func Vec__FFITypePtrBox.clear(mut self: Vec__FFITypePtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.delete_marked][Vec__FFITypePtrBox.delete_marked]]
+#+begin_src til
+func Vec__FFITypePtrBox.delete_marked(mut self: Vec__FFITypePtrBox, marks: Dynamic)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.push][Vec__FFITypePtrBox.push]]
+#+begin_src til
+func Vec__FFITypePtrBox.push(mut self: Vec__FFITypePtrBox, own val: FFITypePtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.append][Vec__FFITypePtrBox.append]]
+#+begin_src til
+func Vec__FFITypePtrBox.append(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.take][Vec__FFITypePtrBox.take]]
+#+begin_src til
+func Vec__FFITypePtrBox.take(mut self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.move_to][Vec__FFITypePtrBox.move_to]]
+#+begin_src til
+func Vec__FFITypePtrBox.move_to(own self: Vec__FFITypePtrBox, mut dest: Vec__FFITypePtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.move_from][Vec__FFITypePtrBox.move_from]]
+#+begin_src til
+func Vec__FFITypePtrBox.move_from(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.unsafe_get][Vec__FFITypePtrBox.unsafe_get]]
+#+begin_src til
+func Vec__FFITypePtrBox.unsafe_get(self: Vec__FFITypePtrBox, i: USize) returns ref FFITypePtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.get][Vec__FFITypePtrBox.get]]
+#+begin_src til
+func Vec__FFITypePtrBox.get(self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.pop][Vec__FFITypePtrBox.pop]]
+#+begin_src til
+func Vec__FFITypePtrBox.pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.remove_at][Vec__FFITypePtrBox.remove_at]]
+#+begin_src til
+func Vec__FFITypePtrBox.remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.take_prefix][Vec__FFITypePtrBox.take_prefix]]
+#+begin_src til
+func Vec__FFITypePtrBox.take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USize) returns Vec__FFITypePtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.truncate][Vec__FFITypePtrBox.truncate]]
+#+begin_src til
+func Vec__FFITypePtrBox.truncate(mut self: Vec__FFITypePtrBox, shallow n: USize)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.unsafe_set][Vec__FFITypePtrBox.unsafe_set]]
+#+begin_src til
+func Vec__FFITypePtrBox.unsafe_set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.set][Vec__FFITypePtrBox.set]]
+#+begin_src til
+func Vec__FFITypePtrBox.set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.push_take][Vec__FFITypePtrBox.push_take]]
+#+begin_src til
+func Vec__FFITypePtrBox.push_take(mut self: Vec__FFITypePtrBox, mut src: Vec__FFITypePtrBox, shallow i: USize)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.delete][Vec__FFITypePtrBox.delete]]
+#+begin_src til
+func Vec__FFITypePtrBox.delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.clone][Vec__FFITypePtrBox.clone]]
+#+begin_src til
+func Vec__FFITypePtrBox.clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Map__Str_Mode][Map__Str_Mode]]
@@ -7964,250 +8359,6 @@ func Map__Str_Dynamic.set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic
 func Map__Str_Dynamic.remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry][Map__Str_FFIEntry]]
-#+begin_src til
-struct Map__Str_FFIEntry {
-    mut keys : Vec__Str
-    mut values : Vec__FFIEntry
-namespace:
-    func new() returns Map__Str_FFIEntry
-    func with_capacity(shallow n: USize) returns Map__Str_FFIEntry
-    func len(self: Map__Str_FFIEntry) returns shallow USize
-    func clear(mut self: Map__Str_FFIEntry)
-    func has(self: Map__Str_FFIEntry, key: Str) returns shallow Bool
-    func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64) returns ref FFIEntry
-    func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
-    func remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
-    func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
-    func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.new][Map__Str_FFIEntry.new]]
-#+begin_src til
-func Map__Str_FFIEntry.new() returns Map__Str_FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.with_capacity][Map__Str_FFIEntry.with_capacity]]
-#+begin_src til
-func Map__Str_FFIEntry.with_capacity(shallow n: USize) returns Map__Str_FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.clear][Map__Str_FFIEntry.clear]]
-#+begin_src til
-func Map__Str_FFIEntry.clear(mut self: Map__Str_FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.has][Map__Str_FFIEntry.has]]
-#+begin_src til
-func Map__Str_FFIEntry.has(self: Map__Str_FFIEntry, key: Str) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.get][Map__Str_FFIEntry.get]]
-#+begin_src til
-func Map__Str_FFIEntry.get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64) returns ref FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.set][Map__Str_FFIEntry.set]]
-#+begin_src til
-func Map__Str_FFIEntry.set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_FFIEntry.remove][Map__Str_FFIEntry.remove]]
-#+begin_src til
-func Map__Str_FFIEntry.remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox][Map__Str_ExprPtrBox]]
-#+begin_src til
-struct Map__Str_ExprPtrBox {
-    mut keys : Vec__Str
-    mut values : Vec__ExprPtrBox
-namespace:
-    func new() returns Map__Str_ExprPtrBox
-    func with_capacity(shallow n: USize) returns Map__Str_ExprPtrBox
-    func len(self: Map__Str_ExprPtrBox) returns shallow USize
-    func clear(mut self: Map__Str_ExprPtrBox)
-    func has(self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
-    func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64) returns ref ExprPtrBox
-    func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
-    func remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
-    func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
-    func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.new][Map__Str_ExprPtrBox.new]]
-#+begin_src til
-func Map__Str_ExprPtrBox.new() returns Map__Str_ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.with_capacity][Map__Str_ExprPtrBox.with_capacity]]
-#+begin_src til
-func Map__Str_ExprPtrBox.with_capacity(shallow n: USize) returns Map__Str_ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.clear][Map__Str_ExprPtrBox.clear]]
-#+begin_src til
-func Map__Str_ExprPtrBox.clear(mut self: Map__Str_ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.has][Map__Str_ExprPtrBox.has]]
-#+begin_src til
-func Map__Str_ExprPtrBox.has(self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.get][Map__Str_ExprPtrBox.get]]
-#+begin_src til
-func Map__Str_ExprPtrBox.get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64) returns ref ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.set][Map__Str_ExprPtrBox.set]]
-#+begin_src til
-func Map__Str_ExprPtrBox.set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Map__Str_ExprPtrBox.remove][Map__Str_ExprPtrBox.remove]]
-#+begin_src til
-func Map__Str_ExprPtrBox.remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox][Vec__FFITypePtrBox]]
-#+begin_src til
-struct Vec__FFITypePtrBox {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__FFITypePtrBox
-    func with_capacity(shallow n: USize) returns Vec__FFITypePtrBox
-    func len(self: Vec__FFITypePtrBox) returns shallow USize
-    func clear(mut self: Vec__FFITypePtrBox)
-    func delete_marked(mut self: Vec__FFITypePtrBox, marks: Dynamic)
-    func push(mut self: Vec__FFITypePtrBox, own val: FFITypePtrBox)
-    func append(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
-    func take(mut self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
-    func move_to(own self: Vec__FFITypePtrBox, mut dest: Vec__FFITypePtrBox)
-    func move_from(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
-    func unsafe_get(self: Vec__FFITypePtrBox, i: USize) returns ref FFITypePtrBox
-    func get(self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
-    func pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
-    func remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USize) returns Vec__FFITypePtrBox
-    func truncate(mut self: Vec__FFITypePtrBox, shallow n: USize)
-    func unsafe_set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox)
-    func set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox, mut _err_kind: I64)
-    func push_take(mut self: Vec__FFITypePtrBox, mut src: Vec__FFITypePtrBox, shallow i: USize)
-    func delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
-    func clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
-    func size() returns shallow USize
-}
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.new][Vec__FFITypePtrBox.new]]
-#+begin_src til
-func Vec__FFITypePtrBox.new() returns Vec__FFITypePtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.with_capacity][Vec__FFITypePtrBox.with_capacity]]
-#+begin_src til
-func Vec__FFITypePtrBox.with_capacity(shallow n: USize) returns Vec__FFITypePtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.clear][Vec__FFITypePtrBox.clear]]
-#+begin_src til
-func Vec__FFITypePtrBox.clear(mut self: Vec__FFITypePtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.delete_marked][Vec__FFITypePtrBox.delete_marked]]
-#+begin_src til
-func Vec__FFITypePtrBox.delete_marked(mut self: Vec__FFITypePtrBox, marks: Dynamic)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.push][Vec__FFITypePtrBox.push]]
-#+begin_src til
-func Vec__FFITypePtrBox.push(mut self: Vec__FFITypePtrBox, own val: FFITypePtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.append][Vec__FFITypePtrBox.append]]
-#+begin_src til
-func Vec__FFITypePtrBox.append(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.take][Vec__FFITypePtrBox.take]]
-#+begin_src til
-func Vec__FFITypePtrBox.take(mut self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.move_to][Vec__FFITypePtrBox.move_to]]
-#+begin_src til
-func Vec__FFITypePtrBox.move_to(own self: Vec__FFITypePtrBox, mut dest: Vec__FFITypePtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.move_from][Vec__FFITypePtrBox.move_from]]
-#+begin_src til
-func Vec__FFITypePtrBox.move_from(mut self: Vec__FFITypePtrBox, own other: Vec__FFITypePtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.unsafe_get][Vec__FFITypePtrBox.unsafe_get]]
-#+begin_src til
-func Vec__FFITypePtrBox.unsafe_get(self: Vec__FFITypePtrBox, i: USize) returns ref FFITypePtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.get][Vec__FFITypePtrBox.get]]
-#+begin_src til
-func Vec__FFITypePtrBox.get(self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.pop][Vec__FFITypePtrBox.pop]]
-#+begin_src til
-func Vec__FFITypePtrBox.pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.remove_at][Vec__FFITypePtrBox.remove_at]]
-#+begin_src til
-func Vec__FFITypePtrBox.remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.take_prefix][Vec__FFITypePtrBox.take_prefix]]
-#+begin_src til
-func Vec__FFITypePtrBox.take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USize) returns Vec__FFITypePtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.truncate][Vec__FFITypePtrBox.truncate]]
-#+begin_src til
-func Vec__FFITypePtrBox.truncate(mut self: Vec__FFITypePtrBox, shallow n: USize)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.unsafe_set][Vec__FFITypePtrBox.unsafe_set]]
-#+begin_src til
-func Vec__FFITypePtrBox.unsafe_set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.set][Vec__FFITypePtrBox.set]]
-#+begin_src til
-func Vec__FFITypePtrBox.set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox, mut _err_kind: I64)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.push_take][Vec__FFITypePtrBox.push_take]]
-#+begin_src til
-func Vec__FFITypePtrBox.push_take(mut self: Vec__FFITypePtrBox, mut src: Vec__FFITypePtrBox, shallow i: USize)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.delete][Vec__FFITypePtrBox.delete]]
-#+begin_src til
-func Vec__FFITypePtrBox.delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFITypePtrBox.clone][Vec__FFITypePtrBox.clone]]
-#+begin_src til
-func Vec__FFITypePtrBox.clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
-#+end_src
-
 ** [[file:src/self/context.org::#til.src.self.context.Option__ref_Declaration][Option__ref_Declaration]]
 #+begin_src til
 enum Option__ref_Declaration {
@@ -8404,136 +8555,268 @@ func Vec__TypeBinding.delete(own self: Vec__TypeBinding, shallow call_free: Bool
 func Vec__TypeBinding.clone(self: Vec__TypeBinding) returns Vec__TypeBinding
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32][Vec__U32]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry][Vec__FFIEntry]]
 #+begin_src til
-struct Vec__U32 {
+struct Vec__FFIEntry {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__U32
-    func with_capacity(shallow n: USize) returns Vec__U32
-    func len(self: Vec__U32) returns shallow USize
-    func clear(mut self: Vec__U32)
-    func delete_marked(mut self: Vec__U32, marks: Dynamic)
-    func push(mut self: Vec__U32, own val: U32)
-    func append(mut self: Vec__U32, own other: Vec__U32)
-    func take(mut self: Vec__U32) returns Vec__U32
-    func move_to(own self: Vec__U32, mut dest: Vec__U32)
-    func move_from(mut self: Vec__U32, own other: Vec__U32)
-    func unsafe_get(self: Vec__U32, i: USize) returns ref U32
-    func get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
-    func pop(mut self: Vec__U32) returns shallow U32
-    func remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
-    func truncate(mut self: Vec__U32, shallow n: USize)
-    func unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
-    func set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64)
-    func push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
-    func delete(own self: Vec__U32, shallow call_free: Bool)
-    func clone(self: Vec__U32) returns Vec__U32
+    func new() returns Vec__FFIEntry
+    func with_capacity(shallow n: USize) returns Vec__FFIEntry
+    func len(self: Vec__FFIEntry) returns shallow USize
+    func clear(mut self: Vec__FFIEntry)
+    func delete_marked(mut self: Vec__FFIEntry, marks: Dynamic)
+    func push(mut self: Vec__FFIEntry, own val: FFIEntry)
+    func append(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
+    func take(mut self: Vec__FFIEntry) returns Vec__FFIEntry
+    func move_to(own self: Vec__FFIEntry, mut dest: Vec__FFIEntry)
+    func move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
+    func unsafe_get(self: Vec__FFIEntry, i: USize) returns ref FFIEntry
+    func get(self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
+    func pop(mut self: Vec__FFIEntry) returns FFIEntry
+    func remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__FFIEntry, shallow n: USize) returns Vec__FFIEntry
+    func truncate(mut self: Vec__FFIEntry, shallow n: USize)
+    func unsafe_set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry)
+    func set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry, mut _err_kind: I64)
+    func push_take(mut self: Vec__FFIEntry, mut src: Vec__FFIEntry, shallow i: USize)
+    func delete(own self: Vec__FFIEntry, shallow call_free: Bool)
+    func clone(self: Vec__FFIEntry) returns Vec__FFIEntry
     func size() returns shallow USize
 }
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.new][Vec__U32.new]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.new][Vec__FFIEntry.new]]
 #+begin_src til
-func Vec__U32.new() returns Vec__U32
+func Vec__FFIEntry.new() returns Vec__FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.with_capacity][Vec__U32.with_capacity]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.with_capacity][Vec__FFIEntry.with_capacity]]
 #+begin_src til
-func Vec__U32.with_capacity(shallow n: USize) returns Vec__U32
+func Vec__FFIEntry.with_capacity(shallow n: USize) returns Vec__FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.clear][Vec__U32.clear]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.clear][Vec__FFIEntry.clear]]
 #+begin_src til
-func Vec__U32.clear(mut self: Vec__U32)
+func Vec__FFIEntry.clear(mut self: Vec__FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.delete_marked][Vec__U32.delete_marked]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.delete_marked][Vec__FFIEntry.delete_marked]]
 #+begin_src til
-func Vec__U32.delete_marked(mut self: Vec__U32, marks: Dynamic)
+func Vec__FFIEntry.delete_marked(mut self: Vec__FFIEntry, marks: Dynamic)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.push][Vec__U32.push]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.push][Vec__FFIEntry.push]]
 #+begin_src til
-func Vec__U32.push(mut self: Vec__U32, own val: U32)
+func Vec__FFIEntry.push(mut self: Vec__FFIEntry, own val: FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.append][Vec__U32.append]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.append][Vec__FFIEntry.append]]
 #+begin_src til
-func Vec__U32.append(mut self: Vec__U32, own other: Vec__U32)
+func Vec__FFIEntry.append(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.take][Vec__U32.take]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.take][Vec__FFIEntry.take]]
 #+begin_src til
-func Vec__U32.take(mut self: Vec__U32) returns Vec__U32
+func Vec__FFIEntry.take(mut self: Vec__FFIEntry) returns Vec__FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.move_to][Vec__U32.move_to]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.move_to][Vec__FFIEntry.move_to]]
 #+begin_src til
-func Vec__U32.move_to(own self: Vec__U32, mut dest: Vec__U32)
+func Vec__FFIEntry.move_to(own self: Vec__FFIEntry, mut dest: Vec__FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.move_from][Vec__U32.move_from]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.move_from][Vec__FFIEntry.move_from]]
 #+begin_src til
-func Vec__U32.move_from(mut self: Vec__U32, own other: Vec__U32)
+func Vec__FFIEntry.move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.unsafe_get][Vec__U32.unsafe_get]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.unsafe_get][Vec__FFIEntry.unsafe_get]]
 #+begin_src til
-func Vec__U32.unsafe_get(self: Vec__U32, i: USize) returns ref U32
+func Vec__FFIEntry.unsafe_get(self: Vec__FFIEntry, i: USize) returns ref FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.get][Vec__U32.get]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.get][Vec__FFIEntry.get]]
 #+begin_src til
-func Vec__U32.get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
+func Vec__FFIEntry.get(self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.pop][Vec__U32.pop]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.pop][Vec__FFIEntry.pop]]
 #+begin_src til
-func Vec__U32.pop(mut self: Vec__U32) returns shallow U32
+func Vec__FFIEntry.pop(mut self: Vec__FFIEntry) returns FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.remove_at][Vec__U32.remove_at]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.remove_at][Vec__FFIEntry.remove_at]]
 #+begin_src til
-func Vec__U32.remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
+func Vec__FFIEntry.remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.take_prefix][Vec__U32.take_prefix]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.take_prefix][Vec__FFIEntry.take_prefix]]
 #+begin_src til
-func Vec__U32.take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
+func Vec__FFIEntry.take_prefix(mut self: Vec__FFIEntry, shallow n: USize) returns Vec__FFIEntry
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.truncate][Vec__U32.truncate]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.truncate][Vec__FFIEntry.truncate]]
 #+begin_src til
-func Vec__U32.truncate(mut self: Vec__U32, shallow n: USize)
+func Vec__FFIEntry.truncate(mut self: Vec__FFIEntry, shallow n: USize)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.unsafe_set][Vec__U32.unsafe_set]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.unsafe_set][Vec__FFIEntry.unsafe_set]]
 #+begin_src til
-func Vec__U32.unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
+func Vec__FFIEntry.unsafe_set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.set][Vec__U32.set]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.set][Vec__FFIEntry.set]]
 #+begin_src til
-func Vec__U32.set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64)
+func Vec__FFIEntry.set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry, mut _err_kind: I64)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.push_take][Vec__U32.push_take]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.push_take][Vec__FFIEntry.push_take]]
 #+begin_src til
-func Vec__U32.push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
+func Vec__FFIEntry.push_take(mut self: Vec__FFIEntry, mut src: Vec__FFIEntry, shallow i: USize)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.delete][Vec__U32.delete]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.delete][Vec__FFIEntry.delete]]
 #+begin_src til
-func Vec__U32.delete(own self: Vec__U32, shallow call_free: Bool)
+func Vec__FFIEntry.delete(own self: Vec__FFIEntry, shallow call_free: Bool)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__U32.clone][Vec__U32.clone]]
+** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.clone][Vec__FFIEntry.clone]]
 #+begin_src til
-func Vec__U32.clone(self: Vec__U32) returns Vec__U32
+func Vec__FFIEntry.clone(self: Vec__FFIEntry) returns Vec__FFIEntry
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox][Vec__ExprPtrBox]]
+#+begin_src til
+struct Vec__ExprPtrBox {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__ExprPtrBox
+    func with_capacity(shallow n: USize) returns Vec__ExprPtrBox
+    func len(self: Vec__ExprPtrBox) returns shallow USize
+    func clear(mut self: Vec__ExprPtrBox)
+    func delete_marked(mut self: Vec__ExprPtrBox, marks: Dynamic)
+    func push(mut self: Vec__ExprPtrBox, own val: ExprPtrBox)
+    func append(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
+    func take(mut self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
+    func move_to(own self: Vec__ExprPtrBox, mut dest: Vec__ExprPtrBox)
+    func move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
+    func unsafe_get(self: Vec__ExprPtrBox, i: USize) returns ref ExprPtrBox
+    func get(self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
+    func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
+    func remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) returns Vec__ExprPtrBox
+    func truncate(mut self: Vec__ExprPtrBox, shallow n: USize)
+    func unsafe_set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox)
+    func set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox, mut _err_kind: I64)
+    func push_take(mut self: Vec__ExprPtrBox, mut src: Vec__ExprPtrBox, shallow i: USize)
+    func delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
+    func clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.new][Vec__ExprPtrBox.new]]
+#+begin_src til
+func Vec__ExprPtrBox.new() returns Vec__ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.with_capacity][Vec__ExprPtrBox.with_capacity]]
+#+begin_src til
+func Vec__ExprPtrBox.with_capacity(shallow n: USize) returns Vec__ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.clear][Vec__ExprPtrBox.clear]]
+#+begin_src til
+func Vec__ExprPtrBox.clear(mut self: Vec__ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.delete_marked][Vec__ExprPtrBox.delete_marked]]
+#+begin_src til
+func Vec__ExprPtrBox.delete_marked(mut self: Vec__ExprPtrBox, marks: Dynamic)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.push][Vec__ExprPtrBox.push]]
+#+begin_src til
+func Vec__ExprPtrBox.push(mut self: Vec__ExprPtrBox, own val: ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.append][Vec__ExprPtrBox.append]]
+#+begin_src til
+func Vec__ExprPtrBox.append(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.take][Vec__ExprPtrBox.take]]
+#+begin_src til
+func Vec__ExprPtrBox.take(mut self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.move_to][Vec__ExprPtrBox.move_to]]
+#+begin_src til
+func Vec__ExprPtrBox.move_to(own self: Vec__ExprPtrBox, mut dest: Vec__ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.move_from][Vec__ExprPtrBox.move_from]]
+#+begin_src til
+func Vec__ExprPtrBox.move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.unsafe_get][Vec__ExprPtrBox.unsafe_get]]
+#+begin_src til
+func Vec__ExprPtrBox.unsafe_get(self: Vec__ExprPtrBox, i: USize) returns ref ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.get][Vec__ExprPtrBox.get]]
+#+begin_src til
+func Vec__ExprPtrBox.get(self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.pop][Vec__ExprPtrBox.pop]]
+#+begin_src til
+func Vec__ExprPtrBox.pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.remove_at][Vec__ExprPtrBox.remove_at]]
+#+begin_src til
+func Vec__ExprPtrBox.remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.take_prefix][Vec__ExprPtrBox.take_prefix]]
+#+begin_src til
+func Vec__ExprPtrBox.take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) returns Vec__ExprPtrBox
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.truncate][Vec__ExprPtrBox.truncate]]
+#+begin_src til
+func Vec__ExprPtrBox.truncate(mut self: Vec__ExprPtrBox, shallow n: USize)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.unsafe_set][Vec__ExprPtrBox.unsafe_set]]
+#+begin_src til
+func Vec__ExprPtrBox.unsafe_set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.set][Vec__ExprPtrBox.set]]
+#+begin_src til
+func Vec__ExprPtrBox.set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox, mut _err_kind: I64)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.push_take][Vec__ExprPtrBox.push_take]]
+#+begin_src til
+func Vec__ExprPtrBox.push_take(mut self: Vec__ExprPtrBox, mut src: Vec__ExprPtrBox, shallow i: USize)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.delete][Vec__ExprPtrBox.delete]]
+#+begin_src til
+func Vec__ExprPtrBox.delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.clone][Vec__ExprPtrBox.clone]]
+#+begin_src til
+func Vec__ExprPtrBox.clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Vec__Mode][Vec__Mode]]
@@ -9196,270 +9479,6 @@ func Vec__call_Vec_Str.delete(own self: Vec__call_Vec_Str, shallow call_free: Bo
 func Vec__call_Vec_Str.clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry][Vec__FFIEntry]]
-#+begin_src til
-struct Vec__FFIEntry {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__FFIEntry
-    func with_capacity(shallow n: USize) returns Vec__FFIEntry
-    func len(self: Vec__FFIEntry) returns shallow USize
-    func clear(mut self: Vec__FFIEntry)
-    func delete_marked(mut self: Vec__FFIEntry, marks: Dynamic)
-    func push(mut self: Vec__FFIEntry, own val: FFIEntry)
-    func append(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
-    func take(mut self: Vec__FFIEntry) returns Vec__FFIEntry
-    func move_to(own self: Vec__FFIEntry, mut dest: Vec__FFIEntry)
-    func move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
-    func unsafe_get(self: Vec__FFIEntry, i: USize) returns ref FFIEntry
-    func get(self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
-    func pop(mut self: Vec__FFIEntry) returns FFIEntry
-    func remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__FFIEntry, shallow n: USize) returns Vec__FFIEntry
-    func truncate(mut self: Vec__FFIEntry, shallow n: USize)
-    func unsafe_set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry)
-    func set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry, mut _err_kind: I64)
-    func push_take(mut self: Vec__FFIEntry, mut src: Vec__FFIEntry, shallow i: USize)
-    func delete(own self: Vec__FFIEntry, shallow call_free: Bool)
-    func clone(self: Vec__FFIEntry) returns Vec__FFIEntry
-    func size() returns shallow USize
-}
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.new][Vec__FFIEntry.new]]
-#+begin_src til
-func Vec__FFIEntry.new() returns Vec__FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.with_capacity][Vec__FFIEntry.with_capacity]]
-#+begin_src til
-func Vec__FFIEntry.with_capacity(shallow n: USize) returns Vec__FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.clear][Vec__FFIEntry.clear]]
-#+begin_src til
-func Vec__FFIEntry.clear(mut self: Vec__FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.delete_marked][Vec__FFIEntry.delete_marked]]
-#+begin_src til
-func Vec__FFIEntry.delete_marked(mut self: Vec__FFIEntry, marks: Dynamic)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.push][Vec__FFIEntry.push]]
-#+begin_src til
-func Vec__FFIEntry.push(mut self: Vec__FFIEntry, own val: FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.append][Vec__FFIEntry.append]]
-#+begin_src til
-func Vec__FFIEntry.append(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.take][Vec__FFIEntry.take]]
-#+begin_src til
-func Vec__FFIEntry.take(mut self: Vec__FFIEntry) returns Vec__FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.move_to][Vec__FFIEntry.move_to]]
-#+begin_src til
-func Vec__FFIEntry.move_to(own self: Vec__FFIEntry, mut dest: Vec__FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.move_from][Vec__FFIEntry.move_from]]
-#+begin_src til
-func Vec__FFIEntry.move_from(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.unsafe_get][Vec__FFIEntry.unsafe_get]]
-#+begin_src til
-func Vec__FFIEntry.unsafe_get(self: Vec__FFIEntry, i: USize) returns ref FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.get][Vec__FFIEntry.get]]
-#+begin_src til
-func Vec__FFIEntry.get(self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64) returns ref FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.pop][Vec__FFIEntry.pop]]
-#+begin_src til
-func Vec__FFIEntry.pop(mut self: Vec__FFIEntry) returns FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.remove_at][Vec__FFIEntry.remove_at]]
-#+begin_src til
-func Vec__FFIEntry.remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.take_prefix][Vec__FFIEntry.take_prefix]]
-#+begin_src til
-func Vec__FFIEntry.take_prefix(mut self: Vec__FFIEntry, shallow n: USize) returns Vec__FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.truncate][Vec__FFIEntry.truncate]]
-#+begin_src til
-func Vec__FFIEntry.truncate(mut self: Vec__FFIEntry, shallow n: USize)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.unsafe_set][Vec__FFIEntry.unsafe_set]]
-#+begin_src til
-func Vec__FFIEntry.unsafe_set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.set][Vec__FFIEntry.set]]
-#+begin_src til
-func Vec__FFIEntry.set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry, mut _err_kind: I64)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.push_take][Vec__FFIEntry.push_take]]
-#+begin_src til
-func Vec__FFIEntry.push_take(mut self: Vec__FFIEntry, mut src: Vec__FFIEntry, shallow i: USize)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.delete][Vec__FFIEntry.delete]]
-#+begin_src til
-func Vec__FFIEntry.delete(own self: Vec__FFIEntry, shallow call_free: Bool)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__FFIEntry.clone][Vec__FFIEntry.clone]]
-#+begin_src til
-func Vec__FFIEntry.clone(self: Vec__FFIEntry) returns Vec__FFIEntry
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox][Vec__ExprPtrBox]]
-#+begin_src til
-struct Vec__ExprPtrBox {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__ExprPtrBox
-    func with_capacity(shallow n: USize) returns Vec__ExprPtrBox
-    func len(self: Vec__ExprPtrBox) returns shallow USize
-    func clear(mut self: Vec__ExprPtrBox)
-    func delete_marked(mut self: Vec__ExprPtrBox, marks: Dynamic)
-    func push(mut self: Vec__ExprPtrBox, own val: ExprPtrBox)
-    func append(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
-    func take(mut self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
-    func move_to(own self: Vec__ExprPtrBox, mut dest: Vec__ExprPtrBox)
-    func move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
-    func unsafe_get(self: Vec__ExprPtrBox, i: USize) returns ref ExprPtrBox
-    func get(self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
-    func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
-    func remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) returns Vec__ExprPtrBox
-    func truncate(mut self: Vec__ExprPtrBox, shallow n: USize)
-    func unsafe_set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox)
-    func set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox, mut _err_kind: I64)
-    func push_take(mut self: Vec__ExprPtrBox, mut src: Vec__ExprPtrBox, shallow i: USize)
-    func delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
-    func clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
-    func size() returns shallow USize
-}
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.new][Vec__ExprPtrBox.new]]
-#+begin_src til
-func Vec__ExprPtrBox.new() returns Vec__ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.with_capacity][Vec__ExprPtrBox.with_capacity]]
-#+begin_src til
-func Vec__ExprPtrBox.with_capacity(shallow n: USize) returns Vec__ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.clear][Vec__ExprPtrBox.clear]]
-#+begin_src til
-func Vec__ExprPtrBox.clear(mut self: Vec__ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.delete_marked][Vec__ExprPtrBox.delete_marked]]
-#+begin_src til
-func Vec__ExprPtrBox.delete_marked(mut self: Vec__ExprPtrBox, marks: Dynamic)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.push][Vec__ExprPtrBox.push]]
-#+begin_src til
-func Vec__ExprPtrBox.push(mut self: Vec__ExprPtrBox, own val: ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.append][Vec__ExprPtrBox.append]]
-#+begin_src til
-func Vec__ExprPtrBox.append(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.take][Vec__ExprPtrBox.take]]
-#+begin_src til
-func Vec__ExprPtrBox.take(mut self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.move_to][Vec__ExprPtrBox.move_to]]
-#+begin_src til
-func Vec__ExprPtrBox.move_to(own self: Vec__ExprPtrBox, mut dest: Vec__ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.move_from][Vec__ExprPtrBox.move_from]]
-#+begin_src til
-func Vec__ExprPtrBox.move_from(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.unsafe_get][Vec__ExprPtrBox.unsafe_get]]
-#+begin_src til
-func Vec__ExprPtrBox.unsafe_get(self: Vec__ExprPtrBox, i: USize) returns ref ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.get][Vec__ExprPtrBox.get]]
-#+begin_src til
-func Vec__ExprPtrBox.get(self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64) returns ref ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.pop][Vec__ExprPtrBox.pop]]
-#+begin_src til
-func Vec__ExprPtrBox.pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.remove_at][Vec__ExprPtrBox.remove_at]]
-#+begin_src til
-func Vec__ExprPtrBox.remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.take_prefix][Vec__ExprPtrBox.take_prefix]]
-#+begin_src til
-func Vec__ExprPtrBox.take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) returns Vec__ExprPtrBox
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.truncate][Vec__ExprPtrBox.truncate]]
-#+begin_src til
-func Vec__ExprPtrBox.truncate(mut self: Vec__ExprPtrBox, shallow n: USize)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.unsafe_set][Vec__ExprPtrBox.unsafe_set]]
-#+begin_src til
-func Vec__ExprPtrBox.unsafe_set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.set][Vec__ExprPtrBox.set]]
-#+begin_src til
-func Vec__ExprPtrBox.set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox, mut _err_kind: I64)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.push_take][Vec__ExprPtrBox.push_take]]
-#+begin_src til
-func Vec__ExprPtrBox.push_take(mut self: Vec__ExprPtrBox, mut src: Vec__ExprPtrBox, shallow i: USize)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.delete][Vec__ExprPtrBox.delete]]
-#+begin_src til
-func Vec__ExprPtrBox.delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.Vec__ExprPtrBox.clone][Vec__ExprPtrBox.clone]]
-#+begin_src til
-func Vec__ExprPtrBox.clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
-#+end_src
-
 ** [[file:src/self/context.org::#til.src.self.context.adopt__BorrowRoot][adopt__BorrowRoot]]
 #+begin_src til
 func adopt__BorrowRoot(dest: Dynamic, own src: BorrowRoot)
@@ -9470,9 +9489,19 @@ func adopt__BorrowRoot(dest: Dynamic, own src: BorrowRoot)
 func adopt__TypeBinding(dest: Dynamic, own src: TypeBinding)
 #+end_src
 
-** [[file:src/self/context.org::#til.src.self.context.adopt__U32][adopt__U32]]
+** [[file:src/self/context.org::#til.src.self.context.adopt__FFIEntry][adopt__FFIEntry]]
 #+begin_src til
-func adopt__U32(dest: Dynamic, own src: U32)
+func adopt__FFIEntry(dest: Dynamic, own src: FFIEntry)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.adopt__ExprPtrBox][adopt__ExprPtrBox]]
+#+begin_src til
+func adopt__ExprPtrBox(dest: Dynamic, own src: ExprPtrBox)
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.adopt__FFITypePtrBox][adopt__FFITypePtrBox]]
+#+begin_src til
+func adopt__FFITypePtrBox(dest: Dynamic, own src: FFITypePtrBox)
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.adopt__Mode][adopt__Mode]]
@@ -9498,21 +9527,6 @@ func adopt__StructLayout(dest: Dynamic, own src: StructLayout)
 ** [[file:src/self/context.org::#til.src.self.context.adopt__Vec__Str][adopt__Vec__Str]]
 #+begin_src til
 func adopt__Vec__Str(dest: Dynamic, own src: Vec__Str)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.adopt__FFIEntry][adopt__FFIEntry]]
-#+begin_src til
-func adopt__FFIEntry(dest: Dynamic, own src: FFIEntry)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.adopt__ExprPtrBox][adopt__ExprPtrBox]]
-#+begin_src til
-func adopt__ExprPtrBox(dest: Dynamic, own src: ExprPtrBox)
-#+end_src
-
-** [[file:src/self/context.org::#til.src.self.context.adopt__FFITypePtrBox][adopt__FFITypePtrBox]]
-#+begin_src til
-func adopt__FFITypePtrBox(dest: Dynamic, own src: FFITypePtrBox)
 #+end_src
 
 ** [[file:src/self/modes.org::#til.src.self.modes.context_register_path_mode][context_register_path_mode]]
@@ -9577,12 +9591,12 @@ func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut vari
 
 ** [[file:src/self/initer.org::#til.src.self.initer.register_funcsig_alias_for_stmt][register_funcsig_alias_for_stmt]]
 #+begin_src til
-func register_funcsig_alias_for_stmt(ctx: Context, mut stmt: Expr, mut scope: TypeScope)
+func register_funcsig_alias_for_stmt(mut ctx: Context, mut stmt: Expr, mut scope: TypeScope)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.register_function_def_for_stmt][register_function_def_for_stmt]]
 #+begin_src til
-func register_function_def_for_stmt(ctx: Context, mut stmt: Expr, mut scope: TypeScope)
+func register_function_def_for_stmt(mut ctx: Context, mut stmt: Expr, mut scope: TypeScope)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.gen_struct_size_method_for_stmt][gen_struct_size_method_for_stmt]]
@@ -9597,12 +9611,12 @@ proc gen_enum_size_method_for_stmt(mut stmt: Expr, mut scope: TypeScope, mut ctx
 
 ** [[file:src/self/initer.org::#til.src.self.initer.gen_unity_derived_for_stmt][gen_unity_derived_for_stmt]]
 #+begin_src til
-func gen_unity_derived_for_stmt(mut stmt: Expr)
+func gen_unity_derived_for_stmt(mut stmt: Expr, mut symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.gen_cmp_derived_for_stmt][gen_cmp_derived_for_stmt]]
 #+begin_src til
-func gen_cmp_derived_for_stmt(mut stmt: Expr)
+func gen_cmp_derived_for_stmt(mut stmt: Expr, mut symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.compute_struct_layout][compute_struct_layout]]
@@ -9632,12 +9646,12 @@ func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns ref Fie
 
 ** [[file:src/self/initer.org::#til.src.self.initer.init_lift_in_body][init_lift_in_body]]
 #+begin_src til
-proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__Expr)
+proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__Expr, mut symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.init_refresh_seeded_scope_defs][init_refresh_seeded_scope_defs]]
 #+begin_src til
-func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope)
+func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.GenericSources][GenericSources]]
@@ -9671,12 +9685,12 @@ func init_retire_generic_sources(mut program: Expr, mut scope: TypeScope) return
 
 ** [[file:src/self/initer.org::#til.src.self.initer.init_declarations_global][init_declarations_global]]
 #+begin_src til
-func init_declarations_global(ctx: Context, mut program: Expr, mut scope: TypeScope) returns shallow I32
+func init_declarations_global(mut ctx: Context, mut program: Expr, mut scope: TypeScope) returns shallow I32
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.count_ast_imports][count_ast_imports]]
 #+begin_src til
-func count_ast_imports(body: Expr) returns shallow USize
+func count_ast_imports(body: Expr, symbols: SymbolPool) returns shallow USize
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.init_file][init_file]]
@@ -9884,17 +9898,17 @@ func adopt__GenericFuncSource(dest: Dynamic, own src: GenericFuncSource)
 
 ** [[file:src/self/typer.org::#til.src.self.typer.fa_is_ns][fa_is_ns]]
 #+begin_src til
-func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
+func fa_is_ns(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.make_til_type_expr][make_til_type_expr]]
 #+begin_src til
-func make_til_type_expr(src: Expr, t: Type) returns Expr
+func make_til_type_expr(src: Expr, t: Type, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.fa_own_type][fa_own_type]]
 #+begin_src til
-func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
+func fa_own_type(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow OwnType
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.I64Name][I64Name]]
@@ -9964,7 +9978,7 @@ proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, mut
 
 ** [[file:src/self/typer.org::#til.src.self.typer.find_namespace_func][find_namespace_func]]
 #+begin_src til
-func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns shallow Option__ref_Expr
+func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.find_ns_decl][find_ns_decl]]
@@ -9974,17 +9988,17 @@ func find_ns_decl(sdef: Expr, method: Str) returns shallow Option__ref_Declarati
 
 ** [[file:src/self/typer.org::#til.src.self.typer.resolve_fn_sig][resolve_fn_sig]]
 #+begin_src til
-func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
+func resolve_fn_sig(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.fcall_returns_own][fcall_returns_own]]
 #+begin_src til
-func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
+func fcall_returns_own(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.is_clone_fcall][is_clone_fcall]]
 #+begin_src til
-func is_clone_fcall(e: Expr) returns shallow Bool
+func is_clone_fcall(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.resolve_default_value][resolve_default_value]]
@@ -9994,7 +10008,7 @@ func resolve_default_value(default_value: Expr, call_expr: Expr, ctx: Context) r
 
 ** [[file:src/self/typer.org::#til.src.self.typer.expr_declared_type_name][expr_declared_type_name]]
 #+begin_src til
-func expr_declared_type_name(scope: TypeScope, e: Expr) returns Str
+func expr_declared_type_name(scope: TypeScope, e: Expr, symbols: SymbolPool) returns Str
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.infer_expr][infer_expr]]
@@ -10039,7 +10053,7 @@ func is_simple_lvalue_expr(e: Expr) returns shallow Bool
 
 ** [[file:src/self/typer.org::#til.src.self.typer.is_compile_directive][is_compile_directive]]
 #+begin_src til
-func is_compile_directive(e: Expr) returns shallow Bool
+func is_compile_directive(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.infer_body_stmt][infer_body_stmt]]
@@ -10049,7 +10063,7 @@ proc infer_body_stmt(mut scope: TypeScope, mut body: Expr, mut i: USize, shallow
 
 ** [[file:src/self/typer.org::#til.src.self.typer.reregister_repl_scope_defs][reregister_repl_scope_defs]]
 #+begin_src til
-func reregister_repl_scope_defs(body: Expr, mut scope: TypeScope)
+func reregister_repl_scope_defs(body: Expr, mut scope: TypeScope, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.infer_body][infer_body]]
@@ -10059,7 +10073,7 @@ proc infer_body(mut scope: TypeScope, mut body: Expr, shallow in_func: I32, shal
 
 ** [[file:src/self/typer.org::#til.src.self.typer.normalize_scope_bindings][normalize_scope_bindings]]
 #+begin_src til
-func normalize_scope_bindings(mut scope: TypeScope)
+func normalize_scope_bindings(mut scope: TypeScope, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.type_file][type_file]]
@@ -10074,12 +10088,12 @@ proc type_repl_delta(path: Str, mut program: Expr, mut ctx: Context) returns sha
 
 ** [[file:src/self/typer.org::#til.src.self.typer.rhs_is_clone_fcall][rhs_is_clone_fcall]]
 #+begin_src til
-func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
+func rhs_is_clone_fcall(rhs: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.assign_target_is_func_local][assign_target_is_func_local]]
 #+begin_src til
-func assign_target_is_func_local(mut scope: TypeScope, name: Str) returns shallow Bool
+func assign_target_is_func_local(mut scope: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.is_numeric_type][is_numeric_type]]
@@ -10104,12 +10118,12 @@ func type_from_name(name: Str, mut scope: TypeScope, mut ctx: Context) returns T
 
 ** [[file:src/self/typer.org::#til.src.self.typer.resolve_type_alias][resolve_type_alias]]
 #+begin_src til
-func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
+func resolve_type_alias(scope: TypeScope, name: Str, symbols: SymbolPool) returns ref Str
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.resolve_type_alias_for_name][resolve_type_alias_for_name]]
 #+begin_src til
-func resolve_type_alias_for_name(scope: TypeScope, name: Str) returns ref Str
+func resolve_type_alias_for_name(scope: TypeScope, name: Str, symbols: SymbolPool) returns ref Str
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.usize_type][usize_type]]
@@ -10124,7 +10138,7 @@ func type_has_cmp(scope: TypeScope, type_name: Str) returns shallow Bool
 
 ** [[file:src/self/typer.org::#til.src.self.typer.expr_uses_var][expr_uses_var]]
 #+begin_src til
-func expr_uses_var(e: Expr, name: Str) returns shallow Bool
+func expr_uses_var(e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.expr_contains_decl][expr_contains_decl]]
@@ -10134,7 +10148,7 @@ func expr_contains_decl(e: Expr, name: Str) returns shallow Bool
 
 ** [[file:src/self/typer.org::#til.src.self.typer.expr_used_in_nested_func][expr_used_in_nested_func]]
 #+begin_src til
-func expr_used_in_nested_func(e: Expr, name: Str) returns shallow Bool
+func expr_used_in_nested_func(e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.type_prefix][type_prefix]]
@@ -10149,42 +10163,42 @@ func type_to_name(t: Type) returns Str
 
 ** [[file:src/self/typer.org::#til.src.self.typer.make_closure_delete_call][make_closure_delete_call]]
 #+begin_src til
-func make_closure_delete_call(var_name: Str, src: Expr) returns Expr
+func make_closure_delete_call(var_name: Str, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.make_delete_call][make_delete_call]]
 #+begin_src til
-func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns shallow Option__Expr
+func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr, mut symbols: SymbolPool) returns shallow Option__Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.transfer_is_shallow_field_value_copy][transfer_is_shallow_field_value_copy]]
 #+begin_src til
-func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
+func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.make_free_call][make_free_call]]
 #+begin_src til
-func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
+func make_free_call(var_name: Str, shallow type: Type, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.make_clone_call][make_clone_call]]
 #+begin_src til
-func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
+func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.make_ns_call][make_ns_call]]
 #+begin_src til
-func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
+func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.variadic_array_type_name][variadic_array_type_name]]
 #+begin_src til
-func variadic_array_type_name(scope: TypeScope, elem_type: Str) returns Str
+func variadic_array_type_name(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.arg_addressed_ident][arg_addressed_ident]]
 #+begin_src til
-func arg_addressed_ident(arg: Expr) returns shallow Option__ref_Str
+func arg_addressed_ident(arg: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.expr_transfers_own][expr_transfers_own]]
@@ -10227,17 +10241,17 @@ func fact_record_name(fi: FactIndex, name: Str, shallow base: USize, mut mask: V
 
 ** [[file:src/self/typer.org::#til.src.self.typer.expr_collect_ptr_escapes][expr_collect_ptr_escapes]]
 #+begin_src til
-func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut out: Vec__U64)
+func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut out: Vec__U64, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.expr_collect_stmt_facts][expr_collect_stmt_facts]]
 #+begin_src til
-func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64)
+func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.fcall_returns_dynamic_storage][fcall_returns_dynamic_storage]]
 #+begin_src til
-func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope) returns shallow Bool
+func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.RootBits][RootBits]]
@@ -10267,12 +10281,12 @@ namespace:
 
 ** [[file:src/self/typer.org::#til.src.self.typer.fcall_is_get_method][fcall_is_get_method]]
 #+begin_src til
-func fcall_is_get_method(fcall: Expr) returns shallow Bool
+func fcall_is_get_method(fcall: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.fcall_returns_ref][fcall_returns_ref]]
 #+begin_src til
-func fcall_returns_ref(fcall: Expr, scope: TypeScope) returns shallow I32
+func fcall_returns_ref(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow I32
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.Vec__CtorArg][Vec__CtorArg]]
@@ -10764,7 +10778,7 @@ proc lower_guard_bang_calls(scope: TypeScope, mut guard_if: Expr, mut dest: Vec_
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.subtree_references_name][subtree_references_name]]
 #+begin_src til
-func subtree_references_name(e: Expr, name: Str) returns shallow Bool
+func subtree_references_name(e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.toplevel_needs_throw_lowering][toplevel_needs_throw_lowering]]
@@ -10794,12 +10808,12 @@ func make_int_lit(shallow n: I64, shallow line: U32, shallow col: U32) returns E
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.make_default_value_expr][make_default_value_expr]]
 #+begin_src til
-func make_default_value_expr(type_name: Str, shallow line: U32, shallow col: U32) returns Expr
+func make_default_value_expr(type_name: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.make_if_kind_eq_zero_wrap][make_if_kind_eq_zero_wrap]]
 #+begin_src til
-func make_if_kind_eq_zero_wrap(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr
+func make_if_kind_eq_zero_wrap(stmt: Expr, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.extend_throwing_func_sigs][extend_throwing_func_sigs]]
@@ -10809,7 +10823,7 @@ proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.make_uncaught_throw_panic][make_uncaught_throw_panic]]
 #+begin_src til
-func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: U32) returns Expr
+func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.process_throw_catch_in_func_body][process_throw_catch_in_func_body]]
@@ -10834,7 +10848,7 @@ proc collect_switch_case_bindings(mut ctx: Context, e: Expr, body: Expr)
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.make_switch_case_condition][make_switch_case_condition]]
 #+begin_src til
-func make_switch_case_condition(mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
+func make_switch_case_condition(mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.replace_switch_stmt_with_block][replace_switch_stmt_with_block]]
@@ -10854,12 +10868,12 @@ proc attach_switch_default_body(mut root_if: Expr, default_body: Expr)
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.switch_is_clike][switch_is_clike]]
 #+begin_src til
-func switch_is_clike(stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow enum_def_o: Option__ref_Expr) returns shallow Bool
+func switch_is_clike(stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow enum_def_o: Option__ref_Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.prepend_clike_payload_binding][prepend_clike_payload_binding]]
 #+begin_src til
-func prepend_clike_payload_binding(mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, shallow binding_is_dead: Bool)
+func prepend_clike_payload_binding(mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, mut symbols: SymbolPool, shallow binding_is_dead: Bool)
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.replace_body_stmt_with_block][replace_body_stmt_with_block]]
@@ -10869,7 +10883,7 @@ func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: USize, own b
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.make_for_in_range_while_body][make_for_in_range_while_body]]
 #+begin_src til
-func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr
+func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 ** [[file:src/self/desugarer.org::#til.src.self.desugarer.body_pre_passes][body_pre_passes]]
@@ -11136,7 +11150,7 @@ func format_doc_for_help(doc: Str) returns Str
 
 ** [[file:src/self/loader.org::#til.src.self.loader.format_decl_info][format_decl_info]]
 #+begin_src til
-func format_decl_info(stmt: Expr, scope: TypeScope) returns Str
+func format_decl_info(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Str
 #+end_src
 
 ** [[file:src/self/loader.org::#til.src.self.loader.format_member_info][format_member_info]]
@@ -11156,7 +11170,7 @@ func format_variant_info(type_name: Str, variant: VariantDef) returns Str
 
 ** [[file:src/self/loader.org::#til.src.self.loader.collect_decl_packed][collect_decl_packed]]
 #+begin_src til
-func collect_decl_packed(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str)
+func collect_decl_packed(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/loader.org::#til.src.self.loader.build_doc_init_line][build_doc_init_line]]
@@ -11171,7 +11185,7 @@ func build_doc_init_line_org_files(index_path: Str, packed_user_info: Str, packe
 
 ** [[file:src/self/loader.org::#til.src.self.loader.lazy_recursive_variadic_def][lazy_recursive_variadic_def]]
 #+begin_src til
-func lazy_recursive_variadic_def(fdef: Expr) returns shallow Bool
+func lazy_recursive_variadic_def(fdef: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/loader.org::#til.src.self.loader.type_program_errors][type_program_errors]]
@@ -12351,6 +12365,11 @@ func Vec__U8.delete(own self: Vec__U8, shallow call_free: Bool)
 func Vec__U8.clone(self: Vec__U8) returns Vec__U8
 #+end_src
 
+** [[file:src/self/garbager.org::#til.src.self.garbager.swap__priv___src_self_garbager_til__LocalInfo][swap__priv___src_self_garbager_til__LocalInfo]]
+#+begin_src til
+func swap__priv___src_self_garbager_til__LocalInfo(mut a: priv___src_self_garbager_til__LocalInfo, mut b: priv___src_self_garbager_til__LocalInfo)
+#+end_src
+
 ** [[file:src/self/garbager.org::#til.src.self.garbager.adopt__U8][adopt__U8]]
 #+begin_src til
 func adopt__U8(dest: Dynamic, own src: U8)
@@ -12388,7 +12407,7 @@ func is_macro_call(e: Expr, mut ctx: Context) returns shallow Bool
 
 ** [[file:src/self/constfolder.org::#til.src.self.constfolder.constfolder_normalize_stack_decls_in_body][constfolder_normalize_stack_decls_in_body]]
 #+begin_src til
-func constfolder_normalize_stack_decls_in_body(mut body: Expr)
+func constfolder_normalize_stack_decls_in_body(mut body: Expr, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/constfolder.org::#til.src.self.constfolder.process_body][process_body]]
@@ -12453,7 +12472,7 @@ func push_qn(mut v: Vec__Str, type_name: Str, method: Str)
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.collect_refs][collect_refs]]
 #+begin_src til
-func collect_refs(e: Expr, mut refs: Vec__Str)
+func collect_refs(e: Expr, mut refs: Vec__Str, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.scav_value_decl_sweepable][scav_value_decl_sweepable]]
@@ -12468,7 +12487,7 @@ func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values:
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.dce_program_bodies][dce_program_bodies]]
 #+begin_src til
-proc dce_program_bodies(mut program: Expr)
+proc dce_program_bodies(mut program: Expr, symbols: SymbolPool)
 #+end_src
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.scavenge_imported][scavenge_imported]]
@@ -12816,7 +12835,7 @@ proc cmd_doc(lp: LoadedProgram, version: Str) returns shallow I32
 
 ** [[file:src/self/builder.org::#til.src.self.builder.builder_delete_arg_root][builder_delete_arg_root]]
 #+begin_src til
-func builder_delete_arg_root(e: Expr) returns shallow Option__ref_Str
+func builder_delete_arg_root(e: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
 #+end_src
 
 ** [[file:src/self/builder.org::#til.src.self.builder.Map__Sym_Str][Map__Sym_Str]]
@@ -14567,7 +14586,7 @@ func repl_source_line_count(s: Str) returns shallow U32
 
 ** [[file:src/til.org::#til.src.til.repl_ast_has_loader_directive][repl_ast_has_loader_directive]]
 #+begin_src til
-func repl_ast_has_loader_directive(e: Expr) returns shallow Bool
+func repl_ast_has_loader_directive(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/til.org::#til.src.til.repl_ast_has_lazy_def][repl_ast_has_lazy_def]]
@@ -14577,12 +14596,12 @@ func repl_ast_has_lazy_def(e: Expr) returns shallow Bool
 
 ** [[file:src/til.org::#til.src.til.repl_ast_has_known_variadic_call][repl_ast_has_known_variadic_call]]
 #+begin_src til
-func repl_ast_has_known_variadic_call(e: Expr) returns shallow Bool
+func repl_ast_has_known_variadic_call(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/til.org::#til.src.til.repl_delta_from_source][repl_delta_from_source]]
 #+begin_src til
-proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, mut parse_errors: I32) returns Expr
+proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32) returns Expr
 #+end_src
 
 ** [[file:src/til.org::#til.src.til.repl_peek_needs_expr_wrap][repl_peek_needs_expr_wrap]]
@@ -14597,12 +14616,12 @@ func repl_parse_allows_wrap(peek_ast: Expr) returns shallow Bool
 
 ** [[file:src/til.org::#til.src.til.repl_ast_has_help_call][repl_ast_has_help_call]]
 #+begin_src til
-func repl_ast_has_help_call(e: Expr) returns shallow Bool
+func repl_ast_has_help_call(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/til.org::#til.src.til.repl_ast_updates_doc_cache][repl_ast_updates_doc_cache]]
 #+begin_src til
-func repl_ast_updates_doc_cache(e: Expr) returns shallow Bool
+func repl_ast_updates_doc_cache(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/til.org::#til.src.til.repl_refresh_user_doc_cache][repl_refresh_user_doc_cache]]

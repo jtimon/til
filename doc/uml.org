@@ -123,10 +123,10 @@
 *** text := ""
 *** til_type := Type.Unknown
 ** IdentData: StructDef
-*** name := ""
+*** name : Sym = 0
 *** til_type := Type.Unknown
 ** FieldAccessData: StructDef
-*** name := ""
+*** name : Sym = 0
 *** til_type := Type.Unknown
 ** StructDef: StructDef
 *** own fields : Vec(Declaration) = Vec(Declaration).new()
@@ -231,6 +231,10 @@
 *** line : U32 = 0
 *** col : U32 = 0
 * parser
+** SymbolPool: StructDef
+*** names := Vec(Str).new()
+*** buckets := Vec(Sym).new()
+*** next : Sym = 1
 ** Parser: StructDef
 *** tokens := Vec(Token).new()
 *** pos : USize = 0
@@ -246,6 +250,7 @@
 *** error_count : I32 = 0
 *** error_msg := ""
 *** source := ""
+*** ref symbols : SymbolPool
 * context
 ** BorrowRoot: StructDef
 *** name := ""
@@ -282,7 +287,7 @@
 *** NotFound
 *** Found:TypeBinding }
 ** TypeScope: StructDef
-*** bindings := Map(Str, TypeBinding).new()
+*** bindings := Map(Sym, TypeBinding).new()
 *** target_usize_pname := "U32"
 *** target_uptr_pname := "U64"
 *** func_defs := Map(Str, Dynamic).new()
@@ -315,6 +320,15 @@
 *** ref_dyn_locals := Set(Sym).new()
 *** ptr_locals := Set(Sym).new()
 *** shadowed_params := Set(Sym).new()
+** FfiState: StructDef
+*** dispatch_map := Map(Str, Dynamic).new()
+*** dispatch_inited := false
+*** entries := Map(Str, FFIEntry).new()
+*** entries_inited := false
+*** loaded := false
+*** struct_defs := Map(Str, ExprPtrBox).new()
+*** type_cache := Vec(FFITypePtrBox).new()
+*** type_cache_inited := false
 ** InternedTypes: StructDef
 *** simples := Vec(Dynamic).new()
 *** prims := Vec(Dynamic).new()
@@ -322,10 +336,6 @@
 *** enums := Map(Str, Dynamic).new()
 *** customs := Map(Str, Dynamic).new()
 *** funcsigs := Map(Str, Dynamic).new()
-** SymbolPool: StructDef
-*** by_name := Map(Str, Sym).new()
-*** names := Vec(Str).new()
-*** next : Sym = 1
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
@@ -354,7 +364,7 @@
 *** repl_session := false
 *** ns_fields := Option(Scope).None
 *** imported := Map(Str, ImportUnit).new()
-*** ... (81 more)
+*** ... (74 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -430,7 +440,7 @@
 *** sub_nodes := Vec(CoverageNode).new()
 * garbager
 ** LocalInfo: StructDef
-*** ref name : Str
+*** name := ""
 *** type := Type.Unknown
 *** decl_index : I32 = 0
 *** last_use : I32 = 0

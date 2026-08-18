@@ -123,11 +123,11 @@ priv resolve_import_disps := proc(import_paths: Vec(Str), base_dir: Str, lib_dir
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // The .til suffix is appended internally; paths already ending in ".til" are
 // rejected with a helpful error suggesting the bare-name form.
-priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(Str)) {
+priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(Str), symbols: SymbolPool) {
     if imp_stmt.children.len() >= 2 {
         switch imp_stmt.children[0].node_type {
         case .Ident(c0id):
-            if c0id.ident_name() == "import" {
+            if c0id.ident_name(symbols.names) == "import" {
                 switch imp_stmt.children[1].node_type {
                 case .Literal(Literal.Str(p)):
                     if p.ends_with(".til") {
@@ -145,7 +145,7 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(St
     }
 }
 
-priv extract_imports := func(mut body: Expr, path: Str) returns Vec(Str) {
+priv extract_imports := func(mut body: Expr, path: Str, symbols: SymbolPool) returns Vec(Str) {
     mut paths := Vec(Str).new()
     for mut stmt : Expr in body.children {
         mut is_imp := false
@@ -161,9 +161,9 @@ priv extract_imports := func(mut body: Expr, path: Str) returns Vec(Str) {
 
         if is_imp {
             if is_decl_rhs {
-                extract_one_import(stmt.children[0], path, paths)
+                extract_one_import(stmt.children[0], path, paths, symbols)
             } else {
-                extract_one_import(stmt, path, paths)
+                extract_one_import(stmt, path, paths, symbols)
             }
         }
     }
@@ -209,7 +209,7 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             tokens := tokenize(source, disp)
             mut sub_mode := ""
             mut parse_errors_sub_ast : I32 = 0
-            mut sub_ast := parse(tokens, source, disp, sub_mode, ctx.anon_type_counter, parse_errors_sub_ast)
+            mut sub_ast := parse(tokens, source, disp, sub_mode, ctx.anon_type_counter, ctx.symbols, parse_errors_sub_ast)
             // A syntax error in an imported file must stop the load: parse
             // reports it and returns a PARTIAL ast, and carrying on would bury
             // that message under downstream type errors. Reported as a failed
@@ -219,7 +219,7 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             sub_mode = normalize_mode_name(sub_mode)
             ref sub_mode_def : Mode = require_mode(ctx, disp, sub_mode)
             context_register_path_mode(ctx, disp, sub_mode_def)
-            sub_imports := extract_imports(sub_ast, disp)
+            sub_imports := extract_imports(sub_ast, disp, ctx.symbols)
 
             // Get imported file's directory for recursive resolution
             sub_dir := dir_of(abs)
@@ -323,7 +323,7 @@ namespace:
 // boot/til.c. Without this, flipping the source alias and the boot-baked width
 // can never happen in one commit (a one-build lag), because the C ABI in
 // ext.h has no such lag and the two would disagree at pass 1.
-priv find_alias_rhs_in_ast := func(ast: Expr, name: Str) returns Str {
+priv find_alias_rhs_in_ast := func(ast: Expr, name: Str, symbols: SymbolPool) returns Str {
     for stmt : Expr in ast.children {
         mut is_match := false
         switch stmt.node_type {
@@ -334,12 +334,12 @@ priv find_alias_rhs_in_ast := func(ast: Expr, name: Str) returns Str {
         if is_match {
             if stmt.children.len() > 0 {
                 switch stmt.children[0].node_type {
-                // #192: clone -- ident_name() borrows the parsed AST node's name
+                // #192: clone -- ident_name(symbols) borrows the parsed AST node's name
                 // Str (its bytes live in the Expr tree). Returning it as-is hands
                 // the caller a view it then frees, freeing into the AST buffer
                 // (ASAN: "free on address which was not malloc()-ed"). The clone
                 // is an owned heap Str the caller can free safely.
-                case .Ident(tn): return tn.ident_name().clone()
+                case .Ident(tn): return tn.ident_name(symbols.names).clone()
                 case:
                 }
             }
@@ -366,7 +366,7 @@ priv target_int_alias_name := func(lp: LoadedProgram, alias_name: Str, target_fa
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            rhs := find_alias_rhs_in_ast(iu.ast, alias_name)
+            rhs := find_alias_rhs_in_ast(iu.ast, alias_name, lp.ctx.symbols)
             if rhs.len() > 0 { return rhs }
         }
     }
@@ -379,19 +379,19 @@ repl_clone_loaded_program := func(src: LoadedProgram) returns LoadedProgram {
     return cloned
 }
 
-priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
-    mut alias_binding_o := scope.get_binding(alias_name)
+priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str, symbols: SymbolPool) {
+    mut alias_binding_o := scope.get_binding_name(alias_name, symbols)
     if alias_binding_o.is_none() { return }
     ref mut alias_binding : TypeBinding = alias_binding_o.unwrap()
-    target_binding_o := scope.get_binding(target_name)
+    target_binding_o := scope.get_binding_name(target_name, symbols)
     if target_binding_o.is_none() { return }
     ref target_binding : TypeBinding = target_binding_o.unwrap()
     alias_binding.type = target_binding.type.clone()
-    target_sd_o := scope.struct_def_of(target_name)
-    if target_sd_o.is_some() { scope.set_struct_def(alias_name, target_sd_o.unwrap()) }
-    target_fd_o := scope.lookup_func(target_name)
+    target_sd_o := scope.struct_def_of_name(target_name, symbols)
+    if target_sd_o.is_some() { scope.set_struct_def(alias_name, target_sd_o.unwrap(), symbols) }
+    target_fd_o := scope.lookup_func_name(target_name, symbols)
     if target_fd_o.is_some() {
-        scope.set_func_def(alias_name, target_fd_o.unwrap())
+        scope.set_func_def_name(alias_name, target_fd_o.unwrap(), symbols)
     }
     alias_binding.is_func_decl = target_binding.is_func_decl
     alias_binding.is_builtin = target_binding.is_builtin
@@ -400,8 +400,8 @@ priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, targe
 }
 
 retarget_loaded_aliases := func(mut lp: LoadedProgram) {
-    retarget_alias_binding(lp.ctx.scope, "UPtr", target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
-    retarget_alias_binding(lp.ctx.scope, "USize", target_int_alias_name(lp, "USize", target_usize_name(lp.target)))
+    retarget_alias_binding(lp.ctx.scope, "UPtr", target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)), lp.ctx.symbols)
+    retarget_alias_binding(lp.ctx.scope, "USize", target_int_alias_name(lp, "USize", target_usize_name(lp.target)), lp.ctx.symbols)
 }
 
 // Constfolder across per-file units (rstil-style): fold macros/pure funcs in the
@@ -493,10 +493,10 @@ priv repl_classify_foldables_loaded := func(mut lp: LoadedProgram) {
 
 priv repl_reregister_scope_defs_loaded := func(mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
-        reregister_repl_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
+        reregister_repl_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope, lp.ctx.symbols)
     }
     for mf : Str in lp.mode_files {
-        reregister_repl_scope_defs(lp.ctx.imported[mf].ast, lp.ctx.scope)
+        reregister_repl_scope_defs(lp.ctx.imported[mf].ast, lp.ctx.scope, lp.ctx.symbols)
     }
 }
 
@@ -565,7 +565,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
 // Same shape as the extend_throwing_func_sigs sweep below, and idempotent for the same
 // reason: the typer re-derives divergence from resolved callees later and
 // reaches the same answer.
-priv seed_noreturn_chain := func(mut ast: Expr) {
+priv seed_noreturn_chain := func(mut ast: Expr, symbols: SymbolPool) {
     mut noreturn_names := Set(Str).new()
     // The one primitive that cannot be inferred: an ext_func with no til
     // body, bound to libc exit.
@@ -602,7 +602,7 @@ priv seed_noreturn_chain := func(mut ast: Expr) {
                     if noreturn_names.has(dd.name) { continue }
                     if rhs.children.len() == 0 { continue }
                     ref body : Expr = rhs.children[0]
-                    if seed_fn_never_returns(body, noreturn_names) {
+                    if seed_fn_never_returns(body, noreturn_names, symbols) {
                         fd.noreturn = true
                         noreturn_names.add(own dd.name.clone())
                         changed = true
@@ -639,30 +639,30 @@ priv seed_has_unnested_break := func(e: Expr) returns Bool {
     }
 }
 
-priv seed_stmt_always_diverges := func(e: Expr, noreturn_names: Set(Str)) returns Bool {
+priv seed_stmt_always_diverges := func(e: Expr, noreturn_names: Set(Str), symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .Return: return true
     case .FCall:
         if e.children.len() == 0 { return false }
         switch e.children[0].node_type {
-        case .Ident(cn): return noreturn_names.has(cn.ident_name())
+        case .Ident(cn): return noreturn_names.has(cn.ident_name(symbols.names))
         case: return false
         }
     case .Body:
         for c : Expr in e.children {
-            if seed_stmt_always_diverges(c, noreturn_names) { return true }
+            if seed_stmt_always_diverges(c, noreturn_names, symbols) { return true }
         }
         return false
     case .If:
         if e.children.len() <= 2 { return false }
-        return seed_stmt_always_diverges(e.children[1], noreturn_names)
-            .and(seed_stmt_always_diverges(e.children[2], noreturn_names))
+        return seed_stmt_always_diverges(e.children[1], noreturn_names, symbols)
+            .and(seed_stmt_always_diverges(e.children[2], noreturn_names, symbols))
     case .Switch:
         mut has_default := false
         for ci in 1..e.children.len() {
             ref cn : Expr = e.children[ci]
             if cn.children.len() == 1 { has_default = true }
-            if seed_stmt_always_diverges(cn.children[cn.children.len() - 1], noreturn_names).not() { return false }
+            if seed_stmt_always_diverges(cn.children[cn.children.len() - 1], noreturn_names, symbols).not() { return false }
         }
         return has_default
     case .While:
@@ -673,11 +673,11 @@ priv seed_stmt_always_diverges := func(e: Expr, noreturn_names: Set(Str)) return
         }
         return literal_true.and(seed_has_unnested_break(e.children[1]).not())
     case: return false
-    }
+}
 }
 
-priv seed_fn_never_returns := func(body: Expr, noreturn_names: Set(Str)) returns Bool {
-    return seed_contains_return(body).not().and(seed_stmt_always_diverges(body, noreturn_names))
+priv seed_fn_never_returns := func(body: Expr, noreturn_names: Set(Str), symbols: SymbolPool) returns Bool {
+    return seed_contains_return(body).not().and(seed_stmt_always_diverges(body, noreturn_names, symbols))
 }
 
 // Types that a CLI argument can be parsed into. Must match the builder's
@@ -687,17 +687,8 @@ priv seed_fn_never_returns := func(body: Expr, noreturn_names: Set(Str)) returns
 // clear up-front error. Without this the builder emits C that references an
 // undeclared param (a cryptic -Werror=unused-parameter failure) instead of a
 // usable message. The variadic param is checked by its element type, which is
-// what the builder parses. Runs from prepare_program for EVERY command, so
-// interpret and the compiling backends answer the same way; the interpreter
-// additionally guards at runtime in parse_cli_arg.
-//
-// The same front-end position is what makes "no main proc" one diagnostic
-// instead of two. The interpreter said `error: this mode requires a 'main'
-// proc`; the compile path had no check at all and let C say it -- `undefined
-// reference to 'main'` from the linker when the proc was missing, or
-// `'main' is usually a function [-Werror=main]` when the name was bound to a
-// value. Both are the same user mistake, and the message for it now comes
-// from here in both backends.
+// what the builder parses. Runs from prepare_program for every backend; the
+// interpreter additionally guards at runtime in parse_cli_arg.
 priv validate_cli_main := proc(lp: LoadedProgram) {
     if lp.cur_mode.needs_main.not() { return }
     if lp.run_tests { return }
@@ -741,8 +732,6 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
             }
         }
     }
-    // A `main` bound to a VALUE is not a main proc, and neither is no main
-    // at all: same message the interpreter has always printed for both.
     if found_main_proc.not() {
         eprint_single(lp.path)
         eprint_single(": error: this mode requires a 'main' proc\n")
@@ -771,7 +760,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                 case .Ident(fname):
                     switch stmt.children[1].node_type {
                     case .Literal(Literal.Str(arg)):
-                        if fname.ident_name() == "link" {
+                        if fname.ident_name(lp.ctx.symbols.names) == "link" {
                             keep = false
                             if arg.find("/") >= 0 {
                                 resolved := resolve_link_path(base_dir, root_dir, arg)
@@ -788,7 +777,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                             } else {
                                 lp.link_flags = lp.link_flags.format(" -l", arg)
                             }
-                        } else if fname.ident_name() == "link_c" {
+                        } else if fname.ident_name(lp.ctx.symbols.names) == "link_c" {
                             keep = false
                             if lp.link_c_paths.len() > 0 {
                                 lp.link_c_paths = format(lp.link_c_paths, " ")
@@ -814,7 +803,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     tokens := tokenize(source, disp)
     mut mode_str := ""
     mut parse_errors_ast : I32 = 0
-    mut ast := parse(tokens, source, disp, mode_str, lp.ctx.anon_type_counter, parse_errors_ast)
+    mut ast := parse(tokens, source, disp, mode_str, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_ast)
     // A syntax error must stop the build here. parse reports it and returns
     // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
     // carried on would bury that message under downstream type errors.
@@ -834,7 +823,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                         ref callee : Expr = val.children[0]
                         switch callee.node_type {
                         case .Ident(id):
-                            if id.ident_name() == "Mode" {
+                            if id.ident_name(lp.ctx.symbols.names) == "Mode" {
                                 is_valid = true
                                 mut m := Mode()
                                 for i in 1..val.children.len() {
@@ -918,7 +907,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     mut core_units := Vec(ProgramUnit).new()
     for mode_file : Str in lp.mode_files {
         ref mut miu_temp : ImportUnit = lp.ctx.imported[mode_file]
-        mode_imports := extract_imports(miu_temp.ast, mode_file)
+        mode_imports := extract_imports(miu_temp.ast, mode_file, lp.ctx.symbols)
         mut auto_disp := ""
         if miu_temp.mode.auto_import.len() > 0 {
             mut auto_path := bin_dir.format("/", miu_temp.mode.auto_import, ".til")
@@ -935,7 +924,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                     tokens_auto := tokenize(source_auto, disp_auto)
                     mut mode_auto := ""
                     mut parse_errors_ast_auto : I32 = 0
-                    mut ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto, lp.ctx.anon_type_counter, parse_errors_ast_auto)
+                    mut ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_ast_auto)
                     // A syntax error must stop the build here. parse reports it and returns
                     // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
                     // carried on would bury that message under downstream type errors.
@@ -983,7 +972,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     core_tokens := tokenize(core_source, core_disp)
     mut core_mode_str := ""
     mut parse_errors_core_ast : I32 = 0
-    mut core_ast := parse(core_tokens, core_source, core_disp, core_mode_str, lp.ctx.anon_type_counter, parse_errors_core_ast)
+    mut core_ast := parse(core_tokens, core_source, core_disp, core_mode_str, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_core_ast)
     // A syntax error must stop the build here. parse reports it and returns
     // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
     // carried on would bury that message under downstream type errors.
@@ -1002,7 +991,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     }
 
     // Resolve core imports
-    core_imports := extract_imports(core_ast, core_disp)
+    core_imports := extract_imports(core_ast, core_disp, lp.ctx.symbols)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := format(bin_dir, "/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
@@ -1017,7 +1006,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     tokens := tokenize(source, path)
     mut mode_str := ""
     mut parse_errors_user_ast : I32 = 0
-    mut user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter, parse_errors_user_ast)
+    mut user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_user_ast)
     // A syntax error must stop the load here. parse reports it and returns a
     // PARTIAL ast, and carrying on would bury that message under downstream
     // type errors. Recorded rather than exit(1): the entrypoint is the REPL's
@@ -1028,7 +1017,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         lp.load_errors = parse_errors_user_ast
         return lp
     }
-    imports := extract_imports(user_ast, path)
+    imports := extract_imports(user_ast, path, lp.ctx.symbols)
     mode_str = normalize_mode_name(mode_str)
     ref cur_mode : Mode = require_mode(lp.ctx, path, mode_str)
     context_register_path_mode(lp.ctx, path, cur_mode)
@@ -1089,7 +1078,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         mode_tokens := tokenize(mode_source, mode_disp)
         mut mode_mode := ""
         mut parse_errors_mode_ast : I32 = 0
-        mut mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode, lp.ctx.anon_type_counter, parse_errors_mode_ast)
+        mut mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_mode_ast)
         // A syntax error must stop the build here. parse reports it and returns
         // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
         // carried on would bury that message under downstream type errors.
@@ -1099,7 +1088,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         context_register_path_mode(lp.ctx, mode_disp, mode_mode_def)
 
         // Resolve the auto-import file's own imports (mirrors core.til).
-        mode_imports := extract_imports(mode_ast, mode_disp)
+        mode_imports := extract_imports(mode_ast, mode_disp, lp.ctx.symbols)
         mode_dir := dir_of(realpath_str(mode_til_path))
         if mode_imports.len() > 0 {
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
@@ -1396,9 +1385,9 @@ priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration)
     }
 }
 
-priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns Str {
+priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope, symbols: SymbolPool) returns Str {
     mut t := dd.til_type.clone()
-    if t.is(Type.Unknown) { t = scope.get_type(name) }
+    if t.is(Type.Unknown) { t = scope.get_type_name(name, symbols) }
     type_str := til_type_user(t)
     if type_str.is_empty().not() {
         return name.format(" is a ", type_str)
@@ -1513,18 +1502,18 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
 }
 
 // Build the rich info string for a top-level Decl.
-format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
+format_decl_info := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     switch stmt.node_type {
     case .Decl(dd):
         if stmt.children.len() == 0 {
-            return format_var_info(dd.name, dd, scope)
+            return format_var_info(dd.name, dd, scope, symbols)
         }
         ref rhs : Expr = stmt.children[0]
         switch rhs.node_type {
         case .StructDef(sdef): return format_struct_info(dd.name, sdef)
         case .EnumDef(edef):   return format_enum_info(dd.name, edef)
         case .FuncDef(fd):     return format_func_info(dd.name, fd)
-        case:                          return format_var_info(dd.name, dd, scope)
+        case:                          return format_var_info(dd.name, dd, scope, symbols)
         }
     case:
         return ""
@@ -1642,11 +1631,11 @@ priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info
 // Walk a Body's top-level Decls. For each Decl append (name, info) into
 // `info` and (name, doc) into `docs` if Declaration.doc is non-empty.
 // Struct/enum members are also registered under qualified names.
-collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str) {
+collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str, symbols: SymbolPool) {
     for stmt : Expr in body.children {
         switch stmt.node_type {
         case .Decl(dd):
-            entry_info := format_decl_info(stmt, scope)
+            entry_info := format_decl_info(stmt, scope, symbols)
             if entry_info.is_empty().not() {
                 append_packed_entry(info, dd.name, entry_info)
             }
@@ -1707,7 +1696,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context
     if imp_stmt.children.len() >= 1 {
         switch imp_stmt.children[0].node_type {
         case .Ident(id):
-            if id.ident_name() == "import" {
+            if id.ident_name(ctx.symbols.names) == "import" {
                 if imp_stmt.children.len() > 1 {
                     mut path := ""
                     switch imp_stmt.children[1].node_type {
@@ -1722,7 +1711,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context
                             for arg_i in 2..imp_stmt.children.len() {
                                 switch imp_stmt.children[arg_i].node_type {
                                 case .Ident(sym_id):
-                                    exp_symbols.push(own Str.clone(sym_id.ident_name()))
+                                    exp_symbols.push(own Str.clone(sym_id.ident_name(ctx.symbols.names)))
                                 case:
                                 }
                             }
@@ -1780,15 +1769,15 @@ priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context
 // Collect the binder names a switch-case pattern introduces for its
 // body: the plain-Ident payload args of (possibly nested) FCall
 // patterns, e.g. `p` in `case NodeType.Literal(Literal.Str(p)):`.
-priv collect_case_pattern_binders := func(pat: Expr, mut out: Set(Str)) {
+priv collect_case_pattern_binders := func(pat: Expr, mut out: Set(Str), symbols: SymbolPool) {
     if pat.node_type.is(NodeType.FCall).not() { return }
     for ai in 1..pat.children.len() {
         ref a : Expr = pat.children[ai]
         switch a.node_type {
         case .Ident(bid):
-            out.add(own Str.clone(bid.ident_name()))
+            out.add(own Str.clone(bid.ident_name(symbols.names)))
         case .FCall:
-            collect_case_pattern_binders(a, out)
+            collect_case_pattern_binders(a, out, symbols)
         case:
         }
     }
@@ -1808,9 +1797,9 @@ priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str)
         if c.children.len() > 0 {
             switch c.children[0].node_type {
             case .Ident(base_id):
-                if alias_names.has(base_id.ident_name()).and(shadowed.has(base_id.ident_name()).not()) {
-                    alias_name = Str.clone(base_id.ident_name())
-                    member = Str.clone(fan.field_access_name())
+                if alias_names.has(base_id.ident_name(ctx.symbols.names)).and(shadowed.has(base_id.ident_name(ctx.symbols.names)).not()) {
+                    alias_name = Str.clone(base_id.ident_name(ctx.symbols.names))
+                    member = Str.clone(fan.field_access_name(ctx.symbols.names))
                 }
             case:
             }
@@ -1830,7 +1819,7 @@ priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str)
                     alias_name, "' of '", alias_paths[alias_name], "'"), ctx)
             return
         }
-        mut idn := Expr.new(ident_node(member), c.line, c.col)
+        mut idn := Expr.new(ident_node(ctx.symbols.intern(member)), c.line, c.col)
         // Vec.set deep-deletes the replaced FieldAccess subtree.
         e.children[i] = idn
     } else {
@@ -1914,7 +1903,7 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
             mut case_shadow := shadowed.clone()
             for pi in 0..pc {
                 ns_alias_rewrite_child(e, pi, alias_names, alias_members, alias_paths, path, shadowed, ctx)
-                collect_case_pattern_binders(e.children[pi], case_shadow)
+                collect_case_pattern_binders(e.children[pi], case_shadow, ctx.symbols)
             }
             ns_alias_rewrite_child(e, pc, alias_names, alias_members, alias_paths, path, case_shadow, ctx)
             return
@@ -1925,7 +1914,7 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
             mut catch_shadow := shadowed.clone()
             switch e.children[0].node_type {
             case .Ident(cvid):
-                catch_shadow.add(own Str.clone(cvid.ident_name()))
+                catch_shadow.add(own Str.clone(cvid.ident_name(ctx.symbols.names)))
             case:
             }
             ns_alias_rewrite_child(e, 2, alias_names, alias_members, alias_paths, path, catch_shadow, ctx)
@@ -1941,11 +1930,11 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
 // An `import("path")` call: callee named `import`, first argument a string
 // literal. The two callers differ only in where the call sits -- as a Decl's
 // RHS or as a bare statement -- so both hand the call here.
-priv is_valid_import_call := func(imp_stmt_ref: Expr) returns Bool {
+priv is_valid_import_call := func(imp_stmt_ref: Expr, symbols: SymbolPool) returns Bool {
     if imp_stmt_ref.children.len() < 2 { return false }
     switch imp_stmt_ref.children[0].node_type {
     case .Ident(id):
-        if id.ident_name() == "import" {
+        if id.ident_name(symbols.names) == "import" {
             switch imp_stmt_ref.children[1].node_type {
             case .Literal(Literal.Str(_p)):
                 return true
@@ -1989,8 +1978,8 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: C
         mut handled := false
         if is_imp {
             mut is_valid_import := false
-            if is_decl_rhs { is_valid_import = is_valid_import_call(stmt.children[0]) }
-            else { is_valid_import = is_valid_import_call(stmt) }
+            if is_decl_rhs { is_valid_import = is_valid_import_call(stmt.children[0], ctx.symbols) }
+            else { is_valid_import = is_valid_import_call(stmt, ctx.symbols) }
 
             if is_valid_import {
                 mut resolved := ""
@@ -2050,13 +2039,13 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: C
 // does not match a supported shape is left un-inlined and types as an
 // ordinary (eager) call.
 
-priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
+priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), symbols: SymbolPool) {
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]
         mut replaced := false
         switch c.node_type {
         case .Ident(idn):
-            ref nm : Str = idn.ident_name()
+            ref nm : Str = idn.ident_name(symbols.names)
             if subs.has(nm) {
                 // Substitute through the parent slot: Vec.set deep-deletes
                 // the old Ident (issue #272; replaces Expr.replace_with).
@@ -2066,7 +2055,7 @@ priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
             }
         case:
         }
-        if replaced.not() { lazy_substitute_idents(c, subs) }
+        if replaced.not() { lazy_substitute_idents(c, subs, symbols) }
     }
 }
 
@@ -2148,7 +2137,7 @@ priv lazy_body_as_expr := func(body: Expr) returns Option(Expr) {
 // Returns true if the call was inlined. Leaves `call` untouched (and
 // returns false) for any shape v1 does not handle, so the residual call
 // types as an ordinary eager call.
-priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) returns Bool {
+priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr, symbols: SymbolPool) returns Bool {
     ref call : Expr = parent.children[call_idx]
     if fdef.children.len() == 0 { return false }
     ref body : Expr = fdef.children[0]
@@ -2193,13 +2182,13 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     // assignment reclaims the first clone (save_old_delete).
     mut root_name := ""
     switch cloned.node_type {
-    case .Ident(root_idn): root_name = Str.clone(root_idn.ident_name())
+    case .Ident(root_idn): root_name = Str.clone(root_idn.ident_name(symbols.names))
     case:
     }
     if root_name.len().gt(0).and(subs.has(root_name)) {
         cloned = subs[root_name].clone()
     } else {
-        lazy_substitute_idents(cloned, subs)
+        lazy_substitute_idents(cloned, subs, symbols)
     }
     parent.children[call_idx] = cloned
     return true
@@ -2251,7 +2240,7 @@ priv lazy_variadic_subs := func(call: Expr, is_method: Bool, fdef: Expr,
 // Zero runtime cost: no thunks, and no operand collection is ever built.
 // Returns true if the call was replaced; false leaves it untouched (e.g. too
 // few fixed args), where the residual call fails arity checking in the typer.
-priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) returns Bool {
+priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr, symbols: SymbolPool) returns Bool {
     ref call : Expr = parent.children[call_idx]
     if fdef.children.len() == 0 { return false }
     ref body : Expr = fdef.children[0]
@@ -2270,7 +2259,7 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
     }
     if vidx < 0 { return false }
     if vidx.to_usize() != nparams - 1 { return false }   // variadic must be last
-    if lazy_variadic_body_unrollable(body, vname).not() { return false }
+    if lazy_variadic_body_unrollable(body, vname, symbols).not() { return false }
 
     mut is_method := false
     ref call_callee : Expr = call.children[0]
@@ -2297,7 +2286,7 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
                 opnd_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, fid.name, k)
                 for gj in 0..stmt.children[1].children.len() {
                     mut guard := stmt.children[1].children[gj].clone()
-                    lazy_substitute_idents(guard, opnd_subs)
+                    lazy_substitute_idents(guard, opnd_subs, symbols)
                     unrolled.add_child(own guard)
                 }
             }
@@ -2307,7 +2296,7 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
         if handled.not() {
             fixed_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, "", 0)
             mut cst := stmt.clone()
-            lazy_substitute_idents(cst, fixed_subs)
+            lazy_substitute_idents(cst, fixed_subs, symbols)
             unrolled.add_child(own cst)
         }
     }
@@ -2337,46 +2326,46 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
 // shape and base case, so nothing assumes associativity.
 
 // Count value-uses of identifier `name` in `e` (Ident reads + Assign targets).
-priv lazy_count_ident_uses := func(e: Expr, name: Str) returns USize {
+priv lazy_count_ident_uses := func(e: Expr, name: Str, symbols: SymbolPool) returns USize {
     mut n : USize = 0
     switch e.node_type {
-    case .Ident(idd):  if idd.ident_name() == name { n = n.add(1) }
+    case .Ident(idd):  if idd.ident_name(symbols.names) == name { n = n.add(1) }
     case .Assign(ad):  if ad.name == name { n = n.add(1) }
     case:
     }
     for c : Expr in e.children {
-        n = n.add(lazy_count_ident_uses(c, name))
+        n = n.add(lazy_count_ident_uses(c, name, symbols))
     }
     return n
 }
 
 // True if `e` is a recursive tail splat call `<callee>(..tail_name)`: a
 // splat FCall with exactly one argument, the bare Ident `tail_name`.
-priv lazy_is_tail_splat_call := func(e: Expr, tail_name: Str) returns Bool {
+priv lazy_is_tail_splat_call := func(e: Expr, tail_name: Str, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FCall(fcd):
         if fcd.splat_args == 0 { return false }
         if e.children.len() != 2 { return false }
         switch e.children[1].node_type {
-        case .Ident(arg_id): return arg_id.ident_name() == tail_name
+        case .Ident(arg_id): return arg_id.ident_name(symbols.names) == tail_name
         case: return false
         }
     case: return false
     }
 }
 
-priv lazy_count_tail_splat_calls := func(e: Expr, tail_name: Str) returns USize {
+priv lazy_count_tail_splat_calls := func(e: Expr, tail_name: Str, symbols: SymbolPool) returns USize {
     mut n : USize = 0
-    if lazy_is_tail_splat_call(e, tail_name) { n = 1 }
+    if lazy_is_tail_splat_call(e, tail_name, symbols) { n = 1 }
     for c : Expr in e.children {
-        n = n.add(lazy_count_tail_splat_calls(c, tail_name))
+        n = n.add(lazy_count_tail_splat_calls(c, tail_name, symbols))
     }
     return n
 }
 
 // The Match node of a recursive variadic lazy body `{ return match <vname>
 // { ... } }`, or NULL when the body does not have that outer shape.
-priv lazy_recursive_body_match := func(body: Expr, vname: Str) returns Option(ref Expr) {
+priv lazy_recursive_body_match := func(body: Expr, vname: Str, symbols: SymbolPool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref ret : Expr = body.children[0]
@@ -2386,7 +2375,7 @@ priv lazy_recursive_body_match := func(body: Expr, vname: Str) returns Option(re
     if m.children.len() != 3 { return Option(ref Expr).None }   // scrutinee + exactly 2 cases
     switch m.children[0].node_type {
     case .Ident(scrn):
-        if scrn.ident_name().eq(vname).not() { return Option(ref Expr).None }
+        if scrn.ident_name(symbols.names).eq(vname).not() { return Option(ref Expr).None }
     case: return Option(ref Expr).None
     }
     return Option(ref Expr).Some(m)
@@ -2430,7 +2419,7 @@ priv lazy_recursive_arm_value := func(arm: Expr) returns ref Expr {
 //       if x.not() { return false }
 //       return and(..tl)
 //   }
-priv lazy_recursive_body_switch := func(body: Expr, vname: Str) returns Option(ref Expr) {
+priv lazy_recursive_body_switch := func(body: Expr, vname: Str, symbols: SymbolPool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref sw : Expr = body.children[0]
@@ -2438,7 +2427,7 @@ priv lazy_recursive_body_switch := func(body: Expr, vname: Str) returns Option(r
     if sw.children.len() != 3 { return Option(ref Expr).None }   // scrutinee + exactly 2 cases
     switch sw.children[0].node_type {
     case .Ident(scrn):
-        if scrn.ident_name().eq(vname).not() { return Option(ref Expr).None }
+        if scrn.ident_name(symbols.names).eq(vname).not() { return Option(ref Expr).None }
     case: return Option(ref Expr).None
     }
     return Option(ref Expr).Some(sw)
@@ -2477,27 +2466,27 @@ priv lazy_recursive_switch_base_value := func(arm: Expr) returns Option(ref Expr
 // variadic and uses the tail EXACTLY once -- as the single recursive tail
 // splat call `self(..tail)`.
 priv lazy_recursive_hygiene_ok := func(cons_pat: Expr, vname: Str,
-        fixed_names: Vec(Str), base_val: Expr, cons_region: Expr) returns Bool {
+        fixed_names: Vec(Str), base_val: Expr, cons_region: Expr, symbols: SymbolPool) returns Bool {
     mut head := ""
     mut tail := ""
     switch cons_pat.children[0].node_type {
-    case .Ident(hn): head = Str.clone(hn.ident_name())
+    case .Ident(hn): head = Str.clone(hn.ident_name(symbols.names))
     case: return false
     }
     switch cons_pat.children[1].node_type {
-    case .Ident(tn): tail = Str.clone(tn.ident_name())
+    case .Ident(tn): tail = Str.clone(tn.ident_name(symbols.names))
     case: return false
     }
     if head.eq(tail).or(head.eq(vname)).or(tail.eq(vname)) { return false }
     for fx : Str in fixed_names {
         if fx.eq(head).or(fx.eq(tail)) { return false }
     }
-    if lazy_count_ident_uses(base_val, vname).gt(0) { return false }
-    if lazy_count_ident_uses(base_val, head).gt(0) { return false }
-    if lazy_count_ident_uses(base_val, tail).gt(0) { return false }
-    if lazy_count_ident_uses(cons_region, vname).gt(0) { return false }
-    if lazy_count_ident_uses(cons_region, tail) != 1 { return false }
-    if lazy_count_tail_splat_calls(cons_region, tail) != 1 { return false }
+    if lazy_count_ident_uses(base_val, vname, symbols).gt(0) { return false }
+    if lazy_count_ident_uses(base_val, head, symbols).gt(0) { return false }
+    if lazy_count_ident_uses(base_val, tail, symbols).gt(0) { return false }
+    if lazy_count_ident_uses(cons_region, vname, symbols).gt(0) { return false }
+    if lazy_count_ident_uses(cons_region, tail, symbols) != 1 { return false }
+    if lazy_count_tail_splat_calls(cons_region, tail, symbols) != 1 { return false }
     return true
 }
 
@@ -2509,7 +2498,7 @@ priv lazy_recursive_hygiene_ok := func(cons_pat: Expr, vname: Str,
 // param and any fixed param), the base arm mentions neither the variadic nor
 // head/tail, and the cons arm uses the tail EXACTLY once -- as the one
 // recursive tail splat call `self(..tail)`.
-lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
+lazy_recursive_variadic_def := func(fdef: Expr, symbols: SymbolPool) returns Bool {
     if fdef.node_type.is(NodeType.FuncDef).not() { return false }
     if fdef.children.len() == 0 { return false }
     mut vname := ""
@@ -2524,7 +2513,7 @@ lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
         for j in 0..fd.params.len() - 1 { fixed_names.push(own fd.params[j].name.clone()) }
     case: return false
     }
-    m_o := lazy_recursive_body_match(fdef.children[0], vname)
+    m_o := lazy_recursive_body_match(fdef.children[0], vname, symbols)
     if m_o.is_some() {
         ref m : Expr = m_o.unwrap()
         base_arm_o := lazy_recursive_arm(m, 0)
@@ -2533,12 +2522,12 @@ lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
         ref base_arm : Expr = base_arm_o.unwrap()
         ref cons_arm : Expr = cons_arm_o.unwrap()
         return lazy_recursive_hygiene_ok(cons_arm.children[0], vname, fixed_names,
-            lazy_recursive_arm_value(base_arm), lazy_recursive_arm_value(cons_arm))
+            lazy_recursive_arm_value(base_arm), lazy_recursive_arm_value(cons_arm), symbols)
     }
     // The statement (if/else) form: `switch xs { case []: ... case [h, ..t]:
     // ... }` with a single-return base arm and an inlinable-guard-chain cons
     // arm (the guards splice as nested short-circuit matches at unroll time).
-    sw_o := lazy_recursive_body_switch(fdef.children[0], vname)
+    sw_o := lazy_recursive_body_switch(fdef.children[0], vname, symbols)
     if sw_o.is_none() { return false }
     ref sw : Expr = sw_o.unwrap()
     sbase_o := lazy_recursive_switch_arm(sw, 0)
@@ -2550,17 +2539,17 @@ lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
     ref sbase_val : Expr = sbase_val_o.unwrap()
     if lazy_body_inlinable(scons.children[1]).not() { return false }
     return lazy_recursive_hygiene_ok(scons.children[0], vname, fixed_names,
-        sbase_val, scons.children[1])
+        sbase_val, scons.children[1], symbols)
 }
 
 // Clone `e`, replacing the (unique) recursive tail splat call `self(..tail)`
 // with a clone of `repl`. The callee must name the def itself -- a tail splat
 // call targeting anything else is a lie about the recursion and panics.
-priv lazy_clone_replacing_tail := func(e: Expr, tail_name: Str, self_name: Str, repl: Expr) returns Expr {
-    if lazy_is_tail_splat_call(e, tail_name) {
+priv lazy_clone_replacing_tail := func(e: Expr, tail_name: Str, self_name: Str, repl: Expr, symbols: SymbolPool) returns Expr {
+    if lazy_is_tail_splat_call(e, tail_name, symbols) {
         mut cname := ""
         switch e.children[0].node_type {
-        case .Ident(cn): cname = Str.clone(cn.ident_name())
+        case .Ident(cn): cname = Str.clone(cn.ident_name(symbols.names))
         case:
         }
         expect(cname == self_name,
@@ -2569,23 +2558,23 @@ priv lazy_clone_replacing_tail := func(e: Expr, tail_name: Str, self_name: Str, 
     }
     mut out := Expr.new(e.node_type, e.line, e.col)
     for c : Expr in e.children {
-        out.add_child(own lazy_clone_replacing_tail(c, tail_name, self_name, repl))
+        out.add_child(own lazy_clone_replacing_tail(c, tail_name, self_name, repl, symbols))
     }
     return out
 }
 
 // Substitute `subs` into a cloned arm value, handling the bare-Ident-root
 // case (the walk only substitutes children; a root Ident swaps wholesale).
-priv lazy_subst_arm_clone := func(own arm: Expr, subs: Map(Str, Expr)) returns Expr {
+priv lazy_subst_arm_clone := func(own arm: Expr, subs: Map(Str, Expr), symbols: SymbolPool) returns Expr {
     mut root_name := ""
     switch arm.node_type {
-    case .Ident(rn): root_name = Str.clone(rn.ident_name())
+    case .Ident(rn): root_name = Str.clone(rn.ident_name(symbols.names))
     case:
     }
     if root_name.len().gt(0).and(subs.has(root_name)) {
         return subs[root_name].clone()
     }
-    lazy_substitute_idents(arm, subs)
+    lazy_substitute_idents(arm, subs, symbols)
     return arm
 }
 
@@ -2598,22 +2587,22 @@ priv lazy_subst_arm_clone := func(own arm: Expr, subs: Map(Str, Expr)) returns E
 // chain, spliced to a nested short-circuit match via lazy_body_as_expr).
 priv lazy_expand_recursive := func(call: Expr, is_method: Bool, fdef: Expr,
         nfixed: USize, eff_count: USize, k: USize, base_val: Expr, cons_src: Expr,
-        cons_is_body: Bool, head: Str, tail: Str, self_name: Str) returns Expr {
+        cons_is_body: Bool, head: Str, tail: Str, self_name: Str, symbols: SymbolPool) returns Expr {
     if k == eff_count {
         base_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, "", 0)
-        return lazy_subst_arm_clone(own base_val.clone(), base_subs)
+        return lazy_subst_arm_clone(own base_val.clone(), base_subs, symbols)
     }
     inner := lazy_expand_recursive(call, is_method, fdef, nfixed, eff_count,
-        k + 1, base_val, cons_src, cons_is_body, head, tail, self_name)
+        k + 1, base_val, cons_src, cons_is_body, head, tail, self_name, symbols)
     cons_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, head, k)
-    mut substituted := lazy_subst_arm_clone(own cons_src.clone(), cons_subs)
+    mut substituted := lazy_subst_arm_clone(own cons_src.clone(), cons_subs, symbols)
     if cons_is_body {
         spliced_o := lazy_body_as_expr(substituted)
         expect(spliced_o.is_some(),
             "switch-form recursive arm failed to splice despite lazy_body_inlinable")
         substituted = Option(Expr).take(own spliced_o)
     }
-    return lazy_clone_replacing_tail(substituted, tail, self_name, inner)
+    return lazy_clone_replacing_tail(substituted, tail, self_name, inner, symbols)
 }
 
 // Extract head/tail from the cons pattern, run the expansion, and splice the
@@ -2622,19 +2611,19 @@ priv lazy_expand_recursive := func(call: Expr, is_method: Bool, fdef: Expr,
 priv lazy_finish_recursive_inline := func(mut parent: Expr, call_idx: USize,
         fdef: Expr, self_name: Str, is_method: Bool, eff_count: USize,
         nfixed: USize, base_val: Expr, cons_src: Expr, cons_is_body: Bool,
-        cons_pat: Expr) {
+        cons_pat: Expr, symbols: SymbolPool) {
     mut head := ""
     mut tail := ""
     switch cons_pat.children[0].node_type {
-    case .Ident(hn): head = Str.clone(hn.ident_name())
+    case .Ident(hn): head = Str.clone(hn.ident_name(symbols.names))
     case:
     }
     switch cons_pat.children[1].node_type {
-    case .Ident(tn): tail = Str.clone(tn.ident_name())
+    case .Ident(tn): tail = Str.clone(tn.ident_name(symbols.names))
     case:
     }
     expanded := lazy_expand_recursive(parent.children[call_idx], is_method, fdef,
-        nfixed, eff_count, nfixed, base_val, cons_src, cons_is_body, head, tail, self_name)
+        nfixed, eff_count, nfixed, base_val, cons_src, cons_is_body, head, tail, self_name, symbols)
     parent.children[call_idx] = expanded
 }
 
@@ -2642,7 +2631,7 @@ priv lazy_finish_recursive_inline := func(mut parent: Expr, call_idx: USize,
 // lazy_recursive_variadic_def). Returns false only on a fixed-arity shortfall,
 // where the residual call fails arity checking in the typer.
 priv inline_recursive_variadic_lazy_call := func(mut parent: Expr, call_idx: USize,
-        fdef: Expr, self_name: Str) returns Bool {
+        fdef: Expr, self_name: Str, symbols: SymbolPool) returns Bool {
     ref call : Expr = parent.children[call_idx]
     mut vname := ""
     mut nfixed : USize = 0
@@ -2666,22 +2655,22 @@ priv inline_recursive_variadic_lazy_call := func(mut parent: Expr, call_idx: USi
     // value and cons region live (match arm values vs switch arm bodies).
     // lazy_recursive_variadic_def already matched one of the two shapes
     // and checked both arms, so every lookup below hits.
-    m_o := lazy_recursive_body_match(fdef.children[0], vname)
+    m_o := lazy_recursive_body_match(fdef.children[0], vname, symbols)
     if m_o.is_some() {
         ref m : Expr = m_o.unwrap()
         ref base_arm : Expr = lazy_recursive_arm(m, 0).unwrap()
         ref cons_arm : Expr = lazy_recursive_arm(m, 2).unwrap()
         lazy_finish_recursive_inline(parent, call_idx, fdef, self_name, is_method,
             eff_count, nfixed, lazy_recursive_arm_value(base_arm),
-            lazy_recursive_arm_value(cons_arm), false, cons_arm.children[0])
+            lazy_recursive_arm_value(cons_arm), false, cons_arm.children[0], symbols)
         return true
     }
-    ref sw : Expr = lazy_recursive_body_switch(fdef.children[0], vname).unwrap()
+    ref sw : Expr = lazy_recursive_body_switch(fdef.children[0], vname, symbols).unwrap()
     ref sbase : Expr = lazy_recursive_switch_arm(sw, 0).unwrap()
     ref scons : Expr = lazy_recursive_switch_arm(sw, 2).unwrap()
     lazy_finish_recursive_inline(parent, call_idx, fdef, self_name, is_method,
         eff_count, nfixed, lazy_recursive_switch_base_value(sbase).unwrap(),
-        scons.children[1], true, scons.children[0])
+        scons.children[1], true, scons.children[0], symbols)
     return true
 }
 
@@ -2801,20 +2790,21 @@ priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope, ctx: Context
     if call.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
     if call.children.len() == 0 { return Option(ref Expr).None }
     mut lname := ""
+    mut lsym : Sym = 0
     switch call.children[0].node_type {
-    case .Ident(idn): lname = Str.clone(idn.ident_name())
-    case .FieldAccess(fa): lname = Str.clone(fa.field_access_name())
+    case .Ident(idn): lname = Str.clone(idn.ident_name(ctx.symbols.names)); lsym = idn.ident_sym()
+    case .FieldAccess(fa): lname = Str.clone(fa.field_access_name(ctx.symbols.names)); lsym = fa.field_access_sym()
     case:
     }
     if lname.len() == 0 { return Option(ref Expr).None }
     // A name in ctx.generic_funcs is a monomorphized-and-DROPPED top-level
     // generic: init_expand_generic_funcs freed its FuncDef, so
-    // scope.lookup_func(name) hands back a dangling pointer -- the same
+    // the scope function lookup hands back a dangling pointer -- the same
     // documented guard init_lookup_type_gen_macro carries. Reached here via
     // a METHOD call sharing a generic's name (p.swap() vs core swap, #302:
     // heap-use-after-free in func_def_type).
     if ctx.generic_funcs.has(lname) { return Option(ref Expr).None }
-    fdef_o := scope.lookup_func(lname)
+    fdef_o := scope.lookup_func_by_sym(lsym, ctx.symbols)
     if fdef_o.is_none() { return Option(ref Expr).None }
     ref fdef : Expr = fdef_o.unwrap()
     ft := func_def_type(fdef)
@@ -2845,7 +2835,7 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr), mut 
 
     subs := lazy_build_subs(call, fdef)
     mut bclone := body.clone()
-    lazy_substitute_idents(bclone, subs)
+    lazy_substitute_idents(bclone, subs, ctx.symbols)
     nstmts := bclone.children.len()
 
     // Tail expression from the substituted suffix [sp, nstmts).
@@ -2863,10 +2853,10 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr), mut 
     for i in 0..sp { blk.add_child(own bclone.children[i].clone()) }
     blk.add_child(own lazy_make_assign(name, own tail_expr, line, col))
 
-    deflt := make_default_value_expr(ret_type, line, col)
+    deflt := make_default_value_expr(ret_type, line, col, ctx.symbols)
     new.push(own lazy_make_temp_decl(name, ret_type, own deflt, line, col))
     new.push(own blk)
-    return Option(Expr).Some(Expr.new(ident_node(name), line, col))
+    return Option(Expr).Some(Expr.new(ident_node(ctx.symbols.intern(name)), line, col))
 }
 
 // The value-position child of a statement that could hold a lazy call (a
@@ -2947,15 +2937,16 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
         mut inlined := false
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
             mut lname := ""
+            mut lsym : Sym = 0
             switch c.children[0].node_type {
-            case .Ident(idn): lname = Str.clone(idn.ident_name())
-            case .FieldAccess(fa): lname = Str.clone(fa.field_access_name())
+            case .Ident(idn): lname = Str.clone(idn.ident_name(ctx.symbols.names)); lsym = idn.ident_sym()
+            case .FieldAccess(fa): lname = Str.clone(fa.field_access_name(ctx.symbols.names)); lsym = fa.field_access_sym()
             case:
             }
             // Same dropped-generic guard as lazy_stmt_inlinable_call: a
             // name in ctx.generic_funcs points at a freed FuncDef.
             if lname.len().gt(0).and(ctx.generic_funcs.has(lname).not()) {
-                fdef_o := scope.lookup_func(lname)
+                fdef_o := scope.lookup_func_by_sym(lsym, ctx.symbols)
                 if fdef_o.is_some() {
                     ref fdef : Expr = fdef_o.unwrap()
                     ft := func_def_type(fdef)
@@ -2965,11 +2956,11 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
                         // iterative for-in form); fixed-arity defs inline
                         // directly.
                         mut done := false
-                        if lazy_recursive_variadic_def(fdef) {
-                            done = inline_recursive_variadic_lazy_call(e, i, fdef, lname)
+                        if lazy_recursive_variadic_def(fdef, ctx.symbols) {
+                            done = inline_recursive_variadic_lazy_call(e, i, fdef, lname, ctx.symbols)
                         }
-                        if done.not() { done = inline_variadic_lazy_call(e, i, fdef) }
-                        if done.not() { done = inline_lazy_call(e, i, fdef) }
+                        if done.not() { done = inline_variadic_lazy_call(e, i, fdef, ctx.symbols) }
+                        if done.not() { done = inline_lazy_call(e, i, fdef, ctx.symbols) }
                         if done {
                             // The spliced body may contain further lazy
                             // calls (in the body or substituted args).
@@ -2993,7 +2984,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
         // would destroy the template. Skip descending into such defs.
         mut recursive_template := false
         switch c.node_type {
-        case .FuncDef: recursive_template = lazy_recursive_variadic_def(c)
+        case .FuncDef: recursive_template = lazy_recursive_variadic_def(c, ctx.symbols)
         case:
         }
         if inlined.not().and(recursive_template.not()) { expand_lazy_in_expr(c, scope, depth + 1, ctx) }
@@ -3019,25 +3010,25 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
 // lazy param name. Binder idents are not uses -- forcing one would destroy the
 // binding -- so the auto-force pass treats them as shadowing the param inside
 // the arm (guard + body), the same scope-aware handling for-in and catch get.
-priv lazy_collect_case_bound := func(pat: Expr, pnames: Set(Str), mut bound: Set(Str)) {
+priv lazy_collect_case_bound := func(pat: Expr, pnames: Set(Str), mut bound: Set(Str), symbols: SymbolPool) {
     if pat.node_type.is(NodeType.FCall).not() { return }
     for i in 1..pat.children.len() {
         ref a : Expr = pat.children[i]
         switch a.node_type {
         case .Ident(bn):
-            if pnames.has(bn.ident_name()) { bound.add(own Str.clone(bn.ident_name())) }
+            if pnames.has(bn.ident_name(symbols.names)) { bound.add(own Str.clone(bn.ident_name(symbols.names))) }
         case .NamedArg:
             if a.children.len() > 0 {
                 switch a.children[0].node_type {
                 case .Ident(nbn):
-                    if pnames.has(nbn.ident_name()) { bound.add(own Str.clone(nbn.ident_name())) }
+                    if pnames.has(nbn.ident_name(symbols.names)) { bound.add(own Str.clone(nbn.ident_name(symbols.names))) }
                 case .FCall:
-                    lazy_collect_case_bound(a.children[0], pnames, bound)
+                    lazy_collect_case_bound(a.children[0], pnames, bound, symbols)
                 case:
                 }
             }
         case .FCall:
-            lazy_collect_case_bound(a, pnames, bound)
+            lazy_collect_case_bound(a, pnames, bound, symbols)
         case:
         }
     }
@@ -3061,7 +3052,7 @@ priv lazy_fieldaccess_root := func(e: Expr) returns ref Expr {
 //     forced call yields a temporary, so the write would be lost).
 // A case pattern that BINDS a param name is NOT blocked: the binding shadows
 // the param inside its arm, handled scope-aware by lazy_autoforce_match_switch.
-priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns Bool {
+priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32, symbols: SymbolPool) returns Bool {
     if depth > 256 { return true }
     switch e.node_type {
     case .FuncDef: return false        // nested closure: its own scope
@@ -3072,14 +3063,14 @@ priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns B
             ref root : Expr = lazy_fieldaccess_root(e.children[0])
             switch root.node_type {
             case .Ident(rn):
-                if pnames.has(rn.ident_name()) { return true }
+                if pnames.has(rn.ident_name(symbols.names)) { return true }
             case:
             }
         }
     case:
     }
     for c : Expr in e.children {
-        if lazy_thunk_blocked(c, pnames, depth + 1) { return true }
+        if lazy_thunk_blocked(c, pnames, depth + 1, symbols) { return true }
     }
     return false
 }
@@ -3094,13 +3085,13 @@ priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns B
 // slot can be replaced through its parent); lazy_autoforce_body runs a
 // statement list, threading Decl shadows to the following statements.
 priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
-        shadowed: Set(Str), memo: Map(Str, Str), depth: I32) {
+        shadowed: Set(Str), memo: Map(Str, Str), depth: I32, mut symbols: SymbolPool) {
     if depth > 256 { return }
     ref mut c : Expr = parent.children[idx]
     switch c.node_type {
     case .FuncDef: return
     case .Ident(idn):
-        ref nm : Str = idn.ident_name()
+        ref nm : Str = idn.ident_name(symbols.names)
         if pnames.has(nm).and(shadowed.has(nm).not()) {
             line := c.line
             col := c.col
@@ -3112,34 +3103,34 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
                 // lazy_thunk_lower_def.
                 ref fo : Str = memo.get(nm)!
                 mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
-                call.add_child(own Expr.new(ident_node(fo), line, col))
-                call.add_child(own Expr.new(ident_node(format("_memo_", nm, "_done")), line, col))
-                call.add_child(own Expr.new(ident_node(format("_memo_", nm, "_v")), line, col))
-                call.add_child(own Expr.new(ident_node(nm), line, col))
+                call.add_child(own Expr.new(ident_node(symbols.intern(fo)), line, col))
+                call.add_child(own Expr.new(ident_node(symbols.intern(format("_memo_", nm, "_done"))), line, col))
+                call.add_child(own Expr.new(ident_node(symbols.intern(format("_memo_", nm, "_v"))), line, col))
+                call.add_child(own Expr.new(ident_node(symbols.intern(nm)), line, col))
                 parent.children[idx] = call
             } else {
                 // Single-use param: a plain force `<thunk>()` (call-by-name and
                 // call-by-need coincide at one use).
                 mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
-                call.add_child(own Expr.new(ident_node(nm), line, col))
+                call.add_child(own Expr.new(ident_node(symbols.intern(nm)), line, col))
                 parent.children[idx] = call
             }
         }
         return
     case .Body:
-        lazy_autoforce_body(c, pnames, shadowed, memo, depth + 1)
+        lazy_autoforce_body(c, pnames, shadowed, memo, depth + 1, symbols)
         return
     case .ForIn(fid):
         // The iterated expression sees the current scope; the loop body sees
         // the loop variable(s) shadowing any same-named param.
-        if c.children.len() >= 1 { lazy_autoforce_node(c, 0, pnames, shadowed, memo, depth + 1) }
+        if c.children.len() >= 1 { lazy_autoforce_node(c, 0, pnames, shadowed, memo, depth + 1, symbols) }
         mut loop_shadowed := shadowed.clone()
         if pnames.has(fid.name) { loop_shadowed.add(own fid.name.clone()) }
         if fid.name2.len().gt(0).and(pnames.has(fid.name2)) {
             loop_shadowed.add(own fid.name2.clone())
         }
         if c.children.len() >= 2 {
-            lazy_autoforce_body(c.children[1], pnames, loop_shadowed, memo, depth + 1)
+            lazy_autoforce_body(c.children[1], pnames, loop_shadowed, memo, depth + 1, symbols)
         }
         return
     case .Catch:
@@ -3148,20 +3139,20 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
         mut catch_shadowed := shadowed.clone()
         switch c.children[0].node_type {
         case .Ident(cvn):
-            if pnames.has(cvn.ident_name()) { catch_shadowed.add(own Str.clone(cvn.ident_name())) }
+            if pnames.has(cvn.ident_name(symbols.names)) { catch_shadowed.add(own Str.clone(cvn.ident_name(symbols.names))) }
         case:
         }
         if c.children.len() >= 3 {
-            lazy_autoforce_body(c.children[2], pnames, catch_shadowed, memo, depth + 1)
+            lazy_autoforce_body(c.children[2], pnames, catch_shadowed, memo, depth + 1, symbols)
         }
         return
     case .Match, .Switch:
-        lazy_autoforce_match_switch(c, pnames, shadowed, memo, depth + 1)
+        lazy_autoforce_match_switch(c, pnames, shadowed, memo, depth + 1, symbols)
         return
     case:
     }
     for j in 0..c.children.len() {
-        lazy_autoforce_node(c, j, pnames, shadowed, memo, depth + 1)
+        lazy_autoforce_node(c, j, pnames, shadowed, memo, depth + 1, symbols)
     }
 }
 
@@ -3172,26 +3163,26 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
 // the shadow set, so it is left as-is while a genuine param value-use in the
 // same arm still forces -- the same scope-aware rule for-in / catch use.
 priv lazy_autoforce_match_switch := func(mut node: Expr, pnames: Set(Str),
-        shadowed: Set(Str), memo: Map(Str, Str), depth: I32) {
+        shadowed: Set(Str), memo: Map(Str, Str), depth: I32, mut symbols: SymbolPool) {
     if depth > 256 { return }
     if node.children.len() >= 1 {
-        lazy_autoforce_node(node, 0, pnames, shadowed, memo, depth + 1)
+        lazy_autoforce_node(node, 0, pnames, shadowed, memo, depth + 1, symbols)
     }
     for ci in 1..node.children.len() {
         ref mut arm : Expr = node.children[ci]
         if arm.node_type.is(NodeType.Case).not() { continue }
         mut arm_shadowed := shadowed.clone()
         if arm.children.len() >= 1 {
-            lazy_collect_case_bound(arm.children[0], pnames, arm_shadowed)
+            lazy_collect_case_bound(arm.children[0], pnames, arm_shadowed, symbols)
         }
         for k in 0..arm.children.len() {
-            lazy_autoforce_node(arm, k, pnames, arm_shadowed, memo, depth + 1)
+            lazy_autoforce_node(arm, k, pnames, arm_shadowed, memo, depth + 1, symbols)
         }
     }
 }
 
 priv lazy_autoforce_body := func(mut body: Expr, pnames: Set(Str),
-        outer_shadowed: Set(Str), memo: Map(Str, Str), depth: I32) {
+        outer_shadowed: Set(Str), memo: Map(Str, Str), depth: I32, mut symbols: SymbolPool) {
     if depth > 256 { return }
     mut shadowed := outer_shadowed.clone()
     for i in 0..body.children.len() {
@@ -3205,7 +3196,7 @@ priv lazy_autoforce_body := func(mut body: Expr, pnames: Set(Str),
             if pnames.has(dd.name) { decl_name = dd.name.clone() }
         case:
         }
-        lazy_autoforce_node(body, i, pnames, shadowed, memo, depth + 1)
+        lazy_autoforce_node(body, i, pnames, shadowed, memo, depth + 1, symbols)
         // A Decl shadows its name for the statements AFTER it (its own
         // initializer, walked above, still saw the param).
         if decl_name.len() > 0 {
@@ -3226,7 +3217,7 @@ priv lazy_register_fn_ret_alias := func(lp: LoadedProgram,
     if seen.has(name) { return }
     seen.add(own name.clone())
     // Reuse a hand-written `func() returns T` alias if one already exists.
-    if lp.ctx.scope.get_binding(name).is_some() { return }
+    if lp.ctx.scope.get_binding_name(name, lp.ctx.symbols).is_some() { return }
 
     mut fd := FunctionDef()
     fd.func_type = FuncType.Func
@@ -3251,55 +3242,55 @@ priv lazy_count_live_bump := func(nm: Str, mut counts: Map(Str, I64)) {
     if counts.has(nm) { prev = counts.get(nm)! }
     counts.set(nm, own prev.add(1))
 }
-priv lazy_count_live := func(e: Expr, pnames: Set(Str), shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32) {
+priv lazy_count_live := func(e: Expr, pnames: Set(Str), shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32, symbols: SymbolPool) {
     if depth > 512 { return }
     switch e.node_type {
     case .FuncDef: return
     case .Ident(idn):
-        ref nm : Str = idn.ident_name()
+        ref nm : Str = idn.ident_name(symbols.names)
         if pnames.has(nm).and(shadowed.has(nm).not()) { lazy_count_live_bump(nm, counts) }
         return
     case .ForIn(fid):
-        if e.children.len() >= 1 { lazy_count_live(e.children[0], pnames, shadowed, counts, depth + 1) }
+        if e.children.len() >= 1 { lazy_count_live(e.children[0], pnames, shadowed, counts, depth + 1, symbols) }
         mut ls := shadowed.clone()
         if pnames.has(fid.name) { ls.add(own fid.name.clone()) }
         if fid.name2.len().gt(0).and(pnames.has(fid.name2)) { ls.add(own fid.name2.clone()) }
-        if e.children.len() >= 2 { lazy_count_live(e.children[1], pnames, ls, counts, depth + 1) }
+        if e.children.len() >= 2 { lazy_count_live(e.children[1], pnames, ls, counts, depth + 1, symbols) }
         return
     case .Catch:
         mut cs := shadowed.clone()
         switch e.children[0].node_type {
         case .Ident(cvn):
-            if pnames.has(cvn.ident_name()) { cs.add(own Str.clone(cvn.ident_name())) }
+            if pnames.has(cvn.ident_name(symbols.names)) { cs.add(own Str.clone(cvn.ident_name(symbols.names))) }
         case:
         }
-        if e.children.len() >= 3 { lazy_count_live(e.children[2], pnames, cs, counts, depth + 1) }
+        if e.children.len() >= 3 { lazy_count_live(e.children[2], pnames, cs, counts, depth + 1, symbols) }
         return
     case .Match, .Switch:
-        lazy_count_live_ms(e, pnames, shadowed, counts, depth + 1)
+        lazy_count_live_ms(e, pnames, shadowed, counts, depth + 1, symbols)
         return
     case .Body:
-        lazy_count_live_body(e, pnames, shadowed, counts, depth + 1)
+        lazy_count_live_body(e, pnames, shadowed, counts, depth + 1, symbols)
         return
     case:
     }
-    for ch : Expr in e.children { lazy_count_live(ch, pnames, shadowed, counts, depth + 1) }
+    for ch : Expr in e.children { lazy_count_live(ch, pnames, shadowed, counts, depth + 1, symbols) }
 }
-priv lazy_count_live_ms := func(node: Expr, pnames: Set(Str), shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32) {
-    if node.children.len() >= 1 { lazy_count_live(node.children[0], pnames, shadowed, counts, depth + 1) }
+priv lazy_count_live_ms := func(node: Expr, pnames: Set(Str), shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32, symbols: SymbolPool) {
+    if node.children.len() >= 1 { lazy_count_live(node.children[0], pnames, shadowed, counts, depth + 1, symbols) }
     for ci in 1..node.children.len() {
         ref arm : Expr = node.children[ci]
         if arm.node_type.is(NodeType.Case).not() { continue }
         mut arm_shadowed := shadowed.clone()
-        if arm.children.len() >= 1 { lazy_collect_case_bound(arm.children[0], pnames, arm_shadowed) }
+        if arm.children.len() >= 1 { lazy_collect_case_bound(arm.children[0], pnames, arm_shadowed, symbols) }
         // Skip the pattern (children[0]) -- its binder idents are not uses; count
         // the guard/body under the arm's shadow set.
         for k in 1..arm.children.len() {
-            lazy_count_live(arm.children[k], pnames, arm_shadowed, counts, depth + 1)
+            lazy_count_live(arm.children[k], pnames, arm_shadowed, counts, depth + 1, symbols)
         }
     }
 }
-priv lazy_count_live_body := func(body: Expr, pnames: Set(Str), outer_shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32) {
+priv lazy_count_live_body := func(body: Expr, pnames: Set(Str), outer_shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32, symbols: SymbolPool) {
     mut shadowed := outer_shadowed.clone()
     for bstmt : Expr in body.children {
         // Clone the Decl name ONLY when it shadows a param (the clone is
@@ -3311,7 +3302,7 @@ priv lazy_count_live_body := func(body: Expr, pnames: Set(Str), outer_shadowed: 
             if pnames.has(dd.name) { decl_name = dd.name.clone() }
         case:
         }
-        lazy_count_live(bstmt, pnames, shadowed, counts, depth + 1)
+        lazy_count_live(bstmt, pnames, shadowed, counts, depth + 1, symbols)
         if decl_name.len() > 0 { shadowed.add(own decl_name) }
     }
 }
@@ -3319,7 +3310,7 @@ priv lazy_count_live_body := func(body: Expr, pnames: Set(Str), outer_shadowed: 
 // True when any param of `fdef` is forced more than once in `body`. Such a def
 // must thunk-lower (with memo helpers) rather than inline, so its multi-use
 // arguments evaluate at most once (call-by-need).
-priv lazy_has_multiuse_param := func(fdef: Expr, body: Expr) returns Bool {
+priv lazy_has_multiuse_param := func(fdef: Expr, body: Expr, symbols: SymbolPool) returns Bool {
     switch fdef.node_type {
     case .FuncDef(fd):
         if fd.variadic_index >= 0 { return false }
@@ -3327,7 +3318,7 @@ priv lazy_has_multiuse_param := func(fdef: Expr, body: Expr) returns Bool {
         for p : Declaration in fd.params { pnames.add(own p.name.clone()) }
         mut counts := Map(Str, I64).new()
         no_shadow := Set(Str).new()
-        lazy_count_live_body(body, pnames, no_shadow, counts, 0)
+        lazy_count_live_body(body, pnames, no_shadow, counts, 0, symbols)
         for p : Declaration in fd.params {
             if counts.has(p.name) {
                 if counts.get(p.name)! >= 2 { return true }
@@ -3343,7 +3334,7 @@ priv lazy_has_multiuse_param := func(fdef: Expr, body: Expr) returns Bool {
 //       if done.not() { cache = th(); done = true }
 //       return cache
 //   }
-priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) returns Expr {
+priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
     fn_ret := format("_Fn_ret_", ret_type)
     mut fd := FunctionDef()
     fd.func_type = FuncType.Func
@@ -3357,7 +3348,7 @@ priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) retur
 
     // then: cache = th() ; done = true
     mut th_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    th_call.add_child(own Expr.new(ident_node("th"), line, col))
+    th_call.add_child(own Expr.new(ident_node(symbols.intern("th")), line, col))
     mut asg_cache := Expr.new(NodeType.Assign(AssignData(name = "cache")), line, col)
     asg_cache.add_child(own th_call)
     mut asg_done := Expr.new(NodeType.Assign(AssignData(name = "done")), line, col)
@@ -3367,11 +3358,11 @@ priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) retur
     then_body.add_child(own asg_done)
 
     mut if_node := Expr.new(NodeType.If, line, col)
-    if_node.add_child(own make_method_call_fcall(own Expr.new(ident_node("done"), line, col), "not", line, col))
+    if_node.add_child(own make_method_call_fcall(own Expr.new(ident_node(symbols.intern("done")), line, col), "not", line, col, symbols))
     if_node.add_child(own then_body)
 
     mut ret := Expr.new(NodeType.Return, line, col)
-    ret.add_child(own Expr.new(ident_node("cache"), line, col))
+    ret.add_child(own Expr.new(ident_node(symbols.intern("cache")), line, col))
 
     mut body := Expr.new(NodeType.Body, line, col)
     body.add_child(own if_node)
@@ -3390,13 +3381,13 @@ priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) retur
 // flush appends it to the unit AST and registers the scope binding against the
 // PUSHED node -- see lazy_register_fn_ret_alias for why appending mid-pass is
 // forbidden (use-after-free through the pass's live refs).
-priv lazy_register_force_once := func(lp: LoadedProgram,
+priv lazy_register_force_once := func(mut lp: LoadedProgram,
         ret_type: Str, line: U32, col: U32, mut seen_fo: Set(Str), mut pending: Vec(Expr)) {
     name := format("_force_once_", ret_type)
     if seen_fo.has(name) { return }
     seen_fo.add(own name.clone())
-    if lp.ctx.scope.get_binding(name).is_some() { return }
-    pending.push(own lazy_build_force_once_def(ret_type, line, col))
+    if lp.ctx.scope.get_binding_name(name, lp.ctx.symbols).is_some() { return }
+    pending.push(own lazy_build_force_once_def(ret_type, line, col, lp.ctx.symbols))
 }
 
 // Flush the pending loader-generated decls (thunk funcsig aliases + memo
@@ -3424,9 +3415,9 @@ priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pen
             // resolves its result type from here (register_function_def_for_stmt).
             ret_type := name.strip_prefix("_force_once_")
             rt := declaration_type_from_name(ret_type)
-            lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow)
-            lp.ctx.scope.set_func_def(name, pushed.children[0])
-            ref mut fb : TypeBinding = lp.ctx.scope.get_binding(name).unwrap()
+            lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow, lp.ctx.symbols)
+            lp.ctx.scope.set_func_def_name(name, pushed.children[0], lp.ctx.symbols)
+            ref mut fb : TypeBinding = lp.ctx.scope.get_binding_name(name, lp.ctx.symbols).unwrap()
             fb.is_func_decl = true
             fb.is_priv = true
         } else {
@@ -3439,13 +3430,13 @@ priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pen
 //   mut _memo_<p>_done := false
 //   mut _memo_<p>_v : T = <default>
 // prepended to the body; force_once mutates them by reference.
-priv lazy_make_memo_decls := func(pname: Str, ret_type: Str, line: U32, col: U32) returns Vec(Expr) {
+priv lazy_make_memo_decls := func(pname: Str, ret_type: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Vec(Expr) {
     mut out := Vec(Expr).new()
     mut d := Expr.new(NodeType.Decl(Declaration(name = format("_memo_", pname, "_done"), is_mut = true)), line, col)
     d.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), line, col))
     out.push(own d)
     mut v := Expr.new(NodeType.Decl(decl_typed(name = format("_memo_", pname, "_v"), type_name = ret_type, own_type = OwnType.Shallow, is_mut = true)), line, col)
-    v.add_child(own make_default_value_expr(ret_type, line, col))
+    v.add_child(own make_default_value_expr(ret_type, line, col, symbols))
     out.push(own v)
     return out
 }
@@ -3468,7 +3459,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
     // Constructs the thunk rewrite cannot express (assigning a param,
     // field-assigning through one, case patterns binding a param name):
     // leave the def lazy so the typer's hard error names it.
-    if lazy_thunk_blocked(body, pnames, 0) { return }
+    if lazy_thunk_blocked(body, pnames, 0, lp.ctx.symbols) { return }
 
     // #262 call-by-need: a param used more than once memoizes its argument so
     // it evaluates at most once. Decide this BEFORE retyping (need the original
@@ -3476,7 +3467,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
     mut memo := Map(Str, Str).new()
     mut cache_decls := Vec(Expr).new()
     mut use_counts := Map(Str, I64).new()
-    lazy_count_live_body(body, pnames, Set(Str).new(), use_counts, 0)
+    lazy_count_live_body(body, pnames, Set(Str).new(), use_counts, 0, lp.ctx.symbols)
     switch fdef.node_type {
     case .FuncDef(fd):
         for p : Declaration in fd.params {
@@ -3486,7 +3477,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
                 orig_t := p.type_name()
                 lazy_register_force_once(lp, orig_t, fdef.line, fdef.col, seen_fo, pending)
                 memo.set(p.name, own format("_force_once_", orig_t))
-                mut decls := lazy_make_memo_decls(p.name, orig_t, fdef.line, fdef.col)
+                mut decls := lazy_make_memo_decls(p.name, orig_t, fdef.line, fdef.col, lp.ctx.symbols)
                 for di in 0..decls.len() { cache_decls.push_take(decls, di) }
             }
         }
@@ -3516,9 +3507,9 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
     }
 
     no_shadow := Set(Str).new()
-    lazy_autoforce_body(body, pnames, no_shadow, memo, 0)
+    lazy_autoforce_body(body, pnames, no_shadow, memo, 0, lp.ctx.symbols)
     lowered.add(own name.clone())
-    lp.ctx.scope.set_func_def(name, fdef)
+    lp.ctx.scope.set_func_def_name(name, fdef, lp.ctx.symbols)
 }
 
 // Issue #262 first-class: lower a bodyless `Sig := lazy_func(T, ...) returns R`
@@ -3545,23 +3536,24 @@ priv lazy_lower_funcsig := func(mut lp: LoadedProgram,
         return
     }
     lazy_sigs.add(own name.clone())
-    lp.ctx.scope.set_func_def(name, fdef)
+    lp.ctx.scope.set_func_def_name(name, fdef, lp.ctx.symbols)
 }
 
 // If `call` (an FCall / UFCS method call) targets a function whose declared
 // return type is a lazy funcsig, return that funcsig name, else "". Lets a
 // `g := returns_a_lazy_func()` decl mark `g` first-class so its own calls wrap.
-priv lazy_call_returns_sig := func(call: Expr, scope: TypeScope, lazy_sigs: Set(Str)) returns Str {
+priv lazy_call_returns_sig := func(call: Expr, scope: TypeScope, lazy_sigs: Set(Str), symbols: SymbolPool) returns Str {
     if call.node_type.is(NodeType.FCall).not() { return "" }
     if call.children.len() == 0 { return "" }
     mut callee_name := ""
+    mut callee_sym : Sym = 0
     switch call.children[0].node_type {
-    case .Ident(idn): callee_name = Str.clone(idn.ident_name())
-    case .FieldAccess(fa): callee_name = Str.clone(fa.field_access_name())
+    case .Ident(idn): callee_name = Str.clone(idn.ident_name(symbols.names)); callee_sym = idn.ident_sym()
+    case .FieldAccess(fa): callee_name = Str.clone(fa.field_access_name(symbols.names)); callee_sym = fa.field_access_sym()
     case:
     }
     if callee_name.len() == 0 { return "" }
-    cfd_o := scope.lookup_func(callee_name)
+    cfd_o := scope.lookup_func_by_sym(callee_sym, symbols)
     if cfd_o.is_none() { return "" }
     switch cfd_o.unwrap().node_type {
     case .FuncDef(fd):
@@ -3575,18 +3567,19 @@ priv lazy_call_returns_sig := func(call: Expr, scope: TypeScope, lazy_sigs: Set(
 // name) or a call to a struct-returning function -- return that struct's name,
 // else "". Lets `h := S(...)` mark `h` so a later `h.fn(...)` field call can
 // resolve its lazy-funcsig field.
-priv lazy_call_struct_type := func(call: Expr, scope: TypeScope) returns Str {
+priv lazy_call_struct_type := func(call: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     if call.node_type.is(NodeType.FCall).not() { return "" }
     if call.children.len() == 0 { return "" }
     mut name := ""
+    mut callee_sym : Sym = 0
     switch call.children[0].node_type {
-    case .Ident(idn): name = Str.clone(idn.ident_name())
-    case .FieldAccess(fa): name = Str.clone(fa.field_access_name())
+    case .Ident(idn): name = Str.clone(idn.ident_name(symbols.names)); callee_sym = idn.ident_sym()
+    case .FieldAccess(fa): name = Str.clone(fa.field_access_name(symbols.names)); callee_sym = fa.field_access_sym()
     case:
     }
     if name.len() == 0 { return "" }
     if scope.get_struct(name).is_some() { return name.clone() }
-    cfd_o := scope.lookup_func(name)
+    cfd_o := scope.lookup_func_by_sym(callee_sym, symbols)
     if cfd_o.is_none() { return "" }
     switch cfd_o.unwrap().node_type {
     case .FuncDef(fd):
@@ -3602,9 +3595,19 @@ priv lazy_call_struct_type := func(call: Expr, scope: TypeScope) returns Str {
 // this phase only globals / top-level funcs / builtins are in scope, so any
 // other name is an enclosing local the thunk must capture by reference (#54).
 priv lazy_thunk_classify_capture := func(name: Str, scope: TypeScope,
-        bound: Set(Str), mut caps: Vec(Declaration)) {
+        bound: Set(Str), mut caps: Vec(Declaration), symbols: SymbolPool) {
     if bound.has(name) { return }                  // bound inside the thunk body
-    if scope.get_binding(name).is_some() { return } // global / top-level func / builtin
+    if scope.get_binding_name(name, symbols).is_some() { return } // global / top-level func / builtin
+    for existing : Declaration in caps {
+        if existing.name == name { return }
+    }
+    caps.push(own Declaration(name = name.clone(), own_type = OwnType.Ref))
+}
+
+priv lazy_thunk_classify_capture_sym := func(name: Str, sym: Sym, scope: TypeScope,
+        bound: Set(Str), mut caps: Vec(Declaration)) {
+    if bound.has(name) { return }
+    if scope.get_binding_sym(sym).is_some() { return }
     for existing : Declaration in caps {
         if existing.name == name { return }
     }
@@ -3617,7 +3620,7 @@ priv lazy_thunk_classify_capture := func(name: Str, scope: TypeScope,
 // so they are not mistaken for captures. Stops at nested FuncDef / CaptureBlock
 // boundaries (those carry their own capture rules).
 priv lazy_thunk_collect_captures := func(e: Expr, scope: TypeScope,
-        mut bound: Set(Str), mut caps: Vec(Declaration)) {
+        mut bound: Set(Str), mut caps: Vec(Declaration), symbols: SymbolPool) {
     switch e.node_type {
     case .FuncDef, .CaptureBlock: return
     case .Decl(dd):
@@ -3626,13 +3629,13 @@ priv lazy_thunk_collect_captures := func(e: Expr, scope: TypeScope,
         if fd.name.len() > 0 { bound.add(own fd.name.clone()) }
         if fd.name2.len() > 0 { bound.add(own fd.name2.clone()) }
     case .Ident(idd):
-        lazy_thunk_classify_capture(idd.name, scope, bound, caps)
+        lazy_thunk_classify_capture_sym(idd.ident_name(symbols.names), idd.ident_sym(), scope, bound, caps)
     case .Assign(ad):
-        lazy_thunk_classify_capture(ad.name, scope, bound, caps)
+        lazy_thunk_classify_capture(ad.name, scope, bound, caps, symbols)
     case:
     }
     for c : Expr in e.children {
-        lazy_thunk_collect_captures(c, scope, bound, caps)
+        lazy_thunk_collect_captures(c, scope, bound, caps, symbols)
     }
 }
 
@@ -3648,12 +3651,12 @@ priv lazy_thunk_collect_captures := func(e: Expr, scope: TypeScope,
 // the (owned) effective argument expression `eff`. `caps` is eff's enclosing-
 // local free variables; a no-capture thunk is lifted to a plain top-level
 // lambda, a capturing one reuses the #54 machinery.
-priv lazy_make_thunk := func(own eff: Expr, ret_type: Str, scope: TypeScope) returns Expr {
+priv lazy_make_thunk := func(own eff: Expr, ret_type: Str, scope: TypeScope, symbols: SymbolPool) returns Expr {
     line := eff.line
     col := eff.col
     mut caps := Vec(Declaration).new()
     mut bound := Set(Str).new()
-    lazy_thunk_collect_captures(eff, scope, bound, caps)
+    lazy_thunk_collect_captures(eff, scope, bound, caps, symbols)
     mut cfd := FunctionDef()
     cfd.func_type = FuncType.Func
     cfd.return_type = ret_type.clone()
@@ -3675,18 +3678,18 @@ priv lazy_make_thunk := func(own eff: Expr, ret_type: Str, scope: TypeScope) ret
 // is effective arg 0), so a thunk -- which is not a UFCS receiver -- is never
 // left in receiver position. `ret_type` per param is recovered from its
 // `_Fn_ret_<T>` type name. Mirrors lazy_build_fold's bare-normalization.
-priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method: Bool, scope: TypeScope) returns Expr {
+priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method: Bool, scope: TypeScope, mut symbols: SymbolPool) returns Expr {
     line := call.line
     col := call.col
     mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
-    nc.add_child(own Expr.new(ident_node(name), line, col))
+    nc.add_child(own Expr.new(ident_node(symbols.intern(name)), line, col))
     switch fdef.node_type {
     case .FuncDef(fd):
         for j in 0..fd.params.len() {
             ref param : Declaration = fd.params[j]
             param_type := param.type_name()
             ret_type := param_type.strip_prefix("_Fn_ret_")
-            nc.add_child(own lazy_make_thunk(own lazy_eff_arg_clone(call, is_method, j), ret_type, scope))
+            nc.add_child(own lazy_make_thunk(own lazy_eff_arg_clone(call, is_method, j), ret_type, scope, symbols))
         }
     case:
     }
@@ -3698,7 +3701,7 @@ priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method:
 // the callee is the original FieldAccess (`recv.fn`), NOT a bare name, and the
 // receiver is NOT an effective arg -- the field IS the funcptr, so args are just
 // children[1..]. Per-param ret_type recovered from the sig's `_Fn_ret_T`.
-priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: TypeScope) returns Expr {
+priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: TypeScope, symbols: SymbolPool) returns Expr {
     line := call.line
     col := call.col
     mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -3709,7 +3712,7 @@ priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: Type
             ref param : Declaration = fd.params[j]
             param_type := param.type_name()
             ret_type := param_type.strip_prefix("_Fn_ret_")
-            nc.add_child(own lazy_make_thunk(own call.children[j + 1].clone(), ret_type, scope))
+            nc.add_child(own lazy_make_thunk(own call.children[j + 1].clone(), ret_type, scope, symbols))
         }
     case:
     }
@@ -3720,7 +3723,7 @@ priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: Type
 // `FCall(FCall(FieldAccess(get, v), i), args...)` -- where `v` is a local
 // tracked in `dynvec_of` as a DynVec of a lazy funcsig, return that sig name,
 // else "". (`ops := DynVec.new(Sig)` records the elem sig syntactically.)
-priv lazy_subscript_call_sig := func(call: Expr, dynvec_of: Map(Str, Str)) returns Str {
+priv lazy_subscript_call_sig := func(call: Expr, dynvec_of: Map(Str, Str), symbols: SymbolPool) returns Str {
     if call.children.len() == 0 { return "" }
     ref callee : Expr = call.children[0]
     if callee.node_type.is(NodeType.FCall).not() { return "" }
@@ -3729,7 +3732,7 @@ priv lazy_subscript_call_sig := func(call: Expr, dynvec_of: Map(Str, Str)) retur
     if inner.node_type.is(NodeType.FieldAccess).not() { return "" }
     switch inner.node_type {
     case .FieldAccess(fa):
-        ref mname : Str = fa.field_access_name()
+        ref mname : Str = fa.field_access_name(symbols.names)
         if mname.eq("get").or(mname.eq("unsafe_get")).or(mname.eq("pop")).not() { return "" }
     case:
         return ""
@@ -3737,8 +3740,8 @@ priv lazy_subscript_call_sig := func(call: Expr, dynvec_of: Map(Str, Str)) retur
     if inner.children.len() == 0 { return "" }
     switch inner.children[0].node_type {
     case .Ident(rn):
-        if dynvec_of.has(rn.ident_name()) {
-            return dynvec_of.get(rn.ident_name())!.clone()
+        if dynvec_of.has(rn.ident_name(symbols.names)) {
+            return dynvec_of.get(rn.ident_name(symbols.names))!.clone()
         }
     case:
     }
@@ -3747,7 +3750,7 @@ priv lazy_subscript_call_sig := func(call: Expr, dynvec_of: Map(Str, Str)) retur
 
 // If `rhs` is `DynVec.new(T)` with T a literal Ident naming a lazy funcsig,
 // return T, else "".
-priv lazy_dynvec_new_sig := func(rhs: Expr, lazy_sigs: Set(Str)) returns Str {
+priv lazy_dynvec_new_sig := func(rhs: Expr, lazy_sigs: Set(Str), symbols: SymbolPool) returns Str {
     if rhs.node_type.is(NodeType.FCall).not() { return "" }
     if rhs.children.len() != 2 { return "" }
     ref callee : Expr = rhs.children[0]
@@ -3755,18 +3758,18 @@ priv lazy_dynvec_new_sig := func(rhs: Expr, lazy_sigs: Set(Str)) returns Str {
     if callee.children.len() == 0 { return "" }
     switch callee.node_type {
     case .FieldAccess(fa):
-        if fa.field_access_name().eq("new").not() { return "" }
+        if fa.field_access_name(symbols.names).eq("new").not() { return "" }
     case:
     }
     switch callee.children[0].node_type {
     case .Ident(rn):
-        if rn.ident_name().eq("DynVec").not() { return "" }
+        if rn.ident_name(symbols.names).eq("DynVec").not() { return "" }
     case:
         return ""
     }
     switch rhs.children[1].node_type {
     case .Ident(tn):
-        if lazy_sigs.has(tn.ident_name()) { return Str.clone(tn.ident_name()) }
+        if lazy_sigs.has(tn.ident_name(symbols.names)) { return Str.clone(tn.ident_name(symbols.names)) }
     case:
     }
     return ""
@@ -3776,20 +3779,20 @@ priv lazy_dynvec_new_sig := func(rhs: Expr, lazy_sigs: Set(Str)) returns Str {
 // funcsig, return that sig name, else "". The sig is written literally in the
 // cast (child 2 of the callee FCall, kept verbatim by the parser for #58), so
 // no type inference is needed to resolve it.
-priv lazy_cast_call_sig := func(call: Expr, lazy_sigs: Set(Str)) returns Str {
+priv lazy_cast_call_sig := func(call: Expr, lazy_sigs: Set(Str), symbols: SymbolPool) returns Str {
     if call.children.len() == 0 { return "" }
     ref callee : Expr = call.children[0]
     if callee.node_type.is(NodeType.FCall).not() { return "" }
     if callee.children.len() != 3 { return "" }
     switch callee.children[0].node_type {
     case .Ident(hn):
-        if hn.ident_name().eq("cast").not() { return "" }
+        if hn.ident_name(symbols.names).eq("cast").not() { return "" }
     case:
         return ""
     }
     switch callee.children[2].node_type {
     case .Ident(tn):
-        if lazy_sigs.has(tn.ident_name()) { return Str.clone(tn.ident_name()) }
+        if lazy_sigs.has(tn.ident_name(symbols.names)) { return Str.clone(tn.ident_name(symbols.names)) }
     case:
     }
     return ""
@@ -3798,19 +3801,19 @@ priv lazy_cast_call_sig := func(call: Expr, lazy_sigs: Set(Str)) returns Str {
 // For a field call `recv.fn(...)`, return the lazy funcsig name of field `fn`
 // when `recv` is a local of a known struct type (tracked in `struct_of`) whose
 // `fn` field is typed as a lazy funcsig, else "".
-priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: TypeScope, lazy_sigs: Set(Str)) returns Str {
+priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: TypeScope, lazy_sigs: Set(Str), symbols: SymbolPool) returns Str {
     if call.children.len() == 0 { return "" }
     ref callee : Expr = call.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     if callee.children.len() == 0 { return "" }
     mut field_name := ""
     switch callee.node_type {
-    case .FieldAccess(fa): field_name = Str.clone(fa.field_access_name())
+    case .FieldAccess(fa): field_name = Str.clone(fa.field_access_name(symbols.names))
     case:
     }
     mut recv_name := ""
     switch callee.children[0].node_type {
-    case .Ident(rn): recv_name = Str.clone(rn.ident_name())
+    case .Ident(rn): recv_name = Str.clone(rn.ident_name(symbols.names))
     case:
     }
     if recv_name.len().eq(0).or(field_name.len().eq(0)) { return "" }
@@ -3855,7 +3858,7 @@ priv lazy_alias_resolve := func(name: Str, aliases: Map(Str, Str)) returns Str {
 // with a non-lazy value). It is cloned on descent so a nested block's aliases
 // never leak to an outer sibling -- e.g. a different function that reuses the
 // name for an unrelated value.
-priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), lazy_sigs: Set(Str), mut aliases: Map(Str, Str), mut struct_of: Map(Str, Str), mut dynvec_of: Map(Str, Str), depth: I32) {
+priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), lazy_sigs: Set(Str), mut aliases: Map(Str, Str), mut struct_of: Map(Str, Str), mut dynvec_of: Map(Str, Str), depth: I32, mut symbols: SymbolPool) {
     if depth > 256 { return }
     // Entering a FuncDef: seed its params. A param typed as a lazy funcsig is a
     // first-class lazy value (alias -> sig); a param typed as a struct lets a
@@ -3882,10 +3885,10 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
             // the receiver is not an effective arg), or a cast-callee call
             // `cast(x, Sig)(...)` naming a lazy funcsig. Both keep the callee
             // expression and wrap just the args.
-            mut fsig := lazy_field_call_sig(c, struct_of, scope, lazy_sigs)
-            if fsig.len() == 0 { fsig = lazy_cast_call_sig(c, lazy_sigs) }
+            mut fsig := lazy_field_call_sig(c, struct_of, scope, lazy_sigs, symbols)
+            if fsig.len() == 0 { fsig = lazy_cast_call_sig(c, lazy_sigs, symbols) }
             if fsig.len() == 0 {
-                ssig := lazy_subscript_call_sig(c, dynvec_of)
+                ssig := lazy_subscript_call_sig(c, dynvec_of, symbols)
                 if ssig.len() > 0 {
                     // Rewrite the SUBSCRIPT callee `ops[i]` (already `ops.get(i)!`
                     // here) into `cast(ops[i], Sig)` so the call flows through the
@@ -3896,15 +3899,15 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                     line := c.line
                     col := c.col
                     mut cast_callee := Expr.new(NodeType.FCall(FCallData()), line, col)
-                    cast_callee.add_child(own Expr.new(ident_node("cast"), line, col))
+                    cast_callee.add_child(own Expr.new(ident_node(symbols.intern("cast")), line, col))
                     cast_callee.add_child(own c.children[0].clone())
-                    cast_callee.add_child(own Expr.new(ident_node(ssig), line, col))
+                    cast_callee.add_child(own Expr.new(ident_node(symbols.intern(ssig)), line, col))
                     c.children[0] = cast_callee
                     fsig = ssig.clone()
                 }
             }
             if fsig.len() > 0 {
-                sfd_o := scope.lookup_func(fsig)
+                sfd_o := scope.lookup_func_name(fsig, symbols)
                 if sfd_o.is_some() {
                     ref sfd : Expr = sfd_o.unwrap()
                     mut fnparams : USize = 0
@@ -3913,16 +3916,16 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                     case:
                     }
                     if c.children.len().sub(1).eq(fnparams) {
-                        e.children[i] = lazy_build_field_thunk_call(c, sfd, scope)
+                        e.children[i] = lazy_build_field_thunk_call(c, sfd, scope, symbols)
                     }
                 }
             } else {
                 mut lname := ""
                 mut is_method := false
                 switch c.children[0].node_type {
-                case .Ident(idn): lname = Str.clone(idn.ident_name())
+                case .Ident(idn): lname = Str.clone(idn.ident_name(symbols.names))
                 case .FieldAccess(fa):
-                    lname = Str.clone(fa.field_access_name())
+                    lname = Str.clone(fa.field_access_name(symbols.names))
                     is_method = true
                 case:
                 }
@@ -3931,11 +3934,11 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                     // A thunk-lowered def called directly / through a local alias
                     // (`lowered`), or a value of a lazy funcsig type (`lazy_sigs`,
                     // #262 first-class). Both resolve their lowered signature --
-                    // `_Fn_ret_T` params -- through scope.lookup_func(canon); emit
+                    // `_Fn_ret_T` params -- through the scope function lookup; emit
                     // the call through the call-site name so the funcptr value keeps
                     // dispatching.
                     if lowered.has(canon).or(lazy_sigs.has(canon)) {
-                        fdef_o := scope.lookup_func(canon)
+                        fdef_o := scope.lookup_func_name(canon, symbols)
                         if fdef_o.is_some() {
                             ref fdef : Expr = fdef_o.unwrap()
                             mut nparams : USize = 0
@@ -3948,7 +3951,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                             mut eff_count : USize = c.children.len().sub(1)
                             if is_method { eff_count = c.children.len() }
                             if eff_count.eq(nparams) {
-                                e.children[i] = lazy_build_thunk_call(c, fdef, lname, is_method, scope)
+                                e.children[i] = lazy_build_thunk_call(c, fdef, lname, is_method, scope, symbols)
                             }
                         }
                     }
@@ -3958,7 +3961,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
         mut child_aliases := aliases.clone()
         mut child_struct := struct_of.clone()
         mut child_dynvec := dynvec_of.clone()
-        lazy_wrap_thunk_calls(e.children[i], scope, lowered, lazy_sigs, child_aliases, child_struct, child_dynvec, depth + 1)
+        lazy_wrap_thunk_calls(e.children[i], scope, lowered, lazy_sigs, child_aliases, child_struct, child_dynvec, depth + 1, symbols)
         // Record first-class bindings a Decl introduces for later siblings:
         //   - an explicit lazy-funcsig type `x: Sig` (alias); or an explicit
         //     struct type `x: S` (struct_of);
@@ -3978,26 +3981,26 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                 } else if cc.children.len() > 0 {
                     switch cc.children[0].node_type {
                     case .Ident(rid):
-                        ycanon := lazy_alias_resolve(rid.ident_name(), aliases)
+                        ycanon := lazy_alias_resolve(rid.ident_name(symbols.names), aliases)
                         if lowered.has(ycanon).or(lazy_sigs.has(ycanon)) {
                             aliases.set(dd.name, own ycanon)
-                        } else if struct_of.has(rid.ident_name()) {
+                        } else if struct_of.has(rid.ident_name(symbols.names)) {
                             aliases.set(dd.name, own "")
-                            struct_of.set(dd.name, own struct_of.get(rid.ident_name())!.clone())
+                            struct_of.set(dd.name, own struct_of.get(rid.ident_name(symbols.names))!.clone())
                         } else {
                             aliases.set(dd.name, own "")
                         }
                     case .FCall:
-                        sig := lazy_call_returns_sig(cc.children[0], scope, lazy_sigs)
+                        sig := lazy_call_returns_sig(cc.children[0], scope, lazy_sigs, symbols)
                         if sig.len() > 0 {
                             aliases.set(dd.name, own sig)
                         } else {
-                            dvsig := lazy_dynvec_new_sig(cc.children[0], lazy_sigs)
+                            dvsig := lazy_dynvec_new_sig(cc.children[0], lazy_sigs, symbols)
                             if dvsig.len() > 0 {
                                 aliases.set(dd.name, own "")
                                 dynvec_of.set(dd.name, own dvsig)
                             } else {
-                                st := lazy_call_struct_type(cc.children[0], scope)
+                                st := lazy_call_struct_type(cc.children[0], scope, symbols)
                                 if st.len() > 0 { struct_of.set(dd.name, own st) }
                                 else { aliases.set(dd.name, own "") }
                             }
@@ -4043,7 +4046,7 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         // thunk lowering so the argument evaluates at most once, which inlining
         // (splice-per-use) cannot express.
         if lazy_body_inlinable(body).or(lazy_body_stmt_inlinable(body)) {
-            if lazy_has_multiuse_param(fdef, body).not() { continue }
+            if lazy_has_multiuse_param(fdef, body, lp.ctx.symbols).not() { continue }
         }
         lazy_thunk_lower_def(lp, lname, fdef, lowered, seen, seen_fo, pending)
     }
@@ -4075,30 +4078,30 @@ priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
     // Re-point them before anything (the wrap phase's scope.lookup_func, the
     // typer) reads through them.
     for upath : Str in lp.unit_paths() {
-        init_refresh_seeded_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
+        init_refresh_seeded_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope, lp.ctx.symbols)
     }
     for mfr : Str in lp.mode_files {
-        init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope)
+        init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope, lp.ctx.symbols)
     }
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
             mut ca := Map(Str, Str).new()
             mut cs := Map(Str, Str).new()
             mut cv := Map(Str, Str).new()
-            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ca, cs, cv, 0)
+            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ca, cs, cv, 0, lp.ctx.symbols)
         }
     }
     for uu : ProgramUnit in lp.units {
         mut ua := Map(Str, Str).new()
         mut us := Map(Str, Str).new()
         mut uv := Map(Str, Str).new()
-        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ua, us, uv, 0)
+        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ua, us, uv, 0, lp.ctx.symbols)
     }
     for mf : Str in lp.mode_files {
         mut ma := Map(Str, Str).new()
         mut ms := Map(Str, Str).new()
         mut mv := Map(Str, Str).new()
-        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, lazy_sigs, ma, ms, mv, 0)
+        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, lazy_sigs, ma, ms, mv, 0, lp.ctx.symbols)
     }
 }
 
@@ -4141,13 +4144,13 @@ priv ImportCheckEntry := struct {
 // True when imp_stmt is an import FCall of the exact shape that
 // count_ast_imports counts (so the caller's import_idx stays in step
 // with iu.imports); writes the path literal into label on success.
-priv import_stmt_label := func(imp_stmt: Expr, mut label: Str) returns Bool {
+priv import_stmt_label := func(imp_stmt: Expr, mut label: Str, symbols: SymbolPool) returns Bool {
     if imp_stmt.children.len() < 2 { return false }
     if imp_stmt.children[1].node_type.is_literal_str().not() { return false }
     mut is_imp := false
     switch imp_stmt.children[0].node_type {
     case .Ident(id):
-        if id.ident_name() == "import" { is_imp = true }
+        if id.ident_name(symbols.names) == "import" { is_imp = true }
     case:
     }
     if is_imp.not() { return false }
@@ -4159,11 +4162,11 @@ priv import_stmt_label := func(imp_stmt: Expr, mut label: Str) returns Bool {
     return true
 }
 
-priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut entries: Vec(ImportCheckEntry)) {
+priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut entries: Vec(ImportCheckEntry), symbols: SymbolPool) {
     // Leading iu.imports entries with no matching AST stmt are
     // loader-injected (mode auto-imports); skip them, mirroring
     // type_bodies_file's auto_count logic.
-    ast_count : USize = count_ast_imports(iu.ast)
+    ast_count : USize = count_ast_imports(iu.ast, symbols)
     mut import_idx : USize = iu.imports.len() - ast_count
     for stmt : Expr in iu.ast.children {
         mut decl_name := ""
@@ -4171,7 +4174,7 @@ priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut en
         mut is_imp := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.children[0].node_type.is(NodeType.FCall) {
-                is_imp = import_stmt_label(stmt.children[0], label)
+                is_imp = import_stmt_label(stmt.children[0], label, symbols)
                 if is_imp {
                     switch stmt.node_type {
                     case .Decl(dd):
@@ -4181,7 +4184,7 @@ priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut en
                 }
             }
         } else if stmt.node_type.is(NodeType.FCall) {
-            is_imp = import_stmt_label(stmt, label)
+            is_imp = import_stmt_label(stmt, label, symbols)
         }
         if is_imp.not() { continue }
         ref dep : Str = iu.imports[import_idx]
@@ -4228,7 +4231,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     mut import_check_entries := Vec(ImportCheckEntry).new()
     if lp.ctx.check_unused_imports {
         for icu : ProgramUnit in lp.units {
-            collect_import_check_entries(icu.path, lp.ctx.imported[icu.path], import_check_entries)
+            collect_import_check_entries(icu.path, lp.ctx.imported[icu.path], import_check_entries, lp.ctx.symbols)
         }
     }
 
@@ -4281,7 +4284,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // #165 step 1: resolve any Type.Custom(name) bindings (written by
     // initer's scope-free registration helpers) to Struct/Enum now that
     // every name is in scope.
-    normalize_scope_bindings(lp.ctx.scope)
+    normalize_scope_bindings(lp.ctx.scope, lp.ctx.symbols)
 
     // Issue #262: inline lazy_func / lazy_proc calls before type-checking so
     // the spliced bodies (and the short-circuit `match` inside them) are
@@ -4309,7 +4312,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             if u.path.ends_with("core/exit.til") {
-                seed_noreturn_chain(lp.ctx.imported[u.path].ast)
+                seed_noreturn_chain(lp.ctx.imported[u.path].ast, lp.ctx.symbols)
             }
         }
     }
@@ -4373,10 +4376,10 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // struct_def pointers the scope registered against the old storage.
     // Re-point them all so the builder's emit-time lookups are fresh.
     for upath : Str in lp.unit_paths() {
-        init_refresh_seeded_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
+        init_refresh_seeded_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope, lp.ctx.symbols)
     }
     for mfr : Str in lp.mode_files {
-        init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope)
+        init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope, lp.ctx.symbols)
     }
 
     // #154 prototype: flag user-unit imports that contributed no used
@@ -4475,7 +4478,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
     if init_errors > 0 { return init_errors }
 
     retarget_loaded_aliases(lp)
-    normalize_scope_bindings(lp.ctx.scope)
+    normalize_scope_bindings(lp.ctx.scope, lp.ctx.symbols)
     lazy_stmt_inline_walk(delta, lp.ctx.scope, 0, lp.ctx)
     expand_lazy_in_expr(delta, lp.ctx.scope, 0, lp.ctx)
 
@@ -4491,7 +4494,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
     // b = 0, a = 255)` failed at the REPL but worked in a file: only this
     // delta path re-typed, and only turns that skip the full load reach it.
     if body_pre_passes(lp.ctx, delta, lp.ctx.scope, 1) {
-        reregister_repl_scope_defs(delta, lp.ctx.scope)
+        reregister_repl_scope_defs(delta, lp.ctx.scope, lp.ctx.symbols)
     }
     garbager_destroy_body(lp.ctx, delta, lp.ctx.scope)
     return 0
@@ -4499,7 +4502,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
 
 repl_prepare_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) {
     constfolder_repl_delta(lp, delta)
-    dce_program_bodies(delta)
+    dce_program_bodies(delta, lp.ctx.symbols)
 }
 
 prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
@@ -4514,6 +4517,6 @@ cmd_ast := proc(lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         println(format("file: ", u.path))
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        println(iu.ast.to_str())
+        println(iu.ast.to_str_with_symbols(lp.ctx.symbols.names))
     }
 }

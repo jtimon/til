@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -109,7 +109,7 @@ func repl_source_line_count(s: Str) returns shallow U32
 :END:
 
 #+begin_src til
-func repl_ast_has_loader_directive(e: Expr) returns shallow Bool
+func repl_ast_has_loader_directive(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * repl_ast_has_lazy_def
@@ -129,7 +129,7 @@ func repl_ast_has_lazy_def(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func repl_ast_has_known_variadic_call(e: Expr) returns shallow Bool
+func repl_ast_has_known_variadic_call(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * repl_delta_from_source
@@ -139,7 +139,7 @@ func repl_ast_has_known_variadic_call(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, mut parse_errors: I32) returns Expr
+proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32) returns Expr
 #+end_src
 
 * repl_peek_needs_expr_wrap
@@ -169,7 +169,7 @@ func repl_parse_allows_wrap(peek_ast: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func repl_ast_has_help_call(e: Expr) returns shallow Bool
+func repl_ast_has_help_call(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * repl_ast_updates_doc_cache
@@ -179,7 +179,7 @@ func repl_ast_has_help_call(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func repl_ast_updates_doc_cache(e: Expr) returns shallow Bool
+func repl_ast_updates_doc_cache(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * repl_refresh_user_doc_cache

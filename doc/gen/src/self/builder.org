@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * closure_call_name
@@ -269,7 +269,7 @@ proc cmd_doc(lp: LoadedProgram, version: Str) returns shallow I32
 :END:
 
 #+begin_src til
-func builder_delete_arg_root(e: Expr) returns shallow Option__ref_Str
+func builder_delete_arg_root(e: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
 #+end_src
 
 * Map__Sym_Str

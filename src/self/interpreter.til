@@ -37,13 +37,13 @@ priv interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
 // struct shell and downstream callers would try to clone its bytes
 // as a nested struct).
 priv field_nested_def := func(dd: Declaration, ctx: Context) returns Option(ref Expr) {
-    resolved := declaration_resolved_type(dd, ctx.scope)
+    resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if is_primitive(resolved) { return Option(ref Expr).None }
     return lookup_interp_type_def(resolved_type_name(resolved), ctx)
 }
 
 priv decl_is_funcsig := func(dd: Declaration, ctx: Context) returns Bool {
-    resolved := declaration_resolved_type(dd, ctx.scope)
+    resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if type_is_callable_storage(resolved) { return true }
     tdef_o := lookup_interp_type_def(resolved_type_name(resolved), ctx)
     if tdef_o.is_none() { return false }
@@ -150,7 +150,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
             foff := hc_fl.offset
             cfi = cfi + 1
-            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope))
+            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope, ctx.symbols))
             nested_def_o := field_nested_def(dd, ctx)
             if dd.own_type.is(OwnType.Own) {
                 if decl_is_funcsig(dd, ctx) {
@@ -205,7 +205,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                         memcpy(ptr_add(dst_data, foff), cloned_ptr2, ctx_total_size(ftype, ctx))
                         EvalHeap.heap_free(own cloned_ptr2)
                     case:
-                        UNREACHABLE("expected StructDef, got ", nested_def.node_type.head_str())
+                        UNREACHABLE("expected StructDef, got ", nested_def.node_type.head_str(ctx.symbols.names))
                     }
                 }
             }
@@ -219,7 +219,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             ref type_name : Str = ptr_add(data, type_fl.offset)
             ref val_fl : FieldLayout = ctx_field_layout(struct_name, "iface_val", ctx)
             ref src_val : Dynamic = deref(ptr_add(data, val_fl.offset))
-            cloned_val : Dynamic = heap_clone_by_type(type_from_name_init(type_name, ctx.scope), src_val, ctx)
+            cloned_val : Dynamic = heap_clone_by_type(type_from_name_init_name(type_name, ctx.scope, ctx.symbols), src_val, ctx)
             write_ptr(ptr_add(dst_data, val_fl.offset), cloned_val)
         }
     }
@@ -456,7 +456,7 @@ priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Cont
     // #320: a ref payload is a borrowed pointer -- nothing to free.
     if enum_payload_is_ref(enum_name, data, ctx) { return }
     if payload_type == "Str" { enum_free_str_payload(data, ctx); return }
-    resolved := type_from_name_init(payload_type, ctx.scope)
+    resolved := type_from_name_init_name(payload_type, ctx.scope, ctx.symbols)
     if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
     payload_def_o := lookup_interp_type_def(payload_type, ctx)
     if payload_def_o.is_none() { panic("enum payload has no registered type def: ", payload_type) }
@@ -504,7 +504,7 @@ priv enum_payload_deep_clone := func(enum_name: Str, mut data: Dynamic, ctx: Con
     // pointee; never deep-clone it.
     if enum_payload_is_ref(enum_name, data, ctx) { return }
     if payload_type == "Str" { enum_clone_str_payload(data, ctx); return }
-    resolved := type_from_name_init(payload_type, ctx.scope)
+    resolved := type_from_name_init_name(payload_type, ctx.scope, ctx.symbols)
     if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
     payload_def_o := lookup_interp_type_def(payload_type, ctx)
     if payload_def_o.is_none() { panic("enum payload has no registered type def: ", payload_type) }
@@ -579,7 +579,7 @@ priv write_enum_flat := func(mut data: Dynamic, enum_name: Str, etag: I64, mut p
 }
 
 priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
-    return raw_type_size(type_from_name_init(type_name, ctx.scope), ctx)
+    return raw_type_size(type_from_name_init_name(type_name, ctx.scope, ctx.symbols), ctx)
 }
 
 // Parse a single CLI argument string into raw storage of the named type. Kept in
@@ -589,7 +589,7 @@ priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
 // (panic exits 1 like the compiled backend's exit(1); the diagnostic stream
 // differs -- interpreter via panic, compiled via stderr -- but both bail.)
 priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns Dynamic {
-    t := type_from_name_init(type_name, ctx.scope)
+    t := type_from_name_init_name(type_name, ctx.scope, ctx.symbols)
     mut result : Dynamic = dispatch_result_alloc(t, ctx)
     switch type_name {
     case "Str": dispatch_write_str(result, s.c_str, s.count, ctx); return result
@@ -602,12 +602,12 @@ priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns Dynamic
     case "U32": write_u32(result, s.to_u32()); return result
     case "U64": write_u64(result, s.to_u64()); return result
     case "USize":
-        ref width : Str = resolve_type_alias(ctx.scope, "USize")
+        ref width : Str = resolve_type_alias(ctx.scope, "USize", ctx.symbols)
         if width == "U32" { write_u32(result, s.to_u32()) }
         else { write_u64(result, s.to_u64()) }
         return result
     case "UPtr":
-        ref width : Str = resolve_type_alias(ctx.scope, "UPtr")
+        ref width : Str = resolve_type_alias(ctx.scope, "UPtr", ctx.symbols)
         if width == "U32" { write_u32(result, s.to_u32()) }
         else { write_u64(result, s.to_u64()) }
         return result
@@ -667,7 +667,7 @@ priv resolved_call_result_is_ref := func(shallow result_type: Type, fn_def: Expr
 raw_type_is_prim := func(shallow t: Type, ctx: Context) returns Bool {
     switch t {
     case .Primitive: return true
-    case .Custom(name): return raw_type_is_prim(type_from_name_init(name, ctx.scope), ctx)
+    case .Custom(name): return raw_type_is_prim(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
     case:
     }
     return false
@@ -692,7 +692,7 @@ priv scalar_word_encode := func(shallow t: Type, bits: U64, ctx: Context) return
             return bits_word(1)
         case: return bits_word(bits)
         }
-    case .Custom(name): return scalar_word_encode(type_from_name_init(name, ctx.scope), bits, ctx)
+    case .Custom(name): return scalar_word_encode(type_from_name_init_name(name, ctx.scope, ctx.symbols), bits, ctx)
     case:
     }
     panic("scalar_word_encode on non-primitive: ", til_type_name_c(t))
@@ -714,7 +714,7 @@ scalar_word_load := func(shallow t: Type, addr: Dynamic, ctx: Context) returns D
         case .Bool: ref v : U8 = addr;  return bits_word(v.cast(U64))
         case: ref v : U64 = addr; return bits_word(v.clone())
         }
-    case .Custom(name): return scalar_word_load(type_from_name_init(name, ctx.scope), addr, ctx)
+    case .Custom(name): return scalar_word_load(type_from_name_init_name(name, ctx.scope, ctx.symbols), addr, ctx)
     case:
     }
     panic("scalar_word_load on non-primitive: ", til_type_name_c(t))
@@ -752,7 +752,7 @@ priv scalar_word_store := func(shallow t: Type, mut addr: Dynamic, w: Dynamic, c
         case: write_u64(addr, bits)
         }
         return
-    case .Custom(name): scalar_word_store(type_from_name_init(name, ctx.scope), addr, w, ctx); return
+    case .Custom(name): scalar_word_store(type_from_name_init_name(name, ctx.scope, ctx.symbols), addr, w, ctx); return
     case:
     }
     panic("scalar_word_store on non-primitive: ", til_type_name_c(t))
@@ -919,7 +919,7 @@ priv raw_result_move_into := proc(shallow t: Type, mut dst: Dynamic, src: Dynami
         else { size = dispatch_enum_size(name, ctx) }
     case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: size = Dynamic.size()
     case .Custom(name):
-        raw_result_move_into(type_from_name_init(name, ctx.scope), dst, src, return_is_ref, ctx)
+        raw_result_move_into(type_from_name_init_name(name, ctx.scope, ctx.symbols), dst, src, return_is_ref, ctx)
         return
     case:
         panic("cannot move raw call result for type ", til_type_name_c(t))
@@ -943,7 +943,7 @@ priv raw_result_drop_nested := proc(shallow t: Type, mut raw: Dynamic, return_is
     case .FuncPtr, .FuncPtrSig, .Body:
         heap_drop_by_type(t, raw, ctx)
     case .Custom(name):
-        raw_result_drop_nested(type_from_name_init(name, ctx.scope), raw, return_is_ref, ctx)
+        raw_result_drop_nested(type_from_name_init_name(name, ctx.scope, ctx.symbols), raw, return_is_ref, ctx)
     case:
     }
 }
@@ -974,7 +974,7 @@ scope_set_raw_owned := func(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dyna
 priv raw_widen_numeric := func(raw: Dynamic, shallow source_type: Type, target_name: Str, ctx: Context) returns Dynamic {
     if target_name.len() == 0 { return raw }
     source_name := til_type_name_c(source_type)
-    ref resolved_target : Str = resolve_type_alias(ctx.scope, target_name)
+    ref resolved_target : Str = resolve_type_alias(ctx.scope, target_name, ctx.symbols)
     if resolved_target == source_name { return raw }
     // Pure word-to-word conversion: decode the source scalar (with sign
     // extension) from the inline word, re-encode at the target's width.
@@ -1019,7 +1019,7 @@ priv raw_coerce_value := func(raw: Dynamic, shallow source_type: Type, shallow t
     }
     switch source_type {
     case .Custom(name):
-        return raw_coerce_value(raw, type_from_name_init(name, ctx.scope), target_type, ctx, target_own_type)
+        return raw_coerce_value(raw, type_from_name_init_name(name, ctx.scope, ctx.symbols), target_type, ctx, target_own_type)
     case .Dynamic:
         if target_type.is(Type.Dynamic).not() {
             if heap_type_is_callable(target_type).and(callable_box_is(deref(raw))) { return raw }
@@ -1056,7 +1056,7 @@ priv raw_type_size := func(shallow t: Type, ctx: Context) returns USize {
     case .Struct(name): return ctx_total_size(name, ctx)
     case .Enum(name): return dispatch_enum_size(name, ctx)
     case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return Dynamic.size()
-    case .Custom(name): return raw_type_size(type_from_name_init(name, ctx.scope), ctx)
+    case .Custom(name): return raw_type_size(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
     case:
         panic("cannot size raw type ", til_type_name_c(t))
         return 0
@@ -1082,7 +1082,7 @@ priv raw_to_u64 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns U64
         case .F64: panic("cannot convert F64 raw bits to U64")
         case .Bool: return bits
         }
-    case .Custom(name): return raw_to_u64(type_from_name_init(name, ctx.scope), raw, ctx)
+    case .Custom(name): return raw_to_u64(type_from_name_init_name(name, ctx.scope, ctx.symbols), raw, ctx)
     case:
     }
     panic("raw value is not numeric: ", til_type_name_c(t))
@@ -1116,7 +1116,7 @@ priv raw_arg_pointer := func(raw: Dynamic, info: RawResultInfo, ctx: Context) re
     switch value_type {
     case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return deref(raw)
     case .Custom(name):
-        alias_type := type_from_name_init(name, ctx.scope)
+        alias_type := type_from_name_init_name(name, ctx.scope, ctx.symbols)
         switch alias_type {
         case .Dynamic: return deref(raw)
         case .FuncPtr: return deref(raw)
@@ -1160,11 +1160,11 @@ priv eval_callable_callee_raw := proc(mut scope: Scope, mut callee: Expr,
         mut owned: Bool, mut ctx: Context) returns Dynamic {
     switch callee.node_type {
     case .Ident(id):
-        hb_o := scope_lookup_heap_binding(scope, id.ident_name())
+        hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
         if hb_o.is_some() {
             ref hb : HeapBinding = hb_o.unwrap()
             if heap_type_is_callable(hb_type(hb)) {
-                if hb.moved_out { panic("call of moved binding: ", id.ident_name()) }
+                if hb.moved_out { panic("call of moved binding: ", id.ident_name(ctx.symbols.names)) }
                 owned = false
                 return to_ptr(hb.ptr)
             }
@@ -1306,14 +1306,14 @@ priv context_return_take := func(mut ctx: Context) returns Dynamic {
     return result
 }
 
-priv field_access_sname := func(e: Expr, mut fallback: Str) returns ref Str {
+priv field_access_sname := func(e: Expr, mut fallback: Str, symbols: SymbolPool) returns ref Str {
     sname_o := expr_type_name_ref(e.children[0])
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
         return sname
     }
     switch e.children[0].node_type {
-    case .Ident(id): return id.ident_name()
+    case .Ident(id): return id.ident_name(symbols.names)
     case:
         fallback = til_type_name_c(e.children[0].til_type())
         return fallback
@@ -1325,7 +1325,7 @@ priv field_access_decl := func(e: Expr, sname: Str, ctx: Context) returns Option
     if sdef_o.is_none() { return Option(ref Declaration).None }
     ref sdef : Expr = sdef_o.unwrap()
     switch e.node_type {
-    case .FieldAccess(fa): return find_field_decl(sdef, fa.field_access_name())
+    case .FieldAccess(fa): return find_field_decl(sdef, fa.field_access_name(ctx.symbols.names))
     case: return Option(ref Declaration).None
     }
 }
@@ -1334,17 +1334,17 @@ priv field_access_decl := func(e: Expr, sname: Str, ctx: Context) returns Option
 // evaluating or copying its intermediate aggregates.
 priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context) returns Option(ref Dynamic) {
     switch obj.node_type {
-    case .Ident: return resolve_field_assign_base(scope, obj)
+    case .Ident: return resolve_field_assign_base(scope, obj, ctx.symbols)
     case .FieldAccess(fa):
         parent_o := field_access_base(scope, obj.children[0], ctx)
         if parent_o.is_none() { return Option(ref Dynamic).None }
         ref parent : Dynamic = parent_o.unwrap()
         mut fallback_sname := ""
-        ref sname : Str = field_access_sname(obj, fallback_sname)
+        ref sname : Str = field_access_sname(obj, fallback_sname, ctx.symbols)
         fdecl_o := field_access_decl(obj, sname, ctx)
         if fdecl_o.is_none() { return Option(ref Dynamic).None }
         ref fdecl : Declaration = fdecl_o.unwrap()
-        ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
+        ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
         ref slot : Dynamic = ptr_add(parent, fl.offset)
         if fdecl.own_type.is(OwnType.Shallow) { return Option(ref Dynamic).Some(slot) }
         // REM: a non-shallow field yields the STORED pointer. A field
@@ -1377,13 +1377,13 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
     switch e.node_type {
     case .FieldAccess(fa):
         mut fallback_sname := ""
-        ref sname : Str = field_access_sname(e, fallback_sname)
+        ref sname : Str = field_access_sname(e, fallback_sname, ctx.symbols)
         namespace_def_o := interp_fa_namespace_def_with_name(scope, e, sname, fallback_sname.len() > 0, ctx)
         if namespace_def_o.is_some() {
             info.is_word = destination.is_null().and(raw_type_is_prim(expr_type, ctx))
             ref namespace_def : Expr = namespace_def_o.unwrap()
             if namespace_def.node_type.is(NodeType.EnumDef) {
-                variant_idx := enum_variant_index(namespace_def, fa.field_access_name())
+                variant_idx := enum_variant_index(namespace_def, fa.field_access_name(ctx.symbols.names))
                 if variant_idx >= 0 {
                     mut result : Dynamic = destination
                     if result.is_null() { result = dispatch_result_alloc(Type.Enum(sname.clone()), ctx) }
@@ -1395,14 +1395,14 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
                         write_ptr(result, bits_word(0))
                         return result
                     }
-                    tag := enum_variant_tag(namespace_def, fa.field_access_name())
+                    tag := enum_variant_tag(namespace_def, fa.field_access_name(ctx.symbols.names))
                     memcpy(result, tag, enum_tag_size(namespace_def))
                     return result
                 }
             }
-            stored_hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fa.field_access_name())
+            stored_hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fa.field_access_name(ctx.symbols.names))
             if stored_hb_o.is_none() {
-                static_fdef_o := def_static_ns_func_def(namespace_def, fa.field_access_name())
+                static_fdef_o := def_static_ns_func_def(namespace_def, fa.field_access_name(ctx.symbols.names))
                 if static_fdef_o.is_some() {
                     mut result : Dynamic = destination
                     if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
@@ -1410,7 +1410,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
                     info.source_type_p = to_ptr(interp_intern_type(Type.Body, ctx))
                     return result
                 }
-                interp_error(e, format("no namespace field '", Str.clone(fa.field_access_name()), "'"), ctx)
+                interp_error(e, format("no namespace field '", Str.clone(fa.field_access_name(ctx.symbols.names)), "'"), ctx)
                 exit(1)
             }
             ref stored_hb : HeapBinding = stored_hb_o.unwrap()
@@ -1433,18 +1433,18 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         }
         fdecl_o := field_access_decl(e, sname, ctx)
         if fdecl_o.is_none() {
-            interp_error(e, format("no field '", Str.clone(fa.field_access_name()), "'"), ctx)
+            interp_error(e, format("no field '", Str.clone(fa.field_access_name(ctx.symbols.names)), "'"), ctx)
             exit(1)
         }
         ref fdecl : Declaration = fdecl_o.unwrap()
-        info.source_type_p = to_ptr(interp_intern_type(declaration_resolved_type(fdecl, ctx.scope), ctx))
+        info.source_type_p = to_ptr(interp_intern_type(declaration_resolved_type(fdecl, ctx.scope, ctx.symbols), ctx))
         info.is_ref = decl_is_funcsig(fdecl, ctx).not()
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
-        ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
+        ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
         if (fdecl.type_name() == "USize").or(fdecl.type_name() == "UPtr") {
             mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
-            if (sname == ctx.eval.cached_str_name).and(fa.field_access_name() == "cap").and(fl.size == 4) {
+            if (sname == ctx.eval.cached_str_name).and(fa.field_access_name(ctx.symbols.names) == "cap").and(fl.size == 4) {
                 field_type = Type.Primitive(Primitive.I32)
             }
             info.source_type_p = to_ptr(interp_intern_type(field_type, ctx))
@@ -1675,8 +1675,8 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         }
         return raw_unit_result(expr_type, ctx)
     case .Ident(ident):
-        hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
-        if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name()) }
+        hb_o := scope_lookup_heap_binding(scope, ident.ident_name(ctx.symbols.names))
+        if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name(ctx.symbols.names)) }
         ref hb : HeapBinding = hb_o.unwrap()
         if hb_type(hb).is(Type.Dynamic).and(expr_type.is(Type.Dynamic).not()).not() {
             info.source_type_p = hb.til_type_p
@@ -1684,7 +1684,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         info.arg_deref = hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not())
         mut resolved_type := expr_type.clone()
         switch resolved_type {
-        case .Custom(expr_type_name): resolved_type = type_from_name_init(expr_type_name, ctx.scope)
+        case .Custom(expr_type_name): resolved_type = type_from_name_init_name(expr_type_name, ctx.scope, ctx.symbols)
         case:
         }
         switch resolved_type {
@@ -1692,12 +1692,12 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
             if (type_name == "Type").and(hb.is_static_callable) {
                 mut result : Dynamic = destination
                 if result.is_null() { result = dispatch_result_alloc(expr_type, ctx) }
-                mut runtime_type_name := ident.ident_name().clone()
-                ref binding_scope : Scope = scope_get_binding_scope(scope, ident.ident_name())
-                if binding_scope.heap_aliases.has(ident.ident_name()) {
-                    runtime_type_name = binding_scope.heap_aliases[ident.ident_name()].clone()
+                mut runtime_type_name := ident.ident_name(ctx.symbols.names).clone()
+                ref binding_scope : Scope = scope_get_binding_scope(scope, ident.ident_name(ctx.symbols.names))
+                if binding_scope.heap_aliases.has(ident.ident_name(ctx.symbols.names)) {
+                    runtime_type_name = binding_scope.heap_aliases[ident.ident_name(ctx.symbols.names)].clone()
                 }
-                write_runtime_type(result, type_from_name_init(runtime_type_name, ctx.scope), ctx)
+                write_runtime_type(result, type_from_name_init_name(runtime_type_name, ctx.scope, ctx.symbols), ctx)
                 return result
             }
         case:
@@ -1756,15 +1756,15 @@ priv lookup_type_def_helper := func(type_name: Str, mut scope: Scope, ctx: Conte
     return fd_o
 }
 
-priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr) returns Option(ref Dynamic) {
+priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr, symbols: SymbolPool) returns Option(ref Dynamic) {
     switch obj_expr.node_type {
     case .Ident(ident):
-        hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
+        hb_o := scope_lookup_heap_binding(scope, ident.ident_name(symbols.names))
         if hb_o.is_none() { return Option(ref Dynamic).None }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
         case .Struct:
-            if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name()) }
+            if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name(symbols.names)) }
             ref base : Dynamic = to_ptr(hb.ptr)
             return Option(ref Dynamic).Some(base)
         case: return Option(ref Dynamic).None
@@ -1774,15 +1774,15 @@ priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr) returns
     }
 }
 
-priv resolve_field_assign_sname := func(mut scope: Scope, obj_expr: Expr) returns Str {
+priv resolve_field_assign_sname := func(mut scope: Scope, obj_expr: Expr, symbols: SymbolPool) returns Str {
     switch obj_expr.node_type {
     case .Ident(ident):
-        hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
+        hb_o := scope_lookup_heap_binding(scope, ident.ident_name(symbols.names))
         if hb_o.is_none() { return "" }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
         case .Struct(sname):
-            if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name()) }
+            if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name(symbols.names)) }
             return sname.clone()
         case: return ""
         }
@@ -1792,7 +1792,7 @@ priv resolve_field_assign_sname := func(mut scope: Scope, obj_expr: Expr) return
 }
 
 priv resolve_field_assign_sdef := func(mut scope: Scope, obj_expr: Expr, ctx: Context) returns Option(ref Expr) {
-    sname := resolve_field_assign_sname(scope, obj_expr)
+    sname := resolve_field_assign_sname(scope, obj_expr, ctx.symbols)
     if sname.len() == 0 { return Option(ref Expr).None }
     return lookup_interp_type_def(sname, ctx)
 }
@@ -1803,7 +1803,7 @@ priv raw_switch_key := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) ret
     mut raw_type := raw_result_source_type(info).clone()
     switch raw_type {
     case .Custom(name):
-        raw_type = type_from_name_init(name, ctx.scope)
+        raw_type = type_from_name_init_name(name, ctx.scope, ctx.symbols)
     case:
     }
     switch raw_type {
@@ -1837,13 +1837,13 @@ priv raw_switch_key := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) ret
 // the enclosing loop/function unchanged.
 // #276: the variant name of a case pattern -- a bare `Type.V` (FieldAccess) or
 // a payload binding `Type.V(x)` (FCall whose FieldAccess callee names V).
-priv clike_case_variant_name := func(pat: Expr) returns Str {
+priv clike_case_variant_name := func(pat: Expr, symbols: SymbolPool) returns Str {
     switch pat.node_type {
-    case .FieldAccess(fa): return Str.clone(fa.field_access_name())
+    case .FieldAccess(fa): return Str.clone(fa.field_access_name(symbols.names))
     case .FCall:
         if pat.children.len() > 0 {
             switch pat.children[0].node_type {
-            case .FieldAccess(fa2): return Str.clone(fa2.field_access_name())
+            case .FieldAccess(fa2): return Str.clone(fa2.field_access_name(symbols.names))
             case:
             }
         }
@@ -1880,8 +1880,8 @@ priv eval_switch := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
         for pi in 0..pc {
             ref mut pat : Expr = cn.children[pi]
             if is_enum_subj.and(enum_def_o.is_some()) {
-                matched = enum_variant_tag(enum_def_o.unwrap(), clike_case_variant_name(pat)) == subj_i
-            } else if is_range_new_call(pat) {
+                matched = enum_variant_tag(enum_def_o.unwrap(), clike_case_variant_name(pat, ctx.symbols)) == subj_i
+            } else if is_range_new_call(pat, ctx.symbols) {
                 // #254 range case `lo..hi`: match lo <= subj <= hi.
                 lo := raw_switch_key(scope, pat.children[1], ctx)
                 hi := raw_switch_key(scope, pat.children[2], ctx)
@@ -1915,8 +1915,8 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
     mut source_hb_o := Option(ref HeapBinding).None
     switch rhs.node_type {
     case .Ident(rhs_ident):
-        source_hb_o = scope_lookup_heap_binding(scope, rhs_ident.ident_name())
-        if source_hb_o.is_none() { panic("declaration source not found: ", rhs_ident.ident_name()) }
+        source_hb_o = scope_lookup_heap_binding(scope, rhs_ident.ident_name(ctx.symbols.names))
+        if source_hb_o.is_none() { panic("declaration source not found: ", rhs_ident.ident_name(ctx.symbols.names)) }
         ref source_hb : HeapBinding = source_hb_o.unwrap()
         rhs_info.source_type_p = source_hb.til_type_p
         if hb_type(source_hb).is(Type.Dynamic).and(rhs.til_type().is(Type.Dynamic).not()) {
@@ -1928,7 +1928,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
     ref rhs_type : Type = raw_result_source_type(rhs_info)
     mut decl_type := rhs_type.clone()
     declared_name := dd.type_name()
-    if dd.til_type.is(Type.Unknown).not() { decl_type = declaration_resolved_type(dd, ctx.scope) }
+    if dd.til_type.is(Type.Unknown).not() { decl_type = declaration_resolved_type(dd, ctx.scope, ctx.symbols) }
     if decl_type.is(Type.Body).and(rhs_type.is(Type.Enum)) { decl_type = rhs_type.clone() }
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
         decl_type = Type.Body
@@ -1939,8 +1939,8 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
     switch rhs.node_type {
     case .Ident(rhs_ident):
         ref mut source_hb : HeapBinding = source_hb_o.unwrap()
-        if source_hb.moved_out { panic("declaration from moved binding: ", rhs_ident.ident_name()) }
-        ref mut source_scope : Scope = scope_get_binding_scope(scope, rhs_ident.ident_name())
+        if source_hb.moved_out { panic("declaration from moved binding: ", rhs_ident.ident_name(ctx.symbols.names)) }
+        ref mut source_scope : Scope = scope_get_binding_scope(scope, rhs_ident.ident_name(ctx.symbols.names))
         ref source_raw : Dynamic = to_ptr(source_hb.ptr)
         switch decl_type {
         case .Enum(type_name):
@@ -1957,7 +1957,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
                 if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
                 scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, source_hb.ctx, false, true)
             } else {
-                scope_set_borrowed(scope, dd.name, bind_type_w, dd.own_type, rhs_ident.ident_name(), source_scope)
+                scope_set_borrowed(scope, dd.name, bind_type_w, dd.own_type, rhs_ident.ident_name(ctx.symbols.names), source_scope)
             }
             return
         }
@@ -2052,7 +2052,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             switch rhs.node_type {
             case .FieldAccess:
                 mut fallback_source_name := ""
-                ref source_name : Str = field_access_sname(rhs, fallback_source_name)
+                ref source_name : Str = field_access_sname(rhs, fallback_source_name, ctx.symbols)
                 source_field_o := field_access_decl(rhs, source_name, ctx)
                 if source_field_o.is_some() {
                     ref source_field : Declaration = source_field_o.unwrap()
@@ -2147,11 +2147,11 @@ priv eval_fcall := proc(mut scope: Scope, mut stmt: Expr, fcd: FCallData, mut ct
         mut sw_target := ""
         mut sw_src := ""
         switch stmt.children[1].node_type {
-        case .Ident(sw_t): sw_target = Str.clone(sw_t.ident_name())
+        case .Ident(sw_t): sw_target = Str.clone(sw_t.ident_name(ctx.symbols.names))
         case:
         }
         switch stmt.children[2].node_type {
-        case .Ident(sw_s): sw_src = Str.clone(sw_s.ident_name())
+        case .Ident(sw_s): sw_src = Str.clone(sw_s.ident_name(ctx.symbols.names))
         case:
         }
         if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
@@ -2181,23 +2181,23 @@ priv eval_fcall := proc(mut scope: Scope, mut stmt: Expr, fcd: FCallData, mut ct
     // second time (ASAN: double-free through free_container_data). This is
     // bookkeeping about a call the interpreter already dispatched, not a
     // reimplementation of it: the body ran, as it must.
-    mark_deleted_receiver(scope, stmt)
+    mark_deleted_receiver(scope, stmt, ctx.symbols)
 }
 
 // True when this statement is a `<Type>.delete(...)` call; the receiver is
 // the first argument (UFCS put it there).
-priv mark_deleted_receiver := func(mut scope: Scope, stmt: Expr) {
+priv mark_deleted_receiver := func(mut scope: Scope, stmt: Expr, symbols: SymbolPool) {
     if stmt.children.len() < 2 { return }
     mut is_delete := false
     switch stmt.children[0].node_type {
-    case .FieldAccess(mfa): is_delete = mfa.field_access_name().eq("delete")
-    case .Ident(mid): is_delete = mid.ident_name().ends_with("_delete")
+    case .FieldAccess(mfa): is_delete = mfa.field_access_name(symbols.names).eq("delete")
+    case .Ident(mid): is_delete = mid.ident_name(symbols.names).ends_with("_delete")
     case:
     }
     if is_delete.not() { return }
     switch stmt.children[1].node_type {
     case .Ident(recv_id):
-        mut hb_o := scope_lookup_heap_binding(scope, recv_id.ident_name())
+        mut hb_o := scope_lookup_heap_binding(scope, recv_id.ident_name(symbols.names))
         if hb_o.is_none() { return }
         ref mut hb : HeapBinding = hb_o.unwrap()
         hb.payload_released = true
@@ -2256,7 +2256,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             mut new_raw : Dynamic = 0
             if stmt.til_type().is(Type.Dynamic).and(rhs.node_type.is(NodeType.Ident)) {
                 switch rhs.node_type {
-                case .Ident(rhs_ident): new_raw = scope_move_bound_raw(scope, rhs_ident.ident_name(), ctx)
+                case .Ident(rhs_ident): new_raw = scope_move_bound_raw(scope, rhs_ident.ident_name(ctx.symbols.names), ctx)
                 case:
                 }
             } else {
@@ -2310,7 +2310,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             // evaluate the kept clone (a deep copy) and the moved-from
             // binding's teardown would double-account (bug256's interp
             // leak, caught by the suite when the AST rewrite retired).
-            if fad.is_move.and(rhs_is_clone_fcall(val_expr)).and(val_expr.children.len().gte(2)) {
+            if fad.is_move.and(rhs_is_clone_fcall(val_expr, ctx.symbols)).and(val_expr.children.len().gte(2)) {
                 val_expr = val_expr.children[1]
             }
             mut val_raw : Dynamic = 0
@@ -2319,7 +2319,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             if fad.transfers_own {
                 switch val_expr.node_type {
                 case .Ident(val_id):
-                    val_raw = scope_move_bound_raw(scope, val_id.ident_name(), ctx)
+                    val_raw = scope_move_bound_raw(scope, val_id.ident_name(ctx.symbols.names), ctx)
                 case:
                     mut val_info := raw_result_info_new()
                     val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
@@ -2329,10 +2329,10 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             } else {
                 switch val_expr.node_type {
                 case .Ident(val_id):
-                    source_hb_o := scope_lookup_heap_binding(scope, val_id.ident_name())
-                    if source_hb_o.is_none() { panic("field assignment source not found: ", val_id.ident_name()) }
+                    source_hb_o := scope_lookup_heap_binding(scope, val_id.ident_name(ctx.symbols.names))
+                    if source_hb_o.is_none() { panic("field assignment source not found: ", val_id.ident_name(ctx.symbols.names)) }
                     ref source_hb : HeapBinding = source_hb_o.unwrap()
-                    if source_hb.moved_out { panic("field assignment source moved: ", val_id.ident_name()) }
+                    if source_hb.moved_out { panic("field assignment source moved: ", val_id.ident_name(ctx.symbols.names)) }
                     ref source_raw : Dynamic = to_ptr(source_hb.ptr)
                     val_raw = source_raw
                     val_is_ref = true
@@ -2348,7 +2348,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 mut sname_o := expr_type_name_ref(stmt.children[0])
                 if sname_o.is_none() {
                     switch stmt.children[0].node_type {
-                    case .Ident(oi): sname_o = Option(ref Str).Some(oi.ident_name())
+                    case .Ident(oi): sname_o = Option(ref Str).Some(oi.ident_name(ctx.symbols.names))
                     case:
                     }
                 }
@@ -2380,11 +2380,11 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 // The chain walk below reassigns `base` through raw pointer
                 // arithmetic (ptr_add / deref), so it is a raw Dynamic from
                 // here on; the Option only answers "did the root resolve".
-                base_root_o := resolve_field_assign_base(scope, stmt.children[0])
+                base_root_o := resolve_field_assign_base(scope, stmt.children[0], ctx.symbols)
                 mut base : Dynamic = 0
                 if base_root_o.is_some() { base = base_root_o.unwrap() }
                 mut cur_sdef_o := resolve_field_assign_sdef(scope, stmt.children[0], ctx)
-                mut cur_sname : Str = resolve_field_assign_sname(scope, stmt.children[0])
+                mut cur_sname : Str = resolve_field_assign_sname(scope, stmt.children[0], ctx.symbols)
                 // Chain walking for nested field access (e.g. a.b.c = val).
                 // Collect the chain's field names outer-to-inner (for
                 // `c.b.a`: [a, b]) while descending to the root Ident, then
@@ -2400,7 +2400,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     while cur.node_type.is(NodeType.FieldAccess) {
                         switch cur.node_type {
                         case .FieldAccess(fa_link):
-                            chain_names.push(own Str.clone(fa_link.field_access_name()))
+                            chain_names.push(own Str.clone(fa_link.field_access_name(ctx.symbols.names)))
                         case:
                         }
                         cur = cur.children[0]
@@ -2409,11 +2409,11 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     case .Ident:
                         // A root that does not resolve leaves `base` as the
                         // caller found it; the is_null check below reports it.
-                        base_ident_o := resolve_field_assign_base(scope, cur)
+                        base_ident_o := resolve_field_assign_base(scope, cur, ctx.symbols)
                         if base_ident_o.is_some() {
                             base = base_ident_o.unwrap()
                             cur_sdef_o = resolve_field_assign_sdef(scope, cur, ctx)
-                            cur_sname = resolve_field_assign_sname(scope, cur)
+                            cur_sname = resolve_field_assign_sname(scope, cur, ctx.symbols)
                             mut step_i : USize = chain_names.len()
                             while step_i > 0 {
                                 step_i--
@@ -2429,7 +2429,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                                     base = ptr_add(base, step_off)
                                 }
                                 cur_sdef_o = field_nested_def(step_fd, ctx)
-                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope))
+                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols))
                             }
                         }
                     case:
@@ -2480,8 +2480,8 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 mut return_source_is_ref := false
                 switch ret_expr.node_type {
                 case .Ident(ret_ident):
-                    return_hb_o := scope_lookup_heap_binding(scope, ret_ident.ident_name())
-                    if return_hb_o.is_none() { panic("return binding not found: ", ret_ident.ident_name()) }
+                    return_hb_o := scope_lookup_heap_binding(scope, ret_ident.ident_name(ctx.symbols.names))
+                    if return_hb_o.is_none() { panic("return binding not found: ", ret_ident.ident_name(ctx.symbols.names)) }
                     ref return_hb : HeapBinding = return_hb_o.unwrap()
                     return_source_type = hb_type(return_hb).clone()
                     // A callable-typed binding never reads back as a borrow --
@@ -2494,9 +2494,9 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     return_source_is_ref = return_hb.own_type.is(OwnType.Ref).and(heap_type_is_callable(hb_type(return_hb)).not())
                     // A SHALLOW primitive return reads the scalar word; the
                     // binding keeps its block (nothing inner to move).
-                    if scope_return_move_is_local(scope, ret_ident.ident_name())
+                    if scope_return_move_is_local(scope, ret_ident.ident_name(ctx.symbols.names))
                     .and(return_hb.is_raw_alloc.or(raw_type_is_prim(hb_type(return_hb), ctx).and(return_hb.own_type.is(OwnType.Shallow)).not())) {
-                        return_raw = scope_move_bound_raw(scope, ret_ident.ident_name(), ctx)
+                        return_raw = scope_move_bound_raw(scope, ret_ident.ident_name(ctx.symbols.names), ctx)
                         // An own-prim VALUE binding's moved block collapses to
                         // the inline word callers expect from a prim-stamped
                         // call; a #302 raw-alloc POINTER binding keeps its
@@ -2505,7 +2505,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                         // which case callers expect the Dynamic wrapper shape
                         // (slot -> value storage): box the bare pointer.
                         if raw_type_is_prim(hb_type(return_hb), ctx).and(return_source_is_ref.not()) {
-                            if return_hb.is_raw_alloc.and(type_from_name_init(interp_ret_type_name(c), ctx.scope).is(Type.Dynamic)) {
+                            if return_hb.is_raw_alloc.and(type_from_name_init_name(interp_ret_type_name(c), ctx.scope, ctx.symbols).is(Type.Dynamic)) {
                                 // A #302 raw-alloc pointer returned at a
                                 // Dynamic-declared type: callers expect the
                                 // Dynamic wrapper shape (slot -> value
@@ -2531,7 +2531,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                             }
                         }
                     } else {
-                        return_raw = scope_read_bound_raw(scope, ret_ident.ident_name(), ctx)
+                        return_raw = scope_read_bound_raw(scope, ret_ident.ident_name(ctx.symbols.names), ctx)
                     }
                     return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.eval.interp_ret_is_ref, ctx)
                 case .FCall:
@@ -2560,7 +2560,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                         return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
                     }
                 }
-                target_return_type := type_from_name_init(interp_ret_type_name(c), ctx.scope)
+                target_return_type := type_from_name_init_name(interp_ret_type_name(c), ctx.scope, ctx.symbols)
                 if c.eval.interp_ret_is_ref.not() {
                     return_raw = raw_coerce_value(return_raw, return_source_type, target_return_type, ctx, c.eval.interp_ret_own_type)
                     return_raw = raw_result_finish(target_return_type, return_raw, c.eval.interp_ret_dest, false, ctx)
@@ -2581,7 +2581,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
 
 priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, is_variadic: Bool, mut ctx: Context) returns Dynamic {
     if is_variadic { return source_type_w }
-    return interp_intern_type(declaration_resolved_type(param, ctx.scope), ctx)
+    return interp_intern_type(declaration_resolved_type(param, ctx.scope, ctx.symbols), ctx)
 }
 
 priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_def: Expr, parent_scope: Scope, mut ctx: Context, mut destination: Dynamic = bits_word(0)) returns Dynamic {
@@ -2603,10 +2603,10 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         is_variadic_param := fdef_params.variadic_index == pi.to_i32()
         switch arg_expr.node_type {
         case .Ident(arg_ident):
-            mut source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name())
-            if source_hb_o.is_none() { panic("argument binding not found: ", arg_ident.ident_name()) }
+            mut source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name(ctx.symbols.names))
+            if source_hb_o.is_none() { panic("argument binding not found: ", arg_ident.ident_name(ctx.symbols.names)) }
             ref mut source_hb : HeapBinding = source_hb_o.unwrap()
-            if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name()) }
+            if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name(ctx.symbols.names)) }
             ref source_raw : Dynamic = to_ptr(source_hb.ptr)
             if is_variadic_param.not().and(param.til_type.is(Type.Dynamic)).and(hb_type(source_hb).is(Type.Dynamic).not()) {
                 mut dynamic_data : Dynamic = source_raw
@@ -2677,8 +2677,8 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
                     scope_set_heap_owned(call_scope, param.name, pointed, bind_type_w, param.own_type, source_hb.ctx, false, true)
                 } else if heap_type_is_callable(hb_type(source_hb)).and(heap_type_is_callable(bind_type)) {
-                    ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
-                    scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
+                    ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name(ctx.symbols.names))
+                    scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(ctx.symbols.names), arg_source_scope)
                 } else if til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type) {
                     if raw_type_is_prim(hb_type(source_hb), ctx).and(raw_type_is_prim(bind_type, ctx)).and(source_hb.is_raw_alloc.not()) {
                         // Width-converting prim copy: load the scalar at
@@ -2712,8 +2712,8 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, src_w, ctx), bind_type_w, param.own_type, ctx)
                     }
                 } else {
-                    ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
-                    scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
+                    ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name(ctx.symbols.names))
+                    scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(ctx.symbols.names), arg_source_scope)
                 }
             }
         case:
@@ -2803,11 +2803,11 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         c.eval.interp_ret_type = Option(ref Str).Some(ret_fd.return_type)
         c.eval.interp_ret_own_type = ret_fd.return_own_type
         if ret_fd.return_type.len() > 0 {
-            ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.return_type)
+            ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.return_type, ctx.symbols)
             if declared_return_name != til_type_name_c(e.til_type()) { use_return_destination = false }
         }
         if e.til_type().is(Type.Unknown).and(ret_fd.return_type.len() > 0) {
-            e.set_til_type(type_from_name_init(ret_fd.return_type, ctx.scope))
+            e.set_til_type(type_from_name_init_name(ret_fd.return_type, ctx.scope, ctx.symbols))
         }
     case:
     }
@@ -2829,14 +2829,14 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     switch func_def.node_type {
     case .FuncDef(result_fd):
         if result_fd.return_type.len() > 0 {
-            source_result_type := type_from_name_init(result_fd.return_type, ctx.scope)
+            source_result_type := type_from_name_init_name(result_fd.return_type, ctx.scope, ctx.symbols)
             if callee_ret_is_ref.not() {
                 if source_result_type.is(Type.Dynamic).and(raw_type_is_prim(e.til_type(), ctx)) {
                     // A Dynamic-declared result re-stamped primitive either
                     // stays an owned pointer block (Dynamic quarantine) or
                     // collapses to the transient scalar word.
                     ref unbox_pointed : Dynamic = deref(result)
-                    if fcall_returns_dynamic_storage(e, ctx.scope) {
+                    if fcall_returns_dynamic_storage(e, ctx.scope, ctx.symbols) {
                         EvalHeap.heap_free(own result)
                         result = unbox_pointed
                     } else {
@@ -2888,22 +2888,16 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         switch callee_expr.node_type {
         case .FieldAccess(callee_field):
-            // The synthetic enum paths are variant constructors (Enum result)
-            // and the tag test `is`; ordinary methods need no enum-def probe.
-            enum_dispatch_shape := call_type.is(Type.Enum).or(callee_field.field_access_name() == "is")
+            enum_dispatch_shape := call_type.is(Type.Enum).or(callee_field.field_access_name(ctx.symbols.names) == "is")
             if enum_dispatch_shape {
                 mut fallback_enum_name := ""
-                ref enum_name : Str = field_access_sname(callee_expr, fallback_enum_name)
+                ref enum_name : Str = field_access_sname(callee_expr, fallback_enum_name, ctx.symbols)
                 enum_def_o := lookup_interp_type_def(enum_name, ctx)
                 if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
                     ref enum_def : Expr = enum_def_o.unwrap()
                     mut enum_raw : Dynamic = destination
                     if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
-                    if enum_method_dispatch(callee_field.field_access_name(), scope, enum_def, enum_name, e, enum_raw, ctx) {
-                        // A prim-stamped result (is() -> Bool) collapses to an
-                        // inline word; enum values stay blocks. A caller-provided
-                        // destination stays the caller's storage -- free only a
-                        // block this call allocated itself.
+                    if enum_method_dispatch(callee_field.field_access_name(ctx.symbols.names), scope, enum_def, enum_name, e, enum_raw, ctx) {
                         if raw_type_is_prim(call_type, ctx) {
                             prim_w : Dynamic = scalar_word_load(call_type, enum_raw, ctx)
                             if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
@@ -2946,10 +2940,10 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                         orig_result_type := call_type.clone()
                         mut concrete_result_type := Type.None
                         concrete_return_own_type := fp_fdef.return_own_type
-                        if fp_fdef.return_type.len() > 0 { concrete_result_type = type_from_name_init(fp_fdef.return_type, ctx.scope) }
+                        if fp_fdef.return_type.len() > 0 { concrete_result_type = type_from_name_init_name(fp_fdef.return_type, ctx.scope, ctx.symbols) }
                         // Swapped in, not cloned: the dispatch only needs the
                         // callee slot to hold a flat Ident for this call.
-                        mut flat_ident := Expr.new(ident_node(fp_flat), callee_expr.line, callee_expr.col)
+                        mut flat_ident := Expr.new(ident_node(ctx.symbols.intern(fp_flat)), callee_expr.line, callee_expr.col)
                         flat_ident.set_til_type(Type.FuncDef)
                         swap(Expr, e.children[0], flat_ident)
                         e.set_til_type(concrete_result_type)
@@ -2974,10 +2968,10 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             ref fdef_ns : FunctionDef = funcdef_of(func_def)
             fdef_func_type = fdef_ns.func_type
             direct_return_own_type = fdef_ns.return_own_type
-            if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init(fdef_ns.return_type, ctx.scope) }
+            if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init_name(fdef_ns.return_type, ctx.scope, ctx.symbols) }
             if fdef_func_type.is_bodyless() {
                 ref fn_name : FieldAccessData = fieldaccess_of(callee_expr)
-                enum_dispatch_shape2 := call_type.is(Type.Enum).or(fn_name.field_access_name() == "is")
+                enum_dispatch_shape2 := call_type.is(Type.Enum).or(fn_name.field_access_name(ctx.symbols.names) == "is")
                 if enum_dispatch_shape2 {
                     parent_sname_o := expr_type_name_ref(callee_expr.children[0])
                     if parent_sname_o.is_some() {
@@ -2994,7 +2988,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             if tc_edef.node_type.is(NodeType.EnumDef) {
                                 mut enum_raw : Dynamic = destination
                                 if enum_raw.is_null() { enum_raw = dispatch_result_alloc(call_type, ctx) }
-                                if enum_method_dispatch(fn_name.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
+                                if enum_method_dispatch(fn_name.field_access_name(ctx.symbols.names), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
                                     if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                                     // A prim-stamped result (is() -> Bool)
                                     // collapses to an inline word.
@@ -3010,24 +3004,24 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                         }
                     }
                 }
-                mut flat_str := Str.clone(fn_name.field_access_name())
+                mut flat_str := Str.clone(fn_name.field_access_name(ctx.symbols.names))
                 sn_o := expr_type_name_ref(callee_expr.children[0])
                 // til_type_name returns "" for primitives. For ext_func
                 // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
                 // `I64_sub(0, 1)`), fall back to til_type_name_c.
                 if sn_o.is_some() {
                     ref sn : Str = sn_o.unwrap()
-                    flat_str = sn.concat3("_", fn_name.field_access_name())
+                    flat_str = sn.concat3("_", fn_name.field_access_name(ctx.symbols.names))
                 } else {
                     tn := til_type_name_c(callee_expr.children[0].til_type())
                     if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
-                        flat_str = tn.concat3("_", fn_name.field_access_name())
+                        flat_str = tn.concat3("_", fn_name.field_access_name(ctx.symbols.names))
                     }
                 }
                 // If the receiver type is unknown (eg Dynamic), fall back to
                 // the unqualified top-level name. Required for and/or/not.
                 orig_direct_result_type := call_type.clone()
-                mut flat_ident2 := Expr.new(ident_node(flat_str), callee_expr.line, callee_expr.col)
+                mut flat_ident2 := Expr.new(ident_node(ctx.symbols.intern(flat_str)), callee_expr.line, callee_expr.col)
                 flat_ident2.set_til_type(Type.FuncDef)
                 swap(Expr, e.children[0], flat_ident2)
                 e.set_til_type(direct_result_type)
@@ -3068,7 +3062,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
 
         // Ext/core dispatch writes raw bytes sized by this call's result Type.
         ref mut root_scope : Scope = scope_root_ref(scope)
-        ext_hb_o := scope_lookup_heap_binding(root_scope, name.ident_name())
+        ext_hb_o := scope_lookup_heap_binding(root_scope, name.ident_name(ctx.symbols.names))
         mut ext_slot : Dynamic = 0
         if ext_hb_o.is_some() { ext_slot = to_ptr(ext_hb_o.unwrap().ptr) }
         mut ext_result_type := call_type.clone()
@@ -3087,7 +3081,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             switch ext_def.node_type {
             case .FuncDef(ext_fd):
                 if ext_fd.return_type.len() == 0 { ext_result_type = Type.None }
-                else { ext_result_type = type_from_name_init(ext_fd.return_type, ctx.scope) }
+                else { ext_result_type = type_from_name_init_name(ext_fd.return_type, ctx.scope, ctx.symbols) }
                 ext_return_own_type = ext_fd.return_own_type
                 ext_variadic_index = ext_fd.variadic_index
             case .BodyValue:
@@ -3095,14 +3089,14 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             case .StructDef:
             case .EnumDef:
             case:
-                UNREACHABLE("unexpected ", ext_def.node_type.head_str())
+                UNREACHABLE("unexpected ", ext_def.node_type.head_str(ctx.symbols.names))
             }
         }
         ext_result_is_ref := info.is_ref
         // `cast(e, T)` and dyn_call_ret declare Dynamic because til has no
         // dependent return types; the typer places the concrete result on the
         // call expression. Allocate dispatch storage at that contextual type.
-        contextual_dynamic_result := ext_return_own_type.is(OwnType.Shallow).or(name.ident_name() == "dyn_call_ret")
+        contextual_dynamic_result := ext_return_own_type.is(OwnType.Shallow).or(name.ident_name(ctx.symbols.names) == "dyn_call_ret")
         if ext_result_type.is(Type.Dynamic).and(contextual_dynamic_result).and(call_type.is(Type.Dynamic).not()) {
             ext_result_type = call_type.clone()
         }
@@ -3118,13 +3112,13 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         } else {
             ext_raw = dispatch_result_alloc(ext_storage_type, ctx)
         }
-        if ext_function_dispatch(name.ident_name(), scope, e, ext_raw, ctx) {
+        if ext_function_dispatch(name.ident_name(ctx.symbols.names), scope, e, ext_raw, ctx) {
             for oi in 1..e.children.len() {
                 if get_own_arg(e, oi) {
                     if oi.sub(1).to_i32() == ext_variadic_index { continue }
                     switch e.children[oi].node_type {
                     case .Ident(oa_ident):
-                        mut arg_hb_o := scope_lookup_heap_binding(scope, oa_ident.ident_name())
+                        mut arg_hb_o := scope_lookup_heap_binding(scope, oa_ident.ident_name(ctx.symbols.names))
                         if arg_hb_o.is_some() {
                             ref mut arg_hb : HeapBinding = arg_hb_o.unwrap()
                             // An own arg whose CALLEE PARAM is `own` was genuinely
@@ -3169,7 +3163,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         // h_exit. The ext dispatch probe above already resolved the binding;
         // reuse its slot and metadata instead of walking the scope again.
         if ext_slot.is_null() {
-            interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
+            interp_error(e, format(Str.clone(name.ident_name(ctx.symbols.names)), " is undefined"), ctx)
             exit(1)
         }
         ref ext_hb : HeapBinding = ext_hb_o.unwrap()
@@ -3196,7 +3190,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 if ext_fd.func_type.is_ext() {
                     if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                     if ctx.eval.constfold_active.not() {
-                        panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name())
+                        panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name(ctx.symbols.names))
                     }
                     ctx.eval.eval_aborted = true
                     if destination.is_null().not() { return destination }
@@ -3209,12 +3203,12 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         if fn_def.node_type.is(NodeType.StructDef) {
                 ref sdd : StructDef = structdef_of(fn_def)
                 mut inst_data : Dynamic = destination
-                if inst_data.is_null() { inst_data = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(), ctx)) }
+                if inst_data.is_null() { inst_data = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(ctx.symbols.names), ctx)) }
                     // sl.fields is positionally parallel to sdd.fields, so
                     // each arg's layout row comes from its position -- no
                     // per-field name probe. Interface ctors also locate
                     // iface_val/iface_owned once, up front, by index probe.
-                    ref ctor_sl : StructLayout = ctx.struct_layouts[name.ident_name()]
+                    ref ctor_sl : StructLayout = ctx.struct_layouts[name.ident_name(ctx.symbols.names)]
                     mut iface_val_pos : USize = sdd.fields.len()
                     mut iface_owned_pos : USize = sdd.fields.len()
                     if sdd.is_interface {
@@ -3235,7 +3229,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                         mut arg_source_type := arg.til_type().clone()
                         switch arg.node_type {
                         case .Ident(arg_ident):
-                            ref mut source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name()).unwrap()
+                            ref mut source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name(ctx.symbols.names)).unwrap()
                             if hb_type(source_hb).is(Type.Dynamic).and(arg.til_type().is(Type.Dynamic).not()).not() {
                                 arg_source_type = hb_type(source_hb).clone()
                             }
@@ -3245,7 +3239,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                     switch e.children[iface_owned_pos + 1].node_type {
                                     case .Literal(Literal.Bool(owned_flag)): move_iface_val = owned_flag
                                     case .Ident(owned_id):
-                                        ref owned_hb : HeapBinding = scope_lookup_heap_binding(scope, owned_id.ident_name()).unwrap()
+                                        ref owned_hb : HeapBinding = scope_lookup_heap_binding(scope, owned_id.ident_name(ctx.symbols.names)).unwrap()
                                         ref owned_raw : Dynamic = to_ptr(owned_hb.ptr)
                                         ref owned_flag2 : Bool = owned_raw
                                         move_iface_val = owned_flag2
@@ -3254,7 +3248,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 }
                             }
                             if get_own_arg(e, cur_idx).or(move_iface_val) {
-                                if source_hb.moved_out { panic("struct init from moved heap binding: ", arg_ident.ident_name()) }
+                                if source_hb.moved_out { panic("struct init from moved heap binding: ", arg_ident.ident_name(ctx.symbols.names)) }
                                 ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
                                 mut preserve_outer := get_keep_outer_arg(e, cur_idx)
                                 if fdd.own_type.is(OwnType.Shallow) {
@@ -3394,7 +3388,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         mut inline_callable_cast := false
         switch callee_expr.children[0].node_type {
         case .Ident(cast_name):
-            inline_callable_cast = cast_name.ident_name().eq("cast")
+            inline_callable_cast = cast_name.ident_name(ctx.symbols.names).eq("cast")
                 .and(callee_expr.til_type().is_funcptr().or(callee_expr.til_type().is(Type.Body)))
         case:
         }
@@ -3409,7 +3403,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         if cast_raw_owned { callable_raw_free(cast_raw, ctx) }
         return result
     case:
-        UNREACHABLE("unexpected ", callee_expr.node_type.head_str())
+        UNREACHABLE("unexpected ", callee_expr.node_type.head_str(ctx.symbols.names))
         if destination.is_null().not() { return destination }
         return raw_unit_result(call_type, ctx)
     }
@@ -3467,7 +3461,7 @@ priv container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
 }
 
 priv container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
-    resolved := type_from_name_init(elem_type, ctx.scope)
+    resolved := type_from_name_init_name(elem_type, ctx.scope, ctx.symbols)
     if type_is_callable_storage(resolved) { return 8 }
     switch resolved {
     case .Primitive(p):
@@ -3485,7 +3479,7 @@ priv container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
 }
 
 priv type_name_is_callable_storage := func(type_name: Str, ctx: Context) returns Bool {
-    if type_is_callable_storage(type_from_name_init(type_name, ctx.scope)) { return true }
+    if type_is_callable_storage(type_from_name_init_name(type_name, ctx.scope, ctx.symbols)) { return true }
     tdef_o := lookup_interp_type_def(type_name, ctx)
     if tdef_o.is_none() { return false }
     ref tdef : Expr = tdef_o.unwrap()
@@ -3515,7 +3509,7 @@ priv container_elem_deep_free := func(elem_type: Str, mut slot: Dynamic, ctx: Co
         if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
         return
     }
-    resolved := type_from_name_init(elem_type, ctx.scope)
+    resolved := type_from_name_init_name(elem_type, ctx.scope, ctx.symbols)
     if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)) { return }
     elem_def_o := lookup_interp_type_def(elem_type, ctx)
     if elem_def_o.is_none() { panic("container element has no registered type def: ", elem_type) }
@@ -3538,7 +3532,7 @@ priv container_elem_clone_into := func(elem_type: Str, mut dst: Dynamic, src: Dy
         if stored_callable.is_null().not() { write_ptr(dst, callable_storage_clone(stored_callable)) }
         return
     }
-    resolved := type_from_name_init(elem_type, ctx.scope)
+    resolved := type_from_name_init_name(elem_type, ctx.scope, ctx.symbols)
     if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)) {
         memcpy(dst, src, elem_size)
         return
@@ -3658,7 +3652,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
             ref type_name : Str = ptr_add(data, type_fl.offset)
             ref val_fl : FieldLayout = ctx_field_layout(struct_name, "iface_val", ctx)
             ref mut iface_val : Dynamic = deref(ptr_add(data, val_fl.offset))
-            heap_drop_by_type(type_from_name_init(type_name, ctx.scope), iface_val, ctx)
+            heap_drop_by_type(type_from_name_init_name(type_name, ctx.scope, ctx.symbols), iface_val, ctx)
             mut owned_iface_val : Dynamic = iface_val
             EvalHeap.heap_free(own owned_iface_val)
             write_ptr(ptr_add(data, val_fl.offset), bits_word(0))
@@ -4205,7 +4199,7 @@ priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Co
         ref mut stored_callable3 : Dynamic = deref(ptr)
         if stored_callable3.is_null().not() { callable_storage_free(stored_callable3) }
     case .Custom(name):
-        heap_drop_by_type(type_from_name_init(name, ctx.scope), ptr, ctx)
+        heap_drop_by_type(type_from_name_init_name(name, ctx.scope, ctx.symbols), ptr, ctx)
     case:
     }
 }
@@ -4249,7 +4243,7 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
         if stored_callable3.is_null().not() { write_ptr(dst3, callable_storage_clone(stored_callable3)) }
         return dst3
     case .Custom(name):
-        return heap_clone_by_type(type_from_name_init(name, ctx.scope), ptr, ctx)
+        return heap_clone_by_type(type_from_name_init_name(name, ctx.scope, ctx.symbols), ptr, ctx)
     case:
         panic("cannot clone raw binding of type ", til_type_name_c(til_type))
         return bits_word(0)
@@ -4656,7 +4650,7 @@ priv make_interp_closure := func(func_def: Expr, mut scope: Scope, ctx: Context)
             capture_raw_binding(env, scope, cap2, ctx)
         }
     case:
-        UNREACHABLE("unexpected ", func_def.node_type.head_str())
+        UNREACHABLE("unexpected ", func_def.node_type.head_str(ctx.symbols.names))
     }
     mut box : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
     ref mut callable : InterpCallableBox = to_ptr(box)
@@ -4713,7 +4707,7 @@ priv callable_box_free := func(mut ptr: Dynamic) {
 // Shared namespace test so both FieldAccess and
 // FieldAssign cases (which share an Str payload) can switch-destructure
 // `e.node_type` without duplicating ~50 lines of logic.
-priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns Bool {
+priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str, symbols: SymbolPool) returns Bool {
     mut has_inst := false
     has_ns := def_ns_has(sdef, fname)
     switch sdef.node_type {
@@ -4743,10 +4737,11 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
         if has_inst.not() {
             switch obj_expr.node_type {
             case .Ident(ident):
-                if ident.ident_name() == sname { return true }
-                if ident.len() > 0 {
-                    if ident.unsafe_get(0) >= 65 {
-                        if ident.unsafe_get(0) <= 90 { return true }
+                ref ident_text : Str = ident.ident_name(symbols.names)
+                if ident_text == sname { return true }
+                if ident_text.len() > 0 {
+                    if ident_text.unsafe_get(0) >= 65 {
+                        if ident_text.unsafe_get(0) <= 90 { return true }
                     }
                 }
             case:
@@ -4758,10 +4753,11 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
         if has_inst {
             switch obj_expr.node_type {
             case .Ident(ident):
-                if ident.ident_name() == sname { return true }
-                if ident.len() > 0 {
-                    if ident.unsafe_get(0) >= 65 {
-                        if ident.unsafe_get(0) <= 90 { return true }
+                ref ident_text2 : Str = ident.ident_name(symbols.names)
+                if ident_text2 == sname { return true }
+                if ident_text2.len() > 0 {
+                    if ident_text2.unsafe_get(0) >= 65 {
+                        if ident_text2.unsafe_get(0) <= 90 { return true }
                     }
                 }
             case:
@@ -4782,7 +4778,7 @@ priv interp_fa_namespace_def_inner := func(mut scope: Scope, e: Expr, sname: Str
     registry_def_o := lookup_interp_type_def(sname, ctx)
     if registry_def_o.is_some() {
         ref registry_def : Expr = registry_def_o.unwrap()
-        return interp_fa_namespace_def_for(obj_expr, e, sname, registry_def)
+        return interp_fa_namespace_def_for(obj_expr, e, sname, registry_def, ctx.symbols)
     }
     // Same type gate as interp_fa_namespace_def below: only a callable binding
     // carries a def, and a value binding's slot is not an Expr to read.
@@ -4790,19 +4786,19 @@ priv interp_fa_namespace_def_inner := func(mut scope: Scope, e: Expr, sname: Str
     if hb_o.is_none() { return Option(ref Expr).None }
     walked_o := hb_func_def(hb_o.unwrap())
     if walked_o.is_none() { return Option(ref Expr).None }
-    return interp_fa_namespace_def_for(obj_expr, e, sname, walked_o.unwrap())
+    return interp_fa_namespace_def_for(obj_expr, e, sname, walked_o.unwrap(), ctx.symbols)
 }
 
-priv interp_fa_namespace_def_for := func(obj_expr: Expr, e: Expr, sname: Str, sdef: Expr) returns Option(ref Expr) {
+priv interp_fa_namespace_def_for := func(obj_expr: Expr, e: Expr, sname: Str, sdef: Expr, symbols: SymbolPool) returns Option(ref Expr) {
     if sdef.node_type.is(NodeType.StructDef).not() {
         if sdef.node_type.is(NodeType.EnumDef).not() { return Option(ref Expr).None }
     }
     mut is_namespace := false
     switch e.node_type {
     case .FieldAccess(fname):
-        is_namespace = interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname.field_access_name())
+        is_namespace = interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname.field_access_name(symbols.names), symbols)
     case .FieldAssign(fad):
-        is_namespace = interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fad.name)
+        is_namespace = interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fad.name, symbols)
     case:
     }
     if is_namespace { return Option(ref Expr).Some(sdef) }
@@ -4813,7 +4809,7 @@ priv interp_fa_namespace_def_with_name := func(mut scope: Scope, e: Expr, sname:
     ref obj_expr : Expr = e.children[0]
     switch obj_expr.node_type {
     case .Ident(type_ident):
-        type_hb_o := scope_lookup_heap_binding(scope, type_ident.ident_name())
+        type_hb_o := scope_lookup_heap_binding(scope, type_ident.ident_name(ctx.symbols.names))
         if type_hb_o.is_some().and(heap_type_is_callable(hb_type(type_hb_o.unwrap()))) {
             ref type_hb : HeapBinding = type_hb_o.unwrap()
             ref type_def : Expr = callable_raw_func_def(to_ptr(type_hb.ptr))
@@ -4824,7 +4820,7 @@ priv interp_fa_namespace_def_with_name := func(mut scope: Scope, e: Expr, sname:
                 // SECOND full scope walk) inside interp_fa_namespace_def_inner. The
                 // walked def also respects shadowing, which the registry
                 // probe by name cannot.
-                return interp_fa_namespace_def_for(obj_expr, e, type_ident.ident_name(), type_def)
+                return interp_fa_namespace_def_for(obj_expr, e, type_ident.ident_name(ctx.symbols.names), type_def, ctx.symbols)
             }
         }
     case:
@@ -4843,7 +4839,7 @@ priv interp_fa_namespace_def := func(mut scope: Scope, e: Expr, ctx: Context) re
         return interp_fa_namespace_def_with_name(scope, e, sname, false, ctx)
     }
     switch obj_expr.node_type {
-    case .Ident(ident): return interp_fa_namespace_def_with_name(scope, e, ident.ident_name(), false, ctx)
+    case .Ident(ident): return interp_fa_namespace_def_with_name(scope, e, ident.ident_name(ctx.symbols.names), false, ctx)
     case:
     }
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
@@ -4866,7 +4862,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_
         EvalHeap.heap_free(own raw)
     }
     array_name := format("Array__", elem_type)
-    array_binding_o := ctx.scope.get_binding(array_name)
+    array_binding_o := ctx.scope.get_binding_name(array_name, ctx.symbols)
     if array_binding_o.is_none() { panic("missing Array type '", array_name, "'") }
     ref array_binding : TypeBinding = array_binding_o.unwrap()
     ref array_canon_name : Str = array_binding.name
@@ -4945,7 +4941,7 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
             // order (ns_const_eval_order), not declaration order, so an
             // initializer may reference a sibling constant declared
             // later (`c : I64 = Bar.d + 1` before `d`).
-            const_order := ns_const_eval_order(dd.name, sdef)
+            const_order := ns_const_eval_order(dd.name, sdef, ctx.symbols)
             for nci_pos : I64 in const_order {
                 cur_nci := nci_pos.to_usize()
                 ref mut nsd : Declaration = reg_ns.unsafe_get(cur_nci)
@@ -5327,7 +5323,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
                 // A value RHS is not a type alias: it carries no def, and
                 // reading its slot as one is the wild-pointer bug hb_func_def
                 // exists to stop.
-                ref src_hb : HeapBinding = scope_lookup_heap_binding(global, rhs_ident.ident_name()).unwrap()
+                ref src_hb : HeapBinding = scope_lookup_heap_binding(global, rhs_ident.ident_name(ctx.symbols.names)).unwrap()
                 sdef_o := hb_func_def(src_hb)
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
@@ -5337,7 +5333,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
                             mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                             write_ptr(raw, sdef)
                             scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
-                            mut ia := InterpAlias(name = dd.name, target = rhs_ident.ident_name())
+                            mut ia := InterpAlias(name = dd.name, target = rhs_ident.ident_name(ctx.symbols.names))
                             aliases.push(own ia)
                         case:
                         }
@@ -5796,16 +5792,16 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         // stride and CLI parsing resolve the width
                         // themselves (elem_size_for_type/parse_cli_arg
                         // both handle USize/UPtr).
-                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].type_name()).clone()
+                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].type_name(), lp.ctx.symbols).clone()
                         arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
-                        va_array_binding_o := lp.ctx.scope.get_binding(format("Array__", va_elem))
+                        va_array_binding_o := lp.ctx.scope.get_binding_name(format("Array__", va_elem), lp.ctx.symbols)
                         if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
                         ref va_array_binding : TypeBinding = va_array_binding_o.unwrap()
                         scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
                         argi = argi + va_count.to_i32()
                     } else {
                         raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.type_name(), lp.ctx)
-                        scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(declaration_resolved_type(param, lp.ctx.scope), lp.ctx), param.own_type, lp.ctx)
+                        scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols), lp.ctx), param.own_type, lp.ctx)
                         argi++
                     }
                 }
@@ -5845,7 +5841,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             if mc.eval.has_return {
                 mut ret_raw : Dynamic = context_return_take(mc)
                 if fd.return_type.len() > 0 {
-                    ret_type := type_from_name_init(fd.return_type, lp.ctx.scope)
+                    ret_type := type_from_name_init_name(fd.return_type, lp.ctx.scope, lp.ctx.symbols)
                     main_status = raw_to_i64(ret_type, ret_raw, lp.ctx).to_i32()
                     // raw_result_drop, not heap_free: a non-ref prim
                     // return IS the inline word, never a block, so
@@ -5878,15 +5874,8 @@ cmd_interpret := proc(mut lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
     mut result : I32 = 0
     if lp.link_c_paths.len() > 0 {
         _mk := mkdir_p("tmp")
-        // Keyed by PID, like the .so this header is written for
-        // (ffi_init_user_so, same flow): clock_ms() collides whenever two
-        // interpreted `link_c` programs start in the same millisecond, and
-        // then one overwrites the header the other is about to compile
-        // against. The suite runs its tests in parallel, so that is a
-        // scheduling accident away -- exactly how the shared
-        // tmp/_run_cmd_out capture file failed (a binder panicking about a
-        // header it had just preprocessed) after passing three full runs.
-        // A PID cannot collide among live processes.
+        // PID-keyed like the shared object this header describes; concurrent
+        // interpreters can start in the same millisecond.
         interpret_fwd_path = format("tmp/ffi_", process_id().to_str(), "_forward.h")
         // The header's emitters gate on the inventories builder_prepare_emit
         // settles (#326); translate_ast runs it before ITS header for the
@@ -6223,11 +6212,11 @@ priv unsigned_ffi_type_for_name := func(name: Str) returns ref ffi_type {
 }
 
 priv uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
-    return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "UPtr"))
+    return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "UPtr", ctx.symbols))
 }
 
 priv usize_ffi_type := func(ctx: Context) returns ref ffi_type {
-    return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "USize"))
+    return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "USize", ctx.symbols))
 }
 
 priv narrow_bool_arg := proc(mut s: Scope, mut e: Expr, mut ctx: Context) returns Bool {
@@ -6303,7 +6292,7 @@ dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
     case .Dynamic, .FuncPtr, .FuncPtrSig, .Body:
         size = Dynamic.size()
     case .Custom(name):
-        return dispatch_result_alloc(type_from_name_init(name, ctx.scope), ctx)
+        return dispatch_result_alloc(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
     case:
         panic("cannot allocate dispatch result for type ", til_type_name_c(t))
     }
@@ -6493,16 +6482,6 @@ priv h_dyn_has_method := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx
 priv h_dyn_fn := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
-    // One message for both misses, because the emitted C dispatcher cannot
-    // tell them apart: it is built from the FuncDef members alone (one arm
-    // each, kept ones only -- see emit_dyn_fn_wrappers), so an absent member
-    // and a VALUE member both fall off its end. dyn_has_method answers for
-    // value members too, which is how a caller legitimately arrives here
-    // with one; cloning it as a callable read the VALUE as the box address
-    // (`limit : I64 = 7` -> 0x7).
-    // interp_error, not panic: this is the caller's mistake, so the report
-    // names the dyn_fn call site rather than the line of interpreter.til
-    // that noticed.
     stored_o := ns_get(type_name, method, ctx)
     if stored_o.is_some() {
         if ns_func_def(type_name, method, ctx).is_none() {
@@ -6525,7 +6504,7 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     // Resolve width aliases: USize/UPtr name a per-build primitive and have
     // no size() of their own, so dyn_size_of("USize") used to die with
     // "USize has no size() method" while every concrete name worked.
-    type_name := resolve_type_alias(ctx.scope, eval_str_owned(s, e.children[1], ctx)).clone()
+    type_name := resolve_type_alias(ctx.scope, eval_str_owned(s, e.children[1], ctx), ctx.symbols).clone()
     mut sz : USize = 8
     if type_name_is_callable_storage(type_name, ctx).not() {
         // The emitted dispatcher is one `if (name == T) return sizeof(T);`
@@ -6556,7 +6535,7 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
 // emitted dispatcher reports it -- same text, at the call site -- rather
 // than as a panic naming the line of interpreter.til that noticed.
 priv storage_kind_for_type_name := proc(type_name: Str, src: Expr, ctx: Context) returns USize {
-    resolved := type_from_name_init(type_name, ctx.scope)
+    resolved := type_from_name_init_name(type_name, ctx.scope, ctx.symbols)
     if is_primitive(resolved).or(resolved.is(Type.Dynamic)) { return ELEM_POD }
     if type_is_callable_storage(resolved) { return ELEM_FN }
     if resolved.is(Type.Struct).or(resolved.is(Type.Enum)) { return ELEM_BOXED }
@@ -7018,8 +6997,8 @@ priv h_dyn_type_to_str := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ct
         ref type_tag : I32 = to_ptr(type_data)
         switch arg.node_type {
         case .Ident(type_arg_id):
-            ref type_arg_hb : HeapBinding = scope_lookup_heap_binding(s, type_arg_id.ident_name()).unwrap()
-            panic("dyn_type_to_str: invalid Type for ", type_arg_id.ident_name(), ": tag=", type_tag.to_str(), " binding=", til_type_name_c(hb_type(type_arg_hb)), " ref=", type_arg_hb.own_type.is(OwnType.Ref).to_str(), " borrowed=", type_arg_hb.is_borrowed.to_str())
+            ref type_arg_hb : HeapBinding = scope_lookup_heap_binding(s, type_arg_id.ident_name(ctx.symbols.names)).unwrap()
+            panic("dyn_type_to_str: invalid Type for ", type_arg_id.ident_name(ctx.symbols.names), ": tag=", type_tag.to_str(), " binding=", til_type_name_c(hb_type(type_arg_hb)), " ref=", type_arg_hb.own_type.is(OwnType.Ref).to_str(), " borrowed=", type_arg_hb.is_borrowed.to_str())
         case:
             panic("dyn_type_to_str: invalid Type expression tag=", type_tag.to_str())
         }
@@ -7175,10 +7154,10 @@ priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context) returns r
 priv h_free := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     switch e.children[1].node_type {
     case .Ident(ident):
-        hb_o := scope_lookup_heap_binding(s, ident.ident_name())
-        if hb_o.is_none() { panic("free binding not found: ", ident.ident_name()) }
+        hb_o := scope_lookup_heap_binding(s, ident.ident_name(ctx.symbols.names))
+        if hb_o.is_none() { panic("free binding not found: ", ident.ident_name(ctx.symbols.names)) }
         ref hb : HeapBinding = hb_o.unwrap()
-        if hb.moved_out { panic("free of moved binding: ", ident.ident_name()) }
+        if hb.moved_out { panic("free of moved binding: ", ident.ident_name(ctx.symbols.names)) }
         heap_data : Dynamic = hb.ptr
         if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
             ref pointed : Dynamic = deref(heap_data)
@@ -7209,8 +7188,8 @@ priv h_free := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) re
 priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     switch e.children[1].node_type {
     case .Ident(id):
-        mut hb_o := scope_lookup_heap_binding(s, id.ident_name())
-        if hb_o.is_none() { panic("til_closure_delete: non-callable ", id.ident_name()) }
+        mut hb_o := scope_lookup_heap_binding(s, id.ident_name(ctx.symbols.names))
+        if hb_o.is_none() { panic("til_closure_delete: non-callable ", id.ident_name(ctx.symbols.names)) }
         ref mut hb : HeapBinding = hb_o.unwrap()
         if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
             if hb.moved_out.not() {
@@ -7223,7 +7202,7 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
             }
             return true
         }
-        if heap_type_is_callable(hb_type(hb)).not() { panic("til_closure_delete: non-callable ", id.ident_name()) }
+        if heap_type_is_callable(hb_type(hb)).not() { panic("til_closure_delete: non-callable ", id.ident_name(ctx.symbols.names)) }
         if hb.moved_out.not() {
             ref mut heap_data : Dynamic = to_ptr(hb.ptr)
             if hb.is_borrowed.not() {
@@ -7239,18 +7218,18 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
             ref obj_expr : Expr = e.children[1].children[0]
             switch obj_expr.node_type {
             case .Ident:
-                mut base_o := resolve_field_assign_base(s, obj_expr)
+                mut base_o := resolve_field_assign_base(s, obj_expr, ctx.symbols)
                 if base_o.is_some() {
                     ref mut base : Dynamic = base_o.unwrap()
                     sdef_o := resolve_field_assign_sdef(s, obj_expr, ctx)
                     if sdef_o.is_some() {
                         ref sdef : Expr = sdef_o.unwrap()
-                        sname := resolve_field_assign_sname(s, obj_expr)
-                        fdecl_o := find_field_decl(sdef, fa.field_access_name())
+                        sname := resolve_field_assign_sname(s, obj_expr, ctx.symbols)
+                        fdecl_o := find_field_decl(sdef, fa.field_access_name(ctx.symbols.names))
                         if fdecl_o.is_some() {
                             ref fdecl : Declaration = fdecl_o.unwrap()
                             if decl_is_funcsig(fdecl, ctx) {
-                                ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
+                                ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
                                 ref mut slot : Dynamic = ptr_add(base, fl.offset.cast(U64))
                                 ref mut stored : Dynamic = deref(slot)
                                 if stored.is_null().not() { callable_storage_free(stored) }
@@ -7325,12 +7304,12 @@ priv h_til_closure_slot_take := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut
     ref source_expr : Expr = e.children[2]
     switch source_expr.node_type {
     case .Ident(id):
-        mut source_hb_o := scope_lookup_heap_binding(s, id.ident_name())
-        if source_hb_o.is_none() { panic("til_closure_slot_take: source binding not found: ", id.ident_name()) }
+        mut source_hb_o := scope_lookup_heap_binding(s, id.ident_name(ctx.symbols.names))
+        if source_hb_o.is_none() { panic("til_closure_slot_take: source binding not found: ", id.ident_name(ctx.symbols.names)) }
         ref mut source_hb : HeapBinding = source_hb_o.unwrap()
-        if source_hb.moved_out { panic("til_closure_slot_take: source binding already moved: ", id.ident_name()) }
+        if source_hb.moved_out { panic("til_closure_slot_take: source binding already moved: ", id.ident_name(ctx.symbols.names)) }
         if hb_type(source_hb).is(Type.Dynamic).not().or(source_hb.is_erased_dynamic) {
-            panic("til_closure_slot_take: source is not an owned callable Dynamic: ", id.ident_name())
+            panic("til_closure_slot_take: source is not an owned callable Dynamic: ", id.ident_name(ctx.symbols.names))
         }
         source_slot : Dynamic = source_hb.ptr
         ref stored : Dynamic = deref(source_slot)
@@ -7402,16 +7381,16 @@ priv h_is_n := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
     switch be.node_type {
     case .FieldAccess(variant):
         mut fallback_enum_name := ""
-        ref enum_name : Str = field_access_sname(be, fallback_enum_name)
+        ref enum_name : Str = field_access_sname(be, fallback_enum_name, ctx.symbols)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
         if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
             ref enum_def : Expr = enum_def_o.unwrap()
-            write_bool(r, enum_data_tag_key(raw_arg_pointer(a, a_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
+            write_bool(r, enum_data_tag_key(raw_arg_pointer(a, a_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name(ctx.symbols.names)))
             raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
             return true
         }
     case .Ident(other_id):
-        other_hb_o := scope_lookup_heap_binding(s, other_id.ident_name())
+        other_hb_o := scope_lookup_heap_binding(s, other_id.ident_name(ctx.symbols.names))
         if other_hb_o.is_some().and(other_hb_o.unwrap().is_static_callable) {
             ref other_hb : HeapBinding = other_hb_o.unwrap()
             ref other_raw : Dynamic = to_ptr(other_hb.ptr)
@@ -7458,12 +7437,12 @@ priv get_payload_field_addr := func(mut s: Scope, arg: Expr, ctx: Context) retur
     mut fname := ""
     switch arg.node_type {
     case .FieldAccess(fan):
-        fname = Str.clone(fan.field_access_name())
+        fname = Str.clone(fan.field_access_name(ctx.symbols.names))
     case:
     }
     switch arg.children[0].node_type {
     case .Ident(base_id):
-        hb_o := scope_lookup_heap_binding(s, base_id.ident_name())
+        hb_o := scope_lookup_heap_binding(s, base_id.ident_name(ctx.symbols.names))
         if hb_o.is_none() { return bits_word(0) }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
@@ -7705,10 +7684,10 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Cont
     method := eval_str_owned(s, e.children[2], ctx)
 
     // Build fake AST: Type.method(args...)
-    mut type_ident := Expr.new(ident_node(type_name), e.line, e.col)
+    mut type_ident := Expr.new(ident_node(ctx.symbols.intern(type_name)), e.line, e.col)
     type_ident.set_til_type(Type.Struct(type_name.clone()))
 
-    mut field_access := Expr.new(field_access_node(method), e.line, e.col)
+    mut field_access := Expr.new(field_access_node(ctx.symbols.intern(method)), e.line, e.col)
     field_access.add_child(own type_ident)
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col)
@@ -7722,7 +7701,7 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Cont
     switch arity_expr.node_type {
     case .Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
     case:
-        UNREACHABLE("expected LiteralNum, got ", arity_expr.node_type.head_str())
+        UNREACHABLE("expected LiteralNum, got ", arity_expr.node_type.head_str(ctx.symbols.names))
     }
     // #275: `delete` takes the SAME fake-call path as every other method.
     // It used to short-circuit here -- heap_drop_by_type + heap_free plus a
@@ -7748,15 +7727,15 @@ priv get_elem_size := proc(mut s: Scope, type_name: Str, src: Expr, mut ctx: Con
         exit(1)
     }
     // Build fake call: Type.size()
-    mut type_ident := Expr.new(ident_node(type_name), src.line, src.col)
+    mut type_ident := Expr.new(ident_node(ctx.symbols.intern(type_name)), src.line, src.col)
     type_ident.set_til_type(Type.Struct(type_name.clone()))
 
-    mut field_access := Expr.new(field_access_node("size"), src.line, src.col)
+    mut field_access := Expr.new(field_access_node(ctx.symbols.intern("size")), src.line, src.col)
     field_access.add_child(own type_ident)
 
     // Critical: NodeType.FCall must have an initialized FCallData payload.
     mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-    fake_call.set_til_type(type_from_name_init("USize", ctx.scope))
+    fake_call.set_til_type(type_from_name_init_name("USize", ctx.scope, ctx.symbols))
     fake_call.add_child(own field_access)
     mark_fcall_direct(fake_call)
 
@@ -7775,7 +7754,7 @@ priv enum_method_dispatch := proc(method: Str, mut scope: Scope, enum_def: Expr,
             ref mut subject : Expr = e.children[1]
             mut subject_info := raw_result_info_new()
             mut subject_raw : Dynamic = eval_expr_raw_info(scope, subject, ctx, subject_info)
-            write_bool(result, enum_data_tag_key(raw_arg_pointer(subject_raw, subject_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
+            write_bool(result, enum_data_tag_key(raw_arg_pointer(subject_raw, subject_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name(ctx.symbols.names)))
             raw_result_drop(subject.til_type(), subject_raw, subject_info.is_ref, ctx)
             return true
         case:
@@ -7812,10 +7791,10 @@ priv enum_method_dispatch := proc(method: Str, mut scope: Scope, enum_def: Expr,
                 if payload_transfers {
                     switch payload_expr.node_type {
                     case .Ident(payload_id):
-                        mut payload_hb_o := scope_lookup_heap_binding(scope, payload_id.ident_name())
-                        if payload_hb_o.is_none() { panic("enum payload binding not found: ", payload_id.ident_name()) }
+                        mut payload_hb_o := scope_lookup_heap_binding(scope, payload_id.ident_name(ctx.symbols.names))
+                        if payload_hb_o.is_none() { panic("enum payload binding not found: ", payload_id.ident_name(ctx.symbols.names)) }
                         ref mut payload_hb : HeapBinding = payload_hb_o.unwrap()
-                        if payload_hb.moved_out { panic("enum payload binding already moved: ", payload_id.ident_name()) }
+                        if payload_hb.moved_out { panic("enum payload binding already moved: ", payload_id.ident_name(ctx.symbols.names)) }
                         ref mut payload_place : Dynamic = to_ptr(payload_hb.ptr)
                         if payload_hb.is_borrowed {
                             payload_size := raw_type_size(payload_expr.til_type(), ctx)
@@ -7880,11 +7859,11 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Dynamic, ctx:
     case "U32": memcpy(result, p, U32.size()); return true
     case "U64": memcpy(result, p, U64.size()); return true
     case "USize":
-        ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
+        ref usize_name : Str = resolve_type_alias(ctx.scope, "USize", ctx.symbols)
         memcpy(result, p, unsigned_prim_width_for_name(usize_name))
         return true
     case "UPtr":
-        ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
+        ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr", ctx.symbols)
         memcpy(result, p, unsigned_prim_width_for_name(uptr_name))
         return true
     case "F32":  memcpy(result, p, F32.size()); return true
@@ -7937,7 +7916,7 @@ priv ffi_write_shallow_arg := func(source: Dynamic, info: RawResultInfo, atype: 
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
     mut source_type := raw_result_source_type(info).clone()
     if source_type.is(Type.Dynamic) {
-        source_type = type_from_name_init(tn, ctx.scope)
+        source_type = type_from_name_init_name(tn, ctx.scope, ctx.symbols)
     }
     // `source` is an ADDRESS (raw_arg_pointer materializes words); load
     // the scalar into a word before decoding.
@@ -7961,10 +7940,10 @@ priv ffi_write_shallow_arg := func(source: Dynamic, info: RawResultInfo, atype: 
 // scope walk that resolves the binding's parameter list. A string-literal
 // receiver is skipped for the reason the builder skips it: the literal IS
 // the C string, terminator included.
-priv interp_c_str_arg_shape := func(arg_expr: Expr) returns Bool {
+priv interp_c_str_arg_shape := func(arg_expr: Expr, symbols: SymbolPool) returns Bool {
     switch arg_expr.node_type {
     case .FieldAccess(fname):
-        if fname.field_access_name().eq("c_str").not() { return false }
+        if fname.field_access_name(symbols.names).eq("c_str").not() { return false }
         if arg_expr.children.len() == 0 { return false }
         return arg_expr.children[0].node_type.is_literal_str().not()
     case:
@@ -8010,7 +7989,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     for i in 0..nargs {
         ref mut arg_expr : Expr = e.children[i + 1]
         mut arg_info := raw_result_info_new()
-        if interp_c_str_arg_shape(arg_expr).and(interp_ext_c_string_param(scope, name, i)) {
+        if interp_c_str_arg_shape(arg_expr, ctx.symbols).and(interp_ext_c_string_param(scope, name, i)) {
             ctx.eval.interp_cstr_arg = true
         }
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
@@ -8051,8 +8030,8 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             }
             switch arg_expr.node_type {
             case .Ident(arg_id):
-                arg_hb_o := scope_lookup_heap_binding(scope, arg_id.ident_name())
-                if arg_hb_o.is_none() { panic("FFI argument binding not found: ", arg_id.ident_name()) }
+                arg_hb_o := scope_lookup_heap_binding(scope, arg_id.ident_name(ctx.symbols.names))
+                if arg_hb_o.is_none() { panic("FFI argument binding not found: ", arg_id.ident_name(ctx.symbols.names)) }
                 ref arg_hb : HeapBinding = arg_hb_o.unwrap()
                 if arg_hb.own_type.is(OwnType.Own) { pass_pointer = true }
             case:
@@ -8067,7 +8046,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                     dp = malloc(size)
                     memcpy(dp, arg_pointer, size)
                 case .Custom(name):
-                    alias_type := type_from_name_init(name, ctx.scope)
+                    alias_type := type_from_name_init_name(name, ctx.scope, ctx.symbols)
                     switch alias_type {
                     case .Primitive:
                         size := raw_type_size(alias_type, ctx)
@@ -8378,17 +8357,17 @@ priv scalar_read_arg := proc(mut scope: Scope, mut arg: Expr, shallow target_typ
 // non-Ident receiver would be a compiler bug and fails loud.
 priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, delta: I64, mut ctx: Context) {
     ref mut arg : Expr = e.children[1]
-    scalar_type := type_from_name_init(type_str, ctx.scope)
+    scalar_type := type_from_name_init_name(type_str, ctx.scope, ctx.symbols)
     cur : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
     nv := raw_to_i64(scalar_type, cur, ctx).add(delta)
     switch e.children[1].node_type {
     case .Ident(id):
-        mut hb_o := scope_lookup_heap_binding(scope, id.ident_name())
-        if hb_o.is_none() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name()) }
+        mut hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
+        if hb_o.is_none() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name(ctx.symbols.names)) }
         ref hb : HeapBinding = hb_o.unwrap()
-        if hb.moved_out { panic(__LOC__, ": inc/dec target moved: ", id.ident_name()) }
+        if hb.moved_out { panic(__LOC__, ": inc/dec target moved: ", id.ident_name(ctx.symbols.names)) }
         ref mut heap_data : Dynamic = to_ptr(hb.ptr)
-        if hb_type(hb).is(Type.Primitive).not() { panic(__LOC__, ": inc/dec target has non-primitive type: ", id.ident_name()) }
+        if hb_type(hb).is(Type.Primitive).not() { panic(__LOC__, ": inc/dec target has non-primitive type: ", id.ident_name(ctx.symbols.names)) }
         scalar_write_raw(type_str, heap_data, nv)
     case:
         panic(__LOC__, ": inc/dec receiver is not an Ident")
@@ -8409,7 +8388,7 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
     type_str := name.substr(zero, u_pos)
     cat := scalar_op_cat(type_str)
     if cat == "" { return false }
-    scalar_type := type_from_name_init(type_str, ctx.scope)
+    scalar_type := type_from_name_init_name(type_str, ctx.scope, ctx.symbols)
     op_start := u_pos.add(1)
     op_str := name.substr(op_start, name.len().sub(op_start))
 
@@ -8531,7 +8510,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     for k in 0..np {
         ref pk : Declaration = fd.params[k]
         ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
-        dynamic_slot = declaration_resolved_type(pk, ctx.scope).is(Type.Dynamic)
+        dynamic_slot = declaration_resolved_type(pk, ctx.scope, ctx.symbols).is(Type.Dynamic)
         if pk.own_type.is(OwnType.Shallow) {
             write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.type_name(), ctx))
             has_shallow = true

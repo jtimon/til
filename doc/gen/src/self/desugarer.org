@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -49,7 +49,7 @@ proc lower_guard_bang_calls(scope: TypeScope, mut guard_if: Expr, mut dest: Vec_
 :END:
 
 #+begin_src til
-func subtree_references_name(e: Expr, name: Str) returns shallow Bool
+func subtree_references_name(e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * toplevel_needs_throw_lowering
@@ -109,7 +109,7 @@ func make_int_lit(shallow n: I64, shallow line: U32, shallow col: U32) returns E
 :END:
 
 #+begin_src til
-func make_default_value_expr(type_name: Str, shallow line: U32, shallow col: U32) returns Expr
+func make_default_value_expr(type_name: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * make_if_kind_eq_zero_wrap
@@ -119,7 +119,7 @@ func make_default_value_expr(type_name: Str, shallow line: U32, shallow col: U32
 :END:
 
 #+begin_src til
-func make_if_kind_eq_zero_wrap(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr
+func make_if_kind_eq_zero_wrap(stmt: Expr, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * extend_throwing_func_sigs
@@ -139,7 +139,7 @@ proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
 :END:
 
 #+begin_src til
-func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: U32) returns Expr
+func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * process_throw_catch_in_func_body
@@ -189,7 +189,7 @@ proc collect_switch_case_bindings(mut ctx: Context, e: Expr, body: Expr)
 :END:
 
 #+begin_src til
-func make_switch_case_condition(mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
+func make_switch_case_condition(mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * replace_switch_stmt_with_block
@@ -229,7 +229,7 @@ proc attach_switch_default_body(mut root_if: Expr, default_body: Expr)
 :END:
 
 #+begin_src til
-func switch_is_clike(stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow enum_def_o: Option__ref_Expr) returns shallow Bool
+func switch_is_clike(stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow enum_def_o: Option__ref_Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * prepend_clike_payload_binding
@@ -239,7 +239,7 @@ func switch_is_clike(stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow 
 :END:
 
 #+begin_src til
-func prepend_clike_payload_binding(mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, shallow binding_is_dead: Bool)
+func prepend_clike_payload_binding(mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, mut symbols: SymbolPool, shallow binding_is_dead: Bool)
 #+end_src
 
 * replace_body_stmt_with_block
@@ -259,7 +259,7 @@ func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: USize, own b
 :END:
 
 #+begin_src til
-func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr
+func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * body_pre_passes

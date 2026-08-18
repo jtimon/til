@@ -3,7 +3,7 @@ import("context")
 
 // Check if a FieldAccess is a namespace access (type-level, not instance).
 // The typer marks type-name idents with StructDef/EnumDef til_type.
-priv scav_fa_is_ns := func(e: Expr) returns Bool {
+priv scav_fa_is_ns := func(e: Expr, symbols: SymbolPool) returns Bool {
     if e.children.len() == 0 { return false }
     ref obj : Expr = e.children[0]
     switch obj.node_type {
@@ -15,7 +15,7 @@ priv scav_fa_is_ns := func(e: Expr) returns Bool {
                 return true
             }
             // Also check: if ident name matches struct_name, it's a type reference
-            if obj_type_name.eq(id.ident_name()) { return true }
+            if obj_type_name.eq(id.ident_name(symbols.names)) { return true }
         }
         // #326: a SCALAR type name as receiver -- `U32.size()` /
         // `I64.delete(...)`, which is what a monomorphized generic body
@@ -26,7 +26,7 @@ priv scav_fa_is_ns := func(e: Expr) returns Bool {
         // rule this issue removes. Keyed on the NAME, not the receiver's
         // type: an over-match (a binding actually called `U32`) costs one
         // unresolvable qualified name, never a missing symbol.
-        if is_scalar_type_name(id.ident_name()) { return true }
+        if is_scalar_type_name(id.ident_name(symbols.names)) { return true }
     case:
     }
     return false
@@ -101,22 +101,22 @@ priv scav_collect_hoisted_strs := func(e: Expr, mut out: Map(Str, Str)) {
 
 // The type name a reflection argument stands for: the literal itself, or
 // the text of the hoisted temp it was moved into. "" when neither.
-priv scav_reflect_type_arg := func(arg: Expr, hoisted: Map(Str, Str)) returns Str {
+priv scav_reflect_type_arg := func(arg: Expr, hoisted: Map(Str, Str), symbols: SymbolPool) returns Str {
     switch arg.node_type {
     case .Literal(Literal.Str(s)): return Str.clone(s)
     case .Ident(id):
-        if hoisted.has(id.ident_name()) { return Str.clone(hoisted[id.ident_name()]) }
+        if hoisted.has(id.ident_name(symbols.names)) { return Str.clone(hoisted[id.ident_name(symbols.names)]) }
     case:
     }
     return ""
 }
 
-priv scav_seed_reflect_roots := func(e: Expr, hoisted: Map(Str, Str), mut worklist: Vec(Str)) {
+priv scav_seed_reflect_roots := func(e: Expr, hoisted: Map(Str, Str), mut worklist: Vec(Str), symbols: SymbolPool) {
     if e.node_type.is(NodeType.FCall).and(e.children.len() >= 2) {
         switch e.children[0].node_type {
         case .Ident(rc):
-            if scav_is_reflect_type_arg_callee(rc.ident_name()) {
-                tname := scav_reflect_type_arg(e.children[1], hoisted)
+            if scav_is_reflect_type_arg_callee(rc.ident_name(symbols.names)) {
+                tname := scav_reflect_type_arg(e.children[1], hoisted, symbols)
                 if tname.len() > 0 { vec_push_str(worklist, tname) }
             }
         case:
@@ -125,15 +125,15 @@ priv scav_seed_reflect_roots := func(e: Expr, hoisted: Map(Str, Str), mut workli
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref rns : Vec(Declaration) = def_ns_decls(e)
         for rd : Declaration in rns {
-            if rd.default_value.is_some() { scav_seed_reflect_roots(rd.default_expr(), hoisted, worklist) }
+            if rd.default_value.is_some() { scav_seed_reflect_roots(rd.default_expr(), hoisted, worklist, symbols) }
         }
     }
     for rc2 : Expr in e.children {
-        scav_seed_reflect_roots(rc2, hoisted, worklist)
+        scav_seed_reflect_roots(rc2, hoisted, worklist, symbols)
     }
 }
 
-collect_refs := func(e: Expr, mut refs: Vec(Str)) {
+collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
 
     // #210/#326: a swap_replace call on a Str target never emits its
     // callee -- the builder writes the explicit delete-copy-free sequence
@@ -151,7 +151,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                 ref swap_tname : Str = swap_tname_o.unwrap()
                 if swap_tname.eq("Str") {
                     for cr_swi in 1..e.children.len() {
-                        collect_refs(e.children[cr_swi], refs)
+                        collect_refs(e.children[cr_swi], refs, symbols)
                     }
                     return
                 }
@@ -191,7 +191,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 
     switch e.node_type {
     case .Ident(ident):
-        vec_push_str(refs, ident.ident_name())
+        vec_push_str(refs, ident.ident_name(symbols.names))
         // A runtime callable value carries its FuncSig in the type payload.
         // The signature declaration must survive even when only the value's
         // name appears in executable code.
@@ -210,20 +210,20 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         // Check for namespace method call: Type.method(args...)
         if fcall_is_direct(e).and(e.children.len() > 0) {
             if e.children[0].node_type.is(NodeType.FieldAccess) {
-                if scav_fa_is_ns(e.children[0]) {
+                if scav_fa_is_ns(e.children[0], symbols) {
                     ref fa : Expr = e.children[0]
                     ref type_name : IdentData = ident_of(fa.children[0])
                     ref method : FieldAccessData = fieldaccess_of(fa)
-                    vec_push_str(refs, type_name.ident_name())
-                    push_qn(refs, type_name.ident_name(), method.field_access_name())
+                    vec_push_str(refs, type_name.ident_name(symbols.names))
+                    push_qn(refs, type_name.ident_name(symbols.names), method.field_access_name(symbols.names))
                     // Issue #56/#57: when the typer rewrites a Type-typed
                     // arg (e.g. count_variants(Color3) where T: Type) into
                     // Type.Enum("Color3") / Type.Struct(...) / Type.Custom(...),
                     // the underlying type name only survives as the string
                     // literal arg. Without recording it here the scavenger
                     // would prune the enum/struct decl as unused.
-                    if type_name.ident_name() == "Type" {
-                        ref mn : Str = method.field_access_name()
+                    if type_name.ident_name(symbols.names) == "Type" {
+                        ref mn : Str = method.field_access_name(symbols.names)
                         is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
                         if is_named_type_ctor.and(e.children.len().gte(2)) {
                             switch e.children[1].node_type {
@@ -235,7 +235,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                     }
                     // Recurse into args (skip callee -- already handled)
                     for i in 1..e.children.len() {
-                        collect_refs(e.children[i], refs)
+                        collect_refs(e.children[i], refs, symbols)
                     }
                     return
                 }
@@ -245,18 +245,18 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         if fcall_is_direct(e).and(e.children.len() >= 2) {
             if e.children[0].node_type.is(NodeType.Ident) {
                 ref cn : IdentData = ident_of(e.children[0])
-                if cn.ident_name() == "array" {
+                if cn.ident_name(symbols.names) == "array" {
                     push_builtin_methods(refs, "Array", "new", "set", "delete")
-                } else if cn.ident_name() == "vec" {
+                } else if cn.ident_name(symbols.names) == "vec" {
                     push_builtin_methods(refs, "Vec", "new", "push", "delete")
-                } else if cn.ident_name().eq("assert_eq").or(cn.ident_name().starts_with("assert_eq__")) {
+                } else if cn.ident_name(symbols.names).eq("assert_eq").or(cn.ident_name(symbols.names).starts_with("assert_eq__")) {
                     // assert_eq's generic body emits T.to_str after this
                     // reachability walk. The concrete type argument is at
                     // the call site for a direct generic call, or the
                     // monomorphized callee suffix by this phase. Retain
                     // just that method rather than every generated to_str.
                     mut assert_type_name := ""
-                    if cn.ident_name() == "assert_eq" {
+                    if cn.ident_name(symbols.names) == "assert_eq" {
                         // #326: take the name from the RESOLVED type of
                         // the compared value, not from the type
                         // argument's source spelling. The generic body
@@ -274,18 +274,18 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                         if assert_type_name.len() == 0 {
                             switch e.children[1].node_type {
                             case .Ident(assert_type):
-                                assert_type_name = Str.clone(assert_type.ident_name())
+                                assert_type_name = Str.clone(assert_type.ident_name(symbols.names))
                             case:
                             }
                         }
                     } else {
-                        assert_type_name = cn.ident_name().substr(11, cn.ident_name().len() - 11)
+                        assert_type_name = cn.ident_name(symbols.names).substr(11, cn.ident_name(symbols.names).len() - 11)
                     }
                     if assert_type_name.len() > 0 {
                         vec_push_str(refs, assert_type_name)
                         push_qn(refs, assert_type_name, "to_str")
                     }
-                } else if cn.ident_name().eq("struct_def_of").or(cn.ident_name().eq("enum_def_of")) {
+                } else if cn.ident_name(symbols.names).eq("struct_def_of").or(cn.ident_name(symbols.names).eq("enum_def_of")) {
                     // Issue #56/#57: struct_def_of("X") / enum_def_of("X")
                     // builds a runtime StructDef/EnumDef value by querying
                     // the introspection primitives for type X. Pull X out
@@ -299,7 +299,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                         vec_push_str(refs, tname2)
                     case:
                     }
-                } else if cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret")).or(cn.ident_name().eq("dyn_fn")).or(cn.ident_name().eq("dyn_has_method")) {
+                } else if cn.ident_name(symbols.names).eq("dyn_call").or(cn.ident_name(symbols.names).eq("dyn_call_ret")).or(cn.ident_name(symbols.names).eq("dyn_fn")).or(cn.ident_name(symbols.names).eq("dyn_has_method")) {
                     // #269: a method reached only through the dyn machinery
                     // has no static Type.method callsite, so the walk above
                     // never records it and the scavenger would prune it --
@@ -364,19 +364,19 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             vec_push_str(refs, fdef.return_type)
         }
     case .FieldAccess(field_name):
-        if scav_fa_is_ns(e) {
+        if scav_fa_is_ns(e, symbols) {
             if e.children[0].node_type.is(NodeType.Ident) {
                 ref type_name : IdentData = ident_of(e.children[0])
-                vec_push_str(refs, type_name.ident_name())
-                push_qn(refs, type_name.ident_name(), field_name.field_access_name())
+                vec_push_str(refs, type_name.ident_name(symbols.names))
+                push_qn(refs, type_name.ident_name(symbols.names), field_name.field_access_name(symbols.names))
             }
         }
     case .FieldAssign(fad):
-        if scav_fa_is_ns(e) {
+        if scav_fa_is_ns(e, symbols) {
             if e.children[0].node_type.is(NodeType.Ident) {
                 ref type_name : IdentData = ident_of(e.children[0])
-                vec_push_str(refs, type_name.ident_name())
-                push_qn(refs, type_name.ident_name(), fad.name)
+                vec_push_str(refs, type_name.ident_name(symbols.names))
+                push_qn(refs, type_name.ident_name(symbols.names), fad.name)
             }
         }
     case .Decl(decl):
@@ -412,7 +412,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         ref cr_ns : Vec(Declaration) = def_ns_decls(e)
         for cr_d : Declaration in cr_ns {
             if cr_d.default_value.is_some() {
-                collect_refs(cr_d.default_expr(), refs)
+                collect_refs(cr_d.default_expr(), refs, symbols)
             }
         }
     }
@@ -440,7 +440,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     switch e.node_type {
     case .FieldAssign(cr_mfad):
         if cr_mfad.is_move.and(e.children.len().gt(1)) {
-            if rhs_is_clone_fcall(e.children[1]).and(e.children[1].children.len().gte(2)) {
+            if rhs_is_clone_fcall(e.children[1], symbols).and(e.children[1].children.len().gte(2)) {
                 cr_has_subst = true
             }
         }
@@ -453,10 +453,10 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         cur_cr_ci := cr_ci
         cr_ci = cr_ci + 1
         if cr_has_subst.and(cur_cr_ci == 1) {
-            collect_refs(c.children[1], refs)
+            collect_refs(c.children[1], refs, symbols)
             continue
         }
-        collect_refs(c, refs)
+        collect_refs(c, refs, symbols)
     }
 }
 
@@ -533,7 +533,7 @@ priv scav_is_value_decl := func(stmt: Expr, ctx: Context) returns Bool {
     if rhs.node_type.is(NodeType.EnumDef) { return false }
     if stmt.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) {
         switch rhs.node_type {
-        case .Ident(alias_id): return ctx.type_gen_synths.has(alias_id.ident_name())
+        case .Ident(alias_id): return ctx.type_gen_synths.has(alias_id.ident_name(ctx.symbols.names))
         case: UNREACHABLE("expected Ident alias")
         }
     }
@@ -555,21 +555,21 @@ scav_value_decl_sweepable := func(stmt: Expr, ctx: Context) returns Bool {
 // or `free(<Ident>)`, the two shapes the garbager inserts for an owned
 // global. Returns "" for anything else. Sweeping a global's declaration
 // without its cleanup would leave the C referencing an undeclared symbol.
-priv scav_cleanup_target := func(stmt: Expr) returns Str {
+priv scav_cleanup_target := func(stmt: Expr, symbols: SymbolPool) returns Str {
     if stmt.node_type.is(NodeType.FCall).not() { return "" }
     if stmt.children.len() < 2 { return "" }
     ref callee : Expr = stmt.children[0]
     mut is_cleanup := false
     switch callee.node_type {
     case .FieldAccess(fam):
-        is_cleanup = fam.field_access_name().eq("delete")
+        is_cleanup = fam.field_access_name(symbols.names).eq("delete")
     case .Ident(fin):
-        is_cleanup = fin.ident_name().eq("free")
+        is_cleanup = fin.ident_name(symbols.names).eq("free")
     case:
     }
     if is_cleanup.not() { return "" }
     switch stmt.children[1].node_type {
-    case .Ident(n): return Str.clone(n.ident_name())
+    case .Ident(n): return Str.clone(n.ident_name(symbols.names))
     case:
     }
     return ""
@@ -624,7 +624,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
         }
     }
     for i in 0..pn {
-        target := scav_cleanup_target(program.children[i])
+        target := scav_cleanup_target(program.children[i], ctx.symbols)
         if target.len() == 0 { continue }
         if swept.has(target).not() { continue }
         memset(ptr_add(pm, i), 1, 1)
@@ -641,7 +641,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
         case .EnumDef(scv_edd):
             scavenge_members_in_place(scv_edd.ns_decls, scv_edd.ns_index, sdecl.name, visited)
         case:
-            UNREACHABLE("unexpected ", sdef.node_type.head_str())
+            UNREACHABLE("unexpected ", sdef.node_type.head_str(ctx.symbols.names))
         }
     }
 }
@@ -659,12 +659,12 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
 // `dyn_call_ret(self, "method", nargs, arg1, ..., argN, extra...)` only
 // "really uses" args up to index 4+nargs-1; later children are weak
 // refs that should not pin a hoisted temp.
-priv dyn_call_real_arg_count := func(e: Expr) returns USize {
+priv dyn_call_real_arg_count := func(e: Expr, symbols: SymbolPool) returns USize {
     if e.node_type.is(NodeType.FCall).not() { return e.children.len() }
     if e.children.len() < 4 { return e.children.len() }
     mut is_dc := false
     switch e.children[0].node_type {
-    case .Ident(cn): is_dc = cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret"))
+    case .Ident(cn): is_dc = cn.ident_name(symbols.names).eq("dyn_call").or(cn.ident_name(symbols.names).eq("dyn_call_ret"))
     case:
     }
     if is_dc.not() { return e.children.len() }
@@ -684,31 +684,21 @@ priv dyn_call_real_arg_count := func(e: Expr) returns USize {
 // skip trivial `<Type>.delete(<candidate>, false)` cleanup calls (at
 // any nesting depth) so a candidate's auto-generated cleanup doesn't
 // pin it. Phase 3 prunes those cleanup stmts alongside the candidate.
-priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)) {
+priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str), symbols: SymbolPool) {
     switch e.node_type {
     case .Ident(name):
-        refs.add(own Str.clone(name.ident_name()))
+        refs.add(own Str.clone(name.ident_name(symbols.names)))
     case .Assign(adata):
         refs.add(own adata.name.clone())
-    // A capture list NAMES the enclosing local: the emitted env init reads
-    // it (`til_env->x = &x`), so it is a real reference even when nothing
-    // in the closure BODY mentions it anymore. Captures are Declaration
-    // metadata, not child Exprs, so the walk below cannot see them -- and
-    // the constfolder routinely erases the body's own mention (a closure
-    // returning `norm(msg)` over a known-constant `msg` folds to the
-    // literal). Without this the candidate looked dead, its Decl was
-    // dropped, and the env init referenced a local that no longer existed:
-    // "'msg' undeclared" from the C compiler, "closure capture binding not
-    // found" from the interpreter.
+    // A capture list names the enclosing local: the emitted env init reads
+    // it, so it remains live even when constant folding erases the body's
+    // own reference. Captures are Declaration metadata, not child Exprs.
     case .FuncDef(fd):
         for cap : Declaration in fd.captures {
             refs.add(own cap.name.clone())
         }
-    // A capture BLOCK only reads through an env when it was lowered to a
-    // closure (closure_name set). An inlined block reads the local
-    // directly from the body, so its list adds nothing -- and pinning a
-    // local whose only mention the constfolder erased would trip
-    // -Werror=unused-variable on the emitted C.
+    // An inlined capture block reads locals directly from its body. Only a
+    // lowered closure reads through its capture metadata.
     case .CaptureBlock(cbd):
         if cbd.closure_name.len() > 0 {
             for bcap : Declaration in cbd.captures {
@@ -718,18 +708,18 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
     case:
     }
     is_body := e.node_type.is(NodeType.Body)
-    real_n := dyn_call_real_arg_count(e)
+    real_n := dyn_call_real_arg_count(e, symbols)
     mut idx : USize = 0
     for c : Expr in e.children {
         if idx >= real_n { break }
         if is_body {
-            target := match_trivial_delete(c)
+            target := match_trivial_delete(c, symbols)
             if target.len().gt(0).and(candidates.has(target)) {
                 idx++
                 continue
             }
         }
-        collect_body_refs(c, refs, candidates)
+        collect_body_refs(c, refs, candidates, symbols)
         idx++
     }
 }
@@ -747,7 +737,7 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
 // the cleanup itself.
 //
 // Returns the target Ident name on match, "" otherwise.
-priv match_trivial_delete := func(stmt: Expr) returns Str {
+priv match_trivial_delete := func(stmt: Expr, symbols: SymbolPool) returns Str {
     if stmt.node_type.is(NodeType.FCall).not() { return "" }
     if stmt.children.len() != 3 { return "" }
     // An `own` arg is CONSUMING: the delete destroys the pointee (the
@@ -764,7 +754,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""
     switch callee.node_type {
-    case .FieldAccess(m): method = Str.clone(m.field_access_name())
+    case .FieldAccess(m): method = Str.clone(m.field_access_name(symbols.names))
     case:
     }
     if method.eq("delete").not() { return "" }
@@ -781,7 +771,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     }
     if bv { return "" }
     switch arg0.node_type {
-    case .Ident(n): return Str.clone(n.ident_name())
+    case .Ident(n): return Str.clone(n.ident_name(symbols.names))
     case:
     }
     return ""
@@ -814,7 +804,7 @@ priv MARK_REPLACE_RHS : U8 = 2
 // been dropped/replaced in the outer body, since their cleanup calls
 // also live in nested early-return bodies (if-then deletes before a
 // return) that the outer body's phase 3 didn't reach.
-priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
+priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), symbols: SymbolPool) {
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n > 0 {
@@ -822,7 +812,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
             memset(marks, 0, n)
             mut any := false
             for i in 0..n {
-                target := match_trivial_delete(e.children[i])
+                target := match_trivial_delete(e.children[i], symbols)
                 if target.len() == 0 { continue }
                 if dropped.has(target).not() { continue }
                 memset(ptr_add(marks, i), 1, 1)
@@ -832,7 +822,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
         }
     }
     for mut c : Expr in e.children {
-        prune_trivial_deletes(c, dropped)
+        prune_trivial_deletes(c, dropped, symbols)
     }
 }
 
@@ -841,7 +831,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
 // to compiler-internal `hoisted__*` names so we never drop a
 // user-named global -- those may be exported and referenced from
 // outside this body's view.
-priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
+priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, symbols: SymbolPool) returns Bool {
     n := body.children.len()
     if n == 0 { return false }
 
@@ -901,9 +891,9 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     // with the candidate.
     mut refs := Set(Str).new()
     for stmt : Expr in body.children {
-        target := match_trivial_delete(stmt)
+        target := match_trivial_delete(stmt, symbols)
         if target.len().gt(0).and(candidates.has(target)) { continue }
-        collect_body_refs(stmt, refs, candidates)
+        collect_body_refs(stmt, refs, candidates, symbols)
     }
 
     // Phase 3: mark Decls (delete or replace-with-rhs) and the
@@ -929,7 +919,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     }
     if any {
         for j in 0..n {
-            target := match_trivial_delete(body.children[j])
+            target := match_trivial_delete(body.children[j], symbols)
             if target.len() == 0 { continue }
             if dropped.has(target).not() { continue }
             memset(ptr_add(marks, j), MARK_DELETE.to_i32(), 1)
@@ -953,7 +943,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
         for mut bstmt : Expr in body.children {
-            prune_trivial_deletes(bstmt, dropped)
+            prune_trivial_deletes(bstmt, dropped, symbols)
         }
     }
     return any
@@ -986,43 +976,43 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 // outer Decl drop too. `at_top_level` is true only for the program-root
 // body; recursion turns it off when descending into any nested Body
 // (which is by definition inside a function/test/proc).
-priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
+priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, symbols: SymbolPool) {
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
     for mut c : Expr in e.children {
-        body_dce_walk(c, child_top)
+        body_dce_walk(c, child_top, symbols)
     }
     if is_body {
         // #302 stage 4/6: honest records/destructors first -- the drops
         // below key on gc_storage and on recognizable decl+delete pairs.
-        constfolder_normalize_stack_decls_in_body(e)
+        constfolder_normalize_stack_decls_in_body(e, symbols)
         fix_stale_litstr_in_body(e)
-        while dce_one_body(e, at_top_level) {}
+        while dce_one_body(e, at_top_level, symbols) {}
     }
 }
 
-priv body_dce_ns := proc(mut rhs: Expr) {
+priv body_dce_ns := proc(mut rhs: Expr, symbols: SymbolPool) {
     ref mut dce_ns : Vec(Declaration) = def_ns_decls(rhs)
     for mut nsd : Declaration in dce_ns {
         if nsd.default_value.is_none() { continue }
         if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_expr().children.len() == 0 { continue }
-        body_dce_walk(nsd.default_expr().children[0], false)
+        body_dce_walk(nsd.default_expr().children[0], false, symbols)
     }
 }
 
-dce_program_bodies := proc(mut program: Expr) {
+dce_program_bodies := proc(mut program: Expr, symbols: SymbolPool) {
     // Walk the program-root body (becomes main() for non-library
     // modes) and every function/test/proc body inside it.
     // body_dce_walk descends through Expr.children, so namespace
     // methods (which live in StructDef.ns_decls outside the children
     // tree) need a separate walk.
-    body_dce_walk(program, true)
+    body_dce_walk(program, true, symbols)
     for mut stmt : Expr in program.children {
         if is_def(stmt).not() { continue }
         ref mut rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-            body_dce_ns(rhs)
+            body_dce_ns(rhs, symbols)
         }
     }
 }
@@ -1061,10 +1051,17 @@ priv alias_target_imported := func(ctx: Context, tbl: Map(Str, DeclRef), base: S
     if decl.children.len() == 0 { return "" }
     if decl.til_type().is(Type.None).not() { return "" }
     switch decl.children[0].node_type {
-    case .Ident(alias_id): return Str.clone(alias_id.ident_name())
+    case .Ident(alias_id): return Str.clone(alias_id.ident_name(ctx.symbols.names))
     case:
     }
     return ""
+}
+
+priv imported_name_is_type := func(ctx: Context, tbl: Map(Str, DeclRef), name: Str) returns Bool {
+    if tbl.has(name).not() { return false }
+    ref dr : DeclRef = tbl[name]
+    ref iu : ImportUnit = ctx.imported[dr.path]
+    return is_struct_or_enum(iu.ast.children[dr.idx])
 }
 
 priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns Option(ref Expr) {
@@ -1159,7 +1156,7 @@ priv seed_library_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
     for u : ProgramUnit in lp.units {
         for stmt : Expr in lp.ctx.imported[u.path].ast.children {
             if stmt.node_type.is(NodeType.Decl).not() {
-                collect_refs(stmt, worklist)
+                collect_refs(stmt, worklist, lp.ctx.symbols)
                 continue
             }
             switch stmt.node_type {
@@ -1195,7 +1192,7 @@ priv seed_executable_stmt_roots := func(lp: LoadedProgram, mut worklist: Vec(Str
                 if is_def(stmt) { continue }
                 if scav_value_decl_sweepable(stmt, lp.ctx) { continue }
             }
-            collect_refs(stmt, worklist)
+            collect_refs(stmt, worklist, lp.ctx.symbols)
         }
     }
 }
@@ -1357,11 +1354,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         }
     }
     for u : ProgramUnit in lp.units {
-        scav_seed_reflect_roots(lp.ctx.imported[u.path].ast, hoisted_strs, worklist)
+        scav_seed_reflect_roots(lp.ctx.imported[u.path].ast, hoisted_strs, worklist, lp.ctx.symbols)
     }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            scav_seed_reflect_roots(lp.ctx.imported[u.path].ast, hoisted_strs, worklist)
+            scav_seed_reflect_roots(lp.ctx.imported[u.path].ast, hoisted_strs, worklist, lp.ctx.symbols)
         }
     }
     if is_library {
@@ -1381,6 +1378,23 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         seed_executable_stmt_roots(lp, worklist)
     }
 
+    // Type aliases are retained even when no source expression reads them,
+    // and interpreter preparation resolves every retained alias through its
+    // target definition. Keep struct/enum targets alive with the alias;
+    // generated FuncDef aliases are ordinary sweepable call edges.
+    for alias_name, _ in core_top {
+        alias_target := alias_target_imported(lp.ctx, core_top, alias_name)
+        if imported_name_is_type(lp.ctx, core_top, alias_target).or(imported_name_is_type(lp.ctx, top, alias_target)) {
+            vec_push_str(worklist, alias_target)
+        }
+    }
+    for alias_name2, _ in top {
+        alias_target2 := alias_target_imported(lp.ctx, top, alias_name2)
+        if imported_name_is_type(lp.ctx, top, alias_target2).or(imported_name_is_type(lp.ctx, core_top, alias_target2)) {
+            vec_push_str(worklist, alias_target2)
+        }
+    }
+
     // #326: core top-level VALUE decls used to be blanket roots -- every one
     // of their initializers was walked whether or not anything read the
     // value. That is why a dead `TYPE_STRUCTDEF = Type.Struct("StructDef")`
@@ -1394,7 +1408,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         for u : ProgramUnit in lp.core_units {
             for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) { continue }
-                collect_refs(stmt, worklist)
+                collect_refs(stmt, worklist, lp.ctx.symbols)
             }
         }
     }
@@ -1457,11 +1471,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case:
-                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
+                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str(lp.ctx.symbols.names))
                 }
             } else {
                 if scav_is_type_gen_template(decl.children[0]).not() {
-                    collect_refs(decl.children[0], worklist)
+                    collect_refs(decl.children[0], worklist, lp.ctx.symbols)
                 }
             }
         }
@@ -1487,11 +1501,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case:
-                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
+                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str(lp.ctx.symbols.names))
                 }
             } else {
                 if scav_is_type_gen_template(decl.children[0]).not() {
-                    collect_refs(decl.children[0], worklist)
+                    collect_refs(decl.children[0], worklist, lp.ctx.symbols)
                 }
             }
         }
@@ -1527,11 +1541,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
 
         ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)
         if ns_fdef_o.is_some() {
-            collect_refs(ns_fdef_o.unwrap(), worklist)
+            collect_refs(ns_fdef_o.unwrap(), worklist, lp.ctx.symbols)
         }
         core_ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, core_top, name)
         if core_ns_fdef_o.is_some() {
-            collect_refs(core_ns_fdef_o.unwrap(), worklist)
+            collect_refs(core_ns_fdef_o.unwrap(), worklist, lp.ctx.symbols)
         }
     }
     return visited
@@ -1583,7 +1597,7 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     // constfolder's constant folding. Runs over every imported unit (cores
     // included) so the codegen no longer needs `(void)<name>;` guards.
     for upath : Str in lp.unit_paths() {
-        dce_program_bodies(lp.ctx.imported[upath].ast)
+        dce_program_bodies(lp.ctx.imported[upath].ast, lp.ctx.symbols)
     }
 
 }

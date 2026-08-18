@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -9,7 +9,7 @@
 :END:
 
 #+begin_src til
-func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
+func fa_is_ns(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * make_til_type_expr
@@ -19,7 +19,7 @@ func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
 :END:
 
 #+begin_src til
-func make_til_type_expr(src: Expr, t: Type) returns Expr
+func make_til_type_expr(src: Expr, t: Type, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * fa_own_type
@@ -29,7 +29,7 @@ func make_til_type_expr(src: Expr, t: Type) returns Expr
 :END:
 
 #+begin_src til
-func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
+func fa_own_type(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow OwnType
 #+end_src
 
 * I64Name
@@ -169,7 +169,7 @@ proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, mut
 :END:
 
 #+begin_src til
-func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns shallow Option__ref_Expr
+func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 #+end_src
 
 * find_ns_decl
@@ -189,7 +189,7 @@ func find_ns_decl(sdef: Expr, method: Str) returns shallow Option__ref_Declarati
 :END:
 
 #+begin_src til
-func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
+func resolve_fn_sig(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 #+end_src
 
 * fcall_returns_own
@@ -199,7 +199,7 @@ func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns shallow Option__ref_E
 :END:
 
 #+begin_src til
-func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
+func fcall_returns_own(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * is_clone_fcall
@@ -209,7 +209,7 @@ func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
 :END:
 
 #+begin_src til
-func is_clone_fcall(e: Expr) returns shallow Bool
+func is_clone_fcall(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * resolve_default_value
@@ -229,7 +229,7 @@ func resolve_default_value(default_value: Expr, call_expr: Expr, ctx: Context) r
 :END:
 
 #+begin_src til
-func expr_declared_type_name(scope: TypeScope, e: Expr) returns Str
+func expr_declared_type_name(scope: TypeScope, e: Expr, symbols: SymbolPool) returns Str
 #+end_src
 
 * infer_expr
@@ -319,7 +319,7 @@ func is_simple_lvalue_expr(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func is_compile_directive(e: Expr) returns shallow Bool
+func is_compile_directive(e: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * infer_body_stmt
@@ -339,7 +339,7 @@ proc infer_body_stmt(mut scope: TypeScope, mut body: Expr, mut i: USize, shallow
 :END:
 
 #+begin_src til
-func reregister_repl_scope_defs(body: Expr, mut scope: TypeScope)
+func reregister_repl_scope_defs(body: Expr, mut scope: TypeScope, symbols: SymbolPool)
 #+end_src
 
 * infer_body
@@ -359,7 +359,7 @@ proc infer_body(mut scope: TypeScope, mut body: Expr, shallow in_func: I32, shal
 :END:
 
 #+begin_src til
-func normalize_scope_bindings(mut scope: TypeScope)
+func normalize_scope_bindings(mut scope: TypeScope, symbols: SymbolPool)
 #+end_src
 
 * type_file
@@ -389,7 +389,7 @@ proc type_repl_delta(path: Str, mut program: Expr, mut ctx: Context) returns sha
 :END:
 
 #+begin_src til
-func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
+func rhs_is_clone_fcall(rhs: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * assign_target_is_func_local
@@ -399,7 +399,7 @@ func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func assign_target_is_func_local(mut scope: TypeScope, name: Str) returns shallow Bool
+func assign_target_is_func_local(mut scope: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * is_numeric_type
@@ -449,7 +449,7 @@ func type_from_name(name: Str, mut scope: TypeScope, mut ctx: Context) returns T
 :END:
 
 #+begin_src til
-func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
+func resolve_type_alias(scope: TypeScope, name: Str, symbols: SymbolPool) returns ref Str
 #+end_src
 
 * resolve_type_alias_for_name
@@ -459,7 +459,7 @@ func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
 :END:
 
 #+begin_src til
-func resolve_type_alias_for_name(scope: TypeScope, name: Str) returns ref Str
+func resolve_type_alias_for_name(scope: TypeScope, name: Str, symbols: SymbolPool) returns ref Str
 #+end_src
 
 * usize_type
@@ -489,7 +489,7 @@ func type_has_cmp(scope: TypeScope, type_name: Str) returns shallow Bool
 :END:
 
 #+begin_src til
-func expr_uses_var(e: Expr, name: Str) returns shallow Bool
+func expr_uses_var(e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * expr_contains_decl
@@ -509,7 +509,7 @@ func expr_contains_decl(e: Expr, name: Str) returns shallow Bool
 :END:
 
 #+begin_src til
-func expr_used_in_nested_func(e: Expr, name: Str) returns shallow Bool
+func expr_used_in_nested_func(e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * type_prefix
@@ -539,7 +539,7 @@ func type_to_name(t: Type) returns Str
 :END:
 
 #+begin_src til
-func make_closure_delete_call(var_name: Str, src: Expr) returns Expr
+func make_closure_delete_call(var_name: Str, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * make_delete_call
@@ -549,7 +549,7 @@ func make_closure_delete_call(var_name: Str, src: Expr) returns Expr
 :END:
 
 #+begin_src til
-func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns shallow Option__Expr
+func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr, mut symbols: SymbolPool) returns shallow Option__Expr
 #+end_src
 
 * transfer_is_shallow_field_value_copy
@@ -559,7 +559,7 @@ func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Boo
 :END:
 
 #+begin_src til
-func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
+func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * make_free_call
@@ -569,7 +569,7 @@ func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeSco
 :END:
 
 #+begin_src til
-func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
+func make_free_call(var_name: Str, shallow type: Type, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * make_clone_call
@@ -579,7 +579,7 @@ func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
 :END:
 
 #+begin_src til
-func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
+func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * make_ns_call
@@ -589,7 +589,7 @@ func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) r
 :END:
 
 #+begin_src til
-func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
+func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr, mut symbols: SymbolPool) returns Expr
 #+end_src
 
 * variadic_array_type_name
@@ -599,7 +599,7 @@ func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) re
 :END:
 
 #+begin_src til
-func variadic_array_type_name(scope: TypeScope, elem_type: Str) returns Str
+func variadic_array_type_name(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str
 #+end_src
 
 * arg_addressed_ident
@@ -609,7 +609,7 @@ func variadic_array_type_name(scope: TypeScope, elem_type: Str) returns Str
 :END:
 
 #+begin_src til
-func arg_addressed_ident(arg: Expr) returns shallow Option__ref_Str
+func arg_addressed_ident(arg: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
 #+end_src
 
 * expr_transfers_own
@@ -687,7 +687,7 @@ func fact_record_name(fi: FactIndex, name: Str, shallow base: USize, mut mask: V
 :END:
 
 #+begin_src til
-func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut out: Vec__U64)
+func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut out: Vec__U64, symbols: SymbolPool)
 #+end_src
 
 * expr_collect_stmt_facts
@@ -697,7 +697,7 @@ func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut o
 :END:
 
 #+begin_src til
-func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64)
+func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 #+end_src
 
 * fcall_returns_dynamic_storage
@@ -707,7 +707,7 @@ func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: 
 :END:
 
 #+begin_src til
-func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope) returns shallow Bool
+func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * RootBits
@@ -747,7 +747,7 @@ namespace:
 :END:
 
 #+begin_src til
-func fcall_is_get_method(fcall: Expr) returns shallow Bool
+func fcall_is_get_method(fcall: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * fcall_returns_ref
@@ -757,7 +757,7 @@ func fcall_is_get_method(fcall: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func fcall_returns_ref(fcall: Expr, scope: TypeScope) returns shallow I32
+func fcall_returns_ref(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow I32
 #+end_src
 
 * Vec__CtorArg

@@ -836,7 +836,7 @@ priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog:
             ref dd : Declaration = decl_of(stmt)
             meta := parse_doc_meta(dd.doc)
             if doc_decl_hidden(dd, meta).not() {
-                info := format_decl_info(stmt, ctx.scope)
+                info := format_decl_info(stmt, ctx.scope, ctx.symbols)
                 append_doc_catalog_entry(catalog, u.path, page, dd.name, dd.doc, info)
                 if stmt.children.len() > 0 {
                     switch stmt.children[0].node_type {

@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee4f8fc7</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -112,7 +112,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.subtree_references_name">
 <h2>subtree_references_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, name: Str) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.toplevel_needs_throw_lowering">
@@ -148,13 +148,13 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.make_default_value_expr">
 <h2>make_default_value_expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (type_name: Str, shallow line: U32, shallow col: U32) returns Expr
+<pre><code class="language-til">func (type_name: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.make_if_kind_eq_zero_wrap">
 <h2>make_if_kind_eq_zero_wrap</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (stmt: Expr, shallow line: U32, shallow col: U32) returns Expr
+<pre><code class="language-til">func (stmt: Expr, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.extend_throwing_func_sigs">
@@ -166,7 +166,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.make_uncaught_throw_panic">
 <h2>make_uncaught_throw_panic</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (error_type: Str, shallow line: U32, shallow col: U32) returns Expr
+<pre><code class="language-til">func (error_type: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.process_throw_catch_in_func_body">
@@ -196,7 +196,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.make_switch_case_condition">
 <h2>make_switch_case_condition</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
+<pre><code class="language-til">func (mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.replace_switch_stmt_with_block">
@@ -220,13 +220,13 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.switch_is_clike">
 <h2>switch_is_clike</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow enum_def_o: Option__ref_Expr) returns shallow Bool
+<pre><code class="language-til">func (stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow enum_def_o: Option__ref_Expr, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.prepend_clike_payload_binding">
 <h2>prepend_clike_payload_binding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, shallow binding_is_dead: Bool)
+<pre><code class="language-til">func (mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, mut symbols: SymbolPool, shallow binding_is_dead: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.replace_body_stmt_with_block">
@@ -238,7 +238,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.make_for_in_range_while_body">
 <h2>make_for_in_range_while_body</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr
+<pre><code class="language-til">func (var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.body_pre_passes">

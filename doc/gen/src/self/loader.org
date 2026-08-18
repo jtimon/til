@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -199,7 +199,7 @@ func format_doc_for_help(doc: Str) returns Str
 :END:
 
 #+begin_src til
-func format_decl_info(stmt: Expr, scope: TypeScope) returns Str
+func format_decl_info(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Str
 #+end_src
 
 * format_member_info
@@ -239,7 +239,7 @@ func format_variant_info(type_name: Str, variant: VariantDef) returns Str
 :END:
 
 #+begin_src til
-func collect_decl_packed(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str)
+func collect_decl_packed(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str, symbols: SymbolPool)
 #+end_src
 
 * build_doc_init_line
@@ -269,7 +269,7 @@ func build_doc_init_line_org_files(index_path: Str, packed_user_info: Str, packe
 :END:
 
 #+begin_src til
-func lazy_recursive_variadic_def(fdef: Expr) returns shallow Bool
+func lazy_recursive_variadic_def(fdef: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * type_program_errors

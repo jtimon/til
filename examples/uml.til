@@ -320,12 +320,12 @@ split_enum_variants := proc(lines: Vec(Str)) returns Vec(Str) {
     return out
 }
 
-parse_file := proc(path: Str) returns Expr {
+parse_file := proc(path: Str, symbols: SymbolPool) returns Expr {
     source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
     mut anon_type_counter : I64 = 0
-    return parse(tokens, source, path, mode_str, anon_type_counter)
+    return parse(tokens, source, path, mode_str, anon_type_counter, symbols)
 }
 
 // Collapse oversized boxes: keep the first MAX_BOX_LINES-1 lines and append
@@ -350,7 +350,8 @@ cap_lines := func(lines: Vec(Str)) returns Vec(Str) {
 extract_types_from_file := proc(path: Str) returns Vec(UmlType) {
     source := File.readfile(path)
     lines := source.split(NL)
-    ast := parse_file(path)
+    symbols := SymbolPool()
+    ast := parse_file(path, symbols)
     mut out := Vec(UmlType).new()
     label := file_label(path)
 

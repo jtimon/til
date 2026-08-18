@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-ee4f8fc7
+#+SUBTITLE: til 0.0.1-80788b616
 #+OPTIONS: toc:t
 
 * collect_enum_variants
@@ -19,7 +19,7 @@ func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut vari
 :END:
 
 #+begin_src til
-func register_funcsig_alias_for_stmt(ctx: Context, mut stmt: Expr, mut scope: TypeScope)
+func register_funcsig_alias_for_stmt(mut ctx: Context, mut stmt: Expr, mut scope: TypeScope)
 #+end_src
 
 * register_function_def_for_stmt
@@ -29,7 +29,7 @@ func register_funcsig_alias_for_stmt(ctx: Context, mut stmt: Expr, mut scope: Ty
 :END:
 
 #+begin_src til
-func register_function_def_for_stmt(ctx: Context, mut stmt: Expr, mut scope: TypeScope)
+func register_function_def_for_stmt(mut ctx: Context, mut stmt: Expr, mut scope: TypeScope)
 #+end_src
 
 * gen_struct_size_method_for_stmt
@@ -59,7 +59,7 @@ proc gen_enum_size_method_for_stmt(mut stmt: Expr, mut scope: TypeScope, mut ctx
 :END:
 
 #+begin_src til
-func gen_unity_derived_for_stmt(mut stmt: Expr)
+func gen_unity_derived_for_stmt(mut stmt: Expr, mut symbols: SymbolPool)
 #+end_src
 
 * gen_cmp_derived_for_stmt
@@ -69,7 +69,7 @@ func gen_unity_derived_for_stmt(mut stmt: Expr)
 :END:
 
 #+begin_src til
-func gen_cmp_derived_for_stmt(mut stmt: Expr)
+func gen_cmp_derived_for_stmt(mut stmt: Expr, mut symbols: SymbolPool)
 #+end_src
 
 * compute_struct_layout
@@ -129,7 +129,7 @@ func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns ref Fie
 :END:
 
 #+begin_src til
-proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__Expr)
+proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__Expr, mut symbols: SymbolPool)
 #+end_src
 
 * init_refresh_seeded_scope_defs
@@ -139,7 +139,7 @@ proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__E
 :END:
 
 #+begin_src til
-func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope)
+func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope, symbols: SymbolPool)
 #+end_src
 
 * GenericSources
@@ -198,7 +198,7 @@ func init_retire_generic_sources(mut program: Expr, mut scope: TypeScope) return
 :END:
 
 #+begin_src til
-func init_declarations_global(ctx: Context, mut program: Expr, mut scope: TypeScope) returns shallow I32
+func init_declarations_global(mut ctx: Context, mut program: Expr, mut scope: TypeScope) returns shallow I32
 #+end_src
 
 * count_ast_imports
@@ -208,7 +208,7 @@ func init_declarations_global(ctx: Context, mut program: Expr, mut scope: TypeSc
 :END:
 
 #+begin_src til
-func count_ast_imports(body: Expr) returns shallow USize
+func count_ast_imports(body: Expr, symbols: SymbolPool) returns shallow USize
 #+end_src
 
 * init_file

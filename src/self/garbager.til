@@ -23,7 +23,7 @@ import("../std/sys")
 // typer.til so those names are in scope.
 
 priv LocalInfo := struct {
-    ref name : Str
+    name := ""
     type := Type.Unknown
     decl_index : I32 = 0
     last_use : I32 = 0
@@ -100,9 +100,9 @@ priv gc_delete_is_noop := func(local: LocalInfo) returns Bool {
 // The one delete factory this pass inserts through: no-op deletes come
 // back None, which every call site already handles (make_delete_call
 // itself returns None for an unnameable type).
-priv gc_make_delete := func(local: LocalInfo, src: Expr) returns Option(Expr) {
+priv gc_make_delete := func(local: LocalInfo, src: Expr, mut symbols: SymbolPool) returns Option(Expr) {
     if gc_delete_is_noop(local) { return Option(Expr).None }
-    return make_delete_call(local.name, local.type, local.is_heap, local.is_heap, src)
+    return make_delete_call(local.name, local.type, local.is_heap, local.is_heap, src, symbols)
 }
 
 // rhs_is_allocator_call moved to context.til (#303): the builder's
@@ -113,26 +113,26 @@ priv gc_make_delete := func(local: LocalInfo, src: Expr) returns Option(Expr) {
 // Matched structurally, no name sniffing -- the shapes make_delete_call /
 // make_free_call / make_closure_delete_call emit and hand-written
 // destructor bodies use.
-priv transfer_is_destructor_call := func(stmt: Expr, name: Str) returns Bool {
+priv transfer_is_destructor_call := func(stmt: Expr, name: Str, symbols: SymbolPool) returns Bool {
     if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gt(1)) {
         mut is_dtor := false
         switch stmt.children[0].node_type {
         case .FieldAccess(dfa):
-            if dfa.field_access_name() == "delete" { is_dtor = true }
+            if dfa.field_access_name(symbols.names) == "delete" { is_dtor = true }
         case .Ident(dfi):
-            if dfi.ident_name().eq("free").or(dfi.ident_name().eq("til_closure_delete")) { is_dtor = true }
+            if dfi.ident_name(symbols.names).eq("free").or(dfi.ident_name(symbols.names).eq("til_closure_delete")) { is_dtor = true }
         case:
         }
         if is_dtor {
             switch stmt.children[1].node_type {
             case .Ident(dai):
-                if dai.ident_name() == name { return true }
+                if dai.ident_name(symbols.names) == name { return true }
             case:
             }
         }
     }
     for dc : Expr in stmt.children {
-        if transfer_is_destructor_call(dc, name) { return true }
+        if transfer_is_destructor_call(dc, name, symbols) { return true }
     }
     return false
 }
@@ -203,24 +203,24 @@ priv gc_audit_name := func(name: Str, mut names: Map(Str, Str), mut counts: Map(
 // Renders `e` when it is a destructor-shaped call -- the exact shapes
 // make_delete_call / make_free_call / make_closure_delete_call emit
 // (which user-written cleanup shares) -- or "" for anything else.
-priv gc_audit_destructor_line := func(e: Expr, mut names: Map(Str, Str), mut counts: Map(Str, I64)) returns Str {
+priv gc_audit_destructor_line := func(e: Expr, mut names: Map(Str, Str), mut counts: Map(Str, I64), symbols: SymbolPool) returns Str {
     if e.node_type.is(NodeType.FCall).not() { return "" }
     if e.children.len() < 2 { return "" }
     mut kind := ""
     mut tname := ""
     switch e.children[0].node_type {
     case .FieldAccess(del_fa):
-        if del_fa.field_access_name() != "delete" { return "" }
+        if del_fa.field_access_name(symbols.names) != "delete" { return "" }
         if e.children[0].children.len() < 1 { return "" }
         switch e.children[0].children[0].node_type {
-        case .Ident(tid): tname = Str.clone(tid.ident_name())
+        case .Ident(tid): tname = Str.clone(tid.ident_name(symbols.names))
         case: return ""
         }
         kind = "delete"
     case .Ident(fid):
-        if fid.ident_name() == "free" {
+        if fid.ident_name(symbols.names) == "free" {
             kind = "free"
-        } else if fid.ident_name() == "til_closure_delete" {
+        } else if fid.ident_name(symbols.names) == "til_closure_delete" {
             kind = "closure-delete"
         } else {
             return ""
@@ -230,7 +230,7 @@ priv gc_audit_destructor_line := func(e: Expr, mut names: Map(Str, Str), mut cou
     }
     mut arg_name := "<expr>"
     switch e.children[1].node_type {
-    case .Ident(aid): arg_name = gc_audit_name(aid.ident_name(), names, counts)
+    case .Ident(aid): arg_name = gc_audit_name(aid.ident_name(symbols.names), names, counts)
     case:
     }
     mut own_s := ""
@@ -256,10 +256,10 @@ priv gc_audit_destructor_line := func(e: Expr, mut names: Map(Str, Str), mut cou
 // the enclosing body's walk after insert_nested_exit_deletes may have
 // appended to them. Both views are wanted -- the second is where the
 // enclosing body's exit deletes land.
-priv gc_audit_sites := proc(body: Expr, prefix: Str, mut names: Map(Str, Str), mut counts: Map(Str, I64)) {
+priv gc_audit_sites := proc(body: Expr, prefix: Str, mut names: Map(Str, Str), mut counts: Map(Str, I64), symbols: SymbolPool) {
     for i in 0..body.children.len() {
         ref s : Expr = body.children[i]
-        line := gc_audit_destructor_line(s, names, counts)
+        line := gc_audit_destructor_line(s, names, counts, symbols)
         if line.len() > 0 {
             println("GC-AUDIT site ", prefix, i.to_str(), " ", line)
         }
@@ -274,19 +274,19 @@ priv gc_audit_sites := proc(body: Expr, prefix: Str, mut names: Map(Str, Str), m
             }
         case .If:
             for ci in 1..s.children.len() {
-                gc_audit_sites(s.children[ci], format(prefix, i.to_str(), ".if", ci.sub(1).to_str(), "."), names, counts)
+                gc_audit_sites(s.children[ci], format(prefix, i.to_str(), ".if", ci.sub(1).to_str(), "."), names, counts, symbols)
             }
         case .While:
             if s.children.len() > 1 {
-                gc_audit_sites(s.children[1], format(prefix, i.to_str(), ".while."), names, counts)
+                gc_audit_sites(s.children[1], format(prefix, i.to_str(), ".while."), names, counts, symbols)
             }
         case .Body:
-            gc_audit_sites(s, format(prefix, i.to_str(), ".body."), names, counts)
+            gc_audit_sites(s, format(prefix, i.to_str(), ".body."), names, counts, symbols)
         case .Switch:
             for ci in 1..s.children.len() {
                 if s.children[ci].node_type.is(NodeType.Case) {
                     cbi := s.children[ci].children.len() - 1
-                    gc_audit_sites(s.children[ci].children[cbi], format(prefix, i.to_str(), ".case", ci.sub(1).to_str(), "."), names, counts)
+                    gc_audit_sites(s.children[ci].children[cbi], format(prefix, i.to_str(), ".case", ci.sub(1).to_str(), "."), names, counts, symbols)
                 }
             }
         case:
@@ -339,7 +339,7 @@ priv gc_audit_dump := proc(ctx: Context, body: Expr, locals: Vec(LocalInfo)) {
             " heap=", gc_audit_flag(local.is_heap),
             " skip=", gc_audit_flag(local.skip_scope_delete))
     }
-    gc_audit_sites(body, "", names, counts)
+    gc_audit_sites(body, "", names, counts, ctx.symbols)
 }
 
 // --- #302 stage 3, slice 1: per-body control-flow graph ---------------------
@@ -614,7 +614,7 @@ priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, 
         mut j := b.start
         while j < b.end {
             ref stmt : Expr = bbody.children[j.to_usize()]
-            if is_compile_directive(stmt) { j = j.add(1); continue }
+            if is_compile_directive(stmt, ctx.symbols) { j = j.add(1); continue }
             mut tail_compound := false
             if j.add(1).eq(b.end) {
                 tail_compound = stmt.node_type.is(NodeType.If)
@@ -830,7 +830,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                     continue
                 }
                 ref sstmt : Expr = body.children[s]
-                if is_compile_directive(sstmt).not() {
+                if is_compile_directive(sstmt, ctx.symbols).not() {
                     c := gc_flow_stmt_const(sstmt, local.name, scope, ctx)
                     if c.neq(FLOW_ID) { cur = c }
                 }
@@ -912,7 +912,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                 while j < b.end {
                     table[li.mul(stmts).add(j.to_usize())] = st
                     ref stmt : Expr = bbody.children[j.to_usize()]
-                    if is_compile_directive(stmt).not() {
+                    if is_compile_directive(stmt, ctx.symbols).not() {
                         st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
                     }
                     j = j.add(1)
@@ -987,7 +987,7 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
                     st = gc_flow_meet(st, ins[bi])
                     while j < stmt_idx {
                         ref stmt : Expr = bbody.children[j.to_usize()]
-                        if is_compile_directive(stmt).not() {
+                        if is_compile_directive(stmt, ctx.symbols).not() {
                             st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
                         }
                         j = j.add(1)
@@ -1055,8 +1055,8 @@ priv LIVE_USE : U8 = 2
 // kills liveness instead: above it the binding's current value either
 // does not exist yet (Decl) or is replaced unread (Assign -- its
 // save_old_delete cleanup is the assign's own business, not a use).
-priv gc_live_stmt_const := func(stmt: Expr, name: Str) returns U8 {
-    if expr_uses_var(stmt, name) { return LIVE_USE }
+priv gc_live_stmt_const := func(stmt: Expr, name: Str, symbols: SymbolPool) returns U8 {
+    if expr_uses_var(stmt, name, symbols) { return LIVE_USE }
     if expr_contains_decl(stmt, name) { return LIVE_DEAD }
     if expr_reassigns_var(stmt, name) { return LIVE_DEAD }
     return LIVE_ID
@@ -1069,7 +1069,7 @@ priv gc_live_stmt_const := func(stmt: Expr, name: Str) returns U8 {
 // The tail-compound rule is shared: a compound statement closing a
 // block contributes only its condition/subject; its branch bodies are
 // separate blocks.
-priv gc_live_block_gen := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str) returns U8 {
+priv gc_live_block_gen := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, symbols: SymbolPool) returns U8 {
     ref b : GcCfgBlock = blocks[bid]
     switch b.body {
     case .None:
@@ -1079,7 +1079,7 @@ priv gc_live_block_gen := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str) r
         mut j := b.start
         while j < b.end {
             ref stmt : Expr = bbody.children[j.to_usize()]
-            if is_compile_directive(stmt) { j = j.add(1); continue }
+            if is_compile_directive(stmt, symbols) { j = j.add(1); continue }
             mut tail_compound := false
             if j.add(1).eq(b.end) {
                 tail_compound = stmt.node_type.is(NodeType.If)
@@ -1091,11 +1091,11 @@ priv gc_live_block_gen := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str) r
                 // Only the condition/subject evaluates here; a bare Body
                 // contributes nothing at the tail.
                 if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
-                    c := gc_live_stmt_const(stmt.children[0], name)
+                    c := gc_live_stmt_const(stmt.children[0], name, symbols)
                     if c.neq(LIVE_ID) { return c }
                 }
             } else {
-                c := gc_live_stmt_const(stmt, name)
+                c := gc_live_stmt_const(stmt, name, symbols)
                 if c.neq(LIVE_ID) { return c }
             }
             j = j.add(1)
@@ -1110,10 +1110,10 @@ priv gc_live_block_gen := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str) r
 // guard is a loud backstop, not control flow. No predecessor lists
 // needed -- the successor edges the blocks already carry are exactly
 // what a backward sweep reads.
-priv gc_live_solve := func(blocks: Vec(GcCfgBlock), name: Str, mut ins: Array(U8), mut outs: Array(U8)) {
+priv gc_live_solve := func(blocks: Vec(GcCfgBlock), name: Str, symbols: SymbolPool, mut ins: Array(U8), mut outs: Array(U8)) {
     n := blocks.len()
     mut gen := Array(U8).new(n)
-    for i in 0..n { gen[i] = gc_live_block_gen(blocks, i, name) }
+    for i in 0..n { gen[i] = gc_live_block_gen(blocks, i, name, symbols) }
     for i in 0..n {
         ins[i] = 0
         outs[i] = 0
@@ -1145,14 +1145,14 @@ priv gc_live_solve := func(blocks: Vec(GcCfgBlock), name: Str, mut ins: Array(U8
     }
 }
 
-priv gc_live_dump := proc(blocks: Vec(GcCfgBlock), locals: Vec(LocalInfo)) {
+priv gc_live_dump := proc(blocks: Vec(GcCfgBlock), locals: Vec(LocalInfo), symbols: SymbolPool) {
     mut names := Map(Str, Str).new()
     mut counts := Map(Str, I64).new()
     for local : LocalInfo in locals {
         if gc_audit_local_is_noise(local) { continue }
         mut ins := Array(U8).new(blocks.len())
         mut outs := Array(U8).new(blocks.len())
-        gc_live_solve(blocks, local.name, ins, outs)
+        gc_live_solve(blocks, local.name, symbols, ins, outs)
         mut ss := ""
         for j in 0..blocks.len() {
             if j > 0 { ss = format(ss, ",") }
@@ -1171,12 +1171,12 @@ priv gc_live_dump := proc(blocks: Vec(GcCfgBlock), locals: Vec(LocalInfo)) {
 // only a bare Ident missed it -- so a `return s` did not protect raw and
 // the pass scheduled its free before the caller ever saw the block.
 // Does any Return in this subtree hand back `name`?
-priv body_returns_var := func(e: Expr, name: Str) returns Bool {
+priv body_returns_var := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
     if e.node_type.is(NodeType.Return).and(e.children.len().gt(0)) {
-        if expr_uses_var(e.children[0], name) { return true }
+        if expr_uses_var(e.children[0], name, symbols) { return true }
     }
     for c : Expr in e.children {
-        if body_returns_var(c, name) { return true }
+        if body_returns_var(c, name, symbols) { return true }
     }
     return false
 }
@@ -1188,14 +1188,14 @@ priv body_returns_var := func(e: Expr, name: Str) returns Bool {
 // that return; the scope-end path has no such guard, which is how
 // `ref s : Scope = to_ptr(raw) ... return s` still emitted `free(raw);
 // return s;` -- a dangling pointer handed to the caller.
-priv aliased_by_returned_ref := func(body: Expr, name: Str) returns Bool {
+priv aliased_by_returned_ref := func(body: Expr, name: Str, symbols: SymbolPool) returns Bool {
     for d : Expr in body.children {
         switch d.node_type {
         case .Decl(dd):
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
-                src_o := arg_addressed_ident(d.children[0])
+                src_o := arg_addressed_ident(d.children[0], symbols)
                 if src_o.is_some().and(src_o.unwrap() == name) {
-                    if body_returns_var(body, dd.name) { return true }
+                    if body_returns_var(body, dd.name, symbols) { return true }
                 }
             }
         case:
@@ -1265,12 +1265,12 @@ priv collect_hoist_taint := func(target_bit: I64, facts: BodyFacts, limit: USize
     return tainted
 }
 
-priv rhs_depends_on_var := func(rhs: Expr, vname: Str, target_bit: I64, facts: BodyFacts, limit: USize) returns Bool {
-    if expr_uses_var(rhs, vname) { return true }
+priv rhs_depends_on_var := func(rhs: Expr, vname: Str, target_bit: I64, facts: BodyFacts, limit: USize, symbols: SymbolPool) returns Bool {
+    if expr_uses_var(rhs, vname, symbols) { return true }
     mut tmask := zeroed_words(facts.words)
     tainted := collect_hoist_taint(target_bit, facts, limit, tmask)
     for t : Str in tainted {
-        if expr_uses_var(rhs, t) { return true }
+        if expr_uses_var(rhs, t, symbols) { return true }
     }
     return false
 }
@@ -1313,26 +1313,26 @@ priv clone_arg_may_be_view := func(local: LocalInfo) returns Bool {
 // cleanups, not the move path's raw free). A clone call never folds:
 // .clone() on a literal receiver is a typer error, and a runtime
 // receiver is unknowable to the folder.
-priv str_rhs_provably_owning := func(rhs: Expr) returns Bool {
+priv str_rhs_provably_owning := func(rhs: Expr, symbols: SymbolPool) returns Bool {
     if rhs.node_type.is_literal_str() { return true }
-    return rhs_is_clone_fcall(rhs)
+    return rhs_is_clone_fcall(rhs, symbols)
 }
 
 // True when the subtree holds `name`'s Decl and its initializer is
 // provably owning. Nested FuncDef subtrees are skipped: a nested
 // function's `name` is a different binding.
-priv expr_has_owning_str_decl := func(e: Expr, name: Str) returns Bool {
+priv expr_has_owning_str_decl := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FuncDef: return false
     case .Decl(dd):
         if dd.name == name {
             if e.children.len() == 0 { return false }
-            return str_rhs_provably_owning(e.children[0])
+            return str_rhs_provably_owning(e.children[0], symbols)
         }
     case:
     }
     for c : Expr in e.children {
-        if expr_has_owning_str_decl(c, name) { return true }
+        if expr_has_owning_str_decl(c, name, symbols) { return true }
     }
     return false
 }
@@ -1340,13 +1340,13 @@ priv expr_has_owning_str_decl := func(e: Expr, name: Str) returns Bool {
 // True when the subtree writes `name` (Decl initializer or Assign, at
 // any nesting depth) with an RHS that is NOT provably owning. FuncDef
 // subtrees are skipped as above.
-priv expr_has_unproven_str_def := func(e: Expr, name: Str) returns Bool {
+priv expr_has_unproven_str_def := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FuncDef: return false
     case .Decl(dd):
         if dd.name == name {
             if e.children.len() == 0 { return true }
-            return str_rhs_provably_owning(e.children[0]).not()
+            return str_rhs_provably_owning(e.children[0], symbols).not()
         }
     case .Assign(ad):
         if ad.name == name {
@@ -1362,12 +1362,12 @@ priv expr_has_unproven_str_def := func(e: Expr, name: Str) returns Bool {
             // str_rhs_provably_owning records for constructor RHSs that fold
             // into a stack literal.
             if e.children[0].node_type.is_literal_str() { return true }
-            return str_rhs_provably_owning(e.children[0]).not()
+            return str_rhs_provably_owning(e.children[0], symbols).not()
         }
     case:
     }
     for c : Expr in e.children {
-        if expr_has_unproven_str_def(c, name) { return true }
+        if expr_has_unproven_str_def(c, name, symbols) { return true }
     }
     return false
 }
@@ -1378,11 +1378,11 @@ priv expr_has_unproven_str_def := func(e: Expr, name: Str) returns Bool {
 // yields an owning or static value (str_rhs_provably_owning). A local
 // with no visible Decl (params, outer-scope bindings) stays
 // conservative: its provenance is unknowable here, keep the clone.
-priv str_clone_to_move_provably_safe := func(name: Str, preceding: Vec(Expr)) returns Bool {
+priv str_clone_to_move_provably_safe := func(name: Str, preceding: Vec(Expr), symbols: SymbolPool) returns Bool {
     mut has_owning_decl := false
     for pst : Expr in preceding {
-        if expr_has_unproven_str_def(pst, name) { return false }
-        if expr_has_owning_str_decl(pst, name) { has_owning_decl = true }
+        if expr_has_unproven_str_def(pst, name, symbols) { return false }
+        if expr_has_owning_str_decl(pst, name, symbols) { has_owning_decl = true }
     }
     return has_owning_decl
 }
@@ -1494,7 +1494,7 @@ priv zeroed_words := func(total: USize) returns Vec(U64) {
     return v
 }
 
-priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool, fi: FactIndex) returns BodyFacts {
+priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool, fi: FactIndex, symbols: SymbolPool) returns BodyFacts {
     mut bf := BodyFacts()
     bf.words = fi.idx.len().add(63) / 64
     bf.n_stmts = body.children.len()
@@ -1511,7 +1511,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
         // One traversal fills all five rows. It replaced five separate
         // walks over the same subtree -- 1.8M collector calls per
         // maps.til compile where one walk needs 411K.
-        expr_collect_stmt_facts(stmt, scope, with_transfers, true, fi, base, bf.uses, bf.decls, bf.nested, bf.escapes, bf.transfers)
+        expr_collect_stmt_facts(stmt, scope, with_transfers, true, fi, base, bf.uses, bf.decls, bf.nested, bf.escapes, bf.transfers, symbols)
         mut dname := ""
         if stmt.children.len() >= 1 {
             switch stmt.node_type {
@@ -1520,7 +1520,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
             case:
             }
         }
-        bf.directives.push(own is_compile_directive(stmt))
+        bf.directives.push(own is_compile_directive(stmt, symbols))
         if dname.len() > 0 {
             bf.def_bits.push(own fact_bit_req(fi, dname).to_i64())
             bf.def_names.push(own dname)
@@ -1538,7 +1538,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
     return bf
 }
 
-priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, stack_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
+priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, stack_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
     for b in scope.bindings.values {
         // Non-Own parameters borrow their storage; their caller or generated
         // entry wrapper owns any setup storage.
@@ -1633,10 +1633,10 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
         // are C values and were filtered with the other non-Own parameters.
         if b.own_type.is(OwnType.Ref) { skip_scope_delete = true }
         if skip_scope_delete.not() {
-            if aliased_by_returned_ref(body, b.name) { skip_scope_delete = true }
+            if aliased_by_returned_ref(body, b.name, ctx.symbols) { skip_scope_delete = true }
         }
 
-        mut li := LocalInfo(name = b.name)
+        mut li := LocalInfo(name = b.name.clone())
         li.type = b.type
         li.decl_index = decl_idx
         li.last_use = last_use
@@ -1644,8 +1644,8 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
         li.has_transfer = own_transfer >= 0
         li.skip_scope_delete = skip_scope_delete
         if own_transfer >= 0 {
-            li.dtor_transfer = transfer_is_destructor_call(body.children[own_transfer.to_usize()], b.name)
-            li.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[own_transfer.to_usize()], b.name, scope)
+            li.dtor_transfer = transfer_is_destructor_call(body.children[own_transfer.to_usize()], b.name, ctx.symbols)
+            li.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[own_transfer.to_usize()], b.name, scope, ctx.symbols)
         }
         // #346: semantic Own does not imply a heap wrapper. Ordinary
         // aggregate locals are values. Closed-world ordinary Own primitive
@@ -1668,11 +1668,11 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
                 case .BodyValue:
                     if b.type.is(Type.Body).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = true }
                 case .FCall:
-                    if fcall_returns_dynamic_storage(li_rhs, scope) { li.is_heap = true }
+                    if fcall_returns_dynamic_storage(li_rhs, scope, ctx.symbols) { li.is_heap = true }
                     if type_is_callable_storage(b.type).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = true }
                 case:
                 }
-                if rhs_is_allocator_call(li_rhs).and(b.type.is(Type.Dynamic).not()) {
+                if rhs_is_allocator_call(li_rhs, ctx.symbols).and(b.type.is(Type.Dynamic).not()) {
                     // Typed local from a raw allocator: an owned heap
                     // block the pass frees itself (see LocalInfo.raw_alloc).
                     li.raw_alloc = true
@@ -1684,11 +1684,25 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
     }
 }
 
+priv sort_locals_by_name := func(mut locals: Vec(LocalInfo)) {
+    if locals.len() < 2 { return }
+    for i in 1..locals.len() {
+        mut j := i
+        while j > 0 {
+            ref prev : LocalInfo = locals.unsafe_get(j - 1)
+            ref cur : LocalInfo = locals.unsafe_get(j)
+            if Str.cmp(prev.name, cur.name) <= 0 { break }
+            swap(LocalInfo, locals[j - 1], locals[j])
+            j = j - 1
+        }
+    }
+}
+
 // #320: true when `e` is an enum-variant ctor FCall whose variant carries a
 // ref payload; returns the payload arg's root Ident name ("" otherwise).
 // Matches both the ns FieldAccess callee (`Opt.Some(x)`) and the flattened
 // Ident callee (`Opt_Some(x)`).
-priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str {
+priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     if e.node_type.is(NodeType.FCall).not() { return "" }
     if e.children.len() != 2 { return "" }
     // Cheap tag-only gates first: this predicate runs on every FCall of
@@ -1707,11 +1721,11 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     switch e.children[0].node_type {
     case .Ident(ci):
         prefix := format(ename, "_")
-        if ci.ident_name().starts_with(prefix) {
-            vname = ci.ident_name().substr(prefix.len(), ci.ident_name().len() - prefix.len())
+        if ci.ident_name(symbols.names).starts_with(prefix) {
+            vname = ci.ident_name(symbols.names).substr(prefix.len(), ci.ident_name(symbols.names).len() - prefix.len())
         }
     case .FieldAccess(cf):
-        vname = Str.clone(cf.field_access_name())
+        vname = Str.clone(cf.field_access_name(symbols.names))
     case:
     }
     if vname.len() == 0 { return "" }
@@ -1724,15 +1738,15 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     if enum_variant_payload_ref(def, idx).not() { return "" }
     // The borrowed source is the payload arg's ROOT binding: a bare Ident,
     // or the root of a field chain (`Opt.SomeRef(s.field)` borrows into s).
-    return expr_root_ident_name(e.children[1])
+    return expr_root_ident_name(e.children[1], symbols)
 }
 
 // Root Ident name of an Ident / field-chain expr; "" for anything else.
-priv expr_root_ident_name := func(e: Expr) returns Str {
+priv expr_root_ident_name := func(e: Expr, symbols: SymbolPool) returns Str {
     switch e.node_type {
-    case .Ident(an): return Str.clone(an.ident_name())
+    case .Ident(an): return Str.clone(an.ident_name(symbols.names))
     case .FieldAccess:
-        if e.children.len() > 0 { return expr_root_ident_name(e.children[0]) }
+        if e.children.len() > 0 { return expr_root_ident_name(e.children[0], symbols) }
     case:
     }
     return ""
@@ -1775,30 +1789,30 @@ priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrow
 
 // Rule 4's collector: walk a statement subtree adding a body-end edge
 // for every local borrowed into an enum ref payload.
-priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: Vec(GcBorrowEdge), scope: TypeScope) {
+priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
     // Tag-only pre-gate: borrow_src constructs and returns a Str, so
     // calling it per NODE paid a build+delete on every miss. Only a
     // two-child FCall can be a variant ctor (borrow_src re-checks).
     if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
-        src_name := enum_ref_payload_borrow_src(e, scope)
+        src_name := enum_ref_payload_borrow_src(e, scope, symbols)
         if src_name.len() > 0 {
             gc_add_borrow_edge(edges, src_name, "", body_last)
         }
     }
     for c : Expr in e.children {
-        collect_enum_ref_payload_edges(c, body_last, edges, scope)
+        collect_enum_ref_payload_edges(c, body_last, edges, scope, symbols)
     }
 }
 
-priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex) returns Vec(GcBorrowEdge) {
+priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
     body_last := body.children.len().sub(1).to_i32()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
     // anywhere in the statement subtree.
     for stmt : Expr in body.children {
-        collect_enum_ref_payload_edges(stmt, body_last, edges, scope)
+        collect_enum_ref_payload_edges(stmt, body_last, edges, scope, symbols)
         if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
-        if stmt.fa_own_type(scope).is(OwnType.Ref).not() { continue }
+        if stmt.fa_own_type(scope, symbols).is(OwnType.Ref).not() { continue }
         if stmt.children.len() < 2 { continue }
         ref mut target : Expr = stmt.children[0]
         while target.node_type.is(NodeType.FieldAccess).and(target.children.len().gt(0)) {
@@ -1806,14 +1820,14 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         }
         mut holder_name := ""
         switch target.node_type {
-        case .Ident(hn): holder_name = Str.clone(hn.ident_name())
+        case .Ident(hn): holder_name = Str.clone(hn.ident_name(symbols.names))
         case:
         }
         if holder_name.len() == 0 { continue }
         ref value : Expr = stmt.children[1]
         switch value.node_type {
         case .Ident(sn):
-            gc_add_borrow_edge(edges, sn.ident_name(), "", body_last)
+            gc_add_borrow_edge(edges, sn.ident_name(symbols.names), "", body_last)
         case:
         }
     }
@@ -1859,7 +1873,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         ref mut rhs : Expr = stmt.children[0]
         switch rhs.node_type {
         case .Ident(src_name):
-            gc_add_borrow_edge(edges, src_name.ident_name(), dd_name, ref_last)
+            gc_add_borrow_edge(edges, src_name.ident_name(symbols.names), dd_name, ref_last)
             continue
         case:
         }
@@ -1870,7 +1884,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
             }
             switch root.node_type {
             case .Ident(src_name):
-                gc_add_borrow_edge(edges, src_name.ident_name(), dd_name, ref_last)
+                gc_add_borrow_edge(edges, src_name.ident_name(symbols.names), dd_name, ref_last)
             case:
             }
             continue
@@ -1887,7 +1901,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
             }
             switch arg.node_type {
             case .Ident(aname):
-                gc_add_borrow_edge(edges, aname.ident_name(), dd_name, ref_last)
+                gc_add_borrow_edge(edges, aname.ident_name(symbols.names), dd_name, ref_last)
             case:
             }
         }
@@ -1918,8 +1932,8 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(Lo
     }
 }
 
-priv extend_ref_local_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex) {
-    edges := collect_borrow_edges(body, scope, facts, fi)
+priv extend_ref_local_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool) {
+    edges := collect_borrow_edges(body, scope, facts, fi, symbols)
     propagate_borrow_edges(edges, locals)
 }
 
@@ -2101,15 +2115,9 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
             // alone LEAKED (the index model's transfer stand-down left
             // the fall-through with no delete, verified 2026-07-11).
             if gc_flow_owned_at_stmt(body, local, scope, ctx, local.last_use) {
-                // #364: clearing the transfer hands the local ordinary
-                // cleanup on the paths that still own it -- but a
-                // SHALLOW-field ctor arg leaves an orphaned wrapper on the
-                // path that DID transfer, and that knowledge dies with the
-                // record. insert_post_stmt_deletes is gated on
-                // own_transfer >= 0, so nothing frees it: 16 bytes per call,
-                // which is what the ownership-shape matrix's own-param row
-                // caught. Graft the wrapper free onto the transferring path
-                // before the record goes.
+                // A shallow-field transfer consumes the inner value but not
+                // its heap wrapper. Preserve that transfer-path cleanup before
+                // clearing the transfer record for the surviving paths.
                 if local.shallow_copy_transfer {
                     ref mut xfer_stmt : Expr = body.children[local.own_transfer.to_usize()]
                     sink_transfer_path_wrapper_free(xfer_stmt, local, scope, ctx)
@@ -2136,8 +2144,8 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
                 local.own_transfer = next_xfer
                 local.dtor_transfer = false
                 if next_xfer >= 0 {
-                    local.dtor_transfer = transfer_is_destructor_call(body.children[next_xfer.to_usize()], local.name)
-                    local.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[next_xfer.to_usize()], local.name, scope)
+                    local.dtor_transfer = transfer_is_destructor_call(body.children[next_xfer.to_usize()], local.name, ctx.symbols)
+                    local.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[next_xfer.to_usize()], local.name, scope, ctx.symbols)
                 }
             } else {
                 ref stmt : Expr = body.children[local.last_use.to_usize()]
@@ -2178,7 +2186,7 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
     }
 }
 
-priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), return_only: Bool, scope: TypeScope, ctx: Context) {
+priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), return_only: Bool, scope: TypeScope, mut ctx: Context) {
     // Quick check: any returns/breaks/continues or nested if/while/body?
     // has_exit tracks the narrower question the flow table needs: does
     // an exit occur at THIS view's top level (deeper ones are handled
@@ -2211,7 +2219,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
         ref mut stmt : Expr = old[i]
-        if is_compile_directive(stmt) { continue }
+        if is_compile_directive(stmt, ctx.symbols) { continue }
         if stmt.node_type.is(NodeType.If) {
             for c in 1..stmt.children.len() {
                 insert_exit_deletes(stmt.children[c], live, return_only, scope, ctx)
@@ -2236,7 +2244,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 ref local : LocalInfo = live[li]
                 if stmt.children.len() > 0 {
                     ref retval : Expr = stmt.children[0]
-                    if expr_uses_var(retval, local.name) {
+                    if expr_uses_var(retval, local.name, ctx.symbols) {
                         continue
                     }
                 }
@@ -2275,10 +2283,10 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 // precondition) that the builder emits without the per-shape
                 // `{ T _ret = <expr>; <deletes>; return _ret; }` wrapper.
                 if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                    del_o := gc_make_delete(local, stmt)
+                    del_o := gc_make_delete(local, stmt, ctx.symbols)
                     if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
                 } else if local.is_heap {
-                    del := make_free_call(local.name, local.type, stmt)
+                    del := make_free_call(local.name, local.type, stmt, ctx.symbols)
                     new_ch.push(own del)
                 }
             }
@@ -2288,7 +2296,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     body.children.move_from(own new_ch)
 }
 
-priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, scope: TypeScope, ctx: Context) {
+priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, scope: TypeScope, mut ctx: Context) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() {
@@ -2373,7 +2381,7 @@ priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), 
     }
 }
 
-priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, mut new_ch: Vec(Expr)) {
+priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, mut new_ch: Vec(Expr), mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -2383,7 +2391,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
         ref local : LocalInfo = locals[li]
         if stmt.children.len() > 0 {
             ref retval : Expr = stmt.children[0]
-            if expr_uses_var(retval, local.name) {
+            if expr_uses_var(retval, local.name, symbols) {
                 continue
             }
         }
@@ -2408,17 +2416,17 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
         if st.eq(FLOW_OWNED).not() { continue }
         if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                del_o := gc_make_delete(local, stmt)
+                del_o := gc_make_delete(local, stmt, symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
-                del := make_free_call(local.name, local.type, stmt)
+                del := make_free_call(local.name, local.type, stmt, symbols)
                 new_ch.push(own del)
             }
         }
     }
 }
 
-priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
+priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -2470,16 +2478,8 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
                         // `free(local)` after the transfer stmt to release
                         // the wrapper without touching the inner data.
                         if local.shallow_copy_transfer {
-                            // #364: after the STATEMENT is only right when
-                            // the transfer is unconditional. A ctor inside a
-                            // branch makes this statement an if/switch whose
-                            // other paths never transferred -- and already
-                            // carry the sink's full delete -- so the wrapper
-                            // free is grafted onto the transferring path
-                            // instead. Falls back to the flat emission when
-                            // no branch claims it (an unconditional ctor).
                             if sink_transfer_path_wrapper_free(stmt, local, scope, ctx).not() {
-                                free_call := make_free_call(local.name, local.type, stmt)
+                                free_call := make_free_call(local.name, local.type, stmt, ctx.symbols)
                                 new_ch.push(own free_call)
                             }
                         }
@@ -2502,7 +2502,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
             // clone+delete roundtrip instead.
             mut clone_to_move_ok := clone_arg_may_be_view(local).not()
             if clone_to_move_ok.not().and(ctx.compile_mode) {
-                clone_to_move_ok = str_clone_to_move_provably_safe(local.name, preceding)
+                clone_to_move_ok = str_clone_to_move_provably_safe(local.name, preceding, ctx.symbols)
             }
             // FieldAssign with auto-cloned Ident RHS at the local's last use:
             // the clone allocates a deep copy, the field stores the copy, and
@@ -2519,11 +2519,11 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
             if local.is_heap.and(is_aggregate(local.type)).and(clone_to_move_ok) {
                 if stmt.node_type.is(NodeType.FieldAssign).and(stmt.children.len().gte(2)) {
                     ref fa_rhs : Expr = stmt.children[1]
-                    if rhs_is_clone_fcall(fa_rhs).and(fa_rhs.children.len().gte(2)) {
+                    if rhs_is_clone_fcall(fa_rhs, ctx.symbols).and(fa_rhs.children.len().gte(2)) {
                         ref clone_arg : Expr = fa_rhs.children[1]
                         switch clone_arg.node_type {
                         case .Ident(clone_arg_name):
-                            if clone_arg_name.ident_name() == local.name {
+                            if clone_arg_name.ident_name(ctx.symbols.names) == local.name {
                                 // The marker IS the move now: the builder
                                 // substitutes the clone's arg at consumption
                                 // (emit_stmt's FieldAssign arm); the
@@ -2541,8 +2541,8 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
                                 // the wrapper -- freeing it here would dangle the
                                 // field (issue #256). Only emit the wrapper free
                                 // for the value-field case.
-                                if stmt.fa_own_type(scope).is(OwnType.Own).not() {
-                                    free_call := make_free_call(local.name, local.type, stmt)
+                                if stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Own).not() {
+                                    free_call := make_free_call(local.name, local.type, stmt, ctx.symbols)
                                     new_ch.push(own free_call)
                                 }
                                 continue
@@ -2579,7 +2579,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
                     ref assign_rhs : Expr = stmt.children[0]
                     // Guard against self-assign `e = e.clone()`: moving there
                     // would alias the just-deleted old value.
-                    if assign_target.eq(local.name).not().and(rhs_is_clone_fcall(assign_rhs)).and(assign_rhs.children.len().gte(2)) {
+                    if assign_target.eq(local.name).not().and(rhs_is_clone_fcall(assign_rhs, ctx.symbols)).and(assign_rhs.children.len().gte(2)) {
                         ref clone_arg : Expr = assign_rhs.children[1]
                         switch clone_arg.node_type {
                         case .Ident(clone_arg_name):
@@ -2589,7 +2589,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
                             // ...).clone()` from target's own freed buffer;
                             // moving the view instead would alias the deleted
                             // old value.
-                            if clone_arg_name.ident_name().eq(local.name) {
+                            if clone_arg_name.ident_name(ctx.symbols.names).eq(local.name) {
                                 // Marker only -- see the FieldAssign site.
                                 switch stmt.node_type {
                                 case .Assign(adata_mv): adata_mv.is_move = true
@@ -2603,19 +2603,19 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
                 }
             }
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                del_o := gc_make_delete(local, stmt)
+                del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
-                del := make_free_call(local.name, local.type, stmt)
+                del := make_free_call(local.name, local.type, stmt, ctx.symbols)
                 new_ch.push(own del)
             }
         }
         if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                del_o := gc_make_delete(local, stmt)
+                del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
-                del := make_free_call(local.name, local.type, stmt)
+                del := make_free_call(local.name, local.type, stmt, ctx.symbols)
                 new_ch.push(own del)
             }
         }
@@ -2633,7 +2633,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, mut stmt: Expr, locals: Vec(
 // body -- including bodies with no locals of their own, which is where
 // most outer-target assigns live (if branches, loop wrappers), and
 // which insert_free_calls otherwise early-returns on.
-priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), mut scope: TypeScope) {
+priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), mut scope: TypeScope, symbols: SymbolPool) {
     for mut stmt : Expr in body.children {
         switch stmt.node_type {
         case .Assign(ad):
@@ -2643,15 +2643,15 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), m
                 if local.name.eq(vname) { is_body_local = true }
             }
             if is_body_local.or(stmt.children.len().eq(0)) { continue }
-            sf_out := scope.find(vname)
+            sf_out := scope.find_name(vname, symbols)
             switch sf_out {
             case .Found(ob):
                 if is_aggregate(ob.type).and(ob.own_type.is(OwnType.Ref).not())
-                    .and(assign_target_is_func_local(scope, vname)) {
+                    .and(assign_target_is_func_local(scope, vname, symbols)) {
                     ref orhs : Expr = stmt.children[0]
                     mut rebind := orhs.node_type.is_literal_str()
                     if rebind.not().and(orhs.node_type.is(NodeType.FCall)) {
-                        rebind = fcall_returns_own(orhs, scope)
+                        rebind = fcall_returns_own(orhs, scope, symbols)
                     }
                     if rebind { ad.save_old_delete = true }
                 }
@@ -2662,7 +2662,7 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), m
     }
 }
 
-priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: BodyFacts, fi: FactIndex, stmt_idx: USize) {
+priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: BodyFacts, fi: FactIndex, stmt_idx: USize, mut symbols: SymbolPool) {
     switch stmt.node_type {
     case .Assign(ad):
         vname := ad.name
@@ -2673,15 +2673,15 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
             if is_aggregate(local.type) {
                 if ad.save_old_delete {
                     return
-                } else if rhs_depends_on_var(stmt.children[0], vname, fact_bit_req(fi, vname).to_i64(), facts, stmt_idx) {
+                } else if rhs_depends_on_var(stmt.children[0], vname, fact_bit_req(fi, vname).to_i64(), facts, stmt_idx, symbols) {
                     ad.save_old_delete = true
                     stmt.set_til_type(local.type.clone())
                 } else {
                     if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                        del_o := gc_make_delete(local, stmt)
+                        del_o := gc_make_delete(local, stmt, symbols)
                         if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
                     } else if local.is_heap {
-                        del := make_free_call(local.name, local.type, stmt)
+                        del := make_free_call(local.name, local.type, stmt, symbols)
                         new_ch.push(own del)
                     }
                 }
@@ -2706,15 +2706,15 @@ priv stmt_is_conditional_container := func(stmt: Expr) returns Bool {
         .or(stmt.node_type.is(NodeType.Body))
 }
 
-priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr, scope: TypeScope, ctx: Context) returns Bool {
+priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr, scope: TypeScope, mut ctx: Context) returns Bool {
     // Same emission split as the exit-delete inserters: a raw-allocator
     // local is a bare heap block (free, never a deep delete); everything
     // else typed goes through gc_make_delete.
     mut del_o := Option(Expr).None
     if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-        del_o = gc_make_delete(local, src)
+        del_o = gc_make_delete(local, src, ctx.symbols)
     } else if local.is_heap {
-        del_o = Option(Expr).Some(make_free_call(local.name, local.type, src))
+        del_o = Option(Expr).Some(make_free_call(local.name, local.type, src, ctx.symbols))
     }
     if del_o.is_none() { return false }
     del := Option(Expr).take(own del_o)
@@ -2733,26 +2733,10 @@ priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr,
     return true
 }
 
-// #364: the mirror of sink_nontransfer_paths, for the ONE cleanup that
-// belongs on the transferring path instead of the others.
-//
-// A ctor arg into a SHALLOW field is a value-copy: the field's destructor
-// frees the inner data, and the local's heap WRAPPER is left orphaned, so
-// insert_post_stmt_deletes emits a bare `free(local)` to release it. That
-// free is unconditional code placed after the transfer STATEMENT -- correct
-// only when the transfer itself is unconditional. When the ctor sits in one
-// branch, the statement is an `if`, and the same free then runs on paths
-// that never transferred, where sink_nontransfer_paths has already grafted a
-// full delete: the wrapper is freed twice (#364's double free, which glibc
-// stopped reporting on 133ef49 while ASAN still called it a
-// heap-use-after-free). Omitting it instead just moves the bug: the
-// transferring path then leaks the wrapper -- 16 bytes per call, which is
-// what the ownership-shape matrix caught on the own-param row.
-//
-// So it is grafted, not emitted after the statement: appended at the end of
-// the branch that actually transfers, the same placement rule
-// add_delete_to_branch uses for the paths that do not.
-priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
+// Put the shallow-copy wrapper free on the branch that actually transfers.
+// Emitting it after the containing if/switch frees non-transferring paths too;
+// omitting it leaks the wrapper on the transferring path.
+priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, scope: TypeScope, mut ctx: Context) returns Bool {
     if node.node_type.is(NodeType.If).or(node.node_type.is(NodeType.Switch)) {
         mut any := false
         mut ci : USize = 1
@@ -2772,17 +2756,11 @@ priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, s
         return any
     }
     if node.node_type.is(NodeType.Body).not() { return false }
-    // Find the statement that actually transfers and put the free right
-    // AFTER it. Not at the end of the branch: an arm that `return`s after
-    // the ctor -- `if flag { h := Holder(s = s); return h.s.len() }`, the
-    // own-param row of the matrix -- would leave the free unreachable
-    // behind the return. Immediately after the transfer is also the
-    // narrowest correct window: the local is consumed from there on.
     mut idx : USize = 0
     mut found := false
     while idx < node.children.len() {
         ref mut child : Expr = node.children[idx]
-        if is_compile_directive(child).not() {
+        if is_compile_directive(child, ctx.symbols).not() {
             if child.node_type.is(NodeType.If).or(child.node_type.is(NodeType.Switch)).or(child.node_type.is(NodeType.Body)) {
                 if expr_transfers_own(child, local.name, scope, ctx) {
                     if sink_transfer_path_wrapper_free(child, local, scope, ctx) { return true }
@@ -2800,7 +2778,7 @@ priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, s
     for i in 0..old.len() {
         new_ch.push_take(old, i)
         if i == idx {
-            free_call := make_free_call(local.name, local.type, node)
+            free_call := make_free_call(local.name, local.type, node, ctx.symbols)
             new_ch.push(own free_call)
         }
     }
@@ -2808,7 +2786,7 @@ priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, s
     return true
 }
 
-priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
+priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: TypeScope, mut ctx: Context) returns Bool {
     if node.node_type.is(NodeType.If) {
         if node.children.len() < 2 { return false }
 
@@ -2863,7 +2841,7 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
 
     if node.node_type.is(NodeType.Body).not() { return false }
     for mut child : Expr in node.children {
-        if is_compile_directive(child) { continue }
+        if is_compile_directive(child, ctx.symbols) { continue }
         if child.node_type.is(NodeType.If).or(child.node_type.is(NodeType.Switch)).and(expr_transfers_own(child, local.name, scope, ctx)) {
             if sink_nontransfer_paths(child, local, scope, ctx) { return true }
             continue
@@ -2899,7 +2877,7 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
 // caller must recompute them when (and only when) that is the case --
 // and it almost never is: 22 grafts per 8,154 fact computations on a
 // test/first_class.til translate.
-priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) returns Bool {
+priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) returns Bool {
     mut grafted := false
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
@@ -2991,11 +2969,11 @@ priv record_storage_decisions := func(mut body: Expr, locals: Vec(LocalInfo)) {
 
 // Stamp whether each field assignment consumes its RHS. The interpreter
 // cannot recover this from an Ident after the typer hoists an owning call.
-priv record_field_transfer_decisions := func(mut body: Expr, scope: TypeScope) {
+priv record_field_transfer_decisions := func(mut body: Expr, scope: TypeScope, symbols: SymbolPool) {
     for mut stmt : Expr in body.children {
         switch stmt.node_type {
         case .FieldAssign(fad):
-            fad.transfers_own = field_assign_transfers_own(stmt, scope)
+            fad.transfers_own = field_assign_transfers_own(stmt, scope, symbols)
         case:
         }
     }
@@ -3003,12 +2981,12 @@ priv record_field_transfer_decisions := func(mut body: Expr, scope: TypeScope) {
 
 // A delete(..., false) consumes nested ownership but intentionally leaves the
 // outer allocation for the caller's following memset/free protocol.
-priv record_keep_outer_args_expr := proc(mut e: Expr, false_names: Set(Str)) {
+priv record_keep_outer_args_expr := proc(mut e: Expr, false_names: Set(Str), symbols: SymbolPool) {
     if e.node_type.is(NodeType.FCall).and(e.children.len().gt(2)).and(get_own_arg(e, 1)) {
         mut is_delete := false
         switch e.children[0].node_type {
-        case .FieldAccess(fa): is_delete = fa.field_access_name() == "delete"
-        case .Ident(id): is_delete = id.ident_name().ends_with("_delete")
+        case .FieldAccess(fa): is_delete = fa.field_access_name(symbols.names) == "delete"
+        case .Ident(id): is_delete = id.ident_name(symbols.names).ends_with("_delete")
         case:
         }
         if is_delete {
@@ -3017,16 +2995,16 @@ priv record_keep_outer_args_expr := proc(mut e: Expr, false_names: Set(Str)) {
             case .Literal(Literal.Bool(call_free)):
                 call_free_is_false = call_free.not()
             case .Ident(id):
-                call_free_is_false = false_names.has(id.ident_name())
+                call_free_is_false = false_names.has(id.ident_name(symbols.names))
             case:
             }
             if call_free_is_false { set_keep_outer_arg(e, 1) }
         }
     }
-    for mut child : Expr in e.children { record_keep_outer_args_expr(child, false_names) }
+    for mut child : Expr in e.children { record_keep_outer_args_expr(child, false_names, symbols) }
 }
 
-priv record_keep_outer_args := proc(mut body: Expr) {
+priv record_keep_outer_args := proc(mut body: Expr, symbols: SymbolPool) {
     mut false_names := Set(Str).new()
     for stmt : Expr in body.children {
         switch stmt.node_type {
@@ -3041,7 +3019,7 @@ priv record_keep_outer_args := proc(mut body: Expr) {
         case:
         }
     }
-    record_keep_outer_args_expr(body, false_names)
+    record_keep_outer_args_expr(body, false_names, symbols)
 }
 
 // --- #302 stage 5: the temp contract, checked ------------------------------
@@ -3099,7 +3077,7 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
             ref ctor_name : Str = ctor_name_o.unwrap()
             switch e.children[0].node_type {
             case .Ident(tc_cn):
-                if tc_cn.ident_name() == ctor_name { is_ctor = true }
+                if tc_cn.ident_name(ctx.symbols.names) == ctor_name { is_ctor = true }
             case:
             }
         }
@@ -3107,14 +3085,14 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
         if e.children.len() > 0 {
             switch e.children[0].node_type {
             case .Ident(tc_mn):
-                ref mn : Str = tc_mn.ident_name()
+                ref mn : Str = tc_mn.ident_name(ctx.symbols.names)
                 if ctx.constfolder_foldables.has(mn) {
                     if ctx.constfolder_foldables[mn].is(FuncType.Macro) { is_mac = true }
                 }
             case:
             }
         }
-        if consumed.not().and(is_mac.not()).and(is_aggregate(e.til_type())).and(fcall_returns_own(e, scope)) {
+        if consumed.not().and(is_mac.not()).and(is_aggregate(e.til_type())).and(fcall_returns_own(e, scope, ctx.symbols)) {
             tn := type_to_name(e.til_type())
             if tn.len() > 0 {
                 // ICE, not a diagnostic: an owned temp the hoister missed
@@ -3144,7 +3122,7 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
 
 priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
     for stmt : Expr in body.children {
-        if is_compile_directive(stmt) { continue }
+        if is_compile_directive(stmt, ctx.symbols) { continue }
         switch stmt.node_type {
         case .Decl(tc_dd):
             // The Decl RHS IS the hoisted/bound form; its nested args
@@ -3196,24 +3174,25 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     // unconditional rebuild this replaced was pure waste in essentially
     // every body (~9% of a translate went into building facts).
     fidx := fact_universe(body, scope)
-    mut facts := body_stmt_facts(body, scope, true, fidx)
-    collect_scope_locals(body, scope, is_program_scope, facts, fidx, stack_own_params, locals_vec)
+    mut facts := body_stmt_facts(body, scope, true, fidx, ctx.symbols)
+    collect_scope_locals(ctx, body, scope, is_program_scope, facts, fidx, stack_own_params, locals_vec)
+    sort_locals_by_name(locals_vec)
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
-    flag_outer_assign_rebinds(body, locals_vec, scope)
-    record_field_transfer_decisions(body, scope)
-    record_keep_outer_args(body)
+    flag_outer_assign_rebinds(body, locals_vec, scope, ctx.symbols)
+    record_field_transfer_decisions(body, scope, ctx.symbols)
+    record_keep_outer_args(body, ctx.symbols)
     temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }
 
-    extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx)
+    extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx.symbols)
     check_use_after_own_transfer(body, locals_vec, scope, ctx)
     record_storage_decisions(body, locals_vec)
     if sink_conditional_transfer_deletes(body, locals_vec, scope, ctx) {
         // Only when sink actually grafted: the rows are positional and
         // the grafted deletes shift the statements they landed among.
-        facts = body_stmt_facts(body, scope, false, fidx)
+        facts = body_stmt_facts(body, scope, false, fidx, ctx.symbols)
     }
     // After the own-transfer check (so an over-eager taint can't spuriously
     // flag use-after-transfer): defer a local's auto-delete past any later
@@ -3235,7 +3214,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
         cfg_build(cfg_blocks, body)
         gc_cfg_dump(ctx, body, cfg_blocks)
         gc_flow_dump(ctx, cfg_blocks, locals_vec, scope)
-        gc_live_dump(cfg_blocks, locals_vec)
+        gc_live_dump(cfg_blocks, locals_vec, ctx.symbols)
     }
 
     // #302 stage 3: the root body's per-statement ownership states,
@@ -3273,10 +3252,10 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
         ref mut stmt : Expr = old[i]
-        if is_compile_directive(stmt) { continue }
-        insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch)
+        if is_compile_directive(stmt, ctx.symbols) { continue }
+        insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch, ctx.symbols)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-        insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i)
+        insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, ctx.symbols)
         mut post_deletes := Vec(Expr).new()
         insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
         new_ch.push_take(old, i)
@@ -3366,9 +3345,9 @@ priv gc_scope_binding_is_consumed := func(scope: TypeScope, b: TypeBinding) retu
 // the asymmetry at its source and let this collapse to one call. That
 // changes the live scope and therefore emit, so it is deliberately a
 // separate change from this migration.
-priv garbager_decl_binding_type := func(dd: Declaration, scope: TypeScope) returns Type {
+priv garbager_decl_binding_type := func(dd: Declaration, scope: TypeScope, symbols: SymbolPool) returns Type {
     if dd.name.starts_with("hoisted__") { return dd.til_type.clone() }
-    return declaration_resolved_type(dd, scope)
+    return declaration_resolved_type(dd, scope, symbols)
 }
 
 // Head tag of a Type, so Struct("Str") and Custom("Str") do not compare
@@ -3407,10 +3386,11 @@ priv gc_own_spelling := func(o: OwnType) returns Str {
 // the failure mode the scope-cache alternative has by construction and
 // this route was chosen to avoid.
 priv gc_check_derived := func(ctx: Context, live: TypeScope, name: Str, dtype: Type, down: OwnType, dparam: Bool) {
-    if live.bindings.has(name).not() {
+    lb_o := live.get_binding_name(name, ctx.symbols)
+    if lb_o.is_none() {
         panic(ctx.path, ": gc scope derivation invented binding '", name, "'")
     }
-    ref lb : TypeBinding = live.bindings[name]
+    ref lb : TypeBinding = lb_o.unwrap()
     if gc_scope_binding_is_consumed(live, lb).not() { return }
     if gc_type_tag(lb.type) != gc_type_tag(dtype) {
         panic(ctx.path, ": gc scope derivation type-tag mismatch for '", name,
@@ -3477,12 +3457,12 @@ priv garbager_check_rebuilt_scope := func(ctx: Context, body: Expr, live: TypeSc
         for i in 0..fd.params.len() {
             ref param : Declaration = fd.params[i]
             if i.to_i32() == fd.variadic_index {
-                va_type := variadic_array_type_name(live, param.type_name())
+                va_type := variadic_array_type_name(live, param.type_name(), ctx.symbols)
                 gc_check_derived(ctx, live, param.name, Type.Struct(va_type), param.own_type, true)
             } else if i.to_i32() == fd.kwargs_index {
                 gc_check_derived(ctx, live, param.name, Type.Struct("KwargsMap"), param.own_type, true)
             } else {
-                gc_check_derived(ctx, live, param.name, type_from_name_init(param.type_name(), live), param.own_type, true)
+                gc_check_derived(ctx, live, param.name, type_from_name_init_name(param.type_name(), live, ctx.symbols), param.own_type, true)
             }
         }
     case .None:
@@ -3490,14 +3470,15 @@ priv garbager_check_rebuilt_scope := func(ctx: Context, body: Expr, live: TypeSc
     for stmt : Expr in body.children {
         switch stmt.node_type {
         case .Decl(dd):
-            gc_check_derived(ctx, live, dd.name, garbager_decl_binding_type(dd, live), dd.own_type, false)
+            gc_check_derived(ctx, live, dd.name, garbager_decl_binding_type(dd, live, ctx.symbols), dd.own_type, false)
         case:
         }
     }
     for ocap : Declaration in own_caps {
         if ocap.own_type.is(OwnType.Own).not() { continue }
-        if live.bindings.has(ocap.name).not() { continue }
-        gc_check_derived(ctx, live, ocap.name, live.bindings[ocap.name].type, OwnType.Own, false)
+        ocap_b_o := live.get_binding_name(ocap.name, ctx.symbols)
+        if ocap_b_o.is_none() { continue }
+        gc_check_derived(ctx, live, ocap.name, ocap_b_o.unwrap().type, OwnType.Own, false)
     }
 
     for lb : TypeBinding in live.bindings.values {
@@ -3539,8 +3520,8 @@ garbager_destroy_func_body := proc(mut ctx: Context, mut body: Expr, mut scope: 
     for i in 0..fd.params.len() {
         ref p : Declaration = fd.params[i]
         if p.own_type.is(OwnType.Own)
-        .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope)
-            .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, scope))) {
+        .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols)
+            .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols))) {
             stack_own_params.add(own p.name.clone())
         }
     }

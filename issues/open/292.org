@@ -57,6 +57,15 @@
     stack_local_types, ref_locals, ptr_locals, ref_dyn_locals,
     stack_lit_str_locals, unsafe_to_hoist, shadowed_params, body_refs,
     body_multi_decls) to Sym keys.
-  - [ ] Migrate FieldAccessData.name, then IdentData.name, to Sym.
+  - [X] Migrate FieldAccessData.name and IdentData.name to Sym together with
+    TypeScope bindings and every compiler lookup. The initial AST-only form
+    cut maps.til Str_clone calls from 545,149 to 484,866 and allocations from
+    1,024,103 to 903,850 but was about 2% slower because consumers resolved
+    names back through string-keyed tables. The completed migration uses a
+    compiler-only open-addressed SymbolPool index, so core programs do not
+    import the generic HashMap implementation or own duplicate name Strings.
+    Against exact parent 80788b616, 50 maps.til translations are at timer
+    parity (8.12s current vs 8.07s parent), while three self-translations
+    improve from 19.07s to 18.17s (-4.7%).
   - [ ] Stage compiler Type-name payload migration after runtime reflection
     and dyn_type_to_str no longer require Str payloads.
