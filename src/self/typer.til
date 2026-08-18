@@ -11671,6 +11671,17 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
 
     ref mut start_expr : Expr = iter.children[1]
     ref mut end_expr : Expr = iter.children[2]
+    // Snapshot the operands BEFORE inference. Inference is wanted here only
+    // for the element type, but it also DESUGARS: a struct constructor has
+    // its NamedArg children replaced by positional field values
+    // (infer_struct_constructor_fcall_impl). The decls below then cloned
+    // that desugared form, the body walk inferred it a second time, and the
+    // second pass rejected its own output -- "struct instantiation requires
+    // named arguments" for `for v : Vec2 in Vec2(x=0,y=0)..Vec2(x=3,y=3)`,
+    // the inline-constructor blocker #94 recorded. The pristine copies are
+    // inferred once, by that body walk, like any other decl RHS.
+    mut start_snapshot := start_expr.clone()
+    mut end_snapshot := end_expr.clone()
     infer_expr(scope, start_expr, in_func, ctx)
     infer_expr(scope, end_expr, in_func, ctx)
 
@@ -11722,11 +11733,11 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
     mut block := Expr.new(NodeType.Body, line, col)
 
     mut end_decl := Expr.new(NodeType.Decl(decl_typed(name = end_name, type_name = elem_type)), line, col)
-    end_decl.add_child(own end_expr.clone())
+    end_decl.add_child(own end_snapshot)
     block.add_child(own end_decl)
 
     mut cur_decl := Expr.new(NodeType.Decl(decl_typed(name = cur_name, type_name = elem_type, is_mut = true)), line, col)
-    cur_decl.add_child(own start_expr.clone())
+    cur_decl.add_child(own start_snapshot)
     block.add_child(own cur_decl)
 
     // Range is the model for iterating a container-LIKE value without

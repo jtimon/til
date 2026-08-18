@@ -287,3 +287,65 @@ test_for_kv_mut_collection_marks_written := test() {
     // 10 + 20 + 30 = 60
     assert_eq(I64, sum, 60)
 }
+
+// Issue #94: a range over a USER type. `for a..b` needs nothing from the
+// element but the methods -- lt/gt to test the bound and inc/dec to step --
+// and both derive: lt/gt from cmp, inc/dec from add+unity (doc/auto.org).
+// The desugar emits those method calls directly, so a conforming struct
+// iterates through the same counter-and-while shape a builtin integer does:
+// no Range object, no per-element dispatch.
+RangeableVec2 := struct {
+    x : I64 = 0
+    y : I64 = 0
+namespace:
+    add := func(a: RangeableVec2, b: RangeableVec2) returns RangeableVec2 {
+        return RangeableVec2(x = a.x.add(b.x), y = a.y.add(b.y))
+    }
+    sub := func(a: RangeableVec2, b: RangeableVec2) returns RangeableVec2 {
+        return RangeableVec2(x = a.x.sub(b.x), y = a.y.sub(b.y))
+    }
+    unity := func(self: RangeableVec2) returns RangeableVec2 {
+        return RangeableVec2(x = self.x.sub(self.x).add(1), y = 1)
+    }
+    cmp := func(a: RangeableVec2, b: RangeableVec2) returns I64 {
+        if a.x.lt(b.x) { return -1 }
+        if a.x.gt(b.x) { return 1 }
+        return a.y.cmp(b.y)
+    }
+}
+
+test_range_over_user_type_ascending := test() {
+    mut sum := 0
+    lo := RangeableVec2(x = 0, y = 0)
+    hi := RangeableVec2(x = 3, y = 3)
+    for v : RangeableVec2 in lo..hi {
+        sum = sum.add(v.x).add(v.y)
+    }
+    // (0,0)->0, (1,1)->2, (2,2)->4
+    assert_eq(I64, sum, 6)
+}
+
+test_range_over_user_type_descending := test() {
+    mut sum := 0
+    lo := RangeableVec2(x = 0, y = 0)
+    hi := RangeableVec2(x = 3, y = 3)
+    for v : RangeableVec2 in hi..lo {
+        sum = sum.add(v.x).add(v.y)
+    }
+    // (3,3)->6, (2,2)->4, (1,1)->2
+    assert_eq(I64, sum, 12)
+}
+
+// #94's recorded blocker: an INLINE constructor as a range operand. The
+// desugar inferred the operand for its element type, which desugars a
+// constructor's NamedArgs into positional fields, then cloned that into the
+// loop's decls -- so the body walk inferred it a second time and rejected
+// its own output ("struct instantiation requires named arguments"). The
+// operands are snapshotted before that inference now.
+test_range_over_user_type_inline_ctors := test() {
+    mut sum := 0
+    for v : RangeableVec2 in RangeableVec2(x = 0, y = 0)..RangeableVec2(x = 3, y = 3) {
+        sum = sum.add(v.x).add(v.y)
+    }
+    assert_eq(I64, sum, 6)
+}

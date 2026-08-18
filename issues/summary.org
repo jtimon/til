@@ -49,7 +49,6 @@
 *** [[./open/367.org][#367]] The NUL guarantee in the type: #343's route 2
 ** Low
 *** [[./open/63.org][#63]] User-defined modes
-*** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 *** [[./open/114.org][#114]] Source docs + repl help/introspection
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/156.org][#156]] Improve til-mode indentation rules

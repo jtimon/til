@@ -126,43 +126,75 @@
 
   Numeric ext_structs define their own inc/dec directly (C's ++/--).
 
-* Rangeable types (planned, #94)
+* Rangeable types (#94)
 
-  A type is "rangeable" if it can be used with ~for i in a..b~.
-  Range is a collection with ~len~/~get~, same interface as Vec.
+  A type is "rangeable" if it can be used with ~for i in a..b~. Nothing
+  is required of it beyond METHODS, and the ones it needs all derive:
 
-  Required methods on the element type:
+  | Method    | Used for                         | Can come from      |
+  |-----------+----------------------------------+--------------------|
+  | ~inc~     | ascending step                   | add + unity (auto) |
+  | ~dec~     | descending step                  | sub + unity (auto) |
+  | ~lt~/~gt~ | stop condition                   | cmp (auto)         |
+  | ~lte~     | runtime direction check           | cmp (auto)         |
 
-  | Method | Used for                        | Can come from      |
-  |--------+---------------------------------+--------------------|
-  | ~inc~  | ascending iteration + counting  | add + unity (auto) |
-  | ~dec~  | descending iteration + counting | sub + unity (auto) |
-  | ~lte~  | direction check + stop condition| cmp (auto)         |
+  So a struct with ~add~, ~sub~, ~unity~ and ~cmp~ is rangeable with no
+  further ceremony, and all numeric builtins qualify.
 
-  ~lte~ can come from ~cmp~ (auto-generated). ~inc~/~dec~ can come
-  from ~add~/~sub~ + ~unity~ (auto-generated). Or all can be defined
-  directly.
+** How it iterates: no Range object exists
 
-  Range.new computes direction and count at construction:
-  - ~ascending~: ~start.lte(end)~
-  - ~count~: clone start, inc/dec toward end counting steps (O(n))
-  The count is stored as U64 and returned by ~len()~.
-
-  All numeric builtins (I64, U8, I16, I32, U32, U64) are rangeable
-  -- they have all the required methods.
-
-** Example: builtin range
+   RANGE IS THE EXAMPLE OF ITERATING A CONTAINER-LIKE VALUE WITHOUT
+   CONTAINER COST. ~a..b~ parses to ~Range.new(a, b)~, but the typer
+   (~desugar_for_in_range_stmt~) never builds one: it rewrites the loop
+   into a bound, a cursor and a while, calling the element's own methods
+   directly.
 
    #+begin_src til
-   // I64 range (default for literals)
-   for i in 0..5 { ... }
+   for i in a..b { <body> }
 
-   // U32 range (inferred from count's type)
-   count : U32 = 10
-   for i in 0..count { ... }
+   // becomes, in effect:
+   {
+       _re := b                       // bound, evaluated once
+       mut _rc := a                   // cursor
+       if _rc.lte(_re) {
+           while _rc.lt(_re) { i := _rc   _rc.inc()   <body> }
+       } else {
+           while _rc.gt(_re) { i := _rc   _rc.dec()   <body> }
+       }
+   }
    #+end_src
 
-** Example: user-defined rangeable type (Vec2)
+   Consequences worth knowing:
+   - ~len()~ is never computed. The old design counted steps by cloning
+     the start and stepping to the end -- O(n) just to learn the length,
+     before iterating.
+   - The element's methods are bound STATICALLY at desugar time, so a
+     builtin integer range is raw arithmetic and a user type's is a
+     direct call. There is no dispatch per element.
+   - When the direction is provable at compile time -- both bounds
+     literal, or a literal 0 start with an unsigned element -- only ONE
+     of the two loops is emitted, so the body is not built, typed or
+     emitted twice.
+
+** Rejected: Range as a real collection (recorded so it stays rejected)
+
+   The earlier plan made ~Range~ a struct with ~len~/~get~ "the same
+   interface as Vec", storing the element as ~own elem : U8~ raw bytes
+   plus its type name, and stepping it through ~dyn_call(elem_type,
+   "inc", ...)~ per element. It was implemented far enough to measure
+   and abandoned: per-element dynamic dispatch and a per-range heap
+   object made the core library's own for-in loops -- ~Str.cmp~ and
+   friends -- markedly slower to compile, which is #94's recorded
+   bootstrap slowdown.
+
+   The lesson generalizes past ranges: a method-driven iteration
+   protocol is right, but the methods must be resolved when the loop is
+   desugared, never dispatched while it runs. Collection for-in follows
+   the same rule -- it desugars to ~len()~ + ~unsafe_get(i)~, both of
+   which the backend inlines, so a conforming user struct iterates at
+   pointer-arithmetic cost.
+
+** Example: user-defined rangeable type
 
    #+begin_src til
    Vec2 := struct {
@@ -175,121 +207,26 @@
        sub := func(a: Vec2, b: Vec2) returns Vec2 {
            return Vec2(x = a.x.sub(b.x), y = a.y.sub(b.y))
        }
-       unity := func(self: Vec2) returns Vec2 { return Vec2(x = 1, y = 1) }
+       unity := func(self: Vec2) returns Vec2 {
+           return Vec2(x = self.x.sub(self.x).add(1), y = 1)
+       }
        cmp := func(a: Vec2, b: Vec2) returns I64 {
-           // lexicographic ordering
            if a.x.lt(b.x) { return -1 }
            if a.x.gt(b.x) { return 1 }
            return a.y.cmp(b.y)
        }
-       to_str := func(self: Vec2) returns Str { return self.x.to_str() }
    }
    // Auto-generated from cmp: eq, neq, lt, gt, lte, gte
    // Auto-generated from add/sub + unity: inc, dec
-   // Rangeable: has inc, dec, lte
+   // Rangeable: has inc, dec, lt, gt
 
-   // Ascending: (0,0) -> (1,1) -> (2,2), count=3
-   test_range_vec2_ascending := test() {
-       mut sum := 0
-       for v : Vec2 in Vec2(x=0, y=0)..Vec2(x=3, y=3) {
-           sum = sum.add(v.x).add(v.y)
-       }
-       // (0,0)->0, (1,1)->2, (2,2)->4, total=6
-       assert_eq(__LOC__, sum, 6)
-   }
-
-   // Descending: (3,3) -> (2,2) -> (1,1), count=3
-   test_range_vec2_descending := test() {
-       mut sum := 0
-       for v : Vec2 in Vec2(x=3, y=3)..Vec2(x=0, y=0) {
-           sum = sum.add(v.x).add(v.y)
-       }
-       // (3,3)->6, (2,2)->4, (1,1)->2, total=12
-       assert_eq(__LOC__, sum, 12)
-   }
+   // Ascending: (0,0) -> (1,1) -> (2,2)
+   for v : Vec2 in Vec2(x=0, y=0)..Vec2(x=3, y=3) { ... }
+   // Descending: (3,3) -> (2,2) -> (1,1)
+   for v : Vec2 in Vec2(x=3, y=3)..Vec2(x=0, y=0) { ... }
    #+end_src
 
-** Range struct
-
-   Range stores its element dynamically and iterates via ~dyn_call~.
-   It implements the same ~len~/~get~ interface as Vec.
-
-   #+begin_src til
-   Range := struct {
-       len_val : U64 = 0
-       ascending := true
-       elem_type := ""
-       elem_size : USize = 0
-       own elem : U8 = 0        // current iteration value (raw bytes)
-
-   namespace:
-       new := proc(elem_type: Str, elem_size: USize,
-                   own start: Dynamic, own end: Dynamic) returns Range {
-           // Direction: start.lte(end)
-           ref asc : Bool = dyn_call_ret(elem_type, "lte", 2, start, end)
-
-           // Count steps by cloning start and inc/dec-ing toward end
-           mut count : U64 = 0
-           own tmp : Dynamic = dyn_call_ret(elem_type, "clone", 1, start)
-           if asc {
-               while dyn_call_ret(elem_type, "lt", 2, tmp, end) {
-                   dyn_call(elem_type, "inc", 1, tmp)
-                   count = count.add(1)
-               }
-           } else {
-               while dyn_call_ret(elem_type, "gt", 2, tmp, end) {
-                   dyn_call(elem_type, "dec", 1, tmp)
-                   count = count.add(1)
-               }
-           }
-           dyn_call(elem_type, "delete", 2, tmp, false)
-           free(own tmp)
-
-           // Store start as initial value
-           own buf : U8 = malloc(elem_size)
-           memcpy(buf, start, elem_size)
-           free(own start)
-           dyn_call(elem_type, "delete", 2, end, false)
-           free(own end)
-
-           return Range(len_val = count, ascending = asc,
-                        elem_type = elem_type.clone(), elem_size = elem_size,
-                        elem = buf)
-       }
-
-       len := func(self: Range) returns U64 { return self.len_val }
-
-       get := func(self: Range, shallow i: U64) returns ref Dynamic {
-           // i=0: return elem as-is (initialized to start)
-           // i>0: inc/dec before returning
-           if i.gt(0) {
-               if self.ascending {
-                   dyn_call(self.elem_type, "inc", 1, self.elem)
-               } else {
-                   dyn_call(self.elem_type, "dec", 1, self.elem)
-               }
-           }
-           return self.elem
-       }
-
-       clone := func(self: Range) returns Range {
-           own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, self.elem)
-           own buf : U8 = malloc(self.elem_size)
-           memcpy(buf, cloned, self.elem_size)
-           free(own cloned)
-           return Range(len_val = self.len_val, ascending = self.ascending,
-                        elem_type = self.elem_type.clone(),
-                        elem_size = self.elem_size, elem = buf)
-       }
-
-       delete := func(own self: Range, call_free: Bool = true) {
-           dyn_call(self.elem_type, "delete", 2, self.elem, false)
-           free(own self.elem)
-           Str.delete(own self.elem_type, false)
-           if call_free { free(own self) }
-       }
-   }
-   #+end_src
+   Covered by test_range_over_user_type_* in test/loops.til.
 
 ** Range element type inference
 
@@ -299,14 +236,11 @@
    - ~0..v.len()~ where len returns USize -> USize
    - ~for i : I32 in -5..5~ -> explicit annotation overrides
 
-   The typer transforms ~Range.new(start, end)~ to include type info:
-   ~Range.new("I64", I64.size(), own start, own end)~
-
 ** Non-rangeable types
 
-   A type with ~inc~/~dec~ but no ~cmp~ (or ~lte~) cannot be used
-   with ~..~ ranges because direction and count can't be computed.
-   The type can still use inc/dec directly.
+   A type with ~inc~/~dec~ but no ~cmp~ (and no hand-written ~lt~/~gt~)
+   cannot be used with ~..~: there is no way to test the bound. The type
+   can still use inc/dec directly.
 
    #+begin_src til
    Counter := struct {
@@ -318,6 +252,5 @@
        unity := func(self: Counter) returns Counter { return Counter(val = 1) }
    }
    // Gets inc auto-generated (from add + unity)
-   // No cmp -> no lte -> NOT rangeable
-   // Can still use ++ / -- directly
+   // No cmp -> no lt/gt -> NOT rangeable
    #+end_src
