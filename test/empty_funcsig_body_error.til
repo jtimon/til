@@ -1,0 +1,7 @@
+mode script
+
+Sig296 := func() returns I64 {}
+B296 := struct { t : Sig296 }
+forty296 := func() returns I64 { return 40 }
+b296 := B296(t = forty296)
+println(b296.t().to_str())

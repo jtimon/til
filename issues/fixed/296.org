@@ -1,6 +1,19 @@
 # priority: low
 # category: cleanups
-** OPEN #296 Confusing errors when a FuncSig is written with an empty body `{}`
+** FIXED #296 Confusing errors when a FuncSig is written with an empty body `{}`
+
+The parser already had the decisive information: a user func/proc/lazy body
+was empty while its signature declared a return type. The old pipeline accepted
+that invalid definition, then initialization treated its name as a value rather
+than a type and generated struct methods against an unknown field type. The
+later all-paths-return check eventually added one useful diagnostic, but only
+after initialization had created the sources of four cascading errors.
+
+~parse_func_def~ now rejects that empty non-void body immediately and names
+both valid corrections: omit ~{}~ for a FuncSig or add a return for a function.
+Parser failure stops the pipeline, so no unknown-type cascades are generated.
+~test/empty_funcsig_body_error.til~ preserves the complete original repro under
+both interpret and build front ends.
 
 A function-pointer signature (FuncSig) is the BODYLESS form
 `func(Types) returns T`. Writing it WITH an empty body --

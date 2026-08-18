@@ -1844,6 +1844,15 @@ main := proc(args: ..Str) {
     add_count(tests, "required_field_no_type_error_build", "parser",
         "expected", 1,
         format(til_bin, " build", asan_flag, " test/required_field_no_type_error.til"))
+    // #296: `{}` turns a FuncSig into an invalid function value. Reject the
+    // empty non-void body while parsing so the intended correction is reported
+    // once, before the unknown field type can produce typer cascades.
+    add_count(tests, "empty_funcsig_body_error_interp", "parser",
+        "did you mean a FuncSig", 1,
+        format(til_bin, " interpret test/empty_funcsig_body_error.til"))
+    add_count(tests, "empty_funcsig_body_error_build", "parser",
+        "did you mean a FuncSig", 1,
+        format(til_bin, " build", asan_flag, " test/empty_funcsig_body_error.til"))
 
     // === CLI tests ===
     exp := "gen/out/expected/"

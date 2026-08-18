@@ -800,8 +800,17 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     mut def := Expr.new(NodeType.FuncDef(fd), kw_line, kw_col)
 
     if check(p, TokenType.LBrace) {
+        body_line := peek_line(p)
+        body_col := peek_col(p)
         expect_token(p, TokenType.LBrace)
-        def.add_child(own parse_block(p))
+        mut body := parse_block(p)
+        if body.children.len().eq(0)
+            .and(funcdef_of(def).return_type.len().gt(0))
+            .and(ft.is_plain().or(ft.is_lazy())) {
+                parse_fail(p, body_line, body_col,
+                    "empty function body with declared return type; did you mean a FuncSig (omit '{}') or a function (add a return)?")
+        }
+        def.add_child(own body)
     } else if check(p, TokenType.Eq) {
         // FuncSig form continuation: bodyless `func(Types) returns T`
         // followed by `= (names) { body }`. Wires the names into the
