@@ -716,6 +716,9 @@ main := proc(args: ..Str) {
     add_count(tests, "enum_ctor_stack_payload", "build",
         "NodeType_FCall(({ FCallData *_oa = malloc(TIL_BOX(FCallData))", 0,
         "cat boot/til.c")
+    add_count(tests, "enum_ctor_stack_constructor_payload", "build",
+        "NodeType_Ident(&((IdentData[]){ ({ IdentData _sv", 94,
+        "cat boot/til.c")
     add_count(tests, "enum_ctor_borrows_outer", "build",
         "r.data.FCall = *val;\n    return r;", 1,
         "cat boot/til.c")

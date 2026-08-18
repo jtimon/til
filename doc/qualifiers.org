@@ -358,6 +358,9 @@ pointer shape: the constructor moves ~*val~ into inline enum storage but
 borrows the caller's stack outer. A niche enum is the payload pointer itself,
 so that pointer escapes and remains heap-backed. External/library generation
 also retains heap-outer transfer.
+When such a parameter receives a struct-constructor rvalue, generated C builds
+the rvalue in a local value and passes a compound-literal stack slot; no
+temporary heap wrapper is created.
 Likewise, deleting a stack value passes its existing address and forces
 ~call_free=false~; deleting contents does not require a temporary heap outer.
 
