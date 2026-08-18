@@ -1538,7 +1538,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
     return bf
 }
 
-priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, value_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
+priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, stack_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
     for b in scope.bindings.values {
         // Non-Own parameters borrow their storage; their caller or generated
         // entry wrapper owns any setup storage.
@@ -1652,9 +1652,9 @@ priv collect_scope_locals := func(body: Expr, scope: TypeScope, is_program_scope
         // and aggregate parameters are values too; pointer-boundary Own
         // parameters, raw allocations, Dynamic, and allocated callable objects
         // are exceptions.
-        value_own_param := b.is_param.and(decl_idx.lt(0)).and(value_own_params.has(b.name))
+        stack_own_param := b.is_param.and(decl_idx.lt(0)).and(stack_own_params.has(b.name))
         li.is_heap = b.own_type.is(OwnType.Own)
-            .and(b.type.is(Type.Dynamic).or(b.is_param.and(decl_idx.lt(0)).and(value_own_param.not())))
+            .and(b.type.is(Type.Dynamic).or(b.is_param.and(decl_idx.lt(0)).and(stack_own_param.not())))
         if type_is_callable_storage(b.type).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
         if decl_idx >= 0 {
             ref li_stmt : Expr = body.children[decl_idx.to_usize()]
@@ -3171,7 +3171,7 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
     }
 }
 
-priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32, value_own_params: Set(Str)) returns Bool {
+priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32, stack_own_params: Set(Str)) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_none()
 
@@ -3197,7 +3197,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     // every body (~9% of a translate went into building facts).
     fidx := fact_universe(body, scope)
     mut facts := body_stmt_facts(body, scope, true, fidx)
-    collect_scope_locals(body, scope, is_program_scope, facts, fidx, value_own_params, locals_vec)
+    collect_scope_locals(body, scope, is_program_scope, facts, fidx, stack_own_params, locals_vec)
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
@@ -3304,14 +3304,16 @@ garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeS
 }
 
 garbager_destroy_func_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns Bool {
-    mut value_own_params := Set(Str).new()
+    mut stack_own_params := Set(Str).new()
     for i in 0..fd.params.len() {
         ref p : Declaration = fd.params[i]
-        if p.own_type.is(OwnType.Own).and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope)) {
-            value_own_params.add(own p.name.clone())
+        if p.own_type.is(OwnType.Own)
+        .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope)
+            .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, scope))) {
+            stack_own_params.add(own p.name.clone())
         }
     }
-    return insert_free_calls(ctx, body, scope, 1, value_own_params)
+    return insert_free_calls(ctx, body, scope, 1, stack_own_params)
 }
 
 // Phase entry point. Runs the asap-destruction pass on every

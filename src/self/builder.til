@@ -471,6 +471,27 @@ priv is_value_param := func(name: Str, mut ctx: Context) returns Bool {
     }
 }
 
+priv is_stack_outer_param := func(name: Str, mut ctx: Context) returns Bool {
+    if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
+    switch ctx.builder_func.current_fdef {
+    case .None: return false
+    case .Some(cf):
+    switch cf.node_type {
+    case .FuncDef(fd):
+        for i in 0..fd.params.len() {
+            if fd.params[i].name == name {
+                return func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope)
+            }
+        }
+        return false
+    case .BodyValue: return false
+    case:
+        UNREACHABLE("unexpected ", cf.node_type.head_str())
+        return false
+    }
+    }
+}
+
 priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
     if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
     switch ctx.builder_func.current_fdef {
@@ -483,6 +504,7 @@ priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
             if p.name == name {
                 return p.own_type.is(OwnType.Own)
                     .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope).not())
+                    .and(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope).not())
             }
         }
         return false
@@ -548,6 +570,16 @@ priv callee_param_passes_c_value := func(callee_name: Str, arg_index: USize, ctx
         return func_param_passes_c_value(fd, arg_index, ctx.param_value_abi_ok, ctx.scope)
     case:
         return false
+    }
+}
+
+priv callee_param_has_stack_outer := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
+    switch fdef.node_type {
+    case .FuncDef(fd): return func_param_has_stack_outer(fd, arg_index, ctx.param_value_abi_ok, ctx.scope)
+    case: return false
     }
 }
 
@@ -1185,6 +1217,7 @@ priv own_value_arg_has_outer_ptr := func(e: Expr, mut ctx: Context) returns Bool
     case .Ident(id):
         if ctx.closure_emit_captures.has(ctx.symbols.intern(id.ident_name())) { return true }
         return is_value_param(id.ident_name(), ctx).not()
+            .and(is_stack_outer_param(id.ident_name(), ctx).not())
             .and(is_stack_local(id.ident_name(), ctx).not())
             .and(is_value_global(id.ident_name(), ctx).not())
     case .FCall: return fcall_returns_c_value(e, ctx).not()
@@ -1252,7 +1285,8 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             if own_arg.and(callee_param_type_name(callee_name, i - 1, ctx).eq("Dynamic")) {
                 ctx.builder_func.force_heap_stack_lit_str_own = true
             }
-            emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).not()), ctx)
+            emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).not())
+                .and(callee_param_has_stack_outer(callee_name, i - 1, ctx).not()), ctx)
             ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
         }
     }
@@ -3329,7 +3363,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                             ctx.builder_func.force_heap_stack_lit_str_own = true
                         }
                         emit_as_ptr(f, e.children[i], depth,
-                            own_arg.and(get_keep_outer_arg(e, i).not()), ctx)
+                            own_arg.and(get_keep_outer_arg(e, i).not())
+                                .and(callee_param_has_stack_outer(flat, i - 1, ctx).not()), ctx)
                         ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
                     }
                 }
@@ -3363,16 +3398,17 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             }
         } else if name.ident_name().eq("free").and(e.children.len().eq(2)) {
             ref free_arg : Expr = e.children[1]
-            mut free_value_param := false
+            mut free_stack_param := false
             switch free_arg.node_type {
-            case .Ident(free_id): free_value_param = is_value_param(free_id.ident_name(), ctx)
+            case .Ident(free_id):
+                free_stack_param = is_value_param(free_id.ident_name(), ctx)
+                    .or(is_stack_outer_param(free_id.ident_name(), ctx))
             case:
             }
-            if free_value_param {
-                // Ownership already moved through the C value parameter; it
-                // has no outer wrapper. Keep the source-level free as the
-                // transfer marker and consume the C value, but emit no
-                // physical free.
+            if free_stack_param {
+                // The parameter has no heap outer wrapper. Keep the
+                // source-level free as the transfer marker and consume the C
+                // value/pointer, but emit no physical free.
                 f.write("((void)").emit_expr(free_arg, depth, ctx).write(")")
                 return f
             }
@@ -4158,7 +4194,9 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             emit_expr(f, e, depth, ctx)
             return f
         }
-        if is_value_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
+        stack_outer_param := is_stack_outer_param(ident.ident_name(), ctx)
+        if is_value_param(ident.ident_name(), ctx).or(stack_outer_param)
+        .or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
             if is_own {
                 existing_o := get_stack_local_ctype(ident.ident_name(), ctx)
                 mut ctype := ""
@@ -4181,7 +4219,8 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     f.write(" *_oa = malloc(TIL_BOX(")
                     f.write(ctype)
                     f.write(")); *_oa = ")
-                    emit_expr(f, e, depth, ctx)
+                    if stack_outer_param { emit_deref(f, e, depth, ctx) }
+                    else { emit_expr(f, e, depth, ctx) }
                     // A Str stack local can carry the CAP_LIT tag at
                     // runtime (`mut s := ""`), and the callee's
                     // `free(own src)` box release is emitted with a
@@ -4197,8 +4236,11 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     f.write("; _oa; })")
                 }
             } else {
-                f.write("&")
-                f.write(builder_resolve_c_ident_name(ident.ident_name(), ctx))
+                if stack_outer_param { emit_expr(f, e, depth, ctx) }
+                else {
+                    f.write("&")
+                    f.write(builder_resolve_c_ident_name(ident.ident_name(), ctx))
+                }
             }
         } else {
             emit_expr(f, e, depth, ctx)
@@ -4486,11 +4528,23 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     elem_c := resolve_type_alias(lp.ctx.scope, p.type_name()).clone()
                     arr_type := builder_variadic_array_type_name(lp.ctx, p.type_name())
                     arr_ctype := type_name_to_c(arr_type, lp.ctx)
+                    stack_outer := func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope)
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
                     f.write("    USize _va_cap = _va_argc;\n")
-                    f.write("    ").write(arr_ctype).write(" ").write(p.name).write(" = ")
+                    if stack_outer.and(arr_type != "Array") {
+                        stack_name := "_va_main_".format(p.name)
+                        f.write("    ").write(type_name_to_c_value(arr_type, lp.ctx)).write(" ")
+                            .write(stack_name).write(" = {0};\n")
+                        f.write("    ").write(arr_ctype).write(" ").write(p.name).write(" = &")
+                            .write(stack_name).write(";\n")
+                    } else {
+                        f.write("    ").write(arr_ctype).write(" ").write(p.name).write(" = ")
+                    }
                     if arr_type == "Array" {
                         f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(elem_c).write("\", .count = "); emit_usize(f, elem_c.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
+                    } else if stack_outer {
+                        f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(elem_c).write("));\n")
+                        f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     } else {
                         f.write("malloc(TIL_BOX(").write(arr_type).write("));\n")
                         f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(elem_c).write("));\n")

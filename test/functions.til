@@ -48,6 +48,14 @@ test_own_params := test() {
     assert_eq(I64, fn_identity(own 100), 100)
 }
 
+variadic_stack_probe := func(probe_parts: ..Str) returns USize {
+    return probe_parts.len()
+}
+
+test_variadic_stack_outer := test() {
+    assert_eq(USize, variadic_stack_probe("a", "b", "c"), 3)
+}
+
 // --- merged from test/ufcs.til ---
 
 // Test universal UFCS: a.f(b) resolves to top-level f(a, b)

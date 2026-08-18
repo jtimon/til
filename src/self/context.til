@@ -1907,6 +1907,21 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
     return pt.is(Type.Primitive).or(pt.is(Type.Struct)).or(pt.is(Type.Enum))
 }
 
+// Ordinary variadic parameters keep their pointer-shaped Array ABI, but every
+// closed-world caller already materializes the Array as a local value. The
+// callee owns its contents while borrowing that outer stack slot, so its
+// destructor uses call_free=false. Public and bodyless boundaries retain the
+// established heap-outer convention.
+func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool, scope: TypeScope) returns Bool {
+    if stack_abi_ok.not().or(i >= fd.params.len()) { return false }
+    if i.to_i32() != fd.variadic_index { return false }
+    ref p : Declaration = fd.params[i]
+    if p.own_type.is(OwnType.Own).not().or(p.is_mut) { return false }
+    if fd.func_type.is_bodyless() { return false }
+    arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name()))
+    return scope.get_struct(arr_name).is_some()
+}
+
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }

@@ -71,6 +71,12 @@ to free ~x~. To take ownership you must write ~own~. Auto-shallow primitives
 (#223) are ~shallow~ even without the keyword: passed by value, the callee's
 copy is a register/stack scalar with nothing to free.
 
+A regular ~args: ..T~ parameter is implicitly ~own~: the caller transfers the
+synthesized Array's contents and the callee destroys them at ~args~' last use.
+Its outer Array is caller-stack storage, however, so the inserted destructor
+uses ~call_free=false~. An ext/core variadic parameter is ~ref~ instead: the
+callee inserts no destructor and the caller retains ownership.
+
 *** Returns
 
 | til                    | ownership          | who destroys the result                          |

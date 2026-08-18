@@ -139,6 +139,7 @@ Complete mapping of til qualifiers to generated C, by context.
 | ~mut arg: Type~           | ~Type *arg~      | mutable ref (callee can modify)      |
 | ~own arg: Type~           | ~Type *arg~      | ownership transfer (callee frees)    |
 | ~shallow arg: Type~       | ~Type arg~       | pass by value (copy on stack)        |
+| ~args: ..Type~            | ~Array__Type *args~ | implicit own; stack-backed outer  |
 
 ** Closure captures
 
@@ -347,6 +348,10 @@ mutable parameters, destructor outer-storage parameters, and other
 pointer-shaped callable storage still receive pointers. This representation
 choice does not change the source local's recorded storage or ownership
 semantics.
+
+Regular closed-world variadic parameters are the deliberate mixed case: they
+remain C pointers, but point at the caller's stack Array. They own and destroy
+the Array contents while preserving its outer storage (~call_free=false~).
 
 
 ** Visibility (priv keyword)

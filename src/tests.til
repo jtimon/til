@@ -701,6 +701,15 @@ main := proc(args: ..Str) {
     add_count(tests, "scalar_delete_own_param_pointer_abi", "build",
         "static void I64_delete(I64 * self, Bool call_free)", 2,
         "cat boot/til.c")
+    add_count(tests, "variadic_param_pointer_abi", "build",
+        "static Str format(Array__Str * parts)", 2,
+        "cat boot/til.c")
+    add_count(tests, "variadic_param_stack_cleanup", "build",
+        "Array__Str_delete(parts, 0);\n    { Str _ret = out;", 1,
+        "cat boot/til.c")
+    add_count(tests, "variadic_param_no_outer_boxes", "build",
+        "Array__Str *_oa = malloc(TIL_BOX(Array__Str))", 0,
+        "cat boot/til.c")
     add_count(tests, "expr_new_value_return_abi", "build",
         "static Expr Expr_new(NodeType * data, U32 line, U32 col)", 2,
         "cat boot/til.c")
