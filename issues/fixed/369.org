@@ -1,6 +1,14 @@
 # priority: medium
+# post-mortem: Linux CI compiled the generated C corpus only with gcc,
+# so clang-only -Werror failures reached the native mac jobs first. The
+# existing mac cross-build job already had clang, lld, and the mac targets;
+# it now builds every test/*.til and examples/*.til file for macos-arm64
+# through the til driver and fails on clang warning diagnostics. Using the
+# driver preserves each input's target and usize flags without a duplicate
+# skip/config list. The regression test is the "Cross-compile the corpus for
+# macos-arm64 (clang -Werror)" step in .github/workflows/tests.yml.
 # category: cleanups
-** OPEN #369 The generated C meets clang on linux, not only on the mac runners
+** FIXED #369 The generated C meets clang on linux, not only on the mac runners
 
 Every linux job compiles the generated C with gcc: ~toolchain_command~
 in src/self/targets.til hardcodes "gcc" for LinuxX64/LinuxX86 and names
