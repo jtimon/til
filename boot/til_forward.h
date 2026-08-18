@@ -325,6 +325,7 @@ typedef struct Array__U8 Array__U8;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
+typedef struct Option__ref_FunctionDef Option__ref_FunctionDef;
 typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef Map__Str_priv___src_self_scavenger_til__DeclRef;
@@ -1015,6 +1016,10 @@ typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock {
     USize cap;
 } Vec__priv___src_self_garbager_til__GcCfgBlock;
 
+
+struct Option__ref_FunctionDef {
+    FunctionDef *data;
+};
 
 struct Option__ref_Scope {
     Scope *data;

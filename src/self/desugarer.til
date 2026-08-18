@@ -5392,12 +5392,19 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
 // collector construction swapped for the folded expression. Built fully
 // resolved for the same reason they are: this desugar runs inside infer_body,
 // so nodes emitted here are never re-inferred.
+// own_type is the CALLER's, not a hardcoded Own: every caller registers a
+// binding for this same name two lines later, and the two records feed
+// different consumers (the builder reads the Declaration, the garbager reads
+// the binding). Stamping Own here regardless left a source-level
+// `x := array(T, 1, ..xs, 9)` owned to codegen and shallow to the
+// destruction pass -- the splat twin of the mismatch fixed for the
+// contiguous path in b60ccb68.
 priv build_collection_alias_decl := func(src: Expr, type_name: Str, name: Str,
-        is_mut: Bool, own rhs: Expr) returns Expr {
+        is_mut: Bool, own_type: OwnType, own rhs: Expr) returns Expr {
     mut decl := Expr.new(NodeType.Decl(Declaration()), src.line, src.col)
     ref mut dd : Declaration = decl_of(decl)
     dd.name = name.clone()
-    dd.own_type = OwnType.Own
+    dd.own_type = own_type
     dd.is_mut = is_mut
     decl.set_til_type(Type.Struct(type_name.clone()))
     decl.add_child(own rhs)
@@ -5411,7 +5418,7 @@ priv build_collection_alias_decl := func(src: Expr, type_name: Str, name: Str,
 priv bind_folded_array_literal := func(ctx: Context, fcall: Expr, mut new_ch: Vec(Expr),
         mut scope: TypeScope, array_type: Str, name: Str, is_mut: Bool,
         own_type: OwnType, own folded: Expr) returns Bool {
-    mut decl := build_collection_alias_decl(fcall, array_type, name, is_mut, own folded)
+    mut decl := build_collection_alias_decl(fcall, array_type, name, is_mut, own_type, own folded)
     scope.set(name, Type.Struct(array_type.clone()), is_mut, ctx.path, fcall.line, fcall.col, false, own_type)
     new_ch.push(own decl)
     return true
@@ -5429,7 +5436,7 @@ priv bind_folded_vec_literal := func(mut ctx: Context, fcall: Expr, mut new_ch: 
     // fold scope hit the hoisted temp of an inner concat, unbound there.
     tmp_name := format("_array_", ctx.coll_counter.to_str())
     ctx.coll_counter++
-    mut tmp_decl := build_collection_alias_decl(fcall, array_type, tmp_name, false, own folded)
+    mut tmp_decl := build_collection_alias_decl(fcall, array_type, tmp_name, false, OwnType.Own, own folded)
     scope.set(tmp_name, Type.Struct(array_type.clone()), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
     new_ch.push(own tmp_decl)
 
@@ -5439,7 +5446,7 @@ priv bind_folded_vec_literal := func(mut ctx: Context, fcall: Expr, mut new_ch: 
     src_id.set_til_type(Type.Struct(array_type.clone()))
     to_vec.add_child(own src_id)
     sync_own_args_from_callee(to_vec, scope)
-    mut vec_decl := build_collection_alias_decl(fcall, vec_type, name, true, own to_vec)
+    mut vec_decl := build_collection_alias_decl(fcall, vec_type, name, true, own_type, own to_vec)
     scope.set(name, Type.Struct(vec_type.clone()), true, ctx.path, fcall.line, fcall.col, false, own_type)
     new_ch.push(own vec_decl)
     return true

@@ -6881,7 +6881,7 @@ priv infer_capture_block := proc(mut scope: TypeScope, mut stmt: Expr,
         ref mut ob : TypeBinding = block_scope.get_binding(ocap.name).unwrap()
         ob.used = true
     }
-    garbager_destroy_body(ctx, body, block_scope)
+    garbager_destroy_capture_body(ctx, body, block_scope, captures)
     check_unused_locals(block_scope, ctx.path, ctx)
     check_unused_mut_locals(block_scope, ctx.path, ctx)
     stmt.set_til_type(Type.None)

@@ -113,55 +113,90 @@
     live scope EXACTLY on which names are bound, on params vs locals, and
     on ownership. Zero dropped bindings, zero invented ones.
 
-    Now the blocker, which is ~own_type~, and it is not a gap that more
-    care in the rebuild closes. THREE registrars create body Decls and
-    each writes a different ~own_type~ to the AST ~Declaration~ than to
-    the ~TypeBinding~, with nothing in the AST marking which one ran:
+    The blocker was ~own_type~, and it was a real inconsistency in the
+    compiler rather than a gap in the rebuild. Two sites built a body
+    Decl stamping ~own_type = Own~ on the ~Declaration~ while registering
+    the ~TypeBinding~ ~Shallow~ two lines later -- and both did it for the
+    USER's variable name, not a prefixed temp, so no syntactic marker
+    could recover which record to believe. The two feed different
+    consumers (the builder reads the Declaration, the garbager reads the
+    binding), so a source-level collection literal was owned to codegen
+    and shallow to the destruction pass:
 
-    - the typer's Decl handler registers the binding ~Shallow~
-      unconditionally, then upgrades to ~Ref~ when ~sdecl.own_type~ is
-      ~Ref~. An ~Own~ on the Declaration never reaches the binding.
-    - ~hoist_to_temp~ registers the hoisted expression's ~til_type~ RAW,
-      so a temp holding a user-enum value keeps ~Custom(name)~ where a
-      source-level local of the same type holds ~Enum(name)~. That is
-      observable -- ~is_aggregate~ is ~Struct or Enum~, so ~Custom~ reads
-      as non-aggregate -- and it accounts for 433 type divergences in a
-      self-host (278 ~Literal~, 155 ~Primitive~), all on ~hoisted__~
-      names.
-    - ~desugar_array_vec_decl~ writes ~own_type = Own~ onto the
-      Declaration while registering the binding ~Shallow~ -- and it does
-      this for the USER'S variable name, not a prefixed temp. The
-      equivalence check caught it on ~gui_files := array(Str, ...)~ in
-      src/tests.til.
+    - ~desugar_array_vec_decl~'s contiguous path, via
+      ~build_builtin_vec_decl~ / ~build_variadic_array_decl~. Caught on
+      ~gui_files := array(Str, ...)~ in src/tests.til. Fixed in b60ccb68.
+    - the same function's SPLAT path, via ~build_collection_alias_decl~,
+      which hardcoded ~Own~ while its callers passed the intended
+      own-type through for the binding. Caught on
+      ~mixed := array(I64, 1, ..inner, 9)~ in test/arrays.til. Fixed by
+      threading the caller's own_type into the builder.
 
-    That third case is what settles it: the Declaration's ~own_type~
-    genuinely does not determine the binding's, and there is no
-    syntactic marker to recover which registrar ran. Keying on a name
-    prefix works for ~hoisted__~ and fails here by construction.
+    A third site was reported here earlier and that report was WRONG:
+    ~finish_hoist_temp~ writes ~dd.own_type~ and ~tb.own_type~ together,
+    so hoist temps are internally consistent. What differs there is the
+    TYPE, and not between the two records -- it stores the hoisted
+    expression's stamped ~til_type~ verbatim in both, where the typer's
+    Decl handler runs ~declaration_resolved_type~ and so turns a
+    syntactic ~Custom(name)~ into ~Enum~/~Struct~. That is observable
+    (~is_aggregate~ is ~Struct or Enum~, so ~Custom~ reads as
+    non-aggregate) and accounts for 433 divergences in a self-host (278
+    ~Literal~, 155 ~Primitive~), all on ~hoisted__~ names. Measured both
+    uniform rules: resolving every Decl diverges on those 433; resolving
+    none diverges on 1866 source locals. So the rebuild mirrors the split
+    and keys on the ~hoisted__~ prefix other passes already recognise.
+    Making ~finish_hoist_temp~ resolve like the Decl handler would retire
+    that asymmetry at its source and let the rebuild collapse to one
+    call; it changes the live scope and therefore emit, so it is left as
+    its own change.
 
-    Measured for completeness: resolving every Decl type through
-    ~declaration_resolved_type~ diverges on 433 hoist temps; resolving
-    none (raw ~dd.til_type~) diverges on 1866 source locals. Neither rule
-    is right because the split is not a rule -- it is history.
+    Three further facts the equivalence check turned up, all now handled:
 
-    So the rebuild needs a PREREQUISITE commit that reconciles the
-    registrars: make ~Declaration.own_type~ and ~TypeBinding.own_type~
-    agree at every site that creates a body Decl (and, for the type,
-    make ~hoist_to_temp~ resolve like the Decl handler). That is an
-    emit-affecting normalization -- it changes what the garbager decides
-    -- so it wants the full suite plus ASAN, and it is worth doing on its
-    own merits: two records of the same fact that disagree is the shape
-    [[./302.org][#302]] has been retiring elsewhere. With the registrars in
-    agreement, the rebuild's remaining derivation is already proven exact
-    by the measurement above.
+    - an ~own~ capture is the one binding a body owns that is NOT a Decl
+      of that body -- ~infer_capture_block_stmt~ registers it into the
+      block scope after typing, from the ENCLOSING binding's type. The
+      rebuild takes the captures off the ~CaptureBlock~ node, which the
+      central walk descends through anyway.
+    - PROGRAM scopes are not in the migration's scope at all:
+      ~garbager_destroy~ already passes ~ctx.scope~ straight through for
+      a unit's top level, and the REPL delta path does the same. Only the
+      per-body scopes need deriving, and every one of those has a parent.
+    - the check is scoped to bindings ~collect_scope_locals~ actually
+      consumes. A binding the pass skips (a REPL body's ~Array~ /
+      ~Body~ type names, dropped by the struct-def filter) is one it
+      never reads, so reproducing it is not part of what the rebuild
+      has to get right.
+
+    With those settled, migration step 1 is DONE: a panic-on-divergence
+    check runs at every site the pass runs, and the full suite (393/393,
+    ASAN included) is green. The derivation is proven, not argued.
+
+    The check derives each fact and compares it against the live binding
+    on the spot rather than materializing a parallel TypeScope. Building
+    a scope per body cost a Map plus a cloned TypeBinding per name --
+    each with a cloned Str and Type -- for every body of every compile,
+    which is real memory for a check that only reads four fields. The
+    comparison form allocates nothing: tag tests and Str.eq against names
+    the AST and the scope already own, with the reverse direction asking
+    the AST whether it declares a name instead of keeping a Set of seen
+    ones. Measured on a self-host build of src/til.til: 607.4 MB peak RSS
+    without the check, 608.8 MB with it -- +1.4 MB, and no measurable
+    change in wall time.
+
+    Step 2 is the flip -- retire the nine inline
+    ~garbager_destroy_body~ / ~garbager_destroy_func_body~ calls in the
+    typer, have ~garbager_destroy(ctx)~ walk each unit post-order
+    rebuilding chains as it descends (post-order matches today's
+    inner-first processing, so the outer pass's grafts into
+    already-processed inner bodies keep their current semantics), and
+    drop the check.
 
     The alternative (a per-body scope cache on Context) sidesteps all of
     this but costs retained memory for every body until typing ends --
     against the direction [[../fixed/204.org][#204]] / [[./302.org][#302]] took -- and couples two
     walks by completion order, where a divergence hands a body the wrong
     scope and miscompiles its frees silently. The rebuild fails loudly;
-    the cache fails quietly. That is why the rebuild is still the
-    recommended route, behind the reconciliation commit.
+    the cache fails quietly. That is why the rebuild is the route taken.
 
 ** Original report (kept for reference)
 

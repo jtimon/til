@@ -3288,6 +3288,226 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     return true
 }
 
+// Issue #158 / #204 step 3b -- migration step 1 of 2.
+//
+// PROVES that a body's TypeScope is derivable from the typed AST, which
+// is what the migration needs: the per-body garbager calls the typer
+// makes inline move into the single garbager_destroy(ctx) walk, and that
+// walk cannot borrow the typer's scopes -- they are stack locals of its
+// recursion, gone the moment infer_body returns.
+//
+// Deriving is viable because this pass reads exactly FOUR binding facts:
+// name, type, own_type and is_param. (Grep the module: no other
+// TypeBinding field is touched. is_alias / is_raw_alloc / is_str_view /
+// borrow_roots / used / written are all typer- or diagnostics-only.) All
+// four survive in the typed AST:
+//   - params: fd.params carries each Declaration, and the typer writes its
+//     own-type normalizations (#223 auto-shallow, the variadic/kwargs Own
+//     forcing, main's Ref->Own) back onto that Declaration, so the
+//     post-typer AST already holds the settled answer;
+//   - locals: each is a top-level Decl of the body by the time this runs --
+//     the desugar/hoist temps are ordinary Decl statements after
+//     body_pre_passes, and #93 lifted nested defs to the top level;
+//   - own captures: the one binding a body owns that is NOT a Decl of it.
+//     infer_capture_block_stmt registers those post-typing from the
+//     ENCLOSING binding's type; they come off the CaptureBlock node, which
+//     the step-2 walk descends through anyway.
+//
+// The check derives each fact and compares it against the live binding on
+// the spot, rather than materializing a parallel TypeScope. A scope per
+// body would cost a Map plus a cloned TypeBinding per name -- each with a
+// cloned Str and Type -- for every body of every compile, which is real
+// memory for a check that only ever reads four fields. Nothing here
+// allocates: the comparisons are tag tests and Str.eq against names the
+// AST and the scope already own.
+//
+// Type resolution goes through declaration_resolved_type /
+// type_from_name_init against the LIVE scope, never the typer's
+// type_from_name_at: that one reports priv-access errors and marks
+// cross-file imports used, so re-running it would duplicate diagnostics
+// and mask unused-import warnings. Resolving against the live scope
+// rather than a derived one is exact for this purpose -- a type name
+// resolves in an outer or global scope (#93 lifts nested defs out), and
+// program scopes are never derived at all (see below).
+
+// Does this pass turn `b` into a LocalInfo at all? Mirrors
+// collect_scope_locals' three opening filters exactly. The check is
+// scoped to the bindings that answer yes: a binding the pass skips is one
+// it never reads, so reproducing it is not part of what the derivation
+// has to get right. (REPL bodies, for instance, carry type-name bindings
+// like `Array` / `Body` that the struct-def filter drops.)
+priv gc_scope_binding_is_consumed := func(scope: TypeScope, b: TypeBinding) returns Bool {
+    if b.is_param.and(b.own_type.is(OwnType.Own).not()) { return false }
+    bfp := name_fingerprint(b.name)
+    if scope.local_struct_def_fp(b.name, bfp).is_some() { return false }
+    if scope.local_func_def_fp(b.name, bfp).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { return false }
+    return true
+}
+
+// The binding type a Decl contributes, mirroring whichever registrar the
+// typer actually used for it.
+//
+// The typer's Decl handler registers declaration_resolved_type(sdecl,
+// scope), which turns a syntactic Custom(name) into Enum/Struct when the
+// name resolves. finish_hoist_temp instead stores the hoisted
+// EXPRESSION's stamped til_type, verbatim, in both the Declaration and
+// the binding -- consistently with itself, but without that resolution
+// step. So a hoist temp holding a user-enum value keeps Custom(name)
+// where a source-level local of the same type holds Enum(name).
+//
+// The difference is observable: is_aggregate is `Struct or Enum`, so
+// Custom reads as non-aggregate. Measured on a self-host, resolving
+// every Decl diverges on 433 hoist temps and resolving none diverges on
+// 1866 source locals, so this mirrors the split rather than picking one
+// rule. `hoisted__` is the marker other passes already key on for these
+// temps (see the #321 note in typer.til).
+//
+// Making finish_hoist_temp resolve like the Decl handler would retire
+// the asymmetry at its source and let this collapse to one call. That
+// changes the live scope and therefore emit, so it is deliberately a
+// separate change from this migration.
+priv garbager_decl_binding_type := func(dd: Declaration, scope: TypeScope) returns Type {
+    if dd.name.starts_with("hoisted__") { return dd.til_type.clone() }
+    return declaration_resolved_type(dd, scope)
+}
+
+// Head tag of a Type, so Struct("Str") and Custom("Str") do not compare
+// equal and two primitives do not collapse onto til_type_name's empty
+// string. An integer rather than a spelling: this runs per binding per
+// body, and format() would allocate three Strs a call.
+priv gc_type_tag := func(t: Type) returns USize {
+    if t.is(Type.Unknown) { return 1 }
+    if t.is(Type.None) { return 2 }
+    if t.is(Type.Dynamic) { return 3 }
+    if t.is(Type.Body) { return 4 }
+    if t.is(Type.Struct) { return 5 }
+    if t.is(Type.Enum) { return 6 }
+    if t.is(Type.Custom) { return 7 }
+    if t.is(Type.Primitive) { return 8 }
+    if t.is(Type.FuncPtrSig) { return 9 }
+    if t.is(Type.FuncPtr) { return 10 }
+    return 0
+}
+
+priv gc_own_tag := func(o: OwnType) returns USize {
+    if o.is(OwnType.Own) { return 1 }
+    if o.is(OwnType.Ref) { return 2 }
+    return 3
+}
+
+priv gc_own_spelling := func(o: OwnType) returns Str {
+    if o.is(OwnType.Own) { return "own" }
+    if o.is(OwnType.Ref) { return "ref" }
+    return "shallow"
+}
+
+// One derived binding against the live scope. Fails loud: a divergence
+// means that once step 2 lands, this body would be destroyed against the
+// wrong ownership picture, and that miscompiles frees QUIETLY -- exactly
+// the failure mode the scope-cache alternative has by construction and
+// this route was chosen to avoid.
+priv gc_check_derived := func(ctx: Context, live: TypeScope, name: Str, dtype: Type, down: OwnType, dparam: Bool) {
+    if live.bindings.has(name).not() {
+        panic(ctx.path, ": gc scope derivation invented binding '", name, "'")
+    }
+    ref lb : TypeBinding = live.bindings[name]
+    if gc_scope_binding_is_consumed(live, lb).not() { return }
+    if gc_type_tag(lb.type) != gc_type_tag(dtype) {
+        panic(ctx.path, ": gc scope derivation type-tag mismatch for '", name,
+            "': live=", type_to_name(lb.type), " derived=", type_to_name(dtype))
+    }
+    if til_type_name(lb.type).eq(til_type_name(dtype)).not() {
+        panic(ctx.path, ": gc scope derivation type-name mismatch for '", name,
+            "': live=", til_type_name(lb.type), " derived=", til_type_name(dtype))
+    }
+    if type_to_name(lb.type).eq(type_to_name(dtype)).not() {
+        panic(ctx.path, ": gc scope derivation type mismatch for '", name,
+            "': live=", type_to_name(lb.type), " derived=", type_to_name(dtype))
+    }
+    if gc_own_tag(lb.own_type) != gc_own_tag(down) {
+        panic(ctx.path, ": gc scope derivation own_type mismatch for '", name,
+            "': live=", gc_own_spelling(lb.own_type), " derived=", gc_own_spelling(down))
+    }
+    lp := lb.is_param
+    if lp.and(dparam.not()).or(lp.not().and(dparam)) {
+        panic(ctx.path, ": gc scope derivation is_param mismatch for '", name, "'")
+    }
+}
+
+// Reverse direction, without a Set of seen names: ask the AST whether it
+// declares this name at all. Bodies are small, so the scan is cheaper
+// than the Str clones a Set would take per binding.
+priv gc_ast_declares := func(body: Expr, fdef_o: Option(ref FunctionDef), own_caps: Vec(Declaration), name: Str) returns Bool {
+    switch fdef_o {
+    case .Some(fd):
+        for i in 0..fd.params.len() {
+            if fd.params[i].name.eq(name) { return true }
+        }
+    case .None:
+    }
+    for stmt : Expr in body.children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if dd.name.eq(name) { return true }
+        case:
+        }
+    }
+    for ocap : Declaration in own_caps {
+        if ocap.own_type.is(OwnType.Own).and(ocap.name.eq(name)) { return true }
+    }
+    return false
+}
+
+// Migration step 1: prove the derivation at every site the pass runs.
+// The pass itself is untouched -- it still uses the live scope. Step 2
+// lifts the derivation here into a real scope builder, flips the nine
+// inline callers onto the central walk, and drops this.
+priv garbager_check_rebuilt_scope := func(ctx: Context, body: Expr, live: TypeScope, fdef_o: Option(ref FunctionDef), own_caps: Vec(Declaration)) {
+    // Program scopes are out of scope for the migration, so out of scope
+    // for its proof: garbager_destroy already passes ctx.scope straight
+    // through for a unit's top-level body, and the REPL delta path does
+    // the same. Only the per-body scopes -- the ones that die with the
+    // typer's stack frames -- ever need deriving, and every one of those
+    // has a parent. (Same test insert_free_calls uses for
+    // is_program_scope.)
+    if live.parent.is_none() { return }
+
+    switch fdef_o {
+    case .Some(fd):
+        for i in 0..fd.params.len() {
+            ref param : Declaration = fd.params[i]
+            if i.to_i32() == fd.variadic_index {
+                va_type := variadic_array_type_name(live, param.type_name())
+                gc_check_derived(ctx, live, param.name, Type.Struct(va_type), param.own_type, true)
+            } else if i.to_i32() == fd.kwargs_index {
+                gc_check_derived(ctx, live, param.name, Type.Struct("KwargsMap"), param.own_type, true)
+            } else {
+                gc_check_derived(ctx, live, param.name, type_from_name_init(param.type_name(), live), param.own_type, true)
+            }
+        }
+    case .None:
+    }
+    for stmt : Expr in body.children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            gc_check_derived(ctx, live, dd.name, garbager_decl_binding_type(dd, live), dd.own_type, false)
+        case:
+        }
+    }
+    for ocap : Declaration in own_caps {
+        if ocap.own_type.is(OwnType.Own).not() { continue }
+        if live.bindings.has(ocap.name).not() { continue }
+        gc_check_derived(ctx, live, ocap.name, live.bindings[ocap.name].type, OwnType.Own, false)
+    }
+
+    for lb : TypeBinding in live.bindings.values {
+        if gc_scope_binding_is_consumed(live, lb).not() { continue }
+        if gc_ast_declares(body, fdef_o, own_caps, lb.name).not() {
+            panic(ctx.path, ": gc scope derivation dropped binding '", lb.name, "'")
+        }
+    }
+}
+
 // Per-body asap entry. Called from the typer's scope-management sites
 // (infer_func_def_expr, infer_if_stmt, infer_while_stmt, the Body/Catch
 // arms of infer_body_stmt) after infer_body has settled. The per-body
@@ -3300,10 +3520,21 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
 garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
+    garbager_check_rebuilt_scope(ctx, body, scope, Option(ref FunctionDef).None, Vec(Declaration).new())
+    return insert_free_calls(ctx, body, scope, 1, Set(Str).new())
+}
+
+// A capture block's body. Same pass, but its scope carries the `own`
+// captures that infer_capture_block_stmt registered post-typing, and
+// those are not Decls of the body -- so the step-1 equivalence check
+// needs them handed over. See garbager_rebuild_scope's capture note.
+garbager_destroy_capture_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, captures: Vec(Declaration)) returns Bool {
+    garbager_check_rebuilt_scope(ctx, body, scope, Option(ref FunctionDef).None, captures)
     return insert_free_calls(ctx, body, scope, 1, Set(Str).new())
 }
 
 garbager_destroy_func_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns Bool {
+    garbager_check_rebuilt_scope(ctx, body, scope, Option(ref FunctionDef).Some(fd), Vec(Declaration).new())
     mut stack_own_params := Set(Str).new()
     for i in 0..fd.params.len() {
         ref p : Declaration = fd.params[i]
