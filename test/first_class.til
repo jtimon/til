@@ -1555,6 +1555,19 @@ test_generic_infer_hard_evidence := test() {
     assert_eq(I64, gid(I64, 11), 11)
 }
 
+// #359: init sees a private generic's raw name for explicit application,
+// while typer-time deduction sees its mangled binding. Both spellings are
+// one source identity and must select one concrete declaration.
+priv generic_count359 := func(T: Type, parts: ..T) returns USize { return parts.len() }
+priv generic_runtime_str359 := func(s: Str) returns Str { return format(s, "!") }
+
+test_private_generic_explicit_and_deduced := test() {
+    s := generic_runtime_str359("x")
+    assert_eq(USize, generic_count359(Str, s), 1)
+    t := generic_runtime_str359("y")
+    assert_eq(USize, generic_count359(t), 1)
+}
+
 // #328 Task 5: name-forming provenance. A `USize` operand contributes
 // the target-INDEPENDENT `USize`, not the target's primitive, whether it
 // arrives as a typed local, a field, or a call result -- so all three and

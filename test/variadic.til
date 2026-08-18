@@ -236,30 +236,23 @@ test_mixed_splat_generic := test() {
 // Array__Array__Str instance ("pass it explicitly"), and the mixed form called
 // Str and Array__Str conflicting evidence.
 //
-// Deliberately a SEPARATE generic from splat_generic_count above: applying one
-// generic both explicitly and by deduction in a single unit synthesizes the
-// monomorphization twice and the C compiler rejects the duplicate. That is
-// unrelated to splats (it reproduces with plain runtime arguments) and is not
-// fixed here.
-priv splat_deduced_count := func(T: Type, parts: ..T) returns USize {
-    return parts.len()
-}
-
 priv splat_deduced_prefix := func(T: Type, sep: Str, parts: ..T) returns USize {
     return parts.len().add(sep.len())
 }
 
 test_splat_deduced_type_arg := test() {
     a := array(Str, "a", "b")
-    assert_eq(USize, splat_deduced_count(..a), 2)
-    assert_eq(USize, splat_deduced_count("x", ..a), 3)
-    assert_eq(USize, splat_deduced_count(..a, "x", "y"), 4)
+    // #359: this same private generic is also applied explicitly above;
+    // deduction must reuse that concrete declaration.
+    assert_eq(USize, splat_generic_count(..a), 2)
+    assert_eq(USize, splat_generic_count("x", ..a), 3)
+    assert_eq(USize, splat_generic_count(..a, "x", "y"), 4)
     // deduction still lines up when a fixed parameter precedes the run
     assert_eq(USize, splat_deduced_prefix("-", "x", ..a), 4)
     // and the element type is what is deduced, not merely Str-shaped
     n := array(I64, 7, 8, 9)
-    assert_eq(USize, splat_deduced_count(1, ..n), 4)
-    assert_eq(USize, splat_deduced_count(..n), 3)
+    assert_eq(USize, splat_generic_count(1, ..n), 4)
+    assert_eq(USize, splat_generic_count(..n), 3)
 }
 
 // #342: the element-type check that the mismatched splats in

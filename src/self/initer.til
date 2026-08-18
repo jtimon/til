@@ -3883,7 +3883,11 @@ priv generic_source_of := func(gs: GenericSources, name: Str, scope: TypeScope, 
         panic(ctx.path, ": generic source '", name, "' resolved without a binding")
     }
     ref b : TypeBinding = b_o.unwrap()
-    return GenericFuncSource(name = name.clone(), path = b.path.clone(), is_priv = b.is_priv)
+    mut identity_name := name.clone()
+    if name.starts_with("priv__").and(b.orig_name.len().gt(0)) {
+        identity_name = b.orig_name.clone()
+    }
+    return GenericFuncSource(name = name.clone(), path = b.path.clone(), is_priv = b.is_priv, identity_name = identity_name)
 }
 
 // The concrete type name a type-parameter is substituted with.
@@ -3913,6 +3917,9 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
     switch gfd_expr.node_type {
     case .FuncDef(gfd):
         mut mono := format(src.name, "__")
+        mut identity_name := src.identity_name.clone()
+        if identity_name.len() == 0 { identity_name = src.name.clone() }
+        mut dedup_mono := format(identity_name, "__")
         mut first := true
         mut new_idx : I64 = 0
         for p : Declaration in gfd.params {
@@ -3926,14 +3933,22 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
             }
             dropped : I64 = -1
             arg_pos.push(own dropped)
-            if first.not() { mono = format(mono, "_") }
+            if first.not() {
+                mono = format(mono, "_")
+                dedup_mono = format(dedup_mono, "_")
+            }
             // #320: the same `ref_` mangle segment as the type-gen paths,
             // so owned and borrowed monomorphizations stay distinct.
-            if ref_params.has(p.name) { mono = format(mono, "ref_") }
+            if ref_params.has(p.name) {
+                mono = format(mono, "ref_")
+                dedup_mono = format(dedup_mono, "ref_")
+            }
             // User aliases canonicalize, width aliases stay
             // target-independent: `MyInt := I64` and `I64` name one
             // implementation, `USize` keeps its own.
-            mono = format(mono, init_type_arg_name(scope, generic_subs_type_name(subs, p.name)))
+            concrete_type := init_type_arg_name(scope, generic_subs_type_name(subs, p.name))
+            mono = format(mono, concrete_type)
+            dedup_mono = format(dedup_mono, concrete_type)
             first = false
         }
 
@@ -3944,7 +3959,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
         // need `assert_eq__I64` emits the concrete decl, later units only
         // rewrite their calls to that name. The path half of the key keeps
         // two units' same-named PRIVATE generics apart.
-        dedup_key := format(src.path, "#", mono)
+        dedup_key := format(src.path, "#", dedup_mono)
         if seen.has(dedup_key).not() {
             if ctx.generic_func_synths.has(dedup_key).not() {
                 ctx.generic_func_synths.add(own dedup_key.clone())

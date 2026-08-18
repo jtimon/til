@@ -1,6 +1,23 @@
 # priority: medium
 # category: bugs
-** OPEN #359 One generic applied both explicitly and by deduction is monomorphized twice
+** FIXED #359 One generic applied both explicitly and by deduction is monomorphized twice
+
+*** Post-mortem
+
+The init route keyed a private generic by its raw source name, while the
+typer route keyed it by the binding's already-mangled name. The two keys
+therefore missed the shared dedup set even though they named the same emitted
+function.
+
+~GenericFuncSource~ now carries the stable original binding name separately
+from the spelling used to emit and resolve the concrete function. The shared
+constructor forms its dedup key from that identity and keeps forming the
+concrete name from the phase-appropriate spelling.
+
+~test_private_generic_explicit_and_deduced~ covers the plain runtime-argument
+reproduction, and ~test_splat_deduced_type_arg~ now applies
+~splat_generic_count~ both explicitly and by deduction instead of using the
+#342 workaround's separate generic.
 
 Applying the same generic function both ways in a single unit emits the
 concrete function twice, and the C compiler rejects the duplicate:

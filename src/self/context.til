@@ -705,9 +705,13 @@ GenericFuncSource := struct {
     name := ""
     path := ""
     is_priv := false
+    // Stable source name for dedup. A late private source's `name` is
+    // already mangled, while this keeps the original binding name seen by
+    // init. Appended at the END so the committed boot's layout stays stable.
+    identity_name := ""
 namespace:
     eq := func(a: GenericFuncSource, b: GenericFuncSource) returns Bool {
-        return a.name.eq(b.name).and(a.path.eq(b.path))
+        return a.name.eq(b.name).and(a.path.eq(b.path)).and(a.identity_name.eq(b.identity_name))
     }
     to_str := func(self: GenericFuncSource) returns Str {
         return format(self.path, ":", self.name)

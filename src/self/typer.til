@@ -3246,12 +3246,13 @@ priv generic_normalize_concrete_sig := func(mut scope: TypeScope, mut fdef_expr:
 // declaration, rewrite the call, and continue down the ordinary concrete
 // path with the resolved concrete FunctionDef.
 priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Set(Str), explicit: Bool, in_func: I32, mut ctx: Context) {
-    mut src := GenericFuncSource(name = src_name.clone(), path = ctx.path.clone())
-    sb_o := scope.get_binding(src_name)
-    if sb_o.is_some() {
-        ref sb : TypeBinding = sb_o.unwrap()
-        src.path = sb.path.clone()
-        src.is_priv = sb.is_priv
+    mut src := GenericFuncSource(name = src_name.clone())
+    ref sb : TypeBinding = scope.get_binding(src_name).unwrap()
+    src.path = sb.path.clone()
+    src.is_priv = sb.is_priv
+    src.identity_name = src_name.clone()
+    if src_name.starts_with("priv__").and(sb.orig_name.len().gt(0)) {
+        src.identity_name = sb.orig_name.clone()
     }
     gs := GenericSources(late = true)
     lt := Map(Str, Str).new()

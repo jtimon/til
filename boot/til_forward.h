@@ -722,6 +722,7 @@ typedef struct GenericFuncSource {
     Str name;
     Str path;
     Bool is_priv;
+    Str identity_name;
 } GenericFuncSource;
 
 
