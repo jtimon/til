@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #375 JVM backend alongside the C backend
+** WIP #375 JVM backend alongside the C backend
 
 Add a backend that runs til programs on the Java Virtual Machine. The C
 backend remains the default and the only bootstrap path; a normal build and
@@ -241,12 +241,63 @@ native-access requirements are approved. Until then, surviving user ~link()~,
 C FFI, GUI, raw host addresses and unsupported ext symbols are translation
 errors naming the til source location and missing JVM implementation.
 
+*** Progress
+
+**** Stage A DONE: Java 17 route and representation proof
+
+Completed 2026-08-18 in ignored ~tmp/jvm375/~; no spike source or generated
+artifact is committed.
+
+- Compiled with Temurin ~javac 17.0.20~ using ~--release 17 -encoding UTF-8
+  -g -proc:none -Xlint:all -Werror~. Compilation was warning-free.
+- Packaged with the JDK 17 ~jar~ tool and ran with ~java -Xverify:all~ on both
+  Temurin 17.0.20 and the host OpenJDK 21.0.11. Both printed:
+
+#+begin_example
+hello from til-jvm
+PASS
+#+end_example
+
+- ~javap -v~ reports class-file major version 61 (Java 17). The spike emitted
+  11 classes: ~Main.class~ was 5,396 bytes and the executable JAR was 12,010
+  bytes.
+- A single typed ~I64Slot~ contract covered both a direct Java ~I64Cell~ and a
+  raw-block field at a byte offset. That proved a stack/value struct and its
+  non-aliasing shallow copy, mutation through a scalar field ref, and the same
+  generated Point view over ~malloc(Point.SIZE)~ storage.
+- Explicit ownership stayed observable: moving an owned byte block deleted
+  the destination, transferred pointer identity and cleared the source; a
+  borrowed holder's delete left its owner live. A tagged enum's primitive
+  payload used the same mutable slot contract.
+- The virtual pointer proof used block identity plus byte offset, fixed
+  little-endian I8/I64 access, explicit null, loud bounds/null/use-after-free
+  failures, and separate typed reference slots. The run explicitly required
+  use-after-free, double-free, null-deref and out-of-bounds pointer addition to
+  throw. This is enough to choose the proposed generated-class plus
+  virtual-heap direction for Stage B; the all-virtual aggregate fallback is
+  not needed by the six gate cases.
+
+Toolchain finding: the local image has ~java 21.0.11~ and the ~jdk.compiler~ /
+~jdk.jartool~ modules, but no ~javac~ or ~jar~ launchers and no ~ct.sym~ release
+descriptions. Calling the implementation compiler module reports version 21
+but supports no ~--release~ value, so it cannot enforce the Java 17 API/class
+target. Do not add an undocumented module-entrypoint fallback. The Stage B
+probe must find real ~javac~, ~jar~ and ~java~ tools and prove
+~javac --release 17~ with a tiny source, not accept ~java -version~ alone.
+
+The human approval gate from the proposed-surface section remains: approve
+~Target.Jvm~/~Lang.Java~, ~--target=jvm~, ~src/self/jvm_codegen.til~,
+~src/jvm/TilRuntime.java~, the ~gen/jvm/<name>/~ source/classes/argfile tree,
+~bin/<name>.jar~, the JDK 17 PATH tools, the unnamed-module/package decision,
+fixed little-endian raw memory, and the eventual opt-in ~make test_jvm~ before
+Stage B creates any of them.
+
 *** Staged implementation plan
 
 Use lettered stages because some emitter changes may need to land before a
 later self-application; every landed stage keeps C and bootstrap green.
 
-**** Stage A: executable route and representation proof (documentation only)
+**** Stage A: executable route and representation proof (DONE)
 
 Hand-write the Java equivalent of ~examples/hello_script.til~ plus the six
 aggregate/ref cases above. Compile with:
