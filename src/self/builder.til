@@ -519,11 +519,10 @@ priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
 
 
 priv callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns Bool {
-    if callee_name == "malloc" { return true }
-    if callee_name == "calloc" { return true }
-    if callee_name == "realloc" { return true }
-    if callee_name == "dyn_call_ret" { return true }
-    if callee_name == "dyn_fn" { return true }
+    switch callee_name {
+    case "malloc", "calloc", "realloc", "dyn_call_ret", "dyn_fn": return true
+    case:
+    }
     fdef_o := find_callee_fdef(callee_name, ctx)
     if fdef_o.is_none() { return false }
     ref fdef : Expr = fdef_o.unwrap()
@@ -7777,11 +7776,12 @@ priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
 // "case Type_TAG_<vn>: return <vn>" default (legacy idiosyncrasies
 // preserved so dyn_type_to_str output stays stable).
 priv dyn_type_str_display := func(vn: Str) returns Str {
-    if vn == "Unknown" { return "" }
-    if vn == "None"    { return "" }
-    if vn == "FuncDef" { return "FunctionDef" }
-    if vn == "FuncPtr" { return "Fn" }
-    return vn
+    return match vn {
+    case "Unknown", "None": ""
+    case "FuncDef":         "FunctionDef"
+    case "FuncPtr":         "Fn"
+    case:                    vn
+    }
 }
 
 // Locate the variants of an enum definition by name in the loaded
@@ -9286,29 +9286,17 @@ priv doc_default_group := func(unit_path: Str) returns Str {
     if path.starts_with("src/std/") { return "Standard library" }
     if path == "src/til.til" { return "CLI" }
     if path.starts_with("vendor/bindings/") { return "Vendor bindings" }
-    if or(path.eq("src/self/lexer.til"),
-        path.eq("src/self/parser.til"),
-        path.eq("src/self/context.til"),
-        path.eq("src/self/modes.til"),
-        path.eq("src/self/loader.til"),
-        path.eq("src/self/initer.til"),
-        path.eq("src/self/desugarer.til"),
-        path.eq("src/self/typer.til")) {
-            return "Compiler frontend"
+    return match path {
+    case "src/self/lexer.til", "src/self/parser.til", "src/self/context.til",
+         "src/self/modes.til", "src/self/loader.til", "src/self/initer.til",
+         "src/self/desugarer.til", "src/self/typer.til": "Compiler frontend"
+    case "src/self/garbager.til", "src/self/constfolder.til",
+         "src/self/scavenger.til", "src/self/targets.til",
+         "src/self/builder.til": "Compiler backend"
+    case "src/self/interpreter.til", "src/self/binder.til",
+         "src/self/eval_heap.til": "Compiler tools"
+    case: ""
     }
-    if path.eq("src/self/garbager.til")
-        .or(path.eq("src/self/constfolder.til"))
-        .or(path.eq("src/self/scavenger.til"))
-        .or(path.eq("src/self/targets.til"))
-        .or(path.eq("src/self/builder.til")) {
-        return "Compiler backend"
-    }
-    if path.eq("src/self/interpreter.til")
-        .or(path.eq("src/self/binder.til"))
-        .or(path.eq("src/self/eval_heap.til")) {
-        return "Compiler tools"
-    }
-    return ""
 }
 
 priv doc_effective_group := func(unit_path: Str, meta: DocMeta) returns Str {

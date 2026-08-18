@@ -51,20 +51,24 @@ field_after := func(line: Str, key: Str) returns Str {
 }
 
 priority_tag := func(priority: Str) returns Str {
-    if priority.eq("high") { return "H" }
-    if priority.eq("medium") { return "M" }
-    return "L"
+    return match priority {
+    case "high":   "H"
+    case "medium": "M"
+    case:           "L"
+    }
 }
 
 known_priority := func(p: Str) returns Bool {
-    return p.eq("high").or(p.eq("medium")).or(p.eq("low"))
+    return match p { case "high", "medium", "low": true case: false }
 }
 
 // Keep in sync with the category sections emitted by main().
 known_category := func(c: Str) returns Bool {
-    return or(c.eq("bugs"), c.eq("cleanups"), c.eq("features"),
-              c.eq("optimizations"), c.eq("experiments"),
-              c.eq("examples"), c.eq("deferred"), c.eq("unknown"))
+    return match c {
+    case "bugs", "cleanups", "features", "optimizations",
+         "experiments", "examples", "deferred", "unknown": true
+    case: false
+    }
 }
 
 // Build the summary link for a single issue from its `** OPEN/WIP #NNN

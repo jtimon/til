@@ -172,7 +172,10 @@ repl_ast_has_loader_directive := func(e: Expr) returns Bool {
             switch callee.node_type {
             case .Ident(name):
                 ref cname : Str = name.ident_name()
-                if cname.eq("import").or(cname.eq("link")).or(cname.eq("link_c")) { return true }
+                switch cname {
+                case "import", "link", "link_c": return true
+                case:
+                }
             case:
             }
         }
@@ -204,11 +207,11 @@ repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
             switch callee.node_type {
             case .Ident(name):
                 ref cname : Str = name.ident_name()
-                if or(cname.eq("println"), cname.eq("print"),
-                      cname.eq("format"),
-                      cname.eq("panic"), cname.eq("TODO"),
-                      cname.eq("UNREACHABLE"), cname.eq("expect"),
-                      cname.eq("array"), cname.eq("vec")) { return true }
+                switch cname {
+                case "println", "print", "format", "panic", "TODO",
+                     "UNREACHABLE", "expect", "array", "vec": return true
+                case:
+                }
             case:
             }
         }
@@ -804,24 +807,24 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
     }
 
     if args.len() == 1 {
-        if cli.command.eq("--version").or(cli.command.eq("-v")) {
+        switch cli.command {
+        case "--version", "-v":
             println(VERSION)
             cli.early_return = true
             return cli
-        }
-        if cli.command.eq("help").or(cli.command.eq("--help")) {
+        case "help", "--help":
             usage()
             cli.early_return = true
             return cli
-        }
-        if cli.command == "repl" {
+        case "repl":
             run_repl("script", cli.extra_modes)
             cli.early_return = true
             return cli
+        case:
+            cli.path = cli.command
+            cli.command = "interpret"
+            return cli
         }
-        cli.path = cli.command
-        cli.command = "interpret"
-        return cli
     }
 
     if cli.command == "repl" {

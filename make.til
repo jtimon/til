@@ -1130,12 +1130,15 @@ mac_examples := proc() returns Vec(Str) {
     add_matching(all, "examples", ".til")
     mut out := Vec(Str).new()
     for path : Str in all {
-        if path == "examples/raylib.til" { continue }
-        if path == "examples/bench_hashmap.til" { continue }
+        switch path {
+        case "examples/raylib.til", "examples/bench_hashmap.til": continue
+        case:
+        }
         mode := example_mode(path)
-        if mode.eq("cli").or(mode.eq("script")).or(mode.eq("pure"))
-            .or(mode.eq("lib")).or(mode.eq("gui")) {
+        switch mode {
+        case "cli", "script", "pure", "lib", "gui":
             out.push(own path.clone())
+        case:
         }
     }
     return out

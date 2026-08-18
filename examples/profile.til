@@ -139,16 +139,19 @@ main := proc(args: ..Str) {
     mut i : USize = 0
     while i.lt(args.len()) {
         ref a : Str = args[i]
-        if a.eq("--massif") {
+        switch a {
+        case "--massif":
             method = "massif"
-        } else if a.eq("--prof") {
+        case "--prof":
             method = "prof"
-        } else if pos.eq(0) {
-            target = a.clone()
-            pos++
-        } else {
-            top = a.to_i64()
-            pos++
+        case:
+            if pos.eq(0) {
+                target = a.clone()
+                pos++
+            } else {
+                top = a.to_i64()
+                pos++
+            }
         }
         i++
     }

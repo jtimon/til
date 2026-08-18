@@ -7,19 +7,20 @@ usage := proc() {
 }
 
 main := proc(op: Str, nums: ..I64) {
-    if op.eq("add") {
+    switch op {
+    case "add":
         mut result := 0
         for n : I64 in nums {
             result = result.add(n)
         }
         println(result.to_str())
-    } else if op.eq("mul") {
+    case "mul":
         mut result := 1
         for n : I64 in nums {
             result = result.mul(n)
         }
         println(result.to_str())
-    } else {
+    case:
         usage()
         panic("unknown op: ", op)
     }

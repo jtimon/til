@@ -1320,12 +1320,10 @@ priv validate_splat_elem_type := proc(scope: TypeScope, arg: Expr, want_name: St
 // param" is not wrong by itself; it is wrong exactly where the callee
 // dereferences it. Name-keyed like the existing pointer-builtin handling.
 priv builtin_first_arg_is_address := func(name: Str) returns Bool {
-    if name.eq("ptr_add") { return true }
-    if name.eq("deref") { return true }
-    if name.eq("write_ptr") { return true }
-    if name.eq("memset") { return true }
-    if name.eq("memcpy") { return true }
-    return false
+    return match name {
+    case "ptr_add", "deref", "write_ptr", "memset", "memcpy": true
+    case: false
+    }
 }
 
 // True when the argument names a binding holding a scalar VALUE rather than
@@ -2459,11 +2457,13 @@ priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Contex
 // signed/unsigned pair in both codegen and the interpreter's raw-byte model.
 priv cast_int_size := func(t: Type) returns USize {
     tn := til_type_name_c(t)
-    if tn.eq("I8").or(tn.eq("U8"))   { return 1 }
-    if tn.eq("I16").or(tn.eq("U16")) { return 2 }
-    if tn.eq("I32").or(tn.eq("U32")) { return 4 }
-    if tn.eq("I64").or(tn.eq("U64")) { return 8 }
-    return 0
+    return match tn {
+    case "I8", "U8":   1
+    case "I16", "U16": 2
+    case "I32", "U32": 4
+    case "I64", "U64": 8
+    case:                0
+    }
 }
 
 // True for the signed integer primitives the cast typer recognises.
@@ -2473,10 +2473,10 @@ priv cast_int_size := func(t: Type) returns USize {
 // no longer agree on what the bits mean.
 priv cast_is_signed := func(t: Type) returns Bool {
     tn := til_type_name_c(t)
-    if tn.eq("I8").or(tn.eq("I16")).or(tn.eq("I32")).or(tn.eq("I64")) {
-        return true
+    return match tn {
+    case "I8", "I16", "I32", "I64": true
+    case: false
     }
-    return false
 }
 
 // True iff cast(src -> target) is legal for issue #212's current
@@ -8483,15 +8483,11 @@ priv check_is_null_arg_dynamic := proc(mut scope: TypeScope, e: Expr, mut ctx: C
 // putting that guarantee in the type; until it lands, the set is small,
 // lives in one file, and is spelled out here).
 priv str_method_returns_view := func(name: Str) returns Bool {
-    if name.eq("substr") { return true }
-    if name.eq("trim") { return true }
-    if name.eq("trim_start") { return true }
-    if name.eq("trim_end") { return true }
-    if name.eq("strip_prefix") { return true }
-    if name.eq("strip_suffix") { return true }
-    if name.eq("get_char") { return true }
-    if name.eq("borrowed_view") { return true }
-    return false
+    return match name {
+    case "substr", "trim", "trim_start", "trim_end", "strip_prefix",
+         "strip_suffix", "get_char", "borrowed_view": true
+    case: false
+    }
 }
 
 // Issue #372: `return local.substr(...)` hands the caller a view of storage

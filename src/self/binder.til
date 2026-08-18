@@ -223,25 +223,23 @@ priv is_alias_to_dynamic := func(bs: BinderState, name: Str) returns Bool {
 }
 
 priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
-    if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false"); return }
-    if c == "void" { out.push_str("0"); return }
-    if or(c.eq("char"), c.eq("unsigned char"), c.eq("signed char"),
-          c.eq("short"), c.eq("short int"), c.eq("unsigned short"),
-          c.eq("unsigned short int"), c.eq("int"), c.eq("signed int"),
-          c.eq("signed"), c.eq("unsigned"), c.eq("unsigned int"),
-          c.eq("long"), c.eq("long int"), c.eq("signed long"),
-          c.eq("signed long int"), c.eq("long long"),
-          c.eq("long long int"), c.eq("signed long long"),
-          c.eq("signed long long int"), c.eq("unsigned long"),
-          c.eq("unsigned long int"), c.eq("unsigned long long"),
-          c.eq("unsigned long long int"), c.eq("size_t"),
-          c.eq("ssize_t"), c.eq("ptrdiff_t"), c.eq("intptr_t"),
-          c.eq("uintptr_t"), c.eq("int8_t"), c.eq("uint8_t"),
-          c.eq("int16_t"), c.eq("uint16_t"), c.eq("int32_t"),
-          c.eq("uint32_t"), c.eq("int64_t"), c.eq("uint64_t"),
-          c.eq("float"), c.eq("double"), c.eq("long double")) {
+    switch c {
+    case "bool", "_Bool":
+        out.push_str("false")
+        return
+    case "void", "char", "unsigned char", "signed char", "short",
+         "short int", "unsigned short", "unsigned short int", "int",
+         "signed int", "signed", "unsigned", "unsigned int", "long",
+         "long int", "signed long", "signed long int", "long long",
+         "long long int", "signed long long", "signed long long int",
+         "unsigned long", "unsigned long int", "unsigned long long",
+         "unsigned long long int", "size_t", "ssize_t", "ptrdiff_t",
+         "intptr_t", "uintptr_t", "int8_t", "uint8_t", "int16_t",
+         "uint16_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
+         "float", "double", "long double":
         out.push_str("0")
         return
+    case:
     }
     // Recognised as a typedef-to-primitive (or to Dynamic) earlier in this
     // run -- emit a scalar zero, since calling `Alias()` would try to

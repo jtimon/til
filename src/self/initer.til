@@ -2071,13 +2071,10 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                 // USize.size() resolves when the compiler itself is built,
                 // so it is 8 in a 64-bit-hosted til and 4 in a 32-bit-hosted
                 // one (#232) -- matching the running binary's ext.h typedef.
-                if ftype.eq("USize").or(ftype.eq("UPtr")) {
-                    mut host_prim := host_usize_pname()
-                    if ftype.eq("UPtr") {
-                        host_prim = host_uptr_pname()
-                    }
-                    ftype = host_prim
-                } else {
+                switch ftype {
+                case "USize": ftype = host_usize_pname()
+                case "UPtr": ftype = host_uptr_pname()
+                case:
                     ab_o := scope.get_binding(ftype)
                     if ab_o.is_some() {
                         ref ab : TypeBinding = ab_o.unwrap()
@@ -2157,9 +2154,11 @@ priv type_size_align := proc(ftype: Str, mut scope: TypeScope, mut ctx: Context,
     // which corrupted enum-with-USize-payload constfolding when
     // cross-compiling (garbage payload size read -> ASAN
     // allocation-size-too-big).
-    mut sized_type := ftype.clone()
-    if ftype.eq("USize") { sized_type = host_usize_pname() }
-    if ftype.eq("UPtr") { sized_type = host_uptr_pname() }
+    sized_type := match ftype {
+    case "USize": host_usize_pname()
+    case "UPtr":  host_uptr_pname()
+    case:          ftype.clone()
+    }
     mut prim : Primitive = Primitive.I64
     mut psz : USize = 0
     mut pal : USize = 0

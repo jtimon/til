@@ -167,11 +167,12 @@ priv csi_final := func(params: Str, fin: I64) returns I64 {
         if fin == 70 { return REPL_KEY_END }
     }
     if fin == 126 {
-        if params == "1" { return REPL_KEY_HOME }
-        if params == "7" { return REPL_KEY_HOME }
-        if params == "4" { return REPL_KEY_END }
-        if params == "8" { return REPL_KEY_END }
-        if params == "3" { return REPL_KEY_DELETE }
+        switch params {
+        case "1", "7": return REPL_KEY_HOME
+        case "4", "8": return REPL_KEY_END
+        case "3":      return REPL_KEY_DELETE
+        case:
+        }
     }
     return REPL_KEY_UNKNOWN
 }
