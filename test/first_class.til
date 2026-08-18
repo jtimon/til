@@ -327,6 +327,8 @@ test_dyn_type_to_str_body := test() {
 
 test_dyn_storage_kind_callable_types := test() {
     assert_eq(USize, dyn_storage_kind("Dynamic"), ELEM_POD)
+    assert_eq(USize, dyn_storage_kind("F64"), ELEM_POD)
+    assert_eq(USize, type_name_storage_kind("F64"), ELEM_POD)
     assert_eq(USize, dyn_storage_kind("Str"), ELEM_BOXED)
     assert_eq(USize, dyn_storage_kind("Fn"), ELEM_FN)
     assert_eq(USize, dyn_storage_kind("Body"), ELEM_FN)

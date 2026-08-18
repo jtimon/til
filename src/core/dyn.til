@@ -62,6 +62,19 @@ dyn_size_of := ext_func(type_name: Str) returns shallow USize {}
 dyn_storage_kind := ext_func(type_name: Str) returns shallow USize {}
 dyn_type_to_str := ext_func(type: Type) returns Str {}
 
+// The allocation-free runtime classifier. The self compiler's iterable
+// PRIM_NAMES/WIDTH_ALIAS_NAMES arrays cannot live in core: their global array
+// initialization would be emitted into every user program that needs dynamic
+// containers. Compiler membership predicates delegate here; only emitter
+// loops retain the self-only arrays (#115).
+is_scalar_type_name := func(name: Str) returns Bool {
+    switch name {
+    case "I8", "U8", "I16", "U16", "I32", "U32", "I64", "U64", "F32", "F64", "Bool",
+         "USize", "UPtr": return true
+    case: return false
+    }
+}
+
 // Extract the struct/enum/custom name carried in a Type's payload.
 // Returns empty Str for any other variant. Lives here (not ast.til) as
 // the Type-to-name half of the introspection API: the *_def_of
@@ -77,12 +90,11 @@ til_type_name := func(t: Type) returns Str {
 }
 
 type_name_storage_kind := func(type_name: Str) returns USize {
-    return match type_name {
-    case "Fn", "Body": ELEM_FN
-    case "Dynamic", "I64", "U8", "I8", "I16", "U16", "I32", "U32",
-         "U64", "USize", "UPtr", "F32", "Bool": ELEM_POD
-    case: ELEM_BOXED
-    }
+    if type_name == "Fn" { return ELEM_FN }
+    if type_name == "Body" { return ELEM_FN }
+    if type_name == "Dynamic" { return ELEM_POD }
+    if is_scalar_type_name(type_name) { return ELEM_POD }
+    return ELEM_BOXED
 }
 
 type_storage_kind := func(t: Type) returns USize {

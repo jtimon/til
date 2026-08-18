@@ -981,13 +981,14 @@ make_default_value_expr := func(type_name: Str, line: U32, col: U32) returns Exp
     switch type_name {
     case "Str": return Expr.new(NodeType.Literal(Literal.Str("")), line, col)
     case "Bool": return Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
-    case "I64", "U8", "I8", "I16", "U16", "I32", "U32", "U64", "F32", "F64":
-        return Expr.new(literal_num_node("0"), line, col)
     // Pointer-shaped builtins have no constructor. Used only for the
     // (unreachable) fallback return appended to throwing functions.
     case "Dynamic", "Ptr":
         return Expr.new(NodeType.Literal(Literal.Null), line, col)
     case:
+    }
+    for prim_name : Str in PRIM_NAMES {
+        if type_name == prim_name { return Expr.new(literal_num_node("0"), line, col) }
     }
     mut tident := Expr.new(ident_node(type_name), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)

@@ -155,10 +155,7 @@ priv is_funcsig_type := func(name: Str, mut ctx: Context) returns Bool {
 // Deliberately WITHOUT USize/UPtr, unlike is_primitive_type: those are
 // target-width aliases, not names ext.h declares.
 priv is_ext_h_type := func(name: Str) returns Bool {
-    switch name {
-    case "U8", "I8", "I16", "U16", "I32", "F32", "F64", "U32", "U64", "I64", "Bool": return true
-    case:
-    }
+    for prim_name : Str in PRIM_NAMES { if prim_name == name { return true } }
     return false
 }
 
@@ -7196,18 +7193,8 @@ priv emit_dyn_funcsig_storage_branches_prog := proc(f: File, prog: Expr, mut ctx
 priv emit_dyn_storage_kind_body := proc(f: File, mut lp: LoadedProgram) {
     f.write(builder_static_prefix(lp.ctx)).write("USize dyn_storage_kind(Str *type_name) {\n")
     emit_dyn_name_return_branch(f, "Dynamic", "0")
-    emit_dyn_name_return_branch(f, "I64", "0")
-    emit_dyn_name_return_branch(f, "U8", "0")
-    emit_dyn_name_return_branch(f, "I8", "0")
-    emit_dyn_name_return_branch(f, "I16", "0")
-    emit_dyn_name_return_branch(f, "U16", "0")
-    emit_dyn_name_return_branch(f, "I32", "0")
-    emit_dyn_name_return_branch(f, "U32", "0")
-    emit_dyn_name_return_branch(f, "U64", "0")
-    emit_dyn_name_return_branch(f, "USize", "0")
-    emit_dyn_name_return_branch(f, "UPtr", "0")
-    emit_dyn_name_return_branch(f, "F32", "0")
-    emit_dyn_name_return_branch(f, "Bool", "0")
+    for prim_name : Str in PRIM_NAMES { emit_dyn_name_return_branch(f, prim_name, "0") }
+    for alias_name : Str in WIDTH_ALIAS_NAMES { emit_dyn_name_return_branch(f, alias_name, "0") }
     emit_dyn_name_return_branch(f, "Fn", "2")
     emit_dyn_name_return_branch(f, "Body", "2")
     for upath : Str in lp.unit_paths() {
@@ -8666,12 +8653,7 @@ priv find_callee_fdef := func(name: Str, ctx: Context) returns Option(ref Expr) 
     return ctx.scope.lookup_func_symbol(name)
 }
 priv is_primitive_type := func(name: Str) returns Bool {
-    switch name {
-    case "I64", "U8", "I8", "I16", "U16", "I32", "U32", "U64", "USize", "UPtr", "F32", "F64",
-         "Bool": return true
-    case:
-    }
-    return false
+    return is_scalar_type_name(name)
 }
 priv is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
     if enum_name.len() == 0 { return false }

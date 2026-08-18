@@ -1,6 +1,30 @@
 # priority: low
 # category: cleanups
-** WIP #115 Reduce primitive special-casing; keep ext_struct, document its contract
+** FIXED #115 Reduce primitive special-casing; keep ext_struct, document its contract
+
+*Post-mortem.*
+
+  The original issue mixed two concerns. ~ext_struct~ is not redundant: it
+  promises declaration-order C ABI layout while ordinary ~struct~ reserves
+  the right to reorder fields. That contract was documented in ~doc/ffi.org~
+  and retained.
+
+  Primitive membership had instead drifted across full name lists. The
+  allocation-free runtime authority is now ~is_scalar_type_name~ in
+  ~src/core/dyn.til~. Builder scalar checks and niche-layout classification
+  delegate to it. Compiler passes that must emit one arm per name share the
+  iterable ~PRIM_NAMES~ / ~WIDTH_ALIAS_NAMES~ arrays in
+  ~src/self/context.til~; those arrays intentionally stay out of core because
+  core globals add initialization code to ordinary user programs. Numeric
+  conversion, FFI, and C-type switches remain because they map each primitive
+  to different behavior rather than asking set membership.
+
+  The audit found real drift: F64 was absent from both core's string storage
+  classifier and the compiled ~dyn_storage_kind~ dispatcher. Both now derive
+  from the shared authorities. The regression test is
+  ~test_dyn_storage_kind_callable_types~, which checks F64 through both paths;
+  ~dead_temps_one_cast_total~ also guards against leaking compiler-only array
+  initialization into user output. ~make clean && make test~ passes 394/394.
 
 *Progress.*
 
