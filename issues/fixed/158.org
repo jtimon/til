@@ -1,6 +1,26 @@
 # priority: high
 # category: cleanups
-** WIP #158 One pass per phase across the whole pipeline
+** FIXED #158 One pass per phase across the whole pipeline
+
+*** Post-mortem
+
+    The last redundant cross-phase walk remained because asap destruction ran
+    inline at nine typer sites while its per-body TypeScopes were still alive.
+    The original on-the-fly derivation proof covered the four TypeBinding facts
+    the pass reads, but missed TypeScope's callable-signature mapping, which is
+    also needed to recognize ownership transfer through function pointers.
+
+    Asap destruction now runs as one post-order whole-program walk after typing.
+    It rebuilds short-lived scopes from settled params, Decls, own captures,
+    struct fields, and namespace declarations, including FuncPtrSig mappings;
+    program roots continue to use ctx.scope. Rejected programs use the same
+    central walk in validation-only mode so ownership diagnostics remain, but
+    their partial AST is not restructured. The nine typer-local garbager calls
+    and the temporary live-scope equivalence probe are gone.
+
+    Regression coverage: ~make clean && make test~ passes 394/394, including
+    ~typer_errors_build~/~typer_errors_interp~ for loop transfer diagnostics and
+    the function-pointer/closure owned-parameter interpreter tests.
 
    Progress / current state (read the source, the original list below
    is stale):
@@ -83,13 +103,10 @@
    is recorded before ~body_pre_passes~ asks ~is_macro_call~ whether to
    skip hoisting a macro call's args.
 
-   What remains under this issue is the per-body garbager work: lifting
-   the inline ~garbager_destroy_body~ calls (function / if / while /
-   block / catch scopes) into the single ~garbager_destroy(ctx)~ walk.
-   The blocker is per-body scope ownership -- those TypeScopes are locals
-   of the typer functions and are gone once ~infer_body~ returns -- which
-   needs either a per-body scope cache on Context or an on-the-fly scope
-   rebuild in garbager. See [[../fixed/204.org][#204]] step 3b.
+   The per-body garbager work is now done: the inline function / if /
+   while / block / catch calls were lifted into one post-order
+   ~garbager_destroy(ctx)~ walk with on-the-fly scope rebuilding. See
+   [[../fixed/204.org][#204]] step 3b.
 
 *** Measured: what an on-the-fly scope rebuild can and cannot recover
 
@@ -105,8 +122,9 @@
     against the live scope at every site the pass runs.
 
     First, the good news, and it is the load-bearing half. The pass reads
-    exactly FOUR binding facts -- ~name~, ~type~, ~own_type~, ~is_param~.
-    No other TypeBinding field is touched anywhere in garbager.til
+    exactly FOUR binding facts -- ~name~, ~type~, ~own_type~, ~is_param~ --
+    plus TypeScope's callable-signature mapping for transfers through a
+    function-pointer binding. No other TypeBinding field is touched anywhere in garbager.til
     (~is_alias~ / ~is_raw_alloc~ / ~is_str_view~ / ~borrow_roots~ /
     ~used~ / ~written~ are typer- or diagnostics-only). Over a full
     self-host -- every body in the compiler -- the rebuild matched the
@@ -183,13 +201,13 @@
     without the check, 608.8 MB with it -- +1.4 MB, and no measurable
     change in wall time.
 
-    Step 2 is the flip -- retire the nine inline
+    Step 2 completed the flip: it retired the nine inline
     ~garbager_destroy_body~ / ~garbager_destroy_func_body~ calls in the
-    typer, have ~garbager_destroy(ctx)~ walk each unit post-order
+    typer, made ~garbager_destroy(ctx)~ walk each unit post-order
     rebuilding chains as it descends (post-order matches today's
     inner-first processing, so the outer pass's grafts into
     already-processed inner bodies keep their current semantics), and
-    drop the check.
+    dropped the check.
 
     The alternative (a per-body scope cache on Context) sidesteps all of
     this but costs retained memory for every body until typing ends --

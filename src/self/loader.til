@@ -4389,6 +4389,9 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     }
 
     if type_errors > 0 {
+        errors_before_garbager := lp.ctx.errors
+        garbager_validate(lp.ctx)
+        type_errors = type_errors + lp.ctx.errors - errors_before_garbager
         return type_errors
     }
 
@@ -4396,12 +4399,9 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
 }
 
 finish_init_and_type_program := proc(mut lp: LoadedProgram) {
-    // Asap-destruction phase. Walks every imported file's program
-    // body and inserts the Type.delete() / free() calls for owned
-    // globals. Sub-body asap (function bodies + nested if/while/
-    // block/catch scopes) still runs inline from the typer's
-    // scope-management sites because per-body scopes are stack
-    // locals; issue #204 step 3b covers lifting those too.
+    // Asap-destruction phase. Walks every imported file post-order,
+    // rebuilding per-body scopes from the typed AST and inserting all
+    // Type.delete() / free() calls in one phase (#158 / #204 step 3b).
     garbager_destroy(lp.ctx)
     // All typing (and with it every constfold eval) is done; no more
     // interpreter scopes are created on the compile paths, so release the

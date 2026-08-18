@@ -4891,7 +4891,6 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             if fdef.captures.len() > 0 {
                 capture_private_mut_end(scope, fdef.captures, capture_source_muts, capture_source_written, ctx.symbols)
             }
-            garbager_destroy_func_body(ctx, expr.children[0], func_scope, fdef)
             // Issue #54: for a capturing function/lambda, validate the
             // captures against the enclosing scope and enforce that the
             // body only touches captured outer locals (plus params,
@@ -5472,13 +5471,11 @@ priv infer_if_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, i
     }
     mut then_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(then_scope, stmt.children[1], in_func, 1, in_loop, returns_ref, 0, ctx)
-    garbager_destroy_body(ctx, stmt.children[1], then_scope)
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
     if stmt.children.len() > 2 {
         mut else_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(else_scope, stmt.children[2], in_func, 1, in_loop, returns_ref, 0, ctx)
-        garbager_destroy_body(ctx, stmt.children[2], else_scope)
         check_unused_locals(else_scope, ctx.path, ctx)
         check_unused_mut_locals(else_scope, ctx.path, ctx)
     }
@@ -5815,7 +5812,6 @@ priv infer_while_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32
     }
     mut while_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(while_scope, stmt.children[1], in_func, 1, 1, returns_ref, 0, ctx)
-    garbager_destroy_body(ctx, stmt.children[1], while_scope)
     check_unused_locals(while_scope, ctx.path, ctx)
     check_unused_mut_locals(while_scope, ctx.path, ctx)
     stmt.set_til_type(Type.None)
@@ -6734,7 +6730,6 @@ priv infer_body_value_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx
     capture_private_mut_end(scope, captures, capture_source_muts, capture_source_written, ctx.symbols)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, body_scope, root, captures, ctx)
-    garbager_destroy_body(ctx, body, body_scope)
     check_unused_locals(body_scope, ctx.path, ctx)
     check_unused_mut_locals(body_scope, ctx.path, ctx)
     expr.set_til_type(Type.Body)
@@ -6893,7 +6888,6 @@ priv infer_capture_block := proc(mut scope: TypeScope, mut stmt: Expr,
         ref mut ob : TypeBinding = block_scope.get_binding_name(ocap.name, ctx.symbols).unwrap()
         ob.used = true
     }
-    garbager_destroy_capture_body(ctx, body, block_scope, captures)
     check_unused_locals(block_scope, ctx.path, ctx)
     check_unused_mut_locals(block_scope, ctx.path, ctx)
     stmt.set_til_type(Type.None)
@@ -6965,7 +6959,6 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
     case .Body:
         mut block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
-        garbager_destroy_body(ctx, stmt, block_scope)
         check_unused_locals(block_scope, ctx.path, ctx)
         check_unused_mut_locals(block_scope, ctx.path, ctx)
     case .While:
@@ -7002,7 +6995,6 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
             ref mut body_expr : Expr = stmt.children[2]
             mut catch_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
-            garbager_destroy_body(ctx, body_expr, catch_scope)
             check_unused_locals(catch_scope, ctx.path, ctx)
             check_unused_mut_locals(catch_scope, ctx.path, ctx)
         } else {
@@ -7093,10 +7085,8 @@ reregister_repl_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
     reregister_scope_defs(body, scope, symbols)
 }
 
-// Type-inference walk for a single body. Issue #204 step 3a: this
-// proc no longer runs the asap-destruction pass; the scope-management
-// sites that call infer_body invoke garbager_destroy_body(body, scope)
-// themselves before tearing the scope down.
+// Type-inference walk for a single body. Asap destruction runs once after
+// typing, in garbager_destroy's post-order whole-program walk (#158).
 infer_body := proc(mut scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context) {
     body.set_til_type(Type.None)
     mut i : USize = 0
@@ -11321,7 +11311,6 @@ priv infer_clike_switch := proc(mut scope: TypeScope, mut stmt: Expr, enum_def_o
         ref mut case_body : Expr = cn.children[body_idx]
         mut case_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
-        garbager_destroy_body(ctx, case_body, case_scope)
         check_unused_locals(case_scope, ctx.path, ctx)
         check_unused_mut_locals(case_scope, ctx.path, ctx)
     }

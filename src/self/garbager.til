@@ -251,8 +251,8 @@ priv gc_audit_destructor_line := func(e: Expr, mut names: Map(Str, Str), mut cou
 // Destructor sites present in `body` after insertion, recursively; `prefix`
 // is the dotted statement path ("2.if0.1 " style) so nested sites are
 // addressable. Nested if/while/block bodies are also dumped by their OWN
-// insert_free_calls run (they get separate garbager_destroy_body calls
-// during typing), so their sites appear twice: once standalone, once inside
+// insert_free_calls run during the central post-order walk, so their sites
+// appear twice: once standalone, once inside
 // the enclosing body's walk after insert_nested_exit_deletes may have
 // appended to them. Both views are wanted -- the second is where the
 // enclosing body's exit deletes land.
@@ -1431,8 +1431,9 @@ priv BodyFacts := struct {
 // The probe universe for one body: every name a fact consumer below can
 // ever query -- this scope's own bindings (collect_scope_locals probes,
 // borrow-edge Decl targets, hoist-taint targets from locals) plus the
-// body's top-level Assign targets (taint def_names and
-// rhs_depends_on_var targets may be outer-scope locals). The collectors
+// body's top-level Decl and Assign targets (fact collection probes every
+// Decl, including definition-only names omitted from a rebuilt GC scope;
+// taint def_names and rhs_depends_on_var may probe outer Assign targets). The collectors
 // drop any recorded name outside this map, which is exactly the filter
 // that keeps rows narrow. Bit values are insertion positions.
 priv fact_universe := func(body: Expr, scope: TypeScope) returns FactIndex {
@@ -1445,6 +1446,11 @@ priv fact_universe := func(body: Expr, scope: TypeScope) returns FactIndex {
     }
     for stmt : Expr in body.children {
         switch stmt.node_type {
+        case .Decl(dd):
+            if fi.idx.has(dd.name).not() {
+                fi.idx.set(dd.name, own fi.idx.len())
+                fi.filt = fi.filt.bor(name_fingerprint(dd.name))
+            }
         case .Assign(ad):
             if fi.idx.has(ad.name).not() {
                 fi.idx.set(ad.name, own fi.idx.len())
@@ -1457,7 +1463,7 @@ priv fact_universe := func(body: Expr, scope: TypeScope) returns FactIndex {
 }
 
 // fact_bit_of for a name the universe MUST contain: every consumer
-// probe below is for a binding or a top-level Assign target, both
+// probe below is for a binding or a top-level Decl/Assign target, both
 // seeded by fact_universe, so a miss is a broken invariant -- fail at
 // the source instead of probing false and silently mis-scheduling a
 // delete.
@@ -2693,12 +2699,9 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
     }
 }
 
-// Asap entry point. The typer's scope-management sites call this
-// once per body after the per-body in-place pass settles, just
-// before they tear down the per-body scope. Issue #204 step 3b
-// tracks lifting the per-site calls into a single garbager_destroy(ctx)
-// walk in prepare_program once #158's per-body scope cache is in
-// the Context.
+// Conditional containers are separate post-order bodies in the central
+// garbager_destroy walk; the enclosing pass still reads them to place outer
+// locals' exit deletes.
 priv stmt_is_conditional_container := func(stmt: Expr) returns Bool {
     return stmt.node_type.is(NodeType.If)
         .or(stmt.node_type.is(NodeType.While))
@@ -3149,7 +3152,8 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
     }
 }
 
-priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32, stack_own_params: Set(Str)) returns Bool {
+priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32,
+    stack_own_params: Set(Str), insert: Bool) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_none()
 
@@ -3177,6 +3181,11 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     mut facts := body_stmt_facts(body, scope, true, fidx, ctx.symbols)
     collect_scope_locals(ctx, body, scope, is_program_scope, facts, fidx, stack_own_params, locals_vec)
     sort_locals_by_name(locals_vec)
+    if locals_vec.len() > 0 {
+        extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx.symbols)
+        check_use_after_own_transfer(body, locals_vec, scope, ctx)
+    }
+    if insert.not() { return false }
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
@@ -3186,8 +3195,6 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }
 
-    extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx.symbols)
-    check_use_after_own_transfer(body, locals_vec, scope, ctx)
     record_storage_decisions(body, locals_vec)
     if sink_conditional_transfer_deletes(body, locals_vec, scope, ctx) {
         // Only when sink actually grafted: the rows are positional and
@@ -3267,260 +3274,228 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     return true
 }
 
-// Issue #158 / #204 step 3b -- migration step 1 of 2.
-//
-// PROVES that a body's TypeScope is derivable from the typed AST, which
-// is what the migration needs: the per-body garbager calls the typer
-// makes inline move into the single garbager_destroy(ctx) walk, and that
-// walk cannot borrow the typer's scopes -- they are stack locals of its
-// recursion, gone the moment infer_body returns.
-//
-// Deriving is viable because this pass reads exactly FOUR binding facts:
-// name, type, own_type and is_param. (Grep the module: no other
-// TypeBinding field is touched. is_alias / is_raw_alloc / is_str_view /
-// borrow_roots / used / written are all typer- or diagnostics-only.) All
-// four survive in the typed AST:
-//   - params: fd.params carries each Declaration, and the typer writes its
-//     own-type normalizations (#223 auto-shallow, the variadic/kwargs Own
-//     forcing, main's Ref->Own) back onto that Declaration, so the
-//     post-typer AST already holds the settled answer;
-//   - locals: each is a top-level Decl of the body by the time this runs --
-//     the desugar/hoist temps are ordinary Decl statements after
-//     body_pre_passes, and #93 lifted nested defs to the top level;
-//   - own captures: the one binding a body owns that is NOT a Decl of it.
-//     infer_capture_block_stmt registers those post-typing from the
-//     ENCLOSING binding's type; they come off the CaptureBlock node, which
-//     the step-2 walk descends through anyway.
-//
-// The check derives each fact and compares it against the live binding on
-// the spot, rather than materializing a parallel TypeScope. A scope per
-// body would cost a Map plus a cloned TypeBinding per name -- each with a
-// cloned Str and Type -- for every body of every compile, which is real
-// memory for a check that only ever reads four fields. Nothing here
-// allocates: the comparisons are tag tests and Str.eq against names the
-// AST and the scope already own.
-//
-// Type resolution goes through declaration_resolved_type /
-// type_from_name_init against the LIVE scope, never the typer's
-// type_from_name_at: that one reports priv-access errors and marks
-// cross-file imports used, so re-running it would duplicate diagnostics
-// and mask unused-import warnings. Resolving against the live scope
-// rather than a derived one is exact for this purpose -- a type name
-// resolves in an outer or global scope (#93 lifts nested defs out), and
-// program scopes are never derived at all (see below).
-
-// Does this pass turn `b` into a LocalInfo at all? Mirrors
-// collect_scope_locals' three opening filters exactly. The check is
-// scoped to the bindings that answer yes: a binding the pass skips is one
-// it never reads, so reproducing it is not part of what the derivation
-// has to get right. (REPL bodies, for instance, carry type-name bindings
-// like `Array` / `Body` that the struct-def filter drops.)
-priv gc_scope_binding_is_consumed := func(scope: TypeScope, b: TypeBinding, symbols: SymbolPool) returns Bool {
-    if b.is_param.and(b.own_type.is(OwnType.Own).not()) { return false }
-    bfp := name_fingerprint(b.name)
-    if scope.local_struct_def_fp(b.name, bfp).is_some() { return false }
-    if scope.local_func_def_fp(b.name, symbols).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { return false }
-    return true
-}
-
-// Head tag of a Type, so Struct("Str") and Custom("Str") do not compare
-// equal and two primitives do not collapse onto til_type_name's empty
-// string. An integer rather than a spelling: this runs per binding per
-// body, and format() would allocate three Strs a call.
-priv gc_type_tag := func(t: Type) returns USize {
-    if t.is(Type.Unknown) { return 1 }
-    if t.is(Type.None) { return 2 }
-    if t.is(Type.Dynamic) { return 3 }
-    if t.is(Type.Body) { return 4 }
-    if t.is(Type.Struct) { return 5 }
-    if t.is(Type.Enum) { return 6 }
-    if t.is(Type.Custom) { return 7 }
-    if t.is(Type.Primitive) { return 8 }
-    if t.is(Type.FuncPtrSig) { return 9 }
-    if t.is(Type.FuncPtr) { return 10 }
-    return 0
-}
-
-priv gc_own_tag := func(o: OwnType) returns USize {
-    if o.is(OwnType.Own) { return 1 }
-    if o.is(OwnType.Ref) { return 2 }
-    return 3
-}
-
-priv gc_own_spelling := func(o: OwnType) returns Str {
-    if o.is(OwnType.Own) { return "own" }
-    if o.is(OwnType.Ref) { return "ref" }
-    return "shallow"
-}
-
-// One derived binding against the live scope. Fails loud: a divergence
-// means that once step 2 lands, this body would be destroyed against the
-// wrong ownership picture, and that miscompiles frees QUIETLY -- exactly
-// the failure mode the scope-cache alternative has by construction and
-// this route was chosen to avoid.
-priv gc_check_derived := func(ctx: Context, live: TypeScope, name: Str, dtype: Type, down: OwnType, dparam: Bool) {
-    lb_o := live.get_binding_name(name, ctx.symbols)
-    if lb_o.is_none() {
-        panic(ctx.path, ": gc scope derivation invented binding '", name, "'")
-    }
-    ref lb : TypeBinding = lb_o.unwrap()
-    if gc_scope_binding_is_consumed(live, lb, ctx.symbols).not() { return }
-    if gc_type_tag(lb.type) != gc_type_tag(dtype) {
-        panic(ctx.path, ": gc scope derivation type-tag mismatch for '", name,
-            "': live=", type_to_name(lb.type), " derived=", type_to_name(dtype))
-    }
-    if til_type_name(lb.type).eq(til_type_name(dtype)).not() {
-        panic(ctx.path, ": gc scope derivation type-name mismatch for '", name,
-            "': live=", til_type_name(lb.type), " derived=", til_type_name(dtype))
-    }
-    if type_to_name(lb.type).eq(type_to_name(dtype)).not() {
-        panic(ctx.path, ": gc scope derivation type mismatch for '", name,
-            "': live=", type_to_name(lb.type), " derived=", type_to_name(dtype))
-    }
-    if gc_own_tag(lb.own_type) != gc_own_tag(down) {
-        panic(ctx.path, ": gc scope derivation own_type mismatch for '", name,
-            "': live=", gc_own_spelling(lb.own_type), " derived=", gc_own_spelling(down))
-    }
-    lp := lb.is_param
-    if lp.and(dparam.not()).or(lp.not().and(dparam)) {
-        panic(ctx.path, ": gc scope derivation is_param mismatch for '", name, "'")
+// Rebuild the four TypeBinding facts and callable-signature mappings this pass
+// consumes from the typed AST.
+// Decls are registered after their nested expressions, matching inference:
+// an initializer cannot see the binding it is about to create. Type/function
+// definitions are absent because the pass filters those live bindings too.
+priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: TypeScope) {
+    switch stmt.node_type {
+    case .Decl(dd):
+        dtype := declaration_resolved_type(dd, scope, ctx.symbols)
+        if stmt.children.len() > 0 {
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) { return }
+            switch rhs.node_type {
+            case .FuncDef(fd):
+                if fd.func_type.is_bodyless() { return }
+                if dtype.is_funcptr().not().and(dtype.is(Type.Body).not()) { return }
+            case:
+            }
+        }
+        scope.set(dd.name, dtype, dd.is_mut, ctx.path, stmt.line, stmt.col,
+            false, dd.own_type, ctx.symbols)
+        if dtype.is_funcptr().and(stmt.children.len().gt(0)) {
+            ref rhs2 : Expr = stmt.children[0]
+            switch rhs2.node_type {
+            case .Ident(rhs_id):
+                src_fd_o := scope.lookup_func_by_sym(rhs_id.ident_sym(), ctx.symbols)
+                if src_fd_o.is_some() { scope.set_func_def_name(dd.name, src_fd_o.unwrap(), ctx.symbols) }
+            case .FCall:
+                switch resolve_fn_sig(rhs2, scope, ctx.symbols) {
+                case .Some(sig): scope.set_func_def_name(dd.name, sig, ctx.symbols)
+                case .None:
+                }
+            case .FuncDef(rhs_fd):
+                if rhs_fd.captures.len() > 0 { scope.set_func_def_name(dd.name, rhs2, ctx.symbols) }
+            case:
+            }
+            if scope.lookup_func_name(dd.name, ctx.symbols).is_none().and(dtype.is(Type.FuncPtrSig)) {
+                sig_o := scope.lookup_func_name(til_type_name(dtype), ctx.symbols)
+                if sig_o.is_some().and(sig_o.unwrap().children.len().eq(0)) {
+                    scope.set_func_def_name(dd.name, sig_o.unwrap(), ctx.symbols)
+                }
+            }
+        }
+    case:
     }
 }
 
-// Reverse direction, without a Set of seen names: ask the AST whether it
-// declares this name at all. Bodies are small, so the scan is cheaper
-// than the Str clones a Set would take per binding.
-priv gc_ast_declares := func(body: Expr, fdef_o: Option(ref FunctionDef), own_caps: Vec(Declaration), name: Str) returns Bool {
-    switch fdef_o {
-    case .Some(fd):
-        for i in 0..fd.params.len() {
-            if fd.params[i].name.eq(name) { return true }
+priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut scope: TypeScope, line: U32, col: U32) {
+    for i in 0..fd.params.len() {
+        ref param : Declaration = fd.params[i]
+        if i.to_i32() == fd.variadic_index {
+            va_type := Type.Struct(variadic_array_type_name(scope, param.type_name(), ctx.symbols))
+            scope.set(param.name, va_type, param.is_mut, ctx.path, line, col,
+                true, param.own_type, ctx.symbols)
+            continue
+        }
+        if i.to_i32() == fd.kwargs_index {
+            scope.set(param.name, Type.Struct("KwargsMap"), param.is_mut, ctx.path, line, col,
+                true, param.own_type, ctx.symbols)
+            continue
+        }
+        ptype := declaration_resolved_type(param, scope, ctx.symbols)
+        scope.set(param.name, ptype, param.is_mut, ctx.path, line, col,
+            true, param.own_type, ctx.symbols)
+        if ptype.is(Type.FuncPtrSig) {
+            sig_o := scope.lookup_func_name(til_type_name(ptype), ctx.symbols)
+            if sig_o.is_some().and(sig_o.unwrap().children.len().eq(0)) {
+                scope.set_func_def_name(param.name, sig_o.unwrap(), ctx.symbols)
+            }
+        }
+    }
+}
+
+// Capture-block own bindings were registered after inference, so nested bodies
+// did not see them. Preserve that timing: add them after the post-order child
+// walk but before this capture body's own destruction pass.
+priv garbager_register_own_captures := func(mut ctx: Context, captures: Vec(Declaration), mut scope: TypeScope, line: U32, col: U32) {
+    switch scope.parent {
+    case .Some(parent):
+        for cap : Declaration in captures {
+            if cap.own_type.is(OwnType.Own).not() { continue }
+            if scope.has_local_binding_name(cap.name, ctx.symbols) { continue }
+            src_o := parent.get_binding_name(cap.name, ctx.symbols)
+            if src_o.is_none() { continue }
+            ref src : TypeBinding = src_o.unwrap()
+            scope.set(cap.name, src.type, src.is_mut, ctx.path, line, col,
+                false, OwnType.Own, ctx.symbols)
         }
     case .None:
     }
-    for stmt : Expr in body.children {
-        switch stmt.node_type {
-        case .Decl(dd):
-            if dd.name.eq(name) { return true }
-        case:
-        }
-    }
-    for ocap : Declaration in own_caps {
-        if ocap.own_type.is(OwnType.Own).and(ocap.name.eq(name)) { return true }
-    }
-    return false
 }
 
-// Migration step 1: prove the derivation at every site the pass runs.
-// The pass itself is untouched -- it still uses the live scope. Step 2
-// lifts the derivation here into a real scope builder, flips the nine
-// inline callers onto the central walk, and drops this.
-priv garbager_check_rebuilt_scope := func(ctx: Context, body: Expr, live: TypeScope, fdef_o: Option(ref FunctionDef), own_caps: Vec(Declaration)) {
-    // Program scopes are out of scope for the migration, so out of scope
-    // for its proof: garbager_destroy already passes ctx.scope straight
-    // through for a unit's top-level body, and the REPL delta path does
-    // the same. Only the per-body scopes -- the ones that die with the
-    // typer's stack frames -- ever need deriving, and every one of those
-    // has a parent. (Same test insert_free_calls uses for
-    // is_program_scope.)
-    if live.parent.is_none() { return }
+// Struct/enum namespace declarations are payload-owned AST, not Expr children.
+// Rebuild the type scope infer_type_def_expr used, including fields in source
+// order, then visit field defaults and namespace values so method bodies join
+// the same post-order destruction walk as ordinary functions.
+priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_name: Str,
+    parent: TypeScope, insert: Bool) {
+    mut type_scope := TypeScope(parent = Option(ref TypeScope).Some(parent), current_type_name = type_name.clone())
+    switch type_def.node_type {
+    case .StructDef(sd):
+        mut field_idx : USize = 0
+        for mut field : Declaration in sd.fields {
+            ref field_name : Str = sd.field_name_at(field_idx)
+            field_idx++
+            if field.default_value.is_some() {
+                garbager_walk_expr(ctx, field.default_expr(), type_scope, insert)
+            }
+            field_type := declaration_resolved_type(field, type_scope, ctx.symbols)
+            type_scope.set(field_name, field_type, field.is_mut, ctx.path,
+                type_def.line, type_def.col, false, field.own_type, ctx.symbols)
+        }
+    case .EnumDef:
+    case:
+        return
+    }
+    ref mut ns_decls : Vec(Declaration) = def_ns_decls(type_def)
+    for mut ns_decl : Declaration in ns_decls {
+        if ns_decl.default_value.is_some() {
+            garbager_walk_expr(ctx, ns_decl.default_expr(), type_scope, insert)
+        }
+    }
+}
 
+priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: TypeScope, insert: Bool) {
+    switch expr.node_type {
+    case .Decl(dd):
+        if expr.children.len() > 0 {
+            ref mut rhs : Expr = expr.children[0]
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                garbager_walk_type_def(ctx, rhs, dd.name, scope, insert)
+                return
+            }
+        }
+    case .FuncDef(fd):
+        if fd.func_type.is_bodyless() { return }
+        if expr.children.len() == 0 { return }
+        ref mut func_body : Expr = expr.children[0]
+        mut func_scope := TypeScope(parent = Option(ref TypeScope).Some(scope), is_func_root = true)
+        garbager_register_params(ctx, fd, func_scope, expr.line, expr.col)
+        garbager_walk_body(ctx, func_body, func_scope, true,
+            Option(ref FunctionDef).Some(fd), Vec(Declaration).new(), insert)
+        return
+    case .CaptureBlock(cbd):
+        if expr.children.len() == 0 { return }
+        ref mut capture_body : Expr = expr.children[0]
+        mut capture_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        garbager_walk_body(ctx, capture_body, capture_scope, true,
+            Option(ref FunctionDef).None, cbd.captures, insert)
+        return
+    case .BodyValue:
+        if expr.children.len() == 0 { return }
+        ref mut value_body : Expr = expr.children[0]
+        mut value_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        garbager_walk_body(ctx, value_body, value_scope, true,
+            Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
+        return
+    case .Body:
+        mut body_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        garbager_walk_body(ctx, expr, body_scope, true,
+            Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
+        return
+    case:
+    }
+    for mut child : Expr in expr.children { garbager_walk_expr(ctx, child, scope, insert) }
+}
+
+// Post-order body walk: process every nested body against the outer bindings
+// visible at its source position, register this body's next Decl, then run the
+// enclosing pass after all children have settled. This preserves the old
+// inner-first inline-call order without retaining typer scopes on Context.
+priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope,
+    derive_decls: Bool, fdef_o: Option(ref FunctionDef), own_captures: Vec(Declaration), insert: Bool) returns Bool {
+    for i in 0..body.children.len() {
+        ref mut stmt : Expr = body.children[i]
+        if is_compile_directive(stmt, ctx.symbols) { continue }
+        garbager_walk_expr(ctx, stmt, scope, insert)
+        if derive_decls { garbager_register_decl(ctx, stmt, scope) }
+    }
+    garbager_register_own_captures(ctx, own_captures, scope, body.line, body.col)
+
+    // Before centralization, a rejected program had run ownership checks for
+    // nested bodies as they finished typing, but never reached the program-root
+    // destruction call. Preserve that diagnostic boundary in validation mode.
+    if insert.not().and(derive_decls.not()) { return false }
+
+    mut stack_own_params := Set(Str).new()
     switch fdef_o {
     case .Some(fd):
         for i in 0..fd.params.len() {
             ref param : Declaration = fd.params[i]
-            if i.to_i32() == fd.variadic_index {
-                va_type := variadic_array_type_name(live, param.type_name(), ctx.symbols)
-                gc_check_derived(ctx, live, param.name, Type.Struct(va_type), param.own_type, true)
-            } else if i.to_i32() == fd.kwargs_index {
-                gc_check_derived(ctx, live, param.name, Type.Struct("KwargsMap"), param.own_type, true)
-            } else {
-                gc_check_derived(ctx, live, param.name, type_from_name_init_name(param.type_name(), live, ctx.symbols), param.own_type, true)
+            if param.own_type.is(OwnType.Own)
+            .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols)
+                .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols))) {
+                stack_own_params.add(own param.name.clone())
             }
         }
     case .None:
     }
-    for stmt : Expr in body.children {
-        switch stmt.node_type {
-        case .Decl(dd):
-            gc_check_derived(ctx, live, dd.name, declaration_resolved_type(dd, live, ctx.symbols), dd.own_type, false)
-        case:
-        }
-    }
-    for ocap : Declaration in own_caps {
-        if ocap.own_type.is(OwnType.Own).not() { continue }
-        ocap_b_o := live.get_binding_name(ocap.name, ctx.symbols)
-        if ocap_b_o.is_none() { continue }
-        gc_check_derived(ctx, live, ocap.name, ocap_b_o.unwrap().type, OwnType.Own, false)
-    }
-
-    for lb : TypeBinding in live.bindings.values {
-        if gc_scope_binding_is_consumed(live, lb, ctx.symbols).not() { continue }
-        if gc_ast_declares(body, fdef_o, own_caps, lb.name).not() {
-            panic(ctx.path, ": gc scope derivation dropped binding '", lb.name, "'")
-        }
-    }
+    return insert_free_calls(ctx, body, scope, 1, stack_own_params, insert)
 }
 
-// Per-body asap entry. Called from the typer's scope-management sites
-// (infer_func_def_expr, infer_if_stmt, infer_while_stmt, the Body/Catch
-// arms of infer_body_stmt) after infer_body has settled. The per-body
-// TypeScope local itself is an ordinary owned local of the calling
-// typer function, reclaimed by this same pass when the CALLER's body
-// is processed (#302 removed the 11 hand-written TypeScope.delete
-// calls that used to follow these call sites; they predated the pass
-// covering such locals and the full ASAN suite proves the inserted
-// deletes cover them). Returns true iff body.children changed, so the
-// caller can decide whether to re-run reregister_scope_defs.
-// See issue #204.
+// REPL deltas already own a populated program scope, like imported unit roots.
 garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
-    garbager_check_rebuilt_scope(ctx, body, scope, Option(ref FunctionDef).None, Vec(Declaration).new())
-    return insert_free_calls(ctx, body, scope, 1, Set(Str).new())
+    return garbager_walk_body(ctx, body, scope, false,
+        Option(ref FunctionDef).None, Vec(Declaration).new(), true)
 }
 
-// A capture block's body. Same pass, but its scope carries the `own`
-// captures that infer_capture_block_stmt registered post-typing, and
-// those are not Decls of the body -- so the step-1 equivalence check
-// needs them handed over. See garbager_rebuild_scope's capture note.
-garbager_destroy_capture_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, captures: Vec(Declaration)) returns Bool {
-    garbager_check_rebuilt_scope(ctx, body, scope, Option(ref FunctionDef).None, captures)
-    return insert_free_calls(ctx, body, scope, 1, Set(Str).new())
-}
-
-garbager_destroy_func_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns Bool {
-    garbager_check_rebuilt_scope(ctx, body, scope, Option(ref FunctionDef).Some(fd), Vec(Declaration).new())
-    mut stack_own_params := Set(Str).new()
-    for i in 0..fd.params.len() {
-        ref p : Declaration = fd.params[i]
-        if p.own_type.is(OwnType.Own)
-        .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols)
-            .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols))) {
-            stack_own_params.add(own p.name.clone())
-        }
-    }
-    return insert_free_calls(ctx, body, scope, 1, stack_own_params)
-}
-
-// Phase entry point. Runs the asap-destruction pass on every
-// imported file's program body using the global TypeScope
-// (ctx.scope). Called from the tail of init_and_type_program
-// (loader.til) so both prepare_program (interpret/translate/
-// build/run/test/install paths) and cmd_doc see the post-asap
-// program AST.
-//
-// Sub-body asap (function bodies, if/while/block/catch scopes)
-// still runs inline from the typer's scope-management sites
-// because per-body scopes are locals of the typer functions,
-// gone (via this pass's own inserted deletes, #302) once
-// infer_body returns. Issue #204 step 3b covers lifting the
-// inline calls into this proc; the blocker is per-body scope
-// ownership, which needs either a scope cache on Context (#158)
-// or an on-the-fly scope rebuild in garbager.
-garbager_destroy := proc(mut ctx: Context) {
+// Every imported unit is processed once, post-order, after typing. Program
+// roots reuse ctx.scope; each nested body derives its short-lived scope from
+// params, settled Decls, and owned capture metadata (#158). Rejected programs
+// run the ownership checks without inserting cleanup into their partial AST.
+priv garbager_walk := proc(mut ctx: Context, insert: Bool) {
     saved_path := ctx.path.clone()
     for path, mut iu in ctx.imported {
         ctx.path = path.clone()
-        insert_free_calls(ctx, iu.ast, ctx.scope, 1, Set(Str).new())
+        garbager_walk_body(ctx, iu.ast, ctx.scope, false,
+            Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
     }
     ctx.path = saved_path
 }
+
+garbager_validate := proc(mut ctx: Context) { garbager_walk(ctx, false) }
+
+garbager_destroy := proc(mut ctx: Context) { garbager_walk(ctx, true) }
