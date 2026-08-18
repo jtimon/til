@@ -169,8 +169,8 @@ static struct {
 #define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); if (_g >= (UPtr)(const void *)&_til_str_lits && _g < (UPtr)(const void *)(&_til_str_lits + 1)) { fprintf(stderr, "panic: write through a shared string literal\n"); exit(1); } } while (0)
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
-static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:124:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:128:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:129:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:133:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_10 = (Str){.c_str = (void *)"test/constfold.til:297:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_16 = (Str){.c_str = (void *)"test/constfold.til:298:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_21 = (Str){.c_str = (void *)"test/constfold.til:299:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -269,20 +269,62 @@ static Str format(Array__Str * parts) {
 }
 
 static Bool Str_eq(Str * a, Str * b) {
-    Bool hoisted__Bool_2 = ((Bool)(a->count != b->count));
-    if (hoisted__Bool_2) {
+    Bool hoisted__Bool_7 = ((Bool)(a->count != b->count));
+    if (hoisted__Bool_7) {
         Bool hoisted__Bool_0 = 0;
         return hoisted__Bool_0;
     }
-    Bool hoisted__Bool_3 = ptr_eq(a->c_str, b->c_str);
-    if (hoisted__Bool_3) {
+    Bool hoisted__Bool_8 = ptr_eq(a->c_str, b->c_str);
+    if (hoisted__Bool_8) {
         Bool hoisted__Bool_1 = 1;
         return hoisted__Bool_1;
     }
-    I32 hoisted__I32_4 = memcmp(a->c_str, b->c_str, a->count);
-    I32 hoisted__I32_5 = 0;
-    Bool hoisted__Bool_6 = ((Bool)(hoisted__I32_4 == hoisted__I32_5));
-    return hoisted__Bool_6;
+    U32 hoisted__U32_9 = 0;
+    Bool hoisted__Bool_10 = ((Bool)(a->count == hoisted__U32_9));
+    if (hoisted__Bool_10) {
+        Bool hoisted__Bool_2 = 1;
+        return hoisted__Bool_2;
+    }
+    U32 hoisted__U32_11 = 0;
+    U32 hoisted__U32_12 = 0;
+    I8 *hoisted__I8_13 = ((I8 *)((void *)((U8 *)(a->c_str) + (hoisted__U32_11))));
+    I8 *hoisted__I8_14 = ((I8 *)((void *)((U8 *)(b->c_str) + (hoisted__U32_12))));
+    Bool hoisted__Bool_15 = ((Bool)(DEREF(hoisted__I8_13) != DEREF(hoisted__I8_14)));
+    if (hoisted__Bool_15) {
+        Bool hoisted__Bool_3 = 0;
+        return hoisted__Bool_3;
+    }
+    U32 hoisted__U32_16 = 1;
+    Bool hoisted__Bool_17 = ((Bool)(a->count == hoisted__U32_16));
+    if (hoisted__Bool_17) {
+        Bool hoisted__Bool_4 = 1;
+        return hoisted__Bool_4;
+    }
+    U32 hoisted__U32_18 = 1;
+    U32 last = ((U32)(a->count - hoisted__U32_18));
+    I8 *hoisted__I8_19 = ((I8 *)((void *)((U8 *)(a->c_str) + (last))));
+    I8 *hoisted__I8_20 = ((I8 *)((void *)((U8 *)(b->c_str) + (last))));
+    Bool hoisted__Bool_21 = ((Bool)(DEREF(hoisted__I8_19) != DEREF(hoisted__I8_20)));
+    if (hoisted__Bool_21) {
+        Bool hoisted__Bool_5 = 0;
+        return hoisted__Bool_5;
+    }
+    U32 hoisted__U32_22 = 2;
+    Bool hoisted__Bool_23 = ((Bool)(a->count == hoisted__U32_22));
+    if (hoisted__Bool_23) {
+        Bool hoisted__Bool_6 = 1;
+        return hoisted__Bool_6;
+    }
+    U64 hoisted__U64_24 = 1ULL;
+    U64 hoisted__U64_25 = 1ULL;
+    U32 hoisted__U32_26 = 2;
+    void *hoisted__v_27 = ((void *)((U8 *)(a->c_str) + (hoisted__U64_24)));
+    void *hoisted__v_28 = ((void *)((U8 *)(b->c_str) + (hoisted__U64_25)));
+    U32 hoisted__U32_29 = ((U32)(a->count - hoisted__U32_26));
+    I32 hoisted__I32_30 = memcmp(hoisted__v_27, hoisted__v_28, hoisted__U32_29);
+    I32 hoisted__I32_31 = 0;
+    Bool hoisted__Bool_32 = ((Bool)(hoisted__I32_30 == hoisted__I32_31));
+    return hoisted__Bool_32;
 }
 
 static Str Str_with_capacity(USize n) {

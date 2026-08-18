@@ -245,10 +245,10 @@ switch_str_subject := func(mut calls: I64) returns Str {
     return "beta"
 }
 
-// #278: string switches dispatch by decoded byte length before comparing only
-// the literals in that bucket. Cover same-length misses, escapes, duplicate
-// first-match ordering, and one-time evaluation of a non-lvalue subject.
-test_switch_str_length_dispatch := test() {
+// #278: string switches retain their general first-match lowering while
+// Str.eq cheaply rejects length and endpoint mismatches. Cover defaults,
+// escapes, duplicate ordering, and one-time evaluation of a non-lvalue.
+test_switch_str_eq_dispatch := test() {
     mut result := ""
     switch "cat" {
     case "dog": result = "dog"

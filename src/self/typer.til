@@ -11542,7 +11542,6 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
         ref sw_expr_sname : Str = sw_expr_sname_o.unwrap()
         switch_enum_def_o = scope.get_struct(sw_expr_sname)
     }
-    if desugar_str_switch_by_length(body, stmt_idx, is_match, ctx) { return true }
     if switch_is_clike(stmt, sw_expr, is_match, switch_enum_def_o, ctx.symbols) {
         infer_clike_switch(scope, stmt, switch_enum_def_o, in_func, in_loop, returns_ref, ctx)
         return false

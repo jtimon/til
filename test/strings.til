@@ -3,7 +3,11 @@ mode test
 test_eq := test() {
     assert("hello".eq("hello"))
     assert("hello".eq("world").not())
+    assert("same first".eq("same fries").not())
+    assert("same endpoints".eq("some endpoints").not())
     assert("".eq(""))
+    assert("a".eq("a"))
+    assert("ab".eq("ab"))
     assert("a".eq("ab").not())
 }
 

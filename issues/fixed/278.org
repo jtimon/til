@@ -3,15 +3,15 @@
 ** FIXED #278 codegen: faster string switch dispatch (not a C switch)
 
 *** Post-mortem
-String switches bypassed the C-like switch path because C has no string case
-labels, so every dispatch remained a linear chain of full ~Str_eq~ calls.
+String switches cannot use C case labels and remain a linear ~Str_eq~ chain.
+The old ~Str.eq~ already rejected different lengths, but same-length misses
+entered ~memcmp~ even when their first or last byte differed.
 
-The typer now lowers eligible literal-string switches to a C-like switch on
-the subject's decoded byte count, with only same-length ~Str_eq~ checks inside
-each bucket. Complex subjects are still evaluated once; guarded switches and
-switches containing a loop-targeting ~break~ retain the general lowering.
+~Str.eq~ now rejects endpoint mismatches directly and calls ~memcmp~ only for
+the unchecked interior. The improvement applies to every string comparison,
+while switches retain the general lowering and its existing semantics.
 
-Regression test: ~test_switch_str_length_dispatch~.
+Regression tests: ~test_switch_str_eq_dispatch~ and ~test_eq~.
 
 Follow-up to the C-like switch work (#254 / #276). A switch on a ~Str~
 scrutinee -- ~switch s { case "foo": ...; case "bar": ...; case: ... }~ --
