@@ -357,13 +357,11 @@ FunctionDef := struct {
     // stable.
     ref_return_into_params : U64 = 0
     ref_return_carried_params : U64 = 0
-    // Canonical `Type.method` identity for a namespace FuncDef. These are
-    // borrowed character-buffer views into the aggregate/member names; their
-    // Str wrappers may move, but the owned buffers remain stable for the AST's
-    // lifetime. Bare and env-backed callables therefore carry identity without
-    // duplicated dotted strings or reverse scans.
-    namespace_type_c_str := Option(ref I8).None
-    namespace_member_c_str := Option(ref I8).None
+    // Owning top-level declaration for a namespace FuncDef. The declaration
+    // supplies the aggregate name; its definition supplies the member name on
+    // rare qualified-identity lookups. This borrow is stable for the AST's
+    // lifetime and avoids storing two name pointers on every FunctionDef.
+    namespace_decl := Option(ref Declaration).None
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type == b.return_type }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }

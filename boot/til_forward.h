@@ -130,7 +130,7 @@ enum {
 };
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
-typedef struct Option__ref_I8 Option__ref_I8;
+typedef struct Option__ref_Declaration Option__ref_Declaration;
 typedef struct Option__ref_Str Option__ref_Str;
 typedef struct Map__Str_USize Map__Str_USize;
 typedef struct Vec__VariantDef Vec__VariantDef;
@@ -270,7 +270,6 @@ typedef struct HashMap__Str_Str HashMap__Str_Str;
 typedef struct HashMap__Str_USize HashMap__Str_USize;
 typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
-typedef struct Option__ref_Declaration Option__ref_Declaration;
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__U32 Vec__U32;
@@ -577,8 +576,8 @@ typedef struct CaseData {
 } CaseData;
 
 
-struct Option__ref_I8 {
-    I8 *data;
+struct Option__ref_Declaration {
+    Declaration *data;
 };
 
 struct Option__ref_Str {
@@ -800,10 +799,6 @@ typedef struct Map__Str_Dynamic {
     Vec__Dynamic values;
 } Map__Str_Dynamic;
 
-
-struct Option__ref_Declaration {
-    Declaration *data;
-};
 
 struct Option__ref_Expr {
     Expr *data;
@@ -1347,8 +1342,7 @@ typedef struct FunctionDef {
     U64 ref_return_params;
     U64 ref_return_into_params;
     U64 ref_return_carried_params;
-    Option__ref_I8 namespace_type_c_str;
-    Option__ref_I8 namespace_member_c_str;
+    Option__ref_Declaration namespace_decl;
 } FunctionDef;
 
 

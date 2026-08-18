@@ -4125,19 +4125,28 @@ ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref
 }
 
 // Recover the qualified identity of a first-class namespace callable. A
-// namespace FuncDef carries its canonical name; callable-valued data that was
-// initialized from another expression remains discoverable in ns_fields.
+// namespace FuncDef carries its owning declaration; callable-valued data that
+// was initialized from another expression remains discoverable in ns_fields.
 priv namespace_func_qname := func(func_def: Expr, member: Str, ctx: Context) returns Str {
     ref fd : FunctionDef = funcdef_of(func_def)
-    if fd.namespace_type_c_str.is_some() {
-        if fd.namespace_member_c_str.is_none() { panic(__LOC__, "namespace callable has only half an identity") }
-        tname := Str.from_c_str(fd.namespace_type_c_str.unwrap())
-        fname := Str.from_c_str(fd.namespace_member_c_str.unwrap())
-        if member.len() == 0 {
-            return concat3(tname, ".", fname)
-        }
-        if fname == member {
-            return concat3(tname, ".", fname)
+    if fd.namespace_decl.is_some() {
+        ref owner : Declaration = fd.namespace_decl.unwrap()
+        def_o := lookup_interp_type_def(owner.name, ctx)
+        if def_o.is_none() { panic(__LOC__, "namespace callable owner is not registered: ", owner.name) }
+        ref def : Expr = def_o.unwrap()
+        ref decls : Vec(Declaration) = def_ns_decls(def)
+        mut i : USize = 0
+        for d : Declaration in decls {
+            ref fname : Str = def_ns_name_at(def, i)
+            i = i + 1
+            if member.len() > 0 {
+                if fname != member { continue }
+            }
+            candidate_o := decl_static_ns_func_def(d)
+            if candidate_o.is_none() { continue }
+            if candidate_o.unwrap().ptr_eq(func_def) {
+                return concat3(owner.name, ".", fname)
+            }
         }
     }
     if ctx.eval.ns_fields.is_none() { return "" }
@@ -4157,23 +4166,14 @@ priv namespace_func_qname := func(func_def: Expr, member: Str, ctx: Context) ret
 // Stamp every namespace FuncDef before any namespace value initializer runs.
 // Generic and inherited definitions can arrive as clones of another method,
 // so overwrite a different inherited spelling with this aggregate's name.
-priv set_namespace_func_identity := func(tname: Str, mut def: Expr) {
+priv set_namespace_func_identity := func(owner: Option(ref Declaration), mut def: Expr) {
     ref mut decls : Vec(Declaration) = def_ns_decls(def)
-    mut i : USize = 0
     for mut d : Declaration in decls {
-        ref fname : Str = def_ns_name_at(def, i)
-        i = i + 1
         if d.default_value.is_none() { continue }
         ref mut value : Expr = d.default_expr()
         switch value.node_type {
         case .FuncDef(fd):
-            if fd.namespace_type_c_str.is_some().and(fd.namespace_member_c_str.is_some()) {
-                if fd.namespace_type_c_str.unwrap().ptr_eq(tname.c_str) {
-                    if fd.namespace_member_c_str.unwrap().ptr_eq(fname.c_str) { continue }
-                }
-            }
-            fd.namespace_type_c_str = Option(ref I8).Some(tname.c_str)
-            fd.namespace_member_c_str = Option(ref I8).Some(fname.c_str)
+            fd.namespace_decl = owner
         case:
         }
     }
@@ -4885,7 +4885,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, mut program: Expr) {
             if sdef.node_type.is(NodeType.StructDef) {
                 if dd.name == "Str" { ctx.eval.cached_str_name = dd.name.clone() }
             }
-            set_namespace_func_identity(dd.name, sdef)
+            set_namespace_func_identity(Option(ref Declaration).Some(dd), sdef)
             mut tdv : UPtr = malloc(UPtr.size())
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
@@ -4909,7 +4909,7 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
             if sdef.node_type.is(NodeType.StructDef) {
                 if dd.name == "Str" { ctx.eval.cached_str_name = dd.name.clone() }
             }
-            set_namespace_func_identity(dd.name, sdef)
+            set_namespace_func_identity(Option(ref Declaration).Some(dd), sdef)
             // Register every struct/enum AST in the comprehensive type-def map;
             // layout readers resolve nested definitions by name through it.
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
