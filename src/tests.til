@@ -637,6 +637,15 @@ main := proc(args: ..Str) {
         format(til_bin, " build --target=templeos -c gen/c/hello_build.HC examples/hello_script.til"))
     add_single(tests, "templeos_target_width", "build", 0, "",
         format(til_bin, " interpret test/templeos_target.til"))
+    // #379: needs_main modes require a proc entrypoint even when its body is
+    // pure. Ordinary procs retain the existing purity diagnostic.
+    add_single(tests, "entrypoint_no_proc_cli", "typer", 0, "",
+        format(til_bin, " translate -c gen/c/entrypoint_no_proc_cli.c test/entrypoint_no_proc_cli.til"))
+    add_single(tests, "entrypoint_no_proc_gui", "typer", 0, "",
+        format(til_bin, " translate -c gen/c/entrypoint_no_proc_gui.c test/entrypoint_no_proc_gui.til"))
+    add_count(tests, "ordinary_proc_without_proc_call", "typer",
+        "proc has no proc/ext_proc calls; should be a func", 1,
+        format(til_bin, " interpret test/proc_without_proc_call.til"))
 
     // Issue #326: the generated C must be honest about liveness. The fixture
     // (test/dead_temps.til, run interpreted + compiled by the `both` entry

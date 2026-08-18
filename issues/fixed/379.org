@@ -1,6 +1,16 @@
 # priority: low
 # category: bugs
-** OPEN #379 Allow entrypoint procs without proc calls
+** FIXED #379 Allow entrypoint procs without proc calls
+
+*** Post-mortem
+
+The typer applied the "proc has no proc/ext_proc calls" diagnostic to every
+plain proc after inferring its body, including the root ~main~ proc that a
+~needs_main~ mode requires. The fix exempts only that mode entrypoint while
+leaving the ordinary-proc diagnostic unchanged. Regression tests
+~entrypoint_no_proc_cli~, ~entrypoint_no_proc_gui~, and
+~ordinary_proc_without_proc_call~ cover both sides of the rule; the TempleOS
+target test also no longer needs its ~noop_proc()~ workaround.
 
 Mode entrypoints such as ~main~ in ~mode cli~ and ~mode gui~ must remain
 procs so the compiler does not const-fold them. The generic purity diagnostic

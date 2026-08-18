@@ -4903,7 +4903,9 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         }
         if is_proc {
             if func_scope.typer_func.proc_calls_count == 0 {
-                expr.type_error("proc has no proc/ext_proc calls; should be a func", ctx)
+                if in_main_def.and(ctx.mode.needs_main).not() {
+                    expr.type_error("proc has no proc/ext_proc calls; should be a func", ctx)
+                }
             }
         }
         if is_macro.and(fdef.return_type.len().eq(0)) {

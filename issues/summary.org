@@ -1,6 +1,3 @@
-* Bugs
-** Low
-*** [[./open/379.org][#379]] Allow entrypoint procs without proc calls
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

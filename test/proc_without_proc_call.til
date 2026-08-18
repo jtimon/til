@@ -1,0 +1,4 @@
+mode script
+
+ordinary_proc := proc() {}
+ordinary_proc()
