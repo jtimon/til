@@ -48,7 +48,7 @@ Regression coverage: ~test/typer_errors.til~, ~test/errors.til~,
      deliberate layout cache and program-wide builder inventories remain
      emission bookkeeping rather than per-function scratch.
 
-Companion to [[../open/247.org][#247]] (move layout facts off the AST). #246 addressed
+Companion to [[./247.org][#247]] (move layout facts off the AST). #246 addressed
 Context carrying phase-local scratch; #247 addresses the AST carrying non-syntax layout
 facts. They meet at ~Context.struct_layouts~ -- see the cross-dep notes
 in the plan below.

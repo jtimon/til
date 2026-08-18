@@ -668,13 +668,9 @@ namespace:
     }
 }
 
-// Issue #147 step 3: per-field and whole-type memory layout. Destined to
-// live in Context.struct_layouts keyed by type name, replacing the layout
-// facts currently stored on AST nodes (Declaration.field_offset /
-// field_size / field_struct_def, StructDef.total_struct_size,
-// EnumDef.total_enum_size). This commit populates the map alongside those
-// fields; readers migrate to the map in step 4, after which the AST fields
-// can be removed. struct_name is the field's struct/enum type name (""
+// Issue #147/#247: per-field and whole-type memory layout lives in
+// Context.struct_layouts keyed by type name. The former AST layout fields are
+// gone; struct_name is the field's struct/enum type name (""
 // for primitives / Dynamic / FuncPtr) so lookups go by name rather than a
 // dangling ref into the parse tree.
 FieldLayout := struct {

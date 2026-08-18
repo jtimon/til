@@ -4904,8 +4904,8 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
                 if dd.name == "Str" { ctx.eval.cached_str_name = dd.name.clone() }
             }
             set_namespace_func_identity(dd.name, sdef)
-            // Register every struct/enum AST in the comprehensive type-def map
-            // so readers can replace Declaration.field_struct_def with a name lookup.
+            // Register every struct/enum AST in the comprehensive type-def map;
+            // layout readers resolve nested definitions by name through it.
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
             // AST gets rebuilt later in the run. The map value is a malloc'd cell
             // holding the Expr pointer (same encoding as TypeScope.struct_defs).

@@ -505,7 +505,7 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
             // when the size method isn't visible yet at this
             // initer pass; and self.size() trips UFCS into trying
             // to pass self where the no-arg size() expects none.
-            // sdd.total_struct_size is already set by the earlier
+            // ctx.struct_layouts is already populated by the earlier
             // layout-computation pass.
             mut hash_sz : USize = ctx_total_size(sname, ctx)
             // Builtin primitives are declared as FIELDLESS structs

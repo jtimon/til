@@ -6595,11 +6595,11 @@ static struct {
 static Str hoisted__Str_Declaration_default_expr_2 = (Str){.c_str = (void *)"./src/core/ast.til:287:27", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Declaration_default_expr_7 = (Str){.c_str = (void *)"./src/core/ast.til:287:21", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_EvalHeap_heap_alloc_4 = (Str){.c_str = (void *)"./src/self/eval_heap.til:82:26", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_set_til_type_5 = (Str){.c_str = (void *)"./src/core/ast.til:1157:30", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_19 = (Str){.c_str = (void *)"./src/core/ast.til:1110:33", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_31 = (Str){.c_str = (void *)"./src/core/ast.til:1120:33", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_43 = (Str){.c_str = (void *)"./src/core/ast.til:1132:33", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_7 = (Str){.c_str = (void *)"./src/core/ast.til:1105:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_set_til_type_5 = (Str){.c_str = (void *)"./src/core/ast.til:1153:30", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_19 = (Str){.c_str = (void *)"./src/core/ast.til:1106:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_31 = (Str){.c_str = (void *)"./src/core/ast.til:1116:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_43 = (Str){.c_str = (void *)"./src/core/ast.til:1128:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_7 = (Str){.c_str = (void *)"./src/core/ast.til:1101:33", .count = 26ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_File_read_all_3 = (Str){.c_str = (void *)"./src/std/file.til:199:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_File_write_3 = (Str){.c_str = (void *)"./src/std/file.til:189:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Map__Str_Dynamic_remove_13 = (Str){.c_str = (void *)"./src/self/context.til:125:33", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -6666,7 +6666,7 @@ static Str hoisted__Str_builder_prepare_emit_18 = (Str){.c_str = (void *)"./src/
 static Str hoisted__Str_builder_prepare_emit_30 = (Str){.c_str = (void *)"./src/self/builder.til:8853:17", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_builder_prepare_emit_41 = (Str){.c_str = (void *)"./src/self/builder.til:8856:44", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_builder_prepare_emit_6 = (Str){.c_str = (void *)"./src/self/builder.til:8830:55", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_case_pattern_count_0 = (Str){.c_str = (void *)"./src/core/ast.til:1288:12", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_case_pattern_count_0 = (Str){.c_str = (void *)"./src/core/ast.til:1284:12", .count = 26ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_check_unused_priv_members_in_program_6 = (Str){.c_str = (void *)"./src/self/typer.til:5198:13", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_check_unused_priv_members_in_program_78 = (Str){.c_str = (void *)"./src/self/typer.til:5202:37", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_cmd_ast_6 = (Str){.c_str = (void *)"./src/self/loader.til:4514:13", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -235856,7 +235856,7 @@ int main(int argc, char **argv) {
     REPL_BYTE_DEL = 127;
     REPL_HISTORY_MAX = 1000;
     REPL_ESC_TIMEOUT_MS = 50;
-    VERSION = (Str){.c_str=(void*)"0.0.1-edc97986b", .count=15ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str=(void*)"0.0.1-fbcc9f712", .count=15ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

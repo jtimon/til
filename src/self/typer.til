@@ -7451,8 +7451,8 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     // Per-decl work in source order: compute struct/enum layouts,
     // synthesize the layout-dependent size method, and run the
     // scope-free cmp/unity derived-method helpers. Layout has to run
-    // before gen_*_size_method_for_stmt (which reads
-    // total_struct_size / total_enum_size) and before the cmp/unity
+    // before gen_*_size_method_for_stmt (which reads ctx.struct_layouts)
+    // and before the cmp/unity
     // helpers (which inspect the same ns_decls that size methodgen
     // may have just populated). All three steps are safe in this
     // sweep because compute_*_layout's nested-type lookups follow

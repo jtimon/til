@@ -1,6 +1,35 @@
 # priority: low
 # category: cleanups
-** OPEN #247 Move layout facts off AST nodes, rstil-style (pairs with #246)
+** FIXED #247 Move layout facts off AST nodes, rstil-style (pairs with #246)
+
+*** Post-mortem
+
+The issue remained open after its required work had already landed through
+#147. ~Context.struct_layouts~ was introduced by ~88723f1~;
+~Declaration.field_struct_def~ was removed by ~2417f71~; and ~5372e3c~
+removed ~Declaration.field_offset~/~field_size~ plus
+~StructDef.total_struct_size~/~EnumDef.total_enum_size~. Consumers now route
+through ~ctx_total_size~, ~ctx_field_layout~, or the layout map directly.
+
+The final audit found no live read or writer of any of the five AST fields and
+confirmed ~StructLayout~ carries whole-type size/alignment plus every field's
+offset, size, nested type, ownership, and runtime classification. This closes
+the accepted precomputed-cache shape. Computing layout on demand and dropping
+the map remains the explicitly optional experiment from step 5, not unfinished
+work required by this issue.
+
+Regression coverage was provided by the landing commits' full suites,
+including ~test/structs.til~, ~test/enums.til~, ~usize64_comptime~, and
+~self_translate~. This final tracker/comment correction is documentation-only.
+
+*** Progress
+
+   - [X] Inventoried all five former AST layout fields: no live reads or writers.
+   - [X] Confirmed ~Context.struct_layouts~ contains all required layout facts.
+   - [X] Confirmed typer, builder, constfolder, and interpreter consumers use
+     the Context cache/helpers.
+   - [X] Confirmed all five duplicated AST fields and their population code are
+     removed.
 
 Companion to [[./246.org][#246]] (Context slimming). Where #246 is about *Context*
 carrying phase-local scratch, this issue is about the *AST* carrying
@@ -17,19 +46,16 @@ struct/enum defs (~get_type_size~, ~calculate_field_offset~,
 ~get_field_offset~). rstil deliberately removed its earlier
 ~map_instance_fields~ precomputation (their Bug #160) for this reason.
 
-Our AST (~src/core/ast.til~) instead hangs layout facts directly on the
-syntax nodes:
+Our AST (~src/core/ast.til~) formerly hung layout facts directly on the
+syntax nodes; these fields are now gone:
 
   - ~Declaration.field_offset~ / ~field_size~ / ~field_struct_def~
   - ~StructDef.total_struct_size~
   - ~EnumDef.total_enum_size~
 
-Issue #147 already started the migration (steps 3-4): a parallel
-~Context.struct_layouts~ map (keyed by type name) is populated by
-~compute_struct_layout~ / ~compute_enum_layout~ at typer time, and some
-readers (e.g. enum total size) already read the map instead of the AST
-field. The work is *half done* -- both the AST fields and the map exist,
-and most readers still hit the AST fields.
+Issue #147 completed the migration: ~Context.struct_layouts~ is populated by
+~compute_struct_layout~ / ~compute_enum_layout~, every reader uses that cache,
+and the AST carries no layout facts.
 
 *** Desired end state (rstil-aligned)
 
@@ -47,19 +73,19 @@ optional follow-up.
 
 *** Incremental plan
 
-1. Inventory every read of ~Declaration.field_offset~ / ~field_size~ /
+1. DONE -- Inventory every read of ~Declaration.field_offset~ / ~field_size~ /
    ~field_struct_def~ / ~StructDef.total_struct_size~ /
    ~EnumDef.total_enum_size~ across initer/typer/builder/interpreter.
-2. Confirm ~compute_*_layout~ populates ~ctx.struct_layouts~ with every
+2. DONE -- Confirm ~compute_*_layout~ populates ~ctx.struct_layouts~ with every
    fact those readers need (per-field FieldLayout + whole-type
    StructLayout). Fill gaps if any.
-3. Migrate readers to ~ctx.struct_layouts~ one consumer at a time
+3. DONE -- Migrate readers to ~ctx.struct_layouts~ one consumer at a time
    (typer, then builder, then interpreter), testing after each.
    - NOTE (cross-dep): the builder/interpreter readers here are the
      same code paths #246 step 2/3 moves off Context; do the layout
      read migration on a given consumer *before* #246 relocates that
      consumer's other scratch, so each step has one moving part.
-4. Once no reader touches them, delete the AST layout fields
+4. DONE -- Once no reader touches them, delete the AST layout fields
    (~Declaration.field_offset/size/struct_def~,
    ~StructDef.total_struct_size~, ~EnumDef.total_enum_size~). This is
    the step that actually slims the AST.
