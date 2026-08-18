@@ -1,9 +1,35 @@
 # priority: medium
 # category: optimizations
-** OPEN #337 Name interning: compare interned ids instead of string bytes
+** FIXED #337 Name interning: compare interned ids instead of string bytes
 
-  NOT DECIDED YET: Jorge still has to decide whether to do this at all.
-  Filed so the analysis is not lost; do not start it without his go.
+*** Post-mortem
+
+  Root cause: #292 already moved identifier AST payloads, TypeScope bindings,
+  function definitions, and compiler registries to Sym, while #293 made the
+  remaining Str.cmp calls cheap with memcmp. The new interning hotspot was
+  SymbolPool.hash_name itself: its per-byte I8.to_u64 conversion remained a
+  real function call at -O0 (2.48M calls translating test/maps.til).
+
+  Fix: hash through raw U8 loads and inline casts instead. The U8 -> I8 -> I64
+  -> U64 cast chain preserves the old signed-byte hash exactly, including
+  bytes above 127, without calling I8_to_u64. On test/maps.til, callgrind fell
+  from 2,289,656,165 to 2,254,472,069 instructions (-1.54%); 50 alternating
+  translations improved from 0.1618s to 0.1588s (-1.85%).
+
+  The proposed wider conversion was tested and rejected. Making
+  TypeScope.struct_defs symbol-keyed forced 145,780 name-form lookups through
+  SymbolPool even though scope fingerprints let only 33,525 reach the map.
+  That raised callgrind instructions by 1.30% and wall time by about 4.9%.
+  Callers carrying only public Type-name Strings cannot obtain a Sym for free,
+  so retaining their Str-keyed definition map is faster and avoids a second
+  type-name representation.
+
+  Regression coverage: test_symbol_pool_hash_name compares the optimized hash
+  with the original algorithm for empty, ASCII, and high-byte Strings.
+
+  Approved 2026-08-18. Reprofile after #292 before choosing the remaining
+  maps: identifier/field AST payloads, TypeScope bindings/function definitions,
+  and many compiler registries already use Sym.
 
   ~Str_cmp~ is the compiler's #1 self-time cost: ~5.3M calls per
   test/maps.til compile (~320ms of ~2.6s profiled self time), and it has

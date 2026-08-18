@@ -26,7 +26,6 @@
 *** [[./open/296.org][#296]] Confusing errors when a FuncSig is written with an empty body `{}`
 * Optimizations
 ** Medium
-*** [[./open/337.org][#337]] Name interning: compare interned ids instead of string bytes
 *** [[./open/371.org][#371]] Own primitive args: C stack slot passed by pointer, not a malloc'd box
 * Features
 ** Medium
