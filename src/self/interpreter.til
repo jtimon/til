@@ -319,14 +319,9 @@ InterpSession := struct {
     evaluated_units := Set(Str).new()
 }
 
-// Return-value / control-flow state and namespace fields now live on
-// Context (has_return, has_break, has_continue, return_value,
-// ns_fields), reached in the eval functions via
-// `ref mut c : Context = ctx`. During has_return, return_value is a
-// non-owning pointer to the raw call result.
-// Cached struct defs for
-// C-side construction likewise live on Context (cached_*_def),
-// populated during interpret_register_struct_defs.
+// Return-value / control-flow state, namespace fields, and the canonical Str
+// cache live in Context.eval. During has_return, return_value is a non-owning
+// pointer to the raw call result.
 
 // --- Type-def registry: maps struct/enum names to their AST def Expr.
 // Populated by interpreter_init_ns from every struct/enum decl seen in core+user
@@ -597,7 +592,7 @@ priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
     case "Bool": return Bool.size()
     // #192: Str's size is target-dependent (its count/cap are USize); read it
     // from ctx so a U32-built til_boot folding U64 core uses the source width.
-    case "Str":  return ctx_total_size(ctx.cached_str_name, ctx)
+    case "Str":  return ctx_total_size(ctx.eval.cached_str_name, ctx)
     case:
     }
     // The loader restricts variadic main() elem types to the set above;
@@ -1317,16 +1312,16 @@ priv init_field_raw := func(inst_data: Dynamic, dd: Declaration, field_offset: U
 }
 
 priv context_return_set := func(mut ctx: Context, raw: Dynamic) {
-    if ctx.has_return { panic("return result already set") }
-    ctx.return_value = raw
-    ctx.has_return = true
+    if ctx.eval.has_return { panic("return result already set") }
+    ctx.eval.return_value = raw
+    ctx.eval.has_return = true
 }
 
 priv context_return_take := func(mut ctx: Context) returns Dynamic {
-    if ctx.has_return.not() { panic("return result is not set") }
-    result : Dynamic = ctx.return_value
-    ctx.return_value = 0
-    ctx.has_return = false
+    if ctx.eval.has_return.not() { panic("return result is not set") }
+    result : Dynamic = ctx.eval.return_value
+    ctx.eval.return_value = 0
+    ctx.eval.has_return = false
     return result
 }
 
@@ -1396,8 +1391,8 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
     // #343: consume the ext-argument mark HERE, before the receiver is
     // resolved -- resolving it can evaluate a call (`name.clone().c_str`),
     // and a `.c_str` inside that callee is an ordinary borrowed read.
-    cstr_arg := ctx.interp_cstr_arg
-    ctx.interp_cstr_arg = false
+    cstr_arg := ctx.eval.interp_cstr_arg
+    ctx.eval.interp_cstr_arg = false
     switch e.node_type {
     case .FieldAccess(fa):
         mut fallback_sname := ""
@@ -1461,7 +1456,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
         if (fdecl.type_name() == "USize").or(fdecl.type_name() == "UPtr") {
             mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
-            if (sname == ctx.cached_str_name).and(fa.field_access_name() == "cap").and(fl.size == 4) {
+            if (sname == ctx.eval.cached_str_name).and(fa.field_access_name() == "cap").and(fl.size == 4) {
                 field_type = Type.Primitive(Primitive.I32)
             }
             info.source_type_p = to_ptr(interp_intern_type(field_type, ctx))
@@ -2211,29 +2206,29 @@ priv eval_if := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
 priv eval_while := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     while true {
-        if c.has_return { break }
+        if c.eval.has_return { break }
         // A const-folder abort inside the loop body stops iteration (the
         // body's eval_body already bailed); don't re-evaluate the condition.
-        if c.eval_aborted { break }
+        if c.eval.eval_aborted { break }
         cv := eval_bool_arg(scope, stmt.children[0], ctx)
         if cv.not() { break }
         mut while_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(while_scope, stmt.children[1], ctx)
         scope_free(own while_scope)
-        if c.has_break { c.has_break = false; break }
-        if c.has_continue { c.has_continue = false }
+        if c.eval.has_break { c.eval.has_break = false; break }
+        if c.eval.has_continue { c.eval.has_continue = false }
     }
 }
 
 priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
-        if c.has_return { return }
-        if c.has_break { return }
-        if c.has_continue { return }
+        if c.eval.has_return { return }
+        if c.eval.has_break { return }
+        if c.eval.has_continue { return }
         // A const-folder abort unwinds every enclosing body like an early
         // return until try_eval_call observes it.
-        if c.eval_aborted { return }
+        if c.eval.eval_aborted { return }
         ref mut stmt : Expr = e_i
         switch stmt.node_type {
         case .Decl(dd):
@@ -2459,9 +2454,9 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
         case .While:
             eval_while(scope, stmt, ctx)
         case .Break:
-            c.has_break = true
+            c.eval.has_break = true
         case .Continue:
-            c.has_continue = true
+            c.eval.has_continue = true
         case .Return:
             if stmt.children.len() > 0 {
                 ref mut ret_expr : Expr = stmt.children[0]
@@ -2523,37 +2518,37 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     } else {
                         return_raw = scope_read_bound_raw(scope, ret_ident.ident_name(), ctx)
                     }
-                    return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.interp_ret_is_ref, ctx)
+                    return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.eval.interp_ret_is_ref, ctx)
                 case .FCall:
                     mut inner_info := raw_result_info_new()
-                    return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
-                    return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.interp_ret_is_ref, ctx)
+                    return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.eval.interp_ret_dest)
+                    return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
                 case .FieldAccess:
-                    if c.interp_ret_is_ref {
+                    if c.eval.interp_ret_is_ref {
                         // field_access_returns_ref gated this branch, so the
                         // base resolves.
                         return_raw = field_access_base(scope, ret_expr, ctx).unwrap()
                         return_source_is_ref = true
                     } else {
                         mut inner_info := raw_result_info_new()
-                        return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
+                        return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.eval.interp_ret_dest)
                         return_source_type = raw_result_source_type(inner_info).clone()
                         return_raw = raw_result_reframe(return_source_type, return_raw, inner_info.is_ref, false, ctx)
                     }
                 case:
-                    if ret_expr.node_type.is_literal_null().and(c.interp_ret_is_ref) {
+                    if ret_expr.node_type.is_literal_null().and(c.eval.interp_ret_is_ref) {
                         return_raw = 0
                         return_source_is_ref = true
                     } else {
                         mut inner_info := raw_result_info_new()
-                        return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
-                        return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.interp_ret_is_ref, ctx)
+                        return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.eval.interp_ret_dest)
+                        return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
                     }
                 }
                 target_return_type := type_from_name_init(interp_ret_type_name(c), ctx.scope)
-                if c.interp_ret_is_ref.not() {
-                    return_raw = raw_coerce_value(return_raw, return_source_type, target_return_type, ctx, c.interp_ret_own_type)
-                    return_raw = raw_result_finish(target_return_type, return_raw, c.interp_ret_dest, false, ctx)
+                if c.eval.interp_ret_is_ref.not() {
+                    return_raw = raw_coerce_value(return_raw, return_source_type, target_return_type, ctx, c.eval.interp_ret_own_type)
+                    return_raw = raw_result_finish(target_return_type, return_raw, c.eval.interp_ret_dest, false, ctx)
                 }
                 context_return_set(c, return_raw)
             } else {
@@ -2773,19 +2768,19 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
             }
         }
     }
-    c.has_return = false
-    c.return_value = 0
-    saved_ret_is_ref := c.interp_ret_is_ref
-    ref saved_ret_dest : Dynamic = c.interp_ret_dest
-    saved_ret_type := c.interp_ret_type
-    saved_ret_own_type := c.interp_ret_own_type
+    c.eval.has_return = false
+    c.eval.return_value = 0
+    saved_ret_is_ref := c.eval.interp_ret_is_ref
+    ref saved_ret_dest : Dynamic = c.eval.interp_ret_dest
+    saved_ret_type := c.eval.interp_ret_type
+    saved_ret_own_type := c.eval.interp_ret_own_type
     mut callee_ret_is_ref := false
     mut use_return_destination := true
     switch func_def.node_type {
     case .FuncDef(ret_fd):
         callee_ret_is_ref = ret_fd.return_own_type.is(OwnType.Ref)
-        c.interp_ret_type = Option(ref Str).Some(ret_fd.return_type)
-        c.interp_ret_own_type = ret_fd.return_own_type
+        c.eval.interp_ret_type = Option(ref Str).Some(ret_fd.return_type)
+        c.eval.interp_ret_own_type = ret_fd.return_own_type
         if ret_fd.return_type.len() > 0 {
             ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.return_type)
             if declared_return_name != til_type_name_c(e.til_type()) { use_return_destination = false }
@@ -2795,16 +2790,16 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         }
     case:
     }
-    c.interp_ret_is_ref = callee_ret_is_ref
-    c.interp_ret_dest = destination
-    if use_return_destination.not() { c.interp_ret_dest = 0 }
+    c.eval.interp_ret_is_ref = callee_ret_is_ref
+    c.eval.interp_ret_dest = destination
+    if use_return_destination.not() { c.eval.interp_ret_dest = 0 }
     eval_body(call_scope, body, ctx)
-    c.interp_ret_is_ref = saved_ret_is_ref
-    c.interp_ret_dest = saved_ret_dest
-    c.interp_ret_type = saved_ret_type
-    c.interp_ret_own_type = saved_ret_own_type
+    c.eval.interp_ret_is_ref = saved_ret_is_ref
+    c.eval.interp_ret_dest = saved_ret_dest
+    c.eval.interp_ret_type = saved_ret_type
+    c.eval.interp_ret_own_type = saved_ret_own_type
     mut result : Dynamic = 0
-    if c.has_return {
+    if c.eval.has_return {
         result = context_return_take(c)
     } else {
         result = destination
@@ -3149,7 +3144,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         // User-defined function or struct instantiation
         // A miss means the callee name is bound nowhere -- undefined. The typer
         // rejects undefined names, so this only fires under the constfolder's
-        // speculative eval, where the exit is caught via ctx.constfold_active in
+        // speculative eval, where the exit is caught via ctx.eval.constfold_active in
         // h_exit. The ext dispatch probe above already resolved the binding;
         // reuse its slot and metadata instead of walking the scope again.
         if ext_slot.is_null() {
@@ -3179,10 +3174,10 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 // missing symbol has to say so.
                 if ext_fd.func_type.is_ext() {
                     if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
-                    if ctx.constfold_active.not() {
+                    if ctx.eval.constfold_active.not() {
                         panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name())
                     }
-                    ctx.eval_aborted = true
+                    ctx.eval.eval_aborted = true
                     if destination.is_null().not() { return destination }
                     return raw_unit_result(call_type, ctx)
                 }
@@ -3912,7 +3907,7 @@ priv clone_dyn_set_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Con
 // reader runs while evaluating a `return` INSIDE a call, where
 // eval_user_func_call has set it -- a None here is a broken invariant.
 priv interp_ret_type_name := func(ctx: Context) returns ref Str {
-    switch ctx.interp_ret_type {
+    switch ctx.eval.interp_ret_type {
     case .Some(rt): return rt
     case .None:
         panic(__LOC__, "return type read outside a call")
@@ -3922,7 +3917,7 @@ priv interp_ret_type_name := func(ctx: Context) returns ref Str {
 // Resolve `name` to its raw value block, walking inner to outer.
 scope_get := func(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFound {
     // REM: the SCOPE ARGUMENT is still nullable (callers pass tables that
-    // may not be built yet, e.g. ctx.ns_fields before interpreter_init_ns)
+    // may not be built yet, e.g. ctx.eval.ns_fields before interpreter_init_ns)
     // -- that is a nullable ref PARAM, #321 step 2 material, distinct from
     // the parent chain's own None terminator below.
     if to_ptr(s).is_null() { throw KeyNotFound() }
@@ -4109,7 +4104,7 @@ priv static_ns_func_def := func(sname: Str, fname: Str, ctx: Context) returns Op
 // member holds a value. Same slot-is-not-an-Expr reasoning as hb_func_def.
 ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Expr) {
     ref mut c : Context = ctx
-    if c.ns_fields.is_some() {
+    if c.eval.ns_fields.is_some() {
         hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
         if hb_o.is_some() { return hb_func_def(hb_o.unwrap()) }
     }
@@ -4139,7 +4134,7 @@ priv namespace_func_qname := func(func_def: Expr, member: Str, ctx: Context) ret
         }
     }
     if found.len() > 0 { return found }
-    if ctx.ns_fields.is_none() { return "" }
+    if ctx.eval.ns_fields.is_none() { return "" }
     mut suffix := ""
     if member.len() > 0 { suffix = concat3(".", member, "") }
     for qn, hb in ns_scope(ctx).heap_bindings {
@@ -4469,7 +4464,7 @@ scope_set_heap_moved := func(mut s: Scope, name: Str, moved_out: Bool) {
 
 // #324: the OWNED sibling of scope_new_boxed, for the scopes a field holds
 // as Option(Scope). The pool is skipped on purpose: these are the three
-// long-lived roots (constfolder_known, ns_fields, session global), not the
+// long-lived roots (constfolder_known, eval.ns_fields, session global), not the
 // per-frame scopes the pool exists for, and an owned return cannot launder a
 // recycled ref out of the pool anyway. malloc binds the raw allocation to an
 // owned local (the fcall_is_raw_alloc form), so `Some(own ...)` accepts the
@@ -4844,7 +4839,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_
     return inst_data
 }
 
-// Cache-only pass: populate ctx.cached_str_name (and the type-def map)
+// Cache-only pass: populate ctx.eval.cached_str_name (and the type-def map)
 // before raw allocation and layout helpers need the canonical Str name.
 populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
     for stmt : Expr in program.children {
@@ -4856,7 +4851,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name == "Str" { ctx.cached_str_name = dd.name.clone() }
+                if dd.name == "Str" { ctx.eval.cached_str_name = dd.name.clone() }
             }
             tdv : UPtr = malloc(UPtr.size())
             write_ptr(tdv, sdef)
@@ -4867,8 +4862,8 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
 }
 
 interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Expr) {
-    if ctx.ns_fields.is_none() {
-        ctx.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+    if ctx.eval.ns_fields.is_none() {
+        ctx.eval.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     }
     for mut stmt : Expr in program.children {
         switch stmt.node_type {
@@ -4879,7 +4874,7 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name == "Str" { ctx.cached_str_name = dd.name.clone() }
+                if dd.name == "Str" { ctx.eval.cached_str_name = dd.name.clone() }
             }
             // Register every struct/enum AST in the comprehensive type-def map
             // so readers can replace Declaration.field_struct_def with a name lookup.
@@ -4939,7 +4934,7 @@ priv ns_qname := func(sname: Str, fname: Str) returns Str {
 // lookup-shaped ones -- a miss and an un-built table answer the same)
 // switch on the field instead.
 priv ns_scope := func(ctx: Context) returns ref Scope {
-    switch ctx.ns_fields {
+    switch ctx.eval.ns_fields {
     case .Some(nsf): return nsf
     case .None: panic(__LOC__, "ns_fields read before interpreter_init_ns")
     }
@@ -4971,7 +4966,7 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dyna
     ref mut c : Context = ctx
     // An un-built table and a miss answer the same here: absence is a real
     // state for lookups, so no ns_scope panic.
-    if c.ns_fields.is_none() { return Option(ref Dynamic).None }
+    if c.eval.ns_fields.is_none() { return Option(ref Dynamic).None }
     hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
     if hb_o.is_none() { return Option(ref Dynamic).None }
     ref hb : HeapBinding = hb_o.unwrap()
@@ -5008,7 +5003,7 @@ priv ns_field_type := func(sname: Str, fname: Str, mut ctx: Context) returns Typ
             if enum_variant_type(namespace_def, variant_idx).len() == 0 { return Type.Enum(sname.clone()) }
         }
     }
-    if ctx.ns_fields.is_none() { panic("namespace field type not found: ", ns_qname(sname, fname)) }
+    if ctx.eval.ns_fields.is_none() { panic("namespace field type not found: ", ns_qname(sname, fname)) }
     hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fname)
     if hb_o.is_none() { panic("namespace field type not found: ", ns_qname(sname, fname)) }
     ref hb : HeapBinding = hb_o.unwrap()
@@ -5016,12 +5011,12 @@ priv ns_field_type := func(sname: Str, fname: Str, mut ctx: Context) returns Typ
 }
 
 interpreter_free_ns := func(mut ctx: Context) {
-    if ctx.ns_fields.is_none() { return }
+    if ctx.eval.ns_fields.is_none() { return }
     scope_drop_owned_bindings(ns_scope(ctx))
     // Move the table OUT of the field before freeing: the field is None the
     // moment the free runs, and no later reassignment drains a dead value.
     mut nsf_old := Option(Scope).None
-    swap(Option(Scope), ctx.ns_fields, nsf_old)
+    swap(Option(Scope), ctx.eval.ns_fields, nsf_old)
     scope_free(own Option(Scope).take(own nsf_old))
 }
 
@@ -5031,8 +5026,8 @@ interpreter_free_ns := func(mut ctx: Context) {
 // inside was built at a different USize width than the source it compiles:
 // the bytes are laid out the same way struct_deep_free later reads them.
 priv str_write_count_cap := func(inst_data: Dynamic, count_val: USize, cap_val: USize, ctx: Context) {
-    ref count_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "count", ctx)
-    ref cap_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref count_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "count", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "cap", ctx)
     if count_fl.size == 4 { write_u32(ptr_add(inst_data, count_fl.offset), count_val.to_u32()) }
     else { write_u64(ptr_add(inst_data, count_fl.offset), count_val.to_u64()) }
     if cap_fl.size == 4 { write_u32(ptr_add(inst_data, cap_fl.offset), cap_val.to_u32()) }
@@ -5068,7 +5063,7 @@ priv str_usize_read_width := func(field_size: USize, ctx: Context) returns USize
 // it at the ctx offset instead (low bytes carry the value / the CAP_VIEW /
 // CAP_LIT sentinels, which fit in 32 bits).
 str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
-    ref cap_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "cap", ctx)
     return str_usize_field_at(str_base, cap_fl.offset, str_usize_read_width(cap_fl.size, ctx))
 }
 
@@ -5079,7 +5074,7 @@ str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
 // count@8 AND the neighbouring cap@12, so count comes back with cap in its
 // high word -- a garbage huge value that crashes the buffer clone's memcpy.
 str_count_at := func(str_base: Dynamic, ctx: Context) returns USize {
-    ref count_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "count", ctx)
+    ref count_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "count", ctx)
     return str_usize_field_at(str_base, count_fl.offset, str_usize_read_width(count_fl.size, ctx))
 }
 
@@ -5405,20 +5400,20 @@ interp_session_retain_program := func(mut session: InterpSession, raw: Dynamic) 
 }
 
 priv interp_reset_control_flow := func(mut ctx: Context) {
-    if ctx.has_return {
+    if ctx.eval.has_return {
         raw : Dynamic = context_return_take(ctx)
         EvalHeap.heap_free(own raw)
     }
-    ctx.has_return = false
-    ctx.has_break = false
-    ctx.has_continue = false
-    ctx.eval_aborted = false
+    ctx.eval.has_return = false
+    ctx.eval.has_break = false
+    ctx.eval.has_continue = false
+    ctx.eval.eval_aborted = false
 }
 
 interp_session_prepare_context := proc(mut session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32 {
     // Every REPL turn interprets a freshly loaded/cloned program, so the flag
     // has to be restamped on each turn's Context.
-    lp.ctx.repl_session = session.is_repl
+    lp.ctx.eval.repl_session = session.is_repl
     // Ensure builtin dispatch table is initialized deterministically.
     if lp.ctx.ffi.dispatch_inited.not() { dispatch_init(lp.ctx) }
 
@@ -5595,7 +5590,7 @@ interp_session_eval_current_root := proc(mut session: InterpSession, mut lp: Loa
     interp_eval_program_slice(session, lp, iu.ast, 0, interp_lowering_preamble_count(iu.ast, start_idx))
     if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, doc_init_line) }
     interp_eval_program_slice(session, lp, iu.ast, start_idx, iu.ast.children.len().sub(start_idx))
-    aborted := lp.ctx.eval_aborted
+    aborted := lp.ctx.eval.eval_aborted
     interp_reset_control_flow(lp.ctx)
     return aborted
 }
@@ -5604,7 +5599,7 @@ interp_session_eval_current_tail := proc(mut session: InterpSession, mut lp: Loa
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref mut iu : ImportUnit = lp.ctx.imported[root.path]
     interp_eval_program_slice(session, lp, iu.ast, start_idx, count)
-    aborted := lp.ctx.eval_aborted
+    aborted := lp.ctx.eval.eval_aborted
     interp_reset_control_flow(lp.ctx)
     return aborted
 }
@@ -5779,7 +5774,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
 
             // main is a CALL, so its body has to run with the same
             // return context eval_user_func_call installs: a `return
-            // <v>` reads ctx.interp_ret_type to coerce the value to the
+            // <v>` reads ctx.eval.interp_ret_type to coerce the value to the
             // declared type. Evaluating the body bare left that None,
             // and interp_ret_type_name's #321 invariant panicked with
             // "return type read outside a call" -- on EVERY interpreted
@@ -5787,14 +5782,14 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             // Nothing caught it because the suite's mode-cli programs
             // either return nothing or are only ever compiled.
             ref mut mc : Context = lp.ctx
-            saved_ret_is_ref := mc.interp_ret_is_ref
-            ref saved_ret_dest : Dynamic = mc.interp_ret_dest
-            saved_ret_type := mc.interp_ret_type
-            saved_ret_own_type := mc.interp_ret_own_type
-            mc.interp_ret_type = Option(ref Str).Some(fd.return_type)
-            mc.interp_ret_own_type = fd.return_own_type
-            mc.interp_ret_is_ref = fd.return_own_type.is(OwnType.Ref)
-            mc.interp_ret_dest = 0
+            saved_ret_is_ref := mc.eval.interp_ret_is_ref
+            ref saved_ret_dest : Dynamic = mc.eval.interp_ret_dest
+            saved_ret_type := mc.eval.interp_ret_type
+            saved_ret_own_type := mc.eval.interp_ret_own_type
+            mc.eval.interp_ret_type = Option(ref Str).Some(fd.return_type)
+            mc.eval.interp_ret_own_type = fd.return_own_type
+            mc.eval.interp_ret_is_ref = fd.return_own_type.is(OwnType.Ref)
+            mc.eval.interp_ret_dest = 0
 
             eval_body(main_scope, body, lp.ctx)
 
@@ -5803,7 +5798,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             // two backends must not disagree about what a program's
             // result is.
             mut main_status : I32 = 0
-            if mc.has_return {
+            if mc.eval.has_return {
                 mut ret_raw : Dynamic = context_return_take(mc)
                 if fd.return_type.len() > 0 {
                     ret_type := type_from_name_init(fd.return_type, lp.ctx.scope)
@@ -5813,13 +5808,13 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     // freeing it walks off the value itself (`return 3`
                     // segfaulted on address 3; `return 0` only survived
                     // because free(NULL) is a no-op).
-                    raw_result_drop(ret_type, ret_raw, mc.interp_ret_is_ref, lp.ctx)
+                    raw_result_drop(ret_type, ret_raw, mc.eval.interp_ret_is_ref, lp.ctx)
                 }
             }
-            mc.interp_ret_is_ref = saved_ret_is_ref
-            mc.interp_ret_dest = saved_ret_dest
-            mc.interp_ret_type = saved_ret_type
-            mc.interp_ret_own_type = saved_ret_own_type
+            mc.eval.interp_ret_is_ref = saved_ret_is_ref
+            mc.eval.interp_ret_dest = saved_ret_dest
+            mc.eval.interp_ret_type = saved_ret_type
+            mc.eval.interp_ret_own_type = saved_ret_own_type
             scope_free(own main_scope)
 
             if main_status != 0 {
@@ -6402,12 +6397,12 @@ priv h_print_single := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Con
     // fold candidate reaches a print (e.g. through panic's message on a
     // failure branch the comptime inputs hit), swallow it. The fold itself is
     // abandoned via the abort in h_exit and the call is left for runtime.
-    if ctx.constfold_active.not() { print_single(arg) }
+    if ctx.eval.constfold_active.not() { print_single(arg) }
     return true
 }
 
 priv h_print_flush := proc(_s: Scope, _e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    if ctx.constfold_active.not() { print_flush() }
+    if ctx.eval.constfold_active.not() { print_flush() }
     return true
 }
 
@@ -6418,8 +6413,8 @@ priv h_exit := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) re
     // kill the build: set eval_aborted and unwind like an early return
     // (propagated through eval_body/eval_while). try_eval_call then leaves the
     // call for runtime, or reports it for a macro. No name list required.
-    if ctx.constfold_active {
-        ctx.eval_aborted = true
+    if ctx.eval.constfold_active {
+        ctx.eval.eval_aborted = true
         return true
     }
     code := eval_i64_arg(s, e.children[1], ctx)
@@ -6430,8 +6425,8 @@ priv h_exit := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) re
     // had built up. The message is already on the captured stream; unwinding
     // drops the turn and prompts again. exit(0) still terminates: that is a
     // deliberate quit, not a failure.
-    if ctx.repl_session.and(code.neq(0)) {
-        ctx.eval_aborted = true
+    if ctx.eval.repl_session.and(code.neq(0)) {
+        ctx.eval.eval_aborted = true
         return true
     }
     exit(code)
@@ -7972,10 +7967,10 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         ref mut arg_expr : Expr = e.children[i + 1]
         mut arg_info := raw_result_info_new()
         if interp_c_str_arg_shape(arg_expr).and(interp_ext_c_string_param(scope, name, i)) {
-            ctx.interp_cstr_arg = true
+            ctx.eval.interp_cstr_arg = true
         }
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
-        ctx.interp_cstr_arg = false
+        ctx.eval.interp_cstr_arg = false
         arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
         arg_raw_off := i.mul(16)
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)

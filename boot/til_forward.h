@@ -244,6 +244,7 @@ typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct FfiState FfiState;
 typedef struct InternedTypes InternedTypes;
 typedef struct SymbolPool SymbolPool;
+typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
@@ -1460,6 +1461,24 @@ typedef struct InternedTypes {
 } InternedTypes;
 
 
+typedef struct EvalState {
+    Bool has_return;
+    Bool has_break;
+    Bool has_continue;
+    void * *return_value;
+    Bool interp_ret_is_ref;
+    void * *interp_ret_dest;
+    Option__ref_Str interp_ret_type;
+    OwnType interp_ret_own_type;
+    Bool interp_cstr_arg;
+    Bool constfold_active;
+    Bool eval_aborted;
+    Bool repl_session;
+    Option__Scope ns_fields;
+    Str cached_str_name;
+} EvalState;
+
+
 typedef struct Map__Str_TypeBinding {
     Vec__Str keys;
     Vec__TypeBinding values;
@@ -1653,19 +1672,7 @@ typedef struct Context {
     Map__Str_FuncType constfolder_foldables;
     Option__Scope constfolder_known;
     Set__Str constfolder_assigned;
-    Bool has_return;
-    Bool has_break;
-    Bool has_continue;
-    void * *return_value;
-    Bool interp_ret_is_ref;
-    void * *interp_ret_dest;
-    Option__ref_Str interp_ret_type;
-    OwnType interp_ret_own_type;
-    Bool interp_cstr_arg;
-    Bool constfold_active;
-    Bool eval_aborted;
-    Bool repl_session;
-    Option__Scope ns_fields;
+    EvalState eval;
     Map__Str_ImportUnit imported;
     Bool check_unused_imports;
     Set__Str import_use_edges;
@@ -1732,7 +1739,6 @@ typedef struct Context {
     Bool builder_cstr_used;
     Bool builder_closure_rt_used;
     Bool builder_prog_closed_world;
-    Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
     InternedTypes interned_types;
     FfiState ffi;

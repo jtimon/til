@@ -9,12 +9,16 @@
      fields (~ctor_seq~, ~in_func_def~, ~in_main_func~, ~current_fdef~) now
      reset and save/restore with the existing local/ref/stack tables; nested
      closure emission restores one state object instead of parallel fields.
+   - [X] Step 3: grouped interpreter call/control state, return metadata,
+     const-fold/REPL abort state, namespace storage, and the canonical Str
+     cache under ~Context.eval : EvalState~. Interpreter and constfolder users
+     now reach those values through one interpreter-owned state object.
    - [X] Step 4: grouped the eight dispatch/libffi tables and lifecycle flags
      under one ~Context.ffi : FfiState~ field. Interpreter and loader users now
      access ~dispatch_map~, registered entries, struct definitions, the
      aggregate type cache, and their initialization flags through that
      interpreter-owned state.
-   - [ ] Steps 1, 3, and the remaining Context cache audit in step 5.
+   - [ ] Step 1 and the remaining Context cache audit in step 5.
 
 Companion to [[./247.org][#247]] (move layout facts off the AST). #246 = Context
 carries phase-local scratch; #247 = the AST carries non-syntax layout
@@ -32,9 +36,8 @@ it. The struct is now a grab-bag of unrelated lifetimes:
     ~imports_*_done~ memo sets, ~struct_layouts~, ~interp_type_defs~,
     ~func_defs~, ~struct_def_exprs~, ~funcsig_names~.
   - constfolder tables: ~constfolder_macros~, ~constfolder_funcs~, ~constfolder_known~.
-  - interpreter runtime flags + slots: ~has_return~, ~has_break~,
-    ~has_continue~, ~return_value~, ~ns_fields~, ~ns_keys~, ~ns_inited~,
-    the six ~cached_*~ refs, ~dispatch_*~ / ~ffi_*~ FFI state.
+  - interpreter runtime flags + slots are now grouped under ~eval~;
+    dispatch/libffi state is grouped under ~ffi~.
   - typer-only scratch: ~typing_namespace_member~,
     ~typer_in_shallow_return~, ~typer_in_main_func~,
     ~typer_return_type_name~, ~proc_calls_count~, ~proc_def_depth~,
@@ -85,7 +88,7 @@ Context. And runtime eval state lives in ~EvalHeap~, not on Context.
      off the AST today. Let #247 migrate a given builder consumer's
      layout reads to ~ctx.struct_layouts~ *before* this step relocates
      that consumer's other scratch, so each commit moves one thing.
-3. Group the interpreter runtime state (~has_return~/~has_break~/
+3. DONE -- Group the interpreter runtime state (~has_return~/~has_break~/
    ~has_continue~/~return_value~ + ~ns_*~ + ~cached_*~) into an
    eval-state struct, the way rstil keeps it in ~EvalHeap~.
    - Same CROSS-DEP with #247 step 3 for the interpreter's layout reads.

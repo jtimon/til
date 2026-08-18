@@ -4,7 +4,7 @@ mode cli
 // the ordinary both entry (which demands exit 0 from each and compares
 // their stdout). Interpreting any main that returns something used to
 // panic with "return type read outside a call": interpret_units built
-// main's scope by hand and ran eval_body BARE, so ctx.interp_ret_type
+// main's scope by hand and ran eval_body BARE, so ctx.eval.interp_ret_type
 // (which eval_user_func_call installs around every other call) stayed
 // None, and the `return` statement's coercion read it. This file
 // existing in the both list is the regression: the panic made the

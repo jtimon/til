@@ -7,7 +7,7 @@ constfolder_clear_known := func(mut ctx: Context) {
     if ctx.constfolder_known.is_some() {
         scope_drop_owned_bindings(known_scope(ctx))
         // Move the scope OUT of the field before freeing, so the field is
-        // None the moment the free runs (same discipline as ns_fields and
+        // None the moment the free runs (same discipline as eval.ns_fields and
         // the session global).
         mut cfk_old := Option(Scope).None
         swap(Option(Scope), ctx.constfolder_known, cfk_old)
@@ -555,8 +555,8 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, mut constfolder_
         // proc/ext_proc (the type checker enforces purity), so an
         // external effect can never reach here. A diverging abort
         // (panic -> exit) reached during the fold eval is recovered by
-        // the interpreter (h_exit sees ctx.constfold_active and sets
-        // eval_aborted instead of terminating), so it is not a
+        // the interpreter (h_exit sees ctx.eval.constfold_active and sets
+        // ctx.eval.eval_aborted instead of terminating), so it is not a
         // static blocker either.
         switch func_def.node_type {
         case .FuncDef(fd):
@@ -765,7 +765,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // ext_proc declarations), which is never classified foldable, so it can
     // only reach try_eval_call as a macro body call (macros may run effects
     // at compile time, like rstil). A diverging abort during the eval is
-    // recovered via ctx.constfold_active in the interpreter's h_exit.
+    // recovered via ctx.eval.constfold_active in the interpreter's h_exit.
     is_macro_mode := require_known
     // Same typed resolution as try_fast_fold_call: only a callable binding
     // hands back an Expr, so a value slot can never be read as one.
@@ -955,18 +955,18 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
 
     // Evaluate the call using the interpreter. constfold_active makes a
     // diverging abort (panic/exit/TODO/UNREACHABLE) reached during the eval
-    // set ctx.eval_aborted and unwind instead of printing+exiting the
+    // set ctx.eval.eval_aborted and unwind instead of printing+exiting the
     // build -- til's analogue of rstil precomp inspecting a throw result.
-    ctx.constfold_active = true
+    ctx.eval.constfold_active = true
     mut result : Dynamic = eval_expr_raw(scope, ec, ctx)
-    ctx.constfold_active = false
+    ctx.eval.constfold_active = false
 
     // The eval reached a panic/abort with these comptime inputs. Don't bake a
     // value. For a macro that is a hard compile-time error (the macro genuinely
     // fails to expand); for a plain func, leave the call for runtime (it may
     // sit on a branch that never executes at run time).
-    if ctx.eval_aborted {
-        ctx.eval_aborted = false
+    if ctx.eval.eval_aborted {
+        ctx.eval.eval_aborted = false
         raw_result_drop(fcall.til_type(), result, false, ctx)
         if require_known {
             panic(
@@ -1185,8 +1185,8 @@ priv interp_va_build_stmt := proc(mut scope: Scope, mut stmt: Expr, va: Str, ek:
 // true on success; false if interpreting it aborts (non-comptime element).
 priv materialize_va := proc(mut scope: Scope, mut body: Expr, decl_idx: USize, va: Str, mut ctx: Context) returns Bool {
     ek := format(va, "_ek")
-    ctx.constfold_active = true
-    ctx.eval_aborted = false
+    ctx.eval.constfold_active = true
+    ctx.eval.eval_aborted = false
     mut k := decl_idx
     while k < body.children.len() {
         ref mut s : Expr = body.children[k]
@@ -1196,12 +1196,12 @@ priv materialize_va := proc(mut scope: Scope, mut body: Expr, decl_idx: USize, v
             break
         }
         interp_va_build_stmt(scope, s, va, ek, ctx)
-        if ctx.eval_aborted { break }
+        if ctx.eval.eval_aborted { break }
         k = k + 1
     }
-    ctx.constfold_active = false
-    if ctx.eval_aborted {
-        ctx.eval_aborted = false
+    ctx.eval.constfold_active = false
+    if ctx.eval.eval_aborted {
+        ctx.eval.eval_aborted = false
         return false
     }
     return true
@@ -1239,12 +1239,12 @@ priv fold_va_calls := proc(mut scope: Scope, mut e: Expr, va: Str, mut ctx: Cont
             // into the fold scope; only `va` was bound by materialize_va, so
             // without this eval_expr hits the unbound hoist -> "undefined var".
             bind_known_idents_in(scope, child, ctx)
-            ctx.constfold_active = true
-            ctx.eval_aborted = false
+            ctx.eval.constfold_active = true
+            ctx.eval.eval_aborted = false
             mut result : Dynamic = eval_expr_raw(scope, child, ctx)
-            ctx.constfold_active = false
-            aborted := ctx.eval_aborted
-            ctx.eval_aborted = false
+            ctx.eval.constfold_active = false
+            aborted := ctx.eval.eval_aborted
+            ctx.eval.eval_aborted = false
             if aborted.not() {
                 mut lit_o := raw_to_expr(result, child.til_type(), child, ctx)
                 if lit_o.is_some() {

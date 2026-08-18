@@ -408,13 +408,13 @@ retarget_loaded_aliases := func(mut lp: LoadedProgram) {
 // canonical ASTs stored in lp.ctx.imported.
 priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // Make codegen_lp() available so raw dispatch helpers can read Context
-    // fields (cached_str_name) populated by interpreter_init_ns below.
+    // fields (eval.cached_str_name) populated by interpreter_init_ns below.
     // Only reset the fold-results scope here; the foldable-name table
     // (constfolder_foldables) was populated upstream by the typer
     // (constfolder_classify_stmt) and must survive into this phase.
     constfolder_clear_known(lp.ctx)
     lp.ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
-    // Issue #109: populate ctx.cached_str_name BEFORE
+    // Issue #109: populate ctx.eval.cached_str_name BEFORE
     // constfolder_register_fold_scope, so the raw Str path inside the
     // fold-scope walk has the field layout needed to clone and drop strings.
     for upath : Str in lp.unit_paths() {

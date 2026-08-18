@@ -777,7 +777,7 @@ FfiState := struct {
 // replace and delete subtrees) are address-stable for that long. Entries
 // here are each their own allocation, never move, and are only freed at
 // Context teardown -- which outlives every scope (eval scopes die during
-// eval; ns_fields and the session global drop before the Context does).
+// eval; eval.ns_fields and the session global drop before the Context does).
 // Cells hold a Type* in a Dynamic word, the interp_type_defs pattern.
 
 // Free the Type blocks a word-vec's non-null elements point at. The
@@ -869,41 +869,7 @@ namespace:
     }
 }
 
-Context := struct {
-    mode := Mode()
-    path := ""
-    path_modes := Map(Str, Mode).new()
-    mode_registry := Map(Str, Mode).new()
-    // The raw-bytes runtime heap (rstil's EvalHeap), threaded through Context
-    // since Context already flows everywhere eval runs.
-    eval_heap := EvalHeap.new()
-    target_usize_pname := "U32"
-    target_uptr_pname := "U64"
-    // Target USize width in bytes, kept in lockstep with target_usize_pname
-    // (context_register_target_int_alias_types). A SCALAR mirror of the pname
-    // so the Str-ownership hot path (str_usize_read_width -> str_has_owned_
-    // storage) can read the target width WITHOUT dereferencing an owned heap
-    // Str: that path also runs during Context teardown, where the owned
-    // target_usize_pname field is freed before the interned runtime tables whose
-    // delete calls it -- reading it there is a heap-use-after-free (#309).
-    target_usize_bytes : USize = 4
-    anon_type_counter : I64 = 0
-    // Issue #54: true when the program is headed for the C backend
-    // (build/run/translate/install/test) rather than the interpreter.
-    // Capturing closures currently run only under the interpreter, so the
-    // typer rejects them in compile mode. Set by main() before the typer
-    // runs (default false = interpret).
-    compile_mode := false
-
-    // Raw-owning runtime tables must delete before imported ASTs: aggregate
-    // payloads carry type/layout refs into those ASTs.
-    constfolder_foldables := Map(Str, FuncType).new()
-    // #321/#324: the comptime-known scope, OWNED (see ns_fields above for
-    // the pattern). None IS the between-resets state; the fold-nesting
-    // save/restore moves the real scope out and parks an owned VIEW scope
-    // (parented at the moved-out real one) in the field meanwhile.
-    constfolder_known := Option(Scope).None
-    constfolder_assigned := Set(Str).new()
+EvalState := struct {
     has_return := false
     has_break := false
     has_continue := false
@@ -955,6 +921,55 @@ Context := struct {
     // teardown moves the scope out before scope_free instead of freeing
     // through a ref field.
     ns_fields := Option(Scope).None
+    // #177 interpreter cache for the canonical Str type name, populated by
+    // populate_cached_aggregate_defs / interpreter_init_ns and read by raw
+    // allocation, field-layout, and argv construction paths. #321: now an
+    // OWNED clone ("" = not yet registered), so raw-value teardown
+    // (str_owns_c_str -> str_count_at -> ctx_field_layout) no longer reads
+    // a borrow into the imported ASTs -- the #299 ordering hazard for this
+    // field is gone. The five sibling caches (cached_str/array/vec_def,
+    // cached_array/vec_name) were write-only and are removed.
+    cached_str_name := ""
+}
+
+Context := struct {
+    mode := Mode()
+    path := ""
+    path_modes := Map(Str, Mode).new()
+    mode_registry := Map(Str, Mode).new()
+    // The raw-bytes runtime heap (rstil's EvalHeap), threaded through Context
+    // since Context already flows everywhere eval runs.
+    eval_heap := EvalHeap.new()
+    target_usize_pname := "U32"
+    target_uptr_pname := "U64"
+    // Target USize width in bytes, kept in lockstep with target_usize_pname
+    // (context_register_target_int_alias_types). A SCALAR mirror of the pname
+    // so the Str-ownership hot path (str_usize_read_width -> str_has_owned_
+    // storage) can read the target width WITHOUT dereferencing an owned heap
+    // Str: that path also runs during Context teardown, where the owned
+    // target_usize_pname field is freed before the interned runtime tables whose
+    // delete calls it -- reading it there is a heap-use-after-free (#309).
+    target_usize_bytes : USize = 4
+    anon_type_counter : I64 = 0
+    // Issue #54: true when the program is headed for the C backend
+    // (build/run/translate/install/test) rather than the interpreter.
+    // Capturing closures currently run only under the interpreter, so the
+    // typer rejects them in compile mode. Set by main() before the typer
+    // runs (default false = interpret).
+    compile_mode := false
+
+    // Raw-owning runtime tables must delete before imported ASTs: aggregate
+    // payloads carry type/layout refs into those ASTs.
+    constfolder_foldables := Map(Str, FuncType).new()
+    // #321/#324: the comptime-known scope, OWNED (see EvalState.ns_fields for
+    // the pattern). None IS the between-resets state; the fold-nesting
+    // save/restore moves the real scope out and parks an owned VIEW scope
+    // (parented at the moved-out real one) in the field meanwhile.
+    constfolder_known := Option(Scope).None
+    constfolder_assigned := Set(Str).new()
+    // Interpreter call/control/namespace state, grouped so Context no longer
+    // exposes each evaluation-local flag, slot, and cache separately.
+    eval := EvalState()
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
     imported := Map(Str, ImportUnit).new()
@@ -1315,16 +1330,6 @@ Context := struct {
     // they know a symbol they would declare is going to be static -- and
     // therefore not something any other translation unit can call.
     builder_prog_closed_world := false
-    // #177 interpreter cache for the canonical Str type name, populated by
-    // populate_cached_aggregate_defs / interpreter_init_ns and read by raw
-    // allocation, field-layout, and argv construction paths. #321: now an
-    // OWNED clone ("" = not yet registered), so raw-value teardown
-    // (str_owns_c_str -> str_count_at -> ctx_field_layout) no longer reads
-    // a borrow into the imported ASTs -- the #299 ordering hazard for this
-    // field is gone. The five sibling caches (cached_str/array/vec_def,
-    // cached_array/vec_name) were write-only and are removed.
-    cached_str_name := ""
-
     // Interpreter type-def registry: maps every struct/enum name to its
     // AST def Expr. Populated by interpreter_init_ns, read via
     // lookup_interp_type_def. This is the rstil-style "external type
