@@ -125,6 +125,47 @@ own_local_early_return_paths := test() {
     assert_eq(USize, own_local_consumed_before_return(false), 5)
 }
 
+/// #368: consumed on the early-return path AND on the fall-through --
+/// two transfer SITES, no path transferring twice. LocalInfo.own_transfer
+/// holds only the FIRST, so the second one is invisible to the index
+/// model, and the "the transferring path diverged, restore ordinary
+/// cleanup" rule then freed what the fall-through had just moved.
+own_local_consumed_on_every_path := func(mut dst: Vec(Str), flag: Bool) returns USize {
+    lit := "hello"
+    s := lit.clone()
+    if flag {
+        dst.push(own s)
+        return 1
+    }
+    dst.push(own s)
+    return 2
+}
+
+own_local_multi_site_transfer := test() {
+    mut v := Vec(Str).new()
+    assert_eq(USize, own_local_consumed_on_every_path(v, true), 1)
+    assert_eq(USize, own_local_consumed_on_every_path(v, false), 2)
+    assert_eq(USize, v.len(), 2)
+    assert_eq(USize, v[0].len(), 5)
+    assert_eq(USize, v[1].len(), 5)
+}
+
+/// The same shape with a plain `own` argument rather than a container
+/// push, so the cell does not depend on Vec's ownership handling.
+own_local_two_sites_own_arg := func(flag: Bool) returns USize {
+    lit := "hello"
+    s := lit.clone()
+    if flag {
+        return take_own(own s)
+    }
+    return take_own(own s) + 1
+}
+
+own_local_two_sites_own_arg_paths := test() {
+    assert_eq(USize, own_local_two_sites_own_arg(true), 5)
+    assert_eq(USize, own_local_two_sites_own_arg(false), 6)
+}
+
 // --- view local (substr) -----------------------------------------------
 //
 // A view owns its wrapper but not its bytes, so cleanup must free the

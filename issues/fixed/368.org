@@ -13,11 +13,23 @@
 # (re-deriving dtor_transfer / shallow_copy_transfer for it) instead of
 # dropping to -1. Diagnosis came from the gc_audit record, not the
 # crash: clean `own_transfer=128` vs two-site `own_transfer=-1` for the
-# same local. Two standalone reductions never reproduced -- the shape
-# needs the diverged transfer AND the surviving path's last use to be a
-# transfer -- so the regression test is a gc_audit fixture,
+# same local. The regression test is a gc_audit fixture,
 # diverged_then_transfer in test/gc_audit.til, whose golden pins
 # own_transfer=11; a regression shows it as -1.
+#
+# A standalone reduction DOES exist, contrary to the note this line
+# replaces: own_local_multi_site_transfer and
+# own_local_two_sites_own_arg_paths in test/ownership_shapes.til are
+# twelve lines each and are heap-use-after-free / double-free under
+# ASAN when built with the pre-fix compiler. The earlier attempts missed
+# it by mimicking the SURROUNDINGS of desugar_for_in_range_stmt (the
+# recursive Vec-of-self, the `own` non-final parameter,
+# replace_body_stmt_with_block writing a body slot) rather than its
+# ingredients, which are only: an owned local, a transfer on a
+# returning path, a transfer on the fall-through, and a use after the
+# first transfer's statement index. Both spellings run in both
+# backends, so a regression fails as a crash and not only as a changed
+# golden.
 # category: bugs
 ** FIXED #368 Multiple own-transfer sites on returning paths miscompile SILENTLY since #364/#365
 
