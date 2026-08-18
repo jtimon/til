@@ -2995,7 +2995,7 @@ priv record_field_transfer_decisions := func(mut body: Expr, scope: TypeScope) {
     for mut stmt : Expr in body.children {
         switch stmt.node_type {
         case .FieldAssign(fad):
-            fad.transfers_own = stmt.fa_own_type(scope).is(OwnType.Own)
+            fad.transfers_own = field_assign_transfers_own(stmt, scope)
         case:
         }
     }

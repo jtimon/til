@@ -5327,6 +5327,7 @@ priv field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Boo
     if stmt.fa_own_type(scope).is(OwnType.Shallow).not() { return true }
     ref ft : Type = stmt.children[1].til_type()
     if is_aggregate(ft) { return true }
+    if type_is_callable_storage(ft) { return true }
     return false
 }
 

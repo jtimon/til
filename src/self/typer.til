@@ -5585,6 +5585,14 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
     }
 }
 
+priv mark_callable_field_transfer := func(mut stmt: Expr, shallow target_type: Type) {
+    if type_is_callable_storage(target_type).not() { return }
+    switch stmt.node_type {
+    case .FieldAssign(fad): fad.transfers_own = true
+    case: UNREACHABLE("expected FieldAssign, got ", stmt.node_type.head_str())
+    }
+}
+
 priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
     infer_expr(scope, stmt.children[0], in_func, ctx)
@@ -5639,6 +5647,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                             fld_type = resolved_fld_type
                         }
                     }
+                    mark_callable_field_transfer(stmt, fld_type)
                     // #321: `x.f = 0` on a Dynamic field is the null spelling.
                     rewrite_zero_to_null(rhs, fld_type, false)
                     // #321 step 4: null only overwrites quarantine slots.
@@ -5691,6 +5700,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                                 nsd_type = resolved_nsd_type
                             }
                         }
+                        mark_callable_field_transfer(stmt, nsd_type)
                         mut handled_lit2 := false
                         switch rhs.node_type {
                         case .Literal(Literal.Num(lit_str)):
@@ -8864,14 +8874,15 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
     case:
     }
     if fcall_has_own_arg(e, var_name, scope) { return true }
-    // FieldAssign is a transfer only when the receiving field is Own --
-    // Ref fields take a borrow (caller keeps ownership), Shallow fields
-    // value-copy (caller keeps too). The old check `not Shallow`
+    // FieldAssign transfers into an Own field or a callable slot. Callable
+    // fields are shallow pointer words, but an env-backed closure box is
+    // owned by exactly one slot. Ref fields take a borrow and other Shallow
+    // fields value-copy (caller keeps ownership). The old check `not Shallow`
     // misclassified Ref-field assignments as transfers, so a local
     // assigned into a ref-typed field never got its scope-end delete.
     // (Issue #109: test/ref.til's `a.next = b` where `next` is `ref mut
     // next : RefNode` leaked b's 16-byte wrapper.)
-    if e.node_type.is(NodeType.FieldAssign).and(e.fa_own_type(scope).is(OwnType.Own)) {
+    if field_assign_transfers_own(e, scope) {
         if e.children.len() > 1 {
             switch e.children[1].node_type {
             case .Ident(ei):
@@ -8884,6 +8895,14 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
         if expr_transfers_own(e_i, var_name, scope, ctx) { return true }
     }
     return false
+}
+
+field_assign_transfers_own := func(e: Expr, scope: TypeScope) returns Bool {
+    switch e.node_type {
+    case .FieldAssign(fad):
+        return fad.transfers_own.or(e.fa_own_type(scope).is(OwnType.Own))
+    case: return false
+    }
 }
 
 // --- Bitmask-building mirrors of the per-name scanners above (perf) ---
@@ -9214,7 +9233,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
 
     if want_transfers.and(sub_transfers_on) {
         fcall_collect_own_arg_names(e, scope, fi, base, transfers)
-        if e.node_type.is(NodeType.FieldAssign).and(e.fa_own_type(scope).is(OwnType.Own)) {
+        if field_assign_transfers_own(e, scope) {
             if e.children.len() > 1 {
                 switch e.children[1].node_type {
                 case .Ident(ei):

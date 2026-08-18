@@ -14,6 +14,18 @@ import("../src/std/dyn_hashmap")
 BinaryOp := func(I64, I64) returns I64
 UnaryOp := func(I64) returns I64
 
+namespace_add_one := func(x: I64) returns I64 { return x.add(1) }
+namespace_add_two := func(x: I64) returns I64 { return x.add(2) }
+
+namespace_offset := func(offset: I64) returns UnaryOp {
+    return func(x: I64) returns I64 [shallow offset] { return x.add(offset) }
+}
+
+CallableNamespace := namespace {
+    mut selected : UnaryOp = namespace_add_one
+    mut captured : UnaryOp = namespace_offset(10)
+}
+
 apply_binop := func(op: BinaryOp, a: I64, b: I64) returns I64 {
     return op(a, b)
 }
@@ -30,6 +42,20 @@ test_lambda_basic_add := test() {
 
 test_lambda_basic_mul := test() {
     assert_eq(I64, apply_binop(func(a: I64, b: I64) returns I64 { return a.mul(b) }, 6, 7), 42)
+}
+
+test_namespace_mutable_and_capturing_callables := test() {
+    selected := CallableNamespace.selected
+    assert_eq(I64, selected(4), 5)
+    CallableNamespace.selected = namespace_add_two
+    selected2 := CallableNamespace.selected
+    assert_eq(I64, selected2(4), 6)
+
+    captured := CallableNamespace.captured
+    assert_eq(I64, captured(5), 15)
+    CallableNamespace.captured = namespace_offset(20)
+    captured2 := CallableNamespace.captured
+    assert_eq(I64, captured2(5), 25)
 }
 
 test_lambda_distinct_call_sites := test() {
