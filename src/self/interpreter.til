@@ -4917,7 +4917,6 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
             if sdef.node_type.is(NodeType.StructDef) {
                 if dd.name == "Str" { ctx.eval.cached_str_name = dd.name.clone() }
             }
-            set_namespace_func_identity(Option(ref Declaration).Some(dd), sdef)
             // Register every struct/enum AST in the comprehensive type-def map;
             // layout readers resolve nested definitions by name through it.
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
@@ -5280,15 +5279,18 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
     raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
 }
 
-priv interpret_register_defs := func(mut global: Scope, prog: Expr, mut ctx: Context) {
-    for stmt : Expr in prog.children {
+priv interpret_register_defs := func(mut global: Scope, mut prog: Expr, mut ctx: Context) {
+    for mut stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            ref decl_value : Expr = stmt.children[0]
+            ref mut decl_value : Expr = stmt.children[0]
             if decl_value.node_type.is(NodeType.FuncDef)
             .or(decl_value.node_type.is(NodeType.StructDef))
             .or(decl_value.node_type.is(NodeType.EnumDef)) {
                 switch stmt.node_type {
                 case .Decl(dd):
+                    if decl_value.node_type.is(NodeType.StructDef).or(decl_value.node_type.is(NodeType.EnumDef)) {
+                        set_namespace_func_identity(Option(ref Declaration).Some(dd), decl_value)
+                    }
                     mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                     write_ptr(raw, stmt.children[0])
                     scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
@@ -5472,7 +5474,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
 
     // Refresh definition pointers and namespace state against this turn's AST.
     for upath : Str in lp.unit_paths() {
-        ref iu2 : ImportUnit = lp.ctx.imported[upath]
+        ref mut iu2 : ImportUnit = lp.ctx.imported[upath]
         interpret_register_defs(session_global(session), iu2.ast, lp.ctx)
     }
 
