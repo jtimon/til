@@ -4032,6 +4032,16 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             switch vec_decl.node_type {
             case .Decl(dd):
                 dd.is_mut = true
+                // build_builtin_vec_decl stamps Own for its OTHER caller (the
+                // `_va_Array_N` / `_vec_N` temps, whose bindings are registered
+                // Own to match). Here the binding below is registered Shallow --
+                // like the splat path above, which passes OwnType.Shallow
+                // explicitly -- so reset the Declaration to agree. The two
+                // records feed different consumers (the builder reads the
+                // Declaration, the garbager reads the binding), and leaving them
+                // disagreeing is what made a source-level `x := vec(...)` look
+                // owned to codegen and shallow to the destruction pass.
+                dd.own_type = OwnType.Shallow
             case:
             }
             scope.set(var_name, Type.Struct(vec_type), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -4054,6 +4064,14 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             }
             mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count, ctx)
             arr_decl.set_til_type(Type.Struct(array_type.clone()))
+            switch arr_decl.node_type {
+            case .Decl(dd):
+                // Same reset as the vec branch above: build_variadic_array_decl
+                // stamps Own for the `_va_Array_N` temp it was written for,
+                // while this binding is registered Shallow.
+                dd.own_type = OwnType.Shallow
+            case:
+            }
             scope.set(var_name, Type.Struct(array_type), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             new_ch.push(own arr_decl)
             build_variadic_err_slots(var_name, new_ch, scope, ctx, rhs.line, rhs.col)
