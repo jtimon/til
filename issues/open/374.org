@@ -1,0 +1,132 @@
+# priority: low
+# category: features
+** OPEN #374 BEAM backend alongside the C backend
+
+Add a backend that runs til programs on the BEAM virtual machine. The
+backend may emit BEAM directly, feed an Erlang representation to the OTP
+compiler, or translate through Erlang, Gleam, Elixir, or another BEAM
+language. This issue records the design space rather than choosing that
+route up front; the C backend remains the default and the bootstrap path.
+
+*** Why BEAM
+
+- It makes til code available in the Erlang/OTP ecosystem and opens the
+  VM's process, supervision, distribution, hot-code-loading, and
+  fault-isolation model to future til libraries and applications.
+- One backend can run anywhere a compatible OTP release runs rather than
+  adding a native code generator for each operating system and CPU.
+- It tests whether the boundary established by [[../fixed/288.org][#288]]
+  is genuinely portable: every backend lowers ~core_func~ itself while
+  ~ext_func~ becomes a backend-specific runtime boundary.
+
+This is a managed-runtime backend, not merely another CPU/OS target. Its
+value and representation model differ substantially from the C ABI.
+
+*** Output route (human decision after a spike)
+
+OTP's compiler documentation recommends Erlang source or Erlang abstract
+forms for language implementors. It explicitly warns that Core Erlang
+primops can change between major releases and strongly discourages BEAM
+assembly: the assembly format is not documented, changes between releases,
+and invalid conventions can crash the VM. Direct BEAM therefore needs a
+strong measured reason, not an assumption that it is the natural route.
+
+Spike the same small module through these candidates before selecting one:
+
+- Erlang source compiled by ~erlc~: the simplest, inspectable, officially
+  recommended route. It adds generated Erlang source and maps diagnostics
+  through generated lines unless explicit source metadata is added.
+- Erlang abstract forms passed to ~compile:forms/2~: also officially
+  recommended and able to retain original source locations, but requires an
+  Erlang-side compiler driver or a serialized forms artifact, and the exact
+  form representation can change between OTP releases.
+- Core Erlang: closer to a compiler IR, but its primops and accepted backend
+  invariants are not a stable contract.
+- BEAM assembly or a ~.beam~ file written directly: removes the source
+  frontend but takes ownership of instruction selection, register/frame
+  conventions, file chunks, verification, and OTP-version maintenance.
+- Gleam, Elixir, or another BEAM-language source: potentially useful for
+  ecosystem integration, but adds another frontend, runtime conventions,
+  and toolchain between til and OTP. Gleam's compiler is a useful precedent:
+  its Erlang backend generates Erlang modules rather than BEAM files itself.
+
+The spike must record generated artifacts, exact commands, minimum OTP and
+optional language-tool versions, source-location quality, output size, and
+failure behavior. The human then chooses and approves the output path,
+writer/reader, regeneration and installation flow, tool dependency, and any
+new ~Lang~/~Target~ or CLI surface. Do not establish parallel output formats
+or make one representation a second source of truth during the spike.
+
+*** Semantic decisions
+
+The route to BEAM does not settle the harder runtime questions:
+
+- Integers on BEAM are arbitrary precision, while til integer operations
+  wrap at fixed widths. Each ~core_func~ must mask, narrow, and compare with
+  til's signed or unsigned semantics. BEAM floats are 64-bit; preserving
+  til's F32 rounding needs an explicit lowering rule.
+- BEAM terms are immutable and process-local. Til structs, arrays, ~mut~
+  references, pointer identity, and alias-visible updates need one coherent
+  representation. Candidates include functional value lowering and a
+  backend runtime that owns mutable cells; neither may silently change til
+  behavior. Start with a value-only subset until this decision is made.
+- Decide whether enums become tagged tuples, maps, or generated modules;
+  how closures and ~FuncPtr~ values map to BEAM funs; and whether til throws
+  become BEAM exceptions or explicit tagged results. Preserve the observable
+  til semantics rather than inheriting a source language's defaults.
+- Decide whether ~ext_func~ is reimplemented in native Erlang/OTP modules,
+  calls the existing C runtime through NIFs, or uses ports for isolated
+  native work. NIFs are fast but execute inside the emulator, so a crash
+  takes down the VM and long work can disturb scheduler responsiveness.
+- Raw pointer operations, C FFI, threads, GUI mode, and native resource
+  lifetimes need explicit support or a hard compile-time unsupported error;
+  they must not be approximated or silently skipped.
+- Decide whether a BEAM platform is represented as a new ~Lang~, a new
+  ~Target~, or both. ~Lang~ currently names emitted languages while
+  ~Target~ names native platforms; neither model directly captures a
+  portable managed VM.
+
+*** Incremental plan
+
+  1. Toolchain spike, no compiler changes: hand-write one
+     ~examples/hello_script.til~-equivalent module in each serious candidate,
+     compile and run it on a pinned OTP release, inspect the generated BEAM,
+     and record the comparison and recommendation here.
+  2. Human decision: approve one intermediate/output representation, its
+     generated path and extension, compiler driver, minimum tool versions,
+     runtime packaging, and ~Lang~/~Target~/CLI behavior. Keep existing build
+     entry points unless a separately approved surface is necessary.
+  3. Backend plumbing and emitter skeleton behind the same builder boundary
+     used by the C-family emitter and proposed MLIR backend in [[./317.org][#317]].
+     Unsupported nodes fail at translation with their til source location.
+  4. Minimal value subset: module entry point, Bool and fixed-width numeric
+     values, scalar locals, inline ~core_func~ lowering, direct calls, string
+     literals, print, conditionals, and loops. Compile and run hello world.
+  5. Freeze and implement the aggregate/mutation model, then add structs,
+     enums, collections, references, closures, throws/catches, and the chosen
+     ~ext_func~ runtime one group at a time.
+  6. Add an opt-in BEAM corpus and burn down the portable suite. Keep the C
+     suite green at every stage; FFI, raw pointers, GUI, and concurrency are
+     separate late milestones after their semantics are approved.
+
+*** Acceptance
+
+- A smoke program is translated, compiled by the selected pipeline, and run
+  on a supported OTP release with output matching the C backend.
+- Fixed-width scalar edge cases and F32 behavior match the interpreter and C
+  backend; ~core_func~ operations are lowered by the BEAM backend rather than
+  routed through C symbols.
+- Supported mutation, aliasing, aggregates, control flow, throws, and
+  closures pass named cross-backend tests. Every unsupported construct fails
+  loudly at translation time.
+- The default C build, boot artifacts, and self-hosting loop do not require
+  Erlang/OTP or any optional BEAM-language toolchain.
+- Generated code carries useful til file/line information in stack traces or
+  diagnostics to the extent supported by the selected representation.
+
+*** References
+
+- https://www.erlang.org/doc/apps/compiler/compile.html#module-recommendations-for-language-implementors
+- https://www.erlang.org/doc/apps/erts/beam_makeops.html
+- https://www.erlang.org/doc/system/nif.html
+- https://github.com/gleam-lang/gleam/blob/main/compiler-core/src/erlang.rs
