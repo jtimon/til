@@ -16,10 +16,10 @@ closure_value_name := func(name: Str) returns Str {
     return format(func_to_c(name), "__til_closure")
 }
 
-// in_func_def / in_main_func / ctor_seq previously lived here as
-// module-level mut; they moved to Context (see initer.til). The active
-// LoadedProgram is threaded explicitly as an `lp` parameter (and `ctx`
-// for Context-only consumers) rather than parked in a module global.
+// Builder state that once lived here as module-level mut now lives under
+// Context.builder_func. The active LoadedProgram is threaded explicitly as an
+// `lp` parameter (and `ctx` for Context-only consumers) rather than parked in
+// a module global.
 
 // --- Leaf functions ---
 
@@ -68,7 +68,7 @@ priv is_stack_lit_str_local := func(name: Str, mut ctx: Context) returns Bool {
 }
 
 priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
-    switch ctx.current_fdef {
+    switch ctx.builder_func.current_fdef {
     case .None: return false
     case .Some(cf):
         switch cf.node_type {
@@ -451,7 +451,7 @@ priv is_value_param := func(name: Str, mut ctx: Context) returns Bool {
     // #327: a nested block re-binding this name shadows the parameter, so
     // the ident is the block's local, not the param.
     if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
-    switch ctx.current_fdef {
+    switch ctx.builder_func.current_fdef {
     case .None: return false
     case .Some(cf):
     switch cf.node_type {
@@ -473,7 +473,7 @@ priv is_value_param := func(name: Str, mut ctx: Context) returns Bool {
 
 priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
     if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
-    switch ctx.current_fdef {
+    switch ctx.builder_func.current_fdef {
     case .None: return false
     case .Some(cf):
     switch cf.node_type {
@@ -1493,7 +1493,7 @@ priv builder_reset_func_scratch := func(mut ctx: Context) {
     // emitting function, and editing one function cannot renumber
     // another's constructor temps. Nothing context-wide keys on these
     // names -- they are formatted at the emission site and never stored.
-    ctx.ctor_seq = 0
+    ctx.builder_func.ctor_seq = 0
     ctx.builder_func.body_refs = Set(Sym).new()
     ctx.builder_func.body_multi_decls = Set(Sym).new()
     ctx.builder_func.stack_locals = Set(Sym).new()
@@ -1569,8 +1569,8 @@ priv builder_is_pooled_str_lit_decl := func(e: Expr, mut ctx: Context) returns B
     case .Decl(dd):
         if dd.is_mut { return false }
         if dd.own_type.is(OwnType.Ref) { return false }
-        if is_value_global(dd.name, ctx).and(ctx.in_func_def.not()) { return false }
-        if is_ref_global(dd.name, ctx).and(ctx.in_func_def.not()) { return false }
+        if is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not()) { return false }
+        if is_ref_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not()) { return false }
         return ctx.builder_str_lit_ident_symbols.has(dd.name)
     case:
         return false
@@ -1987,7 +1987,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     }
     // #220: any decl inside a function body introduces a local that
     // shadows a same-named script global. is_global / is_rg below are
-    // both gated on ctx.in_func_def.not(), so inside a function every
+    // both gated on ctx.builder_func.in_func_def.not(), so inside a function every
     // decl is emitted as a local -- record the name so the use-site
     // classifiers (is_value_global / is_ref_global) don't mistake it for
     // the global and emit `.`/`&`/value-return against a local. ptr_locals
@@ -1995,7 +1995,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     // it changes the global-vs-local decision and nothing else. (stack_locals
     // and ref_locals already cover their own cases; adding here is harmless
     // overlap.)
-    if ctx.in_func_def { ctx.builder_func.ptr_locals.add(own ctx.symbols.intern(dd.name)) }
+    if ctx.builder_func.in_func_def { ctx.builder_func.ptr_locals.add(own ctx.symbols.intern(dd.name)) }
     // For any FuncPtr-typed decl (own, ref, or value), capture the local's
     // signature so fcall_fn_sig can recover it at the eventual call site.
     // The original typer scope where `dd` lived is gone by emit time, so we
@@ -2036,13 +2036,13 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // be a plain assignment so we don't shadow it with a local
         // (which trips -Werror=unused-variable and leaves the global
         // unset). Same gate the non-FuncPtr branch below uses.
-        is_global_fp := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
+        is_global_fp := is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not())
         if is_global_fp { f.write(dd.name).write(" = ") }
         else if is_typedef { f.fwrite(ct, " ", dd.name, " = ") }
         else { f.fwrite(ct, dd.name, " = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
     } else if e.til_type().is(Type.Body).and(dd.own_type.is(OwnType.Ref).not()) {
-        is_global_body := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
+        is_global_body := is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not())
         if is_global_body { f.write(dd.name).write(" = ") }
         else { f.write("TilClosure *").write(dd.name).write(" = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
@@ -2063,7 +2063,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             // assignment; without this it declared a fresh local that
             // shadowed the global, leaving the global unset and unused.
             is_rg := is_ref_global(dd.name, ctx).or(
-                e.til_type().is(Type.Dynamic).and(is_value_global(dd.name, ctx))).and(ctx.in_func_def.not())
+                e.til_type().is(Type.Dynamic).and(is_value_global(dd.name, ctx))).and(ctx.builder_func.in_func_def.not())
             if is_rg.not() {
                 ctx.builder_func.ref_locals.add(own ctx.symbols.intern(dd.name))
                 // #185: track ref-Dynamic locals so emit_deref can typed-
@@ -2082,10 +2082,10 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             // wrote every ref binding's cast twice (840 across the corpus).
         } else {
             ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), dd.type_name(), ctx)
-            is_global := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
+            is_global := is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not())
             // Raw-alloc global (emit_global_declarations gave it pointer
             // storage): assign the block address straight through.
-            is_raw_alloc_global := is_ref_global(dd.name, ctx).and(ctx.in_func_def.not()).and(rhs_is_allocator_call(rhs))
+            is_raw_alloc_global := is_ref_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not()).and(rhs_is_allocator_call(rhs))
             if is_raw_alloc_global {
                 f.write(dd.name).write(" = ")
                 emit_expr(f, rhs, depth, ctx); f.write(";\n")
@@ -2194,7 +2194,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
 }
 
 priv emit_return_ctype := func(rv: Expr, mut ctx: Context) returns Str {
-    switch ctx.current_fdef {
+    switch ctx.builder_func.current_fdef {
     case .Some(cf):
         switch cf.node_type {
         case .FuncDef(fd):
@@ -2213,12 +2213,12 @@ priv emit_return_ctype := func(rv: Expr, mut ctx: Context) returns Str {
 
 priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     if e.children.len() == 0 {
-        if ctx.in_main_func { f.write("return 0;\n") }
+        if ctx.builder_func.in_main_func { f.write("return 0;\n") }
         else { f.write("return;\n") }
         return
     }
     ref rv : Expr = e.children[0]
-    ref cf : Expr = ctx.current_fdef.unwrap()
+    ref cf : Expr = ctx.builder_func.current_fdef.unwrap()
     ref fd : FunctionDef = funcdef_of(cf)
     if fd.return_own_type.is(OwnType.Ref) {
         f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
@@ -3028,8 +3028,8 @@ priv emit_str_lit_expr := proc(f: File, s: Str, mut ctx: Context) {
         f.write("&").write(sym)
         return
     }
-    ctx.ctor_seq = ctx.ctor_seq + 1
-    id := ctx.ctor_seq
+    ctx.builder_func.ctor_seq = ctx.builder_func.ctor_seq + 1
+    id := ctx.builder_func.ctor_seq
     f.write("({ static Str _lit")
     emit_i32(f, id)
     f.write(" = (Str){.c_str = (void *)\"")
@@ -3545,8 +3545,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             // boundaries box it in emit_as_ptr; every other destination can
             // initialize directly from this frame-local temporary.
             ctype := c_type_name(e.til_type(), call_sname, ctx)
-            ctx.ctor_seq = ctx.ctor_seq + 1
-            id := ctx.ctor_seq
+            ctx.builder_func.ctor_seq = ctx.builder_func.ctor_seq + 1
+            id := ctx.builder_func.ctor_seq
             f.write("({ ")
             f.write(ctype)
             f.write(" _sc")
@@ -3915,8 +3915,8 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
                     case .Ident(callee_ident):
                         if callee_ident.ident_name() == arg_sname {
                             ct := c_type_name(arg.til_type(), arg_sname, ctx)
-                            ctx.ctor_seq = ctx.ctor_seq + 1
-                            id := ctx.ctor_seq
+                            ctx.builder_func.ctor_seq = ctx.builder_func.ctor_seq + 1
+                            id := ctx.builder_func.ctor_seq
                             tmp := format("_cs", id.to_str())
                             f.write(ct)
                             f.write(" *")
@@ -4211,8 +4211,8 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             case .Ident(callee_ident):
                 if callee_ident.ident_name() == e_sname {
                     ctype := c_type_name(e.til_type(), e_sname, ctx)
-                    ctx.ctor_seq = ctx.ctor_seq + 1
-                    id := ctx.ctor_seq
+                    ctx.builder_func.ctor_seq = ctx.builder_func.ctor_seq + 1
+                    id := ctx.builder_func.ctor_seq
                     f.write("({ ")
                     f.write(ctype)
                     f.write(" *_sc")
@@ -4522,7 +4522,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
         builder_collect_body_liveness(lp.ctx, body)
-        lp.ctx.in_main_func = true
+        lp.ctx.builder_func.in_main_func = true
         // Every other body emission sets current_fdef (plain funcs and
         // closures below); the main entry wrapper did not, so name-keyed
         // per-function queries -- is_value_param above all -- answered
@@ -4531,11 +4531,11 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // then emitted without its DEREF: `main(w: I64) { id(w) }` passed
         // the pointer when `id`'s param was also named `w` (and compiled
         // fine when it was named anything else).
-        saved_main_fdef := lp.ctx.current_fdef
-        lp.ctx.current_fdef = Option(ref Expr).Some(func_def)
+        saved_main_fdef := lp.ctx.builder_func.current_fdef
+        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(func_def)
         emit_body(f, body, 1, lp.ctx)
-        lp.ctx.current_fdef = saved_main_fdef
-        lp.ctx.in_main_func = false
+        lp.ctx.builder_func.current_fdef = saved_main_fdef
+        lp.ctx.builder_func.in_main_func = false
         f.write("    return 0;\n")
         f.write("}\n")
     } else {
@@ -4561,13 +4561,13 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 f.write("    (void)").write(p.name).write(";\n")
             }
         }
-        lp.ctx.in_func_def = true
-        lp.ctx.current_fdef = Option(ref Expr).Some(func_def)
+        lp.ctx.builder_func.in_func_def = true
+        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(func_def)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
         builder_collect_body_liveness(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
-        lp.ctx.in_func_def = false
+        lp.ctx.builder_func.in_func_def = false
         emit_diverge_terminator(f, ret, body, lp.ctx.scope)
         f.write("}\n")
     }
@@ -4667,29 +4667,19 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         }
         saved_env := lp.ctx.closure_emit_env.clone()
         saved_caps := lp.ctx.closure_emit_captures.clone()
-        saved_in_func_def := lp.ctx.in_func_def
-        saved_current_fdef := lp.ctx.current_fdef
         saved_builder_func := lp.ctx.builder_func.clone()
-        // #101: ctor_seq is per-function scratch too, but lives outside
-        // builder_func; this emitter runs NESTED inside another function's
-        // emission, so restore the enclosing sequence afterwards or its
-        // later _cs/_sc ids would restart and collide.
-        saved_ctor_seq := lp.ctx.ctor_seq
         lp.ctx.closure_emit_env = "til_env"
         lp.ctx.closure_emit_captures = Set(Sym).new()
         for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own lp.ctx.symbols.intern(cap2.name)) }
-        lp.ctx.in_func_def = true
-        lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
+        lp.ctx.builder_func.in_func_def = true
+        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
         builder_collect_body_liveness(lp.ctx, closure_expr.children[0])
         emit_body(f, closure_expr.children[0], 1, lp.ctx)
         lp.ctx.closure_emit_env = saved_env
         lp.ctx.closure_emit_captures = saved_caps
-        lp.ctx.in_func_def = saved_in_func_def
-        lp.ctx.current_fdef = saved_current_fdef
         lp.ctx.builder_func = saved_builder_func
-        lp.ctx.ctor_seq = saved_ctor_seq
         emit_diverge_terminator(f, ret, closure_expr.children[0], lp.ctx.scope)
         f.write("}\n\n")
     case .BodyValue(bd):
@@ -4740,25 +4730,19 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         }
         saved_env_b := lp.ctx.closure_emit_env.clone()
         saved_caps_b := lp.ctx.closure_emit_captures.clone()
-        saved_in_func_def_b := lp.ctx.in_func_def
-        saved_current_fdef_b := lp.ctx.current_fdef
         saved_builder_func_b := lp.ctx.builder_func.clone()
-        saved_ctor_seq_b := lp.ctx.ctor_seq
         lp.ctx.closure_emit_env = "til_env"
         lp.ctx.closure_emit_captures = Set(Sym).new()
         for cap_b3 : Declaration in bd.captures { lp.ctx.closure_emit_captures.add(own lp.ctx.symbols.intern(cap_b3.name)) }
-        lp.ctx.in_func_def = true
-        lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
+        lp.ctx.builder_func.in_func_def = true
+        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
         builder_collect_body_liveness(lp.ctx, closure_expr.children[0])
         emit_body(f, closure_expr.children[0], 1, lp.ctx)
         lp.ctx.closure_emit_env = saved_env_b
         lp.ctx.closure_emit_captures = saved_caps_b
-        lp.ctx.in_func_def = saved_in_func_def_b
-        lp.ctx.current_fdef = saved_current_fdef_b
         lp.ctx.builder_func = saved_builder_func_b
-        lp.ctx.ctor_seq = saved_ctor_seq_b
         f.write("}\n\n")
     case:
     }
@@ -10405,7 +10389,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
         // instead of through a separate name plus scope.find indirection.
         // The Type.FuncPtrSig predicate filters out non-FuncSig params
         // (Struct/Enum) without needing the bodyless-FuncDef gate.
-        switch ctx.current_fdef {
+        switch ctx.builder_func.current_fdef {
         case .Some(cf1):
             switch cf1.node_type {
             case .FuncDef(cur_fd):

@@ -4,12 +4,17 @@
 
 *** Progress
 
+   - [X] Step 2: grouped all per-function builder analysis/emission state under
+     ~Context.builder_func : BuilderFuncScratch~. The final direct Context
+     fields (~ctor_seq~, ~in_func_def~, ~in_main_func~, ~current_fdef~) now
+     reset and save/restore with the existing local/ref/stack tables; nested
+     closure emission restores one state object instead of parallel fields.
    - [X] Step 4: grouped the eight dispatch/libffi tables and lifecycle flags
      under one ~Context.ffi : FfiState~ field. Interpreter and loader users now
      access ~dispatch_map~, registered entries, struct definitions, the
      aggregate type cache, and their initialization flags through that
      interpreter-owned state.
-   - [ ] Steps 1-3 and the remaining Context cache audit in step 5.
+   - [ ] Steps 1, 3, and the remaining Context cache audit in step 5.
 
 Companion to [[./247.org][#247]] (move layout facts off the AST). #246 = Context
 carries phase-local scratch; #247 = the AST carries non-syntax layout
@@ -38,10 +43,9 @@ it. The struct is now a grab-bag of unrelated lifetimes:
     ~auto_gen_depth~, ~throw_used_local_names~, ~lowering_param_types~,
     ~throw_type_registry~, ~throws_names_global~, ~throws_per_global~,
     ~bang_counter~.
-  - builder-only emission transients: ~local_fn_sigs~, ~in_func_def~,
-    ~in_main_func~, ~ctor_seq~, ~stack_locals~, ~stack_local_types~,
-    ~unsafe_to_hoist~, ~ref_locals~, ~ref_dyn_locals~, ~current_fdef~,
-    ~script_globals~, ~ref_globals~.
+  - builder-only emission transients: the per-function fields are now grouped
+    under ~builder_func~; program-level inventories such as
+    ~script_globals~ / ~ref_globals~ remain direct Context fields.
 
 Most of these were comment-documented as moved off "module-level
 globals" -- the move to Context was correct (a module global cannot
@@ -72,8 +76,8 @@ Context. And runtime eval state lives in ~EvalHeap~, not on Context.
    by hand. Candidates: ~current_type_name~, ~current_top_func_name~,
    ~typer_return_type_name~, ~proc_calls_count~, ~proc_def_depth~,
    ~auto_gen_depth~, ~throw_used_local_names~, ~lowering_param_types~.
-2. Move builder per-function emission transients into a dedicated
-   builder-local struct (created per ~emit_func_def~) instead of
+2. DONE -- Move builder per-function emission transients into a dedicated
+   builder-local struct (reset per ~emit_func_def~) instead of
    reset-in-place fields on Context: ~stack_locals~,
    ~stack_local_types~, ~unsafe_to_hoist~, ~ref_locals~,
    ~ref_dyn_locals~, ~in_func_def~, ~in_main_func~, ~current_fdef~.
@@ -110,8 +114,7 @@ just before #246 relocates that consumer's scratch). Then #246 step 5
 (delete the AST layout fields). #246 step 4 (FFI) and #247 step 5
 (drop the map for on-demand compute) are independent tails.
 
-Note: the monotonic unique-name counters (~ctor_seq~, ~hoist_counter~,
-~va_counter~, ~kw_counter~, ~coll_counter~, ~bang_counter~) are
-program-global by design (they only need uniqueness across the whole
-emission); they can stay on Context or move to a single shared
-counter, but they are not the bloat to prioritise.
+Note: the monotonic typer unique-name counters (~hoist_counter~,
+~va_counter~, ~kw_counter~, ~coll_counter~, ~bang_counter~) remain on
+Context. Builder ~ctor_seq~ is per-function and now lives in
+~BuilderFuncScratch~.

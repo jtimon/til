@@ -745,6 +745,13 @@ BuilderFuncScratch := struct {
     // exit, so the parameter's shape is restored once the block closes.
     // Same-scope re-binding cannot reach here: the typer rejects it.
     shadowed_params := Set(Sym).new()
+    // Constructor-temp ordinal and active-body identity/shape. These are
+    // reset or saved/restored with the rest of the current function's builder
+    // scratch, including nested capturing-closure emission.
+    ctor_seq : I32 = 0
+    in_func_def := false
+    in_main_func := false
+    current_fdef := Option(ref Expr).None
 }
 
 // #246 step 4: interpreter dispatch and libffi state share one runtime
@@ -1074,21 +1081,6 @@ Context := struct {
     // validate_fcall_arg. Saved+restored around each func body.
     typer_return_type_name : Str = ""
 
-    // Builder counter for synthesised constructor temp names
-    // (`_ctor_<N>`, `_cs<N>`, `_sc<N>`, `_lit<N>`). #101: reset by
-    // builder_reset_func_scratch at each function-body emission -- the
-    // names are C locals of the emitting function, so the number is an
-    // ordinal within that function, not a whole-emission sequence.
-    ctor_seq : I32 = 0
-
-    // Builder emission-state flags. in_func_def is true while
-    // emit_func_def is emitting a function body, so emit_stmt_decl
-    // knows a Decl is a local (not a header global); in_main_func is
-    // true while emitting main()'s body so emit_stmt_return can
-    // append `return 0;` after the user code.
-    in_func_def : Bool = false
-    in_main_func : Bool = false
-
     // Typer proc/func validation: proc_def_depth counts the nesting
     // depth of `proc` definitions currently being typed (>0 means we
     // are inside one), and proc_calls_count tallies proc/ext_proc
@@ -1323,9 +1315,6 @@ Context := struct {
     // they know a symbol they would declare is going to be static -- and
     // therefore not something any other translation unit can call.
     builder_prog_closed_world := false
-    // #321: None outside any function-body emission.
-    current_fdef := Option(ref Expr).None
-
     // #177 interpreter cache for the canonical Str type name, populated by
     // populate_cached_aggregate_defs / interpreter_init_ns and read by raw
     // allocation, field-layout, and argv construction paths. #321: now an

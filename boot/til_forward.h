@@ -1613,6 +1613,10 @@ typedef struct BuilderFuncScratch {
     Set__U32 ref_dyn_locals;
     Set__U32 ptr_locals;
     Set__U32 shadowed_params;
+    I32 ctor_seq;
+    Bool in_func_def;
+    Bool in_main_func;
+    Option__ref_Expr current_fdef;
 } BuilderFuncScratch;
 
 
@@ -1690,9 +1694,6 @@ typedef struct Context {
     I64 bang_counter;
     Map__Str_Str lowering_param_types;
     Str typer_return_type_name;
-    I32 ctor_seq;
-    Bool in_func_def;
-    Bool in_main_func;
     I32 proc_calls_count;
     I32 proc_def_depth;
     I32 hoist_counter;
@@ -1731,7 +1732,6 @@ typedef struct Context {
     Bool builder_cstr_used;
     Bool builder_closure_rt_used;
     Bool builder_prog_closed_world;
-    Option__ref_Expr current_fdef;
     Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
     InternedTypes interned_types;
