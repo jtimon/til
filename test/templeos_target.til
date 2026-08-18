@@ -1,0 +1,11 @@
+mode cli
+
+import("../src/self/targets")
+
+main := proc() {
+    target := target_from_str("templeos")
+    assert_eq(target_uptr_name(target), "U64")
+    assert(target_lang(target).is(Lang.HolyC))
+    // TODO #379: remove this once entrypoint procs may have no proc calls.
+    noop_proc()
+}

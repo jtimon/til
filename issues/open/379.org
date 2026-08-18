@@ -1,0 +1,22 @@
+# priority: low
+# category: bugs
+** OPEN #379 Allow entrypoint procs without proc calls
+
+Mode entrypoints such as ~main~ in ~mode cli~ and ~mode gui~ must remain
+procs so the compiler does not const-fold them. The generic purity diagnostic
+currently rejects an entrypoint proc whose body has no proc/ext_proc call and
+tells the author to make it a func, even though these modes require ~main~ to
+be a proc.
+
+The current workaround is an otherwise unnecessary ~noop_proc()~ call.
+Entrypoint validation should exempt the mode entrypoint from the "should be a
+func" diagnostic while preserving that diagnostic for ordinary procs.
+
+Acceptance:
+
+- An otherwise empty ~main := proc() {}~ is accepted in mode cli and mode gui.
+- The entrypoint remains a proc and is not const-folded.
+- An ordinary proc with no proc/ext_proc calls still receives the existing
+  diagnostic.
+- Remove the ~noop_proc()~ workaround marked ~TODO #379~ in
+  ~test/templeos_target.til~.

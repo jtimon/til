@@ -1,0 +1,8 @@
+I64 TilMain()
+{
+    "%s", "Hello World!";
+    "\n";
+    return 0;
+}
+
+TilMain;

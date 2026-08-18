@@ -1,0 +1,8 @@
+I64 TilMain()
+{
+    "%s", "\x25s";
+    "\n";
+    return 0;
+}
+
+TilMain;

@@ -52,11 +52,11 @@
   - [X] Extract C emission, C ABI bindings, and C-only emit reachability
     from ~builder.til~ into ~c_codegen.til~. Builder retains paths,
     commands, compilation, install, run, test, and documentation.
-  - [ ] Route the existing TempleOS target to a HolyC dialect in the
+  - [X] Route the existing TempleOS target to a HolyC dialect in the
     C-family codegen and emit a HolyC source path on Linux. Unsupported
     AST/runtime features must fail explicitly rather than emit C or skip
     work silently.
-  - [ ] Emit and run ~examples/hello_script.til~ first. Lower its literal
+  - [X] Emit and run ~examples/hello_script.til~ first. Lower its literal
     print to TempleOS HolyC and use a final top-level call as the guest
     entrypoint; do not require ~src/til.til~, mode gui, libffi, or the
     POSIX C runtime.
@@ -66,6 +66,13 @@
   - [ ] Add TempleOS-native allocation, strings, collections, filesystem,
     and other ext_func primitives as the corpus reaches them.
   - [ ] Add mode gui last, using TempleOS graphics rather than raylib.
+
+  The first HolyC slice emits the lowered literal-only form of
+  ~examples/hello_script.til~ as ~gen/til/hello_script.HC~. TempleOS 5.03
+  compiled and ran it with ~ExeFile2~ under QEMU TCG, reported
+  ~TILTEST:PASS~ over ~isa-debugcon~, and exited through ~isa-debug-exit~.
+  ~build~ and ~run~ still fail explicitly until that guest path is
+  integrated.
 
 *** QEMU validation
 

@@ -1026,7 +1026,7 @@ main := proc(args: ..Str) {
         return
     }
 
-    // Tell the typer whether this command emits C. `interpret`, `ast`, and
+    // Tell the typer whether this command emits backend source. `interpret`, `ast`, and
     // `doc` stay in interpreter mode; every backend command compiles.
     lp.ctx.compile_mode = cli.command.eq("interpret").not()
         .and(cli.command.eq("ast").not())

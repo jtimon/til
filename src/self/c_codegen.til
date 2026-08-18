@@ -8600,6 +8600,220 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     return 0
 }
 
+priv holyc_direct_call_name := func(e: Expr, ctx: Context) returns Str {
+    if e.node_type.is(NodeType.FCall).not() { return "" }
+    if e.children.len() == 0 { return "" }
+    switch e.children[0].node_type {
+    case .Ident(id): return Str.clone(id.ident_name(ctx.symbols.names))
+    case: return ""
+    }
+}
+
+priv holyc_is_array_str_call := func(e: Expr, method: Str, ctx: Context) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() == 0 { return false }
+    ref callee : Expr = e.children[0]
+    switch callee.node_type {
+    case .FieldAccess(fa):
+        if fa.field_access_name(ctx.symbols.names) != method { return false }
+        if callee.children.len() != 1 { return false }
+        switch callee.children[0].node_type {
+        case .Ident(owner): return owner.ident_name(ctx.symbols.names) == "Array__Str"
+        case: return false
+        }
+    case: return false
+    }
+}
+
+priv holyc_ident_name := func(e: Expr, ctx: Context) returns Str {
+    switch e.node_type {
+    case .Ident(id): return Str.clone(id.ident_name(ctx.symbols.names))
+    case: return ""
+    }
+}
+
+priv holyc_decl_num := func(stmt: Expr, text: Str, mut name: Str) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len() != 1 { return false }
+    switch stmt.children[0].node_type {
+    case .Literal(Literal.Num(num)):
+        if num.literal_num_text() != text { return false }
+        name = decl_of(stmt).name.clone()
+        return true
+    case: return false
+    }
+}
+
+priv holyc_decl_str := func(stmt: Expr, mut name: Str, mut text: Str) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len() != 1 { return false }
+    switch stmt.children[0].node_type {
+    case .Literal(Literal.Str(s)):
+        name = decl_of(stmt).name.clone()
+        text = s.clone()
+        return true
+    case: return false
+    }
+}
+
+priv holyc_array_new_name := func(stmt: Expr, capacity_name: Str, mut array_name: Str, ctx: Context) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len() != 1 { return false }
+    ref rhs : Expr = stmt.children[0]
+    if holyc_is_array_str_call(rhs, "new", ctx).not() { return false }
+    if rhs.children.len() != 2 { return false }
+    if holyc_ident_name(rhs.children[1], ctx) != capacity_name { return false }
+    array_name = decl_of(stmt).name.clone()
+    return array_name.starts_with("_va_Array_")
+}
+
+priv holyc_array_set_names := func(e: Expr, mut array_name: Str, mut index_name: Str, mut value_name: Str, mut error_name: Str, ctx: Context) returns Bool {
+    if holyc_is_array_str_call(e, "set", ctx).not() { return false }
+    if e.children.len() != 5 { return false }
+    array_name = holyc_ident_name(e.children[1], ctx)
+    index_name = holyc_ident_name(e.children[2], ctx)
+    value_name = holyc_ident_name(e.children[3], ctx)
+    error_name = holyc_ident_name(e.children[4], ctx)
+    return array_name.len().gt(0).and(index_name.len().gt(0))
+        .and(value_name.len().gt(0)).and(error_name.len().gt(0))
+}
+
+priv holyc_print_array_name := func(e: Expr, ctx: Context) returns Str {
+    if holyc_direct_call_name(e, ctx) != "println" { return "" }
+    if e.children.len() != 2 { return "" }
+    switch e.children[1].node_type {
+    case .Ident(array_id): return Str.clone(array_id.ident_name(ctx.symbols.names))
+    case: return ""
+    }
+}
+
+priv holyc_lit_has_nul := func(s: Str) returns Bool {
+    mut i : USize = 0
+    while i < s.len() {
+        ref ch : I8 = s.unsafe_get(i)
+        if ch.eq(0) { return true }
+        if ch.eq('\\').and(i.add(1).lt(s.len())) {
+            ref next : I8 = s.unsafe_get(i + 1)
+            if next.eq('0') { return true }
+            if next.eq('x') {
+                mut j := i + 2
+                mut digits : USize = 0
+                mut any_nonzero := false
+                while j < s.len() {
+                    digit := digit_value(s.unsafe_get(j))
+                    if digit < 0 { break }
+                    if digit != 0 { any_nonzero = true }
+                    digits++
+                    j++
+                }
+                if digits.gt(0).and(any_nonzero.not()) { return true }
+                i = j
+                continue
+            }
+            i = i + 2
+            continue
+        }
+        i++
+    }
+    return false
+}
+
+priv holyc_validate_program := func(program: Expr, ctx: Context) returns Str {
+    if program.children.len() != 7 {
+        return "expected exactly one string-literal println statement"
+    }
+
+    mut capacity_name := ""
+    if holyc_decl_num(program.children[0], "1", capacity_name).not()
+        .or(capacity_name.starts_with("hoisted__").not()) {
+        return "invalid println argument-count scaffold"
+    }
+
+    mut array_name := ""
+    if holyc_array_new_name(program.children[1], capacity_name, array_name, ctx).not() {
+        return "invalid println Array(Str) scaffold"
+    }
+
+    mut error_name := ""
+    if holyc_decl_num(program.children[2], "0", error_name).not()
+        .or(error_name != format(array_name, "_ek")).or(decl_of(program.children[2]).is_mut.not()) {
+        return "invalid println error scaffold"
+    }
+
+    mut index_name := ""
+    if holyc_decl_num(program.children[3], "0", index_name).not()
+        .or(index_name.starts_with("hoisted__").not()) {
+        return "invalid println index scaffold"
+    }
+
+    mut literal_name := ""
+    mut literal_text := ""
+    if holyc_decl_str(program.children[4], literal_name, literal_text).not()
+        .or(literal_name.starts_with("hoisted__").not()) {
+        return "println currently requires one string literal argument"
+    }
+    if holyc_lit_has_nul(literal_text) {
+        return "println string literals containing NUL are not supported"
+    }
+
+    mut set_array := ""
+    mut set_index := ""
+    mut set_value := ""
+    mut set_error := ""
+    if holyc_array_set_names(program.children[5], set_array, set_index, set_value, set_error, ctx).not()
+        .or(set_array != array_name).or(set_index != index_name)
+        .or(set_value != literal_name).or(set_error != error_name) {
+        return "invalid println set scaffold"
+    }
+
+    if holyc_print_array_name(program.children[6], ctx) != array_name {
+        return "invalid println call scaffold"
+    }
+    return ""
+}
+
+c_codegen_translate_holyc := proc(lp: LoadedProgram, output_path: Str) returns I32 {
+    if lp.mode_str != "script" {
+        println("error: HolyC codegen currently supports only mode script")
+        return 1
+    }
+    if lp.units.len() != 1 {
+        println("error: HolyC codegen does not support user imports yet")
+        return 1
+    }
+    if lp.link_c_paths.len() > 0 {
+        println("error: HolyC codegen does not support link_c yet")
+        return 1
+    }
+    if lp.link_flags.len().gt(0).or(lp.include_flags.len().gt(0)) {
+        println("error: HolyC codegen does not support link or include flags yet")
+        return 1
+    }
+    if lp.run_tests {
+        println("error: HolyC codegen does not support test mode yet")
+        return 1
+    }
+
+    ref root : ProgramUnit = lp.units[lp.units.len() - 1]
+    ref program : Expr = lp.ctx.imported[root.path].ast
+    validation_error := holyc_validate_program(program, lp.ctx)
+    if validation_error.len() > 0 {
+        println("error: HolyC codegen: ", validation_error)
+        return 1
+    }
+
+    f := File.new(output_path, true)
+    f.write("I64 TilMain()\n{\n")
+    switch program.children[4].children[0].node_type {
+    case .Literal(Literal.Str(s)):
+        f.write("    \"%s\", \"").write(s).write("\";\n")
+    case: UNREACHABLE("validated HolyC literal changed shape")
+    }
+    f.write("    \"\\n\";\n")
+    f.write("    return 0;\n}\n\nTilMain;\n")
+    return 0
+}
+
 c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, do_lib: Bool) returns I32 {
     builder_prepare_emit(lp)
     mut result := build_forward_header_lp(fwd_path, lp)

@@ -1,0 +1,1 @@
+error: HolyC codegen: println string literals containing NUL are not supported

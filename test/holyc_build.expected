@@ -1,0 +1,1 @@
+error: HolyC output must be compiled and run inside TempleOS; use 'translate --target=templeos'

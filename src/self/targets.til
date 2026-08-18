@@ -79,7 +79,7 @@ priv target_to_str := func(target: Target) returns Str {
 priv target_is_32bit := func(target: Target) returns Bool {
     switch target {
     case .LinuxX86, .LinuxArm32, .LinuxRiscv32, .WindowsX86,
-         .Wasm32, .TempleosX86: return true
+         .Wasm32: return true
     case: return false
     }
 }
@@ -112,7 +112,7 @@ target_usize_name := func(target: Target) returns Str {
 
 // ---------- Target/Lang compatibility
 
-priv default_lang_for_target := func(target: Target) returns Lang {
+target_lang := func(target: Target) returns Lang {
     switch target {
     case .TempleosX86: return Lang.HolyC
     case: return Lang.C
@@ -122,7 +122,7 @@ priv default_lang_for_target := func(target: Target) returns Lang {
 priv is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
     // TIL is always supported (for debugging)
     if lang.is(Lang.TIL) { return true }
-    return default_lang_for_target(target) == lang
+    return target_lang(target) == lang
 }
 
 priv validate_lang_for_target := func(lang: Lang, target: Target) {

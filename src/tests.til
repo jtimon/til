@@ -616,6 +616,28 @@ main := proc(args: ..Str) {
     add_single(tests, "gc_audit", "self", 0, "test/gc_audit.expected",
         format("TIL_GC_AUDIT=test/gc_audit.til ", til_bin, " translate test/gc_audit.til"))
 
+    // #151: Linux performs the frontend and emits HolyC; TempleOS is the
+    // compiler/runtime. The first accepted subset is the fully lowered shape
+    // of examples/hello_script.til, and build must stop before looking for a
+    // host `holyc` executable. Other modes fail explicitly rather than
+    // falling through to C emission.
+    add_single(tests, "holyc_hello_translate", "build", 0, "test/hello_templeos.expected",
+        format(til_bin, " translate --target=templeos examples/hello_script.til '&&' cat gen/til/hello_script.HC"))
+    add_single(tests, "holyc_percent_is_data", "build", 0, "test/holyc_percent.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_percent.HC test/holyc_percent.til '&&' cat gen/c/holyc_percent.HC"))
+    add_single(tests, "holyc_rejects_unsupported_mode", "build", 1, "test/holyc_mode.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/hello_pure.HC examples/hello_pure.til"))
+    add_single(tests, "holyc_rejects_unsupported_shape", "build", 1, "test/holyc_shape.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_shape.HC test/holyc_unsupported.til"))
+    add_single(tests, "holyc_rejects_nul", "build", 1, "test/holyc_nul.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_nul.HC test/holyc_nul.til"))
+    add_single(tests, "holyc_rejects_link_flags", "build", 1, "test/holyc_link.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_link.HC examples/hello_script.til -lunsupported"))
+    add_single(tests, "holyc_build_requires_guest", "build", 1, "test/holyc_build.expected",
+        format(til_bin, " build --target=templeos -c gen/c/hello_build.HC examples/hello_script.til"))
+    add_single(tests, "templeos_target_width", "build", 0, "",
+        format(til_bin, " interpret test/templeos_target.til"))
+
     // Issue #326: the generated C must be honest about liveness. The fixture
     // (test/dead_temps.til, run interpreted + compiled by the `both` entry
     // below) pins the BEHAVIOUR; these three pin the OUTPUT. A compiler temp

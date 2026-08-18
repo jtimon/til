@@ -403,7 +403,9 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     name := basename.substr(0, name_len)
     paths.name = name.clone()
 
-    mut c_path := format("gen/til/", name, ".c")
+    mut source_ext := ".c"
+    if target_lang(target).is(Lang.HolyC) { source_ext = ".HC" }
+    mut c_path := format("gen/til/", name, source_ext)
     if custom_c.len() > 0 { c_path = custom_c.clone() }
     mut ext := executable_extension(target)
     if target.is(Target.Wasm32).and(is_gui_auto_import(lp.cur_mode.auto_import)) { ext = ".html" }
@@ -412,7 +414,7 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
 
     paths.c_path = c_path
     paths.bin_path = bin_path
-    paths.fwd_path = forward_header_path(c_path)
+    if target_lang(target).is(Lang.C) { paths.fwd_path = forward_header_path(c_path) }
     paths.h_path = format("gen/til/", name, ".h")
     paths.til_path = format("gen/til/", name, ".til")
     paths.py_path = format("gen/til/", name, ".py")
@@ -450,14 +452,17 @@ priv make_build_dirs := proc(paths: BuildPaths) {
     }
 }
 
-priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths) returns I32 {
+priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target) returns I32 {
+    if target_lang(target).is(Lang.HolyC) {
+        return c_codegen_translate_holyc(lp, paths.c_path)
+    }
     return c_codegen_translate_outputs(lp, paths.c_path, paths.fwd_path,
         paths.h_path, paths.til_path, paths.py_path, paths.name, paths.do_lib)
 }
 
 priv print_translate_success := proc(paths: BuildPaths) {
     println(format("Generated: ", paths.c_path))
-    println(format("Generated: ", paths.fwd_path))
+    if paths.fwd_path.len() > 0 { println(format("Generated: ", paths.fwd_path)) }
     if paths.do_lib {
         println(format("Generated: ", paths.h_path))
         println(format("Generated: ", paths.til_path))
@@ -466,6 +471,10 @@ priv print_translate_success := proc(paths: BuildPaths) {
 }
 
 priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+    if target_lang(target).is(Lang.HolyC) {
+        println("error: HolyC output must be compiled and run inside TempleOS; use 'translate --target=templeos'")
+        return 1
+    }
     // --usize=64 (issue #309): pass -DTIL_USIZE64 to cc so the emitted C's
     // container widths match the U64 alias width used at typecheck/constfold
     // (the opt-out from the U32 default; the default needs no flag).
@@ -479,7 +488,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
 cmd_translate := proc(mut lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {
     paths := derive_build_paths(lp, "", custom_c, target)
     make_build_dirs(paths)
-    result := translate_ast(lp, paths)
+    result := translate_ast(lp, paths, target)
     if result == 0 { print_translate_success(paths) }
     return result
 }
@@ -487,7 +496,7 @@ cmd_translate := proc(mut lp: LoadedProgram, custom_c: Str, target: Target) retu
 cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
-    mut result := translate_ast(lp, paths)
+    mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.eq(0).and(paths.do_lib) {
         print_translate_success(paths)
@@ -612,7 +621,7 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
 
     paths := derive_build_paths(lp, "", "", target)
     make_build_dirs(paths)
-    mut result := translate_ast(lp, paths)
+    mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result != 0 { return result }
 
@@ -678,7 +687,7 @@ cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv
     }
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
-    mut result := translate_ast(lp, paths)
+    mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result == 0 {
         mut cmd := format(asan_child_prefix(asan), paths.bin_path)
@@ -697,7 +706,7 @@ cmd_test_build_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str
     mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
     paths.do_lib = false
     make_build_dirs(paths)
-    mut result := translate_ast(lp, paths)
+    mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result == 0 { result = system_cmd(format(asan_child_prefix(asan), paths.bin_path)) }
     return result

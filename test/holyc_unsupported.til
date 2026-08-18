@@ -1,0 +1,4 @@
+mode script
+
+println("one")
+println("two")
