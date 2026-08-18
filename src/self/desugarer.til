@@ -377,20 +377,21 @@ typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, mut ctx: Contex
 }
 // #282: seed the throws resolver with the in-scope type of every Ident in
 // `e` (the live typer scope is the authoritative source at infer time).
-// resolve_value_type checks ctx.lowering_param_types before scanning a body
+// resolve_value_type checks the active scope's lowering_param_types before scanning a body
 // AST, so this lets find_callee_throws_key resolve a guard bang's receiver
 // (a local or param) without a function-body scan. Entries are correct local
 // types; they are harmless to leave (re-seeded fresh before each guard hoist).
-priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, scope: TypeScope) {
+priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, mut scope: TypeScope) {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     switch e.node_type {
     case .Ident(idn):
         ref nm : Str = idn.ident_name()
-        if nm.len().gt(0).and(ctx.lowering_param_types.has(nm).not()) {
+        if nm.len().gt(0).and(func_state.lowering_param_types.has(nm).not()) {
             b_o := scope.get_binding(nm)
             if b_o.is_some() {
                 ref b : TypeBinding = b_o.unwrap()
                 tn := til_type_name(b.type)
-                if tn.len() > 0 { ctx.lowering_param_types.set(nm, own tn) }
+                if tn.len() > 0 { func_state.lowering_param_types.set(nm, own tn) }
             }
         }
     case:
@@ -408,12 +409,12 @@ priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, scope: TypeSco
 // guard `if`, so the call runs only when the pattern matches. The function
 // already owns the throw tag and any payload slots (declared pre-infer via the guard
 // discovery walk), so the throwaway types_to_declare/seen here are discarded.
-lower_guard_bang_calls := proc(scope: TypeScope, mut guard_if: Expr, mut dest: Vec(Expr), resolve_body: Expr, mut ctx: Context) {
+lower_guard_bang_calls := proc(mut scope: TypeScope, mut guard_if: Expr, mut dest: Vec(Expr), resolve_body: Expr, mut ctx: Context) {
     seed_guard_receiver_types(ctx, guard_if.children[0], scope)
     mut pre := Vec(Expr).new()
     mut tmp_types := Vec(Str).new()
     mut tmp_seen := Vec(Str).new()
-    hoist_walk_consolidated(ctx, guard_if, 0, resolve_body, pre, tmp_types, tmp_seen)
+    hoist_walk_consolidated(scope, ctx, guard_if, 0, resolve_body, pre, tmp_types, tmp_seen)
     npre := pre.len()
     for pi in 0..npre {
         dest.push_take(pre, pi)
@@ -537,12 +538,13 @@ priv guess_prior_local_type_in_vec := func(scope: TypeScope, stmts: Vec(Expr), u
     return ""
 }
 
-// Record one statement's local declaration type in ctx.lowering_param_types,
+// Record one statement's local declaration type in lowering_param_types,
 // which only ever grows. The throws lowering calls this once per statement as
 // it walks a body, so the map holds every prior local by the time a Throw
 // needs it -- it used to re-scan statements 0..j from a snapshot at every j,
 // which is the same accumulation done n times over a cloned vector.
-priv seed_local_type_from_stmt := func(mut ctx: Context, stmt: Expr) {
+priv seed_local_type_from_stmt := func(mut scope: TypeScope, ctx: Context, stmt: Expr) {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     switch stmt.node_type {
     case .Decl(dd):
         mut tn := dd.type_name()
@@ -570,7 +572,7 @@ priv seed_local_type_from_stmt := func(mut ctx: Context, stmt: Expr) {
                         }
                     case .FieldAccess(fa):
                         if rhs.children[0].children.len() > 0 {
-                            owner := resolve_value_type(ctx, rhs.children[0].children[0], stmt)
+                            owner := resolve_value_type(scope, ctx, rhs.children[0].children[0], stmt)
                             if owner.len() > 0 {
                                 sdef_o := ctx.scope.get_struct(owner)
                                 if sdef_o.is_some() {
@@ -603,7 +605,7 @@ priv seed_local_type_from_stmt := func(mut ctx: Context, stmt: Expr) {
             }
         }
         if tn.len() == 0 { return }
-        ctx.lowering_param_types.set(dd.name, own tn)
+        func_state.lowering_param_types.set(dd.name, own tn)
     case:
     }
 }
@@ -1448,12 +1450,13 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
 // Handles idents (params, body-local Decls, literals) and field-access
 // chains (resolve the receiver, then look up the field's declared type
 // in its struct). Returns "" when it can't be determined here.
-priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
+priv resolve_value_type := func(mut scope: TypeScope, ctx: Context, e: Expr, body: Expr) returns Str {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     switch e.node_type {
     case .Ident(idn):
         ref nm : Str = idn.ident_name()
-        if ctx.lowering_param_types.has(nm) {
-            ref pt : Str = ctx.lowering_param_types[nm]
+        if func_state.lowering_param_types.has(nm) {
+            ref pt : Str = func_state.lowering_param_types[nm]
             return normalize_ctor_type(pt)
         }
         g := guess_local_type(ctx.scope, body, nm)
@@ -1482,7 +1485,7 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
         return ""
     case .FieldAccess(fn):
         if e.children.len() == 0 { return "" }
-        recv_t := resolve_value_type(ctx, e.children[0], body)
+        recv_t := resolve_value_type(scope, ctx, e.children[0], body)
         if recv_t.len() == 0 { return "" }
         return struct_field_type(ctx, recv_t, fn.field_access_name())
     case .Literal(Literal.Num): return "I64"
@@ -1498,7 +1501,7 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
 // an unresolvable receiver (method chains etc.). For the static
 // `Type.method(...)` form the receiver Ident names the struct; for
 // UFCS `recv.method(...)` the receiver is resolved by resolve_value_type.
-priv callee_owning_type := func(ctx: Context, fcall: Expr, body: Expr) returns Str {
+priv callee_owning_type := func(mut scope: TypeScope, ctx: Context, fcall: Expr, body: Expr) returns Str {
     if fcall.children.len() == 0 { return "" }
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
@@ -1510,7 +1513,7 @@ priv callee_owning_type := func(ctx: Context, fcall: Expr, body: Expr) returns S
             if ctx.scope.get_struct(rn.ident_name()).is_some() { return Str.clone(rn.ident_name()) }
         case:
         }
-        return resolve_value_type(ctx, recv, body)
+        return resolve_value_type(scope, ctx, recv, body)
     case:
         return ""
     }
@@ -1569,7 +1572,7 @@ priv registry_suffix_key := func(ctx: Context, method: Str) returns Str {
 // type-qualified "Type.method" key, falling back to a bare/suffix
 // match when the receiver type can't be resolved. Returns the matching
 // throws_global key, or "" for not-found.
-priv find_callee_throws_key := func(mut ctx: Context, fcall: Expr, body: Expr) returns Str {
+priv find_callee_throws_key := func(mut scope: TypeScope, mut ctx: Context, fcall: Expr, body: Expr) returns Str {
     if fcall.children.len() == 0 { return "" }
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
@@ -1577,7 +1580,7 @@ priv find_callee_throws_key := func(mut ctx: Context, fcall: Expr, body: Expr) r
         return registry_exact_key(ctx, n.ident_name())
     case .FieldAccess(fname):
         ref method : Str = fname.field_access_name()
-        owner := callee_owning_type(ctx, fcall, body)
+        owner := callee_owning_type(scope, ctx, fcall, body)
         if owner.len() > 0 {
             exact_key := registry_exact_key(ctx, owner.concat3(".", method))
             if exact_key.len() > 0 { return exact_key }
@@ -1670,6 +1673,7 @@ priv fcall_callee_is_dependent_throw_generic := func(ctx: Context, e: Expr) retu
 }
 
 priv validate_one_fcall_consolidated := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     mut e: Expr,
     body: Expr,
@@ -1703,7 +1707,7 @@ priv validate_one_fcall_consolidated := proc(
         case:
         }
     }
-    key := find_callee_throws_key(ctx, e, body)
+    key := find_callee_throws_key(scope, ctx, e, body)
     callee_is_throwing := key.len() > 0
     if does_throw {
         if callee_is_throwing.not() {
@@ -1746,7 +1750,7 @@ priv validate_one_fcall_consolidated := proc(
 // Per-FCall: if does_throw is set and the callee is in the global
 // throws map, append _err_kind plus any payload-slot arg refs, then clear the
 // flag so the call reaches downstream stages as a plain FCall.
-priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: Expr, body: Expr) {
+priv inject_err_args_on_one_fcall_consolidated := func(mut scope: TypeScope, mut ctx: Context, mut e: Expr, body: Expr) {
     if e.node_type.is(NodeType.FCall).not() { return }
     mut does_throw := false
     switch e.node_type {
@@ -1756,7 +1760,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: 
     }
     if does_throw.not() { return }
     if e.children.len() == 0 { return }
-    key := find_callee_throws_key(ctx, e, body)
+    key := find_callee_throws_key(scope, ctx, e, body)
     if key.len() == 0 { return }
     ref tts : Vec(Str) = ctx.throws_global[key]
     mut kind_id := Expr.new(ident_node("_err_kind"), e.line, e.col)
@@ -1779,6 +1783,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: 
 // those are handled by the body-level walk and the typer's per
 // FuncDef visit, respectively.
 priv validate_and_inject_expr_consolidated := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     mut e: Expr,
     body: Expr,
@@ -1791,8 +1796,8 @@ priv validate_and_inject_expr_consolidated := proc(
         .or(e.node_type.is(NodeType.StructDef))
         .or(e.node_type.is(NodeType.EnumDef)) { return }
     if e.node_type.is(NodeType.Body) { return }
-    validate_one_fcall_consolidated(ctx, e, body, pending, seen, types_to_declare, path)
-    inject_err_args_on_one_fcall_consolidated(ctx, e, body)
+    validate_one_fcall_consolidated(scope, ctx, e, body, pending, seen, types_to_declare, path)
+    inject_err_args_on_one_fcall_consolidated(scope, ctx, e, body)
     if e.node_type.is(NodeType.Case) {
         // #282: a bang call in a case guard is lowered at infer time into the
         // pattern-gated case body, not here. Skip the guard child (index 1 of
@@ -1803,12 +1808,12 @@ priv validate_and_inject_expr_consolidated := proc(
         for sci in 0..e.children.len() {
             if guard_bang.and(sci.eq(1)) { continue }
             ref mut sub : Expr = e.children[sci]
-            validate_and_inject_expr_consolidated(ctx, sub, body, pending, seen, types_to_declare, path)
+            validate_and_inject_expr_consolidated(scope, ctx, sub, body, pending, seen, types_to_declare, path)
         }
         return
     }
     for mut sub : Expr in e.children {
-        validate_and_inject_expr_consolidated(ctx, sub, body, pending, seen, types_to_declare, path)
+        validate_and_inject_expr_consolidated(scope, ctx, sub, body, pending, seen, types_to_declare, path)
     }
 }
 
@@ -1860,6 +1865,7 @@ priv build_bang_lowered := func(ctx: Context, error_type: Str, line: U32, col: U
 // seen so the function-body wrapper later prepends the right slot
 // decls.
 priv hoist_walk_consolidated := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     mut parent: Expr,
     child_idx: USize,
@@ -1882,7 +1888,7 @@ priv hoist_walk_consolidated := proc(
     // so stopping at the whole Case is safe.
     if child.node_type.is(NodeType.Case) { return }
     for gi in 0..child.children.len() {
-        hoist_walk_consolidated(ctx, child, gi, body, pre_stmts, types_to_declare, seen)
+        hoist_walk_consolidated(scope, ctx, child, gi, body, pre_stmts, types_to_declare, seen)
     }
     if child.node_type.is(NodeType.FCall).not() { return }
     mut is_bang_here := false
@@ -1892,7 +1898,7 @@ priv hoist_walk_consolidated := proc(
     }
     if is_bang_here.not() { return }
     if child.children.len() == 0 { return }
-    found_key := find_callee_throws_key(ctx, child, body)
+    found_key := find_callee_throws_key(scope, ctx, child, body)
     if found_key.len() == 0 { return }
     line := child.line
     col := child.col
@@ -1903,7 +1909,7 @@ priv hoist_walk_consolidated := proc(
     // The hoisted call won't pass through the main loop's per-stmt
     // validate+inject step (pre_stmts go straight into new_ch), so
     // inject err out-args here directly.
-    inject_err_args_on_one_fcall_consolidated(ctx, cloned, body)
+    inject_err_args_on_one_fcall_consolidated(scope, ctx, cloned, body)
     mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
     if fcall_is_get_method(cloned).or(fcall_returns_ref(cloned, ctx.scope).neq(0)) {
         switch tmp_decl.node_type {
@@ -1927,6 +1933,7 @@ priv hoist_walk_consolidated := proc(
 // main per-stmt logic in process_throw_catch_in_body so it
 // produces cleaner output without an extra temp.
 priv hoist_nested_bangs_consolidated := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     mut stmt: Expr,
     body: Expr,
@@ -1937,24 +1944,24 @@ priv hoist_nested_bangs_consolidated := proc(
     cname := find_bang_callee_name(stmt)
     if cname.len() == 0 {
         for ci in 0..stmt.children.len() {
-            hoist_walk_consolidated(ctx, stmt, ci, body, pre_stmts, types_to_declare, seen)
+            hoist_walk_consolidated(scope, ctx, stmt, ci, body, pre_stmts, types_to_declare, seen)
         }
         return
     }
     if stmt.node_type.is(NodeType.FCall) {
         for ai in 1..stmt.children.len() {
-            hoist_walk_consolidated(ctx, stmt, ai, body, pre_stmts, types_to_declare, seen)
+            hoist_walk_consolidated(scope, ctx, stmt, ai, body, pre_stmts, types_to_declare, seen)
         }
         return
     }
     ref mut root_fcall : Expr = stmt.children[0]
     if root_fcall.node_type.is(NodeType.FCall) {
         for ai in 1..root_fcall.children.len() {
-            hoist_walk_consolidated(ctx, root_fcall, ai, body, pre_stmts, types_to_declare, seen)
+            hoist_walk_consolidated(scope, ctx, root_fcall, ai, body, pre_stmts, types_to_declare, seen)
         }
     }
     for ci in 1..stmt.children.len() {
-        hoist_walk_consolidated(ctx, stmt, ci, body, pre_stmts, types_to_declare, seen)
+        hoist_walk_consolidated(scope, ctx, stmt, ci, body, pre_stmts, types_to_declare, seen)
     }
 }
 
@@ -1999,6 +2006,7 @@ priv hoist_nested_bangs_consolidated := proc(
 // types_to_declare). Walk the guard for bang FCalls, resolve each callee's
 // throws against the function body, and register them -- without hoisting.
 priv register_bang_guard_throws := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     guard: Expr,
     root_body: Expr,
@@ -2012,7 +2020,7 @@ priv register_bang_guard_throws := proc(
         case:
         }
         if is_b.and(guard.children.len().gt(0)) {
-            key := find_callee_throws_key(ctx, guard, root_body)
+            key := find_callee_throws_key(scope, ctx, guard, root_body)
             if key.len() > 0 {
                 ref tts : Vec(Str) = ctx.throws_global[key]
                 for tn : Str in tts {
@@ -2024,11 +2032,12 @@ priv register_bang_guard_throws := proc(
         }
     }
     for c : Expr in guard.children {
-        register_bang_guard_throws(ctx, c, root_body, types_to_declare, seen)
+        register_bang_guard_throws(scope, ctx, c, root_body, types_to_declare, seen)
     }
 }
 
 priv process_match_arms_in := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     mut e: Expr,
     root_body: Expr,
@@ -2058,29 +2067,30 @@ priv process_match_arms_in := proc(
                 // function-level err slots get declared (the actual hoist
                 // runs at infer time).
                 if child.children.len() == 3 {
-                    register_bang_guard_throws(ctx, child.children[1], root_body, types_to_declare, seen)
+                    register_bang_guard_throws(scope, ctx, child.children[1], root_body, types_to_declare, seen)
                 }
                 // Case = [pattern, (guard,) body]; process its Body arm(s).
                 for mut ccn : Expr in child.children {
                     if ccn.node_type.is(NodeType.Body) {
-                        process_throw_catch_in_body(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                        process_throw_catch_in_body(scope, ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
                     } else {
-                        process_match_arms_in(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                        process_match_arms_in(scope, ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
                     }
                 }
             } else {
                 // The scrutinee (child 0) may itself nest a match.
-                process_match_arms_in(ctx, child, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                process_match_arms_in(scope, ctx, child, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             }
         }
         return
     }
     for mut sub : Expr in e.children {
-        process_match_arms_in(ctx, sub, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+        process_match_arms_in(scope, ctx, sub, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
     }
 }
 
 priv process_throw_catch_in_body := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     mut body: Expr,
     root_body: Expr,
@@ -2092,6 +2102,7 @@ priv process_throw_catch_in_body := proc(
     return_type: Str,
     return_own_type: OwnType
 ) {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     if body.node_type.is(NodeType.Body).not() { return }
     if body.children.len() == 0 { return }
 
@@ -2117,7 +2128,7 @@ priv process_throw_catch_in_body := proc(
         ref mut stmt : Expr = old[j]
         stmt_line := stmt.line
         stmt_col := stmt.col
-        seed_local_type_from_stmt(ctx, stmt)
+        seed_local_type_from_stmt(scope, ctx, stmt)
 
         // Once a prior statement may have set _err_kind, the rest of the
         // body runs only on the no-error path. Group ALL remaining
@@ -2133,7 +2144,7 @@ priv process_throw_catch_in_body := proc(
             for k in j..old.len() {
                 rest.add_child(own old[k].clone())
             }
-            process_throw_catch_in_body(ctx, rest, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+            process_throw_catch_in_body(scope, ctx, rest, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             mut kind_id := Expr.new(ident_node("_err_kind"), stmt_line, stmt_col)
             mut guard_cond := make_method_call_fcall(own kind_id, "eq", stmt_line, stmt_col)
             guard_cond.add_child(own make_int_lit(0, stmt_line, stmt_col))
@@ -2169,7 +2180,7 @@ priv process_throw_catch_in_body := proc(
 
         // 1. Hoist nested bangs in stmt's expression tree.
         mut pre_stmts := Vec(Expr).new()
-        hoist_nested_bangs_consolidated(ctx, stmt, root_body, pre_stmts, types_to_declare, seen)
+        hoist_nested_bangs_consolidated(scope, ctx, stmt, root_body, pre_stmts, types_to_declare, seen)
         npre := pre_stmts.len()
         for pi in 0..npre {
             new_ch.push_take(pre_stmts, pi)
@@ -2181,18 +2192,18 @@ priv process_throw_catch_in_body := proc(
             for ci in 1..stmt.children.len() {
                 ref mut sub : Expr = stmt.children[ci]
                 if sub.node_type.is(NodeType.Body) {
-                    process_throw_catch_in_body(ctx, sub, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                    process_throw_catch_in_body(scope, ctx, sub, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
                 }
             }
         case .While:
             if stmt.children.len() >= 2 {
                 ref mut wb : Expr = stmt.children[1]
-                process_throw_catch_in_body(ctx, wb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                process_throw_catch_in_body(scope, ctx, wb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             }
         case .ForIn:
             if stmt.children.len() >= 2 {
                 ref mut fb : Expr = stmt.children[1]
-                process_throw_catch_in_body(ctx, fb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                process_throw_catch_in_body(scope, ctx, fb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             }
         case .Switch:
             for ci in 1..stmt.children.len() {
@@ -2202,11 +2213,11 @@ priv process_throw_catch_in_body := proc(
                     // function-level err slots get declared (the actual hoist
                     // runs at infer time).
                     if case_has_guard(cn) {
-                        register_bang_guard_throws(ctx, cn.children[case_pattern_count(cn)], root_body, types_to_declare, seen)
+                        register_bang_guard_throws(scope, ctx, cn.children[case_pattern_count(cn)], root_body, types_to_declare, seen)
                     }
                     for mut ccn : Expr in cn.children {
                         if ccn.node_type.is(NodeType.Body) {
-                            process_throw_catch_in_body(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                            process_throw_catch_in_body(scope, ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
                         }
                     }
                 }
@@ -2214,14 +2225,14 @@ priv process_throw_catch_in_body := proc(
         case .Catch:
             if stmt.children.len() == 3 {
                 ref mut cbody : Expr = stmt.children[2]
-                process_throw_catch_in_body(ctx, cbody, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                process_throw_catch_in_body(scope, ctx, cbody, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             }
         case:
         }
 
         // 2b. Lower throwing calls in nested `match` arm bodies (an expression
         // form not covered by the statement-shaped recursion above).
-        process_match_arms_in(ctx, stmt, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+        process_match_arms_in(scope, ctx, stmt, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
 
         // 3. Detect a stmt-root bang and clear the flag so step 4 sees
         // does_throw on the FCall. Bang-call-to-unknown is left in
@@ -2230,7 +2241,7 @@ priv process_throw_catch_in_body := proc(
         mut root_bang_throws := Vec(Str).new()
         switch find_bang_fcall(stmt) {
         case .Some(bang_fc):
-            found_key_root := find_callee_throws_key(ctx, bang_fc, root_body)
+            found_key_root := find_callee_throws_key(scope, ctx, bang_fc, root_body)
             if found_key_root.len() > 0 {
                 ref tts_root : Vec(Str) = ctx.throws_global[found_key_root]
                 for tn : Str in tts_root {
@@ -2250,24 +2261,24 @@ priv process_throw_catch_in_body := proc(
         switch stmt.node_type {
         case .Decl, .Assign, .FieldAssign:
             for mut sub : Expr in stmt.children {
-                validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(scope, ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case .Return:
             if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
-                validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(scope, ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case .FCall:
-            validate_and_inject_expr_consolidated(ctx, stmt, root_body, pending, seen, types_to_declare, path)
+            validate_and_inject_expr_consolidated(scope, ctx, stmt, root_body, pending, seen, types_to_declare, path)
         case .If, .While, .ForIn:
             if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
-                validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(scope, ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case .Switch:
             if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
-                validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(scope, ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
             for ci in 1..stmt.children.len() {
                 ref mut cn : Expr = stmt.children[ci]
@@ -2281,7 +2292,7 @@ priv process_throw_catch_in_body := proc(
                         if guard_bang.and(cci.eq(guard_idx)) { continue }
                         ref mut ccn : Expr = cn.children[cci]
                         if ccn.node_type.is(NodeType.Body).not() {
-                            validate_and_inject_expr_consolidated(ctx, ccn, root_body, pending, seen, types_to_declare, path)
+                            validate_and_inject_expr_consolidated(scope, ctx, ccn, root_body, pending, seen, types_to_declare, path)
                         }
                     }
                 }
@@ -2289,11 +2300,11 @@ priv process_throw_catch_in_body := proc(
         case .Throw:
             if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
-                validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(scope, ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case:
             for mut sub : Expr in stmt.children {
-                validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
+                validate_and_inject_expr_consolidated(scope, ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         }
 
@@ -2356,7 +2367,7 @@ priv process_throw_catch_in_body := proc(
                             if throw_type_has_payload(ctx, tn) {
                                 new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.children[0], stmt_line, stmt_col))
                             } else {
-                                ctx.throw_used_local_names.add(own idn.name.clone())
+                                func_state.throw_used_local_names.add(own idn.name.clone())
                                 if is_direct_fieldless_throw_ctor(stmt.children[0], tn).not() {
                                     new_ch.push(own stmt.children[0].clone())
                                 }
@@ -2369,7 +2380,7 @@ priv process_throw_catch_in_body := proc(
                             continue
                         }
                     }
-                    ctx.throw_used_local_names.add(own idn.name.clone())
+                    func_state.throw_used_local_names.add(own idn.name.clone())
                     // Last index, so an EMPTY new_ch runs zero iterations.
                     // The old `len(); if > 0 { -- }` form left 0 behind for
                     // an empty vec and then indexed it -- a `throw <name>`
@@ -2425,8 +2436,8 @@ priv process_throw_catch_in_body := proc(
                     // binding), which is exactly what `throws T` on a
                     // generic needs after substitution makes T concrete.
                     if tn.len() == 0 {
-                        if ctx.lowering_param_types.has(idn.name) {
-                            tn = normalize_ctor_type(ctx.lowering_param_types[idn.name])
+                        if func_state.lowering_param_types.has(idn.name) {
+                            tn = normalize_ctor_type(func_state.lowering_param_types[idn.name])
                         }
                     }
                 case:
@@ -2558,12 +2569,14 @@ priv process_throw_catch_in_body := proc(
 // types touched and (for throwing functions) appends a fallback
 // return so all C paths return.
 process_throw_catch_in_func_body := proc(
+    mut scope: TypeScope,
     mut ctx: Context,
     mut body: Expr,
     fdef_throws: Vec(Str),
     return_type: Str,
     return_own_type: OwnType
 ) {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     has_body_throw_catch := subtree_has_throw_catch(body)
     has_fdef_throws := fdef_throws.len() > 0
     has_body_bang := subtree_has_bang(body)
@@ -2581,8 +2594,8 @@ process_throw_catch_in_func_body := proc(
     mut pending := Vec(Str).new()
     mut seen := Vec(Str).new()
     mut types_to_declare := Vec(Str).new()
-    ctx.throw_used_local_names = Set(Str).new()
-    collect_throw_ident_names(body, ctx.throw_used_local_names)
+    func_state.throw_used_local_names = Set(Str).new()
+    collect_throw_ident_names(body, func_state.throw_used_local_names)
     // Seed with declared throws so the slots exist as params even
     // when the body never references the type directly (rare, but
     // possible if a function declares `throws T` and reraises via
@@ -2592,7 +2605,7 @@ process_throw_catch_in_func_body := proc(
     }
 
     root_body := body.clone()
-    process_throw_catch_in_body(ctx, body, root_body, fdef_throws, pending, seen, types_to_declare, ctx.path, return_type, return_own_type)
+    process_throw_catch_in_body(scope, ctx, body, root_body, fdef_throws, pending, seen, types_to_declare, ctx.path, return_type, return_own_type)
 
     // Final body-level validation: leftover pending types must be
     // declared, and every declared throws entry must have been seen.
@@ -2707,7 +2720,7 @@ priv lookup_variant_payload_type := func(scope: TypeScope, enum_name: Str, varia
     return ""
 }
 
-// Walk a function body and seed ctx.lowering_param_types with the
+// Walk a function body and seed lowering_param_types with the
 // names + payload types bound by switch-case patterns. The
 // throw/catch lowering pass runs before infer_body emits the
 // case-body payload Decls (via make_switch_case_condition), so the
@@ -2724,7 +2737,8 @@ priv lookup_variant_payload_type := func(scope: TypeScope, enum_name: Str, varia
 // and the throws lookup falls back to suffix-matching the method name,
 // picking Array.get's OutOfBounds over Map.get's KeyNotFound -- the exact
 // failure this seeding exists to prevent, just reached by a new route.
-priv collect_one_case_binding := func(mut ctx: Context, e: Expr, subject_enum: Str) {
+priv collect_one_case_binding := func(mut scope: TypeScope, ctx: Context, e: Expr, subject_enum: Str) {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     if e.node_type.is(NodeType.Case).not() { return }
     if e.children.len() < 1 { return }
     ref pat : Expr = e.children[0]
@@ -2746,7 +2760,7 @@ priv collect_one_case_binding := func(mut ctx: Context, e: Expr, subject_enum: S
             case .Ident(b_id):
                 payload_type := lookup_variant_payload_type(ctx.scope, ename, fa.field_access_name())
                 if payload_type.len() > 0 {
-                    ctx.lowering_param_types.set(b_id.ident_name(), own payload_type)
+                    func_state.lowering_param_types.set(b_id.ident_name(), own payload_type)
                 }
             case:
             }
@@ -2756,21 +2770,21 @@ priv collect_one_case_binding := func(mut ctx: Context, e: Expr, subject_enum: S
     }
 }
 
-collect_switch_case_bindings := proc(mut ctx: Context, e: Expr, body: Expr) {
+collect_switch_case_bindings := proc(mut scope: TypeScope, mut ctx: Context, e: Expr, body: Expr) {
     // Seed from the SUBJECT's type, so a pattern that names no enum still
     // resolves. resolve_value_type is the same best-effort receiver
     // resolution the throws lookup itself uses, so a dotted pattern is
     // seeded exactly when a qualified one would have resolved anyway.
     if e.node_type.is(NodeType.Switch).or(e.node_type.is(NodeType.Match)) {
         if e.children.len() > 0 {
-            subject_enum := resolve_value_type(ctx, e.children[0], body)
+            subject_enum := resolve_value_type(scope, ctx, e.children[0], body)
             for ci in 1..e.children.len() {
-                collect_one_case_binding(ctx, e.children[ci], subject_enum)
+                collect_one_case_binding(scope, ctx, e.children[ci], subject_enum)
             }
         }
     }
     for c : Expr in e.children {
-        collect_switch_case_bindings(ctx, c, body)
+        collect_switch_case_bindings(scope, ctx, c, body)
     }
 }
 

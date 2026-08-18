@@ -177,6 +177,20 @@ priv bindings_lookup_one := func(filt: U64, fp: U64, m: Map(Str, TypeBinding), n
     return Option(ref TypeBinding).Some(b)
 }
 
+TyperFuncState := struct {
+    // Empty for namespace methods; those use TypeScope.current_type_name.
+    current_top_func_name := ""
+    // Declared return type of the function currently being checked.
+    typer_return_type_name := ""
+    proc_calls_count : I32 = 0
+    proc_def_depth : I32 = 0
+    auto_gen_depth : I32 = 0
+    // Function-wide throw-lowering state. Lowering runs before lexical block
+    // scopes exist, so every child scope shares the function root's tables.
+    throw_used_local_names := Set(Str).new()
+    lowering_param_types := Map(Str, Str).new()
+}
+
 TypeScope := struct {
     bindings := Map(Str, TypeBinding).new()
     target_usize_pname := "U32"
@@ -199,6 +213,12 @@ TypeScope := struct {
     // check must consider, without reaching enclosing/global bindings (a
     // local legitimately shadows a global, and codegen handles that).
     is_func_root := false
+    // Lexical type owner. A type scope sets this; namespace function roots
+    // retain it through their parent chain while owning fresh function state.
+    current_type_name := ""
+    // The global root and every function root own one active typer state.
+    // Lexical child scopes carry an unused default and resolve through parent.
+    typer_func := TyperFuncState()
     // Membership fingerprints (name_fingerprint) of the three registries'
     // key sets: the OR of every key's bit. A clear bit PROVES the name is
     // not in that map, so the chain walk skips the binary search and the
@@ -215,6 +235,20 @@ TypeScope := struct {
     func_defs_filt : U64 = 0
     struct_defs_filt : U64 = 0
 namespace:
+    typer_func_state := func(mut self: TypeScope) returns ref TyperFuncState {
+        if self.is_func_root { return self.typer_func }
+        switch self.parent {
+        case .Some(p): return p.typer_func_state()
+        case .None: return self.typer_func
+        }
+    }
+    active_type_name := func(self: TypeScope) returns ref Str {
+        if self.current_type_name.len() > 0 { return self.current_type_name }
+        switch self.parent {
+        case .Some(p): return p.active_type_name()
+        case .None: return self.current_type_name
+        }
+    }
     // Iterative single-probe walk (the interpreter's scope_get shape):
     // one call frame per lookup, one binary search per level -- the
     // recursive has()+[] version paid a call and up to two searches per
@@ -1057,13 +1091,6 @@ Context := struct {
     // migrate to this map in step 4.
     struct_layouts := Map(Str, StructLayout).new()
 
-    // True while the typer is inferring a struct/enum namespace member
-    // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
-    // test() decls at the namespace level even though scope.parent is
-    // the type's inner scope, while still rejecting test() decls
-    // inside arbitrary nested function bodies.
-    typing_namespace_member := false
-
     closure_emit_env := ""
     closure_emit_captures := Set(Sym).new()
 
@@ -1086,32 +1113,6 @@ Context := struct {
     // ctx so the same Context that already threads the throws
     // registries also owns the matching temp counter.
     bang_counter : I64 = 0
-
-    // Type-qualified throws lookup: throws_global stores method
-    // throws under "Type.method" keys (free functions stay bare). To
-    // resolve the receiver type of a `recv.method(...)` call site at
-    // lowering time (before infer_body runs), the throw/catch walk
-    // seeds this map with the current function's param-name -> type-name
-    // bindings. Local receivers are resolved by scanning the body's
-    // Decls (guess_local_type); the global scope handles the static
-    // `Type.method(...)` form.
-    lowering_param_types := Map(Str, Str).new()
-
-    // Resolved declared return type name of the function currently being
-    // type-checked (empty when none / not in a func). infer_return_stmt
-    // reads it to narrow a bare numeric literal return value to the
-    // declared numeric type, mirroring the call-argument narrowing in
-    // validate_fcall_arg. Saved+restored around each func body.
-    typer_return_type_name : Str = ""
-
-    // Typer proc/func validation: proc_def_depth counts the nesting
-    // depth of `proc` definitions currently being typed (>0 means we
-    // are inside one), and proc_calls_count tallies proc/ext_proc
-    // call sites seen in the active proc body. infer_func_def_expr
-    // saves+restores both around each body so a proc that contains
-    // no proc-calls trips the "should be a func" diagnostic.
-    proc_calls_count : I32 = 0
-    proc_def_depth : I32 = 0
 
     // Typer unique-name generators. Each counter mints a fresh
     // suffix for a different family of synthesised temps that the
@@ -1186,20 +1187,9 @@ Context := struct {
     // `g` marker as the other module-level temps.
     lazy_stmt_temp_counter : I64 = 0
 
-    // Remaining typer-phase scratch, moved off module globals. errors is
-    // the per-unit type-error counter (reset and returned by
-    // type_check_unit / type_check); current_type_name / current_top_func_name
-    // track the type/function whose body is being typed (for the priv
-    // access checks); auto_gen_depth counts nesting of auto-generated
-    // FuncDef bodies so the unused-priv-member check ignores boilerplate
-    // reads; throw_used_local_names tracks err-slot locals referenced
-    // while lowering throw/catch. (typer_path is not duplicated here --
-    // it was always a copy of ctx.path.)
+    // Per-unit type-error counter, reset and returned by type_check_unit.
+    // Function/type scratch lives on TypeScope; typer_path was always ctx.path.
     errors : I32 = 0
-    current_type_name := ""
-    current_top_func_name := ""
-    auto_gen_depth : I32 = 0
-    throw_used_local_names := Set(Str).new()
     // #187: "the function <key> references these priv names". A reference
     // made from inside a function proves nothing on its own -- the
     // referrer may itself be dead -- so those references are recorded

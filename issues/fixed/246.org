@@ -1,9 +1,34 @@
 # priority: low
 # category: cleanups
-** WIP #246 Slim down the cross-phase ~Context~ toward the rstil shape
+** FIXED #246 Slim down the cross-phase ~Context~ toward the rstil shape
+
+*** Post-mortem
+
+The root cause was lifetime-blind state placement: moving old module globals
+onto ~Context~ fixed cross-unit correctness, but left function-local builder,
+typer, and interpreter state sharing one long-lived object and requiring manual
+reset/save/restore windows.
+
+The fix gave each lifetime a home. ~BuilderFuncScratch~ owns per-function
+emission state; ~EvalState~ and ~FfiState~ own interpreter runtime state; and
+each function-root ~TypeScope~ now owns ~TyperFuncState~, inherited by its
+lexical child scopes. Type ownership is lexical ~TypeScope.current_type_name~,
+so namespace functions keep their type identity without a Context flag. The
+final audit retained only program/unit bookkeeping and cross-phase caches or
+registries on Context, including program-wide builder inventories and the
+~struct_layouts~ cache #247 consumes.
+
+Regression coverage: ~test/typer_errors.til~, ~test/errors.til~,
+~test/priv.til~, generated-name determinism checks, and ~self_translate~ in
+~make clean && make test~.
 
 *** Progress
 
+   - [X] Step 1: moved function-local typer return/proc/generated/throw state
+     into ~TyperFuncState~ owned by each function-root ~TypeScope~. Lexical
+     child scopes resolve the nearest function state; type scopes separately
+     own ~current_type_name~. This removes the Context save/restore windows and
+     the derived ~typing_namespace_member~ flag.
    - [X] Step 2: grouped all per-function builder analysis/emission state under
      ~Context.builder_func : BuilderFuncScratch~. The final direct Context
      fields (~ctor_seq~, ~in_func_def~, ~in_main_func~, ~current_fdef~) now
@@ -18,15 +43,18 @@
      access ~dispatch_map~, registered entries, struct definitions, the
      aggregate type cache, and their initialization flags through that
      interpreter-owned state.
-   - [ ] Step 1 and the remaining Context cache audit in step 5.
+   - [X] Step 5: audited the remaining Context fields. They are program/unit
+     bookkeeping or cross-phase caches/registries; ~struct_layouts~ remains the
+     deliberate layout cache and program-wide builder inventories remain
+     emission bookkeeping rather than per-function scratch.
 
-Companion to [[./247.org][#247]] (move layout facts off the AST). #246 = Context
-carries phase-local scratch; #247 = the AST carries non-syntax layout
+Companion to [[../open/247.org][#247]] (move layout facts off the AST). #246 addressed
+Context carrying phase-local scratch; #247 addresses the AST carrying non-syntax layout
 facts. They meet at ~Context.struct_layouts~ -- see the cross-dep notes
 in the plan below.
 
-~Context~ in ~src/self/initer.til~ (initer.til:197) has grown to ~66
-fields. One ~Context~ value threads ~ref~/mut through every phase
+~Context~ in ~src/self/context.til~ had grown into a large field list. One
+~Context~ value threads ~ref~/mut through every phase
 (init -> typer -> desugar -> garbager -> constfolder -> eval/builder), and
 over time each phase has parked its private scratch state directly on
 it. The struct is now a grab-bag of unrelated lifetimes:
@@ -38,14 +66,9 @@ it. The struct is now a grab-bag of unrelated lifetimes:
   - constfolder tables: ~constfolder_macros~, ~constfolder_funcs~, ~constfolder_known~.
   - interpreter runtime flags + slots are now grouped under ~eval~;
     dispatch/libffi state is grouped under ~ffi~.
-  - typer-only scratch: ~typing_namespace_member~,
-    ~typer_in_shallow_return~, ~typer_in_main_func~,
-    ~typer_return_type_name~, ~proc_calls_count~, ~proc_def_depth~,
-    ~hoist_counter~/~va_counter~/~kw_counter~/~coll_counter~,
-    ~errors~, ~current_type_name~, ~current_top_func_name~,
-    ~auto_gen_depth~, ~throw_used_local_names~, ~lowering_param_types~,
-    ~throw_type_registry~, ~throws_names_global~, ~throws_per_global~,
-    ~bang_counter~.
+  - function-local typer scratch is now owned by function-root ~TypeScope~;
+    per-unit diagnostics, registries, and deterministic program-level naming
+    counters remain Context bookkeeping.
   - builder-only emission transients: the per-function fields are now grouped
     under ~builder_func~; program-level inventories such as
     ~script_globals~ / ~ref_globals~ remain direct Context fields.
@@ -74,7 +97,7 @@ Context. And runtime eval state lives in ~EvalHeap~, not on Context.
 
 *** Incremental plan (not one commit)
 
-1. Move per-function typer scratch onto ~TypeScope~ (our ~scope~)
+1. DONE -- Move per-function typer scratch onto ~TypeScope~ (our ~scope~)
    so it is pushed/popped with the scope rather than saved/restored
    by hand. Candidates: ~current_type_name~, ~current_top_func_name~,
    ~typer_return_type_name~, ~proc_calls_count~, ~proc_def_depth~,
@@ -94,7 +117,7 @@ Context. And runtime eval state lives in ~EvalHeap~, not on Context.
    - Same CROSS-DEP with #247 step 3 for the interpreter's layout reads.
 4. DONE -- Group FFI/dispatch state (~dispatch_*~, ~ffi_*~) into one
    ~FfiState~ field. (No #247 interaction.)
-5. Keep the genuine cross-phase caches on ~Context~ -- import memo sets,
+5. DONE -- Keep the genuine cross-phase caches on ~Context~ -- import memo sets,
    ~imported~, ~func_defs~ / ~struct_def_exprs~ / ~interp_type_defs~,
    and ~struct_layouts~. That is what Context is *for*.
    - CROSS-DEP with #247 step 4: ~struct_layouts~ must be a fully

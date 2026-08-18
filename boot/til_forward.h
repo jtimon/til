@@ -237,6 +237,7 @@ typedef struct Vec__U64 Vec__U64;
 typedef struct BorrowRoot BorrowRoot;
 typedef struct TypeBinding TypeBinding;
 typedef struct ScopeFind ScopeFind;
+typedef struct TyperFuncState TyperFuncState;
 typedef struct TypeScope TypeScope;
 typedef struct GenericFuncSource GenericFuncSource;
 typedef struct ImportUnit ImportUnit;
@@ -700,6 +701,17 @@ typedef struct BorrowRoot {
 struct ScopeFind {
     TypeBinding *data;
 };
+
+typedef struct TyperFuncState {
+    Str current_top_func_name;
+    Str typer_return_type_name;
+    I32 proc_calls_count;
+    I32 proc_def_depth;
+    I32 auto_gen_depth;
+    Set__Str throw_used_local_names;
+    Map__Str_Str lowering_param_types;
+} TyperFuncState;
+
 
 typedef struct GenericFuncSource {
     Str name;
@@ -1614,6 +1626,8 @@ typedef struct TypeScope {
     Map__Str_Dynamic struct_defs;
     Option__ref_TypeScope parent;
     Bool is_func_root;
+    Str current_type_name;
+    TyperFuncState typer_func;
     U64 bindings_filt;
     U64 func_defs_filt;
     U64 struct_defs_filt;
@@ -1691,7 +1705,6 @@ typedef struct Context {
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
-    Bool typing_namespace_member;
     Str closure_emit_env;
     Set__U32 closure_emit_captures;
     Set__U32 funcsig_names;
@@ -1701,10 +1714,6 @@ typedef struct Context {
     Vec__Str throw_type_registry;
     Map__Str_call_Vec_Str throws_global;
     I64 bang_counter;
-    Map__Str_Str lowering_param_types;
-    Str typer_return_type_name;
-    I32 proc_calls_count;
-    I32 proc_def_depth;
     I32 hoist_counter;
     I32 va_counter;
     I32 kw_counter;
@@ -1713,10 +1722,6 @@ typedef struct Context {
     Map__Str_I64 synth_symbol_seq;
     I64 lazy_stmt_temp_counter;
     I32 errors;
-    Str current_type_name;
-    Str current_top_func_name;
-    I32 auto_gen_depth;
-    Set__Str throw_used_local_names;
     Map__Str_call_Vec_Str priv_ref_edges;
     BuilderFuncScratch builder_func;
     HashMap__Str_Str builder_str_lit_symbols;

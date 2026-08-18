@@ -176,13 +176,9 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 // apply_hoist_to_stmt -> hoist_to_temp / hoist_expr / ...) threads
 // `mut ctx: Context` so the same Context that already owns the rest
 // of the typer scratch state also owns these unique-name counters.
-// proc_calls_count / proc_def_depth previously lived here as
-// module-level mut; they moved to Context (see initer.til). The
-// typer reads/writes via ctx.proc_calls_count / ctx.proc_def_depth.
-// errors / current_type_name / current_top_func_name / auto_gen_depth /
-// throw_used_local_names likewise moved onto Context (see initer.til);
-// helpers with ctx in scope use ctx.<field>, and the leaf diagnostics
-// (type_error / type_error_at) reach it via ctx.
+// Per-function typer state lives on the nearest function-root TypeScope;
+// lexical block scopes share it through their parent chain. Type ownership
+// is a separate lexical TypeScope value so namespace functions retain it.
 // Issue #93 follow-up: name of the top-level Decl whose body we are
 // currently typing (function rhs or struct/enum that contains the
 // active ns method body via current_type_name). Lifted nested defs
@@ -190,7 +186,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 // scope priv check uses these two tracking globals to decide whether
 // a reference at the current location is allowed to see the mangled
 // name (only the original parent function and any of its other lifted
-// descendants can). current_top_func_name now lives on Context.
+// descendants can).
 // Issue #198: the throw_type_registry / throws_global tables
 // previously declared here moved onto the
 // `Context` struct (see initer.til) so cross-unit typer state lives
@@ -200,7 +196,6 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 // (clone/delete/size/etc emitted by initer). The unused-priv-member
 // check ignores reads inside these so genuinely-unused priv fields
 // and ns methods are not masked by boilerplate references.
-// auto_gen_depth / throw_used_local_names now live on Context.
 I64Name := "I64"
 U8Name := "U8"
 I8Name := "I8"
@@ -704,6 +699,7 @@ priv check_ref_local_null_init := proc(stmt: Expr, mut ctx: Context) {
 }
 
 priv infer_func_ptr_field_call := proc(mut scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, in_func: I32, mut ctx: Context) returns Bool {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     if obj.til_type().is(Type.Struct).not().and(obj.til_type().is(Type.Enum).not()) { return false }
     switch sdef.node_type {
     case .StructDef(fpf_sdd):
@@ -718,8 +714,8 @@ priv infer_func_ptr_field_call := proc(mut scope: TypeScope, mut e: Expr, mut fa
                 }
                 if in_func != 0 {
                     e.type_error(format("func cannot call Body field '", method, "'"), ctx)
-                } else if ctx.proc_def_depth > 0 {
-                    ctx.proc_calls_count = ctx.proc_calls_count + 1
+                } else if func_state.proc_def_depth > 0 {
+                    func_state.proc_calls_count = func_state.proc_calls_count + 1
                 }
                 e.set_til_type(Type.None)
                 return true
@@ -975,13 +971,14 @@ priv rewrite_ctor_field_shorthand := func(ctor_sdd: StructDef, mut e: Expr) {
 }
 
 priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef: Expr, mut e: Expr, name: Str, in_func: I32, mut ctx: Context) returns Bool {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     // #187 step 1: mark the struct binding as used so a priv struct
     // that is only ever instantiated (no namespace method calls) is
     // not misreported as dead. Skip when current_type_name matches
     // the struct itself: that's an internal constructor inside the
     // struct's own auto-generated or user-written ns methods, which
     // does not count as "used externally".
-    if ctx.current_type_name.eq(name).not() {
+    if scope.active_type_name().eq(name).not() {
         mut sb_used_o := scope.get_binding(name)
         if sb_used_o.is_some() {
             ref mut sb_used : TypeBinding = sb_used_o.unwrap()
@@ -998,12 +995,12 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
             e.set_til_type(Type.Unknown)
             return true
         }
-        check_priv_access(e, name, sb, ctx)
+        check_priv_access(e, name, sb, scope, ctx)
     case:
     }
 
     // #99: if struct has new(), disallow literal outside its namespace
-    if ctx.current_type_name.eq(name).not() {
+    if scope.active_type_name().eq(name).not() {
         if def_ns_has(sdef, "new") {
             e.type_error(format("struct '", name, "' has a new() constructor; use ", name, ".new(...) instead"), ctx)
             e.set_til_type(Type.Struct(name.clone()))
@@ -1034,8 +1031,8 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
             }
             if slot >= 0 {
                 ref mut ctor_fld : Declaration = ctor_sdd.field_at(slot.to_usize())
-                check_member_priv(arg, name, aname, ctor_fld.is_priv, ctx)
-                if ctx.auto_gen_depth == 0 { ctor_fld.used = true }
+                check_member_priv(arg, name, aname, ctor_fld.is_priv, scope, ctx)
+                if func_state.auto_gen_depth == 0 { ctor_fld.used = true }
                 // #321: a 0 arg for a Dynamic field is the null spelling.
                 if arg.children.len() > 0 {
                     rewrite_zero_to_null(arg.children[0], declaration_resolved_type(ctor_fld, scope), ctor_fld.own_type.is(OwnType.Own))
@@ -1602,6 +1599,7 @@ priv infer_and_validate_fcall_args := proc(mut scope: TypeScope, mut e: Expr, ca
 }
 
 priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: Str, callee_bind_o: Option(ref TypeBinding), fdef_o: Option(ref Expr), in_func: I32, mut ctx: Context) {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
         if e.children.len() >= 3 {
             ref method_arg : Expr = e.children[2]
@@ -1628,8 +1626,8 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
         }
         if in_func != 0 {
             e.type_error(format("func cannot call Body '", name, "'"), ctx)
-        } else if ctx.proc_def_depth > 0 {
-            ctx.proc_calls_count = ctx.proc_calls_count + 1
+        } else if func_state.proc_def_depth > 0 {
+            func_state.proc_calls_count = func_state.proc_calls_count + 1
         }
         e.set_til_type(Type.None)
         return
@@ -1715,14 +1713,14 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
     if fn_type.is_funcptr().not() {
         if in_func != 0 {
             if callee_ft.is_proc() {
-                ctx.proc_calls_count = ctx.proc_calls_count + 1
+                func_state.proc_calls_count = func_state.proc_calls_count + 1
                 if debug_exempt.not() {
                     e.type_error(format("func cannot call proc '", name, "'"), ctx)
                 }
             }
-        } else if ctx.proc_def_depth > 0 {
+        } else if func_state.proc_def_depth > 0 {
             if callee_ft.is_proc() {
-                ctx.proc_calls_count = ctx.proc_calls_count + 1
+                func_state.proc_calls_count = func_state.proc_calls_count + 1
             }
         }
     }
@@ -1808,6 +1806,7 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
 }
 
 priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) returns Bool {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     ref mut fa : Expr = e.children[0]
     ref mut obj : Expr = fa.children[0]
     mut method := ""
@@ -2046,10 +2045,10 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     switch find_ns_decl(sdef2, method) {
     case .Some(fd):
         ns_member_priv = fd.is_priv
-        if ctx.auto_gen_depth == 0 { fd.used = true }
+        if func_state.auto_gen_depth == 0 { fd.used = true }
     case .None:
     }
-    check_member_priv(e, obj3_sname, method, ns_member_priv, ctx)
+    check_member_priv(e, obj3_sname, method, ns_member_priv, scope, ctx)
     // #154: calling a method of a cross-file type uses that type's import.
     note_cross_file_type_use(scope, ctx, obj3_sname)
     // #269: a call to an ABSTRACT method through an interface-typed receiver
@@ -2124,11 +2123,11 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             return true
         }
     }
-    if ctx.proc_def_depth.gt(0).or(in_func.neq(0)) {
+    if func_state.proc_def_depth.gt(0).or(in_func.neq(0)) {
         switch ns_func2.node_type {
         case .FuncDef(ns_fdef0):
             if ns_fdef0.func_type.is_proc() {
-                ctx.proc_calls_count = ctx.proc_calls_count + 1
+                func_state.proc_calls_count = func_state.proc_calls_count + 1
             }
         case:
         }
@@ -2263,7 +2262,8 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
 // receiver re-walk in infer_field_access_fcall) is now prevented at
 // source: the post-UFCS re-walk skips already-typed children, so the
 // receiver Expr is inferred exactly once.
-priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, mut ctx: Context) {
+priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, mut scope: TypeScope, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     if b.is_priv.not() { return }
     if b.path.eq(ctx.path).not() {
         // init_declarations_unit rewrote top-level priv decls to
@@ -2294,10 +2294,12 @@ priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, mut ctx: Cont
     parent_len := b.name.len().sub(b.orig_name.len()) - 1
     parent_name := b.name.substr(0, parent_len)
     parent_underscore := format(parent_name, "_")
-    if ctx.current_top_func_name == parent_name { return }
-    if ctx.current_top_func_name.starts_with(parent_underscore) { return }
-    if ctx.current_type_name == parent_name { return }
-    if ctx.current_type_name.starts_with(parent_underscore) { return }
+    ref top_func_name : Str = func_state.current_top_func_name
+    ref type_name : Str = scope.active_type_name()
+    if top_func_name == parent_name { return }
+    if top_func_name.starts_with(parent_underscore) { return }
+    if type_name == parent_name { return }
+    if type_name.starts_with(parent_underscore) { return }
     e.type_error(format("'", b.orig_name, "' is a local def of '", parent_name, "' and cannot be referenced from outside it"), ctx)
 }
 
@@ -2310,11 +2312,11 @@ priv check_priv_access := proc(e: Expr, name: Str, b: TypeBinding, mut ctx: Cont
 // hand-written ns methods both reference the parent type by name).
 // Thin wrapper: looks up the binding, gates on current_type_name,
 // then defers to check_priv_access for the actual emit.
-priv check_priv_type_name := proc(e: Expr, name: Str, scope: TypeScope, mut ctx: Context) {
+priv check_priv_type_name := proc(e: Expr, name: Str, scope: TypeScope, mut state_scope: TypeScope, mut ctx: Context) {
     if name.len() == 0 { return }
-    if ctx.current_type_name == name { return }
+    if state_scope.active_type_name() == name { return }
     b_o := scope.get_binding(name)
-    if b_o.is_some() { check_priv_access(e, name, b_o.unwrap(), ctx) }
+    if b_o.is_some() { check_priv_access(e, name, b_o.unwrap(), state_scope, ctx) }
 }
 
 // Issue #179 steps 4-5: priv check for struct fields and namespace
@@ -2322,9 +2324,9 @@ priv check_priv_type_name := proc(e: Expr, name: Str, scope: TypeScope, mut ctx:
 // visible inside the struct's own namespace methods, not just the
 // declaring file. current_type_name == owner_name iff we are
 // type-checking a member body of that struct.
-priv check_member_priv := proc(e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, mut ctx: Context) {
+priv check_member_priv := proc(e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, scope: TypeScope, mut ctx: Context) {
     if member_is_priv.not() { return }
-    if ctx.current_type_name == owner_name { return }
+    if scope.active_type_name() == owner_name { return }
     e.type_error(format("'", owner_name, ".", member_name, "' is private to its struct; remove 'priv' to expose it"), ctx)
 }
 
@@ -3421,6 +3423,7 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
 }
 
 priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) {
+    ref mut func_state : TyperFuncState = scope.typer_func_state()
     // #320: ref-qualified args (`f(ref x)`) only mean something on type
     // arguments of type-gen macro instantiations, and those are fully
     // expanded during init -- any call still carrying a ref bit here is
@@ -3461,8 +3464,8 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
             }
             if in_func != 0 {
                 e.type_error("func cannot call Body value", ctx)
-            } else if ctx.proc_def_depth > 0 {
-                ctx.proc_calls_count = ctx.proc_calls_count + 1
+            } else if func_state.proc_def_depth > 0 {
+                func_state.proc_calls_count = func_state.proc_calls_count + 1
             }
             e.set_til_type(Type.None)
             return
@@ -3549,9 +3552,9 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         // function is itself reachable -- see mark_binding_referenced.
         // The source binding is credited here, before the call is
         // rewritten to a concrete name it does not own.
-        mark_binding_referenced(ctx, callee_bind)
+        mark_binding_referenced(scope, ctx, callee_bind)
         note_cross_file_use(ctx, callee_bind.path)
-        check_priv_access(e, name, callee_bind, ctx)
+        check_priv_access(e, name, callee_bind, scope, ctx)
         callee_fdef_o = scope.lookup_func(callee_bind.name)
         if callee_fdef_o.is_some() {
             if init_func_is_generic(callee_fdef_o.unwrap()) {
@@ -3703,6 +3706,7 @@ priv assert_fcall_callee_classified := func(e: Expr) {
 }
 
 infer_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     switch expr.node_type {
     case .Literal(Literal.Num):  infer_literal_expr(expr)
     case .Literal(Literal.Null): infer_literal_expr(expr)
@@ -3714,9 +3718,9 @@ infer_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: 
     case .Loc:
         expr.node_type = NodeType.Literal(Literal.Str(format(ctx.path, ":", expr.line.to_str(), ":", expr.col.to_str())))
     case .Ident:       infer_ident_expr(scope, expr, ctx)
-    case .FuncDef:     infer_func_def_expr(scope, expr, ctx)
+    case .FuncDef:     infer_func_def_expr(scope, expr, func_state.current_top_func_name, ctx)
     case .BodyValue:   infer_body_value_expr(scope, expr, ctx)
-    case .StructDef, .EnumDef: infer_type_def_expr(scope, expr, ctx)
+    case .StructDef, .EnumDef: infer_type_def_expr(scope, expr, scope.active_type_name(), ctx)
     case .FCall:
         errors_before_call := ctx.errors
         infer_fcall_expr(scope, expr, in_func, ctx)
@@ -3766,10 +3770,10 @@ priv infer_ident_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: Con
         // type. External Ident references still mark it used.
         // Same reachability rule for a name used as a value (a
         // function passed as a func-pointer, a global read).
-        if ctx.current_type_name.eq(id_name.ident_name()).not() {
-            mark_binding_referenced(ctx, ib)
+        if scope.active_type_name().eq(id_name.ident_name()).not() {
+            mark_binding_referenced(scope, ctx, ib)
         }
-        check_priv_access(expr, id_name.ident_name(), ib, ctx)
+        check_priv_access(expr, id_name.ident_name(), ib, scope, ctx)
         if scope.lookup_func(ib.name).is_some() {
             expr.set_til_type(Type.FuncPtr)
         }
@@ -3913,9 +3917,9 @@ priv interface_method_conforms := func(iface_name: Str, impl_name: Str, iface_fd
     }
 }
 
-priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) {
+priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: Str, mut ctx: Context) {
     expr.set_til_type(Type.None)
-    mut inner := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut inner := TypeScope(parent = Option(ref TypeScope).Some(scope), current_type_name = type_name.clone())
     switch expr.node_type {
     case .StructDef(tc_sdd):
         mut tcfi : USize = 0
@@ -4072,7 +4076,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
     case:
     }
     if impl_iface_name.len() > 0 {
-        impl_self_name := ctx.current_type_name
+        ref impl_self_name : Str = inner.active_type_name()
         iface_def_o := scope.get_struct(impl_iface_name)
         mut is_iface := false
         if iface_def_o.is_some() {
@@ -4113,8 +4117,8 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         }
     }
     // Type-check ns_decls (stored directly by parser, not via body).
-    // Flip ctx.typing_namespace_member so infer_func_def_expr accepts
-    // test() decls at the namespace level (issue #51).
+    // The type scope identifies direct namespace members; a nested function
+    // root makes infer_func_def_expr reject nested test declarations.
     //
     // #307 follow-up (the known-latent sibling-order class), three
     // passes so member typing does not depend on declaration order:
@@ -4125,8 +4129,6 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
     //      constant declared later),
     //   3. infer function bodies (they may read any sibling constant's
     //      settled type).
-    saved_in_ns := ctx.typing_namespace_member
-    ctx.typing_namespace_member = true
     ref mut tc_ns : Vec(Declaration) = def_ns_decls(expr)
     mut tcni : USize = 0
     for mut tc_nd : Declaration in tc_ns {
@@ -4150,7 +4152,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         case:
         }
     }
-    tc_const_order := ns_const_eval_order(ctx.current_type_name, expr)
+    tc_const_order := ns_const_eval_order(inner.active_type_name(), expr)
     for tc_ci_pos : I64 in tc_const_order {
         ref mut tc_cd : Declaration = tc_ns.unsafe_get(tc_ci_pos.to_usize())
         // A non-func namespace member is a constant (e.g. `MAX : F32 =
@@ -4192,13 +4194,13 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         saved_ns_kw := ctx.kw_counter
         saved_ns_coll := ctx.coll_counter
         saved_ns_bang := ctx.bang_counter
-        ctx.synth_owner = format(ctx.current_type_name, "_", tc_bname)
+        ctx.synth_owner = format(inner.active_type_name(), "_", tc_bname)
         ctx.hoist_counter = 0
         ctx.va_counter = 0
         ctx.kw_counter = 0
         ctx.coll_counter = 0
         ctx.bang_counter = 0
-        infer_func_def_expr(inner, tc_bd.default_expr(), ctx)
+        infer_func_def_expr(inner, tc_bd.default_expr(), "", ctx)
         ctx.synth_owner = saved_ns_synth_owner
         ctx.hoist_counter = saved_ns_hoist
         ctx.va_counter = saved_ns_va
@@ -4206,13 +4208,12 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         ctx.coll_counter = saved_ns_coll
         ctx.bang_counter = saved_ns_bang
     }
-    ctx.typing_namespace_member = saved_in_ns
     // Static check: a hand-written `delete` must free (or transfer) every
     // `own` field, otherwise the auto-generated destructor chain through
     // generated delete / Map.delete / Vec.delete / scope_free leaks the
     // allocation the field's `own` qualifier declared.
     if expr.node_type.is(NodeType.StructDef) {
-        check_user_delete_frees_own_fields(ctx.current_type_name, expr, ctx)
+        check_user_delete_frees_own_fields(inner.active_type_name(), expr, ctx)
     }
 }
 
@@ -4565,16 +4566,16 @@ priv check_returned_borrowed_closure_captures := proc(func_scope: TypeScope, exp
     }
 }
 
-priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: Context) {
+priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_name: Str, mut ctx: Context) {
+    ref parent_func_state : TyperFuncState = scope.typer_func_state()
     if expr.children.len() == 0 {
         infer_func_sig_expr(scope, expr)
         return
     }
     expr.set_til_type(Type.None)
-    // Snapshot + clear the namespace flag so nested funcs typed by
-    // recursive infer_expr calls aren't treated as namespace members.
-    ifd_in_ns := ctx.typing_namespace_member
-    ctx.typing_namespace_member = false
+    // A direct member of a type scope is a namespace function. Once a
+    // function root exists, nested FuncDefs are ordinary nested definitions.
+    ifd_in_ns := scope.active_type_name().len().gt(0).and(scope.in_function().not())
     switch expr.node_type {
     case .FuncDef(fdef):
         // Issue #262: a lazy_func types like a func (cannot call proc,
@@ -4610,7 +4611,6 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
                 // its emission via the same predicate.
                 if lazy_recursive_variadic_def(expr) {
                     expr.set_til_type(Type.None)
-                    ctx.typing_namespace_member = ifd_in_ns
                     return
                 }
                 ref lbody : Expr = expr.children[0]
@@ -4676,11 +4676,18 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
             }
         }
         mut func_scope := TypeScope(parent = Option(ref TypeScope).Some(scope), is_func_root = true)
+        func_scope.typer_func.current_top_func_name = top_func_name.clone()
+        func_scope.typer_func.proc_def_depth = parent_func_state.proc_def_depth
+        func_scope.typer_func.auto_gen_depth = parent_func_state.auto_gen_depth
+        if fdef.func_type.is(FuncType.Proc) { func_scope.typer_func.proc_def_depth = func_scope.typer_func.proc_def_depth + 1 }
+        if fdef.auto_generated { func_scope.typer_func.auto_gen_depth = func_scope.typer_func.auto_gen_depth + 1 }
+        if is_func { func_scope.typer_func.typer_return_type_name = fdef.return_type.clone() }
+        else if fdef.return_type == "Dynamic" { func_scope.typer_func.typer_return_type_name = fdef.return_type.clone() }
         if fdef.return_type.len() > 0 {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
             if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { fdef.return_type = resolved_return_type }
-            check_priv_type_name(expr, resolved_return_type, scope, ctx)
+            check_priv_type_name(expr, resolved_return_type, scope, func_scope, ctx)
             // Issue #223 step 2: an explicit 'shallow' on a primitive return is
             // redundant (auto-shallow handles it). Reject it. Test the parser's
             // return_shallow_explicit flag, NOT return_own_type: the step-1
@@ -4689,7 +4696,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
             // def (e.g. a capturing closure re-typed as a UFCS-receiver-call
             // arg, which the auto-shallow pass had already normalized).
             if auto_shallow_ok.and(fdef.return_shallow_explicit) {
-                if is_primitive(type_from_name_at(resolved_return_type, scope, expr, ctx)) {
+                if is_primitive(type_from_name_at(resolved_return_type, scope, func_scope, expr, ctx)) {
                     expr.type_error("redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
                 }
             }
@@ -4699,7 +4706,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
             // so every downstream stage treats them as value types. Explicit
             // 'ref' returns are left alone (a borrowed pointer is intentional).
             if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Own)) {
-                rt := type_from_name_at(resolved_return_type, scope, expr, ctx)
+                rt := type_from_name_at(resolved_return_type, scope, func_scope, expr, ctx)
                 if is_auto_shallow_type(rt, resolved_return_type, scope, ctx) { fdef.return_own_type = OwnType.Shallow }
             }
         }
@@ -4711,7 +4718,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
         // ctx.typer_in_main_func flag the garbager special-cased at a
         // distance. Shallow params (scalars, auto or explicit) stay: they
         // parse straight into C stack values, no heap box.
-        in_main_def := ctx.current_top_func_name.eq("main").and(scope.parent.is_none())
+        in_main_def := top_func_name.eq("main").and(scope.parent.is_none())
         for i in 0..fdef.params.len() {
             ref mut param : Declaration = fdef.params[i]
             // #321: a `p: Dynamic = 0` param default is the null spelling;
@@ -4729,7 +4736,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
                 param.til_type = declaration_type_from_name(resolved_ptype)
             }
             ptn := param.type_name()
-            pt := type_from_name_at(ptn, scope, expr, ctx)
+            pt := type_from_name_at(ptn, scope, func_scope, expr, ctx)
             // Issue #58 / #147 step 5: same FuncPtrSig upgrade as in
             // infer_func_sig_expr -- if the param's type resolves to a
             // FuncSig (Type.FuncPtrSig(name)), store that on til_type so
@@ -4823,24 +4830,8 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
         mut returns_ref_val : I32 = 0
         if fdef.return_own_type.is(OwnType.Ref) { returns_ref_val = 1 }
         is_proc := fdef.func_type.is(FuncType.Proc)
-        saved_proc_calls := ctx.proc_calls_count
-        if is_proc {
-            ctx.proc_calls_count = 0
-            ctx.proc_def_depth = ctx.proc_def_depth + 1
-        }
-        if fdef.auto_generated {
-            ctx.auto_gen_depth = ctx.auto_gen_depth + 1
-        }
-        saved_return_type_name := ctx.typer_return_type_name.clone()
-        // #321: a PROC can declare `returns Dynamic` too (the interpreter's
-        // evaluators do), and its `return 0` needs the zero-to-null rewrite
-        // exactly like a func's. Track the name in that case as well -- the
-        // field's other readers are inert for Dynamic (numeric narrowing
-        // skips a non-numeric type, interface boxing skips a non-interface
-        // name), so the widening reaches only what the rewrite needs.
-        if is_func { ctx.typer_return_type_name = fdef.return_type.clone() }
-        else if fdef.return_type == "Dynamic" { ctx.typer_return_type_name = fdef.return_type.clone() }
-        else { ctx.typer_return_type_name = "" }
+        // #321: a PROC declaring `returns Dynamic` also carries that return
+        // name in its function-root state so `return 0` becomes null.
         // Issue #198: lower throw/catch BEFORE infer_body so the
         // synthesised _err_kind / payload locals + if-guards
         // get type-checked normally and reach all downstream stages
@@ -4858,22 +4849,22 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
             // did, integrated per stmt.
             // Seed the receiver-type map so the walk's type-qualified
             // throws lookup can resolve `param.method(...)` receivers.
-            ctx.lowering_param_types = Map(Str, Str).new()
+            func_scope.typer_func.lowering_param_types = Map(Str, Str).new()
             for lpi in 0..fdef.params.len() {
                 ref lpp : Declaration = fdef.params[lpi]
                 mut lptn := lpp.type_name()
                 if lpi.to_i32() == fdef.variadic_index { lptn = variadic_array_type_name(scope, lpp.type_name()) }
                 if lpi.to_i32() == fdef.kwargs_index { lptn = "KwargsMap" }
                 if lptn.len() == 0 { continue }
-                ctx.lowering_param_types.set(lpp.name, own lptn)
+                func_scope.typer_func.lowering_param_types.set(lpp.name, own lptn)
             }
             // Also seed switch-case payload bindings: `case E.V(x):` binds
             // `x` to the variant's payload type. The case-body Decls don't
             // exist yet at this stage (they are emitted inside infer_body
             // by make_switch_case_condition), so the throw/catch walk
             // cannot see their declaration type via the body-Decl scan.
-            collect_switch_case_bindings(ctx, expr.children[0], expr.children[0])
-            process_throw_catch_in_func_body(ctx, expr.children[0], fdef.throw_types, fdef.return_type, fdef.return_own_type)
+            collect_switch_case_bindings(func_scope, ctx, expr.children[0], expr.children[0])
+            process_throw_catch_in_func_body(func_scope, ctx, expr.children[0], fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
         if macro_is_template.not() {
             mut capture_source_muts := Vec(Bool).new()
@@ -4897,16 +4888,10 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
                 capture_block_check_refs(expr.children[0], scope, func_scope, cap_root, fdef.captures, ctx)
             }
         }
-        ctx.typer_return_type_name = saved_return_type_name
-        if fdef.auto_generated {
-            ctx.auto_gen_depth = ctx.auto_gen_depth - 1
-        }
         if is_proc {
-            if ctx.proc_calls_count == 0 {
+            if func_scope.typer_func.proc_calls_count == 0 {
                 expr.type_error("proc has no proc/ext_proc calls; should be a func", ctx)
             }
-            ctx.proc_calls_count = saved_proc_calls
-            ctx.proc_def_depth = ctx.proc_def_depth - 1
         }
         if is_macro.and(fdef.return_type.len().eq(0)) {
             expr.type_error("macro must declare a return type", ctx)
@@ -4920,7 +4905,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
             // ORed into), so a late answer can add roots but never retract
             // one, and callees typed before their callers -- imports, and
             // ordinary source order -- get the better answer in time.
-            update_ref_return_summary(expr, ctx.scope, ctx.current_type_name)
+            update_ref_return_summary(expr, ctx.scope, func_scope.active_type_name())
             check_ref_function_returns(func_scope, expr, ctx)
             check_returned_borrowed_closure_captures(func_scope, expr, ctx)
             check_param_stored_globally(expr, func_scope, ctx)
@@ -4941,7 +4926,6 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: 
     case:
         UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
-    ctx.typing_namespace_member = ifd_in_ns
 }
 
 // til's own all-paths-return check (option B). A non-void user function whose
@@ -5025,7 +5009,8 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
     }
 }
 
-check_unused_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
+check_unused_locals := proc(mut scope: TypeScope, path: Str, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     for b in scope.bindings.values {
         if b.is_param { continue }
         if b.is_builtin { continue }
@@ -5041,7 +5026,7 @@ check_unused_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
         // any of these that go dead after constfolder; the typer's job
         // here is just to report user bugs.
         if b.name.starts_with("hoisted__") { continue }
-        if ctx.throw_used_local_names.has(b.name) { continue }
+        if func_state.throw_used_local_names.has(b.name) { continue }
         if b.used { continue }
         type_error_at(path, b.line, b.col, format("unused variable '", b.name, "'"), ctx)
     }
@@ -5091,22 +5076,24 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
 // "someone mentioned it", which a dead recursive cycle satisfies by
 // mentioning itself. Non-priv referees skip the bookkeeping entirely:
 // only priv items are ever flagged, so their edges would never be read.
-mark_binding_referenced := func(mut ctx: Context, mut b: TypeBinding) {
+mark_binding_referenced := func(mut scope: TypeScope, mut ctx: Context, mut b: TypeBinding) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     if b.is_priv.not() {
         b.used = true
         return
     }
-    if ctx.current_top_func_name.len() == 0 {
+    ref top_func_name : Str = func_state.current_top_func_name
+    if top_func_name.len() == 0 {
         // Referenced outside any function body -- a top-level statement,
         // a field default, a namespace method: a root reference.
         b.used = true
         return
     }
-    if ctx.current_top_func_name.eq(b.name) { return }
-    if ctx.priv_ref_edges.has(ctx.current_top_func_name).not() {
-        ctx.priv_ref_edges.set(ctx.current_top_func_name, own Vec(Str).new())
+    if top_func_name.eq(b.name) { return }
+    if ctx.priv_ref_edges.has(top_func_name).not() {
+        ctx.priv_ref_edges.set(top_func_name, own Vec(Str).new())
     }
-    ref mut referees : Vec(Str) = ctx.priv_ref_edges[ctx.current_top_func_name]
+    ref mut referees : Vec(Str) = ctx.priv_ref_edges[top_func_name]
     // Distinct referees per function is a handful, so the linear dedup
     // keeps the vec tiny and costs less than re-walking duplicates later.
     for existing : Str in referees {
@@ -5277,8 +5264,10 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, mut ctx: 
 // literals like -1, which the parser now produces as a single literal);
 // any other expression is left as-is.
 priv narrow_return_literal := proc(mut scope: TypeScope, mut rv: Expr, mut ctx: Context) {
-    if ctx.typer_return_type_name.len() == 0 { return }
-    rt := type_from_name(ctx.typer_return_type_name, scope, ctx)
+    ref func_state : TyperFuncState = scope.typer_func_state()
+    ref return_type_name : Str = func_state.typer_return_type_name
+    if return_type_name.len() == 0 { return }
+    rt := type_from_name(return_type_name, scope, ctx)
     if is_numeric_type(rt).not() { return }
     switch rv.node_type {
     case .Literal(Literal.Num(lit_str)):
@@ -5335,7 +5324,8 @@ priv make_owned_iface_box := func(iface_name: Str, concrete_name: Str, own value
 }
 
 priv box_return_value := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
-    iface_name := ctx.typer_return_type_name.clone()
+    ref func_state : TyperFuncState = scope.typer_func_state()
+    iface_name := func_state.typer_return_type_name.clone()
     mut raw_val := stmt.children[0].clone()
     infer_expr(scope, stmt.children[0], in_func, ctx)
     narrow_return_literal(scope, stmt.children[0], ctx)
@@ -5367,7 +5357,9 @@ priv fcall_has_injected_err_arg := func(e: Expr) returns Bool {
     return false
 }
 
-priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, mut ctx: Context) {    if stmt.children.len() > 0 {
+priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
+    if stmt.children.len() > 0 {
         // #251 follow-up: a conforming concrete RETURNED where an interface is
         // declared coerces to an OWNED box (box_return_value). Done in a
         // helper because it must snapshot the raw value BEFORE inference
@@ -5375,10 +5367,11 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         // normally and pay nothing.
         // #341: `return .Nothing` -- the declared return type is the
         // expected enum.
-        if ctx.typer_return_type_name.len() > 0 {
-            qualify_dotted_expr(stmt.children[0], type_from_name(ctx.typer_return_type_name, scope, ctx))
+        ref return_type_name : Str = func_state.typer_return_type_name
+        if return_type_name.len() > 0 {
+            qualify_dotted_expr(stmt.children[0], type_from_name(return_type_name, scope, ctx))
         }
-        if ctx.typer_return_type_name.len().gt(0).and(name_is_interface(ctx.typer_return_type_name, scope)) {
+        if return_type_name.len().gt(0).and(name_is_interface(return_type_name, scope)) {
             box_return_value(scope, stmt, in_func, ctx)
         } else {
             infer_expr(scope, stmt.children[0], in_func, ctx)
@@ -5387,8 +5380,8 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         stmt.set_til_type(stmt.children[0].til_type())
         // #321: `return 0` from a returns-Dynamic function is the null
         // spelling.
-        if ctx.typer_return_type_name.len() > 0 {
-            rewrite_zero_to_null(stmt.children[0], type_from_name(ctx.typer_return_type_name, scope, ctx), false)
+        if return_type_name.len() > 0 {
+            rewrite_zero_to_null(stmt.children[0], type_from_name(return_type_name, scope, ctx), false)
         }
         // #321 step 4: a typed function cannot return null; the
         // maybe-absent return is an Option. Quarantine returns
@@ -5397,9 +5390,9 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         // null pointer) and ref returns (the throw-lowering appends an
         // unreachable `return null` fallback there; the dedicated
         // check_ref_function_returns rules own that shape).
-        if stmt.children[0].node_type.is_literal_null().and(ctx.typer_return_type_name.len().gt(0))
-            .and(ctx.auto_gen_depth == 0).and(returns_ref == 0) {
-            if type_is_null_quarantine(type_from_name(ctx.typer_return_type_name, scope, ctx)).not() {
+        if stmt.children[0].node_type.is_literal_null().and(return_type_name.len().gt(0))
+            .and(func_state.auto_gen_depth == 0).and(returns_ref == 0) {
+            if type_is_null_quarantine(type_from_name(return_type_name, scope, ctx)).not() {
                 stmt.type_error("cannot return a null pointer from a typed function; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- return an Option for a real absent state (#321)", ctx)
             }
         }
@@ -5502,6 +5495,7 @@ priv resolve_fa_receiver_alias := func(scope: TypeScope, mut obj: Expr) {
 }
 
 priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     infer_expr(scope, expr.children[0], in_func, ctx)
     resolve_fa_receiver_alias(scope, expr.children[0])
     mut obj_sname_o := expr_type_name_ref(expr.children[0])
@@ -5551,8 +5545,8 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                         }
                     }
                     expr.set_til_type(field_type)
-                    check_member_priv(expr, obj_sname, fname, fld.is_priv, ctx)
-                    if ctx.auto_gen_depth == 0 { fld.used = true }
+                    check_member_priv(expr, obj_sname, fname, fld.is_priv, scope, ctx)
+                    if func_state.auto_gen_depth == 0 { fld.used = true }
                     found = true
                 }
             case:
@@ -5573,8 +5567,8 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                             expr.set_til_type(Type.Enum(obj_sname.clone()))
                         }
                     }
-                    check_member_priv(expr, obj_sname, fname, nsd.is_priv, ctx)
-                    if ctx.auto_gen_depth == 0 { nsd.used = true }
+                    check_member_priv(expr, obj_sname, fname, nsd.is_priv, scope, ctx)
+                    if func_state.auto_gen_depth == 0 { nsd.used = true }
                     found = true
                 }
             }
@@ -5592,6 +5586,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
 }
 
 priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     infer_expr(scope, stmt.children[0], in_func, ctx)
     infer_expr(scope, stmt.children[1], in_func, ctx)
     ref obj : Expr = stmt.children[0]
@@ -5624,8 +5619,8 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                 if fld_o.is_some() {
                     ref mut fld : Declaration = fld_o.unwrap()
                     found = true
-                    check_member_priv(stmt, obj_sname, fname, fld.is_priv, ctx)
-                    if ctx.auto_gen_depth == 0 { fld.used = true }
+                    check_member_priv(stmt, obj_sname, fname, fld.is_priv, scope, ctx)
+                    if func_state.auto_gen_depth == 0 { fld.used = true }
                     if fld.is_mut.not() {
                         stmt.type_error(format("cannot assign to const field '", fname, "'; remove the 'const' keyword from its declaration to make it mutable"), ctx)
                     }
@@ -6019,7 +6014,7 @@ priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, in_fun
         // #179 follow-up: explicit type annotation on a Decl
         // (e.g. ~ref x : Foo = ...~) is a use of Foo's name from
         // declaration position. Check priv across files.
-        check_priv_type_name(stmt, declared_name, scope, ctx)
+        check_priv_type_name(stmt, declared_name, scope, scope, ctx)
         // #251 follow-up: a conforming concrete bound to an interface-typed
         // LOCAL coerces by BOXING, exactly like an interface-typed argument
         // (infer_and_validate_fcall_args). Done here -- before `val` is bound
@@ -6194,6 +6189,7 @@ priv dynvec_elem_from_new := func(rhs: Expr) returns Str {
 }
 
 priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type_body: I32, dv_elem: Str, had_declared_type: Bool, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     switch stmt.node_type {
     case .Decl(sdecl):
         ref mut rhs : Expr = stmt.children[0]
@@ -6203,8 +6199,8 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 stmt.type_error(format("raw allocation local '", sdecl.name, "' cannot be declared with 'ref'; locals are owned by default"), ctx)
             } else if ctx.path.contains("/src/self/").not().and(ctx.path.starts_with("src/self/").not())
                 .and(stmt.til_type().is(Type.Dynamic))
-                .and(ctx.current_type_name.contains("__").not())
-                .and(ctx.current_top_func_name.contains("__").not()) {
+                .and(scope.active_type_name().contains("__").not())
+                .and(func_state.current_top_func_name.contains("__").not()) {
                 stmt.type_error(format("raw allocation local '", sdecl.name, "' must use a concrete type, not Dynamic"), ctx)
             }
         }
@@ -6284,7 +6280,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             }
         }
         decl_b.used = sdecl.used
-        if ctx.throw_used_local_names.has(sdecl.name) { decl_b.used = true }
+        if func_state.throw_used_local_names.has(sdecl.name) { decl_b.used = true }
         decl_b.is_priv = sdecl.is_priv
         decl_b.orig_name = sdecl.orig_name.clone()
         // #262 follow-up: `v := DynVec.new(T)` records the element type name
@@ -6453,6 +6449,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
 }
 
 priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, in_type_body: I32, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     if stmt.children.len() == 0 { return }
     // Issue #328: a retained direct-generic SOURCE is a template, not code.
     // Its signature and body still name the unbound type parameters, so
@@ -6465,10 +6462,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
     ref first_child : Expr = stmt.children[0]
     if first_child.node_type.is(NodeType.StructDef).or(first_child.node_type.is(NodeType.EnumDef)) {
         ref td_decl : Declaration = decl_of(stmt)
-        saved_type_name := ctx.current_type_name.clone()
-        ctx.current_type_name = td_decl.name.clone()
-        infer_expr(scope, stmt.children[0], in_func, ctx)
-        ctx.current_type_name = saved_type_name
+        infer_type_def_expr(scope, stmt.children[0], td_decl.name, ctx)
     } else {
         // Issue #93 follow-up: when the decl's rhs is a FuncDef body
         // (top-level after init_declarations_unit's nested-def lift),
@@ -6476,7 +6470,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         // check_priv_access knows which parent we're inside while typing
         // the body.
         mut tracked_func := false
-        saved_top_func := ctx.current_top_func_name.clone()
+        mut top_func_name := func_state.current_top_func_name.clone()
         // Issue #101: this Decl-with-a-FuncDef-body window is also the
         // synthesised-name window. The counters restart inside it and every
         // name they mint carries ctx.synth_owner, so a temp's number is its
@@ -6529,7 +6523,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
             }
             if stmt.children[0].node_type.is(NodeType.FuncDef) {
                 if stmt.children[0].children.len() > 0 {
-                    ctx.current_top_func_name = sdecl.name.clone()
+                    top_func_name = sdecl.name.clone()
                     ctx.synth_owner = synth_owner_name(ctx.path, sdecl.name, sdecl.orig_name)
                     ctx.hoist_counter = 0
                     ctx.va_counter = 0
@@ -6554,9 +6548,9 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
             }
         case:
         }
-        infer_expr(scope, stmt.children[0], in_func, ctx)
+        if tracked_func { infer_func_def_expr(scope, stmt.children[0], top_func_name, ctx) }
+        else { infer_expr(scope, stmt.children[0], in_func, ctx) }
         if tracked_func {
-            ctx.current_top_func_name = saved_top_func
             ctx.synth_owner = saved_synth_owner
             ctx.hoist_counter = saved_hoist_counter
             ctx.va_counter = saved_va_counter
@@ -7241,6 +7235,7 @@ normalize_scope_bindings := func(mut scope: TypeScope) {
 
 priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
     ctx.errors = 0
+    scope.typer_func = TyperFuncState()
     context_enter_file(ctx, path)
     // #328: the late-generic queue is per unit. It should already be
     // empty (every flush drains it), but a stale entry would be appended
@@ -7286,9 +7281,9 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     // AST -- functions included -- to lower nothing.
     if toplevel_needs_throw_lowering(program) {
         unit_no_throws := Vec(Str).new()
-        ctx.lowering_param_types = Map(Str, Str).new()
-        collect_switch_case_bindings(ctx, program, program)
-        process_throw_catch_in_func_body(ctx, program, unit_no_throws, "", OwnType.Shallow)
+        scope.typer_func.lowering_param_types = Map(Str, Str).new()
+        collect_switch_case_bindings(scope, ctx, program, program)
+        process_throw_catch_in_func_body(scope, ctx, program, unit_no_throws, "", OwnType.Shallow)
     }
     // #344: settle which parameters each borrow-returning function hands
     // back, before any body is typed. The bodies below read these summaries
@@ -7863,16 +7858,17 @@ literal_in_range := func(val_str: Str, target: Type) returns Bool {
 // type, ref/let declaration type). Shares the single
 // scope.get_binding lookup with the priv check, so user-facing
 // callers don't pay for two Map traversals per declaration position.
-priv type_from_name_at := proc(name: Str, mut scope: TypeScope, e: Expr, mut ctx: Context) returns Type {
+priv type_from_name_at := proc(name: Str, mut scope: TypeScope, mut state_scope: TypeScope, e: Expr, mut ctx: Context) returns Type {
     pt := type_from_name(name, scope, ctx)
     if name.len() == 0 { return pt }
-    if ctx.current_type_name == name { return pt }
+    if state_scope.active_type_name() == name { return pt }
     b_o := scope.get_binding(name)
-    if b_o.is_some() { check_priv_access(e, name, b_o.unwrap(), ctx) }
+    if b_o.is_some() { check_priv_access(e, name, b_o.unwrap(), state_scope, ctx) }
     return pt
 }
 
 type_from_name := func(name: Str, mut scope: TypeScope, mut ctx: Context) returns Type {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
     // #192: USize/UPtr resolve to the loader-stamped per-target primitive
@@ -7898,7 +7894,7 @@ type_from_name := func(name: Str, mut scope: TypeScope, mut ctx: Context) return
         // type. Same gate as the Ident path -- skip when we're inside
         // the type's own namespace to keep auto-gen body references
         // from masking a genuinely unused priv type.
-        if ctx.auto_gen_depth.eq(0).and(ctx.current_type_name.eq(name).not()) {
+        if func_state.auto_gen_depth.eq(0).and(scope.active_type_name().eq(name).not()) {
             b.used = true
         }
         b_fd_o := scope.lookup_func_fp(b.name, fp)
@@ -9837,11 +9833,12 @@ priv root_carries_own_qualifier := func(b: TypeBinding, r: BorrowRoot) returns B
 // Deliberately NOT wired to the conservative `Dynamic` argument lint:
 // handing a raw pointer to a callee is a guess about what the callee does
 // with it, and a guess must not produce a rejection.
-priv check_write_roots_mut := proc(scope: TypeScope, site: Expr, obj: Expr, what: Str, mut ctx: Context) {
+priv check_write_roots_mut := proc(mut scope: TypeScope, site: Expr, obj: Expr, what: Str, mut ctx: Context) {
+    ref func_state : TyperFuncState = scope.typer_func_state()
     // Typer-emitted bodies (clone / delete / size / enum to_str / ...) have
     // signatures the user cannot edit, so a diagnostic on them is not
     // actionable -- the same carve-out check_unused_mut_params makes.
-    if ctx.auto_gen_depth > 0 { return }
+    if func_state.auto_gen_depth > 0 { return }
     roots := lvalue_write_roots(scope, obj)
     mut reported := Vec(BorrowRoot).new()
     for r : BorrowRoot in roots {
@@ -11173,8 +11170,10 @@ priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: S
 // can simply be moved into a fresh box. Gated on exactly that -- an own param
 // subject, an owned (non-ref) payload, and a return type that IS the payload
 // type -- so a borrowed subject or a ref payload keeps the clone.
-priv steal_own_param_payload_returns := proc(scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, ctx: Context) returns Bool {
-    if ctx.typer_return_type_name.len() == 0 { return false }
+priv steal_own_param_payload_returns := proc(mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr) returns Bool {
+    ref func_state : TyperFuncState = scope.typer_func_state()
+    ref return_type_name : Str = func_state.typer_return_type_name
+    if return_type_name.len() == 0 { return false }
     mut param_name := ""
     switch sw_expr.node_type {
     case .Ident(sw_idn): param_name = Str.clone(sw_idn.ident_name())
@@ -11216,7 +11215,7 @@ priv steal_own_param_payload_returns := proc(scope: TypeScope, enum_def: Expr, s
     in_slot := enum_is_niche(enum_def)
     payload_type := enum_variant_type(enum_def, vt_idx)
     if payload_type.len() == 0 { return false }
-    if payload_type != ctx.typer_return_type_name { return false }
+    if payload_type != return_type_name { return false }
     steal_payload_returns(case_node.children[1], bind_name, param_name, payload_type, in_slot)
     // The zero-copy form hands the payload BOX back without ever reading the
     // pointee, so if that was the binding's only reader it now has none. Say
@@ -11269,7 +11268,7 @@ priv infer_clike_switch := proc(mut scope: TypeScope, mut stmt: Expr, enum_def_o
                 for pi in 0..pc {
                     mark_pattern_coverage(scope, coverage, sw_sname, edef, cn.children[pi])
                 }
-                stole_box := steal_own_param_payload_returns(scope, edef, sw_expr, cn, ctx)
+                stole_box := steal_own_param_payload_returns(scope, edef, sw_expr, cn)
                 prepend_clike_payload_binding(scope, edef, sw_expr, cn, stole_box)
             }
             // A multi-pattern bool case can cover both labels on its own.
