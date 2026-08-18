@@ -1334,3 +1334,29 @@ terr275_dup_laundered := proc() {
     println(s)
     free(own d)
 }
+
+// #372: returning a Str VIEW of a local hands the caller storage that dies
+// with the frame. The view shares the local's buffer, the garbager frees
+// that buffer at the return, and the caller reads freed memory -- ASAN
+// says heap-use-after-free on both backends. #350's taint pass extends a
+// base's life WITHIN a body and cannot reach past the body's own return,
+// so nothing caught this. The legal shapes (a param receiver, a view of a
+// param, a cloned result, a literal) are pinned by test/strings.til.
+terr372_view_of_local := func(n: USize) returns Str {
+    base := format("DANGLE_BASE_", n.to_str())
+    return base.substr(0, 6)
+}
+
+// Two hops: a view OF a view still bottoms out at the owned local, and the
+// diagnostic names that local rather than the intermediate.
+terr372_view_of_view := func(n: USize) returns Str {
+    base := format("abcdefgh", n.to_str())
+    v := base.substr(0, 6)
+    return v.substr(0, 3)
+}
+
+// Chained in one expression, through a different view-returning method.
+terr372_chained_view := func(n: USize) returns Str {
+    base := format("  padded  ", n.to_str())
+    return base.trim().substr(0, 3)
+}

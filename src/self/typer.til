@@ -5422,6 +5422,7 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
                 stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
             }
             check_enum_borrow_of_local_return(scope, stmt, ctx)
+            check_str_view_of_local_return(scope, stmt, ctx)
             switch stmt.children[0].node_type {
             case .Ident(rn):
                 sf := scope.find(rn.ident_name())
@@ -6357,6 +6358,14 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         }
         // #302: record that this binding's value is an allocation ADDRESS.
         if raw_alloc_rhs { decl_b.is_raw_alloc = true }
+        // #372: record that this binding is a VIEW of another binding's
+        // buffer, and of which one, so a return statement can follow the
+        // chain back to whoever actually owns the storage.
+        view_src := str_view_source_name(rhs, scope)
+        if view_src.len() > 0 {
+            decl_b.is_str_view = true
+            decl_b.str_view_base = view_src
+        }
         if sdecl.own_type.is(OwnType.Ref) {
             decl_b.own_type = OwnType.Ref
             // #211: payload binding `ref T = get_payload(<ident>)` is the
@@ -8465,6 +8474,148 @@ priv check_is_null_arg_dynamic := proc(mut scope: TypeScope, e: Expr, mut ctx: C
 //     own -- the same trust `returns ref` extends today. til has no origin
 //     checker; #147 tracks that general problem.
 // Only an OWNED local is certain to dangle, and that is what this flags.
+// The core Str methods that return a VIEW of their receiver: the result
+// shares the receiver's buffer with cap = CAP_VIEW and owns nothing. Name
+// -keyed, the same treatment builtin_first_arg_is_address gives the
+// address-taking builtins, because view-ness is a runtime property of the
+// `cap` field and nothing in a signature says it (#367 is the issue for
+// putting that guarantee in the type; until it lands, the set is small,
+// lives in one file, and is spelled out here).
+priv str_method_returns_view := func(name: Str) returns Bool {
+    if name.eq("substr") { return true }
+    if name.eq("trim") { return true }
+    if name.eq("trim_start") { return true }
+    if name.eq("trim_end") { return true }
+    if name.eq("strip_prefix") { return true }
+    if name.eq("strip_suffix") { return true }
+    if name.eq("get_char") { return true }
+    if name.eq("borrowed_view") { return true }
+    return false
+}
+
+// Issue #372: `return local.substr(...)` hands the caller a view of storage
+// that dies with this frame. The view aliases the local's buffer, the
+// garbager frees that buffer at the return, and the caller reads freed
+// memory -- ASAN says heap-use-after-free on BOTH backends, and without
+// ASAN it is garbage bytes compiled and whatever the allocator left
+// interpreted. Nothing caught it: #350's extend_hoist_view_lifetimes
+// extends a base's life WITHIN a body, which cannot reach past the body's
+// own return.
+//
+// This is the Str-view sibling of check_enum_borrow_of_local_return above
+// and follows its rule exactly -- only an OWNED local is certain to dangle:
+//
+//   - a param receiver is caller-owned storage, so the view outlives the
+//     call and returning it is the normal borrowing idiom;
+//   - a `ref` binding or alias borrows storage this frame does not own,
+//     the same trust `returns ref` already extends;
+//   - a literal receiver is static.
+//
+// A local whose own initializer is a view is NOT owned storage either --
+// it aliases whatever its base was -- so it is followed back to that base
+// rather than flagged, and only a base that is itself an owned local
+// reports.
+// The binding a view-producing initializer borrows FROM, or "" when the
+// initializer is not one. Lowered form is `Str.<method>(self, ...)`, so
+// the receiver is argument one.
+priv str_view_source_name := func(rhs: Expr, scope: TypeScope) returns Str {
+    if rhs.node_type.is(NodeType.FCall).not() { return "" }
+    if rhs.children.len() < 2 { return "" }
+    switch rhs.children[0].node_type {
+    case .FieldAccess(vfa):
+        if str_method_returns_view(vfa.field_access_name()).not() { return "" }
+        switch rhs.children[1].node_type {
+        case .Ident(vid):
+            if scope.find(vid.ident_name()).is(ScopeFind.Found).not() { return "" }
+            return Str.clone(vid.ident_name())
+        case: return ""
+        }
+    case: return ""
+    }
+}
+
+// Walk a view chain by NAME to whoever owns the storage, and report that
+// owner only when it is an owned local of this frame. A param, a `ref`, an
+// alias or a builtin bottoms out as "" -- storage this frame did not
+// allocate and does not free.
+priv view_base_owner := func(name: Str, scope: TypeScope) returns Str {
+    sf := scope.find(name)
+    switch sf {
+    case .Found(b):
+        if b.is_param.or(b.is_alias).or(b.is_builtin) { return "" }
+        if b.own_type.is(OwnType.Ref) { return "" }
+        if b.is_str_view {
+            if b.str_view_base.len() == 0 { return "" }
+            if b.str_view_base == name { return "" }
+            return view_base_owner(b.str_view_base, scope)
+        }
+        if til_type_name(b.type) != "Str" { return "" }
+        return Str.clone(name)
+    case: return ""
+    }
+}
+
+priv view_return_base_local := func(recv: Expr, scope: TypeScope) returns Str {
+    switch recv.node_type {
+    case .Ident(rid):
+        sf := scope.find(rid.ident_name())
+        switch sf {
+        case .Found(b):
+            if b.is_param.or(b.is_alias).or(b.is_builtin) { return "" }
+            if b.own_type.is(OwnType.Ref) { return "" }
+            // A local that is itself a view owns no buffer: whether the
+            // return dangles depends on whose storage it borrows, so
+            // follow the chain rather than judging this link. `v :=
+            // param.borrowed_view()` bottoms out at a param and is legal;
+            // `v := owned_local.substr(..)` bottoms out at the owned local
+            // and is not.
+            if b.is_str_view {
+                if b.str_view_base.len() == 0 { return "" }
+                return view_base_owner(b.str_view_base, scope)
+            }
+            if til_type_name(b.type) != "Str" { return "" }
+            return Str.clone(rid.ident_name())
+        case: return ""
+        }
+    case .FCall:
+        // A chained view (`local.trim().substr(..)`). A method call is
+        // lowered to `Str.<method>(self, ...)`, so the RECEIVER is argument
+        // one -- children[1] -- while children[0] is the FieldAccess whose
+        // own base is the type identifier `Str`, not the value.
+        if recv.children.len() < 2 { return "" }
+        switch recv.children[0].node_type {
+        case .FieldAccess(inner_fa):
+            if str_method_returns_view(inner_fa.field_access_name()).not() { return "" }
+            return view_return_base_local(recv.children[1], scope)
+        case: return ""
+        }
+    case: return ""
+    }
+}
+
+priv check_str_view_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ctx: Context) {
+    ref ret_val : Expr = stmt.children[0]
+    if ret_val.node_type.is(NodeType.FCall).not() { return }
+    if ret_val.children.len() < 1 { return }
+    mut method := ""
+    switch ret_val.children[0].node_type {
+    case .FieldAccess(fad): method = Str.clone(fad.field_access_name())
+    case: return
+    }
+    if str_method_returns_view(method).not() { return }
+    // Lowered form is `Str.<method>(self, ...)`: children[0] is the
+    // FieldAccess (whose own base is the TYPE identifier), and the receiver
+    // this borrows from is argument one.
+    if ret_val.children.len() < 2 { return }
+    base := view_return_base_local(ret_val.children[1], scope)
+    if base.len() == 0 { return }
+    stmt.type_error(format(
+        "cannot return '", method, "' of local '", base,
+        "': the result is a view sharing that local's buffer, which dies with this call -- ",
+        "return a param's view, or .clone() the result",
+    ), ctx)
+}
+
 priv check_enum_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ctx: Context) {
     ref ret_val : Expr = stmt.children[0]
     if is_enum_variant_ctor_with_payload(ret_val, scope).not() { return }

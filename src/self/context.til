@@ -84,6 +84,14 @@ TypeBinding := struct {
     // type, so without this nothing can tell "U8 that IS an address" from
     // "U8 that holds a byte".
     is_raw_alloc := false
+    // #372: this binding holds a Str VIEW of str_view_base's buffer, not
+    // storage of its own -- set when the initializer is one of core's
+    // view-returning Str methods over a named binding. View-ness is a
+    // runtime property of `cap` that no signature carries (#367), so
+    // nothing else records it, and without it a view of a PARAMETER is
+    // indistinguishable from an owned local at a return statement.
+    is_str_view := false
+    str_view_base := ""
     // Issue #93: mirror of Declaration.orig_name -- non-empty means
     // init_declarations_unit hoisted this decl from a function body and
     // the unused-priv check should report it in source terms (original

@@ -1480,9 +1480,9 @@ main := proc(args: ..Str) {
     // moved backends shows up in the total, and re-running one command
     // seven times to re-read seven substrings of the same output would
     // not add to that.
-    add_count(tests, "typer_errors_interp", "typer", "error:", 219,
+    add_count(tests, "typer_errors_interp", "typer", "error:", 222,
         format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "typer_errors_build", "typer", "error:", 219,
+    add_count(tests, "typer_errors_build", "typer", "error:", 222,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #342: a splat whose elements do not match is reported, not passed
     // through to crash the callee -- four variadic shapes, the two literals,
@@ -1501,6 +1501,15 @@ main := proc(args: ..Str) {
     add_count(tests, "memcpy_managed_src_interp", "typer", "memcpy duplicates", 2,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "memcpy_managed_src_build", "typer", "memcpy duplicates", 2,
+        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
+    // #372: returning a Str view of an owned local is a use-after-free the
+    // caller cannot see. Three shapes -- direct, view-of-view, and chained
+    // in one expression -- and the needle is separate from the total so a
+    // silent trade with an unrelated diagnostic shows up. Paired because
+    // the compiled backend is where the freed bytes are actually read.
+    add_count(tests, "view_of_local_return_interp", "typer", "the result is a view sharing", 3,
+        format(til_bin, " interpret test/typer_errors.til"))
+    add_count(tests, "view_of_local_return_build", "typer", "the result is a view sharing", 3,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
     add_count(tests, "fcall_arg_parity_total_interp", "typer", "error:", 12, parity_cmd)

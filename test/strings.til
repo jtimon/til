@@ -421,6 +421,38 @@ test_borrowed_view := test() {
     assert_eq(Str, s, "borrowed")
 }
 
+// #372: returning a view is LEGAL whenever the storage it borrows outlives
+// the call, and the typer must not reject those. Only a view of an OWNED
+// local dangles (that rejection is pinned in test/typer_errors.til); these
+// four shapes are the ones that must keep compiling, on both backends.
+str372_param_view := func(s: Str) returns Str { return s.substr(0, 3) }
+
+str372_param_chain := func(s: Str) returns Str { return s.trim().substr(0, 2) }
+
+// A local that is itself a view of a PARAM borrows the caller's storage,
+// so a view of it is fine -- the check follows the chain to its base
+// instead of stopping at the intermediate local.
+str372_view_of_param_local := func(s: Str) returns Str {
+    v := s.borrowed_view()
+    return v.substr(0, 2)
+}
+
+// Cloning breaks the sharing, so an owned local's substr may be returned
+// once it has been copied out.
+str372_cloned_local := func(n: USize) returns Str {
+    base := format("abcdef", n.to_str())
+    return base.substr(0, 3).clone()
+}
+
+test_view_return_legal_shapes := test() {
+    assert_eq(Str, str372_param_view("abcdef"), "abc")
+    assert_eq(Str, str372_param_chain("  xy  "), "xy")
+    assert_eq(Str, str372_view_of_param_local("relayed"), "re")
+    assert_eq(Str, str372_cloned_local(1), "abc")
+    // A literal receiver is static storage, so its view outlives anything.
+    assert_eq(Str, "static".substr(0, 3), "sta")
+}
+
 test_borrowed_view_in_container := test() {
     // The case this exists for: a set of names borrowed from strings that
     // outlive it. Teardown frees the set's boxes, not the shared bytes.

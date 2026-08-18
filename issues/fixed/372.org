@@ -1,0 +1,82 @@
+# priority: high
+# category: bugs
+** FIXED #372 Returning a Str view of a local is a use-after-free nothing caught
+
+*** Post-mortem
+
+Root cause. A ~CAP_VIEW~ Str shares its base's buffer and owns nothing. When
+the base is a local of the returning function, the garbager frees that
+buffer at the return and the caller is handed a pointer into freed memory:
+
+    leak_view := func(n: USize) returns Str {
+        base := format("DANGLE_BASE_", n.to_str())   // owned by THIS frame
+        return base.substr(0, 6)                      // freed at the return
+    }
+
+Confirmed ~heap-use-after-free~ under ASAN on BOTH backends -- the compiled
+binary and ~til_asan interpret~ alike. Without ASAN it prints garbage bytes
+compiled and whatever the allocator left behind interpreted. The base must
+be runtime-dependent to reproduce: a constant one gets const-folded to a
+literal, whose storage is static, so the view never dangles.
+
+Why nothing caught it. #350's ~extend_hoist_view_lifetimes~ is the
+view-lifetime machinery, and it extends a base's life WITHIN a body -- it
+cannot reach past the body's own return, because the frame goes either way.
+Its taint is also deliberately over-eager (it follows clone results), which
+is safe there because over-tainting only DEFERS a delete, but that makes it
+unusable as a hard error: it would reject ~return base.clone()~.
+~check_enum_borrow_of_local_return~ was the closest existing check but fires
+only on a ~ref~ enum payload inside a variant constructor.
+
+This is also the first bug the #366 arc was supposed to surface. Before
+#366 the interpreter copied every by-value Str returned from a til
+function, so this shape was accidentally correct interpreted and only bit
+compiled -- exactly the "view bugs are compiled-only bugs" cost #366 was
+filed to remove.
+
+What changed. ~check_str_view_of_local_return~ in ~src/self/typer.til~,
+dispatched next to ~check_enum_borrow_of_local_return~ at the Return
+handler, and following its rule exactly: only an OWNED local is certain to
+dangle. A param receiver is caller-owned storage, a ~ref~ or alias borrows
+storage this frame never allocated, and a literal is static -- all stay
+legal, because returning a borrow of the caller's own data is the normal
+idiom.
+
+Two facts had to be added, because neither existed:
+
+  - ~str_method_returns_view~ names core's view-returning Str methods
+    (~substr~, ~trim~, ~trim_start~, ~trim_end~, ~strip_prefix~,
+    ~strip_suffix~, ~get_char~, ~borrowed_view~). Name-keyed, the same
+    treatment ~builtin_first_arg_is_address~ gives the address-taking
+    builtins, because view-ness is a runtime property of ~cap~ that no
+    signature carries. #367 is the issue for putting that guarantee in the
+    type; this list is what stands in until then, and it is small and
+    confined to one file.
+  - ~TypeBinding.is_str_view~ / ~str_view_base~, stamped where
+    ~is_raw_alloc~ is stamped and for the same reason: without them a local
+    that is ITSELF a view is indistinguishable from an owned local, and
+    ~v := param.borrowed_view(); return v.substr(0, 2)~ -- which is legal,
+    since it borrows the caller's storage -- was rejected. The check now
+    walks the view chain by name to whoever owns the buffer and reports
+    only if that owner is an owned local of this frame.
+
+The method-call lowering caught the first draft out: ~base.substr(..)~ is
+lowered to ~Str.substr(base, ..)~, so the receiver is ARGUMENT ONE and
+~children[0]~ is the FieldAccess whose own base is the type identifier.
+Reading the latter made the diagnostic say "local 'Str'" and produced six
+in-tree false positives; reading argument one gives zero.
+
+Regression tests. ~test/typer_errors.til~ has ~terr372_view_of_local~,
+~terr372_view_of_view~ (a view of a view still names the owned base, not
+the intermediate) and ~terr372_chained_view~ (~base.trim().substr(..)~ in
+one expression), counted both by the corpus total and by their own needle.
+The LEGAL shapes matter as much for a check like this, so
+~test_view_return_legal_shapes~ in ~test/strings.til~ pins five of them --
+a param receiver, a param chain, a view-of-a-param local, a cloned result,
+and a literal receiver -- on both backends.
+
+Known limits, deliberately: the check is syntactic and catches the direct
+return of a view-producing call. A view stored into a struct field and
+returned inside it, or one produced by a user-written function that returns
+a view of its own parameter, still escapes it -- the latter needs the
+interprocedural summary that #367's type-level guarantee would provide.
