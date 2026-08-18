@@ -898,23 +898,23 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
     // user aliases resolve, width aliases (USize/UPtr) keep their spelling,
     // so the C type name matches the monomorphized struct (Array__USize).
     concrete := format("Array__", resolve_type_alias_for_name(ctx.scope, elem_type, ctx.symbols))
-    if ctx.scope.get_struct(concrete).is_some() { return concrete }
+    if ctx.scope.get_struct(concrete, ctx.symbols).is_some() { return concrete }
     array_func_o := ctx.scope.lookup_func_name("Array", ctx.symbols)
     if array_func_o.is_some() {
         if builder_is_type_gen_macro_def(array_func_o.unwrap()) { return concrete }
     }
-    if ctx.scope.get_struct("Array").is_some() { return "Array" }
+    if ctx.scope.get_struct("Array", ctx.symbols).is_some() { return "Array" }
     return concrete
 }
 
 priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
     concrete := format("Vec__", resolve_type_alias_for_name(ctx.scope, elem_type, ctx.symbols))
-    if ctx.scope.get_struct(concrete).is_some() { return concrete }
+    if ctx.scope.get_struct(concrete, ctx.symbols).is_some() { return concrete }
     vec_func_o := ctx.scope.lookup_func_name("Vec", ctx.symbols)
     if vec_func_o.is_some() {
         if builder_is_type_gen_macro_def(vec_func_o.unwrap()) { return concrete }
     }
-    if ctx.scope.get_struct("Vec").is_some() { return "Vec" }
+    if ctx.scope.get_struct("Vec", ctx.symbols).is_some() { return "Vec" }
     return concrete
 }
 
@@ -8865,7 +8865,7 @@ namespace:
     }
 }
 priv find_struct_def := func(name: Str, ctx: Context) returns Option(ref Expr) {
-    return ctx.scope.get_struct(name)
+    return ctx.scope.get_struct(name, ctx.symbols)
 }
 priv find_callee_fdef := func(name: Str, ctx: Context) returns Option(ref Expr) {
     return ctx.scope.lookup_func_symbol_name(name, ctx.symbols)

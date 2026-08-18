@@ -1545,7 +1545,10 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
 }
 
 priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, stack_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
-    for b in scope.bindings.values {
+    one : U64 = 1
+    for bi in 0..scope.bindings.keys.count {
+        ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
+        ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
         // Non-Own parameters borrow their storage; their caller or generated
         // entry wrapper owns any setup storage.
         if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
@@ -1553,8 +1556,8 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // or a function; the binding came out of this scope's own map,
         // so the local probes answer exactly what struct_def_of /
         // lookup_func would, without their binding probe.
-        bfp := name_fingerprint(b.name)
-        if scope.local_struct_def_fp(b.name, bfp).is_some() { continue }
+        bfp := one.shl(bsym.to_u64().band(63))
+        if scope.local_struct_def_fp(bsym, bfp).is_some() { continue }
         if scope.local_func_def_fp(b.name, ctx.symbols).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
 
         // One name->bit resolution per binding; every per-statement
@@ -1735,7 +1738,7 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope, symbols: Sym
     case:
     }
     if vname.len() == 0 { return "" }
-    def_o := scope.get_struct(ename)
+    def_o := scope.get_struct(ename, symbols)
     if def_o.is_none() { return "" }
     ref def : Expr = def_o.unwrap()
     if def.node_type.is(NodeType.EnumDef).not() { return "" }

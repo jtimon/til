@@ -3578,12 +3578,12 @@ priv lazy_call_struct_type := func(call: Expr, scope: TypeScope, symbols: Symbol
     case:
     }
     if name.len() == 0 { return "" }
-    if scope.get_struct(name).is_some() { return name.clone() }
+    if scope.get_struct_by_sym(callee_sym).is_some() { return name.clone() }
     cfd_o := scope.lookup_func_by_sym(callee_sym, symbols)
     if cfd_o.is_none() { return "" }
     switch cfd_o.unwrap().node_type {
     case .FuncDef(fd):
-        if scope.get_struct(fd.return_type).is_some() { return fd.return_type.clone() }
+        if scope.get_struct(fd.return_type, symbols).is_some() { return fd.return_type.clone() }
     case:
     }
     return ""
@@ -3820,7 +3820,7 @@ priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: Ty
     if struct_of.has(recv_name).not() { return "" }
     ref sname : Str = struct_of.get(recv_name)!
     if sname.len() == 0 { return "" }
-    sdef_o := scope.get_struct(sname)
+    sdef_o := scope.get_struct(sname, symbols)
     if sdef_o.is_none() { return "" }
     ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
@@ -3871,7 +3871,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
             pname := p.type_name()
             if lazy_sigs.has(pname) {
                 aliases.set(p.name, own pname)
-            } else if scope.get_struct(pname).is_some() {
+            } else if scope.get_struct(pname, symbols).is_some() {
                 struct_of.set(p.name, own pname)
             }
         }
@@ -3976,7 +3976,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                 dname := dd.type_name()
                 if dd.til_type.is(Type.Unknown).not().and(lazy_sigs.has(dname)) {
                     aliases.set(dd.name, own dname)
-                } else if dd.til_type.is(Type.Unknown).not().and(scope.get_struct(dname).is_some()) {
+                } else if dd.til_type.is(Type.Unknown).not().and(scope.get_struct(dname, symbols).is_some()) {
                     struct_of.set(dd.name, own dname)
                 } else if cc.children.len() > 0 {
                     switch cc.children[0].node_type {

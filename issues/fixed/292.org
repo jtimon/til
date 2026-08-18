@@ -98,6 +98,8 @@
     improve from 19.07s to 18.17s (-4.7%).
   - [X] Migrate TypeScope.func_defs and binding-less C aliases to Sym keys;
     function scope walks now compare U32 symbols instead of function names.
+  - [X] Migrate TypeScope.struct_defs to Sym keys; type-definition scope
+    walks and local-definition probes no longer compare names.
   - [X] Reprofile compiler Type-name payloads. Their measured cost does not
     justify changing public Type ownership or adding a private duplicate type
     representation; retain Str payloads for runtime reflection and

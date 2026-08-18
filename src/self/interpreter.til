@@ -4110,7 +4110,7 @@ priv def_static_ns_func_def := func(def: Expr, fname: Str) returns Option(ref Ex
 }
 
 priv static_ns_func_def := func(sname: Str, fname: Str, ctx: Context) returns Option(ref Expr) {
-    def_o := ctx.scope.get_struct(sname)
+    def_o := ctx.scope.get_struct(sname, ctx.symbols)
     if def_o.is_none() { return Option(ref Expr).None }
     return def_static_ns_func_def(def_o.unwrap(), fname)
 }

@@ -631,7 +631,7 @@ priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, 
             if vtype == "Dynamic" { payload_own_type = OwnType.Ref }
             if resolved.is_funcptr().or(resolved.is(Type.Body)) { payload_own_type = OwnType.Ref }
             if vtype.starts_with("_Fn_") { payload_own_type = OwnType.Ref }
-            if init_payload_is_pod_enum(vtype, scope) { payload_own_type = OwnType.Ref }
+            if init_payload_is_pod_enum(vtype, scope, symbols) { payload_own_type = OwnType.Ref }
             // #320: a `ref Type` payload is a borrow -- the ctor takes
             // the arg borrowed (no ownership transfer at call sites).
             if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
@@ -1115,7 +1115,7 @@ priv init_type_supports_generated_method := func(type_name: Str, method: Str, sc
     if type_name.eq("Str").and(method.eq("to_str")) { return true }
     if type_name == "Dynamic" { return false }
 
-    def_o := scope.get_struct(type_name)
+    def_o := scope.get_struct(type_name, symbols)
     if def_o.is_none() { return false }
     ref def : Expr = def_o.unwrap()
     if init_ns_has_func(def, method) { return true }
@@ -1143,8 +1143,8 @@ priv enum_payloads_support_generated_method := func(variant_types: Vec(Str), met
     return true
 }
 
-priv init_payload_is_pod_enum := func(vtype: Str, scope: TypeScope) returns Bool {
-    pod_o := scope.get_struct(vtype)
+priv init_payload_is_pod_enum := func(vtype: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    pod_o := scope.get_struct(vtype, symbols)
     if pod_o.is_none() { return false }
     ref pod_def : Expr = pod_o.unwrap()
     if pod_def.node_type.is(NodeType.EnumDef).not() { return false }
@@ -1202,7 +1202,7 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
                                        resolved_pc.is_funcptr().not(),
                                        resolved_pc.is(Type.Body).not(),
                                        vtype.starts_with("_Fn_").not(),
-                                       init_payload_is_pod_enum(vtype, scope).not(),
+                                       init_payload_is_pod_enum(vtype, scope, symbols).not(),
                                        payload_is_borrowed.not())
             if payload_needs_clone {
                 mut clone_call := make_method_call_fcall(own p_id, "clone", line, col, symbols)
@@ -1993,7 +1993,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                     if ftype_resolved.is_funcptr().or(ftype_resolved.is(Type.Body)) {
                         field_is_funcptr = true
                     } else if o_is_prim.not().and(ftype.eq("Dynamic").not()) {
-                        o_nested_o := scope.get_struct(ftype)
+                        o_nested_o := scope.get_struct(ftype, ctx.symbols)
                         if o_nested_o.is_some() {
                             ref o_nested : Expr = o_nested_o.unwrap()
                             // Store the CANONICAL type name, not the source
@@ -2104,7 +2104,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                             fsz = UPtr.size()
                             falign = UPtr.size()
                         } else {
-                            mut nested_def_o := scope.get_struct(ftype)
+                            mut nested_def_o := scope.get_struct(ftype, ctx.symbols)
                             if nested_def_o.is_some() {
                                 ref mut nested_def : Expr = nested_def_o.unwrap()
                                 if nested_def.node_type.is(NodeType.EnumDef) {
@@ -2170,7 +2170,7 @@ priv type_size_align := proc(ftype: Str, mut scope: TypeScope, mut ctx: Context,
     }
     tsa_resolved := type_from_name_init_name(ftype, scope, ctx.symbols)
     if tsa_resolved.is_funcptr().or(tsa_resolved.is(Type.Body)) { sz = UPtr.size(); al = UPtr.size(); return }
-    mut nested_o := scope.get_struct(ftype)
+    mut nested_o := scope.get_struct(ftype, ctx.symbols)
     if nested_o.is_none() { sz = UPtr.size(); al = UPtr.size(); return }
     ref mut nested : Expr = nested_o.unwrap()
     switch nested.node_type {
@@ -3189,13 +3189,14 @@ priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr, sc
             ref arg : Expr = rhs.children[i]
             if arg.node_type.is(NodeType.Ident).not() { continue }
             mut arg_name := ""
+            mut arg_sym : Sym = 0
             switch arg.node_type {
-            case .Ident(an): arg_name = Str.clone(an.ident_name(symbols.names))
+            case .Ident(an): arg_name = Str.clone(an.ident_name(symbols.names)); arg_sym = an.ident_sym()
             case:
             }
             for p : Declaration in mfd.params {
                 if p.type_name().eq("Type").and(p.name.eq(arg_name)) {
-                    if scope.get_struct(arg_name).is_none() { return true }
+                    if scope.get_struct_by_sym(arg_sym).is_none() { return true }
                 }
             }
         }
@@ -3620,10 +3621,10 @@ priv init_synthesize_variadic_arrays := func(mut program: Expr, mut ctx: Context
     mut synthesized := Vec(Expr).new()
     mut seen := Map(Str, Str).new()
     local_types := init_seed_local_type_tokens(program, ctx.scope, ctx)
-    synth_array := ctx.scope.get_struct("Array").is_none()
-    synth_vec := ctx.scope.get_struct("Vec").is_none()
-    synth_set := ctx.scope.get_struct("Set").is_none()
-    synth_map := ctx.scope.get_struct("Map").is_none()
+    synth_array := ctx.scope.get_struct("Array", ctx.symbols).is_none()
+    synth_vec := ctx.scope.get_struct("Vec", ctx.symbols).is_none()
+    synth_set := ctx.scope.get_struct("Set", ctx.symbols).is_none()
+    synth_map := ctx.scope.get_struct("Map", ctx.symbols).is_none()
     if synth_array.not().and(synth_vec.not()).and(synth_set.not()).and(synth_map.not()) { return }
     for c : Expr in program.children {
         init_collect_variadic_arrays(ctx.scope, local_types, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map, ctx.symbols)
@@ -5111,7 +5112,7 @@ priv gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: Sy
     }
 }
 
-priv gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope) {
+priv gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     mut impl_name := ""
     switch stmt.node_type {
@@ -5131,7 +5132,7 @@ priv gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope) 
         return
     }
     if iface_name.len() == 0 { return }
-    iface_def_o := scope.get_struct(iface_name)
+    iface_def_o := scope.get_struct(iface_name, symbols)
     if iface_def_o.is_none() { return }
     ref iface_def : Expr = iface_def_o.unwrap()
     // Only copy from an actual interface; the typer reports the non-interface
@@ -5228,11 +5229,11 @@ init_declarations_global := func(mut ctx: Context, mut program: Expr, mut scope:
         gen_interface_box_fields_for_stmt(program.children[si])
         gen_interface_clone_delete_for_stmt(program.children[si], ctx.symbols)
         gen_struct_clone_delete_for_stmt(program.children[si], scope, ctx)
-        gen_implements_defaults_for_stmt(program.children[si], scope)
+        gen_implements_defaults_for_stmt(program.children[si], scope, ctx.symbols)
     }
     for ei : USize in enum_idxs {
         gen_missing_enum_clone_for_stmt(program.children[ei], scope, ctx.symbols)
-        gen_implements_defaults_for_stmt(program.children[ei], scope)
+        gen_implements_defaults_for_stmt(program.children[ei], scope, ctx.symbols)
     }
     // Re-register function/value decls -- new ones may have been generated
     // above (size methods etc) but those go into ns_decls, not program.children.

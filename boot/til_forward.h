@@ -1673,7 +1673,7 @@ typedef struct TypeScope {
     Str target_usize_pname;
     Str target_uptr_pname;
     Map__U32_Dynamic func_defs;
-    Map__Str_Dynamic struct_defs;
+    Map__U32_Dynamic struct_defs;
     Option__ref_TypeScope parent;
     Bool is_func_root;
     Str current_type_name;

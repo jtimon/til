@@ -22,7 +22,7 @@ fa_is_ns := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
 // The tail of fa_is_ns once the receiver's type name is known: does the
 // named def carry this member in its namespace?
 priv fa_is_ns_named := func(e: Expr, scope: TypeScope, sn: Str, symbols: SymbolPool) returns Bool {
-    sdef_o := scope.get_struct(sn)
+    sdef_o := scope.get_struct(sn, symbols)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     switch e.node_type {
@@ -147,7 +147,7 @@ fa_own_type := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shal
         }
     }
     ref sn : Str = sn_o.unwrap()
-    sdef_o := scope.get_struct(sn)
+    sdef_o := scope.get_struct(sn, symbols)
     if sdef_o.is_none() { return OwnType.Shallow }
     ref sdef : Expr = sdef_o.unwrap()
     mut fname := ""
@@ -315,7 +315,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope, symbols: SymbolPool) re
             }
             if sname_o.is_none() { return false }
             ref sname : Str = sname_o.unwrap()
-            sdef_o := scope.get_struct(sname)
+            sdef_o := scope.get_struct(sname, symbols)
             if sdef_o.is_none() { return false }
             nfo := find_namespace_func(sdef_o.unwrap(), mn.field_access_name(symbols.names), scope, symbols)
             if nfo.is_none() { return false }
@@ -499,7 +499,7 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) retur
         sname_o := expr_type_name_ref(callee.children[0])
         if sname_o.is_none() { return Option(ref Expr).None }
         ref sname : Str = sname_o.unwrap()
-        sdef_o := scope.get_struct(sname)
+        sdef_o := scope.get_struct(sname, symbols)
         if sdef_o.is_none() { return Option(ref Expr).None }
         ref sdef : Expr = sdef_o.unwrap()
         switch sdef.node_type {
@@ -558,7 +558,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
     case .Ident(cn):
         // Struct/enum constructor: `Foo(...)` where Foo is a registered
         // struct/enum type. The result is a freshly-constructed owned value.
-        if scope.get_struct(cn.ident_name(symbols.names)).is_some() { return true }
+        if scope.get_struct_by_sym(cn.ident_sym()).is_some() { return true }
         cb_fd_o := scope.lookup_func_by_sym(cn.ident_sym(), symbols)
         if cb_fd_o.is_none() { return false }
         switch cb_fd_o.unwrap().node_type {
@@ -572,7 +572,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
         if fa_is_ns(callee, scope, symbols) {
             switch callee.children[0].node_type {
             case .Ident(cti):
-                sdef_o := scope.get_struct(cti.ident_name(symbols.names))
+                sdef_o := scope.get_struct_by_sym(cti.ident_sym())
                 if sdef_o.is_none() { return false }
                 mo := find_namespace_func(sdef_o.unwrap(), cfa.field_access_name(symbols.names), scope, symbols)
                 if mo.is_none() { return false }
@@ -591,7 +591,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
             sname_o := expr_type_name_ref(callee.children[0])
             if sname_o.is_none() { return false }
             ref sname : Str = sname_o.unwrap()
-            sdef_o := scope.get_struct(sname)
+            sdef_o := scope.get_struct(sname, symbols)
             if sdef_o.is_none() { return false }
             mo2 := find_namespace_func(sdef_o.unwrap(), cfa.field_access_name(symbols.names), scope, symbols)
             if mo2.is_none() { return false }
@@ -926,7 +926,7 @@ priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionD
 }
 
 priv infer_struct_constructor_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str, name_sym: Sym, in_func: I32, mut ctx: Context) returns Bool {
-    mut sdef_o := scope.get_struct(name)
+    mut sdef_o := scope.get_struct_by_sym(name_sym)
     if sdef_o.is_none() { return false }
     ref mut sdef : Expr = sdef_o.unwrap()
     return infer_struct_constructor_fcall_impl(scope, sdef, e, name, name_sym, in_func, ctx)
@@ -1056,13 +1056,13 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
                     // ctor's named args (the box re-infers the snapshot);
                     // box if conforming, else store the value as usual.
                     fld_tn := ctor_fld.type_name()
-                    if name_is_interface(fld_tn, scope) {
+                    if name_is_interface(fld_tn, scope, ctx.symbols) {
                         mut fld_snap := arg.children[0].clone()
                         infer_expr(scope, arg.children[0], in_func, ctx)
                         fld_cname_o := expr_type_name_ref(arg.children[0])
                         if fld_cname_o.is_some() {
                             ref fld_cname : Str = fld_cname_o.unwrap()
-                            if fld_cname.eq(fld_tn).not().and(type_implements_iface(fld_cname, fld_tn, scope)) {
+                            if fld_cname.eq(fld_tn).not().and(type_implements_iface(fld_cname, fld_tn, scope, ctx.symbols)) {
                                 mut fld_box := make_owned_iface_box(fld_tn, fld_cname, own fld_snap, arg.children[0].line, arg.children[0].col, ctx.symbols)
                                 infer_expr(scope, fld_box, in_func, ctx)
                                 field_vals[slot.to_usize()] = CtorArg.Filled(fld_box)
@@ -1168,8 +1168,8 @@ resolve_default_value := func(default_value: Expr, call_expr: Expr, ctx: Context
 }
 
 // #269: is `name` an interface type (a StructDef flagged is_interface)?
-priv name_is_interface := func(name: Str, scope: TypeScope) returns Bool {
-    d_o := scope.get_struct(name)
+priv name_is_interface := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    d_o := scope.get_struct(name, symbols)
     if d_o.is_none() { return false }
     ref d : Expr = d_o.unwrap()
     switch d.node_type {
@@ -1181,8 +1181,8 @@ priv name_is_interface := func(name: Str, scope: TypeScope) returns Bool {
 }
 
 // #269: does concrete type `cname` declare `implements iface`?
-priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope) returns Bool {
-    d_o := scope.get_struct(cname)
+priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    d_o := scope.get_struct(cname, symbols)
     if d_o.is_none() { return false }
     ref d : Expr = d_o.unwrap()
     switch d.node_type {
@@ -1204,11 +1204,11 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     // The #251 conformance check guarantees the methods exist; the runtime
     // dispatches the method call to the concrete type. (Interpreter path
     // first; compiled dispatch via a box is the follow-up.)
-    if name_is_interface(ptype_name, ctx.scope) {
+    if name_is_interface(ptype_name, ctx.scope, ctx.symbols) {
         arg_cname_o := expr_type_name_ref(arg)
         if arg_cname_o.is_some() {
             ref arg_cname : Str = arg_cname_o.unwrap()
-            if type_implements_iface(arg_cname, ptype_name, ctx.scope) { return }
+            if type_implements_iface(arg_cname, ptype_name, ctx.scope, ctx.symbols) { return }
         }
     }
     if arg.til_type().is(Type.Dynamic) { return }
@@ -1459,7 +1459,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                                     if vk_arg.til_type().is(Type.Dynamic).not().and(vk_arg.til_type().is(Type.Unknown).not()) {
                                         arg_tname := type_to_name(vk_arg.til_type())
                                             if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
-                                                if type_has_to_str(scope, arg_tname) {
+                                                if type_has_to_str(scope, arg_tname, ctx.symbols) {
                                                     e.children[ci + vk] = make_to_str_call(arg_tname, vk_arg, ctx.symbols)
                                                     continue
                                                 }
@@ -1522,11 +1522,11 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             // the runtime tag that interface method dispatch (dyn_call on
             // the box fields) needs. iface_val is a ref field: the box
             // borrows the value, it does not consume it.
-            if name_is_interface(ptype_name, scope) {
+            if name_is_interface(ptype_name, scope, ctx.symbols) {
                 box_cname_o := expr_type_name_ref(e.children[ci])
                 if box_cname_o.is_some() {
                     ref box_cname : Str = box_cname_o.unwrap()
-                    if box_cname.eq(ptype_name).not().and(type_implements_iface(box_cname, ptype_name, scope)) {
+                    if box_cname.eq(ptype_name).not().and(type_implements_iface(box_cname, ptype_name, scope, ctx.symbols)) {
                     box_line := e.children[ci].line
                     box_col := e.children[ci].col
                     mut iface_box := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
@@ -1890,7 +1890,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     mut obj_is_type := false
     switch obj.node_type {
     case .Ident(oit_id):
-        if scope.get_struct(oit_id.ident_name(ctx.symbols.names)).is_some() {
+        if scope.get_struct_by_sym(oit_id.ident_sym()).is_some() {
             obj_is_type = true
         }
     case:
@@ -1949,7 +1949,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
 
-        sdef1_o := scope.get_struct(type_name)
+        sdef1_o := scope.get_struct(type_name, ctx.symbols)
         mut nf1o := Option(ref Expr).None
         if sdef1_o.is_some() { nf1o = find_namespace_func(sdef1_o.unwrap(), method, scope, ctx.symbols) }
         if nf1o.is_none() {
@@ -2027,7 +2027,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         return true
     }
     ref obj3_sname : Str = obj3_sname_o.unwrap()
-    sdef2_o := scope.get_struct(obj3_sname)
+    sdef2_o := scope.get_struct(obj3_sname, ctx.symbols)
     mut nf2o := Option(ref Expr).None
     if sdef2_o.is_some() { nf2o = find_namespace_func(sdef2_o.unwrap(), method, scope, ctx.symbols) }
     if nf2o.is_none() {
@@ -2058,7 +2058,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     //   dyn_call_ret(recv.iface_type_name, "method", arity, recv.iface_val, extra...)
     // Concrete default methods stay statically dispatched to the interface's
     // own implementation.
-    if name_is_interface(obj3_sname, scope).and(e.children.len().gte(2)) {
+    if name_is_interface(obj3_sname, scope, ctx.symbols).and(e.children.len().gte(2)) {
         mut abs_method := false
         mut abs_returns := false
         mut abs_ret_type := ""
@@ -2347,7 +2347,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
             if b.own_type.is(OwnType.Ref) { return }
             tn := til_type_name(b.type)
             if tn.len() == 0 { return }
-            sdef_o := scope.get_struct(tn)
+            sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
             ref sdef : Expr = sdef_o.unwrap()
             if find_namespace_func(sdef, "delete", scope, ctx.symbols).is_none() { return }
@@ -2433,7 +2433,7 @@ priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Contex
             if b.own_type.is(OwnType.Own) { return }
             tn := til_type_name(b.type)
             if tn.len() == 0 { return }
-            sdef_o := scope.get_struct(tn)
+            sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
             ref sdef : Expr = sdef_o.unwrap()
             if find_namespace_func(sdef, "delete", scope, ctx.symbols).is_none() { return }
@@ -2752,7 +2752,7 @@ priv generic_field_declared_type := func(scope: TypeScope, e: Expr, symbols: Sym
     owner_o := expr_type_name_ref(e.children[0])
     if owner_o.is_none() { return "" }
     ref owner : Str = owner_o.unwrap()
-    sd_o := scope.get_struct(owner)
+    sd_o := scope.get_struct(owner, symbols)
     if sd_o.is_none() { return "" }
     mut fname := ""
     switch e.node_type {
@@ -3156,7 +3156,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
             ref vp : Declaration = vo.params[vo.variadic_index.to_usize()]
             if vp.type_name().eq(tp.name) {
                 va_name := variadic_array_type_name(scope, chosen, ctx.symbols)
-                if scope.get_struct(va_name).is_none() {
+                if scope.get_struct(va_name, ctx.symbols).is_none() {
                     e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
                         "': its variadic '", vp.name, ": ..", tp.name, "' needs the '", va_name,
                         "' instance, which only explicit type application creates; pass it explicitly"), ctx)
@@ -3625,7 +3625,7 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     if callee_is_indirect.not().and(name.eq("dyn_fn")).and(e.children.len() >= 3) {
         switch e.children[1].node_type {
         case .Literal(Literal.Str(dyn_type_nm)):
-            dyn_tdef_o := scope.get_struct(dyn_type_nm)
+            dyn_tdef_o := scope.get_struct(dyn_type_nm, ctx.symbols)
             if dyn_tdef_o.is_some() {
                 ref dyn_tdef : Expr = dyn_tdef_o.unwrap()
                 switch e.children[2].node_type {
@@ -4084,7 +4084,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
     }
     if impl_iface_name.len() > 0 {
         ref impl_self_name : Str = inner.active_type_name()
-        iface_def_o := scope.get_struct(impl_iface_name)
+        iface_def_o := scope.get_struct(impl_iface_name, ctx.symbols)
         mut is_iface := false
         if iface_def_o.is_some() {
             switch iface_def_o.unwrap().node_type {
@@ -4238,7 +4238,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
 PTR_SIZE_BYTES : USize = 8
 priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len() == 0 { return false }
-    sdef_o := scope.get_struct(type_name)
+    sdef_o := scope.get_struct(type_name, ctx.symbols)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
@@ -4377,7 +4377,7 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, sym
     if fdef.return_own_type.is(OwnType.Ref) { return true }
     if fdef.return_type.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, fdef.return_type, symbols)
-    rdef_o := scope.get_struct(resolved)
+    rdef_o := scope.get_struct(resolved, symbols)
     if rdef_o.is_none() { return false }
     if enum_has_ref_payload(rdef_o.unwrap()) { return true }
     return type_carries_borrow(scope, resolved, symbols)
@@ -5024,12 +5024,15 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
 
 check_unused_locals := proc(mut scope: TypeScope, path: Str, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
-    for b in scope.bindings.values {
+    one : U64 = 1
+    for bi in 0..scope.bindings.keys.count {
+        ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
+        ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        fp := name_fingerprint(b.name)
-        if scope.local_struct_def_fp(b.name, fp).is_some() { continue }
+        fp := one.shl(bsym.to_u64().band(63))
+        if scope.local_struct_def_fp(bsym, fp).is_some() { continue }
         if scope.local_func_def_fp(b.name, ctx.symbols).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
@@ -5055,12 +5058,15 @@ check_unused_locals := proc(mut scope: TypeScope, path: Str, mut ctx: Context) {
 // to distinguish "rebindable local pointer" from "write-through ref
 // mut"; tracked separately on #164).
 check_unused_mut_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
-    for b in scope.bindings.values {
+    one : U64 = 1
+    for bi in 0..scope.bindings.keys.count {
+        ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
+        ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        fp := name_fingerprint(b.name)
-        if scope.local_struct_def_fp(b.name, fp).is_some() { continue }
+        fp := one.shl(bsym.to_u64().band(63))
+        if scope.local_struct_def_fp(bsym, fp).is_some() { continue }
         if scope.local_func_def_fp(b.name, ctx.symbols).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
@@ -5144,7 +5150,10 @@ priv propagate_priv_refs := func(mut scope: TypeScope, ctx: Context) {
 check_unused_priv_top_level := proc(mut scope: TypeScope, mut ctx: Context) returns I32 {
     mut found : I32 = 0
     propagate_priv_refs(scope, ctx)
-    for b in scope.bindings.values {
+    one : U64 = 1
+    for bi in 0..scope.bindings.keys.count {
+        ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
+        ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
         if b.is_priv.not() { continue }
         if b.is_builtin { continue }
         if b.used { continue }
@@ -5156,13 +5165,13 @@ check_unused_priv_top_level := proc(mut scope: TypeScope, mut ctx: Context) retu
         // to the concrete declaration, and before #328 kept the source
         // alive it was dropped long before this check ran.
         mut b_is_generic_source := false
-        fp := name_fingerprint(b.name)
+        fp := one.shl(bsym.to_u64().band(63))
         b_fd_o := scope.local_func_def_fp(b.name, ctx.symbols)
         if b_fd_o.is_some() { b_is_generic_source = init_func_is_generic(b_fd_o.unwrap()) }
         if b_is_generic_source { continue }
         mut kind := "value"
         if b_fd_o.is_some() { kind = "func" }
-        b_sd_o := scope.local_struct_def_fp(b.name, fp)
+        b_sd_o := scope.local_struct_def_fp(bsym, fp)
         if b_sd_o.is_some() {
             if b_sd_o.unwrap().node_type.is(NodeType.EnumDef) { kind = "enum" }
             else { kind = "struct" }
@@ -5345,7 +5354,7 @@ priv box_return_value := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32
     rbox_cname_o := expr_type_name_ref(stmt.children[0])
     if rbox_cname_o.is_some() {
         ref rbox_cname : Str = rbox_cname_o.unwrap()
-        if rbox_cname.eq(iface_name).not().and(type_implements_iface(rbox_cname, iface_name, scope)) {
+        if rbox_cname.eq(iface_name).not().and(type_implements_iface(rbox_cname, iface_name, scope, ctx.symbols)) {
             mut box := make_owned_iface_box(iface_name, rbox_cname, own raw_val, stmt.children[0].line, stmt.children[0].col, ctx.symbols)
             stmt.children[0] = box
             infer_expr(scope, stmt.children[0], in_func, ctx)
@@ -5384,7 +5393,7 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         if return_type_name.len() > 0 {
             qualify_dotted_expr(stmt.children[0], type_from_name(return_type_name, scope, ctx), ctx.symbols)
         }
-        if return_type_name.len().gt(0).and(name_is_interface(return_type_name, scope)) {
+        if return_type_name.len().gt(0).and(name_is_interface(return_type_name, scope, ctx.symbols)) {
             box_return_value(scope, stmt, in_func, ctx)
         } else {
             infer_expr(scope, stmt.children[0], in_func, ctx)
@@ -5496,7 +5505,7 @@ priv resolve_fa_receiver_alias := func(scope: TypeScope, mut obj: Expr, mut symb
     case .Ident(rid):
         ref resolved : Str = resolve_type_alias(scope, rid.ident_name(symbols.names), symbols)
         if resolved.eq(rid.ident_name(symbols.names)).not() {
-            if scope.get_struct(resolved).is_some() {
+            if scope.get_struct(resolved, symbols).is_some() {
                 obj.node_type = ident_node(symbols.intern(resolved))
                 obj.set_til_type(Type.Struct(resolved.clone()))
             }
@@ -5518,7 +5527,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
     if obj_sname_o.is_none() {
         switch expr.children[0].node_type {
         case .Ident(fa_rid):
-            fa_tdef_o := scope.get_struct(fa_rid.ident_name(ctx.symbols.names))
+            fa_tdef_o := scope.get_struct_by_sym(fa_rid.ident_sym())
             if fa_tdef_o.is_some() {
                 ref fa_tdef : Expr = fa_tdef_o.unwrap()
                 obj_sname_o = Option(ref Str).Some(fa_rid.ident_name(ctx.symbols.names))
@@ -5533,7 +5542,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
     }
     if obj_sname_o.is_some() {
         ref obj_sname : Str = obj_sname_o.unwrap()
-        sdef_o := scope.get_struct(obj_sname)
+        sdef_o := scope.get_struct(obj_sname, ctx.symbols)
         if sdef_o.is_some() {
             ref sdef : Expr = sdef_o.unwrap()
             // #154: reading a member of a cross-file type uses its import.
@@ -5626,7 +5635,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     obj_sname_o := expr_type_name_ref(obj)
     if obj_sname_o.is_some() {
         ref obj_sname : Str = obj_sname_o.unwrap()
-        sdef_o := scope.get_struct(obj_sname)
+        sdef_o := scope.get_struct(obj_sname, ctx.symbols)
         if sdef_o.is_some() {
             ref sdef : Expr = sdef_o.unwrap()
             // #154: writing a member of a cross-file type uses its import.
@@ -6044,11 +6053,11 @@ priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, in_fun
         // while the source outlives the binding (same scope, reverse-order
         // teardown). Escaping sites (returns, fields, Vec elements) need an
         // OWNED box and remain a follow-up.
-        if name_is_interface(declared_name, scope) {
+        if name_is_interface(declared_name, scope, ctx.symbols) {
             box_cname_o := expr_type_name_ref(stmt.children[0])
             if box_cname_o.is_some() {
                 ref box_cname : Str = box_cname_o.unwrap()
-                if box_cname.eq(declared_name).not().and(type_implements_iface(box_cname, declared_name, scope)) {
+                if box_cname.eq(declared_name).not().and(type_implements_iface(box_cname, declared_name, scope, ctx.symbols)) {
                 box_line := stmt.children[0].line
                 box_col := stmt.children[0].col
                 mut iface_box := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
@@ -7029,10 +7038,13 @@ priv reregister_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
                         // of a self-translate.
                         ref rb_old_sd : Expr = rb_old_sd_o.unwrap()
                         scope.set_struct_def(rb.name, rstmt.children[0], symbols)
-                        for b in scope.bindings.values {
+                        one : U64 = 1
+                        for bi in 0..scope.bindings.keys.count {
+                            ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
+                            ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
                             if b.ptr_eq(rb) { continue }
-                            fp := name_fingerprint(b.name)
-                            b_old_sd_o := scope.local_struct_def_fp(b.name, fp)
+                            fp := one.shl(bsym.to_u64().band(63))
+                            b_old_sd_o := scope.local_struct_def_fp(bsym, fp)
                             if b_old_sd_o.is_none() { continue }
                             if b_old_sd_o.unwrap().ptr_eq(rb_old_sd) {
                                 scope.set_struct_def(b.name, rstmt.children[0], symbols)
@@ -7223,7 +7235,7 @@ normalize_scope_bindings := func(mut scope: TypeScope, symbols: SymbolPool) {
                     }
                 }
             }
-            sdef_o := scope.get_struct(name)
+            sdef_o := scope.get_struct(name, symbols)
             if sdef_o.is_none() { continue }
             if sdef_o.unwrap().node_type.is(NodeType.EnumDef) {
                 b.type = Type.Enum(name.clone())
@@ -7890,7 +7902,6 @@ type_from_name := func(name: Str, mut scope: TypeScope, mut ctx: Context) return
     // name, same authority as type_from_name_init and resolve_type_alias.
     if name == "USize" { return type_from_name(ctx.target_usize_pname, scope, ctx) }
     if name == "UPtr" { return type_from_name(ctx.target_uptr_pname, scope, ctx) }
-    fp := name_fingerprint(name)
     mut b_o := scope.get_binding_name(name, ctx.symbols)
     if b_o.is_some() {
         ref mut b : TypeBinding = b_o.unwrap()
@@ -7945,7 +7956,7 @@ type_from_name := func(name: Str, mut scope: TypeScope, mut ctx: Context) return
             }
         }
     }
-    sdef_o := scope.get_struct_fp(name, fp)
+    sdef_o := scope.get_struct(name, ctx.symbols)
     if sdef_o.is_some() {
         ref sdef : Expr = sdef_o.unwrap()
         if sdef.node_type.is(NodeType.EnumDef) {
@@ -7998,15 +8009,15 @@ usize_type := func(mut scope: TypeScope, mut ctx: Context) returns Type {
     return type_from_name(usize_name(scope, ctx.symbols), scope, ctx)
 }
 
-type_has_cmp := func(scope: TypeScope, type_name: Str) returns Bool {
-    sdef_o := scope.get_struct(type_name)
+type_has_cmp := func(scope: TypeScope, type_name: Str, symbols: SymbolPool) returns Bool {
+    sdef_o := scope.get_struct(type_name, symbols)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     return def_ns_has(sdef, "cmp")
 }
 
-priv type_has_to_str := func(scope: TypeScope, type_name: Str) returns Bool {
-    sdef_o := scope.get_struct(type_name)
+priv type_has_to_str := func(scope: TypeScope, type_name: Str, symbols: SymbolPool) returns Bool {
+    sdef_o := scope.get_struct(type_name, symbols)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     return def_ns_has(sdef, "to_str")
@@ -8194,7 +8205,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                 switch e.children[0].node_type {
                 case .Ident(c0s):
                     if c0s.ident_name(symbols.names) == fcall_sname {
-                        sdef_o := scope.get_struct(fcall_sname)
+                        sdef_o := scope.get_struct(fcall_sname, symbols)
                         if sdef_o.is_some() {
                             ref sdef : Expr = sdef_o.unwrap()
                             switch sdef.node_type {
@@ -8322,7 +8333,7 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr,
 // (USize/UPtr) keep their spelling -- a `..USize` param types as
 // Array__USize, and that IS the generated instance's name.
 variadic_array_type_name := func(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str {
-    if scope.get_struct("Array").is_some() { return "Array" }
+    if scope.get_struct("Array", symbols).is_some() { return "Array" }
     return format("Array__", resolve_type_alias_for_name(scope, elem_type, symbols))
 }
 
@@ -8357,7 +8368,7 @@ priv vec_instance_elem_type_name := func(container_name: Str) returns Str {
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str {
-    if scope.get_struct("Vec").is_some() { return "Vec" }
+    if scope.get_struct("Vec", symbols).is_some() { return "Vec" }
     return format("Vec__", resolve_type_alias_for_name(scope, elem_type, symbols))
 }
 
@@ -8384,7 +8395,7 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope, sym
     case .Ident(idd): tn = Str.clone(idd.ident_name(symbols.names))
     case: return false
     }
-    sdef_o := scope.get_struct(tn)
+    sdef_o := scope.get_struct(tn, symbols)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     if sdef.node_type.is(NodeType.EnumDef).not() { return false }
@@ -8663,7 +8674,7 @@ priv check_dyn_call_delete_of_local := proc(scope: TypeScope, e: Expr, mut ctx: 
             if b.own_type.is(OwnType.Ref) { return }
             tn := til_type_name(b.type)
             if tn.len() == 0 { return }
-            sdef_o := scope.get_struct(tn)
+            sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
             ref sdef : Expr = sdef_o.unwrap()
             if find_namespace_func(sdef, "delete", scope, ctx.symbols).is_none() { return }
@@ -8696,7 +8707,7 @@ priv check_enum_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, mut
     case: return
     }
     // is_enum_variant_ctor_with_payload resolved this def a moment ago.
-    ref sdef : Expr = scope.get_struct(tn).unwrap()
+    ref sdef : Expr = scope.get_struct(tn, ctx.symbols).unwrap()
     vt_idx := enum_variant_index(sdef, variant)
     if vt_idx < 0 { return }
     if enum_variant_payload_ref(sdef, vt_idx).not() { return }
@@ -8771,7 +8782,7 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope, sym
         switch fcall.children[0].node_type {
         case .Ident(c0s):
             if c0s.ident_name(symbols.names) == fcall_sname {
-                sdef_o := scope.get_struct(fcall_sname)
+                sdef_o := scope.get_struct(fcall_sname, symbols)
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
                     switch sdef.node_type {
@@ -8829,7 +8840,7 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope, sym
             ref type_node : Expr = fcall.children[0].children[0]
             switch type_node.node_type {
             case .Ident(tn):
-                sdef_o := scope.get_struct(tn.ident_name(symbols.names))
+                sdef_o := scope.get_struct_by_sym(tn.ident_sym())
                 if sdef_o.is_none() { return false }
                 ref sdef : Expr = sdef_o.unwrap()
                 fd_o := def_ns_get(sdef, method.field_access_name(symbols.names))
@@ -9079,7 +9090,7 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, fi: Fact
         switch fcall.children[0].node_type {
         case .Ident(c0s):
             if c0s.ident_name(symbols.names) == fcall_sname {
-                sdef_o := scope.get_struct(fcall_sname)
+                sdef_o := scope.get_struct(fcall_sname, symbols)
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
                     switch sdef.node_type {
@@ -9129,7 +9140,7 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, fi: Fact
             ref type_node : Expr = fcall.children[0].children[0]
             switch type_node.node_type {
             case .Ident(tn):
-                ns_sdef_o := scope.get_struct(tn.ident_name(symbols.names))
+                ns_sdef_o := scope.get_struct_by_sym(tn.ident_sym())
                 if ns_sdef_o.is_none() { return }
                 ref ns_sdef : Expr = ns_sdef_o.unwrap()
                 fd_o := def_ns_get(ns_sdef, method.field_access_name(symbols.names))
@@ -9362,7 +9373,7 @@ priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope, symbols: SymbolPoo
         if fa_is_ns(callee, scope, symbols) {
             switch callee.children[0].node_type {
             case .Ident(cti):
-                sdef_o := scope.get_struct(cti.ident_name(symbols.names))
+                sdef_o := scope.get_struct_by_sym(cti.ident_sym())
                 if sdef_o.is_none() { return Option(ref Expr).None }
                 nd_o := def_ns_get(sdef_o.unwrap(), cfa.field_access_name(symbols.names))
                 if nd_o.is_none() { return Option(ref Expr).None }
@@ -9379,7 +9390,7 @@ priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope, symbols: SymbolPoo
         // resolves once the receiver has been inferred.
         rsname_o := expr_type_name_ref(callee.children[0])
         if rsname_o.is_none() { return Option(ref Expr).None }
-        rsdef_o := scope.get_struct(rsname_o.unwrap())
+        rsdef_o := scope.get_struct(rsname_o.unwrap(), symbols)
         if rsdef_o.is_none() { return Option(ref Expr).None }
         return find_namespace_func(rsdef_o.unwrap(), cfa.field_access_name(symbols.names), scope, symbols)
     case:
@@ -9434,7 +9445,7 @@ priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Se
     ref resolved : Str = resolve_type_alias(scope, tname, symbols)
     if visited.has(resolved) { return false }
     visited.add(own resolved.clone())
-    tdef_o := scope.get_struct(resolved)
+    tdef_o := scope.get_struct(resolved, symbols)
     if tdef_o.is_none() { return false }
     ref tdef : Expr = tdef_o.unwrap()
     switch tdef.node_type {
@@ -9490,7 +9501,7 @@ priv fieldaccess_field_decl := func(scope: TypeScope, fa: Expr, symbols: SymbolP
     if fa.children.len() == 0 { return Option(ref Declaration).None }
     base_tn_o := expr_type_name_ref(fa.children[0])
     if base_tn_o.is_none() { return Option(ref Declaration).None }
-    sdef_o := scope.get_struct(base_tn_o.unwrap())
+    sdef_o := scope.get_struct(base_tn_o.unwrap(), symbols)
     if sdef_o.is_none() { return Option(ref Declaration).None }
     switch sdef_o.unwrap().node_type {
     case .StructDef(sdd):
@@ -9520,11 +9531,11 @@ priv fieldaccess_crosses_borrow := func(scope: TypeScope, fa: Expr, symbols: Sym
 
 // The struct definition a constructor call instantiates, or None when the
 // callee is not a plain struct name.
-priv fcall_struct_ctor_def := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+priv fcall_struct_ctor_def := func(fcall: Expr, scope: TypeScope, _symbols: SymbolPool) returns Option(ref Expr) {
     if fcall.children.len() == 0 { return Option(ref Expr).None }
     switch fcall.children[0].node_type {
     case .Ident(cn):
-        sdef_o := scope.get_struct(cn.ident_name(symbols.names))
+        sdef_o := scope.get_struct_by_sym(cn.ident_sym())
         if sdef_o.is_none() { return Option(ref Expr).None }
         if sdef_o.unwrap().node_type.is(NodeType.StructDef) { return sdef_o }
     case:
@@ -10060,7 +10071,7 @@ priv summary_receiver_type := func(recv: Expr, scope: TypeScope, self_type: Str,
         if recv.children.len() == 0 { return "" }
         base := summary_receiver_type(recv.children[0], scope, self_type, symbols)
         if base.len() == 0 { return "" }
-        bdef_o := scope.get_struct(base)
+        bdef_o := scope.get_struct(base, symbols)
         if bdef_o.is_none() { return "" }
         switch bdef_o.unwrap().node_type {
         case .StructDef(bsd):
@@ -10090,7 +10101,7 @@ priv summary_self_method := func(e: Expr, scope: TypeScope, self_type: Str, symb
     if callee.children.len() == 0 { return Option(ref Expr).None }
     rtn := summary_receiver_type(callee.children[0], scope, self_type, symbols)
     if rtn.len() == 0 { return Option(ref Expr).None }
-    sdef_o := scope.get_struct(rtn)
+    sdef_o := scope.get_struct(rtn, symbols)
     if sdef_o.is_none() { return Option(ref Expr).None }
     switch callee.node_type {
     case .FieldAccess(cfa):
@@ -10130,7 +10141,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
         // conservative answer (over-credit, as before).
         btn := summary_receiver_type(e.children[0], scope, self_type, symbols)
         if btn.len() > 0 {
-            bdef_o := scope.get_struct(btn)
+            bdef_o := scope.get_struct(btn, symbols)
             if bdef_o.is_some() {
                 switch bdef_o.unwrap().node_type {
                 case .StructDef(bsd):
@@ -10188,7 +10199,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
             // (`Option(ref T).Some(x)`) hands the borrow straight through;
             // its auto-generated body has nothing to summarise.
             if cfd.is_enum_variant_ctor {
-                edef_o := scope.get_struct(cfd.return_type)
+                edef_o := scope.get_struct(cfd.return_type, symbols)
                 if edef_o.is_none() { return RootBits() }
                 if enum_has_ref_payload(edef_o.unwrap()).not() { return RootBits() }
                 for ai in 1..e.children.len() {
@@ -10448,7 +10459,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
         if fa_is_ns(callee, scope, symbols) {
             switch callee.children[0].node_type {
             case .Ident(cti):
-                sdef_o := scope.get_struct(cti.ident_name(symbols.names))
+                sdef_o := scope.get_struct_by_sym(cti.ident_sym())
                 if sdef_o.is_none() { return 0 }
                 ref sdef : Expr = sdef_o.unwrap()
                 fd_o := def_ns_get(sdef, cfa.field_access_name(symbols.names))
@@ -10470,7 +10481,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
             sname_o := expr_type_name_ref(obj)
             if sname_o.is_some() {
                 ref sname : Str = sname_o.unwrap()
-                sdef2_o := scope.get_struct(sname)
+                sdef2_o := scope.get_struct(sname, symbols)
                 if sdef2_o.is_none() { return 0 }
                 mo3 := find_namespace_func(sdef2_o.unwrap(), cfa.field_access_name(symbols.names), scope, symbols)
                 if mo3.is_some() {
@@ -10592,7 +10603,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                                 if vt_idx >= 0 {
                                     inner_type_name := enum_variant_type(enum_def, vt_idx)
                                     if inner_type_name.len() > 0 {
-                                        inner_def_o := scope.get_struct(inner_type_name)
+                                        inner_def_o := scope.get_struct(inner_type_name, symbols)
                                         if inner_def_o.is_some() {
                                             if inner_def_o.unwrap().node_type.is(NodeType.EnumDef) {
                                                 if sub2.sub_names.len() > 0 {
@@ -10682,7 +10693,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                                     if vt_idx >= 0 {
                                         inner_type_name := enum_variant_type(enum_def, vt_idx)
                                         if inner_type_name.len() > 0 {
-                                            inner_def_o := scope.get_struct(inner_type_name)
+                                            inner_def_o := scope.get_struct(inner_type_name, symbols)
                                             if inner_def_o.is_some() {
                                                 ref inner_def : Expr = inner_def_o.unwrap()
                                                 if inner_def.node_type.is(NodeType.EnumDef) {
@@ -10727,7 +10738,7 @@ priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enu
             if vt_idx >= 0 {
                 inner_type_name := enum_variant_type(enum_def, vt_idx)
                 if inner_type_name.len() > 0 {
-                    inner_def_o := scope.get_struct(inner_type_name)
+                    inner_def_o := scope.get_struct(inner_type_name, ctx.symbols)
                     if inner_def_o.is_some() {
                         ref inner_def : Expr = inner_def_o.unwrap()
                         if inner_def.node_type.is(NodeType.EnumDef) {
@@ -10960,7 +10971,7 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, mut c
         }
     }
     if vsp_all_named.not() { return }
-    vsp_def_o := scope.get_struct(vsp_type_name)
+    vsp_def_o := scope.get_struct(vsp_type_name, ctx.symbols)
     if vsp_def_o.is_none() { return }
     ref vsp_def : Expr = vsp_def_o.unwrap()
     if vsp_def.node_type.is(NodeType.StructDef).not() { return }
@@ -11528,7 +11539,7 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
     mut switch_enum_def_o := Option(ref Expr).None
     if sw_expr.til_type().is(Type.Enum).and(sw_expr_sname_o.is_some()) {
         ref sw_expr_sname : Str = sw_expr_sname_o.unwrap()
-        switch_enum_def_o = scope.get_struct(sw_expr_sname)
+        switch_enum_def_o = scope.get_struct(sw_expr_sname, ctx.symbols)
     }
     if switch_is_clike(stmt, sw_expr, is_match, switch_enum_def_o, ctx.symbols) {
         infer_clike_switch(scope, stmt, switch_enum_def_o, in_func, in_loop, returns_ref, ctx)
@@ -12068,7 +12079,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         return false
     }
 
-    sdef_o := scope.get_struct(type_name)
+    sdef_o := scope.get_struct(type_name, ctx.symbols)
     if sdef_o.is_none() {
         stmt.type_error("for-in requires a collection type with get() and len() methods", ctx)
         return false
@@ -12348,7 +12359,7 @@ priv struct_def_has_field := func(sdef: Expr, field_name: Str) returns Bool {
 // decl makes the interpreter copy the value instead of aliasing the
 // slot, so a `for k, mut v` write would not persist.
 priv collection_elem_type_of := func(scope: TypeScope, col_type_name: Str, symbols: SymbolPool) returns Str {
-    col_sdef_o := scope.get_struct(col_type_name)
+    col_sdef_o := scope.get_struct(col_type_name, symbols)
     if col_sdef_o.is_none() { return "" }
     ref col_sdef : Expr = col_sdef_o.unwrap()
     mut method_name := "unsafe_get"
@@ -12444,7 +12455,7 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
         return false
     }
 
-    sdef_o := scope.get_struct(type_name)
+    sdef_o := scope.get_struct(type_name, ctx.symbols)
     if sdef_o.is_none() {
         stmt.type_error("for k, v in ...: requires a map type with 'keys' and 'values' fields", ctx)
         return false
