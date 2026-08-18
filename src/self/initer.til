@@ -82,7 +82,7 @@ priv register_struct_def_for_stmt := proc(mut ctx: Context, stmt: Expr, mut scop
     // constfolder eval (which clones typed raw bytes and looks up nested struct/enum
     // defs by name) sees a populated registry; interpret_units later
     // re-registers with the same value, which is idempotent.
-    tdv : UPtr = malloc(UPtr.size())
+    mut tdv : UPtr = malloc(UPtr.size())
     write_ptr(tdv, stmt.children[0])
     ctx.interp_type_defs.set(sname, own tdv)
     return 0
@@ -595,7 +595,7 @@ priv register_enum_definition := proc(mut ctx: Context, stmt: Expr, mut scope: T
     b.orig_name = edecl.orig_name.clone()
     // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
     // register_struct_def_for_stmt for rationale).
-    tdv : UPtr = malloc(UPtr.size())
+    mut tdv : UPtr = malloc(UPtr.size())
     write_ptr(tdv, stmt.children[0])
     ctx.interp_type_defs.set(ename, own tdv)
     return 0
@@ -4200,7 +4200,7 @@ priv init_expand_generic_funcs := func(mut program: Expr, scope: TypeScope, mut 
         if init_func_is_generic(rhs).not() { continue }
         switch stmt.node_type {
         case .Decl(dd):
-            gcell : UPtr = malloc(UPtr.size())
+            mut gcell : UPtr = malloc(UPtr.size())
             write_ptr(gcell, rhs)
             gs.defs.set(dd.name, own gcell)
             gs.sources.set(dd.name, own GenericFuncSource(name = dd.name.clone(), path = ctx.path.clone(), is_priv = dd.is_priv))
@@ -4213,7 +4213,7 @@ priv init_expand_generic_funcs := func(mut program: Expr, scope: TypeScope, mut 
     // A local decl of the same name already in `gs.defs` wins.
     for gname, gdef in ctx.generic_funcs {
         if gs.defs.has(gname) { continue }
-        gcell2 : UPtr = malloc(UPtr.size())
+        mut gcell2 : UPtr = malloc(UPtr.size())
         write_ptr(gcell2, gdef)
         gs.defs.set(gname, own gcell2)
         // #328: an imported source's declaring path comes off its resolved

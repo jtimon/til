@@ -435,14 +435,14 @@ namespace:
             ref mut b : TypeBinding = self.bindings[name]
             b.func_type = func_def_type(fdef)
         }
-        cell : UPtr = malloc(UPtr.size())
+        mut cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
         self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(name))
     }
     set_func_symbol := func(mut self: TypeScope, name: Str, fdef: Expr) {
         if self.bindings.has(name) { return }
-        cell : UPtr = malloc(UPtr.size())
+        mut cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
         self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(name))
@@ -455,7 +455,7 @@ namespace:
         if sdef.node_type.is(NodeType.StructDef).not().and(sdef.node_type.is(NodeType.EnumDef).not()) {
             panic("set_struct_def: expected struct or enum for ", name, ", got ", sdef.node_type.head_str())
         }
-        cell : UPtr = malloc(UPtr.size())
+        mut cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, sdef)
         self.struct_defs.set(name, own cell)
         self.struct_defs_filt = self.struct_defs_filt.bor(name_fingerprint(name))

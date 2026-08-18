@@ -141,7 +141,7 @@ namespace:
         // A lazy-empty source clones to another lazy-empty Set (no
         // malloc(0)), mirroring Vec.clone.
         if self.cap == 0 { return Set(T)(cap = 0) }
-        new_data : U8 = malloc(self.cap.mul(T.size()))
+        mut new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()))
             mut cloned : T = T.clone(src)

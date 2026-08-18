@@ -6,11 +6,11 @@ import("numbers")
 
 free := ext_func(own elem: Dynamic) {}
 til_closure_delete := ext_func(closure: Dynamic) {}
-til_closure_slot_delete := ext_func(slot: Dynamic) {}
+til_closure_slot_delete := ext_func(mut slot: Dynamic) {}
 // Unlike write_ptr, take transfers a callable out of its owned Dynamic box.
-til_closure_slot_take := ext_func(slot: Dynamic, closure: Dynamic) {}
+til_closure_slot_take := ext_func(mut slot: Dynamic, closure: Dynamic) {}
 // Move a callable out of a slot, leaving the slot empty.
-til_closure_slot_pop := ext_func(slot: Dynamic) returns Dynamic {}
+til_closure_slot_pop := ext_func(mut slot: Dynamic) returns Dynamic {}
 // Return an owned pointer-sized box containing a deep clone of slot's callable.
 til_closure_slot_clone := ext_func(slot: Dynamic) returns Dynamic {}
 malloc := ext_func(shallow count: UPtr) returns Dynamic {}
@@ -18,24 +18,24 @@ calloc := ext_func(shallow nmemb: UPtr, shallow size: UPtr) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, shallow count: UPtr) returns Dynamic {}
 ptr_add := core_func(buf: Dynamic, shallow offset: UPtr) returns ref Dynamic {}
 deref := ext_func(slot: Dynamic) returns ref Dynamic {}
-write_ptr := ext_func(dest: Dynamic, val: Dynamic) {}
+write_ptr := ext_func(mut dest: Dynamic, val: Dynamic) {}
 // #211 follow-up: typed primitive writers used by the AST interpreter
 // to mirror writes through payload-aliased bindings into the enum's
 // payload memory. The compiled backend doesn't need them (writes go
 // straight through the pointer); they exist for the interp path.
-write_i64 := ext_func(dest: Dynamic, shallow val: I64) {}
-write_u8  := ext_func(dest: Dynamic, shallow val: U8)  {}
-write_i8  := ext_func(dest: Dynamic, shallow val: I8)  {}
-write_i16 := ext_func(dest: Dynamic, shallow val: I16) {}
-write_u16 := ext_func(dest: Dynamic, shallow val: U16) {}
-write_i32 := ext_func(dest: Dynamic, shallow val: I32) {}
-write_u32 := ext_func(dest: Dynamic, shallow val: U32) {}
-write_u64 := ext_func(dest: Dynamic, shallow val: U64) {}
-write_f32 := ext_func(dest: Dynamic, shallow val: F32) {}
-write_bool := ext_func(dest: Dynamic, shallow val: Bool) {}
-memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
-memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
-memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: UPtr) {}
+write_i64 := ext_func(mut dest: Dynamic, shallow val: I64) {}
+write_u8  := ext_func(mut dest: Dynamic, shallow val: U8)  {}
+write_i8  := ext_func(mut dest: Dynamic, shallow val: I8)  {}
+write_i16 := ext_func(mut dest: Dynamic, shallow val: I16) {}
+write_u16 := ext_func(mut dest: Dynamic, shallow val: U16) {}
+write_i32 := ext_func(mut dest: Dynamic, shallow val: I32) {}
+write_u32 := ext_func(mut dest: Dynamic, shallow val: U32) {}
+write_u64 := ext_func(mut dest: Dynamic, shallow val: U64) {}
+write_f32 := ext_func(mut dest: Dynamic, shallow val: F32) {}
+write_bool := ext_func(mut dest: Dynamic, shallow val: Bool) {}
+memcpy := ext_func(mut dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
+memmove := ext_func(mut dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
+memset := ext_func(mut dest: Dynamic, shallow val: I32, shallow len: UPtr) {}
 // libc memcmp: compares `len` raw bytes as unsigned char, returns <0/0/>0.
 // Used by Str.cmp to compare a whole prefix in one call instead of a
 // per-byte I8.cmp loop. Dispatches at comptime via the same FFI path as
@@ -60,8 +60,8 @@ to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 /// scheduled delete). It outlived #302: the lowering still needs an
 /// untyped swap that predates monomorphization, so this stays as the
 /// primitive the typed swap/move below are built on.
-swap_bytes := func(a: Dynamic, b: Dynamic, size: UPtr) {
-    tmp : U8 = malloc(size)
+swap_bytes := func(mut a: Dynamic, mut b: Dynamic, size: UPtr) {
+    mut tmp : U8 = malloc(size)
     memcpy(tmp, a, size)
     memcpy(a, b, size)
     memcpy(b, tmp, size)
@@ -106,7 +106,7 @@ move := func(T: Type, mut dest: T, own src: T) {
 /// literal Str: the value points into the static _til_str_lits table,
 /// and the guard that saves it -- ~if (v->cap != TIL_CAP_LIT) free(v);~
 /// -- is emitted only because the call site knows the type.
-adopt := func(T: Type, dest: Dynamic, own src: T) {
+adopt := func(T: Type, mut dest: Dynamic, own src: T) {
     memcpy(dest, src, T.size())
     free(own src)
 }
@@ -127,7 +127,7 @@ adopt := func(T: Type, dest: Dynamic, own src: T) {
 /// the size exactly as T.size() does. The caller guarantees dest is
 /// uninitialized and that src holds a live value; that is the unsafe
 /// part, and why this belongs to container internals like swap_bytes.
-adopt_from := func(dest: Dynamic, src: Dynamic, size: UPtr) {
+adopt_from := func(mut dest: Dynamic, mut src: Dynamic, size: UPtr) {
     memcpy(dest, src, size)
     memset(src, 0, size)
 }

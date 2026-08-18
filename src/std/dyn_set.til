@@ -149,7 +149,7 @@ namespace:
                        elem_clone = self.elem_clone, elem_delete = self.elem_delete,
                        elem_cmp = self.elem_cmp)
         }
-        new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        mut new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.count {
             cloned : Dynamic = self.elem_clone(
                          ptr_add(self.data, i.mul(self.elem_size)))

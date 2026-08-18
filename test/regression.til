@@ -336,7 +336,7 @@ bug302_alloc_sink := func(own p: U8) returns I64 {
 // No manual free: the garbager owns the cleanup (ASAN verifies).
 bug302_alloc_auto := proc() returns I64 {
     print_flush()
-    buf : U8 = malloc(8)
+    mut buf : U8 = malloc(8)
     write_u8(buf, 42)
     return 0
 }
@@ -344,7 +344,7 @@ bug302_alloc_auto := proc() returns I64 {
 // Manual free still present: the dtor transfer stands the pass down.
 bug302_alloc_manual := proc() returns I64 {
     print_flush()
-    buf : U8 = malloc(8)
+    mut buf : U8 = malloc(8)
     write_u8(buf, 43)
     free(own buf)
     return 0

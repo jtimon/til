@@ -99,38 +99,38 @@ namespace:
     // EvalHeap instance, so they are static (no self): a value at a heap
     // pointer is read/written exactly like the C backend would. ---
 
-    set_bytes := func(ptr: Dynamic, src: Dynamic, n: USize) {
+    set_bytes := func(mut ptr: Dynamic, src: Dynamic, n: USize) {
         memcpy(ptr, src, n)
     }
-    get_bytes := func(ptr: Dynamic, dst: Dynamic, n: USize) {
+    get_bytes := func(ptr: Dynamic, mut dst: Dynamic, n: USize) {
         memcpy(dst, ptr, n)
     }
 
-    set_i64 := func(ptr: Dynamic, val: I64) { write_i64(ptr, val) }
+    set_i64 := func(mut ptr: Dynamic, val: I64) { write_i64(ptr, val) }
     get_i64 := func(ptr: Dynamic) returns I64 {
         ref v : I64 = ptr
         return v.clone()
     }
 
-    set_u64 := func(ptr: Dynamic, val: U64) { write_u64(ptr, val) }
+    set_u64 := func(mut ptr: Dynamic, val: U64) { write_u64(ptr, val) }
     get_u64 := func(ptr: Dynamic) returns U64 {
         ref v : U64 = ptr
         return v.clone()
     }
 
-    set_u8 := func(ptr: Dynamic, val: U8) { write_u8(ptr, val) }
+    set_u8 := func(mut ptr: Dynamic, val: U8) { write_u8(ptr, val) }
     get_u8 := func(ptr: Dynamic) returns U8 {
         ref v : U8 = ptr
         return v.clone()
     }
 
-    set_f32 := func(ptr: Dynamic, val: F32) { write_f32(ptr, val) }
+    set_f32 := func(mut ptr: Dynamic, val: F32) { write_f32(ptr, val) }
     get_f32 := func(ptr: Dynamic) returns F32 {
         ref v : F32 = ptr
         return v.clone()
     }
 
-    set_bool := func(ptr: Dynamic, val: Bool) { write_bool(ptr, val) }
+    set_bool := func(mut ptr: Dynamic, val: Bool) { write_bool(ptr, val) }
     get_bool := func(ptr: Dynamic) returns Bool {
         ref v : Bool = ptr
         return v.clone()

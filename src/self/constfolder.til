@@ -398,7 +398,7 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
     switch e.node_type {
     case .Literal(Literal.Num(num)):
         ref t : Type = e.til_type()
-        result : Dynamic = dispatch_result_alloc(t, ctx)
+        mut result : Dynamic = dispatch_result_alloc(t, ctx)
         switch t {
         case .Primitive(Primitive.I64): write_i64(result, num.to_i64())
         case .Primitive(Primitive.U8):  write_u8(result, num.to_u8())
@@ -416,11 +416,11 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
         return result
     case .Literal(Literal.Str(s)):
         decoded := from_source_form(s)
-        result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
+        mut result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
         str_copy_into(result, decoded, ctx)
         return result
     case .Literal(Literal.Bool(b)):
-        result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
+        mut result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
         write_bool(result, b)
         return result
     case:
@@ -1643,7 +1643,7 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, mut ctx: 
         switch stmt.node_type {
         case .Decl(dd):
             if is_def {
-                raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                 write_ptr(raw, rhs)
                 scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
             } else if dd.is_mut.not().and(dd.own_type.is(OwnType.Ref).not()) {
@@ -1680,17 +1680,17 @@ constfolder_register_core_constants := func(mut global: Scope, usize_name: Str, 
         lit64 = lit64.bnot()       // -1 as U64
         mut view64 : U64 = 1
         view64 = view64.bnot()     // -2 as U64
-        cap_view_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
+        mut cap_view_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
         write_u64(cap_view_raw, view64)
         scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, interp_intern_type(Type.Primitive(Primitive.U64), ctx), OwnType.Shallow, ctx)
-        cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
+        mut cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
         write_u64(cap_lit_raw, lit64)
         scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, interp_intern_type(Type.Primitive(Primitive.U64), ctx), OwnType.Shallow, ctx)
     } else if usize_name == "U32" {
-        cap_view_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
+        mut cap_view_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_view_raw, 4294967294)
         scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, interp_intern_type(Type.Primitive(Primitive.U32), ctx), OwnType.Shallow, ctx)
-        cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
+        mut cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_lit_raw, 4294967295)
         scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, interp_intern_type(Type.Primitive(Primitive.U32), ctx), OwnType.Shallow, ctx)
     } else {

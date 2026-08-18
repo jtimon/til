@@ -320,7 +320,7 @@ test_cast_reinterpret_in_uptr_arg := test() {
 
 test_uptr_memory_api := test() {
     size : UPtr = 2
-    buf : U8 = malloc(size)
+    mut buf : U8 = malloc(size)
     memset(buf, 0, size)
     memcpy(buf, 65, 1)
     off : UPtr = 1

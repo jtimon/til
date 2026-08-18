@@ -471,7 +471,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 priv scavenge_members_in_place := func(mut decls: Vec(Declaration), mut idx: Map(Str, USize), type_name: Str, visited: Set(Str)) {
     n := decls.len()
     if n == 0 { return }
-    marks : U8 = malloc(n)
+    mut marks : U8 = malloc(n)
     memset(marks, 0, n)
     mut dropped_any := false
     for q in 0..idx.keys.count {
@@ -593,7 +593,7 @@ priv scav_cleanup_target := func(stmt: Expr) returns Str {
 // generic templates; the sweep is just the other producer of it.
 scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool, mut swept_names: Vec(Str), ctx: Context) {
     pn := program.children.len()
-    pm : U8 = malloc(pn)
+    mut pm : U8 = malloc(pn)
     memset(pm, 0, pn)
     mut swept := Set(Str).new()
     for i in 0..pn {
@@ -818,7 +818,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n > 0 {
-            marks : U8 = malloc(n)
+            mut marks : U8 = malloc(n)
             memset(marks, 0, n)
             mut any := false
             for i in 0..n {
@@ -908,7 +908,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
 
     // Phase 3: mark Decls (delete or replace-with-rhs) and the
     // matching trivial-delete stmts.
-    marks : U8 = malloc(n)
+    mut marks : U8 = malloc(n)
     memset(marks, 0, n)
     mut dropped := Set(Str).new()
     mut any := false

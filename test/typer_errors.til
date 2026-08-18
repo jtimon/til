@@ -1299,7 +1299,7 @@ terr357b_bad_local := proc() {
 }
 
 terr357b_ok := proc() {
-    b : U8 = malloc(4)
+    mut b : U8 = malloc(4)
     memset(b, 65, 4)
     memcpy(ptr_add(b, 1), 66, 1)
     ref v : U8 = ptr_add(b, 0)
@@ -1321,7 +1321,7 @@ terr357b_ok := proc() {
 // idea those bytes contain an owned c_str") are rejected.
 terr275_dup_managed := proc() {
     s := format("dup", "licate")
-    d : I8 = malloc(16)
+    mut d : I8 = malloc(16)
     memcpy(d, s, 16)
     println(s)
     free(own d)
@@ -1329,7 +1329,7 @@ terr275_dup_managed := proc() {
 
 terr275_dup_laundered := proc() {
     s := format("dup", "licate")
-    d : I8 = malloc(16)
+    mut d : I8 = malloc(16)
     memcpy(d, to_ptr(s), 16)
     println(s)
     free(own d)

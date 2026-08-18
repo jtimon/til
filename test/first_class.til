@@ -516,7 +516,7 @@ test_dyn_vec_body_lifecycle := test() {
     delete_marked_body : Body = [mut calls] { calls = calls.add(10) }
     marked.push(own keep_marked)
     marked.push(own delete_marked_body)
-    marks : U8 = malloc(2)
+    mut marks : U8 = malloc(2)
     memset(marks, 0, 2)
     memset(ptr_add(marks, 1), 1, 1)
     marked.delete_marked(marks)

@@ -128,7 +128,7 @@ namespace:
         // which for an `own U8` field is a one-byte box that the header
         // copy immediately overwrites -- an allocation, a free, and a
         // leak if the free is forgotten (ASAN caught 488 of them).
-        out : Vec(T) = malloc(Vec(T).size())
+        mut out : Vec(T) = malloc(Vec(T).size())
         adopt_from(out, self, Vec(T).size())
         return out
     }
@@ -195,7 +195,7 @@ namespace:
             panic("Vec.pop: empty vec")
         }
         last := self.count - 1
-        out : T = malloc(T.size())
+        mut out : T = malloc(T.size())
         adopt_from(out, ptr_add(self.data, last.mul(T.size())), T.size())
         self.count = last
         return out
@@ -225,7 +225,7 @@ namespace:
         if n > 0 {
             prefix_cap = n
         }
-        prefix_data : U8 = malloc(prefix_cap.mul(T.size()))
+        mut prefix_data : U8 = malloc(prefix_cap.mul(T.size()))
         if n > 0 {
             memcpy(prefix_data, self.data, n.mul(T.size()))
         }
@@ -302,7 +302,7 @@ namespace:
     clone := func(self: Vec(T)) returns Vec(T) {
         // A lazy-empty source clones to another lazy-empty Vec (no malloc(0)).
         if self.cap == 0 { return Vec(T)(cap = 0) }
-        new_data : U8 = malloc(self.cap.mul(T.size()))
+        mut new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()))
             mut cloned : T = T.clone(src)

@@ -126,7 +126,7 @@ early_param := func(own s: Str, flag: Bool) returns I64 {
 // #302): heap-promoted, and the pass inserts a bare free -- never a
 // deep delete -- with no hand-written free in sight.
 raw_alloc_auto := func() returns I64 {
-    buf : U8 = malloc(8)
+    mut buf : U8 = malloc(8)
     write_u8(buf, 9)
     return 0
 }
@@ -140,8 +140,8 @@ raw_alloc_auto := func() returns I64 {
 // owns the block from that point on; the fixture leaks it deliberately,
 // exactly as the hand-written contract does today.
 raw_alloc_escapes := func() returns I64 {
-    slot : U8 = malloc(UPtr.size())
-    esc : U8 = malloc(8)
+    mut slot : U8 = malloc(UPtr.size())
+    mut esc : U8 = malloc(8)
     write_u8(esc, 9)
     write_ptr(slot, esc)
     return 0
@@ -227,7 +227,7 @@ scalar_cond_transfer := func(n: I64, mut outs: Array(U8)) {
 // by-name NamedArg mapping fix in fcall_has_own_arg /
 // fcall_collect_own_arg_names).
 ctor_adopt := func() returns I64 {
-    buf : U8 = malloc(4)
+    mut buf : U8 = malloc(4)
     memset(buf, 65, 1)
     s2 := Str(c_str = to_ptr(buf), count = 1, cap = 1)
     return consume(own s2)

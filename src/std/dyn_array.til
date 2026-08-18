@@ -108,7 +108,7 @@ namespace:
 
     /// Clone every element of ~self~ into ~dst~ starting at element index
     /// ~dst_index~. ~dst~ must have room for self.cap elements from there.
-    priv clone_into := func(self: DynArray, dst: Dynamic, dst_index: USize) {
+    priv clone_into := func(self: DynArray, mut dst: Dynamic, dst_index: USize) {
         base := dst_index.mul(self.elem_size)
         if self.elem_kind == ELEM_POD {
             memcpy(ptr_add(dst, base), self.data, self.cap.mul(self.elem_size))
@@ -138,7 +138,7 @@ namespace:
             panic("DynArray.concat: incompatible arrays")
         }
         total : USize = self.cap.add(other.cap)
-        new_data : U8 = malloc(total.mul(self.elem_size))
+        mut new_data : U8 = malloc(total.mul(self.elem_size))
         self.clone_into(new_data, 0)
         other.clone_into(new_data, self.cap)
         return DynArray(data = new_data, cap = total,
@@ -157,7 +157,7 @@ namespace:
     }
 
     clone := func(self: DynArray) returns DynArray {
-        new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        mut new_data : U8 = malloc(self.cap.mul(self.elem_size))
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.cap {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))

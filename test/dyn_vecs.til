@@ -144,8 +144,8 @@ test_dyn_vec_dynamic := test() {
     // is(a, b) check verifies stored bytes really differ (ASAN's
     // malloc returns zeroed/uniform bytes, which would otherwise
     // make uninitialized buffers compare equal).
-    p1 : U8 = malloc(Dynamic.size().cast(U64))
-    p2 : U8 = malloc(Dynamic.size().cast(U64))
+    mut p1 : U8 = malloc(Dynamic.size().cast(U64))
+    mut p2 : U8 = malloc(Dynamic.size().cast(U64))
     memset(p1, 170, Dynamic.size().cast(U64))
     memset(p2, 187, Dynamic.size().cast(U64))
     v.push(own p1)
@@ -337,7 +337,7 @@ test_dyn_vec_truncate := test() {
 test_dyn_vec_delete_marked := test() {
     mut v := DynVec.new(Str)
     for i in 0..4 { v.push(own format("e", i.to_str())) }
-    marks : U8 = malloc(4)
+    mut marks : U8 = malloc(4)
     memset(marks, 0, 4)
     memset(ptr_add(marks, 1), 1, 1)
     memset(ptr_add(marks, 3), 1, 1)

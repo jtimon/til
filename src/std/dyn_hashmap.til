@@ -198,7 +198,7 @@ namespace:
             head_val : I64 = head2.clone()
             self.nexts.push(own head_val)
             self.hashes.push(own h.clone())
-            cloned_key : U8 = malloc(self.keys.elem_size)
+            mut cloned_key : U8 = malloc(self.keys.elem_size)
             if self.keys.elem_kind == ELEM_BOXED {
                 key_copy : Dynamic = self.keys.elem_clone(key)
                 memcpy(cloned_key, key_copy, self.keys.elem_size)

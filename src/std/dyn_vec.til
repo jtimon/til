@@ -94,7 +94,7 @@ namespace:
         while i < n {
             ref mark : Bool = ptr_add(marks, i)
             if mark {
-                ref slot : Dynamic = ptr_add(self.data, i.mul(self.elem_size))
+                ref mut slot : Dynamic = ptr_add(self.data, i.mul(self.elem_size))
                 if self.elem_kind == ELEM_BOXED {
                     self.elem_delete(slot, false)
                 } else if self.elem_kind == ELEM_FN {
@@ -236,7 +236,7 @@ namespace:
             self.count = last
             return til_closure_slot_pop(self.unsafe_get(last))
         }
-        out : U8 = malloc(self.elem_size)
+        mut out : U8 = malloc(self.elem_size)
         memcpy(out, ptr_add(self.data, last.mul(self.elem_size)), self.elem_size)
         self.count = last
         return out
@@ -290,7 +290,7 @@ namespace:
         if n > 0 {
             prefix_cap = n
         }
-        prefix_data : U8 = malloc(prefix_cap.mul(self.elem_size))
+        mut prefix_data : U8 = malloc(prefix_cap.mul(self.elem_size))
         if n > 0 {
             memcpy(prefix_data, self.data, n.mul(self.elem_size))
         }
@@ -382,7 +382,7 @@ namespace:
 
     /// Deep-copy the DynVec and all its elements via elem_clone.
     clone := func(self: DynVec) returns DynVec {
-        new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        mut new_data : U8 = malloc(self.cap.mul(self.elem_size))
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))

@@ -11,12 +11,12 @@ import("../src/self/eval_heap")
 
 test_eval_heap_basic := test() {
 
-    a : Dynamic = EvalHeap.heap_alloc(8)
+    mut a : Dynamic = EvalHeap.heap_alloc(8)
     assert(a.is_null().not())
     EvalHeap.set_i64(a, 1234567890123)
     assert_eq(I64, EvalHeap.get_i64(a), 1234567890123)
 
-    b : Dynamic = EvalHeap.heap_alloc(8)
+    mut b : Dynamic = EvalHeap.heap_alloc(8)
     assert(a.ptr_eq(b).not())
     EvalHeap.set_i64(b, 0.sub(42))
     assert_eq(I64, EvalHeap.get_i64(b), 0.sub(42))
@@ -37,19 +37,19 @@ test_eval_heap_zeroed := test() {
 
 test_eval_heap_typed := test() {
 
-    pu : Dynamic = EvalHeap.heap_alloc(8)
+    mut pu : Dynamic = EvalHeap.heap_alloc(8)
     EvalHeap.set_u64(pu, 1234567890123456789)
     assert_eq(U64, EvalHeap.get_u64(pu), 1234567890123456789)
 
-    pb : Dynamic = EvalHeap.heap_alloc(1)
+    mut pb : Dynamic = EvalHeap.heap_alloc(1)
     EvalHeap.set_u8(pb, 200)
     assert_eq(U8, EvalHeap.get_u8(pb), 200)
 
-    pf : Dynamic = EvalHeap.heap_alloc(4)
+    mut pf : Dynamic = EvalHeap.heap_alloc(4)
     EvalHeap.set_f32(pf, 2.5)
     assert_eq(F32, EvalHeap.get_f32(pf), 2.5)
 
-    pbool : Dynamic = EvalHeap.heap_alloc(1)
+    mut pbool : Dynamic = EvalHeap.heap_alloc(1)
     EvalHeap.set_bool(pbool, true)
     assert(EvalHeap.get_bool(pbool))
     EvalHeap.set_bool(pbool, false)
@@ -62,7 +62,7 @@ test_eval_heap_typed := test() {
 }
 
 test_eval_heap_subblock := test() {
-    p : Dynamic = EvalHeap.heap_alloc(16)
+    mut p : Dynamic = EvalHeap.heap_alloc(16)
     EvalHeap.set_i64(p, 111)
     EvalHeap.set_i64(ptr_add(p, 8), 222)
     assert_eq(I64, EvalHeap.get_i64(p), 111)
@@ -71,10 +71,10 @@ test_eval_heap_subblock := test() {
 }
 
 test_eval_heap_bytes := test() {
-    src : Dynamic = EvalHeap.heap_alloc(8)
+    mut src : Dynamic = EvalHeap.heap_alloc(8)
     EvalHeap.set_i64(src, 999888777)
-    dst : Dynamic = EvalHeap.heap_alloc(8)
-    tmp : U8 = malloc(8)
+    mut dst : Dynamic = EvalHeap.heap_alloc(8)
+    mut tmp : U8 = malloc(8)
     EvalHeap.get_bytes(src, tmp, 8)
     EvalHeap.set_bytes(dst, tmp, 8)
     free(own tmp)
@@ -94,7 +94,7 @@ test_eval_heap_many := test() {
     // Many independent alloc/write/read/free cycles balance to zero.
     mut i : USize = 0
     while i.lt(50) {
-        p : Dynamic = EvalHeap.heap_alloc(8)
+        mut p : Dynamic = EvalHeap.heap_alloc(8)
         EvalHeap.set_i64(p, i.to_i64())
         assert_eq(I64, EvalHeap.get_i64(p), i.to_i64())
         EvalHeap.heap_free(own p)

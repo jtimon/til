@@ -17,9 +17,34 @@ call EMIT AS A REAL CALL or get inlined.
 ** func / proc
 
 The ordinary kind: a body in til, compiled to a real C function and
-called normally; the interpreter runs the body. ~func~ declares a PURE
-function (result from arguments, no side effects); ~proc~ declares a
-procedure (non-pure: mutation, I/O, ownership transfer).
+called normally; the interpreter runs the body.
+
+~proc~ declares an EFFECT THE SIGNATURE CANNOT SHOW: I/O, and anything
+else that reaches outside the call. ~func~ declares the absence of one.
+A func may still mutate through a ~mut~ parameter and consume an ~own~
+one -- that is declared, right there in the signature, and it is not
+what proc is for. ~Vec.push := func(mut self: Vec(T), own val: T)~ does
+both and is a func; so is ~Str.push_str~, and so is ~memcpy~. Reading
+those as procs would make ~new~, ~delete~, ~clone~ and every container
+method a proc, and procs are not constfolded -- the classification
+would cost exactly the code it exists to describe.
+
+The roots are the ext_procs, and in core they are I/O and nothing else:
+~print_single~, ~eprint_single~, ~print_flush~ (plus ~println~ / ~print~
+/ the ~*_error~ procs, which call them). Everything else is a proc only
+by CONTAGION, and the typer enforces that contagion both ways: a func
+calling a proc is an error ("func cannot call proc"), and a proc that
+calls none is an error ("proc has no proc/ext_proc calls; should be a
+func"). So classifying the base ext declarations correctly is the whole
+job -- the call graph propagates it from there.
+
+Two things follow. A pass may skip evaluating a call only when it is a
+func AND takes no ~mut~ or ~own~ parameter: the typer guarantees no proc
+effect hides inside a func, and the qualifiers say nothing is written
+through a parameter. And a bodyless ext declaration owes the truth about
+what it writes -- an FFI symbol that writes through a pointer declares
+that pointer ~mut~, or the signature lies and every reader of it is
+wrong.
 
 ** ext_func / ext_proc
 

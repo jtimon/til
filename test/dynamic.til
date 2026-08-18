@@ -251,7 +251,7 @@ test_zero_is_dynamic_null := test() {
     r : Dynamic = zero_give(true)
     assert(r.is_null())
     nul : Dynamic = 0
-    slot : U8 = malloc(8)
+    mut slot : U8 = malloc(8)
     write_ptr(slot, nul)
     ref pv : Dynamic = deref(slot)
     assert(pv.is_null())
