@@ -1,6 +1,21 @@
 # priority: medium
 # category: bugs
-** OPEN #363 A variadic parameter of a private struct type never resolves its Array instance
+** FIXED #363 A variadic parameter of a private struct type never resolves its Array instance
+
+*** Post-mortem
+
+The type-generator pass formed container instance names before top-level
+private types were entered in scope. It therefore synthesized
+~Array__PrivPt~, while the later private pass rewrote the variadic element
+type to ~priv__<unit>__PrivPt~ without being able to derive and rename the
+already-flattened container name.
+
+Type-generator Type arguments and variadic/literal synthesis now resolve
+through the unit-local type-token map before forming instance names. Parser-
+lifted generated type annotations are rewritten to that same canonical name,
+so parameters, literals, return types, deduction, and splat validation all
+refer to one instance. ~test_splat_call_result~ covers a plain variadic call,
+a splat call, and an ~array(SplatPoint, ...)~ literal with ~SplatPoint~ private.
 
 A ~..T~ where T is a ~priv~ struct breaks in the CALLEE's own body, with
 no splat and no caller trickery involved:

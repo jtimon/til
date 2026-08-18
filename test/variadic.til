@@ -283,11 +283,9 @@ test_splat_elem_type_accepted := test() {
 // compiler, not the program, and only once the freed name was reused -- which
 // is why the corpus stayed green while `..mk()` segfaulted. Under ASAN the
 // shape is checked every run.
-// Not `priv`: a variadic parameter of a PRIVATE struct type does not resolve
-// its Array instance (#363, splat or no splat -- `for p : T in ps` reports
-// "requires a collection type"), and this test is about the call result, not
-// that. Flip it back to priv when #363 closes, to keep that shape covered.
-SplatPoint := struct { n := 0 }
+// #363: private type mangling must use the same spelling for the variadic
+// parameter's element type and its synthesized Array instance.
+priv SplatPoint := struct { n := 0 }
 
 priv splat_point_sum := func(ps: ..SplatPoint) returns I64 {
     mut total := 0
@@ -304,6 +302,7 @@ priv splat_make_ints := func() returns Array(I64) {
 }
 
 test_splat_call_result := test() {
+    assert_eq(I64, splat_point_sum(SplatPoint(n = 1), SplatPoint(n = 2)), 3)
     assert_eq(I64, splat_point_sum(..splat_make_points()), 5)
     assert_eq(I64, splat_point_sum(SplatPoint(n = 10), ..splat_make_points()), 15)
     assert_eq(I64, splat_sum(..splat_make_ints()), 7)

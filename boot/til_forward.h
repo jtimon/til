@@ -310,9 +310,9 @@ typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__Cto
 typedef struct FactIndex FactIndex;
 typedef struct RootBits RootBits;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
-typedef struct Vec__CtorArg Vec__CtorArg;
+typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
-typedef struct Vec__CoverageNode Vec__CoverageNode;
+typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__RootBits Vec__RootBits;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct Vec__I32 Vec__I32;
@@ -323,27 +323,27 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbag
 typedef struct Array__USize Array__USize;
 typedef struct Array__Bool Array__Bool;
 typedef struct Array__U8 Array__U8;
-typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
-typedef struct Vec__LocalInfo Vec__LocalInfo;
-typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
+typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
+typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
+typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
 typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
-typedef struct Map__Str_DeclRef Map__Str_DeclRef;
-typedef struct Vec__DeclRef Vec__DeclRef;
+typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef Map__Str_priv___src_self_scavenger_til__DeclRef;
+typedef struct Vec__priv___src_self_scavenger_til__DeclRef Vec__priv___src_self_scavenger_til__DeclRef;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct DocMeta DocMeta;
 typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
-typedef struct Vec__ImportCheckEntry Vec__ImportCheckEntry;
+typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
 typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
 typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
 typedef struct Vec__DocEntry Vec__DocEntry;
-typedef struct Vec__CollectionInfo Vec__CollectionInfo;
-typedef struct Vec__DynCallInfo Vec__DynCallInfo;
+typedef struct Vec__priv___src_self_builder_til__CollectionInfo Vec__priv___src_self_builder_til__CollectionInfo;
+typedef struct Vec__priv___src_self_builder_til__DynCallInfo Vec__priv___src_self_builder_til__DynCallInfo;
 typedef struct _ffi_type ffi_type;
 typedef struct InterpCallableBox InterpCallableBox;
 typedef struct HeapBinding HeapBinding;
@@ -359,14 +359,14 @@ typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
-typedef struct Vec__DynPtrBox Vec__DynPtrBox;
-typedef struct Vec__InterpAlias Vec__InterpAlias;
+typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox Vec__priv___src_self_interpreter_til__DynPtrBox;
+typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src_self_interpreter_til__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
 typedef struct priv___src_self_binder_til__AuditedDecl priv___src_self_binder_til__AuditedDecl;
-typedef struct Map__Str_AuditedDecl Map__Str_AuditedDecl;
-typedef struct Vec__AuditedDecl Vec__AuditedDecl;
+typedef struct Map__Str_priv___src_self_binder_til__AuditedDecl Map__Str_priv___src_self_binder_til__AuditedDecl;
+typedef struct Vec__priv___src_self_binder_til__AuditedDecl Vec__priv___src_self_binder_til__AuditedDecl;
 enum {
     EditAction_TAG_Continue,
     EditAction_TAG_Submit,
@@ -902,18 +902,18 @@ typedef struct RootBits {
 } RootBits;
 
 
-typedef struct Vec__CtorArg {
+typedef struct Vec__priv___src_self_typer_til__CtorArg {
     U8 *data;
     USize count;
     USize cap;
-} Vec__CtorArg;
+} Vec__priv___src_self_typer_til__CtorArg;
 
 
-typedef struct Vec__CoverageNode {
+typedef struct Vec__priv___src_self_typer_til__CoverageNode {
     U8 *data;
     USize count;
     USize cap;
-} Vec__CoverageNode;
+} Vec__priv___src_self_typer_til__CoverageNode;
 
 
 typedef struct Vec__RootBits {
@@ -1000,25 +1000,25 @@ typedef struct Array__U8 {
 } Array__U8;
 
 
-typedef struct Vec__GcBorrowEdge {
+typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
     U8 *data;
     USize count;
     USize cap;
-} Vec__GcBorrowEdge;
+} Vec__priv___src_self_garbager_til__GcBorrowEdge;
 
 
-typedef struct Vec__LocalInfo {
+typedef struct Vec__priv___src_self_garbager_til__LocalInfo {
     U8 *data;
     USize count;
     USize cap;
-} Vec__LocalInfo;
+} Vec__priv___src_self_garbager_til__LocalInfo;
 
 
-typedef struct Vec__GcCfgBlock {
+typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock {
     U8 *data;
     USize count;
     USize cap;
-} Vec__GcCfgBlock;
+} Vec__priv___src_self_garbager_til__GcCfgBlock;
 
 
 struct Option__ref_Scope {
@@ -1031,11 +1031,11 @@ typedef struct priv___src_self_scavenger_til__DeclRef {
 } priv___src_self_scavenger_til__DeclRef;
 
 
-typedef struct Vec__DeclRef {
+typedef struct Vec__priv___src_self_scavenger_til__DeclRef {
     U8 *data;
     USize count;
     USize cap;
-} Vec__DeclRef;
+} Vec__priv___src_self_scavenger_til__DeclRef;
 
 
 typedef struct DocMeta {
@@ -1064,11 +1064,11 @@ typedef struct Vec__ProgramUnit {
 } Vec__ProgramUnit;
 
 
-typedef struct Vec__ImportCheckEntry {
+typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry {
     U8 *data;
     USize count;
     USize cap;
-} Vec__ImportCheckEntry;
+} Vec__priv___src_self_loader_til__ImportCheckEntry;
 
 
 typedef struct priv___src_self_builder_til__BuildPaths {
@@ -1116,18 +1116,18 @@ typedef struct Vec__DocEntry {
 } Vec__DocEntry;
 
 
-typedef struct Vec__CollectionInfo {
+typedef struct Vec__priv___src_self_builder_til__CollectionInfo {
     U8 *data;
     USize count;
     USize cap;
-} Vec__CollectionInfo;
+} Vec__priv___src_self_builder_til__CollectionInfo;
 
 
-typedef struct Vec__DynCallInfo {
+typedef struct Vec__priv___src_self_builder_til__DynCallInfo {
     U8 *data;
     USize count;
     USize cap;
-} Vec__DynCallInfo;
+} Vec__priv___src_self_builder_til__DynCallInfo;
 
 
 typedef struct _ffi_type {
@@ -1227,18 +1227,18 @@ struct Option__ref_Dynamic {
     void *data;
 };
 
-typedef struct Vec__DynPtrBox {
+typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox {
     U8 *data;
     USize count;
     USize cap;
-} Vec__DynPtrBox;
+} Vec__priv___src_self_interpreter_til__DynPtrBox;
 
 
-typedef struct Vec__InterpAlias {
+typedef struct Vec__priv___src_self_interpreter_til__InterpAlias {
     U8 *data;
     USize count;
     USize cap;
-} Vec__InterpAlias;
+} Vec__priv___src_self_interpreter_til__InterpAlias;
 
 
 struct Option__ref_ffi_type {
@@ -1265,11 +1265,11 @@ typedef struct priv___src_self_binder_til__AuditedDecl {
 } priv___src_self_binder_til__AuditedDecl;
 
 
-typedef struct Vec__AuditedDecl {
+typedef struct Vec__priv___src_self_binder_til__AuditedDecl {
     U8 *data;
     USize count;
     USize cap;
-} Vec__AuditedDecl;
+} Vec__priv___src_self_binder_til__AuditedDecl;
 
 
 struct EditAction {
@@ -1576,7 +1576,7 @@ typedef struct FactIndex {
 typedef struct priv___src_self_typer_til__CoverageNode {
     Bool fully_covered;
     Vec__Str sub_names;
-    Vec__CoverageNode sub_nodes;
+    Vec__priv___src_self_typer_til__CoverageNode sub_nodes;
 } priv___src_self_typer_til__CoverageNode;
 
 
@@ -1586,10 +1586,10 @@ typedef struct Map__Str_RootBits {
 } Map__Str_RootBits;
 
 
-typedef struct Map__Str_DeclRef {
+typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {
     Vec__Str keys;
-    Vec__DeclRef values;
-} Map__Str_DeclRef;
+    Vec__priv___src_self_scavenger_til__DeclRef values;
+} Map__Str_priv___src_self_scavenger_til__DeclRef;
 
 
 typedef struct ProgramUnit {
@@ -1608,7 +1608,7 @@ typedef struct InterpSession {
     Option__Scope global;
     Bool core_evaluated;
     USize user_argc;
-    Vec__DynPtrBox retained_programs;
+    Vec__priv___src_self_interpreter_til__DynPtrBox retained_programs;
     Bool is_repl;
     Set__Str evaluated_units;
 } InterpSession;
@@ -1620,10 +1620,10 @@ typedef struct Map__Str_HeapBinding {
 } Map__Str_HeapBinding;
 
 
-typedef struct Map__Str_AuditedDecl {
+typedef struct Map__Str_priv___src_self_binder_til__AuditedDecl {
     Vec__Str keys;
-    Vec__AuditedDecl values;
-} Map__Str_AuditedDecl;
+    Vec__priv___src_self_binder_til__AuditedDecl values;
+} Map__Str_priv___src_self_binder_til__AuditedDecl;
 
 
 typedef struct TypeScope {

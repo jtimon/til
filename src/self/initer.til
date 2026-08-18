@@ -3404,7 +3404,7 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map(Str, Expr),
 // A direct `Alias := Template(I64, 4)` should not expand a second type whose
 // real name is `Alias`. Normalize it to an ordinary alias of the deterministic
 // monomorphization, plus one canonical decl if this unit owns that instantiation.
-priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) {
+priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, mut canonical_names: Map(Str, Str), mut ctx: Context) {
     mut synthesized := Vec(Expr).new()
     for mut stmt : Expr in program.children {
         if init_is_direct_macro_inst_decl(stmt, macros, scope, ctx).not() { continue }
@@ -3416,6 +3416,14 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
             switch rhs.children[0].node_type {
             case .Ident(cn):
                 if init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx).is_none() { continue }
+                // Parser-lifted type annotations use their deterministic
+                // source-spelling name as the declaration name. If a private
+                // Type argument canonicalized above, rewrite every annotation
+                // that points at the old generated name as well.
+                generated_prefix := format(cn.ident_name(), "__")
+                if dd.name.starts_with(generated_prefix) {
+                    canonical_names.set(dd.name, own genname.clone())
+                }
                 if ctx.type_gen_synths.has(genname).not() {
                     mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), stmt.line, stmt.col)
                     decl.add_child(own rhs.clone())
@@ -3517,13 +3525,17 @@ priv init_literal_child_type := func(e: Expr) returns Str {
     return ""
 }
 
-// Element/key/val type names go through resolve_type_alias_for_name so the
-// synthesized monomorphization name matches the one the type-gen macro
-// produces (via init_type_arg_name): user aliases resolve, width aliases
-// (USize/UPtr) keep their spelling -- `..USize` synthesizes Array__USize,
-// the same instance every other position names. It returns a borrow, so
-// .clone() the owned name we hand to the synth decls.
-priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthesized: Vec(Expr), mut seen: Map(Str, Str), synth_array: Bool, synth_vec: Bool, synth_set: Bool, synth_map: Bool) {
+// Element/key/val type names use the same canonical spelling as the later
+// private pass. That pass rewrites references to a private type but cannot
+// derive a new synthesized declaration name from `Array__SourceName`, so the
+// instance must carry the private type's final name from the start.
+priv init_synth_elem_type_name := func(scope: TypeScope, local_types: Map(Str, Str), name: Str) returns Str {
+    if name.eq("USize").or(name.eq("UPtr")) { return name.clone() }
+    if local_types.has(name) { return local_types[name].clone() }
+    return resolve_type_alias_for_name(scope, name).clone()
+}
+
+priv init_collect_variadic_arrays := func(scope: TypeScope, local_types: Map(Str, Str), e: Expr, mut synthesized: Vec(Expr), mut seen: Map(Str, Str), synth_array: Bool, synth_vec: Bool, synth_set: Bool, synth_map: Bool) {
     switch e.node_type {
     case .FCall:
         if e.children.len() >= 2 {
@@ -3533,7 +3545,7 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
                     should_synth := cn.ident_name().eq("array").and(synth_array)
                         .or(cn.ident_name().eq("vec").and(synth_vec))
                     if should_synth {
-                        elem_type := resolve_type_alias_for_name(scope, array_vec_elem_type_name(e)).clone()
+                        elem_type := init_synth_elem_type_name(scope, local_types, array_vec_elem_type_name(e))
                         if elem_type.len() > 0 {
                             mut genname := format("Array__", elem_type)
                             if cn.ident_name() == "vec" { genname = format("Vec__", elem_type) }
@@ -3553,7 +3565,7 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
         }
     case .Literal(Literal.SetLit):
         if synth_set {
-            elem_type := resolve_type_alias_for_name(scope, init_set_literal_elem_type(e)).clone()
+            elem_type := init_synth_elem_type_name(scope, local_types, init_set_literal_elem_type(e))
             if elem_type.len() > 0 {
                 genname := format("Set__", elem_type)
                 if seen.has(genname).not() {
@@ -3564,8 +3576,8 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
         }
     case .Literal(Literal.MapLit):
         if synth_map.and(e.children.len().gte(2)) {
-            key_type := resolve_type_alias_for_name(scope, init_literal_child_type(e.children[0])).clone()
-            val_type := resolve_type_alias_for_name(scope, init_literal_child_type(e.children[1])).clone()
+            key_type := init_synth_elem_type_name(scope, local_types, init_literal_child_type(e.children[0]))
+            val_type := init_synth_elem_type_name(scope, local_types, init_literal_child_type(e.children[1]))
             if key_type.len().gt(0).and(val_type.len().gt(0)) {
                 genname := format("Map__", key_type, "_", val_type)
                 if seen.has(genname).not() {
@@ -3577,7 +3589,7 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
     case .FuncDef(fd):
         if fd.variadic_index >= 0 {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
-            elem_type := resolve_type_alias_for_name(scope, p.type_name()).clone()
+            elem_type := init_synth_elem_type_name(scope, local_types, p.type_name())
             genname := format("Array__", elem_type)
             if seen.has(genname).not() {
                 synthesized.push(own init_synth_array_inst_decl(elem_type, e.line, e.col))
@@ -3587,32 +3599,33 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
     case .StructDef(sdd):
         for vasd : Declaration in sdd.ns_decls {
             if vasd.default_value.is_some() {
-                init_collect_variadic_arrays(scope, vasd.default_expr(), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+                init_collect_variadic_arrays(scope, local_types, vasd.default_expr(), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
             }
         }
     case .EnumDef(edd):
         for vaed : Declaration in edd.ns_decls {
             if vaed.default_value.is_some() {
-                init_collect_variadic_arrays(scope, vaed.default_expr(), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+                init_collect_variadic_arrays(scope, local_types, vaed.default_expr(), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
             }
         }
     case:
     }
     for c : Expr in e.children {
-        init_collect_variadic_arrays(scope, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+        init_collect_variadic_arrays(scope, local_types, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
 }
 
 priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     mut synthesized := Vec(Expr).new()
     mut seen := Map(Str, Str).new()
+    local_types := init_seed_local_type_tokens(program, ctx.scope, ctx)
     synth_array := ctx.scope.get_struct("Array").is_none()
     synth_vec := ctx.scope.get_struct("Vec").is_none()
     synth_set := ctx.scope.get_struct("Set").is_none()
     synth_map := ctx.scope.get_struct("Map").is_none()
     if synth_array.not().and(synth_vec.not()).and(synth_set.not()).and(synth_map.not()) { return }
     for c : Expr in program.children {
-        init_collect_variadic_arrays(ctx.scope, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+        init_collect_variadic_arrays(ctx.scope, local_types, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
     for d : Expr in synthesized {
         switch d.node_type {
@@ -3812,6 +3825,68 @@ priv init_seed_local_type_tokens := func(program: Expr, scope: TypeScope, ctx: C
         }
     }
     return out
+}
+
+// Type-position macro calls are named before private declarations enter the
+// shared scope. Rewrite their Type arguments from the unit-local token map so
+// the ordinary monomorphization path derives the final instance name.
+priv init_canonicalize_local_type_args := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeScope, local_types: Map(Str, Str), mut ctx: Context) {
+    switch e.node_type {
+    case .FCall:
+        if e.children.len() > 0 {
+            switch e.children[0].node_type {
+            case .Ident(cn):
+                macro_o := init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
+                if macro_o.is_some() {
+                    switch macro_o.unwrap().node_type {
+                    case .FuncDef(mfd):
+                        for i in 0..mfd.params.len() {
+                            if i + 1 >= e.children.len() { break }
+                            if mfd.params[i].type_name().eq("Type").not() { continue }
+                            ref mut arg : Expr = e.children[i + 1]
+                            switch arg.node_type {
+                            case .Ident(an):
+                                canonical := init_synth_elem_type_name(scope, local_types, an.ident_name())
+                                if canonical.eq(an.ident_name()).not() {
+                                    arg.node_type = ident_node(canonical)
+                                }
+                            case:
+                            }
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case .StructDef(sdd):
+        for mut fd : Declaration in sdd.fields {
+            if fd.default_value.is_some() {
+                init_canonicalize_local_type_args(fd.default_expr(), macros, scope, local_types, ctx)
+            }
+        }
+        for mut nd : Declaration in sdd.ns_decls {
+            if nd.default_value.is_some() {
+                init_canonicalize_local_type_args(nd.default_expr(), macros, scope, local_types, ctx)
+            }
+        }
+    case .EnumDef(edd):
+        for mut nd2 : Declaration in edd.ns_decls {
+            if nd2.default_value.is_some() {
+                init_canonicalize_local_type_args(nd2.default_expr(), macros, scope, local_types, ctx)
+            }
+        }
+    case .FuncDef(fdd):
+        for mut pd : Declaration in fdd.params {
+            if pd.default_value.is_some() {
+                init_canonicalize_local_type_args(pd.default_expr(), macros, scope, local_types, ctx)
+            }
+        }
+    case:
+    }
+    for mut c : Expr in e.children {
+        init_canonicalize_local_type_args(c, macros, scope, local_types, ctx)
+    }
 }
 
 // Issue #328: the canonical type-token spelling for an argument Ident in a
@@ -4362,7 +4437,7 @@ init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) ret
     return drop_idxs.len() > 0
 }
 
-priv init_expand_type_gen_macros := func(mut program: Expr, mut scope: TypeScope, mut ctx: Context) {
+priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope, mut ctx: Context) {
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
     // generator: rstil's macro-returns-FuncDef equivalent).
@@ -4380,9 +4455,20 @@ priv init_expand_type_gen_macros := func(mut program: Expr, mut scope: TypeScope
         }
     }
 
+    local_types := init_seed_local_type_tokens(program, scope, ctx)
+    for mut stmt0 : Expr in program.children {
+        init_canonicalize_local_type_args(stmt0, macros, scope, local_types, ctx)
+    }
+
     // Normalize explicit aliases (`Alias := Template(I64)`) before dedup so
     // every instantiated template has one deterministic real type name.
-    init_normalize_direct_type_gen_aliases(program, macros, scope, ctx)
+    mut canonical_names := Map(Str, Str).new()
+    init_normalize_direct_type_gen_aliases(program, macros, scope, canonical_names, ctx)
+    if canonical_names.len() > 0 {
+        for mut stmt1 : Expr in program.children {
+            init_rewrite_refs(stmt1, canonical_names)
+        }
+    }
 
     // Variadic params are stored as an element type plus variadic_index, not as
     // an explicit `Array(T)` annotation, so synthesize their concrete Array type.

@@ -1,6 +1,4 @@
 * Bugs
-** Medium
-*** [[./open/363.org][#363]] A variadic parameter of a private struct type never resolves its Array instance
 ** Low
 *** [[./open/362.org][#362]] Constfolder: a Str bound into a ..Dynamic variadic's fold scope leaks its clone
 * Cleanups
