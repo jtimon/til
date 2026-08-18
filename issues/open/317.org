@@ -32,8 +32,8 @@ the C backend stays the default and the bootstrap path.
   the per-backend symbol layer. That contract is the backend interface.
 - ~Lang~ in src/self/targets.til already enumerates codegen languages
   (C, HolyC, TIL). MLIR would be a new ~Lang~ variant plus an emitter
-  alongside the C emitter in src/self/builder.til, selected per target
-  the same way HolyC is.
+  selected by src/self/builder.til alongside the C-family emitter in
+  src/self/c_codegen.til, the same boundary HolyC uses.
 
 *** Implementation plan (staged; C backend stays green at every stage)
 
@@ -54,7 +54,7 @@ the C backend stays the default and the bootstrap path.
      paths). Proposed surface, to be approved at implementation time:
      .mlir emitted under gen/ next to the C output, compile driven by
      the existing build entry points, no new top-level commands.
-  3. Emitter skeleton alongside the C emitter in src/self/builder.til:
+  3. Emitter skeleton alongside src/self/c_codegen.til:
      module header, ~func.func~ signatures using the SAME ABI the C
      backend emits (return value, ~_err_kind~ and payload out-params
      as pointer arguments), plus extern declarations for every

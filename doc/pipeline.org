@@ -155,9 +155,11 @@ There are two main back ends.
     (libffi-backed `ext_func`/`ext_proc` calls).
 
 - Build:
-  - `build(ast, mode, run_tests, path, c_path)`
-  - [[file:../src/self/builder.til][src/self/builder.til]]
-  - emits C, headers, and optional til bindings
+  - [[file:../src/self/builder.til][src/self/builder.til]] owns output paths,
+    toolchain invocation, install/run/test commands, and documentation.
+  - [[file:../src/self/c_codegen.til][src/self/c_codegen.til]] owns the C ABI,
+    C/header emission, C library bindings, and C-only emit reachability.
+  - `c_codegen_translate_outputs(...)` is the boundary between them.
   - runs its own emit-reachability pass first
     (~builder_fill_emit_inventory~, #326). This is NOT a second
     scavenge: it answers a question only a C emitter can ask, because
@@ -213,8 +215,9 @@ There are two main back ends.
 - Garbager inserts the automatic destructor calls.
 - Constfolder folds comptime work.
 - Scavenger removes unused leftovers.
-- Builder/interpreter are the final execution back ends; the interpreter
-  also handles its own FFI calls and targets defines build targets.
+- C codegen/interpreter are the final execution back ends; builder orchestrates
+  generated outputs and toolchains, the interpreter also handles its own FFI
+  calls, and targets defines build targets.
 - Binder is a standalone C-header -> til bindings generator, outside
   the main pipeline.
 
@@ -230,7 +233,8 @@ That is the current practical phase order to keep in mind when debugging:
   lowering: `src/self/desugarer.til`
 - missing/extra `delete`/`free` call, use-after-move: `src/self/garbager.til`
 - comptime folding issue: `src/self/constfolder.til`
-- generated C / linkage issue: `src/self/builder.til`
+- generated C issue: `src/self/c_codegen.til`
+- generated-output path / compiler-link invocation issue: `src/self/builder.til`
 - cross-compile target/lang issue: `src/self/targets.til`
 - interpreter FFI call into native C: `src/self/interpreter.til`
 - runtime behavior mismatch: `src/self/interpreter.til` or `src/c/ext.c`

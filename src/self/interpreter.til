@@ -2,7 +2,7 @@ mode lib
 
 import("context")
 import("loader")
-import("builder")
+import("c_codegen")
 import("../std/sys")
 import("../std/file")
 import("../../vendor/bindings/libffi")

@@ -336,14 +336,14 @@ typedef struct DocMeta DocMeta;
 typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
+typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_codegen_til__CollectionInfo;
+typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_codegen_til__DynCallInfo;
+typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___src_self_c_codegen_til__CollectionInfo;
+typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
-typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
-typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
 typedef struct Vec__DocEntry Vec__DocEntry;
-typedef struct Vec__priv___src_self_builder_til__CollectionInfo Vec__priv___src_self_builder_til__CollectionInfo;
-typedef struct Vec__priv___src_self_builder_til__DynCallInfo Vec__priv___src_self_builder_til__DynCallInfo;
 typedef struct _ffi_type ffi_type;
 typedef struct InterpCallableBox InterpCallableBox;
 typedef struct HeapBinding HeapBinding;
@@ -1071,6 +1071,33 @@ typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry {
 } Vec__priv___src_self_loader_til__ImportCheckEntry;
 
 
+typedef struct priv___src_self_c_codegen_til__CollectionInfo {
+    Str *type_name;
+    I32 is_vec;
+} priv___src_self_c_codegen_til__CollectionInfo;
+
+
+typedef struct priv___src_self_c_codegen_til__DynCallInfo {
+    Str *method;
+    I32 nargs;
+    Bool has_return;
+} priv___src_self_c_codegen_til__DynCallInfo;
+
+
+typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_c_codegen_til__CollectionInfo;
+
+
+typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_c_codegen_til__DynCallInfo;
+
+
 typedef struct priv___src_self_builder_til__BuildPaths {
     Str name;
     Str c_path;
@@ -1096,38 +1123,11 @@ typedef struct DocEntry {
 } DocEntry;
 
 
-typedef struct priv___src_self_builder_til__CollectionInfo {
-    Str *type_name;
-    I32 is_vec;
-} priv___src_self_builder_til__CollectionInfo;
-
-
-typedef struct priv___src_self_builder_til__DynCallInfo {
-    Str *method;
-    I32 nargs;
-    Bool has_return;
-} priv___src_self_builder_til__DynCallInfo;
-
-
 typedef struct Vec__DocEntry {
     U8 *data;
     USize count;
     USize cap;
 } Vec__DocEntry;
-
-
-typedef struct Vec__priv___src_self_builder_til__CollectionInfo {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_builder_til__CollectionInfo;
-
-
-typedef struct Vec__priv___src_self_builder_til__DynCallInfo {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_builder_til__DynCallInfo;
 
 
 typedef struct _ffi_type {

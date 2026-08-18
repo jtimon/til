@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #151 TempleOS target
+** WIP #151 TempleOS target
 
 :DEPENDENCIES: [[../fixed/12.org][#12]]
 
@@ -27,3 +27,57 @@
   TempleOS has no normal C compiler path comparable to the Linux,
   Windows, or browser targets. Treat it as deferred platform work, not
   as one more clang cross target.
+
+*** Direction
+
+  Translation stays on the Linux host: Linux til loads, types, lowers,
+  and emits a HolyC source file. TempleOS receives only that generated
+  source plus its TempleOS-native runtime support, then its own compiler
+  compiles and executes the program. A host-side HolyC implementation is
+  not the acceptance environment.
+
+  Keep the C and HolyC lowering together where their syntax and ABI
+  decisions overlap, but keep command/toolchain orchestration outside the
+  emitter. Other backends such as #317 can then provide their own codegen
+  behind the same builder boundary.
+
+  TempleOS is x86-64-only with 64-bit pointers. The current
+  ~TempleosX86~ placeholder is incorrectly included in
+  ~target_is_32bit~; fix that before aggregate or pointer-bearing programs
+  become part of the HolyC corpus. The project-wide USize default can
+  remain U32 independently of UPtr.
+
+*** Incremental plan
+
+  - [X] Extract C emission, C ABI bindings, and C-only emit reachability
+    from ~builder.til~ into ~c_codegen.til~. Builder retains paths,
+    commands, compilation, install, run, test, and documentation.
+  - [ ] Route the existing TempleOS target to a HolyC dialect in the
+    C-family codegen and emit a HolyC source path on Linux. Unsupported
+    AST/runtime features must fail explicitly rather than emit C or skip
+    work silently.
+  - [ ] Emit and run ~examples/hello_script.til~ first. Lower its literal
+    print to TempleOS HolyC and use a final top-level call as the guest
+    entrypoint; do not require ~src/til.til~, mode gui, libffi, or the
+    POSIX C runtime.
+  - [ ] Add scalar locals, arithmetic/core_func lowering, direct calls,
+    conditionals, and loops, then grow a named TempleOS example corpus one
+    passing example at a time.
+  - [ ] Add TempleOS-native allocation, strings, collections, filesystem,
+    and other ext_func primitives as the corpus reaches them.
+  - [ ] Add mode gui last, using TempleOS graphics rather than raylib.
+
+*** QEMU validation
+
+  Use a pinned, FAT32-installed TempleOS disk image. For each local or CI
+  run, copy the image, inject the Linux-generated HolyC file and a fixed
+  ~C:/Home/Once.HC~ harness, then boot that copy under qemu-system-x86_64.
+  ~Once.HC~ runs automatically in the first user task; it should compile
+  and execute the generated file with ~ExeFile2~, catch exceptions, write
+  a PASS/FAIL result file, report the same token over COM1, and exit QEMU
+  through ~isa-debug-exit~. The host requires the guest exit status and
+  result token to agree and applies a hard timeout.
+
+  This runs the generated program directly on TempleOS in both local and
+  CI testing. QEMU uses TCG in CI, legacy PC/IDE hardware, one CPU, and at
+  least 512 MiB RAM; KVM is an optional local acceleration only.
