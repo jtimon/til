@@ -2,11 +2,9 @@
 # category: features
 ** OPEN #375 JVM backend alongside the C backend
 
-Add a backend that runs til programs on the Java Virtual Machine. The
-backend may emit JVM class files directly, generate Java, Kotlin, or another
-JVM language, or use a class-file generation API. This issue preserves those
-choices for a measured spike and later human decision; the C backend remains
-the default and the bootstrap path.
+Add a backend that runs til programs on the Java Virtual Machine. The C
+backend remains the default and the only bootstrap path; a normal build and
+~make test~ must not require a JDK.
 
 *** Why the JVM
 
@@ -19,116 +17,361 @@ the default and the bootstrap path.
   [[../fixed/288.org][#288]] split: ~core_func~ is lowered natively and
   ~ext_func~ is supplied by a backend-specific runtime.
 
-*** Output route (human decision after a spike)
+*** Codebase findings
 
-Spike the same small class/module through the serious candidates:
+The common compiler pipeline is already usable by another backend:
 
-- Java source plus ~javac~: straightforward, inspectable, stable, and uses
-  only the standard JDK toolchain. Generated-source lines do not automatically
-  identify original til locations, and Java syntax can force source-level
-  encodings that raw bytecode does not need.
-- JVM ~.class~ files emitted directly: no source-language detour and full
-  control over bytecode and debug attributes, but the til backend owns the
-  constant pool, descriptors, branch offsets, exception tables, stack and
-  local limits, stack-map frames, class-file versions, and verifier rules.
-- A class-file library such as ASM: avoids hand-writing those details but
-  adds and versions a dependency. This is not approved merely by naming it.
-- The standard ~java.lang.classfile~ API: finalized in JDK 24, tracks the
-  evolving class-file format, and derives details such as constant-pool and
-  stack-map data. Using it requires at least JDK 24 and likely a Java helper
-  or generator process, which is a material toolchain and packaging choice.
-- Kotlin or another JVM-language source: may improve ecosystem interop or
-  express some constructs more directly, but adds that compiler and runtime
-  conventions. It must demonstrate an advantage over Java source or class
-  files rather than becoming an extra frontend by default.
-- A textual bytecode assembler can make the first experiment readable, but
-  it is another nonstandard tool and should not become the production route
-  without explicit approval.
+- ~prepare_program~ in ~src/self/loader.til~ initializes, types, lowers,
+  inserts ownership cleanup, constant-folds, and scavenges every loaded
+  unit. The backend receives the same typed, reachable AST as C.
+- Match expressions, lazy calls, and source Throw/Catch nodes do not need a
+  JVM-specific frontend. The typer/desugarer lowers them first. Throws use
+  explicit synthetic ~_err_kind~ and ~_err_<T>~ ref parameters plus ordinary
+  assignments and ifs, so the first JVM backend should emit that existing
+  representation rather than invent Java exceptions.
+- ~FuncType.is_core~ is the mandatory backend ISA. ~core_func~ calls have no
+  symbol and must be lowered by the JVM emitter. Surviving ~ext_func~ calls
+  need a JVM runtime implementation or a loud unsupported diagnostic.
+- The backend seam is currently C-specific in ~src/self/builder.til~:
+  ~BuildPaths~ contains C/header/binding paths, ~translate_ast~ always calls
+  ~c_codegen_translate_outputs~, ~compile_ast~ always invokes a C compiler,
+  and run/test execute a native binary directly.
+- ~src/self/targets.til~ separates emitted ~Lang~ from platform ~Target~,
+  but all current targets are native CPU/OS combinations. A portable managed
+  target needs explicit cases in every exhaustive target table without
+  allowing C-only toolchain helpers to run for it.
+- ~src/self/c_codegen.til~ is a complete backend, not a generic emitter.
+  Its C ABI, pointer/value classification, C-only reachability and many emit
+  helpers should not leak into the JVM emitter. Shared facts stay in the typed
+  AST and Context; the JVM backend owns its representation and emit state.
+- ~src/test_runner.til~ currently knows only interpreter versus native C:
+  it builds to ~bin/c/<name>~ and executes that path. JVM coverage therefore
+  needs an opt-in target-aware path rather than silently joining every
+  developer's default suite.
 
-The spike must record generated artifacts, exact commands, minimum JDK and
-optional language-tool versions, verifier behavior, source-location quality,
-output size, startup, and failure diagnostics. The human then chooses and
-approves the output path, writer/reader, regeneration and installation flow,
-dependencies, target class-file version, package/entry-class convention, and
-any new ~Lang~/~Target~ or CLI surface. No candidate artifact becomes a
-second source of truth during the experiment.
+*** Chosen first route: Java source on JDK 17
 
-*** Semantic decisions
+The first implementation should emit Java source and compile it with the
+standard ~javac~ tool. Pin generated source and APIs to ~--release 17~.
 
-- JVM byte, short, int, and long are signed, and byte/short arithmetic is
-  promoted to int. Til's U8/U16/U32/U64 operations need explicit narrowing,
-  masking, unsigned comparison/division, and shift lowering. F32 maps to JVM
-  float but each operation still needs cross-backend edge-case tests.
-- Choose layouts for structs, tuples, enums, interfaces, strings, collections,
-  closures, and ~FuncPtr~ values. Candidate mappings include generated
-  classes/interfaces and tagged class hierarchies; generic erasure must not
-  erase checks or representation facts that til needs.
-- JVM objects are garbage-collected, while til has explicit ~own~/~ref~,
-  clone, and delete behavior. GC may implement storage reclamation only where
-  deterministic deletion has no observable effect. Resource release,
-  aliasing, pointer identity, and use-after-delete behavior need explicit
-  semantics rather than treating ~delete~ as an unconditional no-op.
-- Decide whether til throws map to JVM exceptions or explicit result values,
-  and how source locations survive generated frames. The choice must preserve
-  til catch matching and propagation, not merely Java/Kotlin defaults.
-- Decide whether ~ext_func~ is reimplemented as a JVM runtime library or
-  reaches the current C runtime through JNI or the Foreign Function & Memory
-  API. FFM is final in JDK 22 and models native calls and off-heap memory, but
-  choosing it raises the minimum JDK, native-access/package requirements, and
-  preserves native-library deployment instead of delivering a portable pure
-  JVM backend.
-- Raw pointers, C FFI, dynamic loading, threads, and GUI mode need supported
-  JVM definitions or loud compile-time errors. Java reflection, method
-  handles, or ~invokedynamic~ may help later, but are not required for the
-  first direct-call subset.
-- Decide whether JVM is a new ~Lang~, a new ~Target~, or both. Existing
-  ~Target~ variants are native CPU/OS combinations, while JVM bytecode is a
-  versioned portable target with host-dependent runtime and native interop.
+Reasons:
 
-*** Incremental plan
+- The compiler can write text with its existing File/Str facilities. No class
+  file writer, Java helper process, wire format, or third-party dependency is
+  needed in til itself.
+- ~javac~ owns constant-pool construction, branch sizing, verifier stack-map
+  frames, class-file versioning, and ordinary debug attributes. Generated
+  Java remains inspectable while the representation is changing rapidly.
+- Java 17 has always-strict floating-point evaluation (JEP 306), so F32/F64
+  behavior does not depend on legacy extended-value execution. The standard
+  Integer/Long APIs already provide unsigned compare, divide, remainder,
+  conversion, parsing, and formatting operations.
+- Java is lower-level and more direct for this backend than Kotlin, Scala, or
+  another JVM language. Those add a compiler, runtime conventions, metadata,
+  and usually a standard-library dependency without solving til's ownership
+  or raw-memory model.
 
-  1. Toolchain spike, no compiler changes: hand-write one
-     ~examples/hello_script.til~-equivalent program through Java source and
-     the viable class-file routes, plus Kotlin or another JVM language only
-     if it offers a concrete distinction. Run it under a pinned JDK, inspect
-     it with ~javap -v~, and record the comparison and recommendation here.
-  2. Human decision: approve one intermediate/output representation,
-     generated path and extension, compiler/generator, minimum and target JDK
-     versions, runtime packaging, entry class, and ~Lang~/~Target~/CLI
-     behavior. Keep existing build entry points unless separately approved.
-  3. Backend plumbing and emitter skeleton behind the builder/codegen
-     boundary used by the C-family emitter. Unsupported AST nodes fail at
-     translation with their til source location.
-  4. Minimal scalar subset: static entry method, Bool and fixed-width numeric
-     values, local slots, native ~core_func~ lowering, direct static calls,
-     string literals, print, conditionals, loops, and switch. Compile and run
-     hello world and verify the output with the JVM verifier enabled.
-  5. Freeze and implement object/runtime mappings, then add structs, enums,
-     interfaces, arrays and collections, references and mutation, closures,
-     throws/catches, and ~ext_func~ groups incrementally.
-  6. Add an opt-in JVM corpus and burn down the portable suite. Keep the C
-     suite green at every stage; native FFI, raw pointers, GUI, reflection,
-     and advanced dynamic calls are late milestones after their semantics are
-     approved.
+Direct class-file emission remains a possible later replacement behind the
+same runtime ABI. Hand-writing class files would own the complete JVMS format;
+ASM would add a dependency; and the standard ~java.lang.classfile~ API is only
+final in JDK 24 and would require a Java-side generator/helper. None belongs
+in the first vertical slice.
+
+*** Proposed surface (requires human approval before implementation)
+
+This plan proposes one target, one emitted language, and one output pipeline:
+
+- Add ~Target.Jvm~ selected by ~--target=jvm~, with ~Lang.Java~ as its
+  default language. ~UPtr~ is U64 for this target; ~USize~ continues to follow
+  the source alias and the existing ~--usize~ override. The C/native target
+  remains the default when no target is supplied.
+- Add ~src/self/jvm_codegen.til~. Til's compiler writes Java from the prepared
+  AST; this file is the only compiler-side JVM emitter.
+- Add one hand-written backend runtime, ~src/jvm/TilRuntime.java~. The
+  generated Java calls it for ~ext_func~, raw-memory, string, process and I/O
+  operations. ~javac~ reads this runtime source alongside generated source,
+  and compiler installation copies it with the other backend support. It is
+  not a second implementation of one target: ~src/c/ext.c~ remains C's runtime
+  and ~TilRuntime.java~ is the JVM implementation of the same boundary.
+- ~til translate --target=jvm~ writes
+  ~gen/jvm/<name>/src/*.java~. Til is the writer and humans plus ~javac~ are
+  the readers. A generated ~sources.args~ in the same directory lists inputs
+  for ~javac~ so large programs do not hit command-line length limits.
+- ~til build --target=jvm~ writes class files under
+  ~gen/jvm/<name>/classes/~ and packages ~bin/<name>.jar~ with a Main-Class
+  manifest. ~javac~ writes the classes, ~jar~ writes the final artifact, and
+  ~java -jar~ reads it. ~til run~ uses ~java -Xverify:all -jar~.
+- These generated files are disposable and rebuilt by translate/build/run;
+  they never become source or committed artifacts. Existing C outputs cannot
+  serve this role because Java needs multiple compilation units and class
+  output before packaging. The tradeoff is an inspectable intermediate tree
+  and an installed JDK dependency whenever the JVM target is selected.
+- Keep the first output in the unnamed Java module. Choose the generated
+  package and stable library-facing names before enabling ~mode lib~; script
+  and CLI programs do not need to freeze a public Java API.
+- Keep ~-o~ as the final JAR path. Do not reinterpret C-specific ~-c~ or
+  ~--cc~; reject them for JVM builds until a separately approved generic
+  source-output/tool override exists. Reject ~--asan~ and ~--prof~ rather than
+  silently ignoring them.
+- Add an opt-in ~make test_jvm~ only after the first vertical slice. It checks
+  for the JDK and runs a named JVM corpus; ordinary ~make test~ remains fully
+  green and JDK-free.
+
+The output directories, JAR artifact, runtime source, target/CLI spelling and
+new test goal are proposed here, not approved merely by this plan. Approval
+must also choose the generated package/entry-class naming before code lands.
+
+*** Representation contract
+
+**** Scalars
+
+Use JVM primitives for shallow til primitives:
+
+| Til       | Java carrier | Required lowering |
+|-----------+--------------+-------------------|
+| I8        | byte         | Narrow after arithmetic/conversion |
+| U8        | int          | Keep canonical 0..255 with ~& 0xff~ |
+| I16       | short        | Narrow after arithmetic/conversion |
+| U16       | int          | Keep canonical 0..65535 with ~& 0xffff~ |
+| I32/U32   | int          | U32 uses bit pattern plus Integer unsigned APIs |
+| I64/U64   | long         | U64 uses bit pattern plus Long unsigned APIs |
+| F32/F64   | float/double | Preserve Java 17 strict IEEE operations |
+| Bool      | boolean      | No integer truthiness |
+
+Every narrow arithmetic result is truncated at the operation boundary, not
+only when stored. U32/U64 compare, divide, mod, parse and formatting use the
+unsigned JDK helpers. Til's core division/modulo return zero on a zero divisor,
+while JVM integer division throws, so evaluate operands once and emit the
+explicit zero guard. Shift direction, sign extension and masked shift counts
+must be pinned against the interpreter for every integer width.
+
+An ~own~ or ~ref~ primitive is not the primitive carrier: it is addressable
+storage. Use typed mutable cells for scalar locals/fields/out-parameters whose
+address escapes. Plain shallow locals stay JVM primitives. Read the decisions
+already recorded on Declaration/FCall/Assign (~own_type~, ~gc_storage~,
+~is_move~, argument bitmaps) instead of re-inferring ownership from syntax.
+
+**** Aggregates, identity and ownership
+
+The first representation spike should prove generated Java classes for named
+structs/enums plus a virtual raw heap:
+
+- One generated class per concrete monomorphized struct, with mutable fields
+  and deterministic mangled names. Struct refs are Java object references;
+  shallow by-value copies use an explicit generated shallow-copy operation so
+  they do not accidentally alias.
+- One generated class per concrete enum, carrying the declared-width tag and
+  a typed or boxed payload slot. Constructors, payload refs and niche forms
+  must preserve the AST's tag values and aliasing, not Java enum semantics.
+- Java GC reclaims unreachable backing objects, but emitted til clone, move,
+  delete and resource-release operations still run. An explicit delete cannot
+  become a no-op merely because storage is garbage-collected. Move emission
+  transfers the backing reference and clears the source according to the
+  garbager's recorded ~is_move~ decision.
+- Generate Java interfaces only when til interface dispatch needs them.
+  Ordinary namespace methods remain static generated methods, matching the
+  post-typer call identity instead of forcing every UFCS call into virtual Java
+  dispatch.
+
+The spike must exercise a stack/value struct, an owned struct, a borrowed
+field, a mutable scalar field ref, an enum with primitive payload, and
+~malloc(T.size())~. If generated classes cannot represent all six through one
+coherent ref/load/store contract, use virtual-heap blocks for aggregates too;
+do not ship a growing list of per-call special cases.
+
+**** Raw memory and core containers
+
+Do not replace Vec/Array/Map/Set/Str with unrelated Java collections. Their
+ordinary til bodies use ~malloc~, ~realloc~, ~ptr_add~, ~adopt~, ~memcpy~ and
+~T.size()~; bypassing those bodies would duplicate the core library and make
+the JVM backend a second source of container semantics.
+
+Implement a JVM virtual heap in the runtime instead:
+
+- A pointer is null or a pair of backing-block identity and byte offset.
+- A block stores primitive bytes plus typed object/reference slots keyed by
+  offset. Use the existing concrete type descriptors and
+  ~Context.struct_layouts~ sizes to space generic elements.
+- ~malloc/calloc/realloc/free~, pointer addition/equality, typed reads/writes,
+  ~memcpy/memmove/memset/memcmp~, ~adopt~ and ~adopt_from~ operate on that
+  model. Realloc preserves both bytes and reference slots. Partial or
+  unaligned writes through an object slot fail loudly.
+- Pin JVM raw-memory byte order before implementation; fixed little-endian is
+  the recommended portable rule and matches the currently supported native
+  targets. This is an externally visible unsafe-code decision requiring human
+  approval.
+- Str then remains the existing til struct (~c_str~, ~count~, ~cap~), with its
+  UTF-8 bytes in a block. Java String is used only at host API boundaries;
+  making it canonical would break byte indexing, embedded NULs and views.
+
+This virtual heap is intentionally correctness-first. Once the portable suite
+passes, specialized primitive arrays or Java collections may optimize proven
+hot paths without changing the runtime contract.
+
+**** Throws, Dynamic and functions
+
+- Emit the existing lowered throw ABI first: typed mutable cells for
+  ~_err_kind~ and payload out-parameters, followed by the ordinary guards and
+  assignments already in the AST. Java exceptions are reserved for JVM/runtime
+  failures and an optional future ABI change.
+- Represent Dynamic as a value plus a generated type descriptor, never as an
+  untagged Object whose interpretation depends on the call site. Descriptors
+  provide size, storage kind, fields, enum variants, clone/delete and method
+  dispatch for the existing reflection primitives.
+- Generate one Java functional interface per concrete FuncSig. Noncapturing
+  function values use static method references or singleton carriers;
+  capturing funcs and Body values use generated environment classes. Add
+  ~invokedynamic~ only if measurement later justifies direct bytecode work.
+
+**** External boundary
+
+Implement surviving ~ext_func~/~ext_proc~ groups in Java in this order:
+
+  1. scalar clone/conversion/cmp and print/flush/exit;
+  2. virtual-heap operations and Str parse/format;
+  3. filesystem, clock, process and host queries via standard Java APIs;
+  4. reflection/Dynamic helpers and closure-slot operations;
+  5. optional native interop only after a separate decision.
+
+The first backend does not load ~src/c/ext.c~ through JNI or FFM. Reusing it
+would keep platform-specific native deployment, raise the JDK floor for FFM,
+and make the supposedly portable backend depend on the C representation. A
+future FFM mode may expose user C libraries after its ABI, packaging and
+native-access requirements are approved. Until then, surviving user ~link()~,
+C FFI, GUI, raw host addresses and unsupported ext symbols are translation
+errors naming the til source location and missing JVM implementation.
+
+*** Staged implementation plan
+
+Use lettered stages because some emitter changes may need to land before a
+later self-application; every landed stage keeps C and bootstrap green.
+
+**** Stage A: executable route and representation proof (documentation only)
+
+Hand-write the Java equivalent of ~examples/hello_script.til~ plus the six
+aggregate/ref cases above. Compile with:
+
+#+begin_example
+javac --release 17 -encoding UTF-8 -g -proc:none -d <classes> @<sources.args>
+jar --create --file <program.jar> --main-class <entry> -C <classes> .
+java -Xverify:all -jar <program.jar>
+#+end_example
+
+Inspect with ~javap -v~. Record JDK versions, exact generated layout, verifier
+result, output, class/JAR size and diagnostics here. Obtain human approval for
+the proposed surfaces and representation contract before Stage B.
+
+**** Stage B: target and builder dispatch
+
+  - Append ~Lang.Java~ and ~Target.Jvm~ and cover every target helper.
+    ~target_uptr_name(Target.Jvm)~ returns U64; C toolchain/library helpers
+    reject JVM if called.
+  - Split builder orchestration at ~derive_build_paths~, ~translate_ast~,
+    ~compile_ast~, success reporting, run and install. Keep the existing C
+    functions unchanged behind the C branch.
+  - Validate incompatible flags before preparing the program. A failed JDK
+    probe names the missing tool and required version; it never falls back to C.
+  - Add focused target/path/flag tests. The JVM branch may initially stop after
+    generating one skeletal Java entry class.
+
+**** Stage C: Java emitter skeleton and smoke program
+
+  - Add deterministic Java identifier mangling, keyword handling, UTF-8/string
+    escaping, indentation and source-location diagnostics.
+  - Emit one compilation unit per loaded ProgramUnit plus an entry class;
+    keep all units in one generated package/classpath and compile together via
+    the argfile. Split units/classes rather than risking the class-file constant
+    pool and 65,535-byte method limits with one giant class.
+  - Emit Body, literals, Ident, Decl, Assign, Return, direct FCall, If, While,
+    Switch/Case, Break and Continue. Any other surviving NodeType is a hard
+    translation error; no empty/default emission.
+  - Lower Bool and numeric ~core_func~ operations according to the scalar
+    table. Add Java runtime print/flush/exit and the minimum Str literal path.
+  - Acceptance: ~til run --target=jvm examples/hello_script.til~ prints exactly
+    the C/interpreter output and ~java -Xverify:all~ accepts the JAR.
+
+**** Stage D: scalar conformance, refs and lowered errors
+
+  - Complete every scalar core operation and ext conversion/clone/cmp.
+  - Add typed cells and addressable locals/fields; support mut/ref scalar
+    parameters and assignments through aliases.
+  - Emit the existing synthetic throw out-parameters and propagation guards.
+  - Add cross-backend tests for min/max wrap, zero div/mod, unsigned U32/U64,
+    shifts, NaN/infinity/signed zero, mutation through refs, and payload and
+    payload-less throws.
+
+**** Stage E: aggregates and virtual memory
+
+  - Generate monomorphized struct/enum classes, defaults, field access/update,
+    constructors, shallow copies, clone/move/delete, refs and interface checks.
+  - Land the pointer/block runtime and all memory primitives before relying on
+    core containers. Exercise pointer identity, alias-visible writes, realloc,
+    overlap-safe memmove, aggregate slots and loud invalid access.
+  - Bring up Str first, then Array and Vec, then Map/Set and their dynamic
+    variants. Run the existing focused test file for each type as it becomes
+    supported; do not claim the whole corpus early.
+
+**** Stage F: first-class functions, Dynamic and reflection
+
+  - Generate FuncSig interfaces, noncapturing FuncPtr values, closures with
+    capture environments, Body values and closure ownership operations.
+  - Add concrete type descriptors and implement dyn call/has/fn/size/storage,
+    struct/enum/function introspection and Dynamic clone/delete.
+  - Run ~test/fn_ptr.til~, ~test/closures.til~, ~test/first_class.til~,
+    ~test/dynamic.til~ and the reflection tests under interpreter, C and JVM.
+
+**** Stage G: runtime breadth and suite burn-down
+
+  - Implement standard Java versions of reachable filesystem, process, clock,
+    environment and host ext functions one coherent group at a time.
+  - Extend the test runner with an explicit JVM leg and add ~make test_jvm~.
+    Record skip/exclusion reasons next to the corpus; unsupported features
+    remain compile-time errors, never successful no-ops.
+  - Burn down portable script/CLI tests. Libraries/JAR API, install behavior,
+    C FFI/FFM, GUI and Java ecosystem interop each require a later explicit
+    surface/ABI decision.
+
+**** Stage H: source mapping and optional direct bytecode
+
+Java source gives generated Java line tables, not original til locations.
+Keep til path/line comments and translation diagnostics from Stage C, then add
+JSR 45 ~SourceDebugExtension~ mappings after emission stabilizes. That may use
+a small til class-file attribute writer or a separately approved JDK 24
+Class-File API helper. Only after the complete runtime contract is tested
+should direct class-file emission be reconsidered; it must produce the same
+classes, descriptors, JAR behavior and source mapping as the Java route.
 
 *** Acceptance
 
-- A smoke program is translated, compiled or assembled by the selected
-  pipeline, passes JVM verification, and runs with output matching C.
+- A smoke program is translated to Java, compiled with ~javac --release 17~,
+  packaged as an executable JAR, passes ~java -Xverify:all~, and runs with
+  output matching C and the interpreter.
 - Fixed-width signed/unsigned scalar edge cases and F32 behavior match the
   interpreter and C backend; ~core_func~ operations compile to JVM operations
   or approved standard-library intrinsics, not C runtime calls.
 - Supported mutation, aliasing, aggregates, control flow, throws, interfaces,
   and closures pass named cross-backend tests. Every unsupported construct
   fails loudly at translation time.
-- Stack traces and diagnostics identify useful original til file/line
-  locations using the selected route's debug metadata.
+- The common post-prepare AST contains no silently skipped nodes. Every
+  unsupported node, ext symbol or mode fails at translation with its til
+  file/line.
+- JVM raw memory, refs, move/delete, strings and containers preserve til's
+  observable behavior; Java GC and collections do not replace language
+  semantics.
+- Stack traces and debugger mappings identify original til file/line locations
+  through the final JSR 45/debug-metadata stage.
 - The default C build, boot artifacts, and self-hosting loop do not require a
   JDK, Kotlin, ASM, or any other optional JVM toolchain.
 
 *** References
 
 - https://docs.oracle.com/javase/specs/jvms/se24/html/jvms-4.html
+- https://docs.oracle.com/en/java/javase/24/docs/specs/man/javac.html
+- https://docs.oracle.com/en/java/javase/17/docs/specs/man/jar.html
+- https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Integer.html
+- https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Long.html
+- https://openjdk.org/jeps/306
 - https://openjdk.org/jeps/484
 - https://docs.oracle.com/en/java/javase/24/docs/api/java.base/java/lang/classfile/package-summary.html
 - https://openjdk.org/jeps/454
+- https://jcp.org/en/jsr/detail?id=45
