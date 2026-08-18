@@ -1,0 +1,115 @@
+# priority: medium
+# category: optimizations
+** OPEN #371 Own primitive args: C stack slot passed by pointer, not a malloc'd box
+
+*** The waste
+
+An ~own~ argument of primitive type is passed as a heap box that
+exists only so the callee can free it. The call site manufactures it:
+
+#+begin_src c
+Set__U32_add(names, ({ U32 *_oa = malloc(sizeof(U32)); *_oa = hoisted__U32_1; _oa; }));
+#+end_src
+
+and the callee's consumption is ~adopt~:
+
+#+begin_src til
+adopt := func(T: Type, dest: Dynamic, own src: T) {
+    memcpy(dest, src, T.size())
+    free(own src)          // frees the box the caller just malloc'd
+}
+#+end_src
+
+Measured 2026-08 on ~translate test/first_class.til~: ~527K
+malloc/free pairs per run (~adopt__U8~ 329K, ~USize~ 73K, ~I64~ 46K,
+~U32~ 40K, ~I32~ 38K), roughly 9% of all allocations, ~1.2% of
+instructions. Numbers predate the mid-August master churn; RE-MEASURE
+before starting.
+
+*** The design (decided 2026-08-18)
+
+Keep the pointer ABI and the single meaning of ~own~; change only who
+owns the SLOT. The caller declares the value on the C STACK and passes
+its address; the callee copies the bytes out and frees NOTHING:
+
+#+begin_src c
+Set__U32_add(names, &hoisted__U32_1);      // no box, no free
+#+end_src
+
+Why this is not "own means two things":
+
+- ~own~ means the callee consumes the value. For a primitive there is
+  no destructor and no owned interior, so consuming IS the byte copy.
+  The ~free(own src)~ in adopt was never part of ~own~'s semantics --
+  it was the box-passing ABI's cleanup of its own vehicle. Removing
+  the vehicle removes the free; the semantics do not move.
+- Signatures do not change: ~Vec__U32_push(self, U32 *val)~ stays
+  pointer-taking, monomorphizations keep one ABI, and the emit
+  machinery already exists (emit_as_ptr's non-own path passes
+  ~&stack_local~ today).
+- A rejected alternative, recorded so it stays rejected: passing
+  ~own <primitive>~ BY VALUE. That forks the C signature per element
+  type and gives ~own~ a type-dependent contract; ruled out
+  2026-08-18 -- own has one meaning, ref has one meaning; only the
+  DEFAULTS vary by position (args default ref, locals shallow with
+  explicit own where needed, fields shallow).
+
+Type scope, and why there is no ambiguity:
+
+- ALL fixed-width primitives qualify: U8/I8 are exactly C's
+  unsigned/signed char -- 8-bit scalars, nothing else. I16..U64,
+  USize, UPtr, Bool, F32, F64 likewise. Raw byte BUFFERS are not
+  primitives-by-value anywhere in the ABI: they live in ~own~ FIELDS
+  (~Vec.data : U8~, ~Str.c_str : I8~ -- untouched by this issue) and
+  travel to ~free~/~realloc~ as ~Dynamic~ ext-func params.
+- ~Dynamic~ is EXCLUDED, by its nature: Dynamic is the typer's
+  opt-out, the way script languages are dynamic -- fewer compile-time
+  checks, so more can fail at runtime, deliberately. A ~Dynamic~ own
+  param can be a heap pointer the callee really must free (~free~,
+  ~realloc~), so Dynamic keeps today's box ABI unchanged.
+
+*** Plan (one "Two-pass: " commit -- the ABI is internal to each
+    emitted program, so one compiler flips caller and callee together;
+    pass 1 is uniformly old-ABI, pass 2 uniformly new-ABI; no staged
+    migration needed)
+
+1. Re-measure: callgrind baseline, adopt__* call counts, and
+   `grep -c "_oa = malloc"` over gen/til/til.c.
+2. Caller side (builder, emit_as_ptr's own branch): for an own arg
+   whose til_type is primitive (not Dynamic), emit the address of the
+   value -- the existing hoisted temp when there is one, else hoist an
+   addressable temp -- instead of the ~_oa~ malloc box. The Str
+   special case (stack lit-str own args already pass ~&name~) is the
+   precedent in that exact branch.
+3. Callee side (builder): ~free(own <p>)~ where ~<p>~ is an own
+   PARAMETER of primitive non-Dynamic type emits as a no-op. That one
+   rule covers both consumption shapes: adopt's ~free(own src)~ and
+   the primitive delete methods' ~if call_free { free(own self) }~
+   (numbers.til). It is an ABI rule, not a guard: the slot belongs to
+   the caller's frame by definition of the new ABI.
+4. Interpreter: mirror the rule so both backends agree -- own
+   primitive args are consumed by value-copy, no box free on either
+   side of the call. Audit free_temp_arg_value / the own-arg paths
+   for the box assumption.
+5. Garbager: verify nothing changes -- scalar locals already get no
+   deletes (gc_delete_is_noop), and an own-arg transfer of a scalar
+   already stands down nothing. The #368 family is the cautionary
+   precedent for touching transfer bookkeeping; run the gc_audit
+   golden and read the diff.
+6. Verify: make clean && make test_two_pass (full ASAN suite is the
+   leak/wild-free gate for both directions of a mismatch); corpus
+   eqcheck to bound the C diff to exactly the box removals; callgrind
+   after, expect the adopt__<prim> boxes gone.
+
+*** Risks
+
+- Missing ONE side of one call shape is a leak (caller boxes, callee
+  no longer frees) or a wild free (caller passes stack, callee still
+  frees). ASAN catches both; the two-pass build makes each pass
+  internally consistent, so a miss shows as a suite failure, not a
+  shipped corruption.
+- ext_funcs: none take own primitives today (~free~/~realloc~ are own
+  Dynamic -- excluded), so the FFI boundary is untouched; assert that
+  stays true or handle it explicitly.
+- Interpreter/compiled divergence: the interpreter models the box
+  today; rule 4 must land in the same commit or interp tests diverge.
