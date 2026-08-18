@@ -1,6 +1,27 @@
 # priority: low
 # category: cleanups
-** OPEN #257 Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
+** FIXED #257 Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
+
+*Post-mortem.*
+
+  Primitive layout had three independently maintained name-to-width
+  tables. Later work consolidated struct and enum sizing through
+  ~primitive_type_info~, which delegates to the canonical
+  ~builtin_primitive_size_align~, but ~elem_size_for_type~ retained its
+  own switch and could still drift whenever a primitive was added.
+
+  ~elem_size_for_type~ now resolves the name with ~type_from_name_init~
+  and delegates to ~raw_type_size~. That existing interpreter path uses
+  ~builtin_primitive_size_align~ for every ~Primitive~, resolves
+  ~USize~/~UPtr~ aliases through the active scope, and reads aggregate
+  sizes from the layout cache. The primitive width literals therefore
+  live in one function, and all three original consumers share it.
+
+  The regression test is ~f64_variadic~: it previously caught the exact
+  failure mode when the hand-maintained element-size switch omitted F64,
+  and now exercises the canonical path in both interpreter and compiled
+  modes. ~test_struct_fold_f32~ continues to guard primitive struct
+  layout. ~make clean && make test~ passes 393/393.
 
   *Symptom / smell.* The primitive byte size and alignment of every
   builtin scalar is hardcoded as a literal in multiple places instead

@@ -23,7 +23,6 @@
 *** [[./open/195.org][#195]] Consider removing ~mode test~
 *** [[./open/207.org][#207]] Consider removing Vec.move_from
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
-*** [[./open/257.org][#257]] Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
 *** [[./open/296.org][#296]] Confusing errors when a FuncSig is written with an empty body `{}`
 * Optimizations
 ** High
