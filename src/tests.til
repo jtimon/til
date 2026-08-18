@@ -668,26 +668,26 @@ main := proc(args: ..Str) {
     add_count(tests, "aggregate_local_stack_storage", "build",
         "StackValue346 value = {0};", 1,
         format(til_bin, " translate -c gen/c/aggregate_local_stack.c test/structs.til '&&' cat gen/c/aggregate_local_stack.c"))
-    add_count(tests, "aggregate_own_param_value_return", "build",
-        "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 value)", 2,
+    add_count(tests, "aggregate_own_param_pointer_return", "build",
+        "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", 2,
         format(til_bin, " translate -c gen/c/aggregate_own_return.c test/structs.til '&&' cat gen/c/aggregate_own_return.c"))
     add_count(tests, "aggregate_own_escape_boxes", "build",
         "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", 1,
         format(til_bin, " translate -c gen/c/aggregate_own_escape.c test/structs.til '&&' cat gen/c/aggregate_own_escape.c"))
-    add_count(tests, "funcsig_own_param_value_abi", "build",
-        "static USize consume_owned_box346(ReturnBox346 box)", 2,
+    add_count(tests, "funcsig_own_param_pointer_abi", "build",
+        "static USize consume_owned_box346(ReturnBox346 * box)", 2,
         format(til_bin, " translate -c gen/c/aggregate_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/aggregate_param_funcsig.c"))
     add_count(tests, "funcsig_own_primitive_param_value_abi", "build",
         "static I64 consume_owned_i64(I64 value)", 2,
         format(til_bin, " translate -c gen/c/primitive_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/primitive_param_funcsig.c"))
-    add_count(tests, "closure_own_param_value_abi", "build",
-        "static USize closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 box)", 1,
+    add_count(tests, "closure_own_param_pointer_abi", "build",
+        "static USize closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 * box)", 1,
         format(til_bin, " translate -c gen/c/aggregate_param_closure.c test/closures.til '&&' cat gen/c/aggregate_param_closure.c"))
-    add_count(tests, "self_method_own_param_value_abi", "build",
-        "static void Expr_add_child(Expr * self, Expr child)", 2,
+    add_count(tests, "self_method_own_param_pointer_abi", "build",
+        "static void Expr_add_child(Expr * self, Expr * child)", 2,
         "cat boot/til.c")
-    add_count(tests, "self_template_own_param_value_abi", "build",
-        "static void Vec__Expr_push(Vec__Expr * self, Expr val)", 2,
+    add_count(tests, "self_template_own_param_pointer_abi", "build",
+        "static void Vec__Expr_push(Vec__Expr * self, Expr * val)", 2,
         "cat boot/til.c")
     add_count(tests, "self_scalar_own_param_value_abi", "build",
         "static void Vec__USize_push(Vec__USize * self, USize val)", 2,
@@ -705,10 +705,31 @@ main := proc(args: ..Str) {
         "static Str format(Array__Str * parts)", 2,
         "cat boot/til.c")
     add_count(tests, "variadic_param_stack_cleanup", "build",
-        "Array__Str_delete(parts, 0);\n    { Str _ret = out;", 1,
+        "Array__Str_delete(parts, (Bool){0});\n    { Str _ret = out;", 1,
         "cat boot/til.c")
     add_count(tests, "variadic_param_no_outer_boxes", "build",
         "Array__Str *_oa = malloc(TIL_BOX(Array__Str))", 0,
+        "cat boot/til.c")
+    add_count(tests, "enum_ctor_pointer_abi", "build",
+        "NodeType_FCall(FCallData *", 2,
+        "cat boot/til.c")
+    add_count(tests, "enum_ctor_stack_payload", "build",
+        "NodeType_FCall(({ FCallData *_oa = malloc(TIL_BOX(FCallData))", 0,
+        "cat boot/til.c")
+    add_count(tests, "enum_ctor_borrows_outer", "build",
+        "r.data.FCall = *val;\n    return r;", 1,
+        "cat boot/til.c")
+    add_count(tests, "niche_enum_ctor_keeps_heap_payload", "build",
+        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 73,
+        "cat boot/til.c")
+    add_count(tests, "stack_delete_no_outer_box", "build",
+        "Expr_delete(({ Expr *_oa = malloc(TIL_BOX(Expr))", 0,
+        "cat boot/til.c")
+    add_count(tests, "stack_delete_borrows_outer", "build",
+        "Expr_delete(&def, (Bool){0})", 2,
+        "cat boot/til.c")
+    add_count(tests, "global_delete_borrows_outer", "build",
+        "Map__Str_TokenType_delete(&priv___src_self_lexer_til__KEYWORDS, (Bool){0})", 1,
         "cat boot/til.c")
     add_count(tests, "expr_new_value_return_abi", "build",
         "static Expr Expr_new(NodeType * data, U32 line, U32 col)", 2,
@@ -1091,7 +1112,7 @@ main := proc(args: ..Str) {
     // leave a declaration nothing reads, and retiring the declaration too
     // is the ownership rewrite #302 owns. test_delete's `p := Point(x=3,
     // y=7); Point.delete(own p)` is exactly that shape.
-    add_count(tests, "structs_keeps_sole_reader_delete", "build", "Point_delete(&p, 0);", 1,
+    add_count(tests, "structs_keeps_sole_reader_delete", "build", "Point_delete(&p, (Bool){0});", 1,
         format(til_bin, " translate -c gen/c/structs_sr.c test/structs.til '&&' cat gen/c/structs_sr.c"))
     // A destructor with real field work keeps every call.
     add_count(tests, "errors_keeps_field_deletes", "build", "Str_delete(&self->msg, 0);", 6,
@@ -1106,7 +1127,7 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/structs_nd.c test/structs.til '&&' cat gen/c/structs_nd.c"))
     // ...and a MUTABLE one keeps its delete: `mut out := "..."` is
     // reassigned, so by the delete the cap is whatever the last write left.
-    add_count(tests, "strings_keeps_mut_literal_delete", "build", "Str_delete(&out, 0);", 2,
+    add_count(tests, "strings_keeps_mut_literal_delete", "build", "\n    Str_delete(&out, (Bool){0});", 2,
         format(til_bin, " translate -c gen/c/strings_md.c test/strings.til '&&' cat gen/c/strings_md.c"))
     // A `ref` decl's deliberately-unused (void) guard was written twice --
     // once in the Ref arm and once by the shared tail that runs for both

@@ -582,6 +582,35 @@ priv callee_param_has_stack_outer := func(callee_name: Str, arg_index: USize, ct
     }
 }
 
+priv fcall_param_has_stack_outer := func(e: Expr, callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
+    if callee_param_has_stack_outer(callee_name, arg_index, ctx) { return true }
+    sig_o := fcall_fn_sig(e, ctx)
+    if sig_o.is_none() { return false }
+    switch sig_o.unwrap().node_type {
+    case .FuncDef(fd): return func_param_has_stack_outer(fd, arg_index, ctx.param_value_abi_ok, ctx.scope)
+    case: return false
+    }
+}
+
+priv delete_call_has_stack_outer := func(e: Expr, callee_name: Str, mut ctx: Context) returns Bool {
+    if e.children.len() < 3 { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    switch fdef_o.unwrap().node_type {
+    case .FuncDef(fd):
+        if fd.params.len() < 2 { return false }
+        if fd.params[1].name != "call_free" { return false }
+    case: return false
+    }
+    switch e.children[1].node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name()
+        return is_value_param(name, ctx).or(is_stack_outer_param(name, ctx))
+            .or(is_stack_local(name, ctx)).or(is_value_global(name, ctx))
+    case: return false
+    }
+}
+
 priv callee_param_is_usize := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
     fdef_o := find_callee_fdef(callee_name, ctx)
     if fdef_o.is_none() { return false }
@@ -1250,7 +1279,42 @@ priv emit_own_value_arg := proc(f: File, e: Expr, depth: I32, keep_outer: Bool, 
     f.write("_ov; })")
 }
 
+// Pass an owned value through a pointer ABI while lending the callee only the
+// outer slot. A heap-backed source is moved into a block-lifetime compound
+// literal and its old wrapper is released; stack-backed sources pass directly.
+priv emit_stack_outer_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
+    e_sname_o := expr_type_name_ref(e)
+    mut ctype := c_type_name(e.til_type(), "", ctx)
+    if e_sname_o.is_some() { ctype = c_type_name(e.til_type(), e_sname_o.unwrap(), ctx) }
+    mut struct_ctor_ptr := false
+    switch e.node_type {
+    case .FCall:
+        if e_sname_o.is_some().and(e.children.len() > 0) {
+            switch e.children[0].node_type {
+            case .Ident(callee): struct_ctor_ptr = callee.ident_name() == e_sname_o.unwrap()
+            case:
+            }
+        }
+    case:
+    }
+    if struct_ctor_ptr {
+        f.write("&((").write(ctype).write("[]){ ({ ").write(ctype).write(" *_op = (")
+            .write(ctype).write(" *)")
+        emit_as_ptr(f, e, depth, false, ctx)
+        f.write("; ").write(ctype).write(" _ov = *_op; free(_op); _ov; }) })[0]")
+        return
+    }
+    if own_value_arg_has_outer_ptr(e, ctx).not() {
+        emit_as_ptr(f, e, depth, false, ctx)
+        return
+    }
+    f.write("&((").write(ctype).write("[]){ ")
+    emit_own_value_arg(f, e, depth, false, ctx)
+    f.write(" })[0]")
+}
+
 priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32, mut ctx: Context, wrap_inline_closures: Bool) {
+    delete_stack_outer := delete_call_has_stack_outer(e, callee_name, ctx)
     for i in 1..e.children.len() {
         if i > 1 { f.write(", ") }
         ref arg : Expr = e.children[i]
@@ -1266,7 +1330,10 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             }
         }
         if emitted_inline_closure { continue }
-        if ext_c_string_param(callee_name, i - 1, ctx).and(c_str_arg_needs_nul_check(arg)) {
+        if delete_stack_outer.and(i == 2) {
+            if callee_param_passes_c_value(callee_name, i - 1, ctx) { f.write("(Bool){0}") }
+            else { f.write("&(Bool){0}") }
+        } else if ext_c_string_param(callee_name, i - 1, ctx).and(c_str_arg_needs_nul_check(arg)) {
             emit_checked_c_str(f, arg, depth, ctx)
         } else if callee_param_passes_c_value(callee_name, i - 1, ctx) {
             if callee_param_is_own(callee_name, i - 1, ctx) {
@@ -1280,12 +1347,16 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             f.write("UPTR_REF(").emit_deref(arg, depth, ctx).write(")")
         } else {
             own_arg := get_own_arg(e, i)
+            stack_outer_arg := fcall_param_has_stack_outer(e, callee_name, i - 1, ctx)
             saved_force_heap := ctx.builder_func.force_heap_stack_lit_str_own
             if own_arg.and(callee_param_type_name(callee_name, i - 1, ctx).eq("Dynamic")) {
                 ctx.builder_func.force_heap_stack_lit_str_own = true
             }
-            emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).not())
-                .and(callee_param_has_stack_outer(callee_name, i - 1, ctx).not()), ctx)
+            if stack_outer_arg { emit_stack_outer_arg(f, arg, depth, ctx) }
+            else {
+                emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).not())
+                    .and(delete_stack_outer.not()), ctx)
+            }
             ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
         }
     }
@@ -2983,15 +3054,19 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
         if emitted_inline { continue }
         mut arg_value := false
         mut arg_own := false
+        mut arg_stack_outer := false
         if i - 1 < sfd.params.len() {
             ref p : Declaration = sfd.params[i - 1]
             arg_value = func_param_passes_c_value(sfd, i - 1, ctx.param_value_abi_ok, ctx.scope)
             arg_own = p.own_type.is(OwnType.Own)
+            arg_stack_outer = func_param_has_stack_outer(sfd, i - 1, ctx.param_value_abi_ok, ctx.scope)
         }
         if arg_value.and(arg_own) {
             emit_own_value_arg(f, e.children[i], depth, get_keep_outer_arg(e, i), ctx)
         } else if arg_value {
             emit_deref(f, e.children[i], depth, ctx)
+        } else if arg_stack_outer {
+            emit_stack_outer_arg(f, e.children[i], depth, ctx)
         } else {
             emit_as_ptr(f, e.children[i], depth,
                 get_own_arg(e, i).and(get_keep_outer_arg(e, i).not()), ctx)
@@ -3343,9 +3418,13 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 f.write("_")
                 f.write(mname.field_access_name())
                 f.write("(")
+                delete_stack_outer := delete_call_has_stack_outer(e, flat, ctx)
                 for i in 1..e.children.len() {
                     if i > 1 { f.write(", ") }
-                    if callee_param_passes_c_value(flat, i - 1, ctx) {
+                    if delete_stack_outer.and(i == 2) {
+                        if callee_param_passes_c_value(flat, i - 1, ctx) { f.write("(Bool){0}") }
+                        else { f.write("&(Bool){0}") }
+                    } else if callee_param_passes_c_value(flat, i - 1, ctx) {
                         if callee_param_is_own(flat, i - 1, ctx) {
                             emit_own_value_arg(f, e.children[i], depth, get_keep_outer_arg(e, i), ctx)
                         } else {
@@ -3357,13 +3436,17 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                         f.write("UPTR_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else {
                         own_arg := get_own_arg(e, i)
+                        stack_outer_arg := callee_param_has_stack_outer(flat, i - 1, ctx)
                         saved_force_heap := ctx.builder_func.force_heap_stack_lit_str_own
                         if own_arg.and(callee_param_type_name(flat, i - 1, ctx).eq("Dynamic")) {
                             ctx.builder_func.force_heap_stack_lit_str_own = true
                         }
-                        emit_as_ptr(f, e.children[i], depth,
-                            own_arg.and(get_keep_outer_arg(e, i).not())
-                                .and(callee_param_has_stack_outer(flat, i - 1, ctx).not()), ctx)
+                        if stack_outer_arg { emit_stack_outer_arg(f, e.children[i], depth, ctx) }
+                        else {
+                            emit_as_ptr(f, e.children[i], depth,
+                                own_arg.and(get_keep_outer_arg(e, i).not())
+                                    .and(delete_stack_outer.not()), ctx)
+                        }
                         ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
                     }
                 }
@@ -4425,8 +4508,8 @@ priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
 // Emit the indented C declaration that binds CLI argument `var` of til type
 // `ttype`, parsed from the argv c-string expression `arg`. Used by both the
 // fixed-arg and variadic-arg paths in main()'s generated entry wrapper.
-priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str, by_value: Bool) {
-    expr := cli_box_expr(ttype, arg, by_value)
+priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str, by_value: Bool, stack_outer: Bool) {
+    expr := cli_box_expr(ttype, arg, by_value.or(stack_outer))
     if expr == "" {
         f.write(ind).write("// unsupported CLI arg type: ").write(ttype).write("\n")
         f.write(ind).write("fprintf(stderr, \"error: unsupported CLI argument type '").write(ttype).write("'\\n\"); return 1;\n")
@@ -4435,6 +4518,12 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
     // Value parameters bind directly; variadic element temps stay boxed.
     if by_value {
         f.write(ind).write(ttype).write(" ").write(var).write(" = ").write(expr).write(";\n")
+        return
+    }
+    if stack_outer {
+        stack_name := "_cli_main_".format(var)
+        f.write(ind).write(ttype).write(" ").write(stack_name).write(" = ").write(expr).write(";\n")
+        f.write(ind).write(ttype).write(" *").write(var).write(" = &").write(stack_name).write(";\n")
         return
     }
     f.write(ind).write(ttype).write(" *").write(var).write(" = ").write(expr).write(";\n")
@@ -4552,7 +4641,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
-                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false)
+                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false, false)
                     // Issue #225: write the element directly instead of via
                     // Array.set. Array.set is about to start throwing
                     // OutOfBounds (so `arr[i] = v` can desugar to
@@ -4566,8 +4655,9 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     f.write("    }\n")
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")
-                    emit_cli_parse_value(f, "    ", p.type_name(), p.name, arg,
-                        func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope))
+                    by_value := func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope)
+                    stack_outer := func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope)
+                    emit_cli_parse_value(f, "    ", p.type_name(), p.name, arg, by_value, stack_outer)
                     argi++
                 }
             }
@@ -5046,11 +5136,13 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
             } else if is_funcsig_type(vt, lp.ctx).or(vt.eq("Dynamic")) {
                 f.write("    r.data.").write(vn).write(" = val;\n")
             } else {
-                // Issue #109: payload param is Own -- caller transferred
-                // the heap `val`, so move its contents and free it.
+                // The closed-world caller lends its stack outer while moving
+                // the contents. External ABI callers transfer a heap outer.
                 f.write("    r.data.").write(vn).write(" = *val;\n")
-                if vt == "Str" { f.write("    if (val->cap != TIL_CAP_LIT) { free(val); }\n") }
-                else { f.write("    free(val);\n") }
+                if lp.ctx.param_value_abi_ok.not() {
+                    if vt == "Str" { f.write("    if (val->cap != TIL_CAP_LIT) { free(val); }\n") }
+                    else { f.write("    free(val);\n") }
+                }
             }
             f.write("    return r;\n").write("}\n")
         }

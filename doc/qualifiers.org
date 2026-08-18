@@ -341,8 +341,9 @@ stack-owned for locals.
 ~OwnType~ records semantics only. ~Declaration.gc_storage~ is the sole
 authority for a local's outer C storage: ~Stack~ for ordinary values and
 ~HeapBox~ only for raw allocations or pointer-shaped callable storage. In a
-closed-world executable, ordinary non-mut own primitive and aggregate
-parameters use C values and transfer directly from their source storage.
+closed-world executable, ordinary non-mut own primitives use C values, while
+owned aggregates use pointers to caller stack storage and transfer their
+contents without transferring that outer slot.
 External ABI boundaries,
 mutable parameters, destructor outer-storage parameters, and other
 pointer-shaped callable storage still receive pointers. This representation
@@ -352,6 +353,13 @@ semantics.
 Regular closed-world variadic parameters are the deliberate mixed case: they
 remain C pointers, but point at the caller's stack Array. They own and destroy
 the Array contents while preserving its outer storage (~call_free=false~).
+Owned payload parameters of generated non-niche enum constructors use the same
+pointer shape: the constructor moves ~*val~ into inline enum storage but
+borrows the caller's stack outer. A niche enum is the payload pointer itself,
+so that pointer escapes and remains heap-backed. External/library generation
+also retains heap-outer transfer.
+Likewise, deleting a stack value passes its existing address and forces
+~call_free=false~; deleting contents does not require a temporary heap outer.
 
 
 ** Visibility (priv keyword)

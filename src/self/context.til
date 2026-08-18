@@ -1889,9 +1889,10 @@ func_returns_c_value := func(fd: FunctionDef) returns Bool {
 }
 
 // C parameter representation is separate from semantic ownership. Shallow
-// parameters are always values. In a closed world, an ordinary owned
-// primitive or aggregate can also transfer its value directly. Pointer-shaped
-// boundaries and generated lifecycle helpers retain their established ABI.
+// parameters are always values. In a closed world, an ordinary owned primitive
+// can also transfer its value directly. Owned aggregates prefer pointer ABI
+// over caller stack storage. External boundaries and generated lifecycle
+// helpers retain their established ABI.
 func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool, scope: TypeScope) returns Bool {
     if i >= fd.params.len() { return false }
     if i.to_i32() == fd.variadic_index { return false }
@@ -1907,22 +1908,41 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
         if fd.params[1].name == "call_free" { return false }
     }
     pt := declaration_resolved_type(p, scope)
-    return pt.is(Type.Primitive).or(pt.is(Type.Struct)).or(pt.is(Type.Enum))
+    return pt.is(Type.Primitive)
 }
 
-// Ordinary variadic parameters keep their pointer-shaped Array ABI, but every
-// closed-world caller already materializes the Array as a local value. The
-// callee owns its contents while borrowing that outer stack slot, so its
-// destructor uses call_free=false. Public and bodyless boundaries retain the
-// established heap-outer convention.
+// Some closed-world pointer parameters consume a value's contents while only
+// borrowing its outer stack slot. Ordinary variadics destroy the Array
+// contents with call_free=false; generated enum constructors copy their
+// payload inline without freeing the argument pointer. Public and other
+// bodyless boundaries retain the established heap-outer convention.
 func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool, scope: TypeScope) returns Bool {
     if stack_abi_ok.not().or(i >= fd.params.len()) { return false }
-    if i.to_i32() != fd.variadic_index { return false }
     ref p : Declaration = fd.params[i]
     if p.own_type.is(OwnType.Own).not().or(p.is_mut) { return false }
+    if fd.is_enum_variant_ctor {
+        // The initer marks niche constructors shallow-returning because the
+        // returned enum is the payload pointer itself; that pointer escapes.
+        // Small tagged enums can also become shallow through auto-shallow, so
+        // confirm the representation from the enum definition in that case.
+        if fd.return_own_type.is(OwnType.Shallow).not() { return true }
+        enum_def_o := scope.get_struct(fd.return_type)
+        if enum_def_o.is_none() { panic(__LOC__, "missing enum definition for constructor ", fd.return_type) }
+        return enum_is_niche(enum_def_o.unwrap()).not()
+    }
     if fd.func_type.is_bodyless() { return false }
-    arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name()))
-    return scope.get_struct(arr_name).is_some()
+    if i.to_i32() == fd.variadic_index {
+        arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name()))
+        return scope.get_struct(arr_name).is_some()
+    }
+    if i.to_i32() == fd.kwargs_index { return scope.get_struct("KwargsMap").is_some() }
+    // delete(self, call_free) can receive either stack or heap outer storage;
+    // call_free selects which one the individual call owns.
+    if fd.params.len() > 1 {
+        if fd.params[1].name == "call_free" { return false }
+    }
+    pt := declaration_resolved_type(p, scope)
+    return pt.is(Type.Struct).or(pt.is(Type.Enum))
 }
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
