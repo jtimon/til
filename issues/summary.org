@@ -12,7 +12,6 @@
 *** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
-*** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 *** [[./open/338.org][#338]] Unify type inference: fields use real inference, typer stamps inferred types into the AST
 ** Medium
 *** [[./open/369.org][#369]] The generated C meets clang on linux, not only on the mac runners

@@ -1,6 +1,6 @@
 # priority: high
 # category: cleanups
-** OPEN #275 Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
+** FIXED #275 Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 
 The interpreter's recurring leak / UAF / double-free class (the
 make_str_value, StructInstance_clone and enum-payload bugs chased across
@@ -52,10 +52,42 @@ Two concrete slices HAVE landed since:
     concrete pointer (it used to write NULL unless the source was
     Dynamic).
 
-*** What is actually left
+*** Post-mortem
 
-Items 1-3 have all LANDED, and so has the dyn_call shortcut (0). What
-remains is 0b: one teardown gap, reproduced and narrowed but not fixed.
+Everything below is DONE. The issue's own framing turned out to be half
+right: the interpreter really did manufacture double-ownership, but by
+2026-08 not in the way the 2026-06 text described. The ~Value~ /
+~StructInstance~ / ~EnumInstance~ representation it blamed was already
+gone (see STATUS), so what remained were three concrete duplications,
+each found by carrying out this issue's own TODO rather than by reading
+the original diagnosis:
+
+  - ~dyn_call~ reimplemented ~delete~ instead of dispatching it, so a
+    user-defined destructor never ran on that path -- AND its fields were
+    dropped twice, aborting the interpreter.
+  - Session teardown re-ran the destructor of a script-scope binding the
+    AST had already deleted, freeing a container's buffer twice.
+  - The typer had no ban on copying a managed aggregate's bytes; it does
+    now (~check_memcpy_managed_src~), which found three hand-rolled
+    memcpy+memset pairs that already had a primitive.
+
+Two lessons worth carrying:
+
+  - Every one of those was an interpret/compile DIVERGENCE, and the
+    compiled backend was right each time. "What does the garbager emit
+    here?" was the fastest way to know what the interpreter should do.
+  - Reach for ASAN first on interpreter memory faults. The teardown bug
+    spent two sessions looking like a layout-dependent heisenbug --
+    glibc reported "corrupted size vs. prev_size" from wherever the heap
+    happened to trip, and a debug print made it "pass". ASAN named it in
+    one run: double-free through ~free_container_data~, first freed
+    inside the interpreted ~Vec.delete~ body.
+
+Regression tests: ~test_tuple_dyn_delete_runs_user_body~
+(test/tuples.til) and test/script_own_delete_global.til, both backends
+and ASAN.
+
+*** The items
 
   0. (DONE) ~dyn_call~ dispatches ~delete~ now; the shortcut and its
      hand-rolled reclamation are gone.
