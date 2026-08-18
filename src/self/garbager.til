@@ -3323,33 +3323,6 @@ priv gc_scope_binding_is_consumed := func(scope: TypeScope, b: TypeBinding) retu
     return true
 }
 
-// The binding type a Decl contributes, mirroring whichever registrar the
-// typer actually used for it.
-//
-// The typer's Decl handler registers declaration_resolved_type(sdecl,
-// scope), which turns a syntactic Custom(name) into Enum/Struct when the
-// name resolves. finish_hoist_temp instead stores the hoisted
-// EXPRESSION's stamped til_type, verbatim, in both the Declaration and
-// the binding -- consistently with itself, but without that resolution
-// step. So a hoist temp holding a user-enum value keeps Custom(name)
-// where a source-level local of the same type holds Enum(name).
-//
-// The difference is observable: is_aggregate is `Struct or Enum`, so
-// Custom reads as non-aggregate. Measured on a self-host, resolving
-// every Decl diverges on 433 hoist temps and resolving none diverges on
-// 1866 source locals, so this mirrors the split rather than picking one
-// rule. `hoisted__` is the marker other passes already key on for these
-// temps (see the #321 note in typer.til).
-//
-// Making finish_hoist_temp resolve like the Decl handler would retire
-// the asymmetry at its source and let this collapse to one call. That
-// changes the live scope and therefore emit, so it is deliberately a
-// separate change from this migration.
-priv garbager_decl_binding_type := func(dd: Declaration, scope: TypeScope, symbols: SymbolPool) returns Type {
-    if dd.name.starts_with("hoisted__") { return dd.til_type.clone() }
-    return declaration_resolved_type(dd, scope, symbols)
-}
-
 // Head tag of a Type, so Struct("Str") and Custom("Str") do not compare
 // equal and two primitives do not collapse onto til_type_name's empty
 // string. An integer rather than a spelling: this runs per binding per
@@ -3470,7 +3443,7 @@ priv garbager_check_rebuilt_scope := func(ctx: Context, body: Expr, live: TypeSc
     for stmt : Expr in body.children {
         switch stmt.node_type {
         case .Decl(dd):
-            gc_check_derived(ctx, live, dd.name, garbager_decl_binding_type(dd, live, ctx.symbols), dd.own_type, false)
+            gc_check_derived(ctx, live, dd.name, declaration_resolved_type(dd, live, ctx.symbols), dd.own_type, false)
         case:
         }
     }

@@ -132,23 +132,23 @@
       ~mixed := array(I64, 1, ..inner, 9)~ in test/arrays.til. Fixed by
       threading the caller's own_type into the builder.
 
-    A third site was reported here earlier and that report was WRONG:
-    ~finish_hoist_temp~ writes ~dd.own_type~ and ~tb.own_type~ together,
-    so hoist temps are internally consistent. What differs there is the
-    TYPE, and not between the two records -- it stores the hoisted
-    expression's stamped ~til_type~ verbatim in both, where the typer's
-    Decl handler runs ~declaration_resolved_type~ and so turns a
-    syntactic ~Custom(name)~ into ~Enum~/~Struct~. That is observable
-    (~is_aggregate~ is ~Struct or Enum~, so ~Custom~ reads as
-    non-aggregate) and accounts for 433 divergences in a self-host (278
-    ~Literal~, 155 ~Primitive~), all on ~hoisted__~ names. Measured both
-    uniform rules: resolving every Decl diverges on those 433; resolving
-    none diverges on 1866 source locals. So the rebuild mirrors the split
-    and keys on the ~hoisted__~ prefix other passes already recognise.
-    Making ~finish_hoist_temp~ resolve like the Decl handler would retire
-    that asymmetry at its source and let the rebuild collapse to one
-    call; it changes the live scope and therefore emit, so it is left as
-    its own change.
+    A third site was reported here earlier and that report was WRONG about
+    OWNERSHIP: ~finish_hoist_temp~ always wrote ~dd.own_type~ and
+    ~tb.own_type~ together. It did expose a real TYPE asymmetry: it stored
+    the hoisted expression's stamped ~til_type~ verbatim in the binding,
+    while the ordinary Decl handler runs ~declaration_resolved_type~ and
+    turns a syntactic ~Custom(name)~ into ~Enum~/~Struct~. That was
+    observable (~is_aggregate~ is ~Struct or Enum~, so ~Custom~ read as
+    non-aggregate) and accounted for 433 divergences in a self-host (278
+    ~Literal~, 155 ~Primitive~), all on ~hoisted__~ names.
+
+    Fixed: ~finish_hoist_temp~ now keeps the Decl's source stamp but uses
+    its resolved semantic type for the binding, replacement Ident, and
+    aggregate ownership decision, exactly like the normal Decl path. The
+    garbager derivation dropped its ~hoisted__~ exception and now resolves
+    every Decl uniformly. The panic-on-divergence check passes throughout
+    ~make clean && make test~ (394/394), so step 2 no longer needs a
+    hoist-specific type rule.
 
     Three further facts the equivalence check turned up, all now handled:
 
@@ -271,4 +271,3 @@ Each phase listed in doc/pipeline.org (lex, parse,
      garbager calls still run inline in the typer, and lifting them
      into the single ~garbager_destroy(ctx)~ walk is part of this
      issue's per-body scope-cache work
-

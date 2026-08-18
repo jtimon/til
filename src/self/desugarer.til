@@ -5489,13 +5489,15 @@ priv finish_hoist_temp := func(mut ctx: Context, own decl: Expr, mut hoisted: Ve
     ctx.hoist_counter++
 
     decl.set_til_type(val.til_type())
+    ref mut dd : Declaration = decl_of(decl)
+    semantic_type := declaration_resolved_type(dd, scope, ctx.symbols)
 
     mut val_is_ref := false
     if val.node_type.is(NodeType.FCall) {
         val_is_ref = fcall_returns_ref(val, scope, ctx.symbols).eq(0).not()
     }
 
-    is_compound := is_aggregate(val.til_type())
+    is_compound := is_aggregate(semantic_type)
     // LiteralStr temps: the builder emits these as stack-allocated
     // compound-literal Str values (no malloc). Leaving own_type at
     // Shallow makes the typer-inserted Str.delete use call_free=false,
@@ -5503,10 +5505,9 @@ priv finish_hoist_temp := func(mut ctx: Context, own decl: Expr, mut hoisted: Ve
     is_literal_str := val.node_type.is_literal_str()
 
     mut ident := Expr.new(ident_node(ctx.symbols.intern(tname)), val.line, val.col)
-    ident.set_til_type(val.til_type())
-    scope.set(tname, val.til_type(), false, ctx.path, val.line, val.col, false, OwnType.Shallow, ctx.symbols)
+    ident.set_til_type(semantic_type)
+    scope.set(tname, semantic_type, false, ctx.path, val.line, val.col, false, OwnType.Shallow, ctx.symbols)
     ref mut tb : TypeBinding = scope.get_binding_name(tname, ctx.symbols).unwrap()
-    ref mut dd : Declaration = decl_of(decl)
     dd.name = tname.clone()
     dd.is_mut = false
     if val_is_ref {

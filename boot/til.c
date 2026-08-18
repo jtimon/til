@@ -3457,7 +3457,6 @@ static void priv___src_self_garbager_til__temp_check_expr(Expr * e, Bool consume
 static void priv___src_self_garbager_til__temp_check_body(Context * ctx, Expr * body, TypeScope * scope);
 static Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit, Set__Str * stack_own_params);
 static Bool priv___src_self_garbager_til__gc_scope_binding_is_consumed(TypeScope * scope, TypeBinding * b);
-static Type priv___src_self_garbager_til__garbager_decl_binding_type(Declaration * dd, TypeScope * scope, SymbolPool * symbols);
 static USize priv___src_self_garbager_til__gc_type_tag(Type * t);
 static USize priv___src_self_garbager_til__gc_own_tag(OwnType * o);
 static Str priv___src_self_garbager_til__gc_own_spelling(OwnType * o);
@@ -6885,7 +6884,7 @@ static Str hoisted__Str_func_param_has_stack_outer_28 = (Str){.c_str = (void *)"
 static Str hoisted__Str_func_param_has_stack_outer_52 = (Str){.c_str = (void *)"./src/self/context.til:1947:21", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_func_param_passes_c_value_22 = (Str){.c_str = (void *)"./src/self/context.til:1913:21", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_func_param_passes_c_value_7 = (Str){.c_str = (void *)"./src/self/context.til:1905:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_garbager_destroy_func_body_6 = (Str){.c_str = (void *)"./src/self/garbager.til:3521:13", .count = 31ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_garbager_destroy_func_body_6 = (Str){.c_str = (void *)"./src/self/garbager.til:3494:13", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_cmp_derived_for_stmt_123 = (Str){.c_str = (void *)"./src/self/initer.til:1800:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_cmp_derived_for_stmt_173 = (Str){.c_str = (void *)"./src/self/initer.til:1831:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_cmp_derived_for_stmt_20 = (Str){.c_str = (void *)"./src/self/initer.til:1731:13", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -7927,8 +7926,8 @@ static Str hoisted__Str_self_desugarer_find_bang_callee_name_24 = (Str){.c_str =
 static Str hoisted__Str_self_desugarer_find_bang_callee_name_6 = (Str){.c_str = (void *)"./src/self/desugarer.til:1327:26", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_find_bang_fcall_5 = (Str){.c_str = (void *)"./src/self/desugarer.til:1351:42", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_find_callee_throws_key_5 = (Str){.c_str = (void *)"./src/self/desugarer.til:1578:9", .count = 31ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_desugarer_finish_hoist_temp_32 = (Str){.c_str = (void *)"./src/self/desugarer.til:5492:32", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_finish_hoist_temp_4 = (Str){.c_str = (void *)"./src/self/desugarer.til:5476:9", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_desugarer_finish_hoist_temp_41 = (Str){.c_str = (void *)"./src/self/desugarer.til:5509:32", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_fold_and_chain_16 = (Str){.c_str = (void *)"./src/self/desugarer.til:2807:13", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_fold_and_chain_27 = (Str){.c_str = (void *)"./src/self/desugarer.til:2807:13", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_fold_and_chain_8 = (Str){.c_str = (void *)"./src/self/desugarer.til:2800:9", .count = 31ULL, .cap = TIL_CAP_LIT};
@@ -8125,9 +8124,9 @@ static Str hoisted__Str_self_garbager_expr_root_ident_name_6 = (Str){.c_str = (v
 static Str hoisted__Str_self_garbager_fact_bit_req_2 = (Str){.c_str = (void *)"./src/self/garbager.til:1468:24", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_fact_bit_req_9 = (Str){.c_str = (void *)"./src/self/garbager.til:1468:18", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_flag_outer_assign_rebinds_31 = (Str){.c_str = (void *)"./src/self/garbager.til:2651:25", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_garbager_check_rebuilt_scope_49 = (Str){.c_str = (void *)"./src/self/garbager.til:3487:13", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_garbager_check_rebuilt_scope_6 = (Str){.c_str = (void *)"./src/self/garbager.til:3458:17", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_gc_ast_declares_6 = (Str){.c_str = (void *)"./src/self/garbager.til:3424:25", .count = 31ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_garbager_check_rebuilt_scope_49 = (Str){.c_str = (void *)"./src/self/garbager.til:3460:13", .count = 31ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_garbager_check_rebuilt_scope_6 = (Str){.c_str = (void *)"./src/self/garbager.til:3431:17", .count = 31ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_gc_ast_declares_6 = (Str){.c_str = (void *)"./src/self/garbager.til:3397:25", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_audit_destructor_line_12 = (Str){.c_str = (void *)"./src/self/garbager.til:214:22", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_audit_destructor_line_18 = (Str){.c_str = (void *)"./src/self/garbager.til:215:26", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_audit_destructor_line_23 = (Str){.c_str = (void *)"./src/self/garbager.til:215:38", .count = 30ULL, .cap = TIL_CAP_LIT};
@@ -8150,12 +8149,12 @@ static Str hoisted__Str_self_garbager_gc_audit_sites_68 = (Str){.c_str = (void *
 static Str hoisted__Str_self_garbager_gc_audit_sites_90 = (Str){.c_str = (void *)"./src/self/garbager.til:281:42", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_cfg_dump_18 = (Str){.c_str = (void *)"./src/self/garbager.til:525:36", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_cfg_dump_6 = (Str){.c_str = (void *)"./src/self/garbager.til:521:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_gc_check_derived_25 = (Str){.c_str = (void *)"./src/self/garbager.til:3396:9", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_gc_check_derived_41 = (Str){.c_str = (void *)"./src/self/garbager.til:3400:9", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_gc_check_derived_57 = (Str){.c_str = (void *)"./src/self/garbager.til:3404:9", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_gc_check_derived_73 = (Str){.c_str = (void *)"./src/self/garbager.til:3408:9", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_gc_check_derived_9 = (Str){.c_str = (void *)"./src/self/garbager.til:3391:9", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_garbager_gc_check_derived_96 = (Str){.c_str = (void *)"./src/self/garbager.til:3413:9", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_gc_check_derived_25 = (Str){.c_str = (void *)"./src/self/garbager.til:3369:9", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_gc_check_derived_41 = (Str){.c_str = (void *)"./src/self/garbager.til:3373:9", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_gc_check_derived_57 = (Str){.c_str = (void *)"./src/self/garbager.til:3377:9", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_gc_check_derived_73 = (Str){.c_str = (void *)"./src/self/garbager.til:3381:9", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_gc_check_derived_9 = (Str){.c_str = (void *)"./src/self/garbager.til:3364:9", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_garbager_gc_check_derived_96 = (Str){.c_str = (void *)"./src/self/garbager.til:3386:9", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_flow_block_kill_10 = (Str){.c_str = (void *)"./src/self/garbager.til:616:17", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_flow_block_kill_4 = (Str){.c_str = (void *)"./src/self/garbager.til:607:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_garbager_gc_flow_block_kill_41 = (Str){.c_str = (void *)"./src/self/garbager.til:629:58", .count = 30ULL, .cap = TIL_CAP_LIT};
@@ -119640,36 +119639,34 @@ static Expr priv___src_self_desugarer_til__finish_hoist_temp(Context * ctx, Expr
     (++ctx->hoist_counter);
     Type *hoisted__Type_31 = Expr_til_type(val);
     Expr_set_til_type(decl, DEREF(hoisted__Type_31));
+    Declaration *dd = decl_of(decl, &hoisted__Str_self_desugarer_finish_hoist_temp_32);
+    Type semantic_type = declaration_resolved_type(dd, scope, &ctx->symbols);
     Bool val_is_ref = 0;
-    Bool hoisted__Bool_32 = ((Bool)((((NodeType *)(&val->node_type))->tag) == NodeType_TAG_FCall));
-    if (hoisted__Bool_32) {
+    Bool hoisted__Bool_33 = ((Bool)((((NodeType *)(&val->node_type))->tag) == NodeType_TAG_FCall));
+    if (hoisted__Bool_33) {
         I32 hoisted__I32_6 = fcall_returns_ref(val, scope, &ctx->symbols);
         I32 hoisted__I32_7 = 0;
         Bool hoisted__Bool_8 = ((Bool)(hoisted__I32_6 == hoisted__I32_7));
         Bool hoisted__Bool_9 = ((Bool)(!(hoisted__Bool_8)));
         val_is_ref = hoisted__Bool_9;
     }
-    Type *hoisted__Type_33 = Expr_til_type(val);
-    Bool is_compound = is_aggregate(hoisted__Type_33);
+    Bool is_compound = is_aggregate(&semantic_type);
     Bool is_literal_str = NodeType_is_literal_str(&val->node_type);
     U32 hoisted__U32_34 = SymbolPool_intern(&ctx->symbols, &tname);
     NodeType hoisted__NodeType_35 = ident_node(hoisted__U32_34);
     Expr ident = Expr_new(&hoisted__NodeType_35, val->line, val->col);
     NodeType_delete(&hoisted__NodeType_35, (Bool){0});
-    Type *hoisted__Type_36 = Expr_til_type(val);
-    Expr_set_til_type(&ident, DEREF(hoisted__Type_36));
-    Type *hoisted__Type_37 = Expr_til_type(val);
-    Bool hoisted__Bool_38 = 0;
-    Bool hoisted__Bool_39 = 0;
-    TypeScope_set(scope, &tname, hoisted__Type_37, hoisted__Bool_38, &ctx->path, val->line, val->col, hoisted__Bool_39, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_40 = TypeScope_get_binding_name(scope, &tname, &ctx->symbols);
-    TypeBinding *tb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_40);
-    Declaration *dd = decl_of(decl, &hoisted__Str_self_desugarer_finish_hoist_temp_41);
+    Expr_set_til_type(&ident, semantic_type);
+    Bool hoisted__Bool_36 = 0;
+    Bool hoisted__Bool_37 = 0;
+    TypeScope_set(scope, &tname, &semantic_type, hoisted__Bool_36, &ctx->path, val->line, val->col, hoisted__Bool_37, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
+    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_38 = TypeScope_get_binding_name(scope, &tname, &ctx->symbols);
+    TypeBinding *tb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_38);
     { Str _old = dd->name;
     dd->name = Str_clone(&tname);
     Str_delete(&_old, (Bool){0}); }
-    Bool hoisted__Bool_42 = 0;
-    dd->is_mut = hoisted__Bool_42;
+    Bool hoisted__Bool_39 = 0;
+    dd->is_mut = hoisted__Bool_39;
     if (val_is_ref) {
         { OwnType _old = dd->own_type;
         dd->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Ref});
@@ -119702,9 +119699,10 @@ static Expr priv___src_self_desugarer_til__finish_hoist_temp(Context * ctx, Expr
             }
         }
     }
-    Str_delete(&tp, (Bool){0});
     Vec__Expr_push(hoisted, decl);
+    Type_delete(&semantic_type, (Bool){0});
     Str_delete(&tname, (Bool){0});
+    Str_delete(&tp, (Bool){0});
     return ident;
 }
 
@@ -131155,16 +131153,6 @@ static Bool priv___src_self_garbager_til__gc_scope_binding_is_consumed(TypeScope
     return hoisted__Bool_24;
 }
 
-static Type priv___src_self_garbager_til__garbager_decl_binding_type(Declaration * dd, TypeScope * scope, SymbolPool * symbols) {
-    Bool hoisted__Bool_2 = Str_starts_with(&dd->name, &_til_str_lits.hcad85c861ed3);
-    if (hoisted__Bool_2) {
-        Type hoisted__Type_0 = Type_clone(&dd->til_type);
-        return hoisted__Type_0;
-    }
-    Type hoisted__Type_3 = declaration_resolved_type(dd, scope, symbols);
-    return hoisted__Type_3;
-}
-
 static USize priv___src_self_garbager_til__gc_type_tag(Type * t) {
     Bool hoisted__Bool_10 = ((Bool)((((Type *)(t))->tag) == Type_TAG_Unknown));
     if (hoisted__Bool_10) {
@@ -131638,7 +131626,7 @@ static void priv___src_self_garbager_til__garbager_check_rebuilt_scope(Context *
             switch ((stmt->node_type).tag) {
             case NodeType_TAG_Decl: {
                 Declaration *dd = ((void *)((U8 *)(&stmt->node_type) + offsetof(NodeType, data)));
-                Type hoisted__Type_24 = priv___src_self_garbager_til__garbager_decl_binding_type(dd, live, &ctx->symbols);
+                Type hoisted__Type_24 = declaration_resolved_type(dd, live, &ctx->symbols);
                 Bool hoisted__Bool_25 = 0;
                 priv___src_self_garbager_til__gc_check_derived(ctx, live, &dd->name, &hoisted__Type_24, &dd->own_type, hoisted__Bool_25);
                 Type_delete(&hoisted__Type_24, (Bool){0});
@@ -237933,7 +237921,7 @@ int main(int argc, char **argv) {
     REPL_BYTE_DEL = 127;
     REPL_HISTORY_MAX = 1000;
     REPL_ESC_TIMEOUT_MS = 50;
-    VERSION = (Str){.c_str=(void*)"0.0.1-0af44d8c5", .count=15ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str=(void*)"0.0.1-20300d9bd", .count=15ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};
