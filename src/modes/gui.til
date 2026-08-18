@@ -33,22 +33,23 @@ make_tone := proc(freq: I64, duration_ms: I64, amp: F32) returns Sound {
     sr := 44100
     mut n := sr * duration_ms / 1000
     if n < 1 { n = 1 }
-    mut buf : U8 = malloc((n * 4).to_usize())
+    sample_size : USize = 4
+    mut buf : U8 = malloc(usize_to_uptr(n.mul(4).to_usize()))
     attack := sr / 100
     release := sr / 100
     pi2 : F32 = 6283185 / 1000000
     freq_f := freq.to_f32()
     sr_f := sr.to_f32()
-    for i in 0..n.cast(U64) {
+    for i in 0..n.to_usize() {
         mut env : F32 = 1
-        if i.cast(I64) < attack {
+        if i.to_i64() < attack {
             env = i.to_f32() / attack.to_f32()
         }
-        if i.cast(I64) > n - release {
-            env = (n - i.cast(I64)).to_f32() / release.to_f32()
+        if i.to_i64() > n - release {
+            env = (n - i.to_i64()).to_f32() / release.to_f32()
         }
         sample := sinf(pi2.mul(freq_f).mul(i.to_f32()) / sr_f).mul(amp) * env
-        memcpy(ptr_add(buf, (i * 4).to_usize()), sample, 4)
+        memcpy(ptr_add(buf, usize_to_uptr(i.mul(sample_size))), sample, usize_to_uptr(sample_size))
     }
     w := Wave(
         frameCount=n.to_u32(),

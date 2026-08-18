@@ -62,3 +62,9 @@
 ** Low
 *** [[./open/24.org][#24]] Music theory examples: ongoing improvements
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
+*** [[./open/376.org][#376]] Polish shootil browser UX
+* Deferred
+** High
+*** [[./open/378.org][#378]] Vendor browser WASM toolchain source instead of cloning emsdk
+** Low
+*** [[./open/377.org][#377]] Generalize browser WASM support for arbitrary mode gui programs

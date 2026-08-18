@@ -1,0 +1,94 @@
+# priority: high
+# category: deferred
+** OPEN #378 Vendor browser WASM toolchain source instead of cloning emsdk
+
+*** Status
+
+  #228 makes browser WASM builds work through raylib's supported web backend,
+  which is Emscripten-specific. Vendored raylib documents ~PLATFORM_WEB~ as
+  ~GLFW + Emscripten~, its web platform source includes
+  ~emscripten/emscripten.h~ and ~emscripten/html5.h~, and its Makefile selects
+  ~emcc~ for web builds.
+
+  That creates two separate problems:
+
+  - Browser raylib via Emscripten depends on JavaScript glue. That may be a
+    non-starter for the project goal; if so, the current raylib web path should
+    be parked or replaced instead of polished.
+  - The installed Emscripten payload is too large to commit directly. The
+    attempted checked-in install tree included files over GitHub's hard 100 MB
+    object limit, including ~node~ and ~clang~ binaries. Those generated
+    outputs must stay ignored or be replaced by a different distribution
+    strategy.
+
+  Current code therefore keeps the generated Emscripten install outputs
+  ignored. ~make build_wasm~ may still create ~vendor/emscripten/node/~,
+  ~vendor/emscripten/upstream/~, and ~vendor/emscripten/.emscripten~ locally,
+  and ~make clean_vendor~ removes them. This issue stays open until the project
+  decides whether browser raylib/Emscripten is acceptable at all, and if so how
+  the toolchain should be supplied without committing giant generated binaries
+  or depending on moving network downloads.
+
+  Follow-up from #228. ~make build_wasm~ pins emsdk to a specific version
+  and repo commit, but it still bootstraps the browser toolchain from the
+  network. That is not acceptable for a vendored dependency: the project
+  should not depend on upstream availability or moving external downloads to
+  build the browser target.
+
+*** Goal
+
+  Make the browser WASM toolchain a real vendored dependency, like the rest
+  of ~vendor/~: source or explicitly chosen artifacts live in-tree, the
+  build program installs/activates from those files, and ~make build_wasm~
+  does not clone or download toolchain pieces at build time.
+
+*** Current State
+
+  - Emsdk is pinned to version 6.0.0 and emsdk repo commit
+    ~d223ae73c6998296e3ab27cf81dc2c2c9fd383de~.
+  - The emsdk source/control tree is committed. ~make.til~ installs and
+    activates 6.0.0 from that tree; it no longer clones emsdk.
+  - The generated install tree from the working build is about 1.6G:
+    ~upstream/~ is the large compiler payload and ~node/~ is the bundled
+    runtime used by emscripten.
+  - The install tree, activation config, downloads, and stamp are ignored;
+    ~clean_vendor~ removes them while preserving the committed control tree.
+  - The binding generator prerequisite is fixed: C declarations now generate
+    ~ext_func~ by default instead of inferring ~ext_proc~ from ~void~ return.
+    The remaining problem is the browser toolchain itself.
+
+*** Plan
+
+  1. Decide whether Emscripten's JavaScript-dependent raylib browser backend
+     is acceptable for til. If not, park this route and define a different
+     browser/runtime boundary before doing more vendoring work.
+
+  2. If it is acceptable, inventory the emsdk 6.0.0 install tree:
+     ~upstream/emscripten~, ~upstream/bin~, ~upstream/lib~, ~node/~,
+     manifests, activation config, caches, and downloaded archives.
+
+  3. Separate source/control files from generated/prebuilt payloads. Record
+     which files are needed only to run ~emcc~, ~emar~, and ~emranlib~ for
+     the browser build.
+
+  4. Choose the vendor layout explicitly. Options to evaluate:
+     - vendor the emsdk control/source tree plus pinned source archives for
+       LLVM/Binaryen/Emscripten/Node and build them locally;
+     - vendor the prebuilt 6.0.0 payload as an explicit checked-in artifact
+     directory;
+     - vendor compressed pinned archives and unpack/build them into ignored
+       output under ~vendor/emscripten/~.
+
+  5. Replace the remaining network bootstrap. It must not download
+     from the network. It should either build the toolchain from tracked
+     inputs or unpack tracked artifacts, then produce the same ~EMCC~,
+     ~EMAR~, and ~EMRANLIB~ paths used by ~make build_wasm~.
+
+  6. Regenerate any new vendor bindings needed for the browser toolchain,
+     then manually audit ~ext_proc~, ~mut~, ~ref~, ~shallow~, and ~own~.
+     C APIs usually imply borrowed/shallow refs; use ~own~ only for documented
+     transfer/consume semantics.
+
+  7. Verify from a clean tree with no pre-existing ~vendor/emscripten/~
+     install output: run the new vendor bootstrap path, then ~make
+     build_wasm~, and confirm ~bin/shootil.html~ is still self-contained.

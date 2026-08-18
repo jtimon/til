@@ -4624,11 +4624,11 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     if arr_type == "Array" {
                         f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(elem_c).write("\", .count = "); emit_usize(f, elem_c.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
                     } else if stack_outer {
-                        f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(elem_c).write("));\n")
+                        f.write("    ").write(p.name).write("->data = calloc((UPtr)_va_cap, (UPtr)sizeof(").write(elem_c).write("));\n")
                         f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     } else {
                         f.write("malloc(TIL_BOX(").write(arr_type).write("));\n")
-                        f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(elem_c).write("));\n")
+                        f.write("    ").write(p.name).write("->data = calloc((UPtr)_va_cap, (UPtr)sizeof(").write(elem_c).write("));\n")
                         f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     }
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
@@ -4642,8 +4642,8 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     // break this generated call. The slot is freshly
                     // zero-allocated and `_idx` is always in bounds here, so a
                     // raw memcpy is correct -- identical to the Vec path.
-                    f.write("        memcpy((U8 *)(").write(p.name).write("->data) + ((U64)_idx) * sizeof(").write(elem_c).write("), _val, sizeof(").write(elem_c).write("));\n")
-                    f.write("        memset(_val, 0, sizeof(").write(elem_c).write("));\n")
+                    f.write("        memcpy((U8 *)(").write(p.name).write("->data) + ((UPtr)_idx) * (UPtr)sizeof(").write(elem_c).write("), _val, (UPtr)sizeof(").write(elem_c).write("));\n")
+                    f.write("        memset(_val, 0, (UPtr)sizeof(").write(elem_c).write("));\n")
                     f.write("        ").write(elem_c).write("_delete(_val, 1);\n")
                     f.write("    }\n")
                 } else {
@@ -7869,7 +7869,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
                 f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
             } else {
                 f.write("malloc(TIL_BOX(").write(arr_type).write("));\n")
-                f.write("    _a->data = calloc(_cap, sizeof(").write(et).write("));\n")
+                f.write("    _a->data = calloc((UPtr)_cap, (UPtr)sizeof(").write(et).write("));\n")
                 f.write("    _a->cap = _cap;\n")
             }
             f.write("    va_list ap; va_start(ap, count);\n")
@@ -7886,8 +7886,8 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             // matching note in main()'s variadic wrapper). The slot is freshly
             // zero-allocated and `_idx` is in bounds, so memcpy is correct and
             // decoupled from Array.set's signature.
-            f.write("        memcpy((U8 *)(_a->data) + ((U64)_idx) * sizeof(").write(et).write("), _val, sizeof(").write(et).write("));\n")
-            f.write("        memset(_val, 0, sizeof(").write(et).write("));\n")
+            f.write("        memcpy((U8 *)(_a->data) + ((UPtr)_idx) * (UPtr)sizeof(").write(et).write("), _val, (UPtr)sizeof(").write(et).write("));\n")
+            f.write("        memset(_val, 0, (UPtr)sizeof(").write(et).write("));\n")
             f.write("        ").write(et).write("_delete(_val, 1);\n")
             f.write("    }\n")
             f.write("    va_end(ap);\n")

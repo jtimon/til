@@ -2602,11 +2602,11 @@ typedef struct TilDir {
 #endif
 } TilDir;
 
-// static inline, not plain static: the wasm build compiles neither
-// directory walker, and an unused plain static function is -Werror there.
-static inline int path_is_dot_entry(const char *name) {
+#if !defined(__EMSCRIPTEN__)
+static int path_is_dot_entry(const char *name) {
     return strcmp(name, ".") == 0 || strcmp(name, "..") == 0;
 }
+#endif
 
 void *cdir_open(const Str *path) {
     char *p = dup_n((const char *)path->c_str, path->count);
@@ -2654,8 +2654,8 @@ Str *cdir_next(const void *handle) {
         fprintf(stderr, "cdir_next: directory not open\n");
         exit(1);
     }
-    TilDir *dir = (TilDir *)handle;
 #ifdef _WIN32
+    TilDir *dir = (TilDir *)handle;
     while (!dir->done) {
         if (!dir->pending) {
             if (!FindNextFileA(dir->h, &dir->data)) {
@@ -2670,6 +2670,7 @@ Str *cdir_next(const void *handle) {
                                 .cap = CAP_VIEW});
     }
 #elif !defined(__EMSCRIPTEN__)
+    TilDir *dir = (TilDir *)handle;
     struct dirent *ent = NULL;
     while ((ent = readdir(dir->d)) != NULL) {
         if (path_is_dot_entry(ent->d_name)) continue;

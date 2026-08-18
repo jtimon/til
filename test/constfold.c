@@ -99,6 +99,7 @@ static Array__Str Array__Str_clone(Array__Str * self);
 static void adopt__Str(void * dest, Str * src);
 static Str U64_to_str(U64 val);
 static Str I64_to_str(I64 val);
+static UPtr usize_to_uptr(USize val);
 static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 static __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 static void assert(Bool cond, Str * loc);
@@ -237,7 +238,7 @@ static Str format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_0->data) + (((U32)(_fi_USize_0 * 16))))));
+            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_0->data) + (usize_to_uptr(((U32)(_fi_USize_0 * 16)))))));
             U32 hoisted__U32_3 = 1;
             U32 hoisted__U32_4 = ((U32)(_fi_USize_0 + hoisted__U32_3));
             _fi_USize_0 = hoisted__U32_4;
@@ -257,7 +258,7 @@ static Str format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_7->data) + (((U32)(_fi_USize_7 * 16))))));
+            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_7->data) + (usize_to_uptr(((U32)(_fi_USize_7 * 16)))))));
             U32 hoisted__U32_10 = 1;
             U32 hoisted__U32_11 = ((U32)(_fi_USize_7 + hoisted__U32_10));
             _fi_USize_7 = hoisted__U32_11;
@@ -425,17 +426,18 @@ static Bool Str_neq(Str * a, Str * b) {
 }
 
 static Array__Str Array__Str_new(USize cap) {
-    void * hoisted__v_0 = calloc(cap, 16);
-    Array__Str hoisted__Array__Str_1 = {0};
-    hoisted__Array__Str_1.data = hoisted__v_0;
-    hoisted__Array__Str_1.cap = cap;
-    return hoisted__Array__Str_1;
+    U32 hoisted__U32_0 = 16;
+    void * hoisted__v_1 = calloc(usize_to_uptr(cap), usize_to_uptr(hoisted__U32_0));
+    Array__Str hoisted__Array__Str_2 = {0};
+    hoisted__Array__Str_2.data = hoisted__v_1;
+    hoisted__Array__Str_2.cap = cap;
+    return hoisted__Array__Str_2;
 }
 
 static void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val) {
-    Str *hoisted__Str_Array__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(self->data) + (((U32)(i * 16))))));
+    Str *hoisted__Str_Array__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(self->data) + (usize_to_uptr(((U32)(i * 16)))))));
     Str_delete(hoisted__Str_Array__Str_unsafe_set_0, 0);
-    Str *hoisted__Str_Array__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(self->data) + (((U32)(i * 16))))));
+    Str *hoisted__Str_Array__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(self->data) + (usize_to_uptr(((U32)(i * 16)))))));
     adopt__Str(hoisted__Str_Array__Str_unsafe_set_1, val);
 }
 
@@ -468,8 +470,9 @@ static void Array__Str_delete(Array__Str * self, Bool call_free) {
             (++_rc_U32_0);
             U32 hoisted__U32_2 = 16;
             U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
-            Str *hoisted__Str_Array__Str_delete_4 = ((void *)((U8 *)(self->data) + (hoisted__U32_3)));
-            Str_delete(hoisted__Str_Array__Str_delete_4, 0);
+            U64 hoisted__U64_4 = usize_to_uptr(hoisted__U32_3);
+            Str *hoisted__Str_Array__Str_delete_5 = ((void *)((U8 *)(self->data) + (hoisted__U64_4)));
+            Str_delete(hoisted__Str_Array__Str_delete_5, 0);
         }
     }
     free(self->data);
@@ -479,8 +482,9 @@ static void Array__Str_delete(Array__Str * self, Bool call_free) {
 }
 
 static Array__Str Array__Str_clone(Array__Str * self) {
-    U32 hoisted__U32_7 = 16;
-    U8 *new_data = malloc(((U32)(self->cap * hoisted__U32_7)));
+    U32 hoisted__U32_9 = 16;
+    U32 hoisted__U32_10 = ((U32)(self->cap * hoisted__U32_9));
+    U8 *new_data = malloc(usize_to_uptr(hoisted__U32_10));
     {
         U32 _re_U32_0 = self->cap;
         U32 _rc_U32_0 = 0;
@@ -494,18 +498,20 @@ static Array__Str Array__Str_clone(Array__Str * self) {
             (++_rc_U32_0);
             U32 hoisted__U32_2 = 16;
             U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
-            Str *src = ((void *)((U8 *)(self->data) + (hoisted__U32_3)));
+            U64 hoisted__U64_4 = usize_to_uptr(hoisted__U32_3);
+            Str *src = ((void *)((U8 *)(self->data) + (hoisted__U64_4)));
             Str cloned = Str_clone(src);
-            U32 hoisted__U32_4 = 16;
-            U32 hoisted__U32_5 = ((U32)(i * hoisted__U32_4));
-            void *hoisted__v_6 = ((void *)((U8 *)(new_data) + (hoisted__U32_5)));
-            adopt__Str(hoisted__v_6, &cloned);
+            U32 hoisted__U32_5 = 16;
+            U32 hoisted__U32_6 = ((U32)(i * hoisted__U32_5));
+            U64 hoisted__U64_7 = usize_to_uptr(hoisted__U32_6);
+            void *hoisted__v_8 = ((void *)((U8 *)(new_data) + (hoisted__U64_7)));
+            adopt__Str(hoisted__v_8, &cloned);
         }
     }
-    Array__Str hoisted__Array__Str_8 = {0};
-    hoisted__Array__Str_8.data = new_data;
-    hoisted__Array__Str_8.cap = self->cap;
-    return hoisted__Array__Str_8;
+    Array__Str hoisted__Array__Str_11 = {0};
+    hoisted__Array__Str_11.data = new_data;
+    hoisted__Array__Str_11.cap = self->cap;
+    return hoisted__Array__Str_11;
 }
 
 static void adopt__Str(void * dest, Str * src) {
@@ -542,6 +548,11 @@ static Str I64_to_str(I64 val) {
     U64 hoisted__U64_10 = (U64)(val);
     Str hoisted__Str_I64_to_str_11 = U64_to_str(hoisted__U64_10);
     { Str _ret = hoisted__Str_I64_to_str_11; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+}
+
+static UPtr usize_to_uptr(USize val) {
+    U64 hoisted__U64_0 = (U64)(val);
+    return hoisted__U64_0;
 }
 
 static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
@@ -634,7 +645,7 @@ static void println(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_0->data) + (((U32)(_fi_USize_0 * 16))))));
+            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_0->data) + (usize_to_uptr(((U32)(_fi_USize_0 * 16)))))));
             U32 hoisted__U32_3 = 1;
             U32 hoisted__U32_4 = ((U32)(_fi_USize_0 + hoisted__U32_3));
             _fi_USize_0 = hoisted__U32_4;

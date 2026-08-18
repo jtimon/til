@@ -105,17 +105,19 @@ sysroots. Install these packages (Ubuntu/Debian) for each target:
 - ~linux-riscv32~: No standard Ubuntu packages exist; use a Bootlin prebuilt toolchain (see CI configuration)
 - ~windows-x64~ / ~windows-x86~: ~mingw-w64~ (ships both the x86_64 and i686 cross compilers)
 - ~macos-arm64~ / ~macos-x64~: ~clang~, ~lld~, ~llvm~ -- the whole LLVM toolchain, not just clang: lld links (and ad-hoc-signs arm64) Mach-O, llvm-ar/llvm-nm build the mac gui archives and framework stubs for ~make build_mac~. No Apple SDK and no mac needed (vendored headers + .tbd stubs)
-- ~wasm32~ browser GUI: ~make build_wasm~ bootstraps emscripten under ~vendor/emscripten/~ and builds raylib-web
+- ~wasm32~ browser GUI: ~make build_wasm~ uses the vendored emsdk tree under ~vendor/emscripten/~, installs the generated emscripten payload under ignored ~vendor/emscripten/node/~ and ~vendor/emscripten/upstream/~, and builds raylib-web
 
 * Internal dependencies (bundled in the repository)
 
 - [[https://github.com/libffi/libffi][libffi]]
+- [[https://github.com/emscripten-core/emsdk][emsdk]]
 - [[https://github.com/raysan5/raylib][raylib]]
 - [[https://sourceforge.net/projects/tinyfiledialogs/][tinyfiledialogs]]
 
 Bundled internal dependency licenses:
 
 - project: [[file:LICENSE/MIT.txt]] (MIT License)
+- ~vendor/emscripten/~ — [[file:LICENSE/emscripten.txt]]
 - ~vendor/libffi/~ — [[file:LICENSE/libffi.txt]]
 - ~vendor/raylib/~ — [[file:LICENSE/raylib.txt]]
 - ~vendor/tinyfiledialogs/~ — [[file:LICENSE/tinyfiledialogs.txt]]

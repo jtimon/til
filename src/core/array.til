@@ -17,7 +17,7 @@ Array := struct<T: Type> {
 namespace:
     /// Create a zero-initialized Array with the given capacity.
     new := func(cap: USize) returns Array(T) {
-        return Array(T)(data = calloc(cap, T.size()), cap = cap)
+        return Array(T)(data = calloc(usize_to_uptr(cap), usize_to_uptr(T.size())), cap = cap)
     }
 
     len := func(self: Array(T)) returns USize { return self.cap }
@@ -28,7 +28,7 @@ namespace:
     /// its ~_fi < len()~ termination test already proves the index in
     /// bounds (issue #284).
     unsafe_get := func(self: Array(T), i: USize) returns ref T {
-        return ptr_add(self.data, i.mul(T.size()))
+        return ptr_add(self.data, usize_to_uptr(i.mul(T.size())))
     }
 
     /// Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
@@ -62,7 +62,7 @@ namespace:
 
     delete := func(own self: Array(T), call_free: Bool = true) {
         for i in 0..self.cap {
-            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
+            T.delete(own ptr_add(self.data, usize_to_uptr(i.mul(T.size()))), false)
         }
         free(own self.data)
         if call_free { free(own self) }
@@ -76,16 +76,16 @@ namespace:
     /// and the call is then the pure-splat form the desugar already handles.
     concat := func(self: Array(T), other: Array(T)) returns Array(T) {
         total : USize = self.cap.add(other.cap)
-        mut new_data : U8 = malloc(total.mul(T.size()))
+        mut new_data : U8 = malloc(usize_to_uptr(total.mul(T.size())))
         for i in 0..self.cap {
-            ref src : T = ptr_add(self.data, i.mul(T.size()))
+            ref src : T = ptr_add(self.data, usize_to_uptr(i.mul(T.size())))
             mut cloned : T = T.clone(src)
-            adopt(T, ptr_add(new_data, i.mul(T.size())), own cloned)
+            adopt(T, ptr_add(new_data, usize_to_uptr(i.mul(T.size()))), own cloned)
         }
         for j in 0..other.cap {
-            ref osrc : T = ptr_add(other.data, j.mul(T.size()))
+            ref osrc : T = ptr_add(other.data, usize_to_uptr(j.mul(T.size())))
             mut ocloned : T = T.clone(osrc)
-            adopt(T, ptr_add(new_data, self.cap.add(j).mul(T.size())), own ocloned)
+            adopt(T, ptr_add(new_data, usize_to_uptr(self.cap.add(j).mul(T.size()))), own ocloned)
         }
         return Array(T)(data = new_data, cap = total)
     }
@@ -98,7 +98,7 @@ namespace:
     to_vec := func(self: Array(T)) returns Vec(T) {
         mut out : Vec(T) = Vec(T).with_capacity(self.cap)
         for i in 0..self.cap {
-            ref src : T = ptr_add(self.data, i.mul(T.size()))
+            ref src : T = ptr_add(self.data, usize_to_uptr(i.mul(T.size())))
             mut cloned : T = T.clone(src)
             out.push(own cloned)
         }
@@ -106,11 +106,11 @@ namespace:
     }
 
     clone := func(self: Array(T)) returns Array(T) {
-        mut new_data : U8 = malloc(self.cap.mul(T.size()))
+        mut new_data : U8 = malloc(usize_to_uptr(self.cap.mul(T.size())))
         for i in 0..self.cap {
-            ref src : T = ptr_add(self.data, i.mul(T.size()))
+            ref src : T = ptr_add(self.data, usize_to_uptr(i.mul(T.size())))
             mut cloned : T = T.clone(src)
-            adopt(T, ptr_add(new_data, i.mul(T.size())), own cloned)
+            adopt(T, ptr_add(new_data, usize_to_uptr(i.mul(T.size()))), own cloned)
         }
         return Array(T)(data = new_data, cap = self.cap)
     }

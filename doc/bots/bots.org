@@ -78,6 +78,13 @@ paid to think about orders -- you are paid to follow them. Always pay
 attention to what the user says and follow his instructions; do not
 force him to repeat himself or beg.
 
+When the human describes what *he* is doing or plans to do, that is not an
+instruction to you. "I'm going back to X", "I'll reset master", "I'm going to
+merge this", and similar first-person statements mean the human is doing it.
+Do not run any command in response unless the human explicitly tells you to do
+it (for example: "reset master to X", "cherry-pick this to master", "rebase
+your worktree on master").
+
 ### No Random "Adjustments"
 
 The training prior pushes toward unsolicited "improvements" that

@@ -29,6 +29,7 @@ import("src/std/file")
 // systems insist on. Same bridge src/til.til binds; not in std/sys
 // because nothing but a build tool has wanted it yet.
 get_cwd_str := ext_proc() returns Str {}
+til_setenv := ext_proc(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
 
 BOOT := "bin/til_boot"
 TIL := "bin/til"
@@ -51,6 +52,8 @@ LIBFFI_WIN32_LIB := "vendor/libffi/i686-w64-mingw32/.libs/libffi.a"
 MAC_STUBS_STAMP := "vendor/macos/frameworks/.stamp"
 RAYLIB_WASM_LIB := "vendor/raylib/src/libraylib-web.a"
 EMSDK_DIR := "vendor/emscripten"
+EMSDK_VERSION := "6.0.0"
+EMSDK_STAMP := "vendor/emscripten/.til-emsdk-6.0.0"
 
 // --- Host ---
 
@@ -119,7 +122,15 @@ Build := struct {
 
 namespace:
     new := proc() returns Build {
-        emsdk := format(get_cwd_str(), "/", EMSDK_DIR, "/upstream/emscripten")
+        cwd := get_cwd_str()
+        emsdk := format(cwd, "/", EMSDK_DIR, "/upstream/emscripten")
+        em_config := format(cwd, "/", EMSDK_DIR, "/.emscripten")
+        emcc_override := get_env("EMCC")
+        if emcc_override.len().eq(0) {
+            if til_setenv("EM_CONFIG".c_str, em_config.c_str, 1) != 0 {
+                panic("could not set EM_CONFIG")
+            }
+        }
         return Build(
             host = Host.detect(),
             done = Set(Str).new(),
@@ -846,12 +857,12 @@ run_clean := proc(mut b: Build) {
 /// library, where a stale stamp would keep linking the old archive.
 /// git clean rather than each library's own ~make clean~: after a tree
 /// swap the leftover build system belongs to the OLD version.
-/// vendor/emscripten is deliberately not touched -- it is a downloaded
-/// SDK, not a build artifact of committed sources.
+/// Emsdk's control tree is committed; its node/upstream/config/stamp
+/// install outputs are ignored and therefore removed by the same command.
 run_clean_vendor := proc(mut b: Build) {
     if b.begin("clean_vendor").not() { return }
     run("git", "clean", "-fdx", "vendor/raylib", "vendor/tinyfiledialogs",
-        "vendor/nng", "vendor/libffi")
+        "vendor/nng", "vendor/libffi", EMSDK_DIR)
 }
 
 /// ~rm -rf <dir>/*~: the entries go, the directory stays.
@@ -1385,15 +1396,15 @@ build_mac := proc(mut b: Build) {
 
 // --- Browser WASM ---
 
-/// The emscripten SDK. The one artifact that is downloaded rather than
-/// built from vendored sources, which is why it is also the one
-/// vendor/ directory clean_vendor leaves alone.
+/// Install the pinned Emscripten payload from the committed emsdk control
+/// tree. node/, upstream/, .emscripten and this stamp are generated and
+/// ignored; clean_vendor removes them without deleting the control tree.
 build_emsdk := proc(mut b: Build) {
     if b.begin("emsdk").not() { return }
-    if File.exists(b.emcc) { return }
-    run("git", "clone", "https://github.com/emscripten-core/emsdk.git", EMSDK_DIR)
-    run(format(EMSDK_DIR, "/emsdk"), "install", "latest")
-    run(format(EMSDK_DIR, "/emsdk"), "activate", "latest")
+    if File.exists(EMSDK_STAMP).and(File.exists(b.emcc)) { return }
+    run(format(EMSDK_DIR, "/emsdk"), "install", EMSDK_VERSION)
+    run(format(EMSDK_DIR, "/emsdk"), "activate", EMSDK_VERSION)
+    File.writefile(EMSDK_STAMP, "")
 }
 
 build_raylib_web := proc(mut b: Build) {

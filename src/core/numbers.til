@@ -865,3 +865,8 @@ USize := U32
 /// The source alias defaults to U64; the loader retargets it to U32 for
 /// 32-bit targets before typecheck/codegen.
 UPtr := U64
+
+/// Convert a container-sized byte count to the target's pointer width.
+/// USize and UPtr are retargeted together before type checking, so this
+/// cast is either same-width or same-signedness widening on every target.
+usize_to_uptr := func(val: USize) returns UPtr { return val.cast(UPtr) }
