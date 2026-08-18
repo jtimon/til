@@ -1,6 +1,17 @@
 # priority: low
 # category: cleanups
-** OPEN #278 codegen: faster string switch dispatch (not a C switch)
+** FIXED #278 codegen: faster string switch dispatch (not a C switch)
+
+*** Post-mortem
+String switches bypassed the C-like switch path because C has no string case
+labels, so every dispatch remained a linear chain of full ~Str_eq~ calls.
+
+The typer now lowers eligible literal-string switches to a C-like switch on
+the subject's decoded byte count, with only same-length ~Str_eq~ checks inside
+each bucket. Complex subjects are still evaluated once; guarded switches and
+switches containing a loop-targeting ~break~ retain the general lowering.
+
+Regression test: ~test_switch_str_length_dispatch~.
 
 Follow-up to the C-like switch work (#254 / #276). A switch on a ~Str~
 scrutinee -- ~switch s { case "foo": ...; case "bar": ...; case: ... }~ --

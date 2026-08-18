@@ -3261,6 +3261,175 @@ priv expr_has_unguarded_break := func(e: Expr) returns Bool {
     return false
 }
 
+// #278: post-escape byte count of a source-form string literal. Keep this in
+// step with builder's c_lit_byte_count: the runtime Str.count sees decoded
+// bytes, not the number of characters in the escaped source spelling.
+priv switch_str_lit_byte_count := func(s: Str) returns USize {
+    n := s.len()
+    mut count : USize = 0
+    mut i : USize = 0
+    while i < n {
+        ref b : I8 = s.unsafe_get(i)
+        if b.eq('\\').and(i.add(1).lt(n)) {
+            ref nx : I8 = s.unsafe_get(i + 1)
+            if nx.eq('x').and(i.add(3).lt(n)) {
+                i = i + 4
+                count++
+                continue
+            }
+            i = i + 2
+            count++
+            continue
+        }
+        if b.eq('"').and(i.add(1).lt(n)).and(s.unsafe_get(i + 1).eq('"')) {
+            i = i + 2
+            continue
+        }
+        i++
+        count++
+    }
+    return count
+}
+
+// #278: a plain Str switch with literal patterns can dispatch on Str.count
+// first. Guards need fallthrough between source cases, and a til break must
+// keep targeting the enclosing loop, so both remain on the general desugar.
+priv switch_is_str_length_bucketable := func(stmt: Expr, sw_expr: Expr, is_match: Bool) returns Bool {
+    if is_match { return false }
+    if til_type_name(sw_expr.til_type()) != "Str" { return false }
+    mut seen_default := false
+    mut pattern_total : USize = 0
+    for ci in 1..stmt.children.len() {
+        ref cn : Expr = stmt.children[ci]
+        if cn.node_type.is(NodeType.Case).not() { return false }
+        pc := case_pattern_count(cn)
+        if pc == 0 {
+            if seen_default { return false }
+            seen_default = true
+            if expr_has_unguarded_break(cn.children[0]) { return false }
+            continue
+        }
+        if seen_default { return false }
+        if case_has_guard(cn) { return false }
+        for pi in 0..pc {
+            if cn.children[pi].node_type.is_literal_str().not() { return false }
+            pattern_total++
+        }
+        if expr_has_unguarded_break(cn.children[cn.children.len() - 1]) { return false }
+    }
+    return pattern_total > 1
+}
+
+// #278: lower
+//
+//   switch s { case "a": A case "bb": B case: D }
+//
+// into a C-like switch on s.count whose buckets contain only the Str.eq
+// comparisons of that length. The existing switch emitter and interpreter
+// then share the optimization without either backend learning a string-only
+// dispatch representation.
+desugar_str_switch_by_length := proc(mut body: Expr, stmt_idx: USize, is_match: Bool, mut ctx: Context) returns Bool {
+    ref mut stmt : Expr = body.children[stmt_idx]
+    ref sw_expr : Expr = stmt.children[0]
+    if switch_is_str_length_bucketable(stmt, sw_expr, is_match).not() { return false }
+
+    sw_line := stmt.line
+    sw_col := stmt.col
+    mut block := Expr.new(NodeType.Body, sw_line, sw_col)
+    mut sw_ref := sw_expr.clone()
+    mut hoisted := false
+    if is_simple_lvalue_expr(sw_expr).not() {
+        sw_name := format("_sw_Str_", synth_suffix_unique(ctx, ctx.hoist_counter.to_str()))
+        ctx.hoist_counter++
+        mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), sw_line, sw_col)
+        decl.add_child(own sw_expr.clone())
+        block.add_child(own decl)
+        sw_ref = Expr.new(ident_node(sw_name), sw_line, sw_col)
+        hoisted = true
+    }
+
+    mut lengths := Vec(USize).new()
+    mut has_default := false
+    mut default_body := Expr.new(NodeType.Body, sw_line, sw_col)
+    for ci in 1..stmt.children.len() {
+        ref cn : Expr = stmt.children[ci]
+        pc := case_pattern_count(cn)
+        if pc == 0 {
+            has_default = true
+            default_body = cn.children[0].clone()
+            continue
+        }
+        for pi in 0..pc {
+            mut pattern_len : USize = 0
+            switch cn.children[pi].node_type {
+            case .Literal(Literal.Str(text)): pattern_len = switch_str_lit_byte_count(text)
+            case: UNREACHABLE("string switch classifier admitted a non-string pattern")
+            }
+            mut seen_len := false
+            for old_len : USize in lengths {
+                if old_len == pattern_len { seen_len = true }
+            }
+            if seen_len.not() { lengths.push(own pattern_len) }
+        }
+    }
+
+    mut count_expr := Expr.new(field_access_node("count"), sw_line, sw_col)
+    count_expr.add_child(own sw_ref.clone())
+    mut length_switch := Expr.new(NodeType.Switch, sw_line, sw_col)
+    length_switch.add_child(own count_expr)
+
+    for pattern_len : USize in lengths {
+        mut first_if := Expr.new(NodeType.Body, sw_line, sw_col)
+        mut has_first_if := false
+        for ci2 in 1..stmt.children.len() {
+            ref cn2 : Expr = stmt.children[ci2]
+            pc2 := case_pattern_count(cn2)
+            if pc2 == 0 { continue }
+            for pi2 in 0..pc2 {
+                ref pat : Expr = cn2.children[pi2]
+                mut this_len : USize = 0
+                switch pat.node_type {
+                case .Literal(Literal.Str(text2)): this_len = switch_str_lit_byte_count(text2)
+                case: UNREACHABLE("string switch classifier admitted a non-string pattern")
+                }
+                if this_len != pattern_len { continue }
+                mut receiver := sw_ref.clone()
+                mut condition := make_method_call_fcall(own receiver, "eq", sw_line, sw_col)
+                condition.add_child(own pat.clone())
+                mut if_node := Expr.new(NodeType.If, cn2.line, cn2.col)
+                if_node.add_child(own condition)
+                if_node.add_child(own cn2.children[cn2.children.len() - 1].clone())
+                if has_first_if.not() {
+                    first_if = if_node
+                    has_first_if = true
+                } else {
+                    append_switch_else_if(first_if, if_node)
+                }
+            }
+        }
+        if has_default { attach_switch_default_body(first_if, default_body) }
+        mut bucket_body := Expr.new(NodeType.Body, sw_line, sw_col)
+        bucket_body.add_child(own first_if)
+        mut bucket := Expr.new(NodeType.Case(CaseData(pattern_count = 1)), sw_line, sw_col)
+        bucket.add_child(own Expr.new(literal_num_node(pattern_len.to_str()), sw_line, sw_col))
+        bucket.add_child(own bucket_body)
+        length_switch.add_child(own bucket)
+    }
+    if has_default {
+        mut default_case := Expr.new(NodeType.Case(CaseData(pattern_count = 0)), sw_line, sw_col)
+        default_case.add_child(own default_body)
+        length_switch.add_child(own default_case)
+    }
+
+    if hoisted {
+        block.add_child(own length_switch)
+        replace_switch_stmt_with_block(body, stmt_idx, own block)
+    } else {
+        body.children[stmt_idx] = length_switch
+    }
+    return true
+}
+
 // #254: a switch is "C-like" -- emittable as a real C `switch (expr) { case K:
 // }` -- when the scrutinee is an integer/char and every case is a bare
 // constant integer/char literal (no payload binding, range, guard, or string)
