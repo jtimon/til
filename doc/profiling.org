@@ -125,11 +125,13 @@ gone: eq for a payload-free enum now emits a single is_n tag compare
 instead of a per-variant chain.
 
 Set ~TIL_PROF_TOP=N~ for a different row count (0 = all). Names are the C
-symbols, which are the til function names -- the build links ~-rdynamic~ and
-the profiler resolves addresses with dladdr -- so the profile reads at the til
-source level and survives refactors that move code between C files. That is
-the point: it tells you which til functions and which Map/Vec/Str helpers the
-compiler actually leans on.
+symbols, which are the til function names. Exported symbols resolve through
+~dladdr~ / ~-rdynamic~; generated functions are translation-unit-local, so on
+Linux the profiler maps the executable's existing ELF ~.symtab~ and resolves
+their exact addresses there. No ~nm~, sidecar, or extra build artifact is
+needed. The profile therefore reads at the til source level and survives
+refactors that move code between C files: it tells you which til functions and
+which Map/Vec/Str helpers the compiler actually leans on.
 
 Caveats: the call counts are exact and the most useful signal. ~self_ms~ of
 tiny hot leaf functions (I64_add, Str_get) is inflated by the two

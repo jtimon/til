@@ -953,6 +953,11 @@ main := proc(args: ..Str) {
     // is exactly the CFG GCC stops following under -finstrument-functions.
     add_count(tests, "option_keeps_needed_unreachable", "build", "__builtin_unreachable", 12,
         format(til_bin, " translate -c gen/c/opt_ur.c test/option.til '&&' cat gen/c/opt_ur.c"))
+    // dladdr sees exported symbols only. The profiler's Linux ELF fallback
+    // must recover translation-unit-local generated functions such as
+    // adopt__Str; TIL_PROF_TOP=0 puts every called function in both tables.
+    add_count(tests, "prof_resolves_static_symbols", "build", "adopt__Str", 2,
+        format(til_bin, " build --prof -o tmp/prof_static examples/hello_script.til '&&' TIL_PROF_TOP=0 tmp/prof_static"))
     // A delete's call_free Bool literal is read by value in both back
     // ends, and the C emitter overrides it for a stack local -- so
     // hoisting it manufactured a dead `Bool hoisted__Bool_N` binding at

@@ -113,6 +113,10 @@ static void stdio_capture_fail(const char *op) {
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <dlfcn.h>
+#ifdef __linux__
+#include <elf.h>
+#include <sys/mman.h>
+#endif
 // REPL line editor (issue #332): raw mode, the ESC follow-up timeout,
 // the window size, and the cleanup signals.
 #include <termios.h>
@@ -3816,12 +3820,13 @@ Str *til_str_left(const Str *s, U64 n) {
 // `til build --prof` adds (mirroring how --asan adds -fsanitize=address).
 // gcc then inserts __cyg_profile_func_enter/exit at every function
 // boundary; we accumulate per-function call counts and inclusive/self
-// time, and dump a top-N table to stderr at exit (atexit). Function names
-// are resolved with dladdr -- looked up via dlsym(RTLD_DEFAULT) so we do
-// not depend on _GNU_SOURCE -- and the build links -rdynamic, so the til
-// function names show through as the C symbol names (Map_set, Vec_push,
-// the typer_* helpers, ...). Set TIL_PROF_TOP=N to change the row count
-// (0 = all).
+// time, and dump a top-N table to stderr at exit (atexit). Exported names
+// resolve through dladdr (looked up via dlsym(RTLD_DEFAULT), so this file
+// does not need _GNU_SOURCE). Generated helpers are translation-unit-local
+// static functions, which dladdr cannot see; on Linux the report maps the
+// executable's existing ELF .symtab and binds those exact function addresses.
+// The result reads back as til-level C names (Map_set, Vec_push, the typer_*
+// helpers, ...). Set TIL_PROF_TOP=N to change the row count (0 = all).
 //
 // With -DTIL_PROF_ALLOC (added by --prof unless --asan, since asan owns
 // malloc) the build also wraps malloc/calloc/realloc via -Wl,--wrap; the
@@ -3842,11 +3847,124 @@ typedef struct {
     void       *dli_saddr;
 } TilDlInfo;
 
+typedef int (*TilDladdrFn)(const void *, TilDlInfo *);
+
+#ifdef __linux__
+#if UINTPTR_MAX == UINT64_MAX
+typedef Elf64_Ehdr TilElfEhdr;
+typedef Elf64_Shdr TilElfShdr;
+typedef Elf64_Sym TilElfSym;
+#define TIL_ELF_CLASS ELFCLASS64
+#define TIL_ELF_ST_TYPE ELF64_ST_TYPE
+#else
+typedef Elf32_Ehdr TilElfEhdr;
+typedef Elf32_Shdr TilElfShdr;
+typedef Elf32_Sym TilElfSym;
+#define TIL_ELF_CLASS ELFCLASS32
+#define TIL_ELF_ST_TYPE ELF32_ST_TYPE
+#endif
+
+typedef struct {
+    void *image;
+    size_t image_size;
+    const TilElfSym *symbols;
+    size_t symbol_count;
+    const char *strings;
+    size_t strings_size;
+    uintptr_t load_bias;
+} TilProfSymbols;
+
+static int til_prof_elf_range(size_t size, uint64_t off, uint64_t len) __attribute__((no_instrument_function));
+static int til_prof_elf_range(size_t size, uint64_t off, uint64_t len) {
+    return off <= size && len <= size - (size_t)off;
+}
+
+static void til_prof_symbols_close(TilProfSymbols *out) __attribute__((no_instrument_function));
+static void til_prof_symbols_close(TilProfSymbols *out) {
+    if (out->image) munmap(out->image, out->image_size);
+    memset(out, 0, sizeof(*out));
+}
+
+static void til_prof_symbols_open(TilProfSymbols *out, void *pd) __attribute__((no_instrument_function));
+static void til_prof_symbols_open(TilProfSymbols *out, void *pd) {
+    memset(out, 0, sizeof(*out));
+    int fd = open("/proc/self/exe", O_RDONLY);
+    if (fd < 0) return;
+
+    struct stat st;
+    if (fstat(fd, &st) != 0 || st.st_size <= 0) {
+        close(fd);
+        return;
+    }
+    size_t size = (size_t)st.st_size;
+    void *image = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    close(fd);
+    if (image == MAP_FAILED) return;
+
+    out->image = image;
+    out->image_size = size;
+    if (size < sizeof(TilElfEhdr)) goto fail;
+
+    const TilElfEhdr *eh = (const TilElfEhdr *)image;
+    if (memcmp(eh->e_ident, ELFMAG, SELFMAG) != 0 ||
+        eh->e_ident[EI_CLASS] != TIL_ELF_CLASS ||
+        eh->e_shentsize != sizeof(TilElfShdr) || eh->e_shnum == 0 ||
+        !til_prof_elf_range(size, eh->e_shoff,
+                            (uint64_t)eh->e_shnum * sizeof(TilElfShdr))) {
+        goto fail;
+    }
+
+    if (eh->e_type == ET_DYN) {
+        TilDladdrFn pdladdr = (TilDladdrFn)pd;
+        TilDlInfo info;
+        if (!pdladdr || !pdladdr((const void *)til_prof_symbols_open, &info)) goto fail;
+        out->load_bias = (uintptr_t)info.dli_fbase;
+    } else if (eh->e_type != ET_EXEC) {
+        goto fail;
+    }
+
+    const TilElfShdr *sections = (const TilElfShdr *)((const char *)image + eh->e_shoff);
+    for (size_t i = 0; i < eh->e_shnum; i++) {
+        const TilElfShdr *symtab = &sections[i];
+        if (symtab->sh_type != SHT_SYMTAB || symtab->sh_entsize != sizeof(TilElfSym) ||
+            symtab->sh_link >= eh->e_shnum ||
+            !til_prof_elf_range(size, symtab->sh_offset, symtab->sh_size)) {
+            continue;
+        }
+        const TilElfShdr *strtab = &sections[symtab->sh_link];
+        if (strtab->sh_type != SHT_STRTAB ||
+            !til_prof_elf_range(size, strtab->sh_offset, strtab->sh_size)) {
+            continue;
+        }
+        out->symbols = (const TilElfSym *)((const char *)image + symtab->sh_offset);
+        out->symbol_count = (size_t)(symtab->sh_size / sizeof(TilElfSym));
+        out->strings = (const char *)image + strtab->sh_offset;
+        out->strings_size = (size_t)strtab->sh_size;
+        return;
+    }
+
+fail:
+    til_prof_symbols_close(out);
+}
+#else
+typedef struct { int unused; } TilProfSymbols;
+
+static void til_prof_symbols_open(TilProfSymbols *out, void *pd) __attribute__((no_instrument_function));
+static void til_prof_symbols_open(TilProfSymbols *out, void *pd) {
+    (void)out;
+    (void)pd;
+}
+
+static void til_prof_symbols_close(TilProfSymbols *out) __attribute__((no_instrument_function));
+static void til_prof_symbols_close(TilProfSymbols *out) { (void)out; }
+#endif
+
 #define TIL_PROF_SLOTS (1u << 17)   // open-addressed by function pointer
 #define TIL_PROF_STACK (1u << 14)   // max instrumented call depth
 
 typedef struct {
     void *fn;                       // NULL = empty slot
+    const char *name;               // points into the mapped ELF string table
     unsigned long long calls;
     unsigned long long total_ns;    // inclusive (self + callees)
     unsigned long long self_ns;     // exclusive
@@ -3883,6 +4001,37 @@ static unsigned til_prof_slot(void *fn) {
     return 0;   // table full: should not happen with the headroom above
 }
 
+static TilProfSlot *til_prof_find_slot(void *fn) __attribute__((no_instrument_function));
+static TilProfSlot *til_prof_find_slot(void *fn) {
+    unsigned h = (unsigned)(((uintptr_t)fn >> 4) * 2654435761u) & (TIL_PROF_SLOTS - 1u);
+    for (unsigned i = 0; i < TIL_PROF_SLOTS; i++) {
+        unsigned j = (h + i) & (TIL_PROF_SLOTS - 1u);
+        if (til_prof_slots[j].fn == fn) return &til_prof_slots[j];
+        if (til_prof_slots[j].fn == NULL) return NULL;
+    }
+    return NULL;
+}
+
+static void til_prof_bind_symbols(TilProfSymbols *symbols) __attribute__((no_instrument_function));
+static void til_prof_bind_symbols(TilProfSymbols *symbols) {
+#ifdef __linux__
+    for (size_t i = 0; i < symbols->symbol_count; i++) {
+        const TilElfSym *sym = &symbols->symbols[i];
+        if (TIL_ELF_ST_TYPE(sym->st_info) != STT_FUNC || sym->st_value == 0 ||
+            sym->st_name >= symbols->strings_size) {
+            continue;
+        }
+        const char *name = symbols->strings + sym->st_name;
+        if (!name[0] || !memchr(name, '\0', symbols->strings_size - sym->st_name)) continue;
+        void *fn = (void *)(symbols->load_bias + (uintptr_t)sym->st_value);
+        TilProfSlot *slot = til_prof_find_slot(fn);
+        if (slot && !slot->name) slot->name = name;
+    }
+#else
+    (void)symbols;
+#endif
+}
+
 static int til_prof_cmp_self(const void *a, const void *b) __attribute__((no_instrument_function));
 static int til_prof_cmp_self(const void *a, const void *b) {
     const TilProfSlot *x = *(const TilProfSlot *const *)a;
@@ -3903,10 +4052,10 @@ static int til_prof_cmp_bytes(const void *a, const void *b) {
 
 static const char *til_prof_name(const TilProfSlot *s, void *pd) __attribute__((no_instrument_function));
 static const char *til_prof_name(const TilProfSlot *s, void *pd) {
-    typedef int (*til_dladdr_fn)(const void *, TilDlInfo *);
-    til_dladdr_fn pdladdr = (til_dladdr_fn)pd;
+    TilDladdrFn pdladdr = (TilDladdrFn)pd;
     TilDlInfo info;
     if (pdladdr && pdladdr(s->fn, &info) && info.dli_sname) return info.dli_sname;
+    if (s->name) return s->name;
     return "(unknown)";
 }
 
@@ -3928,6 +4077,9 @@ static void til_prof_report(void) {
     if (want == 0 || want > n) want = n;
 
     void *pd = dlsym(RTLD_DEFAULT, "dladdr");
+    TilProfSymbols symbols;
+    til_prof_symbols_open(&symbols, pd);
+    til_prof_bind_symbols(&symbols);
 
     qsort(order, n, sizeof(order[0]), til_prof_cmp_self);
     fprintf(stderr, "\n=== til --prof: %u functions instrumented, top %u by self time ===\n", n, want);
@@ -3948,6 +4100,7 @@ static void til_prof_report(void) {
                     til_prof_name(s, pd), s->allocs, (double)s->alloc_bytes / 1024.0, s->calls);
         }
     }
+    til_prof_symbols_close(&symbols);
 }
 
 void __cyg_profile_func_enter(void *this_fn, void *call_site) __attribute__((no_instrument_function));
