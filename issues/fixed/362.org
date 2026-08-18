@@ -1,6 +1,26 @@
 # priority: low
 # category: bugs
-** OPEN #362 Constfolder: a Str bound into a ..Dynamic variadic's fold scope leaks its clone
+** FIXED #362 Constfolder: a Str bound into a ..Dynamic variadic's fold scope leaks its clone
+
+*** Post-mortem
+
+~bind_known_idents_in~ deep-cloned every known variadic element into the
+temporary fold scope. When an ~Array(Dynamic).set~ call erased a cloned ~Str~,
+~adopt~ freed its outer box after copying the erased word into the array. The
+character buffer then had neither type metadata nor a typed owner, so Dynamic
+teardown could not reclaim it.
+
+Dynamic collector builds now borrow their known typed elements from the known
+scope, which outlives the complete fold. When an owned Dynamic parameter takes
+such a borrow, the interpreter owns a wrapper around the borrowed pointee and
+preserves that erased-wrapper metadata across later own-argument moves. Thus
+~adopt~ frees only the wrapper, while the known scope remains the sole typed
+owner and deep-drops the ~Str~ after the fold. Typed variadic collectors keep
+the existing clone behavior.
+
+~test_splat_dynamic_variadic~ is the regression test. It covers the original
+no-splat ~splat_dyn_count(1, "a")~ call and a mixed-splat Str call; both are
+ASAN-clean interpreted.
 
 A small, deterministic ASAN leak with no splat anywhere:
 

@@ -1,6 +1,3 @@
-* Bugs
-** Low
-*** [[./open/362.org][#362]] Constfolder: a Str bound into a ..Dynamic variadic's fold scope leaks its clone
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

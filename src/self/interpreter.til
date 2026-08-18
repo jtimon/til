@@ -2604,7 +2604,13 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                 mut dynamic_data : Dynamic = source_raw
                 if arg_transfers {
                     if source_hb.is_borrowed {
-                        scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, false, true, true)
+                        // Dynamic cannot own or deep-delete the typed pointee.
+                        // Own a wrapper while retaining the source borrow; an
+                        // adopt can then free the wrapper without consuming the
+                        // typed owner behind it.
+                        mut borrowed_dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                        write_ptr(borrowed_dynamic_slot, dynamic_data)
+                        scope_set_heap_owned(call_scope, param.name, borrowed_dynamic_slot, dynamic_type_w, param.own_type, ctx, true, false, true)
                         continue
                     } else if heap_slot_is_static_callable(hb_type(source_hb), source_raw) {
                         dynamic_data = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
@@ -2654,7 +2660,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                 } else {
                     owned_raw = raw_coerce_value(owned_raw, hb_type(source_hb), bind_type, ctx, param.own_type)
                 }
-                scope_set_raw_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, ctx)
+                scope_set_heap_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, ctx, true, false, source_hb.is_erased_dynamic)
             } else {
                 bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
                 ref bind_type : Type = to_ptr(bind_type_w)

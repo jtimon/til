@@ -1138,20 +1138,34 @@ priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, mut ctx: Co
 }
 
 // Bind every comptime-known ident (the typer's hoisted__ element/count temps)
-// referenced in `e` into the fold scope as typed raw clones. Types / other
-// idents are left.
-priv bind_known_idents_in := proc(mut scope: Scope, e: Expr, mut ctx: Context) {
+// referenced in `e` into the fold scope as a typed raw clone. A Dynamic
+// collector instead borrows them: erasure has no type-directed delete with
+// which to reclaim a cloned aggregate's nested storage, while the known scope
+// remains alive through the whole fold. Types / other idents are left.
+priv bind_known_idents_in := proc(mut scope: Scope, e: Expr, mut ctx: Context, borrow: Bool = false) {
     switch e.node_type {
     case .Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
             ref hb : HeapBinding = scope_lookup_heap_binding(known_scope(ctx), id.ident_name()).unwrap()
-            mut raw : Dynamic = scope_read_bound_raw(known_scope(ctx), id.ident_name(), ctx)
-            if raw_type_is_prim(hb_type(hb), ctx) { raw = scalar_block_from_word(hb_type(hb), raw, ctx) }
-            scope_set_raw_owned(scope, id.ident_name(), raw, hb.til_type_p, known_bind_own_type(hb_type(hb), ctx), hb.ctx)
+            if borrow {
+                scope_set_raw_owned(scope, id.ident_name(), hb.ptr, hb.til_type_p, known_bind_own_type(hb_type(hb), ctx), hb.ctx, true)
+            } else {
+                mut raw : Dynamic = scope_read_bound_raw(known_scope(ctx), id.ident_name(), ctx)
+                if raw_type_is_prim(hb_type(hb), ctx) { raw = scalar_block_from_word(hb_type(hb), raw, ctx) }
+                scope_set_raw_owned(scope, id.ident_name(), raw, hb.til_type_p, known_bind_own_type(hb_type(hb), ctx), hb.ctx)
+            }
         }
     case:
     }
-    for c : Expr in e.children { bind_known_idents_in(scope, c, ctx) }
+    for c : Expr in e.children { bind_known_idents_in(scope, c, ctx, borrow) }
+}
+
+priv va_holds_dynamic := func(mut scope: Scope, va: Str, ctx: Context) returns Bool {
+    ref hb : HeapBinding = scope_lookup_heap_binding(scope, va).unwrap()
+    switch hb_type(hb) {
+    case .Struct(name): return name == variadic_array_type_name(ctx.scope, "Dynamic")
+    case: return false
+    }
 }
 
 // Interpret one of `va`'s OWN build statements into the fold scope: bind the
@@ -1172,7 +1186,7 @@ priv interp_va_build_stmt := proc(mut scope: Scope, mut stmt: Expr, va: Str, ek:
         }
     case .FCall:
         if is_va_set(stmt, va) {
-            bind_known_idents_in(scope, stmt, ctx)
+            bind_known_idents_in(scope, stmt, ctx, va_holds_dynamic(scope, va, ctx))
             mut result : Dynamic = eval_expr_raw(scope, stmt, ctx)
             raw_result_drop(stmt.til_type(), result, false, ctx)
         }

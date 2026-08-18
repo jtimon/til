@@ -321,8 +321,10 @@ test_splat_dynamic_variadic := test() {
     assert_eq(USize, splat_dyn_count(9, ..d), 3)
     assert_eq(USize, splat_dyn_count(..d, 9), 3)
     assert_eq(USize, splat_dyn_count(9, ..d, 9), 4)
-    // A Bool among the plain arguments: narrower than a word, and #361 copied
-    // one as a word off its 1-byte box. No Str here yet -- one still leaks its
-    // clone in the constfolder's va materialization (#362).
+    // Plain arguments cover both a Bool narrower than a word (#361) and a Str
+    // whose typed clone must remain owned while the fold erases it to Dynamic
+    // (#362).
     assert_eq(USize, splat_dyn_count(true, ..d), 3)
+    assert_eq(USize, splat_dyn_count(1, "a"), 2)
+    assert_eq(USize, splat_dyn_count("a", ..d), 3)
 }
