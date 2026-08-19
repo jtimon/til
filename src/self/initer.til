@@ -5142,40 +5142,6 @@ normalize_enum_payload_aliases_for_stmt := func(mut stmt: Expr, scope: TypeScope
     }
 }
 
-// Run the global init steps that require a full program view.
-init_declarations_global := func(mut ctx: Context, mut program: Expr, mut scope: TypeScope) returns I32 {
-    errors : I32 = 0
-
-    // Bucket func/value decls for the legacy post-init re-registration.
-    // Type method generation has moved to the typer; removing this remaining
-    // global pass is the next #165 step.
-    mut func_idxs := Vec(USize).new()
-    mut value_idxs := Vec(USize).new()
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.children[i]
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        ref rhs : Expr = stmt.children[0]
-        if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len() > 0 {
-                func_idxs.push(own i)
-            }
-        } else if rhs.node_type.is(NodeType.Ident).not() {
-            value_idxs.push(own i)
-        }
-    }
-
-    // Retain the legacy post-init function/value re-registration until the
-    // next #165 step removes this global pass.
-    for fi : USize in func_idxs {
-        register_function_def_for_stmt(ctx, program.children[fi], scope)
-    }
-    for vi : USize in value_idxs {
-        register_top_level_value_for_stmt(ctx, program.children[vi], scope)
-    }
-
-    return errors
-}
-
 // Count ~import("...")~ FCalls at the top level of `body`. Used by step 5
 // to distinguish mode auto-imports (prepended to iu.imports by the loader)
 // from explicit imports that appear in the source AST.
@@ -5298,7 +5264,6 @@ init_repl_delta := proc(path: Str, mut program: Expr, mut ctx: Context) returns 
     ctx.mode = iu.mode.clone()
     mut errors : I32 = 0
     errors = errors + init_declarations_unit(path, program, ctx.scope, ctx)
-    errors = errors + init_declarations_global(ctx, program, ctx.scope)
     return errors
 }
 

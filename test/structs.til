@@ -677,6 +677,33 @@ test_field_default_calls_generated_method := test() {
     assert_eq(Str, o.label, "GeneratedDefaultInner(n=9)")
 }
 
+// Field inference must not depend on declaration order. These defaults call
+// methods that are generated only after ForwardMethodInner's fields are known,
+// while ForwardMethodOuter itself derives the same methods from that later
+// type.
+ForwardMethodOuter := struct {
+    inner := ForwardMethodInner()
+    rendered := ForwardMethodInner().to_str()
+    same := ForwardMethodInner().eq(ForwardMethodInner())
+    order := ForwardMethodInner().cmp(ForwardMethodInner())
+}
+
+ForwardMethodInner := struct {
+    n := 7
+}
+
+test_forward_generated_struct_methods := test() {
+    o := ForwardMethodOuter()
+    assert_eq(I64, o.inner.n, 7)
+    assert_eq(Str, o.rendered, "ForwardMethodInner(n=7)")
+    assert(o.same)
+    assert_eq(I64, o.order, 0)
+    c := o.clone()
+    assert(c.eq(o))
+    assert_eq(I64, c.cmp(o), 0)
+    assert_eq(Str, o.to_str(), "ForwardMethodOuter(inner=ForwardMethodInner(n=7), rendered=ForwardMethodInner(n=7), same=true, order=0)")
+}
+
 // --- #340: field init shorthand -------------------------------------
 //
 // In a struct literal a bare identifier that names a field stands for

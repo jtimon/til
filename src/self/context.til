@@ -615,11 +615,9 @@ namespace:
                 ref mut b : TypeBinding = self.bindings[sym]
                 b.type = type
                 b.is_mut = is_mut
-                // path/line/col are declaration-site identity. Don't
-                // overwrite them on re-registration: init_declarations_global
-                // re-runs across all units with a stale initer_path and
-                // would otherwise relocate priv bindings to the wrong file
-                // (issue #179 step 1 cross-file check needs the original).
+                // path/line/col are declaration-site identity. Preserve them
+                // when a declaration is re-registered so private cross-file
+                // checks retain the original location (#179 step 1).
                 b.is_param = is_param
                 b.own_type = own_type
                 return

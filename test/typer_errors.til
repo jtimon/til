@@ -243,6 +243,13 @@ BadGeneratedDefault := struct { text := NoCmp().to_str() }
 // set literal: element type must implement cmp
 bad_set := {NoCmp(), NoCmp()}
 
+// Provisional return types used during field inference must not make
+// unsupported generated methods permanent. NoCmp's owned field disqualifies
+// cmp.
+ForwardUnsupportedGeneratedMethod := struct {
+    comparison := NoCmp().cmp(NoCmp())
+}
+
 // for-in: Dynamic collection without explicit type
 forin_vec := vec(I64, 1, 2, 3)
 for x in forin_vec { }

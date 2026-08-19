@@ -1806,32 +1806,25 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
 // the original default is inferred and validated again in the body sweep.
 // Ordinary struct methods cannot be materialized until every field type is
 // settled, so expose their fixed return signatures during the provisional
-// inference instead of producing a declaration-order error. If the method is
-// not actually generated, strict lookup on the original expression reports
-// it before codegen.
-priv infer_provisional_generated_method := func(method: Str, receiver: Expr, def: Expr, mut call: Expr, mut scope: TypeScope, mut ctx: Context) returns Bool {
-    ref sdd : StructDef = structdef_of(def)
+// inference instead of producing a declaration-order error. Do not inspect
+// field capabilities here: a later declaration's fields may not be settled
+// yet. If the method is not actually generated, strict lookup on the original
+// expression reports it before codegen.
+priv infer_provisional_generated_method := func(method: Str, receiver: Expr, mut call: Expr, mut scope: TypeScope, mut ctx: Context) returns Bool {
     switch method {
     case "clone":
         call.set_til_type(receiver.til_type())
     case "eq":
-        if struct_fields_support_generated_method(sdd, "eq", scope, ctx.symbols).not() { return false }
         call.set_til_type(Type.Primitive(Primitive.Bool))
     case "neq", "lt", "gt", "lte", "gte":
-        if struct_fields_support_generated_method(sdd, "cmp", scope, ctx.symbols).not() { return false }
         call.set_til_type(Type.Primitive(Primitive.Bool))
     case "cmp":
-        if struct_fields_support_generated_method(sdd, "cmp", scope, ctx.symbols).not() { return false }
         call.set_til_type(Type.Primitive(Primitive.I64))
     case "to_str":
-        if struct_fields_support_generated_method(sdd, "to_str", scope, ctx.symbols).not() { return false }
         call.set_til_type(Type.Struct("Str"))
     case "size":
         call.set_til_type(type_from_name("USize", scope, ctx))
     case "hash":
-        for fd : Declaration in sdd.fields {
-            if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
-        }
         call.set_til_type(Type.Primitive(Primitive.U64))
     case:
         return false
@@ -1997,7 +1990,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             if ctx.infer_struct_fields_only.and(sdef1_o.is_some()) {
                 ref provisional_def : Expr = sdef1_o.unwrap()
                 if provisional_def.node_type.is(NodeType.StructDef) {
-                    if infer_provisional_generated_method(method, obj, provisional_def, e, scope, ctx) { return true }
+                    if infer_provisional_generated_method(method, obj, e, scope, ctx) { return true }
                 }
             }
             if try_ufcs_rewrite(scope, e, fa, obj, method, m.field_access_sym(), type_name, ctx) {
@@ -7690,9 +7683,9 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     // helpers (which inspect the same ns_decls that size methodgen
     // may have just populated). All three steps are safe in this
     // sweep because compute_*_layout's nested-type lookups follow
-    // the same scope.get_struct / scope.get_binding path that
-    // init_declarations_global used today; the rstil-style
-    // topo-ordered recursion above guarantees every import's
+    // the same scope.get_struct / scope.get_binding path used by
+    // initialization; the rstil-style topo-ordered recursion above
+    // guarantees every import's
     // layouts are already done by the time we get here. Within a
     // file, compute_struct_layout / compute_enum_layout internally
     // recurse on nested defs to handle local forward references.

@@ -3393,8 +3393,8 @@ priv lazy_register_force_once := func(mut lp: LoadedProgram,
 // Flush the pending loader-generated decls (thunk funcsig aliases + memo
 // helpers) into the unit AST and register each against its PUSHED node
 // (set_func_def stores a raw pointer that must live in the AST).
-// init_declarations_global has already run, so an unregistered decl would be
-// invisible to the typer. Runs at unit end when no refs into the children Vec
+// Initialization has already run, so an unregistered decl would be invisible
+// to the typer. Runs at unit end when no refs into the children Vec
 // are live; the appends can still realloc the Vec and dangle EARLIER
 // registrations, which the caller repairs via init_refresh_seeded_scope_defs.
 priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pending: Vec(Expr)) {
@@ -4265,13 +4265,13 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
         init_file(mode_file, lp.ctx)
     }
 
-    // Global init steps: these generate methods/layouts that later phases
-    // assume exist (e.g. comparison helpers on USize).
+    // Unit initialization can grow an imported AST after an earlier unit has
+    // registered raw pointers into it. The removed global declaration pass
+    // happened to repair those pointers by re-registering every function and
+    // value; refresh only the AST-backed definition maps that can dangle.
     for upath : Str in lp.unit_paths() {
-        ref mut iu : ImportUnit = lp.ctx.imported[upath]
-        lp.ctx.mode = iu.mode.clone()
-        context_enter_file(lp.ctx, upath)
-        init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
+        ref iu : ImportUnit = lp.ctx.imported[upath]
+        init_refresh_seeded_scope_defs(iu.ast, lp.ctx.scope, lp.ctx.symbols)
     }
 
     retarget_loaded_aliases(lp)
