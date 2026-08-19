@@ -350,6 +350,7 @@ typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_code
 typedef struct Set__USize Set__USize;
 typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
+typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
@@ -1147,6 +1148,13 @@ typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
     USize count;
     USize cap;
 } Vec__priv___src_self_c_codegen_til__DynCallInfo;
+
+
+typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
+    Set__Str user_functions;
+    Bool needs_i64_div;
+    Bool needs_i64_mod;
+} priv___src_self_holyc_codegen_til__HolyCEmitState;
 
 
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {

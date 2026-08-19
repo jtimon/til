@@ -3,6 +3,7 @@ import("context")
 
 import("loader")
 import("c_codegen")
+import("holyc_codegen")
 import("jvm_codegen")
 import("targets")
 import("../std/sys")
@@ -553,7 +554,7 @@ priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Tar
             paths.jvm_args_path, paths.jvm_package)
     }
     if lang.is(Lang.HolyC) {
-        return c_codegen_translate_holyc(lp, paths.c_path)
+        return holyc_codegen_translate(lp, paths.c_path)
     }
     return c_codegen_translate_outputs(lp, paths.c_path, paths.fwd_path,
         paths.h_path, paths.til_path, paths.py_path, paths.name, paths.do_lib)

@@ -80,7 +80,7 @@
   - [X] Add scalar locals, arithmetic/core_func lowering, direct calls,
     conditionals, and loops, then grow a named TempleOS example corpus one
     passing example at a time.
-  - [ ] Move the existing HolyC emitter from ~c_codegen.til~ to
+  - [X] Move the existing HolyC emitter from ~c_codegen.til~ to
     ~holyc_codegen.til~ without changing output. Add ~HolyCEmitState~ and
     replace helper-name searches with explicit feature recording. Split out
     only the target-neutral preparation analyses HolyC actually consumes.
@@ -135,6 +135,14 @@
   return values, forward declarations, function definitions, and direct calls.
   TempleOS 5.03 compiled and ran it under QEMU TCG and reported
   ~TILTEST:PASS~.
+
+  The fourth slice moves all HolyC textual emission into
+  ~src/self/holyc_codegen.til~. The builder dispatches directly to that
+  backend, and ~HolyCEmitState~ records user functions and I64 div/mod helper
+  requirements instead of searching generated text. All HolyC goldens remain
+  byte-identical. The current subset consumes no C-only preparation analysis,
+  so none was extracted prematurely; shared analyses will move only when a
+  HolyC feature needs them.
 
 *** QEMU validation
 
