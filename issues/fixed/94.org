@@ -4,7 +4,7 @@
 # a while calling the element's OWN methods -- lt/gt to test, inc/dec
 # to step -- and it never restricted those to builtins, so any struct
 # with cmp + add/sub/unity was already rangeable: lt/gt derive from
-# cmp, inc/dec from add+unity (doc/auto.org). A Vec2 exactly like the
+# cmp, inc/dec from add+unity (doc/concepts/auto.org). A Vec2 exactly like the
 # doc's example iterates correctly, both directions, with no Range
 # object and no dispatch per element. What actually failed was ONE of
 # the recorded blockers: an inline constructor as a range operand.
@@ -19,7 +19,7 @@
 # RHS. The other recorded blockers were obsolete: they all belonged to
 # the abandoned Range-as-collection implementation (dyn_call per
 # element, O(n) count at construction), which is the design this issue
-# should NOT have -- it is recorded as rejected in doc/auto.org now,
+# should NOT have -- it is recorded as rejected in doc/concepts/auto.org now,
 # along with what the desugar really does. Regression tests:
 # test_range_over_user_type_ascending / _descending / _inline_ctors in
 # test/loops.til.
@@ -45,7 +45,7 @@
     (inline struct constructors as range operands fail)
   - [[./79.org][#79]]: type aliases (USize) not resolved in FuncPtr forward decls
 
-  Design documented in ~doc/auto.org~. wip_94 branch has partial impl.
+  Design documented in ~doc/concepts/auto.org~. wip_94 branch has partial impl.
 
   2026-06-20: status of the recorded blockers may be stale.
   - The [[./79.org][#79]] blocker (~USize~ type alias not resolved in FuncPtr

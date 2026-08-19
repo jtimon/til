@@ -8,4 +8,5 @@ in a practical order and is separate from the declaration documentation under
 
 - [[file:1_getting_started.org][Getting Started]]
 - [[file:2_modes.org][Modes]]
-- [[file:3_visibility.org][Visibility]]
+- [[file:3_declarations.org][Declarations]]
+- [[file:4_namespaces.org][Namespaces]]

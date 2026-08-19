@@ -145,7 +145,7 @@ Semantics, all mirroring ~ref~ struct fields:
     ~Option<&T>~ does).
   - The garbager extends the borrowed source's lifetime to cover the
     enum value, exactly as it does for ~ref~ locals and ref-field
-    assignments (see doc/ownership.org).
+    assignments (see doc/concepts/ownership.org).
   - ~own~ on a payload is rejected as redundant: compound payloads are
     owned by default.
 

@@ -216,7 +216,7 @@ the payload is stored owned. Needed:
 
 - AST: per-variant payload ownership in EnumDef (parallel to
   payload_consts), using the same ~OwnType~ enum every other
-  qualifier context shares (doc/qualifiers.org "Internal
+  qualifier context shares (doc/concepts/qualifiers.org "Internal
   representation": Shallow = inline value, the current payload
   behavior; Ref = borrowed pointer).
 - Parser: accept ~Some: ref Expr~ (also outside templates -- the
@@ -224,12 +224,12 @@ the payload is stored owned. Needed:
 - Typer: a ref payload is a borrow -- constructing ~Opt.Some(x)~
   borrows x (no clone/move), the switch/case destructuring bind is a
   ref binding (the payload-bind machinery already exists for
-  mutability inheritance, doc/enums.org "Payload mutability"; ref-ness
+  mutability inheritance, doc/concepts/enums.org "Payload mutability"; ref-ness
   rides the same path), and the usual borrow-vs-owned-RHS rules apply
   (mirror what #168 did for ref struct fields).
 - Garbager: a borrow stored in a value must keep its source alive --
   ~extend_ref_local_lifetimes~ already covers ~ref x := src~ and the
-  ref-field assign ~holder.f = src~ (doc/ownership.org); the
+  ref-field assign ~holder.f = src~ (doc/concepts/ownership.org); the
   enum-payload borrow ~Opt.Some(src)~ is a third shape of the same
   rule. And the borrowed payload is skipped at destruction exactly
   like a ref field (deleted with the parent but never freed).

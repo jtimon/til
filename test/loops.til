@@ -290,7 +290,7 @@ test_for_kv_mut_collection_marks_written := test() {
 
 // Issue #94: a range over a USER type. `for a..b` needs nothing from the
 // element but the methods -- lt/gt to test the bound and inc/dec to step --
-// and both derive: lt/gt from cmp, inc/dec from add+unity (doc/auto.org).
+// and both derive: lt/gt from cmp, inc/dec from add+unity (doc/concepts/auto.org).
 // The desugar emits those method calls directly, so a conforming struct
 // iterates through the same counter-and-while shape a builtin integer does:
 // no Range object, no per-element dispatch.

@@ -179,3 +179,6 @@ til run --extra-modes=examples/custom_modes.til program.til
 
 This keeps application files concise while allowing a project to define its
 own entry contracts and automatically provided APIs.
+
+See [[file:../concepts/modes.org][the mode reference]] for a concise list of
+the built-in modes.

@@ -148,7 +148,7 @@
    *** Recipe
 
    The throwing-method side of the work (making ~Vec.set~ throw) is
-   a copy of the worked example in [[../../doc/throws.org][doc/throws.org]]
+   a copy of the worked example in [[../../doc/concepts/throws.org][doc/concepts/throws.org]]
    "Adding a new throwing container method" -- same shape as
    ~Vec.get~. The parser-side desugar mirrors ~a[b] -> a.get(b)!~
    from ~parse_primary~; the assignment branch is the new code

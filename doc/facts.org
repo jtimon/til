@@ -68,7 +68,7 @@
   the holder. In a switch case binding, the payload variable is a
   ref-mut borrow when the matched value is mut, and a plain ref borrow
   otherwise -- so `case V(p): p = ...` is allowed iff the enum value is
-  mut. See doc/enums.org "Payload mutability".
+  mut. See doc/concepts/enums.org "Payload mutability".
 
 * TRUE The own keyword marks ownership transfer
   At call sites, own marks that the caller gives up ownership: own p.delete().
@@ -128,7 +128,7 @@
   variable reassignment frees the old value: garbager inserts delete before
   compound-type reassignment, interpreter calls free_value for scalars.
 
-* TRUE Every ext_func and ext_proc declaration exactly corresponds to its C header by qualifiers.org rules
+* TRUE Every ext_func and ext_proc declaration exactly corresponds to its C header by doc/concepts/qualifiers.org rules
   Verified 2026-03-10. Every parameter qualifier (shallow vs owned) matches the C
   signature (value vs pointer), every return qualifier matches (shallow → value type,
   non-shallow → pointer type), and every name matches after func_to_c renaming

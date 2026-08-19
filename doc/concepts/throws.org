@@ -1,7 +1,7 @@
 * Throw / catch
 
 Reference for the throw/catch error-handling subsystem ported from
-rstil, originally shipped in issue [[file:../issues/fixed/198.org][#198]].
+rstil, originally shipped in issue [[file:../../issues/fixed/198.org][#198]].
 This doc covers the user-facing surface, where the implementation
 lives, and step-by-step recipes for adding more throwing methods.
 
@@ -61,13 +61,13 @@ lives, and step-by-step recipes for adding more throwing methods.
    when control actually reaches it*, so it short-circuits exactly like
    the surrounding construct:
 
-   - *Short-circuit ~and~/~or~* ([[file:../issues/open/262.org][#262]]). ~cond.and(v[i])~ desugars
+   - *Short-circuit ~and~/~or~* ([[file:../../issues/open/262.org][#262]]). ~cond.and(v[i])~ desugars
      to a ~match~ whose taken arm holds ~v[i]~. The throwing call is
      lowered INTO that arm, so when ~cond~ is false ~v[i]~ never runs --
      a guarded subscript never goes out of bounds.
    - *~match~ arms.* Same mechanism: a throwing call in an arm value
      runs only when that arm is selected.
-   - *~switch~ / ~match~ case guards* ([[file:../issues/fixed/282.org][#282]]). In
+   - *~switch~ / ~match~ case guards* ([[file:../../issues/fixed/282.org][#282]]). In
      ~case P if v[i].cond(): ...~ the guard runs only after the pattern
      ~P~ matches. The bang in the guard is hoisted into the
      pattern-gated case body (before the guard test), not out in front
@@ -110,7 +110,7 @@ lives, and step-by-step recipes for adding more throwing methods.
 
 ** Implementation map
 
-   *** Parser ([[file:../src/self/parser.til][src/self/parser.til]])
+   *** Parser ([[file:../../src/self/parser.til][src/self/parser.til]])
    - Lexes ~throws~, ~throw~, ~catch~, ~?~, ~!~ as their own tokens.
    - Func/proc signature parser stores the ~throws~ list as
      ~FunctionDef.throw_types : Vec[Str]~.
@@ -121,7 +121,7 @@ lives, and step-by-step recipes for adding more throwing methods.
    - ~a[b]~ in postfix position desugars to ~a.get(b)!~ with
      ~is_bang=true~ on the synthesised FCall.
 
-   *** Typer ([[file:../src/self/typer.til][src/self/typer.til]])
+   *** Typer ([[file:../../src/self/typer.til][src/self/typer.til]])
    This is where most of the work lives. The throw/catch lowering
    runs *before* ~infer_body~ so downstream stages (constfolder, asap,
    interpreter, builder) never see ~Throw~ or ~Catch~ nodes.
@@ -177,7 +177,7 @@ lives, and step-by-step recipes for adding more throwing methods.
 
 ** Adding a new built-in error type (worked example: DivideByZero)
 
-   Reference implementation: [[file:../src/core/i64.til][src/core/i64.til]] around
+   Reference implementation: [[file:../../src/core/i64.til][src/core/i64.til]] around
    ~DivideByZero~ and ~safe_div~.
 
    1. Declare the error type as an ordinary struct at top level in
@@ -204,7 +204,7 @@ lives, and step-by-step recipes for adding more throwing methods.
       }
       #+end_src
 
-   3. Add a regression in [[file:../test/errors.til][test/errors.til]]
+   3. Add a regression in [[file:../../test/errors.til][test/errors.til]]
       that exercises both the success and the throw path. ~test_unsafe_div~
       and the surrounding cases there are the canonical shape; copy
       a nearby block.
@@ -216,7 +216,7 @@ lives, and step-by-step recipes for adding more throwing methods.
 
 ** Adding a new throwing container method (worked example: Vec.get)
 
-   Reference implementation: [[file:../src/core/vec.til][src/core/vec.til]]'s ~Vec.get~ and the
+   Reference implementation: [[file:../../src/core/vec.til][src/core/vec.til]]'s ~Vec.get~ and the
    parser's subscript desugar.
 
    1. Add the error type (empty struct is conventional for container
@@ -244,14 +244,14 @@ lives, and step-by-step recipes for adding more throwing methods.
       - ~vec.get(i)~ that wanted to handle the error ->
         ~vec.get(i)? + catch (err: OutOfBounds) { ... }~.
 
-   4. The merge helper [[file:../examples/merge_commit.til][examples/merge_commit.til]] has a special
+   4. The merge helper [[file:../../examples/merge_commit.til][examples/merge_commit.til]] has a special
       constraint here: it is compiled by master's ~bin/til~ at merge
       time but its source comes from the candidate commit. Bundling
       the subscript migration into the breaking commit is fine as
       long as the helper's bare ~vec.get(i)~ calls are rewritten to
       cross-typer-compatible shapes (for-in iteration, explicit ref
       bindings for nested subscripts). See
-      [[file:./self.org][doc/self.org]] "Breaking changes in standalone
+      [[file:../self.org][doc/self.org]] "Breaking changes in standalone
       scripts" for the full procedure.
 
 ** Pitfalls
@@ -307,9 +307,9 @@ lives, and step-by-step recipes for adding more throwing methods.
 
 ** Related issues
 
-   - [[file:../issues/fixed/198.org][#198]] -- the original throw/catch port (shipped).
-   - [[file:../issues/open/201.org][#201]] -- more built-in error types and safe_* methods.
-   - [[file:../issues/fixed/225.org][#225]] -- subscript assignment
+   - [[file:../../issues/fixed/198.org][#198]] -- the original throw/catch port (shipped).
+   - [[file:../../issues/open/201.org][#201]] -- more built-in error types and safe_* methods.
+   - [[file:../../issues/fixed/225.org][#225]] -- subscript assignment
      ~a[b] = c -> a.set(b, own c)!~ (shipped). ~Vec.set~ and ~Array.set~
      throw ~OutOfBounds~; ~vec[i] = x~ and ~arr[i] = x~ both work. The
      variadic-argument codegen was decoupled from ~Array.set~ first

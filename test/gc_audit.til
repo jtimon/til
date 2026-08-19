@@ -3,7 +3,7 @@ mode test
 // Issue #302 stage 0: frozen fixture for the garbager decision-audit golden.
 //
 // Each function below pins one shape of the asap pass's output contract
-// (see doc/garbager.org). The golden test runs
+// (see doc/concepts/garbager.org). The golden test runs
 //     TIL_GC_AUDIT=test/gc_audit.til bin/til translate test/gc_audit.til
 // and byte-compares stdout against test/gc_audit.expected, so any change
 // to the pass's per-binding decisions or destructor placement for these

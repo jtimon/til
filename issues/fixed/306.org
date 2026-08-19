@@ -24,7 +24,7 @@ exactly.
 - src/c/ext.c keeps the symbol transiently: pass-1 til_boot predates the
   inline and emits real calls that link against it; it becomes removable
   once this commit is in master's til_boot (same staging as every core-op
-  symbol removal, see doc/functions.org).
+  symbol removal, see doc/concepts/functions.org).
 
 Regression evidence: the regenerated compiler's only remaining get_payload
 references are the kept ext.c symbol, prototypes, and the reflective _dyn

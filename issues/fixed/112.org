@@ -12,7 +12,7 @@
     calls like ~malloc~ and ~dyn_call_ret~ stay heap-backed when needed,
     even without explicit local ~own~
   - repo-owned locals were cleaned up to use the default spelling
-  - ~doc/qualifiers.org~ now matches the implemented default-based model
+  - ~doc/concepts/qualifiers.org~ now matches the implemented default-based model
 
   Resulting local forms:
   - ~x := expr~
@@ -32,4 +32,3 @@
   - ~make clean~
   - ~systemd-run --user --scope -p MemoryMax=64G make test~
   - final result: ~82/82~ passed
-

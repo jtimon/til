@@ -13,7 +13,7 @@ The self-hosted file structure mirrors the C one:
 The generated C output stays exactly the same — builder string emissions
 just become til string operations that emit the same text.
 
-Qualifier details are documented in ~doc/qualifiers.org~. This file only
+Qualifier details are documented in ~doc/concepts/qualifiers.org~. This file only
 records the C-to-til translation patterns that matter most in practice.
 
 ** Types
@@ -116,7 +116,7 @@ Null survives only in the raw QUARANTINE, where a pointer's null IS a
 legal value: ~Dynamic~, and the ~U8~ / ~I8~ raw-buffer and C-string
 labels.  There it is written as the integer literal ~0~ (the typer
 rewrites it to the null pointer when the target type is Dynamic), and
-~is_null~ is allowed on exactly those types.  See doc/ownership.org,
+~is_null~ is allowed on exactly those types.  See doc/concepts/ownership.org,
 "Null and is_null: the quarantine rule".
 
 For value-typed optionals prefer ~Option(T)~; the old sentinel habits
@@ -193,7 +193,7 @@ void increment(int *x) { (*x)++; }
 increment := proc(mut x: I64) { x = x.add(1) }
 #+end_src
 
-See ~doc/qualifiers.org~ for the exact ~mut/ref/own/shallow~ mapping.
+See ~doc/concepts/qualifiers.org~ for the exact ~mut/ref/own/shallow~ mapping.
 
 *** Ownership transfer
 
@@ -781,4 +781,4 @@ If the final size is not easy to know up front, either:
   acceptable
 
 For the complete qualifier rules and their C mapping, see
-~doc/qualifiers.org~.
+~doc/concepts/qualifiers.org~.

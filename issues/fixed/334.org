@@ -184,7 +184,7 @@
      extends syntax that already exists.
    - It brings back the construct ~-Wimplicit-fallthrough~ exists for,
      and that Go, Rust, Swift and Zig all removed or gated -- but only
-     inside the new keyword. ~doc/enums.org~ (line 50, "no accidental
+     inside the new keyword. ~doc/concepts/enums.org~ (line 50, "no accidental
      fallthrough") and ~doc/c2til.org~ (line 363, "No ~break~ needed --
      cases do not fall through") describe ~switch~ and ~match~, and those
      stay exactly as they are, so nothing documented is reversed. The

@@ -50,7 +50,7 @@ wrong.
 
 No body (~{}~). The implementation is a hand-written C symbol in
 src/c/ (ext.c and friends) with the C signature the til qualifiers
-describe (see doc/qualifiers.org). The backend emits an ordinary call
+describe (see doc/concepts/qualifiers.org). The backend emits an ordinary call
 to that symbol; the interpreter reaches it through libffi
 (~ffi_register~ registers every ExtFunc/ExtProc it loads).
 

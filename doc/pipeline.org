@@ -90,7 +90,7 @@ Two modules sit underneath every phase below:
     unreachable-case diagnostics computed during the lowering walk)
   - throw / catch / `?` / `!` -> plain til (mut `_err_kind` locals + if-guards)
     so downstream stages need no new node kinds; see
-    [[file:./throws.org][doc/throws.org]] for the surface and recipes
+    [[file:./concepts/throws.org][doc/concepts/throws.org]] for the surface and recipes
   - argument hoisting into temps for the back ends
 - Like the garbager (step 5), desugarer.til imports only `context`; it reaches
   typer helpers, and the typer reaches the desugar passes, through the shared

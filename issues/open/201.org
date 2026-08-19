@@ -75,9 +75,8 @@
 
    *** Recipe
 
-   [[../../doc/throws.org][doc/throws.org]] has a worked example
+   [[../../doc/concepts/throws.org][doc/concepts/throws.org]] has a worked example
    ("Adding a new built-in error type") that walks through the
    ~DivideByZero~ / ~I64.safe_div~ pattern. Each new safe_* in this
    issue is a copy of that recipe with a different error type and
    arithmetic body.
-

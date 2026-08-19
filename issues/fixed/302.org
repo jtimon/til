@@ -69,7 +69,7 @@ tells type authors to free UnsafePointer allocations in __del__, and
 its stdlib containers hand-manage element destruction
 (destroy_pointee loops) exactly like vec.til's T.delete loops --
 encapsulated manual memory is the design, not a defect (see
-doc/ownership.org "Relation to Mojo", re-verified against the Mojo
+doc/concepts/ownership.org "Relation to Mojo", re-verified against the Mojo
 manual 2026-07-09). A first attempt to "clean up" census class e
 (2026-07-09) got this backwards and was reverted same day -- see
 Progress.
@@ -89,7 +89,7 @@ capped by 8de7f0e) drove the suite to ASAN-clean one symptom at a
 time. Nearly every fix landed at the SITE of a symptom -- an
 interpreter dispatch path, a builder emission shape, one more garbager
 carve-out -- because the garbager's model could not express the
-lifetime rule actually being violated. doc/ownership.org's audit
+lifetime rule actually being violated. doc/concepts/ownership.org's audit
 sections and #275 agree on the diagnosis: the fault is architectural,
 not a list of independent bugs. The fixes work, the suite is green;
 the debt is that three subsystems now each own a slice of "where
@@ -155,7 +155,7 @@ set/array/tuple and most of the interpreter:
      2026-07-09): the box release belongs at the end of the delete
      body -- it is the visible form of til's box-vs-inline storage
      model (Mojo's __del__ has no analog only because Mojo values
-     live in place; see doc/ownership.org). NOT a target. An
+     live in place; see doc/concepts/ownership.org). NOT a target. An
      initer-appends-the-tail automation pair was built, gated green,
      and REVERTED 2026-07-09 (see Progress): it moved calls that
      were already in their right home.
@@ -195,7 +195,7 @@ What the pass actually produces, and who consumes it:
      transfer expressed by silently EDITING an expression.
   6. Wrapper frees after a Shallow-field value-copy transfer
      (transfer_is_shallow_field_value_copy + make_free_call): the one
-     "half a transfer" shape (doc/ownership.org).
+     "half a transfer" shape (doc/concepts/ownership.org).
 
 Consumers: the builder re-derives about half of these decisions from
 scratch (D3/D4 below) and the interpreter bypasses or re-implements
@@ -213,7 +213,7 @@ Every path-shaped bug became a bolted-on special case:
   - sink_conditional_transfer_deletes + sink_nontransfer_paths:
     transfer inside one if-branch, delete grafted into the others.
     (CORRECTION 2026-07-05: an earlier revision here repeated
-    doc/ownership.org's stale claim that Str was excluded from
+    doc/concepts/ownership.org's stale claim that Str was excluded from
     sinking; Str is path-handled. Params WERE excluded wholesale --
     verified leaks, fixed with LocalInfo.dtor_transfer, see Progress);
   - the own_transfer <= stmt_idx pre-transfer rules duplicated in
@@ -521,7 +521,7 @@ let the ownership pass insert temps itself; start with the check.
 
 *** Progress
 
-  - [X] Stage 0: doc/garbager.org (the output-contract snapshot), the
+  - [X] Stage 0: doc/concepts/garbager.org (the output-contract snapshot), the
     TIL_GC_AUDIT decision-audit dump in insert_free_calls (env read via
     ext.c gc_audit_filter, TIL_LEAK_PROBE-style), the frozen fixture
     test/gc_audit.til, and the byte-exact golden test `gc_audit`
@@ -548,7 +548,7 @@ let the ownership pass insert temps itself; start with the check.
          within an iteration; the index model cannot.
     Regression tests: test/regression.til bug302_* (ASAN-verified
     paths), test/typer_errors.til terr_loop_transfer (count 161->162),
-    gc_audit fixture shapes 9-10. doc/ownership.org's "Conditional
+    gc_audit fixture shapes 9-10. doc/concepts/ownership.org's "Conditional
     transfer" exclusion paragraph was stale (claimed Str excluded) and
     is rewritten to match the code.
       4. (follow-up commit) Program-scope Dynamic args emitted wrong C
@@ -642,13 +642,13 @@ let the ownership pass insert temps itself; start with the check.
     placement correction at the top). Census classes b and e
     reclassified LEGITIMATE/not-targets; class c and d stay targets
     (both are Jorge's standing rulings); the primary target is the
-    src/self compensation layer. Same day: doc/ownership.org's
+    src/self compensation layer. Same day: doc/concepts/ownership.org's
     "Relation to Mojo" rewritten against the current Mojo manual
     (read/mut/var renames, Copyable/Movable traits, field-sensitive
     ASAP, @explicit_destroy, UnsafePointer-in-__del__ as the
     encapsulated-manual-memory precedent), and the stale
     "use `buf : Dynamic = malloc(...)` for owned allocations" idiom
-    in doc/qualifiers.org replaced with the typed raw_alloc contract
+    in doc/concepts/qualifiers.org replaced with the typed raw_alloc contract
     + Dynamic-never-owns ruling.
   - [X] 2026-07-09 first drained compensation class under the
     corrected scope: the 11 hand-written `TypeScope.delete(own
@@ -1542,7 +1542,7 @@ let the ownership pass insert temps itself; start with the check.
     (struct_field_name does), so "call result implies heap wrapper" is
     FALSE at the C boundary -- a blanket static rule bad-frees,
     ASAN-caught in test/first_class.til. That residue is exactly the
-    fallback doc/ownership.org sanctions (decide statically where
+    fallback doc/concepts/ownership.org sanctions (decide statically where
     possible; let the runtime tag decide where the callee's storage is
     unknowable here), so it is not a removable compensation.
     MATCHED PAIR note for the remaining CAP-laundering item:
@@ -1599,12 +1599,12 @@ let the ownership pass insert temps itself; start with the check.
 Each stage lands suite-green. Garbager-semantics stages are
 `Two-pass:` commits (the pass changes what C is emitted for the
 compiler's own sources; see doc/self.org "Two-pass build" and
-doc/ownership.org "How to verify"). Verification per stage is
+doc/concepts/ownership.org "How to verify"). Verification per stage is
 `make clean && make test` or `make clean && make test_two_pass`
 accordingly.
 
 Stage 0. Contract snapshot + audit tooling. [plain commit]
-  Write doc/garbager.org documenting today's exact outputs (the six
+  Write doc/concepts/garbager.org documenting today's exact outputs (the six
   above) and the target contract. Add a debug dump (e.g. TIL_GC_AUDIT
   env var) that prints, per body: bindings, storage decision,
   insertion sites, transfers, borrows. Golden a handful of bodies in
@@ -1764,9 +1764,9 @@ temporary the interpreter itself created.
 *** Non-goals
 
   - No runtime GC, no refcounting: the ASAP single-owner model stays
-    (doc/ownership.org, "Relation to Mojo").
+    (doc/concepts/ownership.org, "Relation to Mojo").
   - No qualifier surface changes: own/ref/shallow/mut semantics stay
-    as documented in doc/qualifiers.org.
+    as documented in doc/concepts/qualifiers.org.
   - Not the interpreter Value/heap rewrite -- that is #286; this
     issue fixes the contract it executes.
   - Not the scavenger / EvalHeap designs.

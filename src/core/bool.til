@@ -12,7 +12,7 @@ import("str")
 // short-circuiting && / ||, and the interpreter's h_Bool_and / h_Bool_or
 // handlers only evaluate the second operand when the first does not
 // decide the result. Explicit `shallow` throughout: a bodyless signature
-// gets no auto-shallow inference (see doc/qualifiers.org).
+// gets no auto-shallow inference (see doc/concepts/qualifiers.org).
 // Both stay strictly binary, but the Lisp/Clojure spelling `and(a, b, c)` is
 // accepted for any number of operands: the parser (nest_nary_and_or) folds the
 // extras into right-nested binary calls, `and(a, and(b, c))`, before anything

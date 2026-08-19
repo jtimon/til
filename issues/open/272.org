@@ -20,7 +20,7 @@ code) violate the intended layering. The principles, as stated by Jorge:
   - The builder and the interpreter must not invent clone/malloc/delete
     calls; when they do, they paper over garbager gaps and create
     double-free/leak coupling. The garbager is the single authority for
-    where a value dies (Mojo-style ASAP, see doc/ownership.org's
+     where a value dies (Mojo-style ASAP, see doc/concepts/ownership.org's
     "Relation to Mojo").
 
 *** Known violations / smells to remove (inventory, not exhaustive)
@@ -66,7 +66,7 @@ code) violate the intended layering. The principles, as stated by Jorge:
     #250 taint), FieldAccess-base FCalls (never had an index at all
     until hoisted). A per-path (CFG) liveness pass would subsume the
     accumulated special cases. Mojo does ASAP destruction on a real CFG
-    with use-def chains; doc/ownership.org has the references.
+    with use-def chains; doc/concepts/ownership.org has the references.
   - The garbager only sees one body at a time and trusts hoisting to
     surface every owned temp as a named local. Any expression shape the
     hoister misses is invisible (the f().field class). Inverting the
@@ -77,7 +77,7 @@ code) violate the intended layering. The principles, as stated by Jorge:
 
   1. Inventory pass: grep malloc/free/delete call sites outside core
      collections + C bridge; classify each (legit island / compensation /
-     garbager gap) per doc/ownership.org's audit procedure. Record here.
+     garbager gap) per doc/concepts/ownership.org's audit procedure. Record here.
   2. Replace replace_with call sites with parent children.set; drop
      replace_with; retarget the move() typer error message.
   3. Interpreter return move/borrow contract; then deep scope_free; then

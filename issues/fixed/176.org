@@ -9,7 +9,7 @@ Symptom:
 
    Root cause:
 
-   - Per ~doc/qualifiers.org~, til qualifiers currently do not generate C
+   - Per ~doc/concepts/qualifiers.org~, til qualifiers currently do not generate C
      ~const~ qualifiers at all. Non-~mut~ args still emit ~Type *arg~, not
      ~const Type *arg~.
    - libc headers declare many APIs with ~const char *~ (e.g. ~setenv~). If til

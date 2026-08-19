@@ -22,7 +22,7 @@ the issue named (expr_borrow_roots, summary_expr_bits, summary_walk,
 summary_receiver_type) plus lvalue_write_roots and summarize_unit_walk,
 added with the same habit after the issue was filed -- and
 compute_ref_return_summaries lost its `round < 8` clamp, keeping
-`while changed`. The prose in typer.til and doc/qualifiers.org that
+`while changed`. The prose in typer.til and doc/concepts/qualifiers.org that
 described chains "deeper than the summary settled" is corrected: chains
 are followed to their end, and length never changes the answer.
 

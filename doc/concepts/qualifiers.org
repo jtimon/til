@@ -118,7 +118,7 @@ Complete mapping of til qualifiers to generated C, by context.
    A ~case V(p):~ payload binding and the typer's own temps are not
    judged on a qualifier of their own -- there is no place to write
    one; a payload binding inherits the scrutinee's mutability (see
-   doc/enums.org "Payload mutability"). Both alias storage that IS
+   doc/concepts/enums.org "Payload mutability"). Both alias storage that IS
    judged.
 
    Passing a binding to a ~Dynamic~ parameter counts as a write for
@@ -154,7 +154,7 @@ Complete mapping of til qualifiers to generated C, by context.
 
 The source must be mutable only for ~[mut x]~, because that form writes
 through a borrow. ~shallow mut~ and ~own mut~ modify private closure storage.
-See [[file:./ownership.org][doc/ownership.org]], "Closure captures", for
+See [[file:./ownership.org][doc/concepts/ownership.org]], "Closure captures", for
 escape and clone behavior.
 
 ** Return types
@@ -205,7 +205,7 @@ redundant and rejected by the typer.
 
 A ~ref~ field points at something. When absence is a real state, the
 field is not a nullable ref but an ~Option(ref T)~ -- the enum-payload
-form of a borrow (doc/enums.org "Borrowed payloads"):
+form of a borrow (doc/concepts/enums.org "Borrowed payloads"):
 
 #+begin_src til
 Scope := struct {
@@ -226,7 +226,7 @@ bit pattern is legitimate, and there it is written as the integer
 literal ~0~ (~ref return_value : Dynamic = 0~; the typer rewrites the
 literal to the null pointer for a Dynamic target). ~is_null~ is
 allowed on exactly those types. Same split Rust draws between ~&T~ /
-~Option<&T>~ and raw ~*mut T~; see doc/ownership.org, "Null and
+~Option<&T>~ and raw ~*mut T~; see doc/concepts/ownership.org, "Null and
 is_null: the quarantine rule".
 
 ** Key rules
@@ -255,7 +255,7 @@ is_null: the quarantine rule".
   case binding are then rejected even on a mut enum); a redundant
   ~mut~ on a variant declaration is rejected with the symmetric
   "redundant 'mut' on variant payload ... drop it" message. See
-  doc/enums.org "Payload mutability"
+  doc/concepts/enums.org "Payload mutability"
 - Owned raw buffers are TYPED (#302 ruling 2026-07-06): write
   ~buf : U8 = malloc(n)~ (or ~out : T = malloc(T.size())~). The garbager
   classifies a typed local with a malloc/calloc/realloc RHS as an owned heap
@@ -278,7 +278,7 @@ is_null: the quarantine rule".
   ordinary func/proc and funcptr signatures; it does NOT apply to
   ~ext_func~/~ext_proc~, ~core_func~/~core_proc~ or ~core_lazy_func~ (their qualifiers map to
   a fixed C signature -- for a core_func, the one its inline lowering and
-  any kept ext.c symbol share, see doc/functions.org), to
+  any kept ext.c symbol share, see doc/concepts/functions.org), to
   ~mut~/~own~ primitive params, or to params of a ~returns ref T~ function
   (those stay borrowed pointers so the ref can escape)
 - Issue #223 step 2: because the qualifier is now inferred, an explicit

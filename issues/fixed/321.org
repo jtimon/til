@@ -31,7 +31,7 @@ about the code, and the claim has to be true when it is made.
   the way), Declaration.default_value (the biggest single consumer,
   96 is_null + ~270 uses), lookups, returns, bindings (nng, tinyfd,
   raylib, libffi), and params.
-- The end state, spelled out in doc/ownership.org's "Null and is_null:
+- The end state, spelled out in doc/concepts/ownership.org's "Null and is_null:
   the quarantine rule": nothing TYPED is legitimately null. The
   quarantine -- Dynamic, plus the U8 raw-buffer and I8 C-string labels
   -- keeps raw null as a VALUE, per this issue's own 2026-07-21
@@ -104,8 +104,8 @@ system instead of by runtime null-deref panics (the generated C
   check_ref_field_owned_default (src/self/typer.til:618) forbids
   owned-RHS defaults on ref fields but explicitly allows NULL as a
   "forced exception". It is even the documented canonical form:
-  doc/qualifiers.org's struct-field table spells the ref rows as
-  ~ref field : Type = NULL~, and doc/ownership.org's Fields table
+  doc/concepts/qualifiers.org's struct-field table spells the ref rows as
+  ~ref field : Type = NULL~, and doc/concepts/ownership.org's Fields table
   does the same.
 - ~NULL~ is a keyword (KwNull, src/self/lexer.til:164) producing
   ~Literal.Null~, and ~is_null()~ checks plus ~return NULL~ from
@@ -125,14 +125,14 @@ system instead of by runtime null-deref panics (the generated C
 2. Migrate ref LOCALS and ref RETURNS off NULL. The big one:
    ref-returning lookup functions that ~return NULL~ for "not found"
    (scope/struct-def/method lookups in typer/context/initer, and the
-   ~returns ref~ container accessors doc/ownership.org calls out --
+   ~returns ref~ container accessors doc/concepts/ownership.org calls out --
    ~Vec.get~, ~Map.val_ptr~, ~scope_get~ and friends) become
    ~returns Option(ref T)~, and the ~if x.is_null()~ call sites
    become switch/match on the Option. Also the
    ~ref mut acc : T = NULL~ late-init locals (see #147's
    dangerous-refs list -- partially migrated already). Note the
    lifetime angle: til has no origin checker, ~returns ref~ is "the
-   documented dangerous case" (doc/ownership.org), and a NULL ref
+   documented dangerous case" (doc/concepts/ownership.org), and a NULL ref
    borrows nothing -- once refs always point at something, every ref
    that escapes (including inside an Option) must be covered by the
    garbager's lifetime extension, so this migration also shrinks the
@@ -143,7 +143,7 @@ system instead of by runtime null-deref panics (the generated C
    parser literal, typer, interpreter value, builder emission of
    til-level null (the C backend keeps using C's NULL internally,
    that is invisible at the language level). Update the
-   doc/qualifiers.org and doc/ownership.org field tables and any
+   doc/concepts/qualifiers.org and doc/concepts/ownership.org field tables and any
    other docs showing ~= NULL~. The ~DEREF~ null panic stays during
    the migration as the safety net and can only be dropped from
    generated code at the very end, if ever.
@@ -1888,7 +1888,7 @@ test/dynamic.til's test_zero_is_dynamic_null covers every position.
 3. Step 2 is DONE (batch 13). Step 3 is DONE (batch 42): is_null on a
    typed value is a type error; the quarantine (Dynamic + the U8/I8 raw
    buffer labels) keeps it, deliberate probes launder through to_ptr,
-   and the rule is documented in doc/ownership.org. Its prerequisites
+   and the rule is documented in doc/concepts/ownership.org. Its prerequisites
    fell in batches 40-42: the nullable ref params (batch 41 + the
    to_ptr-laundered scope walkers), the #303 noreturn seed (fixed back
    in batch 13's seed_noreturn_chain -- the prerequisite note was

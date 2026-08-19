@@ -80,7 +80,7 @@
      struct, on a large struct that would NOT auto-qualify, on a struct with
      an ~own~ field, and on a struct RETURN, all compile and run by value.
      Locked in with regression tests in test/shallow.til and documented in
-     doc/qualifiers.org.
+     doc/concepts/qualifiers.org.
 
   === Post-mortem ===
 
@@ -144,6 +144,6 @@
     explicitly flagged as revisitable.
 
   Notes:
-  - See ~doc/qualifiers.org~ for the shallow -> by-value C mapping and the
+  - See ~doc/concepts/qualifiers.org~ for the shallow -> by-value C mapping and the
     per-step rules; ~doc/ffi.org~ for how the binder emits ~shallow~ on ext
     bindings.

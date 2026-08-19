@@ -6,7 +6,7 @@
 
 Root cause: #164's write tracking was ONE BIT per binding, flipped only
 by a write SPELLED on that binding. Nothing modelled where a write
-actually landed, so the two halves of the contract in doc/qualifiers.org
+actually landed, so the two halves of the contract in doc/concepts/qualifiers.org
 -- a plain parameter is a read-only borrow, a ~mut~ one is writable --
 had no enforcement between them. That produced all three probes at once:
 a write through a non-mut parameter was accepted (nothing checked the
@@ -138,7 +138,7 @@ aggregate, and do not add const-ref syntax or duplicate read/write
 accessors.
 
 This follows the language contract already documented in
-~doc/qualifiers.org~: a plain parameter is a read-only borrow and a
+~doc/concepts/qualifiers.org~: a plain parameter is a read-only borrow and a
 ~mut~ parameter is a writable borrow. Auto-shallow (#223) changes the
 representation of eligible plain parameters to a value copy; it does
 not make the source-level parameter writable. Therefore probe 1 is an

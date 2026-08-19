@@ -143,7 +143,7 @@ priv transfer_is_destructor_call := func(stmt: Expr, name: Str, symbols: SymbolP
 // analysis phases) and the destructor sites present in the body after
 // insertion. The golden test test/gc_audit.til + test/gc_audit.expected
 // pins the dump so later #302 stages show their decision diffs in review
-// instead of only as ASAN outcomes. See doc/garbager.org. The env read is
+// instead of only as ASAN outcomes. See doc/concepts/garbager.org. The env read is
 // std/sys's get_env, which answers "" when the variable is unset.
 
 priv gc_audit_flag := func(b: Bool) returns Str {

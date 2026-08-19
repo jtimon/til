@@ -114,7 +114,7 @@ caller's expectation that the wrapper owns the buffer.
 ** Quick reference
 
 Mapping from "what the C function does" to the right binding
-shape.  See [[file:qualifiers.org][doc/qualifiers.org]] for the
+shape.  See [[file:concepts/qualifiers.org][doc/concepts/qualifiers.org]] for the
 qualifier semantics themselves; this table is just the FFI
 layer.
 

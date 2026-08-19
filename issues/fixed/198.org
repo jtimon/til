@@ -5,7 +5,7 @@
    both ~bin/til interpret~ and ~bin/til build~ (13 tests, all pass).
    ~make test~ stays green at 116/116.
 
-   Reference: [[file:../../doc/throws.org][doc/throws.org]] covers the user-facing surface,
+   Reference: [[file:../../doc/concepts/throws.org][doc/concepts/throws.org]] covers the user-facing surface,
    the implementation map, and step-by-step recipes for adding more
    throwing methods / error types.
 

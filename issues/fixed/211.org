@@ -52,7 +52,7 @@ sequence, each step merged to master before the next:
         every field-`mut` to drive the migration precisely.
       * build_til_binding in src/self/builder.til now emits `const` for
         immutable fields (and never the redundant `mut`).
-      * doc/facts.org and doc/qualifiers.org updated.
+      * doc/facts.org and doc/concepts/qualifiers.org updated.
 
 *** Enum payloads (also done)
 
@@ -64,7 +64,7 @@ case V(p): p = ... }` works, an immutable e gets a `ref` binding and
 writes are rejected. Implemented by threading source mutability into
 make_payload_ref_decl (initer.til) and computing it at the switch-case
 site (typer.til). Regression test: test/enums.til
-`test_mut_payload_binding`. Documented in doc/enums.org "Payload
+`test_mut_payload_binding`. Documented in doc/concepts/enums.org "Payload
 mutability".
 
 Interpreter propagation (now also done for primitives): the compiled
@@ -221,7 +221,7 @@ intentional:
     is the risky part: the flip can hide an unintended mutation that the
     old default would have caught at type-check time.
   - docs: update the "Everything is immutable by default" entry in
-    doc/facts.org and the field-qualifier sections of doc/qualifiers.org.
+    doc/facts.org and the field-qualifier sections of doc/concepts/qualifiers.org.
 
 *** Notes
 

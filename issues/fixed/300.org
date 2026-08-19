@@ -30,7 +30,7 @@ type, and reads "from whatever the implementation is" instead of hardcoding
 Vec's fields. The interpreter is unchanged -- it runs the accessor body as a
 normal func -- so interp and compile modes agree. `len`/`unsafe_get` stay plain
 `func` in src/core; no keyword or core_func is involved (there is deliberately
-no user-facing "inline my function" keyword -- see doc/functions.org).
+no user-facing "inline my function" keyword -- see doc/concepts/functions.org).
 
 Regression test: the self-host translate exercises for-in over `Vec` on nearly
 every line (`len`/`unsafe_get` are among the hottest accessors), plus

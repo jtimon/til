@@ -44,7 +44,7 @@ argument is a ~ref~ FIELD. So this type-checks today:
 : ctx.ns_fields = scope_new_boxed(NULL) // allocate a box
 : scope_free(own ctx.ns_fields)         // ...and free it: accepted, should not be
 
-Per [[file:../../doc/ownership.org][doc/ownership.org]] a ~ref~ field
+Per [[file:../../doc/concepts/ownership.org][doc/concepts/ownership.org]] a ~ref~ field
 is precisely the one the holder must NOT free ("NOT freed -- the field
 aliases data the holder doesn't own"), so the declaration and the
 behaviour disagree: these are owned pointers wearing a ~ref~ label,

@@ -120,7 +120,7 @@ payload binding inherits the scrutinee's. Until then, the honest ~mut~
 on ~poke~'s parameter is also unearnable: writing it makes #164's
 redundancy check reject it, since no write is ever credited to ~o~.
 
-doc/qualifiers.org's "mut only governs the binding and its direct
+doc/concepts/qualifiers.org's "mut only governs the binding and its direct
 fields" carve-out is about reachable state behind RAW pointer fields;
 ~ref r : Inner~ is a typed borrow, so it belongs on the checked side of
 that line.

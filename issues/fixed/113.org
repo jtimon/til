@@ -11,7 +11,7 @@
     Existing coverage in [[file:../../test/enums.til][test/enums.til]] (~test_payload_eq~,
     ~test_struct_payload_eq~) exercises same-variant / different-
     variant / different-payload combinations.
-  - [X] Intended split documented in ~doc/enums.org~:
+  - [X] Intended split documented in ~doc/concepts/enums.org~:
     ~x.is(E.V)~ is the tag-only check and ~x.eq(E.V(...))~ is full
     value equality.
   - [X] ~switch~ over enums is exhaustive by default. ~infer_switch_stmt~
@@ -43,4 +43,3 @@
     ~fn_cell.val.is(Value.Func)~ and the site still uses
     ~is(fn_cell.val, Value.Func)~. Root cause is a typer
     field-type-inference gap on enum-typed struct fields, not UFCS.
-

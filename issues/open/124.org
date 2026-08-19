@@ -30,7 +30,7 @@ The remaining cleanup is narrower:
 - Keep compiler-internal ~src/self~ erased ABI slots until #286 gives their
   ~write_ptr~ / interpreter heap transfers typed ownership. Those slots are
   not evidence that ordinary ~Dynamic~ values may own memory.
-- Update ~qualifiers.org~ and ~c2til.org~ so they describe concrete typed raw
+- Update ~doc/concepts/qualifiers.org~ and ~doc/c2til.org~ so they describe concrete typed raw
   locals and remove the old manual-free contract.
 
 Issue #302 remains the ownership-pass source of truth. This issue is the

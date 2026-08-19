@@ -695,7 +695,7 @@ priv generate_enum_is_method := func(mut enum_def: Expr, ename: Str, line: U32, 
     // call site (builder.til's `is` core arm) and the interpreter evaluates
     // it via enum_core_is_eval (dispatched by the flat "<Enum>_is" name).
     // The return is explicitly Shallow: a bodyless signature gets no
-    // auto-shallow inference (see doc/qualifiers.org), and an owned Bool*
+    // auto-shallow inference (see doc/concepts/qualifiers.org), and an owned Bool*
     // return would make callers deref+free the value.
     mut func_decl := FunctionDef(auto_generated = true)
     func_decl.func_type = FuncType.CoreFunc

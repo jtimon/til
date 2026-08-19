@@ -1,5 +1,5 @@
 ** #29 Proper strings: separate count/cap, static literals, views
-  See doc/strings.org for full design.
+  See doc/concepts/strings.org for full design.
 
   Str has ~count~ (content length) and ~cap~ (allocated capacity or sentinel).
   Named constants ~CAP_LIT~ (-1) and ~CAP_VIEW~ (-2) in str.til encode ownership.
@@ -53,4 +53,3 @@
      - ~join~
    - updated ~strings.org~ to match the real ~Str~ fields and current
      optimized-builder design
-

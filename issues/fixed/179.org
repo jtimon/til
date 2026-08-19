@@ -42,8 +42,8 @@
       methods.
    6. [X] Top-level globals (mut/let). Apply the same cross-file rule
       to non-function top-level declarations.
-   7. [X] Documentation pass: update doc/qualifiers.org (or a new
-      doc/visibility.org) and README to describe the rule, including
+   7. [X] Documentation pass: update doc/concepts/qualifiers.org and README
+      to describe the rule, including
       the explicit contrast with Rust's pub-by-opt-in model.
 
    Not in scope:
@@ -54,4 +54,3 @@
    - No renaming of existing items. ~priv~ is purely additive and
      defaults to off.
    - No effect on builtins, ext_func, ext_proc, or ext_struct.
-

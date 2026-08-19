@@ -19,7 +19,7 @@
    - Tests: ~test/match.til~ (12 cases, both backends) plus four
      diagnostics (~test/match_switch_in_value.til~,
      ~test/match_value_unused.til~, ~test/match_arms_differ.til~,
-     ~test/match_non_exhaustive.til~). Doc: ~doc/enums.org~.
+     ~test/match_non_exhaustive.til~). Doc: ~doc/concepts/enums.org~.
 
    Known minor follow-ups: a non-exhaustive ENUM match is reported by the
    synthetic switch as "non-exhaustive switch on enum 'X'" (says switch,

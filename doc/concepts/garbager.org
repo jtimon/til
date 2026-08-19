@@ -1,7 +1,7 @@
 * The Garbager: til's compile-time GC
 
-Companion to [[file:./ownership.org][doc/ownership.org]] (the lifetime model)
-and [[file:./qualifiers.org][doc/qualifiers.org]] (the C shapes). Those two
+Companion to [[file:./ownership.org][doc/concepts/ownership.org]] (the lifetime model)
+and [[file:./qualifiers.org][doc/concepts/qualifiers.org]] (the C shapes). Those two
 describe the LANGUAGE contract; this file documents the PASS that implements
 it -- ~src/self/garbager.til~, pipeline step 5 -- and, explicitly, the exact
 OUTPUT CONTRACT the pass has today. Issue #302 is the rework that makes this

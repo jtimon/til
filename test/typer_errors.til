@@ -1077,7 +1077,7 @@ not_callable_str := "hi"
 not_callable_str_result := not_callable_str(5)
 
 // #344: a write must land in storage the writer may change. A plain
-// parameter is a READ-ONLY borrow of the caller's value (doc/qualifiers.org
+// parameter is a READ-ONLY borrow of the caller's value (doc/concepts/qualifiers.org
 // "Arguments"), so writing through one was never a legal program -- the
 // typer just accepted it, and the two backends then disagreed about what
 // it meant: interpreted the caller's local changed, compiled the write

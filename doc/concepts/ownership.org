@@ -1,6 +1,6 @@
 * Ownership and ASAP Destruction
 
-Companion to [[file:./qualifiers.org][doc/qualifiers.org]]. That file maps each
+Companion to [[file:./qualifiers.org][doc/concepts/qualifiers.org]]. That file maps each
 qualifier to its generated C *shape*; this file describes each qualifier's
 *lifetime* -- who owns a value, and exactly when its destructor runs.
 
@@ -13,7 +13,7 @@ The two are the same axis seen from two sides:
 The model is deliberately close to Mojo (see "Relation to Mojo"): a value
 has exactly one owner, and the compiler destroys it As Soon As Possible --
 at the owner's last use, not at scope end. The implementation is the
-garbager (pipeline step 5, [[file:../src/self/garbager.til][src/self/garbager.til]]),
+garbager (pipeline step 5, [[file:../../src/self/garbager.til][src/self/garbager.til]]),
 invoked once per body from the typer.
 
 ** The model in one paragraph
@@ -33,7 +33,7 @@ local has exactly one destructor call on every path that leaves its scope.
 ** Destructor forms
 
 The garbager only ever emits three things (see ~make_delete_call~ /
-~make_free_call~ in [[file:../src/self/typer.til][typer.til]]):
+~make_free_call~ in [[file:../../src/self/typer.til][typer.til]]):
 
 | form                        | for                              | meaning                                       |
 |-----------------------------+----------------------------------+-----------------------------------------------|
@@ -140,7 +140,7 @@ a ref-payload variant.
 A struct's auto-generated ~delete~ deletes each field by its own_type and
 then frees the struct box. Non-~own~ fields are contiguous in the parent's
 allocation, which is why they delete with ~call_free=false~ (see
-[[file:./facts.org][doc/facts.org]]). A ~ref~ field is a borrow -- the
+[[file:../facts.org][doc/facts.org]]). A ~ref~ field is a borrow -- the
 holder must not free it, and the borrowed source's lifetime must be managed
 elsewhere (the ~holder.f = src~ extension above).
 
@@ -413,7 +413,7 @@ These are the ~Dynamic~-pointer graphs and ~Dynamic~-valued containers where
 the garbager is blind and leaks have historically hidden. Audit each for a
 matching free on every path:
 
-  - Interpreter ~Scope~ ([[file:../src/self/interpreter.til][interpreter.til]]):
+  - Interpreter ~Scope~ ([[file:../../src/self/interpreter.til][interpreter.til]]):
     ~bindings : Map(Str, Binding)~, ~ref_primitive_ptrs : Map(Str, Dynamic)~,
     ~payload_aliases : Map(Str, Str)~, ~box_owned_dynamics : Vec~. ~scope_free~
     must tear down each by hand -- a forgotten one is a per-scope leak (the
@@ -423,7 +423,7 @@ matching free on every path:
     are raw ~Dynamic~): freed by ~scope_free~ / ~cleanup_value_payload~ /
     ~free_value_full~. ~cleanup_value_payload~ keys off ~struct_name == "Str"~;
     a ~Str~ value built with an empty ~struct_name~ slips the check and leaks
-    (documented at [[file:../src/self/loader.til][loader.til]] constfolder_imported).
+    (documented at [[file:../../src/self/loader.til][loader.til]] constfolder_imported).
   - ~Context~ side tables that hold ~Dynamic~ (~func_defs~, ~struct_def_exprs~,
     ~local_fn_sigs~ are ~Map(Str, Dynamic)~): these store BORROWED AST pointers,
     so their no-op element delete is correct -- but that also means anything
@@ -796,9 +796,9 @@ model and of how the interpreter's value-model fixes were found.
   - Mojo, "Deep dive into ownership in Mojo" (pre-rename terminology):
     https://www.modular.com/blog/deep-dive-into-ownership-in-mojo
   - Terminology re-verified against the manual 2026-07-09.
-  - til implementation: [[file:../src/self/garbager.til][src/self/garbager.til]]
-    (the ASAP pass), [[file:../src/self/typer.til][typer.til]]
+  - til implementation: [[file:../../src/self/garbager.til][src/self/garbager.til]]
+    (the ASAP pass), [[file:../../src/self/typer.til][typer.til]]
     (~make_delete_call~, ~make_free_call~, ~expr_transfers_own~, ~fa_own_type~),
-    [[file:./qualifiers.org][doc/qualifiers.org]] (the C-shape companion),
-    [[file:./pipeline.org][doc/pipeline.org]] step 5,
-    [[file:./facts.org][doc/facts.org]] (own/ref/delete facts).
+    [[file:./qualifiers.org][doc/concepts/qualifiers.org]] (the C-shape companion),
+    [[file:../pipeline.org][doc/pipeline.org]] step 5,
+    [[file:../facts.org][doc/facts.org]] (own/ref/delete facts).

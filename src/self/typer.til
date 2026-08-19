@@ -636,7 +636,7 @@ priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, mut ctx: Co
 // (no default; an instance to borrow from exists at ctor time) or an
 // Option with a real None state. The one exemption is the Dynamic
 // quarantine, resolved through aliases: a `ref Dynamic` field is a raw
-// pointer whose null IS a legal value by design (doc/ownership.org's
+    // pointer whose null IS a legal value by design (doc/concepts/ownership.org's
 // manual-memory island).
 priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, mut scope: TypeScope, mut ctx: Context) {
     if fd.own_type.is(OwnType.Ref).not() { return }
@@ -843,7 +843,7 @@ priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fde
                 case .FieldAccess:
                     // #324: the same rule for a ref FIELD. A `ref` field is
                     // precisely the one its holder must NOT free
-                    // (doc/ownership.org) -- passing it to an `own`
+                    // (doc/concepts/ownership.org) -- passing it to an `own`
                     // parameter transfers an ownership the field never had.
                     // The Ident arm above has rejected this for ref
                     // VARIABLES all along; fields just slipped past. Broad
@@ -9940,7 +9940,7 @@ priv root_is_writable := func(scope: TypeScope, b: TypeBinding, r: BorrowRoot, s
 }
 
 // A root the author cannot put `mut` on: a `case V(p):` payload binding,
-// whose mutability the language INHERITS from the scrutinee (doc/enums.org
+// whose mutability the language INHERITS from the scrutinee (doc/concepts/enums.org
 // "Payload mutability"), and the typer's own temps. Judging those on their
 // own absent qualifier would demand a keyword there is no place to write.
 // The scrutinee they alias is in the same root set and IS judged, so the

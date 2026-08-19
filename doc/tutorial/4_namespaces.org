@@ -1,0 +1,151 @@
+* Namespaces
+
+Namespaces group declarations under a name. They do not create objects or add
+an implicit ~self~: every namespace function is still an ordinary function
+with explicit parameters.
+
+** Named namespaces
+
+A standalone namespace is declared with the same name-first syntax introduced
+in the previous chapter:
+
+#+begin_src til
+Math := namespace {
+    answer := 42
+
+    add := func(a: I64, b: I64) returns I64 {
+        return a.add(b)
+    }
+
+    twice := func(value: I64) returns I64 {
+        return Math.add(value, value)
+    }
+}
+#+end_src
+
+Its members are reached through the namespace name:
+
+#+begin_src til
+result := Math.twice(Math.answer)
+#+end_src
+
+Namespace values are immutable by default. Add ~mut~ only for shared mutable
+state:
+
+#+begin_src til
+Settings := namespace {
+    mut verbose := false
+}
+
+Settings.verbose = true
+#+end_src
+
+** Struct namespaces
+
+A struct can contain a ~namespace:~ section after its fields. The namespace
+holds constructors, associated values, and functions related to the type:
+
+#+begin_src til
+Counter := struct {
+    value := 0
+    namespace:
+    mut instances := 0
+
+    make := func(start: I64) returns Counter {
+        Counter.instances = Counter.instances.add(1)
+        return Counter(value = start)
+    }
+
+    get := func(self: Counter) returns I64 {
+        return self.value
+    }
+
+    bump := func(mut self: Counter) {
+        self.value = self.value.add(1)
+    }
+}
+
+counter := Counter.make(10)
+value := Counter.get(counter)
+#+end_src
+
+Fields belong to each ~Counter~ value. Namespace declarations such as
+~Counter.instances~ exist once under the type name.
+
+** Method-call syntax and UFCS
+
+When a namespace function's first parameter accepts a value, Til also permits
+method-call syntax. These calls are equivalent:
+
+#+begin_src til
+value_a := Counter.get(counter)
+value_b := counter.get()
+#+end_src
+
+There is no hidden receiver: ~counter~ is passed as the explicit first
+argument named ~self~. The ~bump~ method above declares that parameter ~mut~,
+so it may update the value:
+
+#+begin_src til
+counter.bump()
+#+end_src
+
+Mutation through a declared ~mut~ parameter does not make the function a
+~proc~. The mutation is visible in its signature; ~proc~ is reserved for
+effects such as I/O.
+
+Til applies this Uniform Function Call Syntax to top-level functions too, not
+only namespace members. If ~distance(a, b)~ accepts ~a~ first, then
+~a.distance(b)~ is another spelling of the same call. See
+[[file:../concepts/ufcs.org][UFCS]] for the complete rule and comparisons with
+other languages.
+
+** Enum namespaces
+
+Enums may have a namespace section as well:
+
+#+begin_src til
+Direction := enum {
+    Up, Down, Left, Right
+    namespace:
+    is_vertical := func(self: Direction) returns Bool {
+        if self.eq(Direction.Up) { return true }
+        if self.eq(Direction.Down) { return true }
+        return false
+    }
+}
+
+vertical := Direction.Up.is_vertical()
+#+end_src
+
+Enum variants already live in the enum namespace, which is why they are named
+~Direction.Up~ and ~Direction.Down~. User declarations and auto-generated
+operations such as ~is~, ~eq~, and ~to_str~ share that namespace.
+
+** Private members
+
+Struct fields and namespace members are public by default. Mark implementation
+details ~priv~ when only the struct's own namespace functions should reach
+them:
+
+#+begin_src til
+Box := struct {
+    value := 0
+    priv changes := 0
+    namespace:
+    priv record_change := func(mut self: Box) {
+        self.changes = self.changes.add(1)
+    }
+
+    set := func(mut self: Box, value: I64) {
+        Box.record_change(self)
+        self.value = value
+    }
+}
+#+end_src
+
+Code outside the ~Box~ namespace cannot read ~changes~ or call
+~record_change~, even from the same file. Public namespace functions such as
+~set~ form the type's external interface. The full example is
+[[file:../../examples/priv_demo.til][examples/priv_demo.til]], and the exact
+visibility rules are in [[file:../concepts/qualifiers.org][the qualifier reference]].

@@ -169,7 +169,7 @@
      round trip may remain, while own-field/own-argument and ext boundaries
      must still show the required box.
 
-  7. Update ~doc/qualifiers.org~ so the local table says aggregates are owned
+  7. Update ~doc/concepts/qualifiers.org~ so the local table says aggregates are owned
      stack values by default and explains that nested ownership is independent
      of outer storage. Close #143 in the same implementation commit; it is the
      same pointer-return/round-trip defect, not a separate follow-up cleanup.
