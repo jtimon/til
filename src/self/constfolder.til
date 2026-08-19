@@ -1522,6 +1522,29 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     }
 }
 
+// Namespace data has already been evaluated in sibling-dependency order by
+// interpreter_init_ns. Reconstruct the complete typed value from that table
+// instead of trying to prove the original initializer expression known again.
+priv fold_ns_data_value := func(owner: Str, def: Expr, idx: USize, mut nsd: Declaration, mut ctx: Context) {
+    if nsd.default_value.is_none() { return }
+    ref original : Expr = nsd.default_expr()
+    if original.node_type.is(NodeType.FuncDef).or(original.node_type.is(NodeType.StructDef)).or(original.node_type.is(NodeType.EnumDef)) { return }
+    ref member : Str = def_ns_name_at(def, idx)
+    if def.node_type.is(NodeType.EnumDef).and(enum_variant_index(def, member).gte(0)) { return }
+    value_type := original.til_type().clone()
+    if result_type_can_fold_to_expr(value_type, ctx).not() { return }
+    raw_o := ns_get(owner, member, ctx)
+    if raw_o.is_none() { panic(__LOC__, "evaluated namespace value missing: ", owner, ".", member) }
+    ref raw_ref : Dynamic = raw_o.unwrap()
+    mut raw : Dynamic = raw_ref
+    if raw_type_is_prim(value_type, ctx) { raw = scalar_word_load(value_type, raw, ctx) }
+    folded_o := raw_to_expr(raw, value_type, original, ctx)
+    if folded_o.is_none() { return }
+    mut folded : Expr = Option(Expr).take(own folded_o)
+    folded.set_til_type(value_type)
+    nsd.default_value = Option(Expr).Some(own folded)
+}
+
 process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_global: Bool) {
     // Record every assignment target in the whole unit up front so the
     // scope-read fold in try_eval_call never treats a reassigned variable
@@ -1548,17 +1571,25 @@ process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_glob
             continue
         }
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-            // Namespace method bodies live in StructDef/EnumDef ns_decls,
-            // not in the AST children tree -- walk them here.
+            // Namespace declarations live outside the AST children tree.
+            // Fold method bodies under their own known-value views and data
+            // from interpreter_init_ns's completed dependency-ordered table.
+            ref owner_decl : Declaration = decl_of(stmt)
             ref mut pb_ns : Vec(Declaration) = def_ns_decls(rhs)
+            mut pb_i : USize = 0
             for mut nsd : Declaration in pb_ns {
+                cur_pb_i := pb_i
+                pb_i = pb_i + 1
                 if nsd.default_value.is_none() { continue }
-                if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
-                if nsd.default_expr().children.len() == 0 { continue }
-                // #101: through the scoped wrapper, like every other body --
-                // folding these directly leaked their tracked locals into
-                // the program-wide known scope (see fold_body_scoped).
-                fold_body_scoped(scope, nsd.default_expr().children[0], ctx)
+                if nsd.default_expr().node_type.is(NodeType.FuncDef) {
+                    if nsd.default_expr().children.len() == 0 { continue }
+                    // #101: through the scoped wrapper, like every other body --
+                    // folding these directly leaked their tracked locals into
+                    // the program-wide known scope (see fold_body_scoped).
+                    fold_body_scoped(scope, nsd.default_expr().children[0], ctx)
+                } else {
+                    fold_ns_data_value(owner_decl.name, rhs, cur_pb_i, nsd, ctx)
+                }
             }
             continue
         }

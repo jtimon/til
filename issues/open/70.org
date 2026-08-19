@@ -34,18 +34,6 @@
 
 *** Remaining work
 
-  - Fold namespace data initializers. ~process_body~ currently visits only
-    namespace function bodies; namespace data bypasses constfolder even
-    though ~interpreter_init_ns~ has already evaluated it in dependency
-    order.
-  - Emit namespace data declarations in generated headers. Definitions and
-    runtime initialization exist, but the header walk still covers only
-    top-level globals. Enum namespace data is also skipped by the current
-    definition/init walks.
-  - Emit serializable top-level and namespace values as C static
-    initializers and omit their startup assignments. Today even folded
-    ~CAP_LIT~, Str literals, POD values, and enum values are assigned in
-    ~main~ or the library constructor.
   - Fold Vec/Array/Map-valued pure calls and macros. Evaluation is no longer
     the primary blocker: the constfolder explicitly skips these results,
     and ~raw_to_expr~ has no target-neutral representation for their backing
@@ -74,8 +62,16 @@
     ~enum_variant_index_for_tag~ maps explicit discriminants to declaration
     indexes. ~test_explicit_tag_enum_return_fold~ and
     ~test_nested_enum_payload_return_fold~ cover U16/U64 and recursion.
-  - [ ] Fold namespace data, export namespace data declarations, and emit
+  - [X] Fold namespace data, export namespace data declarations, and emit
     existing serializable AST values as static C initializers.
+    ~fold_ns_data_value~ reconstructs the dependency-ordered interpreter
+    values through ~raw_to_expr~. Generated headers declare flattened struct
+    and enum namespace data, and scalar, Str, shallow POD, and non-niche enum
+    values initialize at file scope without startup assignments. Unsupported
+    pointer-backed values retain the ordered runtime path. The
+    ~test_static_global_initializers~, namespace checks in
+    ~test_struct_fold_values~, and ~examples/ffi/ext_module~ header assertions
+    cover compiled, interpreted, and handwritten-C use.
   - [ ] Preparation commit: append the precomputed-sequence AST variant and
     add complete clone/delete, interpreter, scavenger, and C-emitter
     handling, but no producer.

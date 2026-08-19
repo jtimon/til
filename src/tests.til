@@ -783,7 +783,7 @@ main := proc(args: ..Str) {
         "r.data.FCall = *val;\n    return r;", 1,
         "cat boot/til.c")
     add_count(tests, "niche_enum_ctor_keeps_heap_payload", "build",
-        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 73,
+        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 74,
         "cat boot/til.c")
     add_count(tests, "stack_delete_no_outer_box", "build",
         "Expr_delete(({ Expr *_oa = malloc(TIL_BOX(Expr))", 0,
@@ -1148,7 +1148,7 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/aliases_ep.c test/aliases.til '&&' cat gen/c/aliases_ep.c"))
     // ...and a HAND-WRITTEN delete is never skipped, however POD-shaped
     // its type: DeleteCustom counts its own calls.
-    add_count(tests, "structs_keeps_hand_written_delete", "build", "DeleteCustom_delete", 11,
+    add_count(tests, "structs_keeps_hand_written_delete", "build", "DeleteCustom_delete", 10,
         format(til_bin, " translate -c gen/c/structs_hw.c test/structs.til '&&' cat gen/c/structs_hw.c"))
     // Issue #326: the no-op-delete gate reads the DESTRUCTOR BODY, so it
     // covers a POD struct field and a payload-less enum field too -- and

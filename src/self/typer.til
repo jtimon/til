@@ -5635,15 +5635,10 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                 if nsd_o.is_some() {
                     ref mut nsd : Declaration = nsd_o.unwrap()
                     expr.set_til_type(nsd.til_type.clone())
-                    if sdef.node_type.is(NodeType.EnumDef).and(nsd.default_value.is_some()) {
-                        switch nsd.default_expr().node_type {
-                        case .FuncDef(fd):
-                            if fd.func_type.is(FuncType.ExtFunc).and(fd.return_type.len().gt(0)).and(fd.return_type.eq(obj_sname)) {
-                                expr.set_til_type(Type.Enum(obj_sname.clone()))
-                            }
-                        case:
-                            expr.set_til_type(Type.Enum(obj_sname.clone()))
-                        }
+                    // Only declared enum VARIANTS have the enum's value type.
+                    // Ordinary namespace data on an enum keeps its own type.
+                    if sdef.node_type.is(NodeType.EnumDef).and(enum_variant_index(sdef, fname).gte(0)) {
+                        expr.set_til_type(Type.Enum(obj_sname.clone()))
                     }
                     check_member_priv(expr, obj_sname, fname, nsd.is_priv, scope, ctx)
                     if func_state.auto_gen_depth == 0 { nsd.used = true }

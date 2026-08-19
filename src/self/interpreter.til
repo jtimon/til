@@ -1329,6 +1329,20 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
     switch obj.node_type {
     case .Ident: return resolve_field_assign_base(scope, obj, ctx.symbols)
     case .FieldAccess(fa):
+        // Aggregate namespace data is stable storage in ns_fields, so a
+        // chained read such as `Point.origin.x` can borrow that value as its
+        // field base. Enum variants have no ns binding and fall through.
+        mut ns_fallback := ""
+        ref ns_sname : Str = field_access_sname(obj, ns_fallback, ctx.symbols)
+        ns_def_o := interp_fa_namespace_def_with_name(scope, obj, ns_sname, ns_fallback.len() > 0, ctx)
+        if ns_def_o.is_some() {
+            ns_hb_o := scope_lookup_ns_binding(ns_scope(ctx), ns_sname, fa.field_access_name(ctx.symbols.names))
+            if ns_hb_o.is_some() {
+                ref ns_hb : HeapBinding = ns_hb_o.unwrap()
+                ref ns_stored : Dynamic = to_ptr(ns_hb.ptr)
+                return Option(ref Dynamic).Some(ns_stored)
+            }
+        }
         parent_o := field_access_base(scope, obj.children[0], ctx)
         if parent_o.is_none() { return Option(ref Dynamic).None }
         ref parent : Dynamic = parent_o.unwrap()
@@ -7448,7 +7462,7 @@ priv h_is_n := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
 // the enum data buffer (tag at +0), or NULL when the shape doesn't
 // match (non-Ident receiver, non-enum field), letting the caller fall
 // back to the copying path.
-priv get_payload_field_addr := func(mut s: Scope, arg: Expr, ctx: Context) returns Dynamic {
+priv get_payload_field_addr := func(mut s: Scope, arg: Expr, mut ctx: Context) returns Dynamic {
     if arg.node_type.is(NodeType.FieldAccess).not() { return bits_word(0) }
     if arg.children.len() != 1 { return bits_word(0) }
     mut fname := ""
@@ -7456,6 +7470,19 @@ priv get_payload_field_addr := func(mut s: Scope, arg: Expr, ctx: Context) retur
     case .FieldAccess(fan):
         fname = Str.clone(fan.field_access_name(ctx.symbols.names))
     case:
+    }
+    mut ns_fallback := ""
+    ref ns_sname : Str = field_access_sname(arg, ns_fallback, ctx.symbols)
+    ns_def_o := interp_fa_namespace_def_with_name(s, arg, ns_sname, ns_fallback.len() > 0, ctx)
+    if ns_def_o.is_some() {
+        ns_hb_o := scope_lookup_ns_binding(ns_scope(ctx), ns_sname, fname)
+        if ns_hb_o.is_some() {
+            ref ns_hb : HeapBinding = ns_hb_o.unwrap()
+            switch hb_type(ns_hb) {
+            case .Enum: return to_ptr(ns_hb.ptr)
+            case:
+            }
+        }
     }
     switch arg.children[0].node_type {
     case .Ident(base_id):

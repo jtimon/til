@@ -3,6 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+// ext_module_forward.h is force-included by the builder. Namespace data must
+// be declared there with its flattened C name and source type.
+_Static_assert(sizeof(Pair_answer) == sizeof(I64), "Pair.answer declaration missing or mistyped");
+_Static_assert(sizeof(Pair_forward) == sizeof(I64), "Pair.forward declaration missing or mistyped");
+
 // Top-level ext functions
 
 Str *greet(Str *name) {

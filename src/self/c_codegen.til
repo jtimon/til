@@ -3224,6 +3224,197 @@ priv num_lit_to_c := func(text: Str) returns Str {
     return format("-", out)
 }
 
+priv ns_member_is_data := func(def: Expr, idx: USize) returns Bool {
+    ref ns : Vec(Declaration) = def_ns_decls(def)
+    if idx >= ns.len() { return false }
+    ref dd : Declaration = ns.unsafe_get(idx)
+    if dd.default_value.is_none() { return false }
+    ref rhs : Expr = dd.default_expr()
+    if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { return false }
+    if def.node_type.is(NodeType.EnumDef) {
+        ref member : Str = def_ns_name_at(def, idx)
+        if enum_variant_index(def, member) >= 0 { return false }
+    }
+    return true
+}
+
+priv ns_data_ctype := func(dd: Declaration, mut ctx: Context) returns Str {
+    return extern_decl_ctype(dd.til_type, dd.default_expr().til_type(), dd.type_name(), ctx)
+}
+
+priv static_struct_ctor_def := func(e: Expr, ctx: Context) returns Option(ref Expr) {
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len() == 0) { return Option(ref Expr).None }
+    sname_o := expr_type_name_ref(e)
+    if sname_o.is_none() { return Option(ref Expr).None }
+    ref sname : Str = sname_o.unwrap()
+    switch e.children[0].node_type {
+    case .Ident(callee):
+        if callee.ident_name(ctx.symbols.names) != sname { return Option(ref Expr).None }
+    case:
+        return Option(ref Expr).None
+    }
+    def_o := find_struct_def(sname, ctx)
+    if def_o.is_none() { return Option(ref Expr).None }
+    if def_o.unwrap().node_type.is(NodeType.StructDef).not() { return Option(ref Expr).None }
+    return def_o
+}
+
+priv enum_variant_access_index := func(access: Expr, ename: Str, def: Expr, symbols: SymbolPool) returns I32 {
+    if access.node_type.is(NodeType.FieldAccess).not().or(access.children.len() != 1) { return -1 }
+    switch access.children[0].node_type {
+    case .Ident(receiver):
+        if receiver.ident_name(symbols.names) != ename { return -1 }
+    case:
+        return -1
+    }
+    switch access.node_type {
+    case .FieldAccess(member): return enum_variant_index(def, member.field_access_name(symbols.names))
+    case: return -1
+    }
+}
+
+priv static_enum_def := func(e: Expr, ctx: Context) returns Option(ref Expr) {
+    ename_o := expr_type_name_ref(e)
+    if ename_o.is_none() { return Option(ref Expr).None }
+    def_o := find_struct_def(ename_o.unwrap(), ctx)
+    if def_o.is_none() { return Option(ref Expr).None }
+    if def_o.unwrap().node_type.is(NodeType.EnumDef).not() { return Option(ref Expr).None }
+    return def_o
+}
+
+priv static_enum_clone_arg := func(e: Expr, ctx: Context) returns Option(ref Expr) {
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len() != 2) { return Option(ref Expr).None }
+    ename_o := expr_type_name_ref(e)
+    if ename_o.is_none() { return Option(ref Expr).None }
+    ref callee : Expr = e.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not().or(callee.children.len() != 1) { return Option(ref Expr).None }
+    switch callee.node_type {
+    case .FieldAccess(member):
+        if member.field_access_name(ctx.symbols.names) != "clone" { return Option(ref Expr).None }
+    case:
+        return Option(ref Expr).None
+    }
+    switch callee.children[0].node_type {
+    case .Ident(receiver):
+        if receiver.ident_name(ctx.symbols.names) != ename_o.unwrap() { return Option(ref Expr).None }
+    case:
+        return Option(ref Expr).None
+    }
+    return Option(ref Expr).Some(e.children[1])
+}
+
+priv expr_has_c_static_initializer := func(e: Expr, mut ctx: Context) returns Bool {
+    switch e.node_type {
+    case .Literal(Literal.Num): return true
+    case .Literal(Literal.Bool): return true
+    case .Literal(Literal.Str): return true
+    case .FieldAccess:
+        def_o := static_enum_def(e, ctx)
+        if def_o.is_none() { return false }
+        ref def : Expr = def_o.unwrap()
+        if enum_is_niche(def) { return false }
+        ename_o := expr_type_name_ref(e)
+        if ename_o.is_none() { return false }
+        idx := enum_variant_access_index(e, ename_o.unwrap(), def, ctx.symbols)
+        return idx.gte(0).and(enum_variant_type(def, idx).len() == 0)
+    case .FCall:
+        clone_arg_o := static_enum_clone_arg(e, ctx)
+        if clone_arg_o.is_some() { return expr_has_c_static_initializer(clone_arg_o.unwrap(), ctx) }
+
+        sdef_o := static_struct_ctor_def(e, ctx)
+        if sdef_o.is_some() {
+            ref sdef : Expr = sdef_o.unwrap()
+            ref sd : StructDef = structdef_of(sdef)
+            if e.children.len() != sd.fields.len() + 1 { return false }
+            for i in 0..sd.fields.len() {
+                ref field : Declaration = sd.fields[i]
+                if field.own_type.is(OwnType.Shallow).not() { return false }
+                if expr_has_c_static_initializer(e.children[i + 1], ctx).not() { return false }
+            }
+            return true
+        }
+
+        def_o := static_enum_def(e, ctx)
+        if def_o.is_none().or(e.children.len() != 2) { return false }
+        ref def : Expr = def_o.unwrap()
+        if enum_is_niche(def) { return false }
+        ename_o := expr_type_name_ref(e)
+        if ename_o.is_none() { return false }
+        idx := enum_variant_access_index(e.children[0], ename_o.unwrap(), def, ctx.symbols)
+        if idx < 0 { return false }
+        if enum_variant_type(def, idx).len() == 0 { return false }
+        if enum_variant_payload_ref(def, idx) { return false }
+        return expr_has_c_static_initializer(e.children[1], ctx)
+    case:
+        return false
+    }
+}
+
+priv global_decl_has_c_static_initializer := func(stmt: Expr, mut ctx: Context) returns Bool {
+    if is_exported_top_level_global(stmt).not() { return false }
+    ref dd : Declaration = decl_of(stmt)
+    if global_is_pointer_storage(stmt, dd, ctx.symbols) { return false }
+    return expr_has_c_static_initializer(stmt.children[0], ctx)
+}
+
+priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
+    switch e.node_type {
+    case .Literal(Literal.Num(num)):
+        f.write(num_lit_to_c(num.literal_num_text()))
+        if type_is_primitive(e.til_type(), Primitive.U64) { f.write("ULL") }
+    case .Literal(Literal.Bool(b)):
+        if b { f.write("1") } else { f.write("0") }
+    case .Literal(Literal.Str(s)):
+        f.write("{.c_str = (I8 *)\"").write(s).write("\", .count = ")
+        emit_usize(f, c_lit_byte_count(s))
+        f.write("ULL, .cap = TIL_CAP_LIT}")
+    case .FieldAccess(member):
+        ename_o := expr_type_name_ref(e)
+        if ename_o.is_none() { panic(__LOC__, "static enum access has no type") }
+        f.write("{.tag = ").write(ename_o.unwrap()).write("_TAG_").write(member.field_access_name(ctx.symbols.names)).write("}")
+    case .FCall:
+        clone_arg_o := static_enum_clone_arg(e, ctx)
+        if clone_arg_o.is_some() {
+            emit_c_static_initializer(f, clone_arg_o.unwrap(), ctx)
+            return
+        }
+        sdef_o := static_struct_ctor_def(e, ctx)
+        if sdef_o.is_some() {
+            ref sdef : Expr = sdef_o.unwrap()
+            ref sd : StructDef = structdef_of(sdef)
+            f.write("{")
+            for i in 0..sd.fields.len() {
+                if i > 0 { f.write(", ") }
+                f.write(".").write(sd.field_name_at(i)).write(" = ")
+                emit_c_static_initializer(f, e.children[i + 1], ctx)
+            }
+            if sd.fields.len() == 0 { f.write("0") }
+            f.write("}")
+            return
+        }
+        def_o := static_enum_def(e, ctx)
+        if def_o.is_none() { panic(__LOC__, "unsupported static initializer call") }
+        ref def : Expr = def_o.unwrap()
+        ename_o := expr_type_name_ref(e)
+        if ename_o.is_none() { panic(__LOC__, "static enum constructor has no type") }
+        ref ename : Str = ename_o.unwrap()
+        idx := enum_variant_access_index(e.children[0], ename, def, ctx.symbols)
+        if idx < 0 { panic(__LOC__, "static enum constructor has no variant") }
+        switch e.children[0].node_type {
+        case .FieldAccess(member):
+            ref vname : Str = member.field_access_name(ctx.symbols.names)
+            f.write("{.tag = ").write(ename).write("_TAG_").write(vname)
+            f.write(", .data = {.").write(vname).write(" = ")
+            emit_c_static_initializer(f, e.children[1], ctx)
+            f.write("}}")
+        case:
+            panic(__LOC__, "static enum constructor callee is not a field access")
+        }
+    case:
+        panic(__LOC__, "unsupported C static initializer: ", e.node_type.head_str(ctx.symbols.names))
+    }
+}
+
 priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
     switch e.node_type {
     case .Literal(Literal.Str(s)):
@@ -3861,8 +4052,15 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             obj_sname_o := expr_type_name_ref(obj)
             if obj_sname_o.is_none() { return f }
             ref obj_sname : Str = obj_sname_o.unwrap()
-            if e.til_type().is(Type.Enum) {
-                nv_def_o := find_struct_def(obj_sname, ctx)
+            nv_def_o := find_struct_def(obj_sname, ctx)
+            mut nv_is_variant := false
+            if nv_def_o.is_some() {
+                ref nv_probe_def : Expr = nv_def_o.unwrap()
+                if nv_probe_def.node_type.is(NodeType.EnumDef) {
+                    nv_is_variant = enum_variant_index(nv_probe_def, fname.field_access_name(ctx.symbols.names)).gte(0)
+                }
+            }
+            if nv_is_variant {
                 mut nv_niche := false
                 if nv_def_o.is_some() {
                     ref nv_def : Expr = nv_def_o.unwrap()
@@ -4072,59 +4270,35 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
     }
 }
 
+priv emit_ns_inits_for_stmt := proc(f: File, depth: I32, stmt: Expr, mut lp: LoadedProgram) {
+    if is_struct_or_enum(stmt).not() { return }
+    ref owner : Declaration = decl_of(stmt)
+    ref def : Expr = stmt.children[0]
+    ref ns : Vec(Declaration) = def_ns_decls(def)
+    // Unsupported values retain the dependency-ordered runtime path.
+    order := ns_const_eval_order(owner.name, def, lp.ctx.symbols)
+    for pos : I64 in order {
+        idx := pos.to_usize()
+        if ns_member_is_data(def, idx).not() { continue }
+        ref dd : Declaration = ns.unsafe_get(idx)
+        if expr_has_c_static_initializer(dd.default_expr(), lp.ctx) { continue }
+        emit_indent(f, depth)
+        f.write(owner.name).write("_").write(def_ns_name_at(def, idx)).write(" = ")
+        emit_deref(f, dd.default_expr(), depth, lp.ctx)
+        f.write(";\n")
+    }
+}
+
 priv emit_ns_inits := proc(f: File, depth: I32, mut lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_struct_or_enum(stmt) {
-                    ref sdecl : Declaration = decl_of(stmt)
-                    ref edef : Expr = stmt.children[0]
-                    if edef.node_type.is(NodeType.EnumDef) { continue }
-                    ref nii_ns : Vec(Declaration) = def_ns_decls(edef)
-                    // #307 follow-up: sibling-dependency order, like
-                    // interpreter_init_ns (a constant may read a
-                    // sibling constant declared later).
-                    nii_order := ns_const_eval_order(sdecl.name, edef, lp.ctx.symbols)
-                    for nii_pos : I64 in nii_order {
-                        cur_nii := nii_pos.to_usize()
-                        ref dd : Declaration = nii_ns.unsafe_get(cur_nii)
-                        if dd.default_expr().node_type.is(NodeType.StructDef).or(dd.default_expr().node_type.is(NodeType.EnumDef)) { continue }
-                        emit_indent(f, depth)
-                        f.write(sdecl.name)
-                        f.write("_")
-                        f.write(def_ns_name_at(edef, cur_nii))
-                        f.write(" = ")
-                        emit_deref(f, dd.default_expr(), depth, lp.ctx)
-                        f.write(";\n")
-                    }
-                }
-            }
+            for stmt : Expr in iu.ast.children { emit_ns_inits_for_stmt(f, depth, stmt, lp) }
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for stmt : Expr in iu.ast.children {
-            if is_struct_or_enum(stmt) {
-                ref sdecl : Declaration = decl_of(stmt)
-                ref edef : Expr = stmt.children[0]
-                if edef.node_type.is(NodeType.EnumDef) { continue }
-                ref nii2_ns : Vec(Declaration) = def_ns_decls(edef)
-                nii2_order := ns_const_eval_order(sdecl.name, edef, lp.ctx.symbols)
-                for nii2_pos : I64 in nii2_order {
-                    cur_nii2 := nii2_pos.to_usize()
-                    ref dd : Declaration = nii2_ns.unsafe_get(cur_nii2)
-                    if dd.default_expr().node_type.is(NodeType.StructDef).or(dd.default_expr().node_type.is(NodeType.EnumDef)) { continue }
-                    emit_indent(f, depth)
-                    f.write(sdecl.name)
-                    f.write("_")
-                    f.write(def_ns_name_at(edef, cur_nii2))
-                    f.write(" = ")
-                    emit_deref(f, dd.default_expr(), depth, lp.ctx)
-                    f.write(";\n")
-                }
-            }
-        }
+        for stmt : Expr in iu.ast.children { emit_ns_inits_for_stmt(f, depth, stmt, lp) }
     }
 }
 
@@ -4579,19 +4753,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             }
         }
         emit_ns_inits(f, 1, lp)
-        if lp.ctx.script_globals.len() > 0 {
-            for upath : Str in lp.unit_paths() {
-                ref iu : ImportUnit = lp.ctx.imported[upath]
-                for gs : Expr in iu.ast.children {
-                    if gs.node_type.is(NodeType.Decl) {
-                        ref rhs : Expr = gs.children[0]
-                        if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
-                        if gs.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
-                    } else if gs.node_type.is(NodeType.FCall).not() { continue }
-                    emit_stmt(f, gs, 1, lp.ctx)
-                }
-            }
-        }
+        emit_global_inits(f, lp)
         if nparam > 0 {
             mut argi : I32 = 1
             for i in 0..nparam {
@@ -5913,14 +6075,28 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
-            if is_exported_top_level_global(stmt).not() { continue }
-            ref dd : Declaration = decl_of(stmt)
-            if lp_header_hides(dd.name, lp.ctx) { continue }
-            ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), lp.ctx)
-            if dd.own_type.is(OwnType.Ref) {
-                f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
-            } else {
-                f.write("extern ").write(ctype).write(" ").write(dd.name).write(";\n")
+            if is_exported_top_level_global(stmt) {
+                ref dd : Declaration = decl_of(stmt)
+                if lp_header_hides(dd.name, lp.ctx).not() {
+                    ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), lp.ctx)
+                    if dd.own_type.is(OwnType.Ref) {
+                        f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
+                    } else {
+                        f.write("extern ").write(ctype).write(" ").write(dd.name).write(";\n")
+                    }
+                }
+            }
+            if is_struct_or_enum(stmt) {
+                ref owner : Declaration = decl_of(stmt)
+                ref def : Expr = stmt.children[0]
+                ref ns : Vec(Declaration) = def_ns_decls(def)
+                for i in 0..ns.len() {
+                    if ns_member_is_data(def, i).not() { continue }
+                    ref member : Declaration = ns.unsafe_get(i)
+                    flat := owner.name.concat3("_", def_ns_name_at(def, i))
+                    if lp_header_hides(flat, lp.ctx) { continue }
+                    f.write("extern ").write(ns_data_ctype(member, lp.ctx)).write(" ").write(flat).write(";\n")
+                }
             }
         }
     }
@@ -6414,6 +6590,7 @@ priv register_funcsig_prog := func(prog: Expr, mut ctx: Context) {
 priv emit_global_inits_prog := proc(f: File, prog: Expr, mut ctx: Context) {
     for gs : Expr in prog.children {
         if gs.node_type.is(NodeType.Decl) {
+            if global_decl_has_c_static_initializer(gs, ctx) { continue }
             ref rhs : Expr = gs.children[0]
             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef))
             .or(rhs.node_type.is(NodeType.EnumDef)) { continue }
@@ -7908,6 +8085,24 @@ priv global_is_pointer_storage := func(stmt: Expr, dd: Declaration, symbols: Sym
     return rhs_is_allocator_call(stmt.children[0], symbols)
 }
 
+priv emit_global_declaration := proc(f: File, stmt: Expr, mut ctx: Context) {
+    ref dd : Declaration = decl_of(stmt)
+    ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), ctx)
+    f.write(builder_global_static_prefix(dd.name, ctx)).write(ctype).write(" ")
+    if global_is_pointer_storage(stmt, dd, ctx.symbols) {
+        f.write("*").write(dd.name).write(";\n")
+        ctx.ref_globals.add(own ctx.symbols.intern(dd.name))
+        return
+    }
+    f.write(dd.name)
+    if global_decl_has_c_static_initializer(stmt, ctx) {
+        f.write(" = ")
+        emit_c_static_initializer(f, stmt.children[0], ctx)
+    }
+    f.write(";\n")
+    ctx.script_globals.add(own ctx.symbols.intern(dd.name))
+}
+
 priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
     lp.ctx.script_globals = Set(Sym).new()
     lp.ctx.ref_globals = Set(Sym).new()
@@ -7916,21 +8111,7 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_exported_top_level_global(stmt).not() { continue }
-                ref dd : Declaration = decl_of(stmt)
-                ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), lp.ctx)
-                // A raw-allocator RHS makes the global a POINTER, exactly
-                // like the function-local raw_alloc form (#302): the value
-                // IS the block address. Emitting it as a value global made
-                // `buf : U8 = malloc(n)` allocate, copy one indeterminate
-                // byte into the global, free the block, and then let every
-                // memset/ptr_add on it write past a one-byte object.
-                if global_is_pointer_storage(stmt, dd, lp.ctx.symbols) {
-                    f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" *").write(dd.name).write(";\n")
-                    lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
-                } else {
-                    f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" ").write(dd.name).write(";\n")
-                    lp.ctx.script_globals.add(own lp.ctx.symbols.intern(dd.name))
-                }
+                emit_global_declaration(f, stmt, lp.ctx)
             }
         }
     }
@@ -7938,63 +8119,41 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
-            ref dd : Declaration = decl_of(stmt)
-            ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), lp.ctx)
-            // Same raw-allocator pointer rule as the core-unit loop above.
-            if global_is_pointer_storage(stmt, dd, lp.ctx.symbols) {
-                f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" *").write(dd.name).write(";\n")
-                lp.ctx.ref_globals.add(own lp.ctx.symbols.intern(dd.name))
-            } else {
-                f.write(builder_global_static_prefix(dd.name, lp.ctx)).write(ctype).write(" ").write(dd.name).write(";\n")
-                lp.ctx.script_globals.add(own lp.ctx.symbols.intern(dd.name))
-            }
+            emit_global_declaration(f, stmt, lp.ctx)
         }
     }
     emit_ns_const_global_defs(f, lp)
     f.write("\n")
 }
 
-// #264 follow-up: namespace DATA constants (e.g. U8.MAX) are emitted as
-// file-scope globals in the main TU here -- defined once (uninitialised,
-// since values like U64.bnot(0) aren't C constant expressions) and
-// initialised in main via emit_ns_inits. Covers ext.h primitive types,
-// whose typedef is skipped by emit_struct_typedef. Single TU, so no
-// extern/header split is needed.
-priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr) {
+// Namespace DATA has one flattened file-scope symbol. Serializable values
+// initialize here; every other value retains emit_ns_inits' runtime path.
+priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr, mut ctx: Context) {
     if is_struct_or_enum(stmt).not() { return }
     switch stmt.node_type {
     case .Decl(sdecl):
         ref edef : Expr = stmt.children[0]
-        if edef.node_type.is(NodeType.EnumDef) { return }
         ref ngi_ns : Vec(Declaration) = def_ns_decls(edef)
-        mut ngi : USize = 0
-        for dd : Declaration in ngi_ns {
-            ref ng_name : Str = def_ns_name_at(edef, ngi)
-            ngi = ngi + 1
-            if dd.default_value.is_none() { continue }
-            if dd.default_expr().node_type.is(NodeType.FuncDef) { continue }
-            if dd.default_expr().node_type.is(NodeType.StructDef).or(dd.default_expr().node_type.is(NodeType.EnumDef)) { continue }
-            if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
-                ng_sname_o := expr_type_name_ref(dd.default_expr())
-                if ng_sname_o.is_some() {
-                    ref ng_sname : Str = ng_sname_o.unwrap()
-                    f.write(ng_sname).write(" ").write(sdecl.name).write("_").write(ng_name).write(";\n")
-                } else {
-                    tc := til_type_to_c(dd.til_type); f.write(tc).write(" ").write(sdecl.name).write("_").write(ng_name).write(";\n")
-                }
-            } else {
-                tc := til_type_to_c(dd.til_type); f.write(tc).write(" ").write(sdecl.name).write("_").write(ng_name).write(";\n")
+        for ngi in 0..ngi_ns.len() {
+            if ns_member_is_data(edef, ngi).not() { continue }
+            ref dd : Declaration = ngi_ns.unsafe_get(ngi)
+            flat := sdecl.name.concat3("_", def_ns_name_at(edef, ngi))
+            f.write(ns_data_ctype(dd, ctx)).write(" ").write(flat)
+            if expr_has_c_static_initializer(dd.default_expr(), ctx) {
+                f.write(" = ")
+                emit_c_static_initializer(f, dd.default_expr(), ctx)
             }
+            f.write(";\n")
         }
     case:
     }
 }
 
-priv emit_ns_const_global_defs := proc(f: File, lp: LoadedProgram) {
+priv emit_ns_const_global_defs := proc(f: File, mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
-            emit_ns_const_defs_for_stmt(f, stmt)
+            emit_ns_const_defs_for_stmt(f, stmt, lp.ctx)
         }
     }
 }
@@ -8076,6 +8235,7 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for gs : Expr in iu.ast.children {
                 if gs.node_type.is(NodeType.Decl) {
+                    if global_decl_has_c_static_initializer(gs, lp.ctx) { continue }
                     ref rhs : Expr = gs.children[0]
                     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
                     if gs.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
@@ -8089,6 +8249,7 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl) {
+                if global_decl_has_c_static_initializer(stmt, lp.ctx) { continue }
                 ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
             }

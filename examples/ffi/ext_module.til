@@ -16,6 +16,8 @@ Pair := struct {
     a := 0
     b := 0
     namespace:
+    forward : I64 = Pair.answer.add(1)
+    answer : I64 = 40.add(2)
     sum := ext_func(self: Pair) returns I64 {}
     swap := ext_func(self: Pair) returns Pair {}
     clone := ext_func(self: Pair) returns Pair {}
@@ -56,6 +58,8 @@ test_instantiation := func() {
     p2 := Pair(a=3, b=7)
     assert_eq(I64, p2.a, 3)
     assert_eq(I64, p2.b, 7)
+    assert_eq(I64, Pair.answer, 42)
+    assert_eq(I64, Pair.forward, 43)
 }
 
 test_field_mutation := func() {

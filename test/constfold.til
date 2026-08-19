@@ -170,6 +170,12 @@ CfVec2 := struct {
     at := func(x: I64, y: I64) returns CfVec2 {
         return CfVec2(x=x, y=y)
     }
+
+    // Namespace data is evaluated in dependency order, then reconstructed
+    // into serializable AST values for static C initialization.
+    forward : I64 = CfVec2.answer.add(1)
+    answer : I64 = add(40, 2)
+    sample_value : CfVec2 = CfVec2.at(6, 7)
 }
 
 // Test 8: Simple struct with pure constructor.
@@ -184,6 +190,10 @@ test_struct_fold_values := test() {
     p := CfVec2.at(10, 20)
     assert_eq(I64, p.x, 10)
     assert_eq(I64, p.y, 20)
+    assert_eq(I64, CfVec2.answer, 42)
+    assert_eq(I64, CfVec2.forward, 43)
+    assert_eq(I64, CfVec2.sample_value.x, 6)
+    assert_eq(I64, CfVec2.sample_value.y, 7)
 }
 
 // Test 10: Nested struct.
@@ -292,12 +302,28 @@ test_enum_payload_return_fold := test() {
 // map an explicit discriminant VALUE back to its declaration INDEX. The
 // outer U16 enum also carries the inner U64 enum, covering recursive payload
 // reconstruction rather than only a flat enum result.
-WideToken := enum(U64) { Num: I64 = 4294967297, Eof = 4294967300 }
+WideToken := enum(U64) {
+    Num: I64 = 4294967297
+    Eof = 4294967300
+    namespace:
+    answer : I64 = add(40, 2)
+    sample_value : WideToken = WideToken.Num(12)
+}
 NestedToken := enum(U16) { Inner: WideToken = 300, Done = 600 }
 
 mk_wide_num := func(n: I64) returns WideToken { return WideToken.Num(n) }
 mk_wide_eof := func() returns WideToken { return WideToken.Eof }
 mk_nested_token := func() returns NestedToken { return NestedToken.Inner(WideToken.Num(9)) }
+static_str_value := func() returns Str { return "static-folded" }
+
+STATIC_SCALAR : I64 = add(40, 2)
+STATIC_STR : Str = static_str_value()
+STATIC_POINT : CfVec2 = CfVec2.magic()
+STATIC_COLOR : Color = mk_color()
+STATIC_TOKEN : Token = mk_tok(13)
+// Niche payload storage is pointer-backed and deliberately retains runtime
+// initialization until the precomputed-sequence/template representation.
+STATIC_NICHE : NestedToken = mk_nested_token()
 
 test_explicit_tag_enum_return_fold := test() {
     number := mk_wide_num(7)
@@ -319,6 +345,23 @@ test_nested_enum_payload_return_fold := test() {
         }
     case: UNREACHABLE()
     }
+}
+
+test_static_global_initializers := test() {
+    assert_eq(I64, STATIC_SCALAR, 42)
+    assert_eq(Str, STATIC_STR, "static-folded")
+    assert_eq(I64, STATIC_POINT.x, 42)
+    assert(STATIC_COLOR.eq(Color.Green))
+    switch STATIC_TOKEN {
+    case Token.Num(value): assert_eq(I64, value, 13)
+    case: UNREACHABLE()
+    }
+    assert_eq(I64, WideToken.answer, 42)
+    switch WideToken.sample_value {
+    case WideToken.Num(value): assert_eq(I64, value, 12)
+    case: UNREACHABLE()
+    }
+    assert(STATIC_NICHE.is(NestedToken.Inner))
 }
 
 // #280: an `and`/`or` whose operands are ALL Bool literals folds to a single
