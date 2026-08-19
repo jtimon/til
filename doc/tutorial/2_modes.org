@@ -1,0 +1,181 @@
+* Modes
+
+A mode describes what kind of Til file is being loaded. Put its declaration
+at the start of the file:
+
+#+begin_src til
+mode cli
+#+end_src
+
+Modes are per file, not one global switch for a whole program. An imported
+library can use ~mode lib~ while the entry-point file uses ~mode script~,
+~mode cli~, or ~mode gui~. The compiler remembers each file's mode and applies
+that mode's rules while processing that file.
+
+The entry-point mode also selects the program's entry contract, generated
+artifact, and any automatically supplied facilities. In that role it is
+similar to a Roc platform: it defines the environment in which the application
+runs rather than merely enabling a syntax feature.
+
+** Script mode
+
+~script~ is the default. It permits executable statements at the top level
+and does not require a ~main~ function:
+
+#+begin_src til
+println("Hello World!")
+#+end_src
+
+Writing ~mode script~ makes the same choice explicit, as in
+[[file:../../examples/hello_script.til][examples/hello_script.til]].
+
+** Command-line programs
+
+~mode cli~ requires a ~main~ procedure. The
+[[file:../../examples/hello_cli.til][CLI Hello World]] is:
+
+#+begin_src til
+mode cli
+
+main := proc() {
+    println("Hello World!")
+}
+#+end_src
+
+Run it through either backend:
+
+#+begin_src sh
+til interpret examples/hello_cli.til
+til run examples/hello_cli.til
+#+end_src
+
+A CLI ~main~ can accept command-line arguments. In
+[[file:../../examples/cli_args.til][examples/cli_args.til]], a variadic
+~Str~ parameter receives every argument after the source path:
+
+#+begin_src til
+mode cli
+
+main := proc(args: ..Str) {
+    for a : Str in args {
+        println(a)
+    }
+}
+#+end_src
+
+For example:
+
+#+begin_src sh
+til interpret examples/cli_args.til one two three
+til run examples/cli_args.til one two three
+#+end_src
+
+Each command prints the three arguments on separate lines. Parameters can
+also use supported scalar types; Til converts the command-line text to the
+declared parameter type before calling ~main~.
+
+** Graphical programs
+
+~mode gui~ requires ~main~ like CLI mode and automatically imports Til's GUI
+support. The [[file:../../examples/hello_gui.til][GUI Hello World]] opens a
+window and moves a red square diagonally:
+
+#+begin_src til
+mode gui
+
+main := proc() {
+    InitWindow(800, 450, "hello from til!".c_str)
+    SetTargetFPS(60)
+
+    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
+    RED := Color(r = 230, g = 41, b = 55, a = 255)
+
+    mut x : I32 = 0
+    mut y : I32 = 0
+    while !WindowShouldClose() {
+        BeginDrawing()
+        ClearBackground(BLACK)
+        DrawRectangle(x, y, 50, 50, RED)
+        EndDrawing()
+        x++
+        y++
+    }
+    CloseWindow()
+}
+#+end_src
+
+It can also be interpreted or compiled and run:
+
+#+begin_src sh
+til interpret examples/hello_gui.til
+til run examples/hello_gui.til
+#+end_src
+
+** Tests and libraries
+
+~mode test~ makes ~test()~ declarations the entry points. The ~til test~
+command runs them first through the interpreter and then from a compiled
+test executable:
+
+#+begin_src til
+mode test
+
+test_addition := test() {
+    expect(2.add(2).eq(4), "addition works")
+}
+#+end_src
+
+~mode lib~ marks an importable library. It does not require ~main~, and
+building the file produces library artifacts instead of an executable:
+
+#+begin_src til
+mode lib
+
+double := func(n: I64) returns I64 {
+    return n.mul(2)
+}
+#+end_src
+
+~mode pure~ is a library mode that rejects impure ~proc~ declarations. The
+[[file:../../examples/hello_pure.til][pure Hello World example]] contains only
+a pure function and its test:
+
+#+begin_src til
+mode pure
+
+greet := func(name: Str) returns Str {
+    return format("Hello, ", name, "!")
+}
+
+test_greet := test() {
+    expect(greet("World").eq("Hello, World!"), "greet works")
+}
+#+end_src
+
+** User-defined modes
+
+Modes are ordinary data. A file in ~mode mode~ can declare additional modes
+with combinations of these behaviors: require ~main~, restrict the file to
+declarations, build a library, enforce purity, run tests, enable debug prints,
+or automatically import a support file.
+
+[[file:../../examples/custom_modes.til][examples/custom_modes.til]] defines
+four modes that each import a different messaging prelude:
+
+#+begin_src til
+mode mode
+
+receiver := Mode(auto_import = "examples/lib/custom_modes/receiver", decls_only = false)
+sender := Mode(auto_import = "examples/lib/custom_modes/sender", decls_only = false)
+publisher := Mode(auto_import = "examples/lib/custom_modes/publisher", decls_only = false)
+subscriber := Mode(auto_import = "examples/lib/custom_modes/subscriber", decls_only = false)
+#+end_src
+
+Pass a mode-definition file when loading a program that uses those names:
+
+#+begin_src sh
+til run --extra-modes=examples/custom_modes.til program.til
+#+end_src
+
+This keeps application files concise while allowing a project to define its
+own entry contracts and automatically provided APIs.

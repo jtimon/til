@@ -1,0 +1,94 @@
+* Getting Started
+
+** Install Til
+
+From the repository root, build and install Til with:
+
+#+begin_src sh
+sudo make install
+#+end_src
+
+The default prefix is ~/usr/local~ on Unix-like systems and
+~C:/Program Files/til~ on Windows. ~sudo~ is not part of Til: it is only
+needed when your account cannot write to the default prefix. Omit it on
+Windows, when the destination is writable, or when running from an already
+elevated shell.
+
+To install somewhere else without elevated permissions, build Til and pass a
+prefix directly to its installer:
+
+#+begin_src sh
+make
+bin/til install --prefix="$HOME/.local" src/til.til
+#+end_src
+
+Add the selected prefix's ~bin~ directory to ~PATH~ if it is not there
+already. The rest of this tutorial assumes the installed command is named
+~til~; from a repository checkout, use ~bin/til~ instead.
+
+** Hello World
+
+Create ~hello.til~ with one line:
+
+#+begin_src til
+println("Hello World!")
+#+end_src
+
+A file without a ~mode~ declaration uses ~mode script~. Script mode evaluates
+top-level statements in order, so this program needs no ~main~ function.
+
+Interpret it directly:
+
+#+begin_src sh
+til interpret hello.til
+#+end_src
+
+The path alone is shorthand for ~interpret~:
+
+#+begin_src sh
+til hello.til
+#+end_src
+
+Both print:
+
+#+begin_example
+Hello World!
+#+end_example
+
+** Interpret or compile and run
+
+~interpret~ executes the Til program through Til's interpreter. It is the
+shortest edit-run loop and does not invoke a C compiler.
+
+~run~ translates the same program to C, compiles it to a native executable,
+and runs that executable:
+
+#+begin_src sh
+til run hello.til
+#+end_src
+
+The program should behave the same through either path. Running both is a
+useful way to check code while Til's interpreter and compiled backend are
+still evolving.
+
+Use ~til build hello.til~ when you want the executable without running it, or
+~til translate hello.til~ when you only want generated backend source. Run
+~til help~ for the complete command list. Running ~til~ without arguments
+starts the interactive REPL in script mode.
+
+** Executable script
+
+The repository's [[file:../../examples/hello_script.til][Hello World script]]
+makes script mode explicit and adds a portable shebang:
+
+#+begin_src til
+#!/usr/bin/env til
+mode script
+
+println("Hello World!")
+#+end_src
+
+The ~mode script~ line is optional because script is the default. The shebang
+allows the file to be run directly on systems that support executable scripts
+once its executable permission is set. The next chapter explains why modes
+exist and how other modes change the program's entry contract.

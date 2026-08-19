@@ -6,4 +6,6 @@ in a practical order and is separate from the declaration documentation under
 
 ** Contents
 
-- [[file:visibility.org][Visibility]]
+- [[file:1_getting_started.org][Getting Started]]
+- [[file:2_modes.org][Modes]]
+- [[file:3_visibility.org][Visibility]]
