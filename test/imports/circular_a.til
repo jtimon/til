@@ -21,3 +21,8 @@ a_value := func(n: I64) returns I64 { return n.add(1) }
 a_uses_b := func(n: I64) returns I64 { return b_value(n).add(10) }
 a_take_b := func(b: BBox) returns I64 { return b.n.add(3) }
 a_uses_generated_b_eq := func(a: BBox, b: BBox) returns Bool { return a.eq(b) }
+
+// #165: before private-name mangling this must not refresh the public
+// same-named FuncDef registered by circular_b.
+priv circular_registration_collision := func(a: I64, b: I64) returns I64 { return a + b }
+a_uses_private_registration_collision := func() returns I64 { return circular_registration_collision(1, 2) }

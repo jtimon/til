@@ -34,6 +34,11 @@ test_circular_import_generated_methods := test() {
     assert(b_uses_generated_a_eq(a1, a3).not())
 }
 
+test_circular_private_public_registration := test() {
+    assert_eq(I64, circular_registration_collision(1, 2, 3), 6)
+    assert_eq(I64, a_uses_private_registration_collision(), 3)
+}
+
 test_circular_import_template_instantiation := test() {
     ib := make_i64_box(42)
     ref iv : I64 = ib.get()

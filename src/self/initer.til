@@ -3678,7 +3678,15 @@ init_refresh_seeded_scope_defs := func(program: Expr, mut scope: TypeScope, symb
         if stmt.children.len() == 0 { continue }
         mut name := ""
         switch stmt.node_type {
-        case .Decl(dd): name = dd.name
+        case .Decl(dd):
+            // An unmangled source-private declaration was never seeded under
+            // its source name. A public declaration in another unit may own
+            // that binding; refreshing it here would replace the public
+            // FuncDef/StructDef with this private definition. Once ordinary
+            // privates are mangled (or nested privates carry orig_name), they
+            // own their canonical binding and can be refreshed normally.
+            if dd.is_priv.and(dd.name.starts_with("priv__").not()).and(dd.orig_name.len() == 0) { continue }
+            name = dd.name
         case:
         }
         if scope.has_local_binding_name(name, symbols).not() { continue }

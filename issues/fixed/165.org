@@ -40,6 +40,20 @@
     methods -> fields -> declarations ordering. No type method generation runs
     from init; the clean full suite passed 414/414 before integration.
 
+    The final follow-up removed ~init_declarations_global~. After method
+    generation moved to the typer, function/value registration was already
+    performed by ~init_declarations_unit~. The normal loader now runs only the
+    narrow AST-definition pointer refresh needed after unit initialization can
+    grow an AST; the REPL delta path uses the unit registration directly.
+
+    The narrow refresh exposed a separate defect:
+    ~init_refresh_seeded_scope_defs~ can run before private-name mangling and
+    mistake another unit's same-named public binding for a seed of the private
+    declaration, replacing the public FuncDef pointer. Unmangled source-private
+    declarations are now skipped until they own their canonical mangled name.
+    ~test_circular_private_public_registration~ covers opposite signatures on
+    the public and private functions across an import cycle.
+
     Re-analysis while updating #174 identified two additional order-sensitive
     method-generation paths not exercised by the alias regression. Issue
     [[./380.org][#380]] fixed both: nested generated-method capability now
