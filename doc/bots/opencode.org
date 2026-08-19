@@ -95,11 +95,12 @@ to avoid re-discovering the same things.
    ~issues/open/189.org~, ~doc/bots/*.org~, ~README~). These do NOT affect the
   binary or boot files. Commit with ~Doc: ~ prefix, skip ~make test~.
 - *Docgen change*: adding or modifying ~///~ doc comments in core
-  library files (~src/core/vec.til~, etc.). These ARE embedded into
-  ~boot/til.c~ during bootstrap because the lexer copies them into
-  the AST and the boot snapshot includes the full AST text. So even
-  a one-line ~///~ comment forces a full ~make clean && make test~
-  cycle (~13s wall, ~300s CPU). This is tracked as issue #183.
+  library files (~src/core/vec.til~, etc.). The text is emitted to
+  ~doc/gen/*.org~ by ~make doc~, and REPL ~help()~ loads those files on
+  demand; it is not embedded in ~boot/til.c~. Adding or removing physical
+  lines can still update embedded ~__LOC__~ line numbers when the compiler
+  is rebuilt. A change to a ~:doctest~ block also requires ~make test~ because
+  the suite extracts and executes those blocks.
 - *Source change*: any code change to ~.til~ files. Always requires
   ~make clean && make test~ + ASAN before committing.
 - File change to ~test/repl_help.til~ or ~src/tests.til~ that only
