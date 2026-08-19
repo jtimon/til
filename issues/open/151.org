@@ -36,16 +36,33 @@
   compiles and executes the program. A host-side HolyC implementation is
   not the acceptance environment.
 
-  Keep the C and HolyC lowering together where their syntax and ABI
-  decisions overlap, but keep command/toolchain orchestration outside the
-  emitter. Other backends such as #317 can then provide their own codegen
-  behind the same builder boundary.
+  Share the frontend and semantic analyses, not the textual emitter. HolyC
+  receives the same typed, lowered, ownership-annotated, constant-folded, and
+  scavenged AST as C. It should also reuse target-width resolution, callable
+  and type queries, definition dependency ordering, and core-operation
+  classification where those describe til semantics rather than C spelling.
+
+  Keep textual emission in a dedicated ~holyc_codegen.til~ backend, following
+  the builder boundary already used by the JVM backend. The regular C emitter
+  assumes libc headers and ~ext.h~, typedefs/unions, the C pointer ABI, GNU
+  statement expressions, compound literals, ternaries, attributes, libc
+  allocation/memory/output, C entrypoints, libffi, and C-specific helper
+  reachability. Passing a dialect flag through those paths would spread
+  backend conditionals across the most ownership- and evaluation-order-
+  sensitive parts of ~c_codegen.til~. A ~HolyCEmitState~ should instead own
+  HolyC feature requirements and runtime-helper reachability; do not put a
+  dialect flag in the frontend ~Context~.
+
+  Extract target-neutral pieces from the C backend only when HolyC needs them.
+  In particular, separate scope-pointer refresh and symbol registration from
+  the C-only emit inventory, and separate aggregate dependency ordering from
+  C struct/union syntax. Preserve the same logical til object and ownership
+  model where TempleOS can implement it, but use TempleOS-native runtime
+  functions and ABI decisions at the external boundary.
 
   TempleOS is x86-64-only with 64-bit pointers. The current
-  ~TempleosX86~ placeholder is incorrectly included in
-  ~target_is_32bit~; fix that before aggregate or pointer-bearing programs
-  become part of the HolyC corpus. The project-wide USize default can
-  remain U32 independently of UPtr.
+  ~TempleosX86~ target is excluded from ~target_is_32bit~, so UPtr is U64.
+  The project-wide USize default can remain U32 independently of UPtr.
 
 *** Incremental plan
 
@@ -63,8 +80,42 @@
   - [X] Add scalar locals, arithmetic/core_func lowering, direct calls,
     conditionals, and loops, then grow a named TempleOS example corpus one
     passing example at a time.
-  - [ ] Add TempleOS-native allocation, strings, collections, filesystem,
-    and other ext_func primitives as the corpus reaches them.
+  - [ ] Move the existing HolyC emitter from ~c_codegen.til~ to
+    ~holyc_codegen.til~ without changing output. Add ~HolyCEmitState~ and
+    replace helper-name searches with explicit feature recording. Split out
+    only the target-neutral preparation analyses HolyC actually consumes.
+  - [ ] Make the scalar subset honest before broadening it: either implement
+    or explicitly reject narrow-integer truncation/sign behavior, shifts,
+    ~continue~, F64, nested calls, and every other currently untested emitted
+    form. Add TempleOS guest coverage for widths, overflow, div/mod by zero,
+    Bool, and nested calls.
+  - [ ] Walk all user units and support direct calls across imports. Keep
+    backend-specific support roots separate from the C ~ext.c~ roots and its
+    C-only emit reachability inventory.
+  - [ ] Define and pin the HolyC ABI/runtime contract: UPtr/USize widths,
+    value versus pointer parameters and returns, null-deref/panic behavior,
+    and TempleOS wrappers for ~MAlloc~, ~CAlloc~, ~Free~, raw memory, and raw
+    output.
+  - [ ] Implement the general til ~Str~ representation in HolyC: literals,
+    clone/delete, views, mutation, integer conversion, and native output.
+    Keep the current lowered-~println~ scaffold optimization only until real
+    ~Array(Str)~ execution can replace it.
+  - [ ] Add aggregates and enums using shared dependency ordering but HolyC
+    ~class~ syntax. Add field access/assignment, constructors, tags, payloads,
+    and switches using statement-level temporaries rather than C statement
+    expressions or compound literals.
+  - [ ] Add lifecycle operations and collections incrementally: clone/delete/
+    equality first, then Array and Vec, then Map/Set as the guest corpus
+    requires them.
+  - [ ] Add TempleOS-native filesystem, timing, task, and other ~ext_func~
+    primitives individually. Keep host ~link_c~, include flags, generic
+    libffi, and unavailable primitives as explicit errors.
+  - [ ] Add function addresses, indirect calls, closures, ~dyn_fn~,
+    reflection, and callable cleanup only after the scalar and aggregate ABI
+    is stable; these need a HolyC-specific callable representation.
+  - [ ] Integrate the pinned QEMU copy/inject/~Once.HC~/~ExeFile2~ loop with
+    ~build~, ~run~, and CI. Require both host golden output and TempleOS
+    compile/run success for every accepted feature.
   - [ ] Add mode gui last, using TempleOS graphics rather than raylib.
 
   The first HolyC slice emits the lowered literal-only form of
