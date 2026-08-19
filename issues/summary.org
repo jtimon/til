@@ -9,7 +9,7 @@
 *** [[./open/172.org][#172]] Add test_runner regen mode for expected outputs
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 ** Low
-*** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
+*** [[./open/70.org][#70]] Constfolder: emit recursively serializable compile-time values
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST

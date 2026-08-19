@@ -1,82 +1,84 @@
 # priority: low
 # category: cleanups
-** OPEN #70 Constfolder: constant folding for all types (not just scalars)
+** WIP #70 Constfolder: emit recursively serializable compile-time values
 
-The builder emits top-level constants as heap-allocated runtime
-  variables. Constfolder currently folds scalar expressions (I64, Str,
-  Bool) but not struct-valued or collection-valued ones.
+  The original issue predates value-backed globals, typed raw interpreter
+  storage, namespace data globals, configurable enum tags, and the current
+  mode registry. Its ~max_u64~, ~MODE_SCRIPT~, and ~core_modes~ examples no
+  longer exist, and its old ~Value.Struct~ / ~Value.Enum~ implementation
+  notes no longer describe the compiler.
 
-  Broader scope: constfolder should fold ANY compile-time-known expression
-  into a constant value in the generated code. Examples:
-  - ~CAP_LIT := max_u64()~ → ~#define CAP_LIT ULLONG_MAX~
-  - ~MODE_SCRIPT := Mode(name = "script")~ → ~Mode MODE_SCRIPT = {...}~
-  - ~core_modes := {"script": Mode(...), ...}~ → static Map
-  - Fibonacci via macro returning Vec → static array
+*** Current contract
 
-  The syntax already works: ~ref MODE_SCRIPT : Mode = core_modes.get("script")~
-  is a typed reference to a compile-time-known value. Constfolder just needs
-  to evaluate it and the builder needs to emit the result as a constant.
+  Fold pure, target-correct expressions whose results are recursively
+  serializable. Borrowed references, function pointers, ~Dynamic~, opaque
+  runtime pointers, and values whose meaning depends on pointer identity are
+  not serializable constants. "Any compile-time-known expression" was too
+  broad: compile-time evaluation and representation as a target C value are
+  separate requirements.
 
-  CAP_LIT/CAP_VIEW no longer rely on [[file:../../src/c/pre70.h][src/c/pre70.h]]. Handwritten C now
-  gets them through the normal generated headers, while the remaining
-  broader constant-folding work stays here.
+*** Already complete
 
-  Progress: constfolder now folds struct-VALUED pure calls. ~value_to_expr~
-  (src/self/constfolder.til) reconstructs a non-Str ~Value.Struct~ into a
-  positional POD-struct constructor (Ident(name) + one folded arg per
-  field, in field order); the builder emits it as a compile-time C
-  compound literal via ~emit_pod_compound_literal~. Only POD structs fold
-  (no own/ref fields); nested POD structs recurse. Verified in
-  test/constfold.til: ~CfVec2.magic()~ -> ~(CfVec2){.x=42,.y=99}~,
-  ~CfVec2.at(10,20)~, and nested ~CfRect.sample()~ all fold (see
-  test/constfold.c), with stack-value access and call_free=false deletes.
-  Progress: constfolder also folds enum-VALUED pure calls (no-payload variants).
-  The interpreter resolves a no-payload variant access (~Color.Green~) via
-  the EnumDef's ns_decls ~default_value~ to its integer tag (~Value.Int32~),
-  so naively converting that to a Num literal baked ~*c = 1~ (an int into
-  a Color struct). ~value_to_expr~ now intercepts when the source call's
-  return type is ~Type.Enum~ and reconstructs the variant FieldAccess
-  ~Color.<variant>~ wrapped in ~Color.clone(...)~ -- mirroring the typer's
-  handling of direct ~c := Color.Green~. The builder's
-  ~is_pod_enum_clone_call~ path then emits a stack value with
-  ~stack_locals~ tracking (~call_free=false~ on the matching delete).
-  Verified in test/constfold.til: ~mk_color() -> Color.Green~ folds to the
-  same ~Color_clone(&(Color){.tag = Color_TAG_Green})~ codegen as the
-  direct variant access (see test/constfold.c), suite green under ASAN.
+  - Primitive, Str, nested POD-struct, no-payload enum, and payload-enum
+    pure-call results fold through ~raw_to_expr~.
+  - Nested enum payloads recurse through ~raw_to_expr~ already; regression
+    coverage is still needed.
+  - Ordinary top-level globals use value storage and generated ~extern~
+    declarations ([[./104.org][#104]]).
+  - Namespace data has flattened C names, file-scope definitions, and
+    dependency-ordered runtime initialization (for example ~U8.MAX~ becomes
+    ~U8_MAX~).
+  - The handwritten-C const-parameter blocker was fixed independently at
+    the ext boundary. General generated-C const propagation is not a
+    prerequisite for this issue.
 
-  Progress: payload-bearing enum-returning pure calls also fold. The
-  interpreter returns ~Value.Enum(EnumInstance)~ for an enum-typed call
-  when the enum has any payload variants; ~value_to_expr~'s enum
-  intercept now decodes the variant tag from ~ei.data~, reads the payload
-  bytes at ~ei.data + ENUM_PAYLOAD_OFFSET~ via a fabricated Declaration
-  whose ~explicit_type~ is the variant's payload type (from
-  ~EnumDef.payload_types[tag]~) and a ~read_field~ call, recurses
-  ~value_to_expr~ on the decoded payload with a synthetic non-enum src
-  (so the intercept doesn't refire on the scalar), and assembles
-  ~Token.Num(<payload>)~ as an FCall. No clone wrap: variant ctors are
-  heap-allocating funcs, so the Decl init emits exactly the codegen of a
-  direct ~t := Token.Num(...)~. Verified in test/constfold.til:
-  ~mk_tok(7) -> Token.Num(7)~ folds to
-  ~Token *t = Token_Num(&(I64){7});~ (see test/constfold.c). Nested-enum
-  payloads (an enum whose payload is another enum) currently bail; the
-  synthetic src skips the intercept and the default ~Value.Enum~ branch
-  of the scalar switch returns NULL. Also added ~Value.Enum~ to
-  ~can_convert~ in ~try_eval_call~.
+*** Remaining work
 
-  Still TODO under this issue: nested-enum payload folds,
-  collection-valued folds (Vec/Map/Array), namespace/static-field globals
-  (~Str.CAP_LIT~ -> generated ~Str_CAP_LIT~), and ~const~ emission.
+  - Fix enum reconstruction before broadening it. ~raw_to_expr~ currently
+    reads every non-niche tag as I32 and treats the tag value as the variant
+    index. Configurable U8/U16/U32/U64 tags and explicit discriminant values
+    require width-correct decoding followed by tag-to-index lookup.
+  - Fold namespace data initializers. ~process_body~ currently visits only
+    namespace function bodies; namespace data bypasses constfolder even
+    though ~interpreter_init_ns~ has already evaluated it in dependency
+    order.
+  - Emit namespace data declarations in generated headers. Definitions and
+    runtime initialization exist, but the header walk still covers only
+    top-level globals. Enum namespace data is also skipped by the current
+    definition/init walks.
+  - Emit serializable top-level and namespace values as C static
+    initializers and omit their startup assignments. Today even folded
+    ~CAP_LIT~, Str literals, POD values, and enum values are assigned in
+    ~main~ or the library constructor.
+  - Fold Vec/Array/Map-valued pure calls and macros. Evaluation is no longer
+    the primary blocker: the constfolder explicitly skips these results,
+    and ~raw_to_expr~ has no target-neutral representation for their backing
+    buffers.
 
-  Current status after the real ~[[./104.org][#104]]~ fix:
-  - ordinary top-level globals are now usable from handwritten C through
-    generated ~extern~ declarations in ~boot/til_forward.h~
-  - but namespace/static-field globals still do not have the same final
-    generated-C story
-  - so the remaining work to make things like ~Str.CAP_LIT~ / generated
-    ~Str_CAP_LIT~ usable through the same final generated-C path still
-    belongs here under ~[[./70.org][#70]]~, not under ~[[./104.org][#104]]~
+*** Representation for collections
 
-  Also blocks ~const~ in hand-written C: the builder doesn't emit
-  ~const~ qualifiers, so C code must drop ~const~ from ~Mode *~ etc.
-  to match generated signatures for [[./39.org][#39]] swaps. Once [[./70.org][#70]] lands, the
-  builder can emit ~const~ where appropriate and C can use it again.
+  Existing AST literals and constructors are sufficient for scalars, Str,
+  POD structs, and enums. They cannot represent a collection's typed backing
+  buffer after collection literals have been desugared, while retaining raw
+  EvalHeap bytes would preserve host pointers/layout and outlive the heap
+  that owns them.
+
+  Add one post-typecheck internal AST value: a precomputed sequence carrying
+  its concrete type, capacity, stable ordinal, and recursively converted
+  element children. Constfolder produces it; the interpreter materializes a
+  fresh runtime collection; C codegen emits a typed static template and
+  clones that template for owned locals. A Map remains its existing struct
+  constructor containing precomputed key/value Vecs. This creates no cache,
+  file format, generated directory, dependency, or alternate source tree.
+
+*** Bootstrap-safe sequence
+
+  1. Fix enum tag decoding and add nested/custom-tag constfold tests.
+  2. Fold namespace data, export namespace data declarations, and emit
+     existing serializable AST values as static C initializers.
+  3. Preparation commit: append the precomputed-sequence AST variant and add
+     complete clone/delete, interpreter, scavenger, and C-emitter handling,
+     but no producer.
+  4. After that preparation lands, make constfolder produce the sequence,
+     remove the Vec/Array/Map gates, and test empty/non-empty/nested
+     collections, ownership, generated C, ASAN, and USize32/USize64 targets.
