@@ -8,7 +8,6 @@
 *** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run
 *** [[./open/171.org][#171]] Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
 *** [[./open/172.org][#172]] Add test_runner regen mode for expected outputs
-*** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 ** Low

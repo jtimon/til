@@ -27,8 +27,10 @@ Status (high level):
      ~NotFound~ extension to user-defined types was NOT done -- a
      CamelCase heuristic was tried and rejected (til intentionally
      has no compiler-level case sensitivity).
-   - Step 2 BLOCKED on a structural Vec/Str cycle -- see step 2 and
-     issue #174.
+   - Step 2 is PARTIAL and no longer blocked. The graph-wide typer
+     sweeps from #338 moved struct clone/delete plus size/cmp/unity
+     generation into the typer. Enum and interface generation remains
+     in the initer.
    - Step 5 PARTIAL (this commit): ~init_file~ and ~type_file~ now
      walk ~iu.ast.children~ in source order and recurse on each
      ~import("...")~ FCall, with ~iu.imports~ kept as a side table
@@ -38,8 +40,9 @@ Status (high level):
      the walk. ~extract_imports~ and the ~iu.imports~ list itself
      still live; dropping them entirely needs a path resolver in
      initer/typer.
-   - Step 3 (~Context.struct_layouts~) and step 4 (drop
-     ~init_declarations_global~) gate on cycle work in #174.
+   - Step 3 (~Context.struct_layouts~) is DONE. Step 4 (drop
+     ~init_declarations_global~) remains and no longer has a #174 cycle
+     blocker.
    - What remains is architectural: keep going on "init = pure name
      indexing, typer = type-aware work" so initer never reads scope
      for type resolution. The cleanup is real, but the original
@@ -101,10 +104,9 @@ Status (high level):
      irrelevant by moving every type-resolving job out of initer and
      into typer, in line with [[./158.org][#158]] (one pass per phase). Initer keeps a
      single AST walk per file that registers names by kind (struct,
-     enum, func, alias, value); typer keeps its existing walk and folds
-     in method synthesis and layout computation while it has full scope.
-     No new phase. Net pass count goes from "init + sub-walks-of-init +
-     typer" to "init + typer".
+      enum, func, alias, value); typer owns coordinated graph-wide field,
+      declaration, and body sweeps that perform type-aware work with full
+      scope. These are internal typer traversals, not new pipeline phases.
 
    How later phases see auto-generated methods:
 
@@ -130,12 +132,11 @@ Status (high level):
      import list driving a different order than the AST itself.
    - rstil's ~preinit~ phase synthesizes ~clone~ / ~delete~ as a pure
      AST-to-AST rewrite using only field shape (mut?, primitive name?,
-     FuncSig?). til does not need this as a separate phase: typer
-     already knows field types and is the natural home, so we collapse
-     it in rather than introducing a third pass.
+     FuncSig?). til does not need this as a separate pipeline phase:
+     the typer's internal declaration sweep knows field types and is
+     the natural home.
    - In rstil, init never asks "what is the type of X?". That is what
-     makes USize position irrelevant. til adopts the same rule but
-     keeps two passes total instead of three.
+     makes USize position irrelevant. til adopts the same phase boundary.
 
    Plan (incremental, smallest landable steps first; each lands green):
 
@@ -184,7 +185,7 @@ Status (high level):
       ~register_type_alias~ already handles user-defined type aliases
       when the target file is init'd before the alias file.
 
-   2. [BLOCKED ON CYCLES] Move ~gen_struct_clone_delete_for_stmt~,
+   2. [PARTIAL, UNBLOCKED] Move ~gen_struct_clone_delete_for_stmt~,
       ~gen_enum_nonclone_methods_for_stmt~,
       ~gen_missing_enum_clone_for_stmt~,
       ~gen_struct_size_method_for_stmt~,
@@ -194,6 +195,14 @@ Status (high level):
       the same ~scope.set~ initer would have called for ~Type.method~
       bindings, so subsequent phases see no difference vs. user-written
       methods.
+
+      Landed through #338: a graph-wide field sweep stamps field
+      types, a graph-wide declaration sweep computes layouts and
+      synthesizes struct clone/delete, size, cmp and unity methods,
+      and only then does the graph-wide body sweep type-check method
+      bodies. This is option (b) below and fixes #174. Remaining here:
+      move enum nonclone/clone generation and the interface
+      clone/delete/default expansion out of the initer.
 
       First attempt (pre [[./162.org][#162]]): moved scope-free
       ~gen_cmp_derived_for_stmt~ and ~gen_unity_derived_for_stmt~ into
@@ -243,27 +252,26 @@ Status (high level):
          Closest to rstil's spirit (synthesis localized at use site)
          but adds bookkeeping for "is this struct already swept?".
 
-      Until one of those lands, all method generators stay in
-      ~init_declarations_global~ (or its successor name). The
-      scope-free ones (cmp, unity, size) could move out of
-      ~init_declarations_global~ into a clearly-named pre-typer pass
-      without changing semantics, but that is cosmetic.
+      Option (b) landed. Struct clone/delete and the scope-free
+      cmp/unity/size generators now run in the typer declaration
+      sweep. Enum and interface generators remain pre-typer.
 
       Sub-finding from the attempts: ~gen_cmp_derived_for_stmt~ and
       ~gen_unity_derived_for_stmt~ are scope-free pure AST transforms
       (they read only the struct's own ~ns_decls~). The actual
-      scope-using prize for step 2 is ~gen_struct_clone_delete~ and
-      ~gen_enum_nonclone_methods~ -- and those have the same cycle
-      problem because ~Vec.delete~ calls ~Str.delete~.
+      scope-using prize for step 2 was ~gen_struct_clone_delete~ and
+      ~gen_enum_nonclone_methods~. The graph sweeps resolved the struct
+      side; enum generation remains to move.
 
-   3. Replace ~compute_struct_layout~ + ~compute_enum_layout~ with a
+   3. [DONE] Replace ~compute_struct_layout~ + ~compute_enum_layout~ with a
       ~Context.struct_layouts~ map populated by the typer on first
       visit (subsumes ~[[./147.org][#147]]~ steps 3-4: ~Declaration.field_offset~,
       ~field_size~, ~field_struct_def~ and
       ~StructDefData.total_struct_size~ all migrate to that Context
-      side table).
+      side table). Layout computation now runs from the typer's
+      declaration sweep and all later phases read the Context tables.
 
-   4. Drop ~init_declarations_global~ entirely. Once steps 1-3 land,
+   4. [TODO] Drop ~init_declarations_global~ entirely. Once steps 1-3 land,
       every job it does (layouts, size methods, derived methods, late
       func/value re-registration) lives inside the typer's per-decl
       visit. Initer is one driver and one walk per file.
@@ -320,12 +328,10 @@ Status (high level):
         ~test_alias_bottom_of_file~ (covers builtin-primitive alias
         at top of a file and after the struct that uses it).
 
-      Discovery: alphabetizing was a no-op on the build because
-      today's machinery (init_file recursion + init_declarations_global)
-      registers every name in scope before typer runs anywhere, so
-      core.til's order doesn't matter today. It will matter once
-      step 2 lands -- then per-file imports ([[./162.org][#162]]) become the
-      load-bearing structure, not core.til's order.
+      Discovery: alphabetizing was a no-op on the build because init
+      registers every name before the graph-wide typer sweeps run.
+      Per-file imports ([[./162.org][#162]]) and the separate field,
+      declaration, and body sweeps now provide methodgen ordering.
 
       Still TODO: scenario (a) cross-file regression test. Today
       this case does not work (alias declared in importer is not
@@ -353,9 +359,9 @@ Status (high level):
      pre-extracted import list.
    - ~[[./162.org][#162]]~ Core files should import semantic dependencies explicitly
      -- FIXED. Per-file imports for every [[file:../../src/core/*.til][src/core/*.til]] now declare
-     the dependency edges that ~type_file~'s recursion uses to produce
-     a topological visit order. Step 2 can now move method synthesis
-     into the typer's per-decl visit without hitting the
-     ~ast.til~->U32 wall.
+      the dependency edges that ~type_file~'s recursion uses to produce
+      a topological visit order. This enabled the struct half of step 2
+      to move without hitting the ~ast.til~->U32 wall; enum/interface
+      generation remains.
    - ~[[./116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
      family (cross-file visibility vs. phase ordering).

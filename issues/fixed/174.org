@@ -1,6 +1,27 @@
 # priority: high
 # category: cleanups
-** OPEN #174 Container types create cyclic dependencies that block typer-time methodgen
+** FIXED #174 Container types create cyclic dependencies that block typer-time methodgen
+
+*** Post-mortem
+
+The blocker was the old single recursive typer walk: method synthesis
+and body typing interleaved across imports, so a body on one side of a
+type cycle could run before the other side's generated methods existed.
+The original concrete Vec/Str cycle also disappeared when Vec stopped
+storing its element type as a Str.
+
+The typer now completes graph-wide field and declaration sweeps before
+starting its graph-wide body sweep. Struct layout and
+clone/delete/eq/cmp/to_str generation run in the declaration sweep, so
+every body sees the full generated method set. Issue #338 exercised the
+moved path with
+~test_field_type_inferred_from_plain_function_call~, covering generated
+clone, delete, eq, cmp, and to_str, and the two-pass full suite passed.
+
+Enum and interface generation that still runs before the typer is
+remaining #165 cleanup, not a cycle blocking typer-time methodgen.
+
+*** Historical analysis
 
 Symptom:
 
@@ -90,4 +111,3 @@ Symptom:
      Vec's size for its split-return field type? probably).
    - ~[[./158.org][#158]]~ "one pass per phase" -- the global pre-typer pass is
      part of why initer is not yet "one walk per file".
-
