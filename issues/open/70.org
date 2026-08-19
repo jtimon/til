@@ -21,8 +21,8 @@
 
   - Primitive, Str, nested POD-struct, no-payload enum, and payload-enum
     pure-call results fold through ~raw_to_expr~.
-  - Nested enum payloads recurse through ~raw_to_expr~ already; regression
-    coverage is still needed.
+  - Nested enum payloads recurse through ~raw_to_expr~ and are covered by
+    ~test_nested_enum_payload_return_fold~.
   - Ordinary top-level globals use value storage and generated ~extern~
     declarations ([[./104.org][#104]]).
   - Namespace data has flattened C names, file-scope definitions, and
@@ -34,10 +34,6 @@
 
 *** Remaining work
 
-  - Fix enum reconstruction before broadening it. ~raw_to_expr~ currently
-    reads every non-niche tag as I32 and treats the tag value as the variant
-    index. Configurable U8/U16/U32/U64 tags and explicit discriminant values
-    require width-correct decoding followed by tag-to-index lookup.
   - Fold namespace data initializers. ~process_body~ currently visits only
     namespace function bodies; namespace data bypasses constfolder even
     though ~interpreter_init_ns~ has already evaluated it in dependency
@@ -71,14 +67,18 @@
   constructor containing precomputed key/value Vecs. This creates no cache,
   file format, generated directory, dependency, or alternate source tree.
 
-*** Bootstrap-safe sequence
+*** Progress and bootstrap-safe sequence
 
-  1. Fix enum tag decoding and add nested/custom-tag constfold tests.
-  2. Fold namespace data, export namespace data declarations, and emit
-     existing serializable AST values as static C initializers.
-  3. Preparation commit: append the precomputed-sequence AST variant and add
-     complete clone/delete, interpreter, scavenger, and C-emitter handling,
-     but no producer.
-  4. After that preparation lands, make constfolder produce the sequence,
-     remove the Vec/Array/Map gates, and test empty/non-empty/nested
-     collections, ownership, generated C, ASAN, and USize32/USize64 targets.
+  - [X] Fix enum tag decoding and add nested/custom-tag constfold tests.
+    ~enum_data_tag_key~ now reads the declared width and
+    ~enum_variant_index_for_tag~ maps explicit discriminants to declaration
+    indexes. ~test_explicit_tag_enum_return_fold~ and
+    ~test_nested_enum_payload_return_fold~ cover U16/U64 and recursion.
+  - [ ] Fold namespace data, export namespace data declarations, and emit
+    existing serializable AST values as static C initializers.
+  - [ ] Preparation commit: append the precomputed-sequence AST variant and
+    add complete clone/delete, interpreter, scavenger, and C-emitter
+    handling, but no producer.
+  - [ ] After that preparation lands, make constfolder produce the sequence,
+    remove the Vec/Array/Map gates, and test empty/non-empty/nested
+    collections, ownership, generated C, ASAN, and USize32/USize64 targets.

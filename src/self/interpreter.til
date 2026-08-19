@@ -350,15 +350,7 @@ priv enum_variant_index_for_tag_key := func(enum_name: Str, etag: I64, ctx: Cont
     edef_o := lookup_interp_type_def(enum_name, ctx)
     if edef_o.is_none() { return -1 }
     ref edef : Expr = edef_o.unwrap()
-    switch edef.node_type {
-    case .EnumDef(edd):
-        for i in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[i]
-            if vd.tag_value == etag { return i.to_i32() }
-        }
-    case:
-    }
-    return -1
+    return enum_variant_index_for_tag(edef, etag)
 }
 
 
@@ -384,7 +376,8 @@ priv enum_free_str_payload := func(data: Dynamic, ctx: Context) {
     free_str_owned_storage(ptr_add(data, ENUM_PAYLOAD_OFFSET), ctx)
 }
 
-priv enum_data_tag_key := func(data: Dynamic, enum_def: Expr) returns I64 {
+// Shared with constfolder's typed raw-to-AST reconstruction.
+enum_data_tag_key := func(data: Dynamic, enum_def: Expr) returns I64 {
     // #320 niche: no tag is stored -- the discriminant IS whether the
     // single pointer is null, so derive the tag value from that.
     if enum_is_niche(enum_def) {

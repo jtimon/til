@@ -24,6 +24,12 @@ enum {
     Token_TAG_Eof
 };
 typedef struct Token Token;
+enum {
+    WideToken_TAG_Num = 4294967297,
+    WideToken_TAG_Eof = 4294967300
+};
+typedef struct WideToken WideToken;
+typedef struct NestedToken NestedToken;
 
 
 typedef struct Str {
@@ -79,6 +85,18 @@ struct Token {
     } data;
 };
 
+struct WideToken {
+    U64 tag;
+    union {
+        I64 Num;
+        void *_til_payload_align;
+    } data;
+};
+
+struct NestedToken {
+    WideToken *data;
+};
+
 
 static void print_single(Str *s);
 static void print_flush();
@@ -128,6 +146,13 @@ static void Token_delete(Token * self, Bool call_free);
 static void test_enum_payload_fold(void);
 static void test_enum_return_fold(void);
 static void test_enum_payload_return_fold(void);
+static WideToken WideToken_Num(I64 * val);
+static void WideToken_delete(WideToken * self, Bool call_free);
+static WideToken WideToken_clone(WideToken * self);
+static NestedToken NestedToken_Inner(WideToken * val);
+static void NestedToken_delete(NestedToken * self, Bool call_free);
+static void test_explicit_tag_enum_return_fold(void);
+static void test_nested_enum_payload_return_fold(void);
 static void test_const_and_or_fold(void);
 static void test_mixed_fold(void);
 static void test_fold_reads_global_const(void);
@@ -172,16 +197,16 @@ static struct {
 /* til source locations: line numbers shift with source edits; the code hunks are above */
 static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:129:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:133:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_10 = (Str){.c_str = (void *)"test/constfold.til:297:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_16 = (Str){.c_str = (void *)"test/constfold.til:298:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_21 = (Str){.c_str = (void *)"test/constfold.til:299:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_27 = (Str){.c_str = (void *)"test/constfold.til:300:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_32 = (Str){.c_str = (void *)"test/constfold.til:301:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_38 = (Str){.c_str = (void *)"test/constfold.til:302:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_43 = (Str){.c_str = (void *)"test/constfold.til:303:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_49 = (Str){.c_str = (void *)"test/constfold.til:304:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_54 = (Str){.c_str = (void *)"test/constfold.til:305:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_const_and_or_fold_58 = (Str){.c_str = (void *)"test/constfold.til:306:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_10 = (Str){.c_str = (void *)"test/constfold.til:330:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_16 = (Str){.c_str = (void *)"test/constfold.til:331:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_21 = (Str){.c_str = (void *)"test/constfold.til:332:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_27 = (Str){.c_str = (void *)"test/constfold.til:333:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_32 = (Str){.c_str = (void *)"test/constfold.til:334:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_38 = (Str){.c_str = (void *)"test/constfold.til:335:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_43 = (Str){.c_str = (void *)"test/constfold.til:336:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_49 = (Str){.c_str = (void *)"test/constfold.til:337:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_54 = (Str){.c_str = (void *)"test/constfold.til:338:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_const_and_or_fold_58 = (Str){.c_str = (void *)"test/constfold.til:339:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_deeply_nested_7 = (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_enum_fold_1 = (Str){.c_str = (void *)"test/constfold.til:240:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_enum_fold_4 = (Str){.c_str = (void *)"test/constfold.til:241:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -194,16 +219,22 @@ static Str hoisted__Str_test_enum_payload_return_fold_2 = (Str){.c_str = (void *
 static Str hoisted__Str_test_enum_payload_return_fold_5 = (Str){.c_str = (void *)"test/constfold.til:288:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_enum_return_fold_1 = (Str){.c_str = (void *)"test/constfold.til:275:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_enum_return_fold_4 = (Str){.c_str = (void *)"test/constfold.til:276:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_explicit_tag_enum_return_fold_1 = (Str){.c_str = (void *)"test/constfold.til:305:32", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_explicit_tag_enum_return_fold_3 = (Str){.c_str = (void *)"test/constfold.til:306:11", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_explicit_tag_enum_return_fold_6 = (Str){.c_str = (void *)"test/constfold.til:309:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_fold_f32_4 = (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_fold_f32_9 = (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_fold_reads_global_const_3 = (Str){.c_str = (void *)"test/constfold.til:331:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_fold_reads_global_const_3 = (Str){.c_str = (void *)"test/constfold.til:364:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_fold_variable_2 = (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_loc_folded_3 = (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_loc_folded_7 = (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_lolalalo_8 = (Str){.c_str = (void *)"test/constfold.til:129:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_lolalalo_9 = (Str){.c_str = (void *)"test/constfold.til:130:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_test_mixed_fold_4 = (Str){.c_str = (void *)"test/constfold.til:313:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_mixed_fold_4 = (Str){.c_str = (void *)"test/constfold.til:346:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_nested_arithmetic_7 = (Str){.c_str = (void *)"test/constfold.til:21:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_nested_enum_payload_return_fold_1 = (Str){.c_str = (void *)"test/constfold.til:317:36", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_nested_enum_payload_return_fold_3 = (Str){.c_str = (void *)"test/constfold.til:318:15", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_nested_enum_payload_return_fold_5 = (Str){.c_str = (void *)"test/constfold.til:320:11", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_simple_add_3 = (Str){.c_str = (void *)"test/constfold.til:15:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_string_concat_3 = (Str){.c_str = (void *)"test/constfold.til:33:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_struct_fold_f32_11 = (Str){.c_str = (void *)"test/constfold.til:230:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -896,6 +927,107 @@ static void test_enum_payload_return_fold(void) {
     Token_delete(&t, (Bool){0});
 }
 
+static WideToken WideToken_Num(I64 * val) {
+    WideToken r = {0};
+    r.tag = WideToken_TAG_Num;
+    r.data.Num = *val;
+    return r;
+}
+static void WideToken_delete(WideToken * self, Bool call_free) {
+    if (call_free) {
+        free(self);
+    }
+}
+
+static WideToken WideToken_clone(WideToken * self) {
+    Bool hoisted__Bool_1 = ((Bool)((((WideToken *)(self))->tag) == WideToken_TAG_Num));
+    if (hoisted__Bool_1) {
+        I64 *_clone_payload_Num_0 = ((void *)((U8 *)(self) + offsetof(WideToken, data)));
+        WideToken hoisted__WideToken_0 = WideToken_Num(_clone_payload_Num_0);
+        return hoisted__WideToken_0;
+    }
+    return (WideToken){.tag = WideToken_TAG_Eof};
+}
+
+
+static NestedToken NestedToken_Inner(WideToken * val) {
+    NestedToken r;
+    r.data = val;
+    return r;
+}
+static void NestedToken_delete(NestedToken * self, Bool call_free) {
+    Bool hoisted__Bool_1 = ((Bool)((((NestedToken *)(self))->data != NULL) == 1));
+    if (hoisted__Bool_1) {
+        WideToken *hoisted__WideToken_0 = ((void *)((NestedToken *)(self))->data);
+        WideToken_delete(hoisted__WideToken_0, 1);
+    }
+    if (call_free) {
+        free(self);
+    }
+}
+
+
+static void test_explicit_tag_enum_return_fold(void) {
+    WideToken number = WideToken_Num(&(I64){7});
+    switch ((number).tag) {
+    case WideToken_TAG_Num: {
+        I64 *value = ((void *)((U8 *)(&number) + offsetof(WideToken, data)));
+        I64 hoisted__I64_0 = 7;
+        assert_eq__I64(DEREF(value), hoisted__I64_0, &hoisted__Str_test_explicit_tag_enum_return_fold_1);
+        break;
+    }
+    default: {
+        U32 hoisted__U32_2 = 0;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_2);
+        (void)_va_Array_0;
+        I64 _va_Array_0_ek = 0;
+        (void)_va_Array_0_ek;
+        UNREACHABLE(&_va_Array_0, &hoisted__Str_test_explicit_tag_enum_return_fold_3);
+        break;
+    }
+    }
+    WideToken eof = WideToken_clone(&(WideToken){.tag = WideToken_TAG_Eof});
+    Bool hoisted__Bool_5 = ((Bool)((((WideToken *)(&eof))->tag) == WideToken_TAG_Eof));
+    assert(hoisted__Bool_5, &hoisted__Str_test_explicit_tag_enum_return_fold_6);
+}
+
+static void test_nested_enum_payload_return_fold(void) {
+    NestedToken nested = NestedToken_Inner(({ WideToken *_oa = malloc(TIL_BOX(WideToken)); *_oa = WideToken_Num(&(I64){9}); _oa; }));
+    switch ((int)((nested).data != NULL)) {
+    case 1: {
+        WideToken *inner_token = ((void *)((NestedToken *)(&nested))->data);
+        switch ((DEREF(inner_token)).tag) {
+        case WideToken_TAG_Num: {
+            I64 *value = ((void *)((U8 *)(inner_token) + offsetof(WideToken, data)));
+            I64 hoisted__I64_0 = 9;
+            assert_eq__I64(DEREF(value), hoisted__I64_0, &hoisted__Str_test_nested_enum_payload_return_fold_1);
+            break;
+        }
+        default: {
+            U32 hoisted__U32_2 = 0;
+            Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_2);
+            (void)_va_Array_0;
+            I64 _va_Array_0_ek = 0;
+            (void)_va_Array_0_ek;
+            UNREACHABLE(&_va_Array_0, &hoisted__Str_test_nested_enum_payload_return_fold_3);
+            break;
+        }
+        }
+        break;
+    }
+    default: {
+        U32 hoisted__U32_4 = 0;
+        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_4);
+        (void)_va_Array_1;
+        I64 _va_Array_1_ek = 0;
+        (void)_va_Array_1_ek;
+        UNREACHABLE(&_va_Array_1, &hoisted__Str_test_nested_enum_payload_return_fold_5);
+        break;
+    }
+    }
+    NestedToken_delete(&nested, (Bool){0});
+}
+
 static void test_const_and_or_fold(void) {
     U32 hoisted__U32_6 = 1;
     Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_6);
@@ -1086,12 +1218,16 @@ int main(void) {
     fprintf(stderr, "  pass: %s\n", "test_enum_return_fold");
     test_enum_payload_return_fold();
     fprintf(stderr, "  pass: %s\n", "test_enum_payload_return_fold");
+    test_explicit_tag_enum_return_fold();
+    fprintf(stderr, "  pass: %s\n", "test_explicit_tag_enum_return_fold");
+    test_nested_enum_payload_return_fold();
+    fprintf(stderr, "  pass: %s\n", "test_nested_enum_payload_return_fold");
     test_const_and_or_fold();
     fprintf(stderr, "  pass: %s\n", "test_const_and_or_fold");
     test_mixed_fold();
     fprintf(stderr, "  pass: %s\n", "test_mixed_fold");
     test_fold_reads_global_const();
     fprintf(stderr, "  pass: %s\n", "test_fold_reads_global_const");
-    fprintf(stderr, "22/22 tests passed\n");
+    fprintf(stderr, "24/24 tests passed\n");
     return 0;
 }

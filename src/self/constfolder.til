@@ -274,28 +274,17 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
         // Reading a tag out of offset 0 would decode the low bytes of the
         // pointer as a variant index, and folding then produced a bogus
         // `{.data = NULL}` literal in place of the call.
-        mut tag : I32 = 0
         mut niche_payload : Dynamic = 0
         is_niche_enum := enum_is_niche(edef)
         if is_niche_enum {
-            some_idx := enum_niche_some_index(edef)
             // LOAD the slot; aliasing its address would never read null.
             ref stored : Dynamic = deref(raw)
-            tag = some_idx
-            if stored.is_null() {
-                tag = 0
-                if some_idx == 0 { tag = 1 }
-            } else {
-                niche_payload = stored
-            }
-        } else {
-            ref tag_ref : I32 = raw
-            tag = tag_ref
+            if stored.is_null().not() { niche_payload = stored }
         }
+        tag := enum_variant_index_for_tag(edef, enum_data_tag_key(raw, edef))
         if tag < 0 { return Option(Expr).None }
         switch edef.node_type {
         case .EnumDef(edd):
-            if tag.to_usize() >= edd.variants.len() { return Option(Expr).None }
             ref cf_vd : VariantDef = edd.variants[tag.to_usize()]
             ref vname : Str = cf_vd.name
             if cf_vd.payload_type.len() > 0 {

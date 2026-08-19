@@ -288,6 +288,39 @@ test_enum_payload_return_fold := test() {
     assert(t.is(Token.Eof).not())
 }
 
+// Test 12d: raw enum reconstruction must decode the declared tag width and
+// map an explicit discriminant VALUE back to its declaration INDEX. The
+// outer U16 enum also carries the inner U64 enum, covering recursive payload
+// reconstruction rather than only a flat enum result.
+WideToken := enum(U64) { Num: I64 = 4294967297, Eof = 4294967300 }
+NestedToken := enum(U16) { Inner: WideToken = 300, Done = 600 }
+
+mk_wide_num := func(n: I64) returns WideToken { return WideToken.Num(n) }
+mk_wide_eof := func() returns WideToken { return WideToken.Eof }
+mk_nested_token := func() returns NestedToken { return NestedToken.Inner(WideToken.Num(9)) }
+
+test_explicit_tag_enum_return_fold := test() {
+    number := mk_wide_num(7)
+    switch number {
+    case WideToken.Num(value): assert_eq(I64, value, 7)
+    case: UNREACHABLE()
+    }
+    eof := mk_wide_eof()
+    assert(eof.is(WideToken.Eof))
+}
+
+test_nested_enum_payload_return_fold := test() {
+    nested := mk_nested_token()
+    switch nested {
+    case NestedToken.Inner(inner_token):
+        switch inner_token {
+        case WideToken.Num(value): assert_eq(I64, value, 9)
+        case: UNREACHABLE()
+        }
+    case: UNREACHABLE()
+    }
+}
+
 // #280: an `and`/`or` whose operands are ALL Bool literals folds to a single
 // literal at compile time, leaving no runtime branch -- for the binary form,
 // the n-ary spelling `and(a, b, c)`, and the UFCS method form. The fold runs

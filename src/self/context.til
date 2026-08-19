@@ -2356,6 +2356,17 @@ enum_variant_tag_at := func(enum_def: Expr, idx: I32) returns I64 {
     return -1
 }
 
+// The declaration INDEX whose discriminant equals `tag`. Explicit tags make
+// this distinct from using the tag itself as an index.
+enum_variant_index_for_tag := func(enum_def: Expr, tag: I64) returns I32 {
+    ref edd : EnumDef = enumdef_of(enum_def)
+    for i in 0..edd.variants.len() {
+        ref vd : VariantDef = edd.variants[i]
+        if vd.tag_value == tag { return i.to_i32() }
+    }
+    return -1
+}
+
 // The declaration INDEX of a variant (0-based). Distinct from the tag VALUE
 // once explicit tags are used. Payload lookups by position must use this,
 // NOT enum_variant_tag.
