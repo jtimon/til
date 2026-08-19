@@ -1,0 +1,14 @@
+* Visibility
+
+Til declarations are public by default. Top-level
+~func~/~proc~/~struct~/~enum~/value declarations and struct fields/namespace
+methods are visible without a qualifier.
+
+The ~priv~ keyword opts a single declaration out. Top-level ~priv~ items are
+hidden from importers, but remain available within their declaring file.
+~priv~ struct members are available only to the struct's own namespace
+methods, including when other code is in the same file.
+
+See [[file:../../examples/priv_demo.til][examples/priv_demo.til]] for a worked
+example. The complete visibility rules and diagnostics are in
+[[file:../qualifiers.org::*Visibility (priv keyword)][the qualifier reference]].
