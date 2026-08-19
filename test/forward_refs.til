@@ -1,5 +1,10 @@
 mode test
 
+// #165: init visits the importee before this file, but enum methodgen waits
+// until all aliases in the import graph have been registered.
+FwdCrossAlias := U32
+import("imports/forward_alias_enum")
+
 // forward reference: call a function defined later
 test_forward_func := test() {
     assert_eq(I64, fwd_double(5), 10)
@@ -92,4 +97,10 @@ test_alias_bottom_of_file := test() {
     mut h := FwdAliasBottomHolder()
     h.set(42)
     assert_eq(I64, h.value.to_i64(), 42)
+}
+
+test_alias_from_importer := test() {
+    value := FwdCrossAliasEnum.Value(42)
+    assert(value.eq(FwdCrossAliasEnum.Value(42)))
+    assert_eq(Str, value.to_str(), "Value(42)")
 }

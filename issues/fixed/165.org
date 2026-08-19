@@ -1,52 +1,38 @@
 # priority: high
 # category: cleanups
-** OPEN #165 Declaration order should not matter inside a file or across imports
+** FIXED #165 Declaration order should not matter inside a file or across imports
 
-Status (high level):
+*** Post-mortem
 
-   - Original concrete symptom (USize := U32 only worked wedged between
-     u32.til and i64.til imports) is FIXED. ~USize := U32~ now lives in
-     its own file [[file:../../src/core/usize.til][src/core/usize.til]]; c4b8064 made the alias-NotFound
-     case permissive for builtin primitives, ce0a584 moved the alias.
-   - core.til is alphabetized and is now a pure import list; per-file
-     explicit imports landed across all src/core/*.til (see [[../fixed/][issues/fixed/]]
-     [[./162.org][#162]]).
-   - Step 6 regression tests landed in test/forward_refs.til
-     (~test_alias_top_of_file~, ~test_alias_bottom_of_file~).
-     Cross-file forward refs (alias declared in importer, used by
-     importee) intentionally not tested -- future feature, not a
-     current contract.
-   - Step 1 finish landed (c5fa48a): two more registration helpers in
-     initer.til (~register_function_def_for_stmt~,
-     ~infer_top_level_decl_type~) now use the scope-free
-     ~til_type_from_explicit_type~. Custom-vs-Struct equivalence is
-    handled by a custom ~Type.eq~ override in ast.til, a
-     ~Custom(s)~ case in ~type_prefix~, and a
-     ~normalize_scope_bindings~ sweep that runs once between
-     ~init_declarations_global~ and the first ~type_file~. The alias
-     ~NotFound~ extension to user-defined types was NOT done -- a
-     CamelCase heuristic was tried and rejected (til intentionally
-     has no compiler-level case sensitivity).
-   - Step 2 is PARTIAL and no longer blocked. The graph-wide typer
-     sweeps from #338 moved struct clone/delete plus size/cmp/unity
-     generation into the typer. Enum and interface generation remains
-     in the initer.
-   - Step 5 PARTIAL (this commit): ~init_file~ and ~type_file~ now
-     walk ~iu.ast.children~ in source order and recurse on each
-     ~import("...")~ FCall, with ~iu.imports~ kept as a side table
-     for path resolution. Mode auto-imports (e.g. ~mode gui~ ->
-     ~gui.til~) are handled by recursing into the leading
-     ~iu.imports.len() - count_ast_imports(iu.ast)~ entries before
-     the walk. ~extract_imports~ and the ~iu.imports~ list itself
-     still live; dropping them entirely needs a path resolver in
-     initer/typer.
-   - Step 3 (~Context.struct_layouts~) is DONE. Step 4 (drop
-     ~init_declarations_global~) remains and no longer has a #174 cycle
-     blocker.
-   - What remains is architectural: keep going on "init = pure name
-     indexing, typer = type-aware work" so initer never reads scope
-     for type resolution. The cleanup is real, but the original
-     concrete user-visible bug is closed.
+    The old analysis predated the declaration seed pass (#271), Context-owned
+    layouts (#147), and the graph-wide field/declaration/body typer sweeps
+    (#338). Those changes had already removed the original ~USize~ ordering
+    failure and made ordinary fields wait until every file's aliases were
+    registered.
+
+    One order-dependent path remained. Enum constructors and derived methods
+    were generated in ~init_declarations_unit~, while recursively visiting an
+    imported file, before the importing file registered its aliases. An enum
+    payload naming such an alias was consequently treated as an unresolved
+    owned aggregate: its constructor had the wrong ownership, its delete body
+    tried to call a nonexistent namespace, and its C storage retained an
+    undefined type name.
+
+    Enum generation now runs in ~init_declarations_global~, after initialization
+    has completed for the entire import graph but before field inference (which
+    needs enum namespace constants such as ~Type.Unknown~). At that barrier,
+    ordinary enum payload aliases are canonicalized in the existing
+    ~VariantDef.payload_type~ slot before layout, niche selection, method
+    generation, interpretation, and codegen consume it. ~USize~ and ~UPtr~ keep
+    their target-independent interface spelling.
+
+    Regression: ~test_alias_from_importer~ in ~test/forward_refs.til~, with its
+    imported enum in ~test/imports/forward_alias_enum.til~, passes in both the
+    interpreter and compiled modes and exercises generated construction, ~eq~,
+    ~delete~, and ~to_str~ through an importer-declared alias.
+
+    The detailed text below is retained as historical analysis; several of its
+    architectural TODOs were completed by the later issues named above.
 
    Symptom (historical, kept for context):
 
@@ -282,7 +268,7 @@ Status (high level):
       ~import("...")~ FCalls recurse through ~ctx.imports_init_done~.
       Removes the second source of ordering (sibling import order
       driven by extract_imports rather than the AST itself) and is a
-      precondition for circular imports (see ~[[./163.org][#163]]~).
+      precondition for circular imports (see ~[[../open/163.org][#163]]~).
 
       Done in this commit: ~init_file~ and ~type_file~ now walk
       ~iu.ast.children~ in source order and recurse on each
@@ -354,14 +340,22 @@ Status (high level):
      literally that issue's steps 3-4 (~Context.struct_layouts~).
      Step 1's "store alias target as Str, resolve in typer" mirrors
      that issue's ~explicit_type -> til_type + struct_name~ split.
-   - ~[[./163.org][#163]]~ Per-file AST/import graph + ~Context.path~ -- step 5 reuses
+   - ~[[../open/163.org][#163]]~ Per-file AST/import graph + ~Context.path~ -- step 5 reuses
      that infrastructure and removes the last excuse to keep the
      pre-extracted import list.
    - ~[[./162.org][#162]]~ Core files should import semantic dependencies explicitly
      -- FIXED. Per-file imports for every [[file:../../src/core/*.til][src/core/*.til]] now declare
+<<<<<<< HEAD:issues/open/165.org
       the dependency edges that ~type_file~'s recursion uses to produce
       a topological visit order. This enabled the struct half of step 2
       to move without hitting the ~ast.til~->U32 wall; enum/interface
       generation remains.
    - ~[[./116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
+=======
+     the dependency edges that ~type_file~'s recursion uses to produce
+     a topological visit order. Step 2 can now move method synthesis
+     into the typer's per-decl visit without hitting the
+     ~ast.til~->U32 wall.
+   - ~[[../open/116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
+>>>>>>> 154ef38fa (Resolve enum payload aliases after graph init (#165)):issues/fixed/165.org
      family (cross-file visibility vs. phase ordering).
