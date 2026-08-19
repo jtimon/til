@@ -17,5 +17,7 @@ focused diagnostic.
 
 Regression: the ~BadGeneratedDefault~ fixture still rejects ~NoCmp.to_str~,
 while the exact typer-error count drops from latest master's 230 to 228: two
-field defaults exercised the same secondary-comparison path.
-~make clean && make test~ passes 419/419 after the rebase.
+field defaults exercised the same secondary-comparison path. The
+~generated_default_method_error~ harness assertion pins the focused diagnostic
+to exactly one occurrence.
+~make clean && make test~ passes 421/421 after the rebase.

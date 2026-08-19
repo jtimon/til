@@ -298,7 +298,8 @@ add_single := func(mut tests: Vec(Test), label: Str, category: Str,
 
 add_count := func(mut tests: Vec(Test), label: Str, category: Str,
     needle: Str, expected_count: I64, cmd_suffix: Str) {
-        runner_cmd := format(RUNNER, " count ", label, " '", needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
+        quoted_needle := needle.replace("'", "'\\''")
+        runner_cmd := format(RUNNER, " count ", label, " '", quoted_needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
         tests.push(own Test(
             label = label.clone(),
             cmd = runner_cmd,
@@ -1578,6 +1579,11 @@ main := proc(args: ..Str) {
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "typer_errors_build", "typer", "error:", 228,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
+    // #381: strict body-sweep lookup reports the ineligible generated method
+    // exactly once; provisional field inference must not duplicate it.
+    add_count(tests, "generated_default_method_error", "typer",
+        "no method 'to_str' for type 'NoCmp'", 1,
+        format(til_bin, " interpret test/typer_errors.til"))
     // #358: array()/vec() plain elements are checked at the offending element;
     // the third case pins that array(Str, 1) is rejected rather than coerced.
     add_count(tests, "literal_elem_type_interp", "typer", "literal element", 3,
