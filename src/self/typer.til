@@ -7418,41 +7418,7 @@ priv type_methods_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    ast_count : USize = count_ast_imports(iu.ast, ctx.symbols)
-    auto_count : USize = iu.imports.len() - ast_count
-    for i in 0..auto_count {
-        ref dep : Str = iu.imports[i]
-        total = total + type_methods_file(dep, ctx)
-    }
-    mut import_idx : USize = auto_count
-    for stmt : Expr in iu.ast.children {
-        mut is_imp := false
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            ref imp_stmt : Expr = stmt.children[0]
-            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
-                if imp_stmt.children[1].node_type.is_literal_str() {
-                    switch imp_stmt.children[0].node_type {
-                    case .Ident(id):
-                        if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
-                    case:
-                    }
-                }
-            }
-        } else if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
-            if stmt.children[1].node_type.is_literal_str() {
-                switch stmt.children[0].node_type {
-                case .Ident(id):
-                    if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
-                case:
-                }
-            }
-        }
-        if is_imp {
-            ref dep : Str = iu.imports[import_idx]
-            total = total + type_methods_file(dep, ctx)
-            import_idx++
-        }
-    }
+    for dep : Str in iu.imports { total = total + type_methods_file(dep, ctx) }
 
     type_methods_from(iu.ast, 0, ctx)
     return total
@@ -7561,41 +7527,7 @@ priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    ast_count : USize = count_ast_imports(iu.ast, ctx.symbols)
-    auto_count : USize = iu.imports.len() - ast_count
-    for i in 0..auto_count {
-        ref dep : Str = iu.imports[i]
-        total = total + type_fields_file(dep, ctx)
-    }
-    mut import_idx : USize = auto_count
-    for stmt : Expr in iu.ast.children {
-        mut is_imp := false
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            ref imp_stmt : Expr = stmt.children[0]
-            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
-                if imp_stmt.children[1].node_type.is_literal_str() {
-                    switch imp_stmt.children[0].node_type {
-                    case .Ident(id):
-                        if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
-                    case:
-                    }
-                }
-            }
-        } else if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
-            if stmt.children[1].node_type.is_literal_str() {
-                switch stmt.children[0].node_type {
-                case .Ident(id):
-                    if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
-                case:
-                }
-            }
-        }
-        if is_imp {
-            ref dep : Str = iu.imports[import_idx]
-            total = total + type_fields_file(dep, ctx)
-            import_idx++
-        }
-    }
+    for dep : Str in iu.imports { total = total + type_fields_file(dep, ctx) }
 
     context_enter_file(ctx, path)
     for mut stmt : Expr in iu.ast.children {
@@ -7631,44 +7563,7 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    ast_count : USize = count_ast_imports(iu.ast, ctx.symbols)
-    auto_count : USize = iu.imports.len() - ast_count
-    for i in 0..auto_count {
-        ref dep : Str = iu.imports[i]
-        total = total + type_decls_file(dep, ctx)
-    }
-    mut import_idx : USize = auto_count
-    for stmt : Expr in iu.ast.children {
-        mut is_imp := false
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            ref imp_stmt : Expr = stmt.children[0]
-            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
-                if imp_stmt.children[1].node_type.is_literal_str() {
-                    switch imp_stmt.children[0].node_type {
-                    case .Ident(id):
-                        if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
-                    case:
-                    }
-                }
-            }
-        } else {
-            if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
-                if stmt.children[1].node_type.is_literal_str() {
-                    switch stmt.children[0].node_type {
-                    case .Ident(id):
-                        if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
-                    case:
-                    }
-                }
-            }
-        }
-
-        if is_imp {
-            ref dep : Str = iu.imports[import_idx]
-            total = total + type_decls_file(dep, ctx)
-            import_idx++
-        }
-    }
+    for dep : Str in iu.imports { total = total + type_decls_file(dep, ctx) }
 
     // Per-decl work in source order: compute struct/enum layouts,
     // synthesize field-sensitive and layout-dependent methods, and run the
@@ -7726,10 +7621,8 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     return total
 }
 
-// Per-file body type-check sweep (the last typer sweep). The recursion
-// here is the same shape as the current single-sweep type_file: walk
-// imports in source order, then type_check_unit. Renamed from
-// type_file to make the two-sweep split explicit.
+// Per-file body type-check sweep (the last typer sweep): recurse through the
+// canonical direct-import graph, then type-check this unit.
 priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
     if ctx.imports_typer_bodies_done.has(path) {
         return 0
@@ -7738,39 +7631,8 @@ priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
 
-    // Walk the AST in source order; recurse on each ~import("...")~ FCall.
-    // iu.imports stays as a source-ordered side table for path resolution.
-    // Loader-prepended mode auto-imports (e.g. mode gui -> gui.til) come
-    // first in iu.imports without a matching AST FCall, so process those
-    // leading entries before the walk. #165 step 5.
     mut total : I32 = 0
-    ast_count : USize = count_ast_imports(iu.ast, ctx.symbols)
-    auto_count : USize = iu.imports.len() - ast_count
-    for i in 0..auto_count {
-        ref dep : Str = iu.imports[i]
-        total = total + type_bodies_file(dep, ctx)
-    }
-    mut import_idx : USize = auto_count
-    for stmt : Expr in iu.ast.children {
-        if stmt.node_type.is(NodeType.FCall).not() { continue }
-        // >= 2, matching count_ast_imports: a selective import
-        // (`import("x", Sym)`) has 3 children. Requiring exactly 2 here
-        // desynchronized this walk from the auto_count math above, so
-        // the dep AFTER a selective import was never body-typed -- its
-        // priv uses stayed unmarked and tripped the #187 unused-priv
-        // check (visible as bogus "unused priv" errors in that file).
-        if stmt.children.len() < 2 { continue }
-        if stmt.children[1].node_type.is_literal_str().not() { continue }
-        switch stmt.children[0].node_type {
-        case .Ident(id):
-            if id.ident_name(ctx.symbols.names).eq("import").not() { continue }
-            ref dep : Str = iu.imports[import_idx]
-            total = total + type_bodies_file(dep, ctx)
-            import_idx++
-        case:
-            continue
-        }
-    }
+    for dep : Str in iu.imports { total = total + type_bodies_file(dep, ctx) }
 
     context_enter_file(ctx, path)
     if iu.mode_str == "mode" {

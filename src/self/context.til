@@ -793,6 +793,8 @@ ImportUnit := struct {
     mode_str := ""
     mode := Mode()
     own ast := Expr.new(NodeType.Body, 0, 0)
+    // Canonical display paths of this file's direct imports, in load order.
+    // Includes loader-injected mode imports that have no source AST node.
     imports := Vec(Str).new()
 }
 

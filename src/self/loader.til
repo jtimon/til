@@ -93,8 +93,6 @@ priv resolve_link_path := proc(base_dir: Str, root_dir: Str, path: Str) returns 
 
 ProgramUnit := struct {
     path := ""
-    mode := Mode()
-    imports := Vec(Str).new()
 }
 
 // Resolve a file's direct import paths to display paths.
@@ -242,8 +240,7 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             ctx.imported.set(disp, own iu)
 
             // Record ordering metadata as a ProgramUnit.
-            mut unit := ProgramUnit(path = disp.clone(), mode = sub_mode_def.clone())
-            unit.imports = sub_import_disps
+            mut unit := ProgramUnit(path = disp.clone())
             units.push(own unit)
 
         }
@@ -938,7 +935,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                     iu_auto.ast.take_children(ast_auto)
                     lp.ctx.imported.set(disp_auto, own iu_auto)
 
-                    mut unit_auto := ProgramUnit(path = disp_auto.clone(), mode = mode_auto_def.clone())
+                    mut unit_auto := ProgramUnit(path = disp_auto.clone())
                     core_units.push(own unit_auto)
                 }
                 auto_disp = display_path(abs_auto, cwd)
@@ -1058,8 +1055,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     lp.ctx.imported.set(core_disp, own core_iu)
 
     // Core entrypoint unit (after its imports).
-    mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
-    core_unit.imports = lp.ctx.imported[core_disp].imports.clone()
+    mut core_unit := ProgramUnit(path = core_disp.clone())
     core_units.push(own core_unit)
 
     // Mode auto-import is represented as the first unit (if present),
@@ -1105,8 +1101,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         lp.ctx.imported.set(mode_disp, own mode_iu)
 
         // Mode auto-import unit.
-        mut mode_unit := ProgramUnit(path = mode_disp.clone(), mode = mode_mode_def.clone())
-        mode_unit.imports = lp.ctx.imported[mode_disp].imports.clone()
+        mut mode_unit := ProgramUnit(path = mode_disp.clone())
         units.push(own mode_unit)
 
     }
@@ -1127,15 +1122,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     lp.ctx.imported.set(path, own user_iu)
 
     // User entrypoint unit.
-    mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
-    if mode_disp.len() > 0 {
-        mut all_imports2 := Vec(Str).new()
-        all_imports2.push(own mode_disp)
-        for dep : Str in user_import_disps { all_imports2.push(own dep.clone()) }
-        user_unit.imports = all_imports2
-    } else {
-        user_unit.imports = user_import_disps
-    }
+    mut user_unit := ProgramUnit(path = path.clone())
     units.push(own user_unit)
 
     lp.core_units = core_units
@@ -4142,8 +4129,7 @@ priv ImportCheckEntry := struct {
 }
 
 // True when imp_stmt is an import FCall of the exact shape that
-// count_ast_imports counts (so the caller's import_idx stays in step
-// with iu.imports); writes the path literal into label on success.
+// count_ast_imports counts; writes the path literal into label on success.
 priv import_stmt_label := func(imp_stmt: Expr, mut label: Str, symbols: SymbolPool) returns Bool {
     if imp_stmt.children.len() < 2 { return false }
     if imp_stmt.children[1].node_type.is_literal_str().not() { return false }
@@ -4164,8 +4150,8 @@ priv import_stmt_label := func(imp_stmt: Expr, mut label: Str, symbols: SymbolPo
 
 priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut entries: Vec(ImportCheckEntry), symbols: SymbolPool) {
     // Leading iu.imports entries with no matching AST stmt are
-    // loader-injected (mode auto-imports); skip them, mirroring
-    // type_bodies_file's auto_count logic.
+    // loader-injected mode auto-imports; skip them because this diagnostic
+    // applies only to explicit source imports.
     ast_count : USize = count_ast_imports(iu.ast, symbols)
     mut import_idx : USize = iu.imports.len() - ast_count
     for stmt : Expr in iu.ast.children {

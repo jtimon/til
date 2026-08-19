@@ -1,0 +1,56 @@
+# priority: high
+# category: cleanups
+** FIXED #163 Per-file AST/import graph + Context.path (prep for removing Expr.path)
+
+*** Post-mortem
+
+    Most of this issue landed incrementally before its final re-analysis:
+    ~Context.imported~ owns one canonical ~ImportUnit~ per file, each containing
+    that file's AST, mode, and resolved direct-import graph; init, typer,
+    constfolder, scavenger, interpreter, and builders operate on per-file units;
+    ~Context.path~ supplies current-file diagnostics; circular imports work; and
+    ~Expr.path~ is gone.
+
+    The remaining duplication was in the drivers. ~ProgramUnit~ still copied
+    mode/import metadata it never read, while init and each of the typer's four
+    graph sweeps rescanned the source AST to rediscover import calls and map
+    them positionally back onto ~ImportUnit.imports~. Those scans did not
+    interleave local work -- every sweep processed all imports before its unit
+    anyway -- and loader-injected mode imports required brittle offset math.
+
+    ~ProgramUnit~ now carries only ordering/path metadata. Init and typer recurse
+    directly through the canonical ~ImportUnit.imports~ edges, including mode
+    auto-imports, then process the unit. This removes four repeated typer scans,
+    the init scan, and the duplicate ~ProgramUnit~ mode/import vectors.
+
+    ~extract_imports~ remains intentionally in the loader: parsing import calls
+    is how the loader discovers the direct graph in the first place.
+    ~ImportUnit.imports~ is that graph's source of truth, not a second cache.
+    The only remaining AST-to-edge positional walk is the unused-import
+    diagnostic, which preserves the user's original path spelling while
+    pairing explicit imports with resolved edges and skipping synthetic mode
+    imports.
+
+    Regression coverage is the existing circular, selective, mode-auto-import,
+    unused-import, REPL, and self-translation suites. ~make clean && make test~
+    passes 419/419.
+
+*** Historical goals
+
+Goals:
+
+   - Store a canonical per-file AST and direct import list in Context
+     (like ../rstil/), not in merged ASTs or ProgramUnit.ast.
+   - Run phases per file (imports-first) so we can support circular deps.
+   - Use Context.path (and per-file drivers) for diagnostics and phase behavior.
+
+   Notes:
+
+   - Expr.path is removed. Remaining work is to keep phases per-file so we do
+     not re-introduce merged-AST-only assumptions.
+   - This likely requires moving more phases (constfolder/scavenge/eval/build)
+     to per-file drivers, or adding explicit file boundaries to merged views.
+
+   WIP branch:
+
+   - wip/per-file-import-init-type-prep (commit 957ab1a99)

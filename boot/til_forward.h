@@ -1066,6 +1066,11 @@ typedef struct Vec__priv___src_self_scavenger_til__DeclRef {
 } Vec__priv___src_self_scavenger_til__DeclRef;
 
 
+typedef struct ProgramUnit {
+    Str path;
+} ProgramUnit;
+
+
 typedef struct DocMeta {
     Str body;
     Str group;
@@ -1651,13 +1656,6 @@ typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {
     Vec__Str keys;
     Vec__priv___src_self_scavenger_til__DeclRef values;
 } Map__Str_priv___src_self_scavenger_til__DeclRef;
-
-
-typedef struct ProgramUnit {
-    Str path;
-    Mode mode;
-    Vec__Str imports;
-} ProgramUnit;
 
 
 typedef struct DocCatalog {

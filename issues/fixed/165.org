@@ -309,7 +309,7 @@
       ~import("...")~ FCalls recurse through ~ctx.imports_init_done~.
       Removes the second source of ordering (sibling import order
       driven by extract_imports rather than the AST itself) and is a
-      precondition for circular imports (see ~[[../open/163.org][#163]]~).
+      precondition for circular imports (see ~[[./163.org][#163]]~).
 
       Landed: ~init_file~ and ~type_file~ now walk
       ~iu.ast.children~ in source order and recurse on each
@@ -380,7 +380,7 @@
      literally that issue's steps 3-4 (~Context.struct_layouts~).
      Step 1's "store alias target as Str, resolve in typer" mirrors
      that issue's ~explicit_type -> til_type + struct_name~ split.
-   - ~[[../open/163.org][#163]]~ Per-file AST/import graph + ~Context.path~ -- step 5 reuses
+   - ~[[./163.org][#163]]~ Per-file AST/import graph + ~Context.path~ -- step 5 reuses
      that infrastructure and removes the last excuse to keep the
      pre-extracted import list.
    - ~[[./162.org][#162]]~ Core files should import semantic dependencies explicitly
