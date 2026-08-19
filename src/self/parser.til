@@ -190,18 +190,49 @@ priv peek_col := func(p: Parser) returns U32 { return peek(p).col }
 
 // Builtin target-independent primitive names. Target-dependent names
 // (USize/UPtr) and scope-resolved user types are handled by each caller.
+priv BUILTIN_TWO_BYTE_NAME_LEN : USize = 2
+priv BUILTIN_THREE_BYTE_NAME_LEN : USize = 3
+priv BUILTIN_FOUR_BYTE_NAME_LEN : USize = 4
+priv BUILTIN_SEVEN_BYTE_NAME_LEN : USize = 7
+priv BUILTIN_NINE_BYTE_NAME_LEN : USize = 9
+
 builtin_primitive_from_name := func(name: Str, mut out: Primitive) returns Bool {
-    if name == "I64"  { out = Primitive.I64; return true }
-    if name == "U8"   { out = Primitive.U8; return true }
-    if name == "I8"   { out = Primitive.I8; return true }
-    if name == "I16"  { out = Primitive.I16; return true }
-    if name == "U16"  { out = Primitive.U16; return true }
-    if name == "I32"  { out = Primitive.I32; return true }
-    if name == "U32"  { out = Primitive.U32; return true }
-    if name == "U64"  { out = Primitive.U64; return true }
-    if name == "F32"  { out = Primitive.F32; return true }
-    if name == "F64"  { out = Primitive.F64; return true }
-    if name == "Bool" { out = Primitive.Bool; return true }
+    // This fixed-vocabulary dispatch replaces an 11-entry Str.eq chain. On
+    // test/maps.til it removes 457K Str.eq calls and 18.5M instructions.
+    n := name.len()
+    if n == BUILTIN_TWO_BYTE_NAME_LEN {
+        if name.unsafe_get(1) != '8' { return false }
+        if name.unsafe_get(0) == 'U' { out = Primitive.U8; return true }
+        if name.unsafe_get(0) == 'I' { out = Primitive.I8; return true }
+        return false
+    }
+    if n == BUILTIN_THREE_BYTE_NAME_LEN {
+        ref a : I8 = name.unsafe_get(0)
+        ref b : I8 = name.unsafe_get(1)
+        ref c : I8 = name.unsafe_get(2)
+        if a == 'I' {
+            if b == '6' { if c == '4' { out = Primitive.I64; return true } }
+            if b == '1' { if c == '6' { out = Primitive.I16; return true } }
+            if b == '3' { if c == '2' { out = Primitive.I32; return true } }
+        } else if a == 'U' {
+            if b == '1' { if c == '6' { out = Primitive.U16; return true } }
+            if b == '3' { if c == '2' { out = Primitive.U32; return true } }
+            if b == '6' { if c == '4' { out = Primitive.U64; return true } }
+        } else if a == 'F' {
+            if b == '3' { if c == '2' { out = Primitive.F32; return true } }
+            if b == '6' { if c == '4' { out = Primitive.F64; return true } }
+        }
+        return false
+    }
+    if n == BUILTIN_FOUR_BYTE_NAME_LEN {
+        if name.unsafe_get(0) == 'B' {
+            if name.unsafe_get(1) == 'o' {
+                if name.unsafe_get(2) == 'o' {
+                    if name.unsafe_get(3) == 'l' { out = Primitive.Bool; return true }
+                }
+            }
+        }
+    }
     return false
 }
 
@@ -226,12 +257,19 @@ builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
         out = Type.Primitive(prim)
         return true
     }
-    if name == "Str" { out = Type.Struct("Str"); return true }
-    if name == "StructDef" { out = Type.Struct("StructDef"); return true }
-    if name == "EnumDef" { out = Type.Struct("EnumDef"); return true }
-    if name == "Fn" { out = Type.FuncPtr; return true }
-    if name == "Body" { out = Type.Body; return true }
-    if name == "Dynamic" { out = Type.Dynamic; return true }
+    n := name.len()
+    if n == BUILTIN_TWO_BYTE_NAME_LEN {
+        if name == "Fn" { out = Type.FuncPtr; return true }
+    } else if n == BUILTIN_THREE_BYTE_NAME_LEN {
+        if name == "Str" { out = Type.Struct("Str"); return true }
+    } else if n == BUILTIN_FOUR_BYTE_NAME_LEN {
+        if name == "Body" { out = Type.Body; return true }
+    } else if n == BUILTIN_SEVEN_BYTE_NAME_LEN {
+        if name == "EnumDef" { out = Type.Struct("EnumDef"); return true }
+        if name == "Dynamic" { out = Type.Dynamic; return true }
+    } else if n == BUILTIN_NINE_BYTE_NAME_LEN {
+        if name == "StructDef" { out = Type.Struct("StructDef"); return true }
+    }
     return false
 }
 
