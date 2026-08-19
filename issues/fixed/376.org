@@ -1,0 +1,30 @@
+# priority: low
+# category: examples
+** FIXED #376 Polish shootil browser UX
+
+  Root cause: the browser artifact inherited raylib's generic demo shell,
+  including fixed chrome, raylib branding, borders, emoji controls, and a
+  network-loaded file-saving library. In the game, raylib's default Escape
+  exit key bypassed the menu, and leaving god mode teleported the camera back
+  to spawn.
+
+  Fix: the web shell is now a compact responsive til surface around the canvas,
+  with dynamic artifact naming, an unobtrusive loading state and console,
+  local file downloads, and no external page assets. Shootil disables raylib's
+  default exit key, makes Escape and M toggle a pause menu with an explicit
+  Resume item, removes the startup dummy frame, and returns from god mode at
+  the current position under normal gravity.
+
+  Regression test: ~make build_wasm~ produced the single-file
+  ~bin/shootil.html~; Chromium loaded it from ~file://~ at desktop and phone
+  widths with no JavaScript or WebGL errors. ~make clean && make test~ passed
+  414/414.
+
+*** Original report
+
+  Follow-up from #228. The browser build works, but the UI needs polish:
+  returning from god mode, menu behavior, and the raylib shell/borders make
+  the browser artifact feel like a demo shell instead of a native page.
+
+  The goal is a cleaner ~bin/shootil.html~ experience while preserving the
+  same desktop behavior.

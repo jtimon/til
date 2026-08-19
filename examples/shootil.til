@@ -14,12 +14,12 @@ mode gui
 //   F11                   -- toggle fullscreen anywhere
 //   M                     -- open/close the in-game menu
 //   G                     -- toggle god mode (free flight)
-//   ESC                   -- exit
+//   ESC                   -- open/close the in-game menu
 // God mode frees you from the floor; look up + W to fly.
-// Exiting god mode resets camera to initial position.
+// Exiting god mode keeps your position and returns you to gravity.
 // Menu (game pauses, cursor freed):
 //   Up/Down or W/S        -- move selection
-//   Enter                 -- toggle Fullscreen / Quit
+//   Enter                 -- select
 //
 // TODO: strafe-jumping -- add horizontal velocity tracking + air
 // acceleration so holding left/right while jumping builds speed
@@ -39,9 +39,10 @@ GRAVITY    : F32 = 144                 // 144 u/s^2
 MOUSE_SENS : F32 = 5 / 100    // pixel-based, framerate-independent
 FRAME_CAP  : F32 = 1 / 4      // clamp frame_time to 0.25 s
 
-MENU_FULLSCREEN := 0
-MENU_QUIT := 1
-MENU_COUNT := 2
+MENU_RESUME := 0
+MENU_FULLSCREEN := 1
+MENU_QUIT := 2
+MENU_COUNT := 3
 
 v3 := func(x: I32, y: I32, z: I32) returns Vector3 {
     return Vector3(x = x.to_f32(), y = y.to_f32(), z = z.to_f32())
@@ -86,38 +87,11 @@ mut camera := Camera3D(
     projection = CAMERA_PERSPECTIVE,
 )
 
-reset_camera := func() {
-    camera = Camera3D(
-        position = INIT_POS,
-        target = INIT_TARGET,
-        up = v3(0, 1, 0),
-        fovy = camera.fovy,
-        projection = camera.projection,
-    )
-}
-
-priv print_cam := proc(label: Str) {
-    print(label)
-    print(" pos=(")
-    print(camera.position.x.to_str())
-    print(",")
-    print(camera.position.y.to_str())
-    print(",")
-    print(camera.position.z.to_str())
-    print(") target=(")
-    print(camera.target.x.to_str())
-    print(",")
-    print(camera.target.y.to_str())
-    print(",")
-    print(camera.target.z.to_str())
-    println(")")
-}
-
 mut god_mode := false
 
 enter_god_mode := func() { god_mode = true }
 
-exit_god_mode := func() { god_mode = false; reset_camera() }
+exit_god_mode := func() { god_mode = false }
 
 mut shootil_done := false
 cube_size := v3(2, 2, 2)
@@ -165,9 +139,24 @@ mut prev_target := Vector3()
 mut accumulator := zero_f
 mut wants_jump := false
 
+toggle_menu := proc() {
+    menu_open = !menu_open
+    accumulator = zero_f
+    wants_jump = false
+    if menu_open {
+        menu_sel = MENU_RESUME
+        EnableCursor()
+    } else {
+        DisableCursor()
+        // Drain the mouse-delta spike caused by re-locking the cursor.
+        GetMouseDelta()
+    }
+}
+
 shootil_setup := proc() {
     SetConfigFlags((FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED).cast(U32))
     InitWindow(WINDOW_W, WINDOW_H, "shootil".c_str)
+    SetExitKey(0)
     SetWindowMinSize(640, 480)
 
     // Drain the initial mouse-delta spike: once before DisableCursor
@@ -176,15 +165,6 @@ shootil_setup := proc() {
     // Raylib issue #4654.
     GetMouseDelta()
     DisableCursor()
-    GetMouseDelta()
-
-    // Simulate pressing G twice + a dummy frame to match the manual
-    // god-mode toggle that happens mid-gameplay.
-    enter_god_mode()
-    exit_god_mode()
-    BeginDrawing()
-    EndDrawing()
-    // Drain mouse delta accumulated during the dummy draw cycle.
     GetMouseDelta()
 
     // Build AABBs for collision detection.
@@ -222,22 +202,8 @@ shootil_setup := proc() {
 }
 
 shootil_frame := proc() {
-        if IsKeyPressed(KEY_ESCAPE) { shootil_done = true; return }
-
-        // TODO: ESC does not work for toggling the menu because Raylib
-        // defaults SetExitKey(KEY_ESCAPE), which makes WindowShouldClose()
-        // return true on the next frame.  SetExitKey(0) could fix this
-        // but it regresses the build (the raylib binding is new and untested).
-        if IsKeyPressed(KEY_M) {
-            if menu_open {
-                menu_open = false
-                DisableCursor()
-                // Drain the mouse-delta spike caused by re-locking the cursor.
-                GetMouseDelta()
-            } else {
-                menu_open = true
-                EnableCursor()
-            }
+        if IsKeyPressed(KEY_ESCAPE).or(IsKeyPressed(KEY_M)) {
+            toggle_menu()
         }
 
         // TODO: fullscreen is broken -- ToggleFullscreen() during gameplay
@@ -251,10 +217,8 @@ shootil_frame := proc() {
             if IsKeyPressed(KEY_G) {
                 if god_mode {
                     exit_god_mode()
-                    print_cam("god->normal")
-                    // exit_god_mode teleports the camera; resync the sim
-                    // state and drop accumulated time so we don't lerp
-                    // across the teleport or burst-integrate.
+                    // Resync interpolation and vertical velocity as normal
+                    // gravity takes over at the current position.
                     sim_pos = camera.position
                     sim_target = camera.target
                     prev_pos = sim_pos
@@ -275,10 +239,11 @@ shootil_frame := proc() {
                 menu_sel = (menu_sel + 1) % MENU_COUNT
             }
             if IsKeyPressed(KEY_ENTER) {
-                if menu_sel == MENU_FULLSCREEN {
+                if menu_sel == MENU_RESUME {
+                    toggle_menu()
+                } else if menu_sel == MENU_FULLSCREEN {
                     ToggleFullscreen()
-                }
-                if menu_sel == MENU_QUIT {
+                } else if menu_sel == MENU_QUIT {
                     shootil_done = true
                     return
                 }
@@ -450,7 +415,7 @@ shootil_frame := proc() {
             } else {
                 DrawText("G: god mode".c_str, sw - 180, 10, 20, Color(r = 180, g = 180, b = 180, a = 255))
             }
-            DrawText("M: menu".c_str, sw - 180, 32, 20, Color(r = 180, g = 180, b = 180, a = 255))
+            DrawText("ESC / M: menu".c_str, sw - 220, 32, 20, Color(r = 180, g = 180, b = 180, a = 255))
         }
 
         if menu_open {
@@ -459,10 +424,11 @@ shootil_frame := proc() {
             DrawRectangle(0, 0, sw, sh, Color(r = 0, g = 0, b = 0, a = 180))
             DrawText("MENU".c_str, sw / 2 - 50, sh / 2 - 160, 36, Color(r = 255, g = 255, b = 255, a = 255))
             base_x := sw / 2 - 180
-            base_y := sh / 2 - 60
-            draw_menu_item("Toggle Fullscreen (F11)", base_x, base_y, menu_sel == MENU_FULLSCREEN)
-            draw_menu_item("Quit", base_x, base_y + 50, menu_sel == MENU_QUIT)
-            DrawText("M: close   Enter: select".c_str, base_x - 40, base_y + 130, 18, Color(r = 180, g = 180, b = 180, a = 255))
+            base_y := sh / 2 - 80
+            draw_menu_item("Resume", base_x, base_y, menu_sel == MENU_RESUME)
+            draw_menu_item("Toggle Fullscreen (F11)", base_x, base_y + 50, menu_sel == MENU_FULLSCREEN)
+            draw_menu_item("Quit", base_x, base_y + 100, menu_sel == MENU_QUIT)
+            DrawText("ESC / M: close   Enter: select".c_str, base_x - 40, base_y + 170, 18, Color(r = 180, g = 180, b = 180, a = 255))
         }
         EndDrawing()
 
