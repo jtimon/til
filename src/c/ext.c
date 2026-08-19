@@ -8,10 +8,6 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten/emscripten.h>
-#endif
-
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 // The process environment (ccmd_env's child block). macOS does not
@@ -3730,26 +3726,6 @@ Str *ffi_last_error(void) {
     return Str_clone(&(Str){.c_str = (I8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
 }
 #endif
-
-#ifdef __EMSCRIPTEN__
-static TilClosure *til_browser_frame;
-
-static void til_browser_frame_tick(void) {
-    if (!til_browser_frame) return;
-    ((void (*)(void *))til_browser_frame->call)(til_browser_frame->env);
-}
-#endif
-
-void til_emscripten_set_main_loop(TilClosure *frame, I32 fps, Bool simulate_infinite_loop) {
-#ifdef __EMSCRIPTEN__
-    til_browser_frame = frame;
-    emscripten_set_main_loop(til_browser_frame_tick, fps, simulate_infinite_loop);
-#else
-    (void)frame;
-    (void)fps;
-    (void)simulate_infinite_loop;
-#endif
-}
 
 // dup_n, not a raw path->c_str cast: a til Str is a {ptr, count, cap}
 // with no NUL terminator, so handing c_str straight to unlink() passes

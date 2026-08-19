@@ -1,0 +1,30 @@
+# priority: low
+# category: deferred
+** FIXED #377 Generalize browser WASM support for arbitrary mode gui programs
+
+  Root cause: the first browser example assumed Emscripten required every til
+  program to expose a callback-shaped frame function. Raylib's synchronous web
+  backend already yields from ~WindowShouldClose()~ with ~emscripten_sleep()~
+  when linked with Asyncify, preserving ordinary function locals across frames.
+
+  Fix: [[file:../../examples/shootil.til][examples/shootil.til]] now uses the same standard raylib loop as every
+  other ~mode gui~ program, and the one-off til closure/C callback bridge was
+  removed. No compiler rewrite is needed. A loop that never calls
+  ~WindowShouldClose()~ does not follow raylib's synchronous web contract, and
+  target-specific APIs with no web implementation still fail loudly at link
+  instead of receiving a silent substitute.
+
+  Regression tests: ~make build_wasm~ builds the standard-loop
+  [[file:../../examples/shootil.til][examples/shootil.til]] as single-file HTML, and the unchanged
+  [[file:../../examples/hello_gui.til][examples/hello_gui.til]] builds with ~bin/til build --target=wasm32~ as a
+  second standard-loop program. ~make clean && make test~ passes 402/402.
+
+*** Original report
+
+  Follow-up from #228. The first browser target supported
+  [[file:../../examples/shootil.til][examples/shootil.til]] by exposing explicit setup/frame entry points and
+  scheduling the frame with emscripten.
+
+  General ~mode gui~ support should recognize or transform the common raylib
+  loop shape, report unsupported control flow clearly, and decide what web
+  behavior replaces desktop-only APIs such as open-file dialogs.

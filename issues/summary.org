@@ -61,5 +61,3 @@
 * Deferred
 ** High
 *** [[./open/378.org][#378]] Vendor browser WASM toolchain source instead of cloning emsdk
-** Low
-*** [[./open/377.org][#377]] Generalize browser WASM support for arbitrary mode gui programs

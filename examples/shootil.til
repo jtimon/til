@@ -27,8 +27,6 @@ mode gui
 // TODO: CameraMoveUp should replace manual position.y update so the
 // look angle is preserved during jumps (currently tilts downward).
 
-import("../src/std/sys")
-
 WINDOW_W : I32 = 1024
 WINDOW_H : I32 = 768
 
@@ -479,10 +477,6 @@ shootil_frame := proc() {
 
 main := proc() {
     shootil_setup()
-    if host_os().eq("wasm") {
-        til_emscripten_set_main_loop(shootil_frame, 0, true)
-        return
-    }
     while shootil_done.not().and(WindowShouldClose().not()) {
         shootil_frame()
     }

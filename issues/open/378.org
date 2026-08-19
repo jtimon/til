@@ -10,11 +10,12 @@
   ~emscripten/emscripten.h~ and ~emscripten/html5.h~, and its Makefile selects
   ~emcc~ for web builds.
 
-  That creates two separate problems:
+  JavaScript glue is accepted for browser targets. The remaining problem is
+  making the browser build work offline; that can wait until the browser
+  backend itself is complete.
 
-  - Browser raylib via Emscripten depends on JavaScript glue. That may be a
-    non-starter for the project goal; if so, the current raylib web path should
-    be parked or replaced instead of polished.
+  Emscripten creates one remaining distribution problem:
+
   - The installed Emscripten payload is too large to commit directly. The
     attempted checked-in install tree included files over GitHub's hard 100 MB
     object limit, including ~node~ and ~clang~ binaries. Those generated
@@ -24,10 +25,9 @@
   Current code therefore keeps the generated Emscripten install outputs
   ignored. ~make build_wasm~ may still create ~vendor/emscripten/node/~,
   ~vendor/emscripten/upstream/~, and ~vendor/emscripten/.emscripten~ locally,
-  and ~make clean_vendor~ removes them. This issue stays open until the project
-  decides whether browser raylib/Emscripten is acceptable at all, and if so how
-  the toolchain should be supplied without committing giant generated binaries
-  or depending on moving network downloads.
+  and ~make clean_vendor~ removes them. This issue stays open until the
+  toolchain can be supplied without committing giant generated binaries or
+  depending on moving network downloads.
 
   Follow-up from #228. ~make build_wasm~ pins emsdk to a specific version
   and repo commit, but it still bootstraps the browser toolchain from the
@@ -59,9 +59,8 @@
 
 *** Plan
 
-  1. Decide whether Emscripten's JavaScript-dependent raylib browser backend
-     is acceptable for til. If not, park this route and define a different
-     browser/runtime boundary before doing more vendoring work.
+  1. Emscripten's JavaScript-dependent raylib browser backend is accepted for
+     til browser targets.
 
   2. If it is acceptable, inventory the emsdk 6.0.0 install tree:
      ~upstream/emscripten~, ~upstream/bin~, ~upstream/lib~, ~node/~,
