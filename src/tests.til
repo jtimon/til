@@ -1953,8 +1953,14 @@ main := proc(args: ..Str) {
     // second time by session teardown. Interpreter-only: the AST's
     // garbager-inserted delete released the payload and teardown ran the
     // destructor again over the same value.
+    // Both call spellings are covered: the UFCS receiver form and the
+    // explicit `Vec(I64).delete(own w, true)`, which reach the callee by
+    // different routes and were independently broken. The `delete(false)`
+    // case is the one a moved-out mark alone cannot express -- contents
+    // released, box still ours -- so it is what separates the
+    // payload_released fix from a transfer-marking one.
     File.writefile(format(exp, "script_own_delete_global.out"),
-        format("2", NL, "1", NL, "1", NL, "ok", NL))
+        format("2", NL, "1", NL, "1", NL, "3", NL, "1", NL, "ok", NL))
     add_cli_pair(tests, "script_own_delete_global", "test/script_own_delete_global.til",
         "", 0, format(exp, "script_own_delete_global.out"), til_bin, asan_flag)
 

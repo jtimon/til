@@ -2599,6 +2599,30 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     for pi in 0..fdef_params.params.len() {
         ref param : Declaration = fdef_params.params[pi]
         ref mut arg_expr : Expr = e.children[pi + 1]
+        // The call-site OWN BIT decides the transfer here, deliberately, and
+        // NOT the callee's `own` parameter -- the two answer different
+        // questions and are not meant to agree:
+        //
+        //   - `param.own_type == Own` is the callee's CONTRACT: it may
+        //     consume what it is given. The garbager reads exactly this for
+        //     delete placement (check_own_args), which is the right
+        //     conservative approximation for a static pass.
+        //   - the bit is THIS call site's decision. A call may invoke an
+        //     own-taking function without handing over the caller's binding,
+        //     and the garbager emits that shape on purpose:
+        //     make_delete_call passes `arg_is_own = local.is_heap`, so a
+        //     non-heap local (a script global's value binding) gets
+        //     `T.delete(x, false)` with NO own bit -- drop the contents,
+        //     keep the box, matching what the compiled backend emits.
+        //
+        // So an `own` parameter whose call-site bit is unset is normal, not a
+        // bug: measured on the #275 0b repro, 3 such calls, all the `own
+        // self` of a destructor. Do NOT "unify" this by reading the
+        // parameter -- that was tried and it moves bindings the interpreter
+        // still has to free, failing dyn_vecs / dyn_sets / hashsets /
+        // dyn_arrays under ASAN teardown (387/391). Teardown correctness
+        // rests on HeapBinding.payload_released instead, which records that
+        // an interpreted delete already ran (#275 item 0b).
         arg_transfers := get_own_arg(e, pi + 1).and(get_keep_outer_arg(e, pi + 1).not())
         is_variadic_param := fdef_params.variadic_index == pi.to_i32()
         switch arg_expr.node_type {

@@ -30,4 +30,28 @@ h.inner.push(own 9)
 println(h.inner.len().to_str())
 own h.delete()
 
+// The EXPLICIT namespace spelling, not just the UFCS receiver form above.
+// The two reach the callee by different routes -- the UFCS form goes
+// through the receiver-desugaring path, this one binds the argument
+// directly -- and both were independently broken, so a fix on one route
+// would not have covered the other. (This one is what made "not the UFCS
+// own-bit renumbering" a reliable finding while the bug was being chased:
+// it fails identically without the fix.)
+mut w := Vec(I64).new()
+w.push(own 1)
+w.push(own 2)
+w.push(own 3)
+println(w.len().to_str())
+Vec(I64).delete(own w, true)
+
+// call_free = FALSE, the other half of the destructor's contract: drop the
+// contents, leave the box. This is the shape a moved-out mark alone cannot
+// express -- "contents released, box still mine" -- so it distinguishes the
+// payload_released fix from a transfer-marking one, which leaves this case
+// aborting while `delete(true)` passes.
+mut x := Vec(I64).new()
+x.push(own 11)
+println(x.len().to_str())
+own x.delete(false)
+
 println("ok")
