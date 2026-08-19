@@ -34,6 +34,15 @@
     The detailed text below is retained as historical analysis; several of its
     architectural TODOs were completed by the later issues named above.
 
+    Re-analysis while updating #174 identified two additional order-sensitive
+    method-generation paths not exercised by the alias regression. Struct
+    cmp/eq/to_str eligibility checks whether each field type's method is
+    already present, so a parent visited before its child can miss generated
+    methods. The field sweep also infers unannotated defaults before method
+    generation, so such a default cannot call another struct's generated
+    method. These are separate from both the fixed importer-alias failure and
+    #174's resolved method-body/import-cycle failure.
+
    Symptom (historical, kept for context):
 
    [[file:../../src/core/core.til][src/core/core.til]] contained the alias ~USize := U32~ wedged
@@ -45,7 +54,7 @@
    another name. til is supposed to have an init pass precisely so
    source order does not matter.
 
-   Why this still happens (analysis):
+   Why this happened (historical analysis):
 
    - The loader pre-extracts ~import("...")~ calls from each file's AST
      (see ~extract_imports~ in [[file:../../src/self/loader.til:97][src/self/loader.til:97]]) and builds an
@@ -96,17 +105,14 @@
 
    How later phases see auto-generated methods:
 
-   - When typer visits a struct decl it: type-checks fields, synthesizes
-     any missing ~clone~ / ~delete~ / ~size~ / ~eq~ / ~to_str~ methods
-     into ~ns_decls~, type-checks their bodies in the same recursion,
-     registers ~Type.method~ in scope (the same ~scope.set~ that initer
-     would have called), and writes the layout into
-     ~Context.struct_layouts~. After the visit, the Context looks
-     identical to one in which the methods had been hand-written and
-     initer had registered them. Constfolder / scavenger / builder look up
-     ~Type.clone~ in scope and never need to know whether the user wrote
-     it or the typer synthesized it -- Context is the cross-phase memo,
-     same pattern [[./147.org][#147]] calls out as one of rstil's wins.
+   - The field sweep first stamps inferred field types. The declaration
+     sweep then computes layouts and pushes missing struct methods into
+     the type AST's ~ns_decls~ / ~ns_index~. The body sweep registers and
+     types those namespace signatures and bodies like hand-written
+     members. Method lookup follows the receiver type through
+     ~scope.get_struct~ to that namespace index; there is no separate flat
+     ~Type.method~ scope binding. ~Context.struct_layouts~ is the cross-phase
+     layout memo, matching the pattern [[./147.org][#147]] calls out.
 
    How rstil informs the design (~../rstil/~):
 
@@ -177,9 +183,9 @@
       ~gen_struct_size_method_for_stmt~,
       ~gen_enum_size_method_for_stmt~, ~gen_cmp_derived_for_stmt~ and
       ~gen_unity_derived_for_stmt~ into the typer's struct/enum visit.
-      The typer pushes synthesized methods into ~ns_decls~ and calls
-      the same ~scope.set~ initer would have called for ~Type.method~
-      bindings, so subsequent phases see no difference vs. user-written
+      The typer pushes synthesized methods into ~ns_decls~ / ~ns_index~;
+      the body sweep then registers and types them as ordinary namespace
+      members, so subsequent phases see no difference from user-written
       methods.
 
       Landed through #338: a graph-wide field sweep stamps field
@@ -189,6 +195,21 @@
       bodies. This is option (b) below and fixes #174. Remaining here:
       move enum nonclone/clone generation and the interface
       clone/delete/default expansion out of the initer.
+
+      Re-analysis after #174 found two additional source-order holes:
+
+      - ~struct_field_supports_generated_method~ recognizes a nested
+        struct's cmp/eq/to_str only if that method is already in the nested
+        struct's namespace. Since ~type_decls_file~ generates in source
+        order, a parent declared before its child can miss those methods
+        permanently. Capability checking/materialization must be
+        dependency-aware rather than visit-order-dependent.
+      - ~type_fields_file~ infers an unannotated field default by running
+        expression inference before ~type_decls_file~ has generated any
+        methods. A default that calls an auto-generated method therefore
+        still depends on whether some earlier phase happened to create it.
+        Field type inference must not require declaration-sweep products,
+        or the required signatures must be made available first.
 
       First attempt (pre [[./162.org][#162]]): moved scope-free
       ~gen_cmp_derived_for_stmt~ and ~gen_unity_derived_for_stmt~ into
@@ -270,7 +291,7 @@
       driven by extract_imports rather than the AST itself) and is a
       precondition for circular imports (see ~[[../open/163.org][#163]]~).
 
-      Done in this commit: ~init_file~ and ~type_file~ now walk
+      Landed: ~init_file~ and ~type_file~ now walk
       ~iu.ast.children~ in source order and recurse on each
       ~import("...")~ FCall. ~iu.imports~ is kept as a side table
       that maps the i-th import FCall to its resolved disp path.
@@ -293,11 +314,11 @@
       ~import("vec.til")~ literal to its canonical disp path at
       walk time, which needs the importing file's directory + lib_dir
       + cwd from the loader. The loader still uses extract_imports
-      to drive its parse-time recursion. This commit is the spirit
+      to drive its parse-time recursion. That change implements the spirit
       of step 5 (AST-driven ordering) without the full mechanical
       drop.
 
-   6. [PARTIAL] Alphabetize [[file:../../src/core/core.til][src/core/core.til]]'s imports and put
+   6. [DONE] Alphabetize [[file:../../src/core/core.til][src/core/core.til]]'s imports and put
       ~USize := U32~ wherever (its own file, top of core.til,
       anywhere). Add regression tests covering both directions: (a)
       two files where the importer declares ~MyAlias := U32~ and an
@@ -313,23 +334,22 @@
         test/forward_refs.til as ~test_alias_top_of_file~ and
         ~test_alias_bottom_of_file~ (covers builtin-primitive alias
         at top of a file and after the struct that uses it).
+      - Scenario (a) landed as ~test_alias_from_importer~, with the imported
+        enum in ~test/imports/forward_alias_enum.til~. It exercises the
+        importer-declared alias through generated construction, eq, delete,
+        and to_str in interpreted and compiled modes.
 
       Discovery: alphabetizing was a no-op on the build because init
       registers every name before the graph-wide typer sweeps run.
       Per-file imports ([[./162.org][#162]]) and the separate field,
-      declaration, and body sweeps now provide methodgen ordering.
-
-      Still TODO: scenario (a) cross-file regression test. Today
-      this case does not work (alias declared in importer is not
-      visible during importee's init/typer because importer is
-      processed last). Lands meaningfully once step 5 (rstil-style
-      in-walk imports) makes cross-file forward refs viable.
+      declaration, and body sweeps supplied the graph-wide barriers needed
+      to move methodgen; the nested-method eligibility ordering hole remains
+      in step 2 above.
 
    Validation:
 
    - After each step, ~make clean && make test~ must pass.
-   - The two regression tests in step 6 must pass after step 5 lands
-     and continue to pass on every subsequent commit.
+   - The regression tests in step 6 must continue to pass.
 
    Related issues:
 
@@ -345,17 +365,10 @@
      pre-extracted import list.
    - ~[[./162.org][#162]]~ Core files should import semantic dependencies explicitly
      -- FIXED. Per-file imports for every [[file:../../src/core/*.til][src/core/*.til]] now declare
-<<<<<<< HEAD:issues/open/165.org
-      the dependency edges that ~type_file~'s recursion uses to produce
-      a topological visit order. This enabled the struct half of step 2
-      to move without hitting the ~ast.til~->U32 wall; enum/interface
-      generation remains.
-   - ~[[./116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
-=======
-     the dependency edges that ~type_file~'s recursion uses to produce
-     a topological visit order. Step 2 can now move method synthesis
-     into the typer's per-decl visit without hitting the
-     ~ast.til~->U32 wall.
+      the dependency edges that ~type_file~ traverses. Acyclic dependencies
+      are visited first; an import cycle is cut by the sweep memo and relies
+      on the graph-wide barrier before the next sweep starts. This enabled
+      the struct half of step 2 to move without hitting the ~ast.til~->U32
+      wall; enum/interface generation remains.
    - ~[[../open/116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
->>>>>>> 154ef38fa (Resolve enum payload aliases after graph init (#165)):issues/fixed/165.org
      family (cross-file visibility vs. phase ordering).

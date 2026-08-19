@@ -14,7 +14,8 @@ Two modules sit underneath every phase below:
   - Drives the whole pipeline: discovers and reads source files,
     resolves recursive `import(...)`, picks the mode, then runs
     tokenize -> parse -> init -> type -> asap -> constfolder -> scavenge
-    in order before handing the merged AST to a back end. The CLI
+    in order on the canonical per-file ASTs in `Context.imported` before
+    handing the surviving units to a back end. The CLI
     (`src/til.til`) and the REPL both go through here.
 
 - Context:
@@ -39,31 +40,37 @@ Two modules sit underneath every phase below:
   - user source
   - recursive `import(...)` files
   - optional mode auto-import file from `src/modes/*.til`
-- Result: one merged AST.
+- Result: one `ImportUnit` AST per loaded file in `Context.imported`, plus
+  `ProgramUnit` path/import ordering metadata in `LoadedProgram`.
 
 3. Init declarations
 
-- `init_declarations(ast, scope)`
+- `init_seed_tree(...)`, then recursive `init_file(...)`, followed by the
+  remaining `init_declarations_global(...)` work
 - Implemented in til: [[file:../src/self/initer.til][src/self/initer.til]]
 - Responsibilities:
-  - pre-register types, funcs, globals, aliases
+  - seed and register types, funcs, globals, aliases across the import graph
   - build initial `TypeScope`
-  - auto-generate helpers such as enum/struct namespace methods
+  - auto-generate the enum/interface helpers not yet moved into the typer
   - prepare enough metadata for typing
 
 4. Type check + desugar
 
-- `type_check(ast, scope, mode)`
+- `type_file(path, context)`
 - Implemented in til:
   [[file:../src/self/typer.til][src/self/typer.til]] (type errors + type
   inference) and
   [[file:../src/self/desugarer.til][src/self/desugarer.til]] (AST lowering /
   desugaring).
-- The typer's body walk drives both: it resolves names and types, infers
-  expression types (replacing `Unknown` with the inferred type), and rejects
-  invalid programs; interleaved with that same walk the desugarer rewrites the
-  high-level constructs later phases do not handle into plain til. The
-  desugars are type-directed (they read inferred types), which is why they run
+- The typer runs three coordinated graph-wide sweeps over the reachable
+  `ImportUnit`s. The field sweep infers unannotated struct fields. The
+  declaration sweep computes struct/enum layouts and generates struct
+  clone/delete/hash/eq/cmp/to_str plus size/cmp/unity-derived methods. Only
+  after those sweeps finish does the body sweep resolve names and types,
+  infer expression types, and reject invalid programs.
+- The body sweep drives type-directed desugaring: interleaved with inference,
+  the desugarer rewrites high-level constructs later phases do not handle into
+  plain til. The desugars read inferred types, which is why they run
   interleaved rather than as a separate up-front pass.
 - Typer responsibilities (src/self/typer.til):
   - resolve names and types
@@ -82,7 +89,7 @@ Two modules sit underneath every phase below:
     [[file:./throws.org][doc/throws.org]] for the surface and recipes
   - argument hoisting into temps for the back ends
 - Like the garbager (step 5), desugarer.til imports only `context`; it reaches
-  typer helpers, and the typer reaches the desugar passes, through the merged
+  typer helpers, and the typer reaches the desugar passes, through the shared
   program scope rather than an explicit import.
 
 5. Asap destruction
