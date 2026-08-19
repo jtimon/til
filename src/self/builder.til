@@ -441,6 +441,8 @@ priv BuildPaths := struct {
     til_path := ""
     py_path := ""
     jvm_root := ""
+    jvm_source_dir := ""
+    jvm_package_dir := ""
     jvm_source_path := ""
     jvm_classes_dir := ""
     jvm_args_path := ""
@@ -468,9 +470,11 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     if target.is(Target.Jvm) {
         segment := jvm_package_segment(name)
         paths.jvm_root = format("gen/jvm/", name)
+        paths.jvm_source_dir = format(paths.jvm_root, "/src")
         paths.jvm_package = format("til.generated.", segment)
-        paths.jvm_source_path = format(paths.jvm_root,
-            "/src/til/generated/", segment, "/Main.java")
+        paths.jvm_package_dir = format(paths.jvm_source_dir,
+            "/til/generated/", segment)
+        paths.jvm_source_path = format(paths.jvm_package_dir, "/Main.java")
         paths.jvm_classes_dir = format(paths.jvm_root, "/classes")
         paths.jvm_args_path = format(paths.jvm_root, "/sources.args")
         paths.jvm_entry_class = format(paths.jvm_package, ".Main")
@@ -501,9 +505,7 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
 
 priv make_build_dirs := proc(paths: BuildPaths, target: Target) {
     if target.is(Target.Jvm) {
-        src_slash := paths.jvm_source_path.rfind("/")
-        src_dir := paths.jvm_source_path.substr(0, src_slash.to_usize())
-        if mkdir_p(src_dir) != 0 { panic("failed to create JVM source output dir") }
+        if mkdir_p(paths.jvm_root) != 0 { panic("failed to create JVM output dir") }
         if mkdir_p(paths.jvm_classes_dir) != 0 { panic("failed to create JVM classes output dir") }
         if paths.do_lib.not() {
             bin_slash := paths.bin_path.rfind("/")
@@ -545,7 +547,8 @@ priv make_build_dirs := proc(paths: BuildPaths, target: Target) {
 priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target) returns I32 {
     lang := target_lang(target)
     if lang.is(Lang.Java) {
-        return jvm_codegen_translate(lp, paths.jvm_source_path,
+        return jvm_codegen_translate(lp, paths.jvm_source_dir,
+            paths.jvm_package_dir, paths.jvm_source_path,
             paths.jvm_args_path, paths.jvm_package)
     }
     if lang.is(Lang.HolyC) {
@@ -669,6 +672,8 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
     rc = install_tree(format(root, "/src/modes"), format(dst_root, "/src/modes"), "install compiler mode sources")
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/c"), format(dst_root, "/src/c"), "install compiler C sources")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/jvm"), format(dst_root, "/src/jvm"), "install compiler JVM sources")
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
     if rc != 0 { return rc }

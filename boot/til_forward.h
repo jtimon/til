@@ -347,6 +347,7 @@ typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_c
 typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
+typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
@@ -1125,6 +1126,12 @@ typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
 } Vec__priv___src_self_c_codegen_til__DynCallInfo;
 
 
+typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
+    Str path;
+    I32 errors;
+} priv___src_self_jvm_codegen_til__JvmEmitState;
+
+
 typedef struct priv___src_self_builder_til__BuildPaths {
     Str name;
     Str c_path;
@@ -1134,6 +1141,8 @@ typedef struct priv___src_self_builder_til__BuildPaths {
     Str til_path;
     Str py_path;
     Str jvm_root;
+    Str jvm_source_dir;
+    Str jvm_package_dir;
     Str jvm_source_path;
     Str jvm_classes_dir;
     Str jvm_args_path;

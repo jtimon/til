@@ -3,39 +3,652 @@ import("loader")
 import("../std/file")
 
 
-// Stage C replaces this conservative spelling with the complete deterministic
-// Java mangler. The fixed prefix keeps keywords and leading digits harmless.
+priv JvmEmitState := struct {
+    path := ""
+    errors : I32 = 0
+}
+
+priv jvm_hex_byte := func(byte: U8) returns Str {
+    digits := "0123456789abcdef"
+    hi := byte.shr(4).band(15).to_usize()
+    lo := byte.band(15).to_usize()
+    return format(digits.substr(hi, 1), digits.substr(lo, 1))
+}
+
+// Every non-ASCII byte and '_' uses an escape introduced by '_'. Since a
+// source '_' is escaped too, the spelling is injective; the p_ prefix makes
+// keywords, empty names and leading digits valid Java identifiers.
 jvm_package_segment := func(name: Str) returns Str {
-    mut out := Str.with_capacity(name.len() + 2)
+    mut out := Str.with_capacity(name.len().mul(4) + 2)
     out.push_str("p_")
     for i in 0..name.len() {
         ref c : I8 = name.get(i)
-        valid := c.gte('a').and(c.lte('z'))
-            .or(c.gte('A').and(c.lte('Z')))
-            .or(c.gte('0').and(c.lte('9')))
-            .or(c.eq('_'))
-        if valid { out.push_str(name.substr(i, 1)) }
-        else { out.push_str("_") }
+        alpha := c.gte('a').and(c.lte('z')).or(c.gte('A').and(c.lte('Z')))
+        if alpha.or(c.gte('0').and(c.lte('9'))) {
+            out.push_str(Str.from_byte(c.cast(U8)))
+        } else {
+            out.push_str("_x")
+            out.push_str(jvm_hex_byte(c.cast(U8)))
+        }
     }
     return out
 }
 
-jvm_codegen_translate := proc(lp: LoadedProgram, source_path: Str,
-    args_path: Str, package_name: Str) returns I32 {
+priv jvm_var_name := func(name: Str) returns Str {
+    return format("v_", jvm_package_segment(name))
+}
+
+priv jvm_func_name := func(name: Str) returns Str {
+    return format("f_", jvm_package_segment(name))
+}
+
+priv jvm_unit_class := func(path: Str) returns Str {
+    return format("Unit_", jvm_package_segment(path))
+}
+
+priv jvm_indent := func(depth: I32) returns Str {
+    mut out := Str.with_capacity(depth.to_usize().mul(4))
+    for _ in 0..depth { out.push_str("    ") }
+    return out
+}
+
+priv jvm_argfile_quote := func(path: Str) returns Str {
+    mut out := Str.with_capacity(path.len().mul(2) + 2)
+    out.push_str("\"")
+    for i in 0..path.len() {
+        ref c : I8 = path.get(i)
+        if c.eq('\\').or(c.eq('"')) { out.push_str("\\") }
+        out.push_str(Str.from_byte(c.cast(U8)))
+    }
+    out.push_str("\"")
+    return out
+}
+
+priv jvm_byte_array := func(s: Str) returns Str {
+    if s.len() == 0 { return "new byte[0]" }
+    mut out := Str.with_capacity(s.len().mul(13) + 12)
+    out.push_str("new byte[] {")
+    for i in 0..s.len() {
+        if i > 0 { out = format(out, ", ") }
+        out = format(out, "(byte) 0x", jvm_hex_byte(s.get(i).cast(U8)))
+    }
+    return format(out, "}")
+}
+
+priv jvm_type := func(t: Type) returns Str {
+    switch t {
+    case .None: return "void"
+    case .Primitive(Primitive.I8): return "byte"
+    case .Primitive(Primitive.U8): return "int"
+    case .Primitive(Primitive.I16): return "short"
+    case .Primitive(Primitive.U16): return "int"
+    case .Primitive(Primitive.I32): return "int"
+    case .Primitive(Primitive.U32): return "int"
+    case .Primitive(Primitive.I64): return "long"
+    case .Primitive(Primitive.U64): return "long"
+    case .Primitive(Primitive.F32): return "float"
+    case .Primitive(Primitive.F64): return "double"
+    case .Primitive(Primitive.Bool): return "boolean"
+    case .Struct(name):
+        if name == "Str" { return "TilRuntime.Str" }
+        if name == "Array__Str" { return "TilRuntime.Str[]" }
+    case:
+    }
+    return ""
+}
+
+priv jvm_fail_expr := proc(e: Expr, what: Str, mut state: JvmEmitState,
+    names: Vec(Str)) returns Str {
+        e.error(state.path, format("JVM backend does not support ", what,
+            " (", e.node_type.head_str(names), ")"))
+        state.errors++
+        return ""
+}
+
+priv jvm_decl_type := proc(e: Expr, t: Type, mut state: JvmEmitState,
+    names: Vec(Str)) returns Str {
+        out := jvm_type(t)
+        if out.len() > 0 { return out }
+        mut name := til_type_name(t)
+        if name.len() == 0 { name = "unknown" }
+        return jvm_fail_expr(e, format("type '", name, "'"), state, names)
+}
+
+priv jvm_num_literal := proc(e: Expr, num: LiteralNumData,
+    mut state: JvmEmitState, names: Vec(Str)) returns Str {
+        ref text : Str = num.literal_num_text()
+        switch e.til_type() {
+        case .Primitive(Primitive.I8): return format("(byte) (", text, ")")
+        case .Primitive(Primitive.U8): return format("((", text, ") & 0xff)")
+        case .Primitive(Primitive.I16): return format("(short) (", text, ")")
+        case .Primitive(Primitive.U16): return format("((", text, ") & 0xffff)")
+        case .Primitive(Primitive.I32): return text.clone()
+        case .Primitive(Primitive.U32): return format("(int) (", text, "L)")
+        case .Primitive(Primitive.I64): return format(text, "L")
+        case .Primitive(Primitive.U64):
+            if text.starts_with("0x").or(text.starts_with("0X"))
+                .or(text.starts_with("0b")).or(text.starts_with("0B")) {
+                return format(text, "L")
+            }
+            return format("Long.parseUnsignedLong(\"", text, "\")")
+        case .Primitive(Primitive.F32): return format(text, "f")
+        case .Primitive(Primitive.F64): return format(text, "d")
+        case:
+        }
+        return jvm_fail_expr(e, "untyped numeric literal", state, names)
+}
+
+priv jvm_narrow := func(t: Type, expr: Str) returns Str {
+    switch t {
+    case .Primitive(Primitive.I8): return format("(byte) (", expr, ")")
+    case .Primitive(Primitive.U8): return format("((", expr, ") & 0xff)")
+    case .Primitive(Primitive.I16): return format("(short) (", expr, ")")
+    case .Primitive(Primitive.U16): return format("((", expr, ") & 0xffff)")
+    case .Primitive(Primitive.F32): return format("(float) (", expr, ")")
+    case: return format("(", expr, ")")
+    }
+}
+
+priv jvm_runtime_bound_function := func(name: Str) returns Bool {
+    if name.eq("println").or(name.eq("print")).or(name.eq("eprintln"))
+        .or(name.eq("eprint")).or(name.eq("print_single"))
+        .or(name.eq("eprint_single")).or(name.eq("print_flush"))
+        .or(name.eq("exit")).or(name.eq("Str_clone"))
+        .or(name.eq("Str_delete")).or(name.eq("adopt__Str"))
+        .or(name.eq("usize_to_uptr")) { return true }
+    return name.starts_with("Array__Str_")
+}
+
+priv jvm_function_class := func(name: Str, lp: LoadedProgram) returns Str {
+    for unit : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[unit.path]
+        for stmt : Expr in iu.ast.children {
+            switch stmt.node_type {
+            case .Decl(dd):
+                if dd.name.eq(name) {
+                    if stmt.children.len() > 0 {
+                        if stmt.children[0].node_type.is(NodeType.FuncDef) {
+                            return jvm_unit_class(unit.path)
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    }
+    return ""
+}
+
+priv jvm_find_fdef := func(name: Str, lp: LoadedProgram) returns Option(ref Expr) {
+    for unit : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[unit.path]
+        for stmt : Expr in iu.ast.children {
+            switch stmt.node_type {
+            case .Decl(dd):
+                if dd.name.eq(name) {
+                    if stmt.children.len() > 0 {
+                        if stmt.children[0].node_type.is(NodeType.FuncDef) {
+                            return Option(ref Expr).Some(stmt.children[0])
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    }
+    return Option(ref Expr).None
+}
+
+priv jvm_emit_args := proc(e: Expr, start: USize, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        mut out := ""
+        for i in start..e.children.len() {
+            if i > start { out = format(out, ", ") }
+            arg := jvm_emit_expr(e.children[i], state, lp)
+            out = format(out, arg)
+        }
+        return out
+}
+
+priv jvm_emit_scalar_core := proc(e: Expr, scalar: Str, op: Str,
+    mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+        if op == "clone" {
+            if e.children.len() != 2 { return jvm_fail_expr(e, "malformed scalar clone", state, lp.ctx.symbols.names) }
+            return jvm_emit_expr(e.children[1], state, lp)
+        }
+        if op.eq("inc").or(op.eq("dec")) {
+            return jvm_fail_expr(e, format("address-mutating scalar operation '", op, "' before Stage D refs"), state, lp.ctx.symbols.names)
+        }
+        if op.eq("bnot") {
+            if e.children.len() != 2 { return jvm_fail_expr(e, "malformed scalar bnot", state, lp.ctx.symbols.names) }
+            arg := jvm_emit_expr(e.children[1], state, lp)
+            return jvm_narrow(e.til_type(), format("~(", arg, ")"))
+        }
+        if e.children.len() != 3 {
+            return jvm_fail_expr(e, format("malformed scalar operation '", op, "'"), state, lp.ctx.symbols.names)
+        }
+        left := jvm_emit_expr(e.children[1], state, lp)
+        right := jvm_emit_expr(e.children[2], state, lp)
+        if op.eq("div").or(op.eq("mod")) {
+            return format("TilRuntime.", op, scalar, "(", left, ", ", right, ")")
+        }
+        if op.eq("lt").or(op.eq("gt")).or(op.eq("lte")).or(op.eq("gte")) {
+            mut cmp := ""
+            if scalar == "U32" { cmp = format("Integer.compareUnsigned(", left, ", ", right, ")") }
+            if scalar == "U64" { cmp = format("Long.compareUnsigned(", left, ", ", right, ")") }
+            if cmp.len() > 0 {
+                mut cop := "<"
+                if op == "gt" { cop = ">" }
+                if op == "lte" { cop = "<=" }
+                if op == "gte" { cop = ">=" }
+                return format("(", cmp, " ", cop, " 0)")
+            }
+        }
+        mut java_op := ""
+        switch op {
+        case "add": java_op = "+"
+        case "sub": java_op = "-"
+        case "mul": java_op = "*"
+        case "eq": java_op = "=="
+        case "neq": java_op = "!="
+        case "lt": java_op = "<"
+        case "gt": java_op = ">"
+        case "lte": java_op = "<="
+        case "gte": java_op = ">="
+        case "band": java_op = "&"
+        case "bor": java_op = "|"
+        case "bxor": java_op = "^"
+        case "shl": java_op = "<<"
+        case "shr":
+            java_op = ">>"
+            if scalar.eq("U8").or(scalar.eq("U16")).or(scalar.eq("U32"))
+                .or(scalar.eq("U64")) { java_op = ">>>" }
+        case:
+        }
+        if java_op.len() == 0 {
+            return jvm_fail_expr(e, format("scalar core operation '", scalar, ".", op, "'"), state, lp.ctx.symbols.names)
+        }
+        expr := format(left, " ", java_op, " ", right)
+        if type_is_primitive(e.til_type(), Primitive.Bool) { return format("(", expr, ")") }
+        return jvm_narrow(e.til_type(), expr)
+}
+
+priv jvm_emit_cast := proc(e: Expr, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        if e.children.len() < 3 { return jvm_fail_expr(e, "malformed cast", state, lp.ctx.symbols.names) }
+        target := type_from_name_init_name(ident_of(e.children[2]).ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
+        jt := jvm_type(target)
+        if jt.len() == 0 { return jvm_fail_expr(e, "cast target", state, lp.ctx.symbols.names) }
+        value := jvm_emit_expr(e.children[1], state, lp)
+        return jvm_narrow(target, format("(", jt, ") (", value, ")"))
+}
+
+priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        if name.eq("println").or(name.eq("print")).or(name.eq("eprintln")).or(name.eq("eprint")) {
+            if e.children.len() != 2 { return jvm_fail_expr(e, format("malformed runtime call '", name, "'"), state, lp.ctx.symbols.names) }
+            arg := jvm_emit_expr(e.children[1], state, lp)
+            return format("TilRuntime.", name, "(", arg, ")")
+        }
+        if name.eq("print_single").or(name.eq("eprint_single")) {
+            arg := jvm_emit_expr(e.children[1], state, lp)
+            return format("TilRuntime.", name, "(", arg, ")")
+        }
+        if name == "print_flush" { return "TilRuntime.printFlush()" }
+        if name == "exit" {
+            arg := jvm_emit_expr(e.children[1], state, lp)
+            return format("TilRuntime.exit((int) (", arg, "))")
+        }
+        if name == "not" {
+            arg := jvm_emit_expr(e.children[1], state, lp)
+            return format("(!(", arg, "))")
+        }
+        if name.eq("and").or(name.eq("or")) {
+            left := jvm_emit_expr(e.children[1], state, lp)
+            right := jvm_emit_expr(e.children[2], state, lp)
+            mut op := "&&"
+            if name == "or" { op = "||" }
+            return format("((", left, ") ", op, " (", right, "))")
+        }
+        if name == "cast" { return jvm_emit_cast(e, state, lp) }
+
+        fdef_o := jvm_find_fdef(name, lp)
+        if fdef_o.is_none() { return jvm_fail_expr(e, format("unresolved direct call '", name, "'"), state, lp.ctx.symbols.names) }
+        ref fdef_expr : Expr = fdef_o.unwrap()
+        ref fd : FunctionDef = funcdef_of(fdef_expr)
+        if fd.func_type.is_core().or(fd.func_type.is_ext()) {
+            return jvm_fail_expr(e, format("runtime function '", name, "'"), state, lp.ctx.symbols.names)
+        }
+        cls := jvm_function_class(name, lp)
+        if cls.len() == 0 { return jvm_fail_expr(e, format("function definition '", name, "'"), state, lp.ctx.symbols.names) }
+        args := jvm_emit_args(e, 1, state, lp)
+        return format(cls, ".", jvm_func_name(name), "(", args, ")")
+}
+
+priv jvm_emit_namespace_call := proc(e: Expr, callee: Expr,
+    mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+        if callee.children.len() != 1 {
+            return jvm_fail_expr(e, "non-namespace method call", state, lp.ctx.symbols.names)
+        }
+        mut scalar := ""
+        switch callee.children[0].node_type {
+        case .Ident(id): scalar = id.ident_name(lp.ctx.symbols.names).clone()
+        case: return jvm_fail_expr(e, "non-identifier namespace call", state, lp.ctx.symbols.names)
+        }
+        ref method : Str = fieldaccess_of(callee).field_access_name(lp.ctx.symbols.names)
+        if scalar == "Array__Str" {
+            if method == "new" {
+                cap := jvm_emit_expr(e.children[1], state, lp)
+                return format("TilRuntime.newStrArray(", cap, ")")
+            }
+            if method == "set" {
+                array := jvm_emit_expr(e.children[1], state, lp)
+                index := jvm_emit_expr(e.children[2], state, lp)
+                value := jvm_emit_expr(e.children[3], state, lp)
+                return format("TilRuntime.setStr(", array, ", ", index, ", ", value, ")")
+            }
+        }
+        if method == "to_str" {
+            arg := jvm_emit_expr(e.children[1], state, lp)
+            return format("TilRuntime.str", scalar, "(", arg, ")")
+        }
+        if scalar == "Str" {
+            if method == "eq" {
+                left := jvm_emit_expr(e.children[1], state, lp)
+                right := jvm_emit_expr(e.children[2], state, lp)
+                return format("TilRuntime.strEq(", left, ", ", right, ")")
+            }
+        }
+        flat := format(scalar, "_", method)
+        fdef_o := jvm_find_fdef(flat, lp)
+        if fdef_o.is_some() {
+            ref fdef_expr : Expr = fdef_o.unwrap()
+            ref fd : FunctionDef = funcdef_of(fdef_expr)
+            if fd.func_type.is_core() { return jvm_emit_scalar_core(e, scalar, method, state, lp) }
+            if fd.func_type.is_ext() {
+                return jvm_fail_expr(e, format("runtime function '", flat, "'"), state, lp.ctx.symbols.names)
+            }
+        }
+        return jvm_emit_named_call(e, flat, state, lp)
+}
+
+priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        switch e.node_type {
+        case .Literal(Literal.Str(s)):
+            return format("TilRuntime.str(", jvm_byte_array(s), ")")
+        case .Literal(Literal.Num(num)):
+            return jvm_num_literal(e, num, state, lp.ctx.symbols.names)
+        case .Literal(Literal.Bool(b)):
+            if b { return "true" }
+            return "false"
+        case .Literal(Literal.Null): return "null"
+        case .Ident(id): return jvm_var_name(id.ident_name(lp.ctx.symbols.names))
+        case .FCall:
+            if e.children.len() == 0 { return jvm_fail_expr(e, "empty function call", state, lp.ctx.symbols.names) }
+            ref callee : Expr = e.children[0]
+            switch callee.node_type {
+            case .Ident(id): return jvm_emit_named_call(e, id.ident_name(lp.ctx.symbols.names), state, lp)
+            case .FieldAccess: return jvm_emit_namespace_call(e, callee, state, lp)
+            case: return jvm_fail_expr(e, "indirect function call before Stage F", state, lp.ctx.symbols.names)
+            }
+        case:
+        }
+        return jvm_fail_expr(e, "expression", state, lp.ctx.symbols.names)
+}
+
+priv jvm_source_comment := func(e: Expr, state: JvmEmitState, depth: I32) returns Str {
+    path := state.path.replace("\n", " ")
+    return format(jvm_indent(depth), "// ", path, ":", e.line.to_str(), "\n")
+}
+
+priv jvm_emit_switch := proc(e: Expr, depth: I32, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        ref subject : Expr = e.children[0]
+        switch subject.til_type() {
+        case .Primitive(Primitive.I8):
+        case .Primitive(Primitive.U8):
+        case .Primitive(Primitive.I16):
+        case .Primitive(Primitive.U16):
+        case .Primitive(Primitive.I32):
+        case .Primitive(Primitive.U32):
+        case:
+            return jvm_fail_expr(e, "non-32-bit scalar switch", state, lp.ctx.symbols.names)
+        }
+        subject_java := jvm_emit_expr(subject, state, lp)
+        mut out := format(jvm_source_comment(e, state, depth), jvm_indent(depth),
+            "switch (", subject_java, ") {\n")
+        mut has_default := false
+        for ci in 1..e.children.len() {
+            ref cn : Expr = e.children[ci]
+            pc := case_pattern_count(cn)
+            if cn.children.len() > pc + 1 {
+                jvm_fail_expr(cn, "guarded switch case", state, lp.ctx.symbols.names)
+            }
+            if pc == 0 {
+                has_default = true
+                out = format(out, jvm_indent(depth + 1), "default: {\n")
+            } else {
+                for pi in 0..pc {
+                    pat := jvm_emit_expr(cn.children[pi], state, lp)
+                    out = format(out, jvm_indent(depth + 1), "case ", pat, ":\n")
+                }
+                out = format(out, jvm_indent(depth + 1), "{\n")
+            }
+            ref case_body : Expr = cn.children[cn.children.len() - 1]
+            out = format(out, jvm_emit_body(case_body, depth + 2, state, lp),
+                jvm_indent(depth + 2), "break;\n", jvm_indent(depth + 1), "}\n")
+        }
+        if has_default.not() { out = format(out, jvm_indent(depth + 1), "default: break;\n") }
+        return format(out, jvm_indent(depth), "}\n")
+}
+
+priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        switch e.node_type {
+        case .Decl(dd):
+            if e.children.len() > 0 {
+                if e.children[0].node_type.is(NodeType.FuncDef) { return "" }
+                jt := jvm_decl_type(e, e.til_type(), state, lp.ctx.symbols.names)
+                value := jvm_emit_expr(e.children[0], state, lp)
+                return format(jvm_source_comment(e, state, depth), jvm_indent(depth),
+                    jt, " ", jvm_var_name(dd.name), " = ", value, ";\n")
+            }
+            return jvm_fail_expr(e, format("declaration without initializer '", dd.name, "'"), state, lp.ctx.symbols.names)
+        case .Assign(ad):
+            value := jvm_emit_expr(e.children[0], state, lp)
+            return format(jvm_source_comment(e, state, depth), jvm_indent(depth),
+                jvm_var_name(ad.name), " = ", value, ";\n")
+        case .FCall:
+            call := jvm_emit_expr(e, state, lp)
+            return format(jvm_source_comment(e, state, depth), jvm_indent(depth), call, ";\n")
+        case .Return:
+            if e.children.len() == 0 {
+                return format(jvm_source_comment(e, state, depth), jvm_indent(depth), "return;\n")
+            }
+            value := jvm_emit_expr(e.children[0], state, lp)
+            return format(jvm_source_comment(e, state, depth), jvm_indent(depth), "return ", value, ";\n")
+        case .Body:
+            return format(jvm_source_comment(e, state, depth), jvm_indent(depth), "{\n",
+                jvm_emit_body(e, depth + 1, state, lp), jvm_indent(depth), "}\n")
+        case .If:
+            cond := jvm_emit_expr(e.children[0], state, lp)
+            mut out := format(jvm_source_comment(e, state, depth), jvm_indent(depth),
+                "if (", cond, ") {\n", jvm_emit_body(e.children[1], depth + 1, state, lp),
+                jvm_indent(depth), "}")
+            if e.children.len() > 2 {
+                out = format(out, " else {\n", jvm_emit_body(e.children[2], depth + 1, state, lp),
+                    jvm_indent(depth), "}")
+            }
+            return format(out, "\n")
+        case .While:
+            cond := jvm_emit_expr(e.children[0], state, lp)
+            return format(jvm_source_comment(e, state, depth), jvm_indent(depth),
+                "while (", cond, ") {\n", jvm_emit_body(e.children[1], depth + 1, state, lp),
+                jvm_indent(depth), "}\n")
+        case .Switch: return jvm_emit_switch(e, depth, state, lp)
+        case .Break:
+            return format(jvm_source_comment(e, state, depth), jvm_indent(depth), "break;\n")
+        case .Continue:
+            return format(jvm_source_comment(e, state, depth), jvm_indent(depth), "continue;\n")
+        case:
+        }
+        jvm_fail_expr(e, "statement", state, lp.ctx.symbols.names)
+        return ""
+}
+
+priv jvm_emit_body := proc(body: Expr, depth: I32, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        if body.node_type.is(NodeType.Body).not() {
+            jvm_fail_expr(body, "non-body function/block body", state, lp.ctx.symbols.names)
+            return ""
+        }
+        mut out := ""
+        for stmt : Expr in body.children {
+            out = format(out, jvm_emit_stmt(stmt, depth, state, lp))
+        }
+        return out
+}
+
+priv jvm_emit_function := proc(decl: Expr, depth: I32,
+    mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+        ref dd : Declaration = decl_of(decl)
+        ref fexpr : Expr = decl.children[0]
+        ref fd : FunctionDef = funcdef_of(fexpr)
+        if fd.func_type.is_bodyless().or(jvm_runtime_bound_function(dd.name)) { return "" }
+        if dd.name == "main" { return "" }
+        if fexpr.children.len() != 1 {
+            return jvm_fail_expr(fexpr, format("function body shape for '", dd.name, "'"), state, lp.ctx.symbols.names)
+        }
+        mut ret := "void"
+        if fd.return_type.len() > 0 {
+            rt := type_from_name_init_name(fd.return_type, lp.ctx.scope, lp.ctx.symbols)
+            ret = jvm_decl_type(fexpr, rt, state, lp.ctx.symbols.names)
+        }
+        mut params := ""
+        for i in 0..fd.params.len() {
+            ref param : Declaration = fd.params[i]
+            if i > 0 { params = format(params, ", ") }
+            pt := jvm_type(param.til_type)
+            if pt.len() == 0 {
+                jvm_fail_expr(fexpr, format("parameter type for '", param.name, "'"), state, lp.ctx.symbols.names)
+            }
+            if param.own_type.is(OwnType.Shallow).not().and(is_primitive(param.til_type)) {
+                jvm_fail_expr(fexpr, format("primitive ref/own parameter '", param.name, "' before Stage D"), state, lp.ctx.symbols.names)
+            }
+            params = format(params, pt, " ", jvm_var_name(param.name))
+        }
+        return format(jvm_source_comment(decl, state, depth), jvm_indent(depth),
+            "static ", ret, " ", jvm_func_name(dd.name), "(", params, ") {\n",
+            jvm_emit_body(fexpr.children[0], depth + 1, state, lp),
+            jvm_indent(depth), "}\n\n")
+}
+
+priv jvm_emit_unit := proc(unit: ProgramUnit, package_name: Str,
+    mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+        ref iu : ImportUnit = lp.ctx.imported[unit.path]
+        state.path = unit.path.clone()
+        cls := jvm_unit_class(unit.path)
+        mut body := ""
+        for stmt : Expr in iu.ast.children {
+            switch stmt.node_type {
+            case .Decl:
+                if stmt.children.len() > 0 {
+                    if stmt.children[0].node_type.is(NodeType.FuncDef) {
+                        body = format(body, jvm_emit_function(stmt, 1, state, lp))
+                    }
+                }
+            case:
+            }
+        }
+        return format("package ", package_name, ";\n\n",
+            "import til.runtime.TilRuntime;\n\n",
+            "final class ", cls, " {\n",
+            "    private ", cls, "() {}\n\n", body, "}\n")
+}
+
+priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
+    mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+        ref iu : ImportUnit = lp.ctx.imported[root.path]
+        state.path = root.path.clone()
+        mut top_level := ""
+        mut main_body := ""
+        mut found_main := false
+        for stmt : Expr in iu.ast.children {
+            mut is_func := false
+            switch stmt.node_type {
+            case .Decl(dd):
+                if stmt.children.len() > 0 {
+                    if stmt.children[0].node_type.is(NodeType.FuncDef) {
+                        is_func = true
+                        if dd.name == "main" {
+                            found_main = true
+                            ref fexpr : Expr = stmt.children[0]
+                            ref fd : FunctionDef = funcdef_of(fexpr)
+                            if fd.params.len().gt(0).or(fd.return_type.len().gt(0)) {
+                                jvm_fail_expr(stmt, "main parameters/return value in Stage C", state, lp.ctx.symbols.names)
+                            }
+                            main_body = jvm_emit_body(fexpr.children[0], 2, state, lp)
+                        }
+                    }
+                }
+            case:
+            }
+            if is_func.not() { top_level = format(top_level, jvm_emit_stmt(stmt, 2, state, lp)) }
+        }
+        if found_main.not() { main_body = top_level }
+        return format("package ", package_name, ";\n\n",
+            "import til.runtime.TilRuntime;\n\n",
+            "public final class Main {\n",
+            "    private Main() {}\n\n",
+            "    public static void main(String[] args) {\n",
+            main_body,
+            "    }\n",
+            "}\n")
+}
+
+jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
+    package_dir: Str, source_path: Str, args_path: Str,
+    package_name: Str) returns I32 {
         if lp.cur_mode.is_library {
             println("error: JVM mode lib support is not implemented")
             return 1
         }
+        if lp.link_c_paths.len().gt(0).or(lp.link_flags.len().gt(0))
+            .or(lp.include_flags.len().gt(0)) {
+            println("error: JVM target does not support C link inputs")
+            return 1
+        }
 
-        source := format(
-            "package ", package_name, ";\n\n",
-            "public final class Main {\n",
-            "    private Main() {}\n\n",
-            "    public static void main(String[] args) {\n",
-            "        throw new UnsupportedOperationException(\"til JVM code generation stops at the Stage B skeleton\");\n",
-            "    }\n",
-            "}\n")
-        File.writefile(source_path, source)
-        File.writefile(args_path, format(source_path, "\n"))
+        File.remove_tree(source_dir)
+        File.remove(args_path)
+        if mkdir_p(package_dir) != 0 { panic("failed to create JVM package output dir") }
+
+        compiler_root := lp.ext_c_path.strip_suffix("/src/c/ext.c")
+        runtime_path := format(compiler_root, "/src/jvm/TilRuntime.java")
+        if File.is_file(runtime_path).not() {
+            println(format("error: JVM runtime source is missing: ", runtime_path))
+            return 1
+        }
+
+        mut state := JvmEmitState()
+        mut paths := Vec(Str).new()
+        mut contents := Vec(Str).new()
+        for unit : ProgramUnit in lp.units {
+            unit_path := format(package_dir, "/", jvm_unit_class(unit.path), ".java")
+            paths.push(own unit_path)
+            contents.push(own jvm_emit_unit(unit, package_name, state, lp))
+        }
+        ref root : ProgramUnit = lp.units[lp.units.len() - 1]
+        paths.push(own source_path.clone())
+        contents.push(own jvm_emit_main(root, package_name, state, lp))
+        if state.errors > 0 { return 1 }
+
+        mut args := format(jvm_argfile_quote(runtime_path), "\n")
+        for i in 0..paths.len() {
+            File.writefile(paths[i], contents[i])
+            args = format(args, jvm_argfile_quote(paths[i]), "\n")
+        }
+        File.writefile(args_path, args)
         return 0
 }

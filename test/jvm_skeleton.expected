@@ -1,12 +1,26 @@
-Generated: gen/jvm/hello_script/src/til/generated/p_hello_script/Main.java
+Generated: gen/jvm/hello_script/src/til/generated/p_hello_x5fscript/Main.java
 Generated: gen/jvm/hello_script/sources.args
-package til.generated.p_hello_script;
+package til.generated.p_hello_x5fscript;
+
+import til.runtime.TilRuntime;
 
 public final class Main {
     private Main() {}
 
     public static void main(String[] args) {
-        throw new UnsupportedOperationException("til JVM code generation stops at the Stage B skeleton");
+        // examples/hello_script.til:4
+        int v_p_hoisted_x5f_x5fU32_x5fg7 = (int) (1L);
+        // examples/hello_script.til:4
+        TilRuntime.Str[] v_p__x5fva_x5fArray_x5fg0 = TilRuntime.newStrArray(v_p_hoisted_x5f_x5fU32_x5fg7);
+        // examples/hello_script.til:4
+        long v_p__x5fva_x5fArray_x5fg0_x5fek = 0L;
+        // examples/hello_script.til:4
+        int v_p_hoisted_x5f_x5fU32_x5fg8 = (int) (0L);
+        // examples/hello_script.til:4
+        TilRuntime.Str v_p_hoisted_x5f_x5fStr_x5fg9 = TilRuntime.str(new byte[] {(byte) 0x48, (byte) 0x65, (byte) 0x6c, (byte) 0x6c, (byte) 0x6f, (byte) 0x20, (byte) 0x57, (byte) 0x6f, (byte) 0x72, (byte) 0x6c, (byte) 0x64, (byte) 0x21});
+        // examples/hello_script.til:4
+        TilRuntime.setStr(v_p__x5fva_x5fArray_x5fg0, v_p_hoisted_x5f_x5fU32_x5fg8, v_p_hoisted_x5f_x5fStr_x5fg9);
+        // examples/hello_script.til:4
+        TilRuntime.println(v_p__x5fva_x5fArray_x5fg0);
     }
 }
-gen/jvm/hello_script/src/til/generated/p_hello_script/Main.java

@@ -285,12 +285,12 @@ target. Do not add an undocumented module-entrypoint fallback. The Stage B
 probe must find real ~javac~, ~jar~ and ~java~ tools and prove
 ~javac --release 17~ with a tiny source, not accept ~java -version~ alone.
 
-The human approval gate from the proposed-surface section remains: approve
+The human approved the proposed surface and representation contract before
+Stage B: this includes
 ~Target.Jvm~/~Lang.Java~, ~--target=jvm~, ~src/self/jvm_codegen.til~,
 ~src/jvm/TilRuntime.java~, the ~gen/jvm/<name>/~ source/classes/argfile tree,
 ~bin/<name>.jar~, the JDK 17 PATH tools, the unnamed-module/package decision,
-fixed little-endian raw memory, and the eventual opt-in ~make test_jvm~ before
-Stage B creates any of them.
+fixed little-endian raw memory, and the eventual opt-in ~make test_jvm~.
 
 *** Staged implementation plan
 
@@ -332,7 +332,7 @@ flags. The emitted entry class deliberately throws until Stage C lowers the
 first executable AST subset. The default JDK-free suite passes all 408 tests;
 the opt-in build also compiled and verified the skeleton with Temurin 17.
 
-**** Stage C: Java emitter skeleton and smoke program
+**** Stage C DONE: Java emitter skeleton and smoke program
 
   - Add deterministic Java identifier mangling, keyword handling, UTF-8/string
     escaping, indentation and source-location diagnostics.
@@ -347,6 +347,17 @@ the opt-in build also compiled and verified the skeleton with Temurin 17.
     table. Add Java runtime print/flush/exit and the minimum Str literal path.
   - Acceptance: ~til run --target=jvm examples/hello_script.til~ prints exactly
     the C/interpreter output and ~java -Xverify:all~ accepts the JAR.
+
+Completed 2026-08-19: the JVM emitter now writes byte-safe deterministic Java
+names, one source per loaded unit plus ~Main~, source-location comments, and
+hard diagnostics for every unsupported prepared node. It emits the Stage C
+statement/control-flow/direct-call subset, scalar operations, byte-preserving
+Str literals, and the lowered variadic print path through ~TilRuntime~. The
+~jvm_skeleton~, ~jvm_direct_call_source~, and ~jvm_rejects_aggregate~
+regressions pin output and failure behavior without requiring a JDK. The full
+JDK-free suite passes 417/417; Temurin 17 ~til run --target=jvm~ passes
+~-Xverify:all~ and prints exactly ~Hello World!~, while the CLI/direct-call
+smoke prints ~6~.
 
 **** Stage D: scalar conformance, refs and lowered errors
 

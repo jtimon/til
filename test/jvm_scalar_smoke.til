@@ -1,0 +1,9 @@
+mode cli
+
+show := proc(x: I64) {
+    println(x.to_str())
+}
+
+main := proc() {
+    show(6)
+}
