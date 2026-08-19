@@ -1,0 +1,33 @@
+# priority: low
+# category: cleanups
+** CANCELLED #207 Consider removing Vec.move_from
+
+   *Cancelled*: the premise described an implementation that no longer
+   exists. Commit ~9fd09e6eb~ changed ~Vec.move_from~ from an
+   element-copying realloc/memcpy operation into an O(1) transfer of the
+   source's complete ~data/count/cap~ header. Commit ~d055a71bc~ then made
+   the consumed side explicit through ~own~ and documented the ownership
+   contract in [[file:../../src/core/vec.til][src/core/vec.til]]. ~Vec~ also no longer carries the
+   cloned runtime element-type string mentioned by the original issue.
+
+   Ordinary aggregate assignment is not an equivalent replacement.
+   Assignment currently deep-clones aggregate identifier and field RHSes,
+   then deletes the old destination. Replacing ~move_from~ is memory-safe
+   at the audited sites, but would allocate a new buffer and recursively
+   clone every live ~Expr~ before deleting the source. The current 35
+   calls deliberately transfer rebuilt compiler vectors without that work:
+
+   - 14 in ~desugarer.til~, 9 in ~typer.til~, 4 in ~loader.til~,
+     3 in ~garbager.til~, 2 each in ~constfolder.til~ and
+     ~scavenger.til~, and 1 in ~parser.til~.
+
+   ~Expr.take_children~ is not redundant either. Its 10 callers use it to
+   transfer parsed trees without cloning, and 4 append to an already
+   populated AST (the initer and typer pending queues plus two incremental
+   REPL paths). Assignment at those four sites would delete the existing
+   program rather than append the new children.
+
+   The helpers' current comments state their no-clone transfer and append
+   contracts. Retaining both APIs is therefore the smaller and faster
+   design; removing them would either change behavior or regress compiler
+   allocation costs.

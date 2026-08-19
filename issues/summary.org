@@ -17,7 +17,6 @@
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 *** [[./open/195.org][#195]] Consider removing ~mode test~
-*** [[./open/207.org][#207]] Consider removing Vec.move_from
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
 * Optimizations
 ** Medium
