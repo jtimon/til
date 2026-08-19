@@ -1,0 +1,41 @@
+mode lib
+import("loader")
+import("../std/file")
+
+
+// Stage C replaces this conservative spelling with the complete deterministic
+// Java mangler. The fixed prefix keeps keywords and leading digits harmless.
+jvm_package_segment := func(name: Str) returns Str {
+    mut out := Str.with_capacity(name.len() + 2)
+    out.push_str("p_")
+    for i in 0..name.len() {
+        ref c : I8 = name.get(i)
+        valid := c.gte('a').and(c.lte('z'))
+            .or(c.gte('A').and(c.lte('Z')))
+            .or(c.gte('0').and(c.lte('9')))
+            .or(c.eq('_'))
+        if valid { out.push_str(name.substr(i, 1)) }
+        else { out.push_str("_") }
+    }
+    return out
+}
+
+jvm_codegen_translate := proc(lp: LoadedProgram, source_path: Str,
+    args_path: Str, package_name: Str) returns I32 {
+        if lp.cur_mode.is_library {
+            println("error: JVM mode lib support is not implemented")
+            return 1
+        }
+
+        source := format(
+            "package ", package_name, ";\n\n",
+            "public final class Main {\n",
+            "    private Main() {}\n\n",
+            "    public static void main(String[] args) {\n",
+            "        throw new UnsupportedOperationException(\"til JVM code generation stops at the Stage B skeleton\");\n",
+            "    }\n",
+            "}\n")
+        File.writefile(source_path, source)
+        File.writefile(args_path, format(source_path, "\n"))
+        return 0
+}

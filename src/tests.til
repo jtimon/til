@@ -647,6 +647,22 @@ main := proc(args: ..Str) {
         "proc has no proc/ext_proc calls; should be a func", 1,
         format(til_bin, " interpret test/proc_without_proc_call.til"))
 
+    // #375 Stage B: JVM owns a distinct Java output tree and rejects C-only
+    // flags before loading/preparing the program. None of these tests invokes
+    // a JDK, so the default suite remains JDK-free.
+    add_single(tests, "jvm_skeleton", "build", 0, "test/jvm_skeleton.expected",
+        format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/hello_script/src/til/generated/p_hello_script/Main.java '&&' cat gen/jvm/hello_script/sources.args ')'"))
+    add_count(tests, "jvm_rejects_c_path", "build", "error: -c is not supported with --target=jvm", 1,
+        format(til_bin, " translate --target=jvm -c gen/jvm/nope.java examples/hello_script.til"))
+    add_count(tests, "jvm_rejects_cc", "build", "error: --cc is not supported with --target=jvm", 1,
+        format(til_bin, " build --target=jvm --cc=javac examples/hello_script.til"))
+    add_count(tests, "jvm_rejects_asan", "build", "error: --asan is not supported with --target=jvm", 1,
+        format(til_bin, " build --target=jvm --asan examples/hello_script.til"))
+    add_count(tests, "jvm_rejects_prof", "build", "error: --prof is not supported with --target=jvm", 1,
+        format(til_bin, " build --target=jvm --prof examples/hello_script.til"))
+    add_single(tests, "jvm_target_width", "build", 0, "",
+        format(til_bin, " interpret test/jvm_target.til"))
+
     // Issue #326: the generated C must be honest about liveness. The fixture
     // (test/dead_temps.til, run interpreted + compiled by the `both` entry
     // below) pins the BEHAVIOUR; these three pin the OUTPUT. A compiler temp

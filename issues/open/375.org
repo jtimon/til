@@ -312,7 +312,7 @@ Inspect with ~javap -v~. Record JDK versions, exact generated layout, verifier
 result, output, class/JAR size and diagnostics here. Obtain human approval for
 the proposed surfaces and representation contract before Stage B.
 
-**** Stage B: target and builder dispatch
+**** Stage B DONE: target and builder dispatch
 
   - Append ~Lang.Java~ and ~Target.Jvm~ and cover every target helper.
     ~target_uptr_name(Target.Jvm)~ returns U64; C toolchain/library helpers
@@ -324,6 +324,13 @@ the proposed surfaces and representation contract before Stage B.
     probe names the missing tool and required version; it never falls back to C.
   - Add focused target/path/flag tests. The JVM branch may initially stop after
     generating one skeletal Java entry class.
+
+Completed 2026-08-19: the approved surface is wired through target selection,
+backend-specific output paths, Java source/argfile generation, JDK 17 probing,
+JAR compilation, run/install dispatch, and early rejection of C toolchain
+flags. The emitted entry class deliberately throws until Stage C lowers the
+first executable AST subset. The default JDK-free suite passes all 408 tests;
+the opt-in build also compiled and verified the skeleton with Temurin 17.
 
 **** Stage C: Java emitter skeleton and smoke program
 

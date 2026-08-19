@@ -1,0 +1,12 @@
+Generated: gen/jvm/hello_script/src/til/generated/p_hello_script/Main.java
+Generated: gen/jvm/hello_script/sources.args
+package til.generated.p_hello_script;
+
+public final class Main {
+    private Main() {}
+
+    public static void main(String[] args) {
+        throw new UnsupportedOperationException("til JVM code generation stops at the Stage B skeleton");
+    }
+}
+gen/jvm/hello_script/src/til/generated/p_hello_script/Main.java

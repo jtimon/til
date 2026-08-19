@@ -3,6 +3,7 @@ import("context")
 
 import("loader")
 import("c_codegen")
+import("jvm_codegen")
 import("targets")
 import("../std/sys")
 import("../std/file")
@@ -376,6 +377,61 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     return 0
 }
 
+priv check_jdk17 := proc(root: Str, classes_dir: Str) returns I32 {
+    probe_source := format(root, "/src/TilJdk17Probe.java")
+    probe_class := format(classes_dir, "/TilJdk17Probe.class")
+    probe_jar := format(root, "/jdk17-probe.jar")
+    File.writefile(probe_source, format(
+        "public final class TilJdk17Probe {\n",
+        "    private TilJdk17Probe() {}\n",
+        "    public static void main(String[] args) {}\n",
+        "}\n"))
+
+    mut result := system_cmd(format("javac --release 17 -encoding UTF-8 -g -proc:none -Xlint:all -Werror -d '", classes_dir, "' '", probe_source, "'"))
+    File.remove(probe_source)
+    if result != 0 {
+        println("error: JVM target requires 'javac' with Java 17 --release support")
+        return 1
+    }
+
+    result = system_cmd(format("jar --create --file '", probe_jar, "' -C '", classes_dir, "' TilJdk17Probe.class"))
+    if result != 0 {
+        File.remove(probe_class)
+        println("error: JVM target requires the Java 17 'jar' tool")
+        return 1
+    }
+
+    result = system_cmd(format("java -Xverify:all -cp '", probe_jar, "' TilJdk17Probe"))
+    File.remove(probe_class)
+    File.remove(probe_jar)
+    if result != 0 {
+        println("error: JVM target requires a Java 17 or newer 'java' runtime")
+        return 1
+    }
+    return 0
+}
+
+priv compile_jvm := proc(root: Str, args_path: Str, classes_dir: Str,
+    jar_path: Str, entry_class: Str) returns I32 {
+        File.remove_tree(classes_dir)
+        if mkdir_p(classes_dir) != 0 { panic("failed to create JVM classes output dir") }
+        mut result := check_jdk17(root, classes_dir)
+        if result != 0 { return result }
+
+        result = system_cmd(format("javac --release 17 -encoding UTF-8 -g -proc:none -Xlint:all -Werror -d '", classes_dir, "' @'", args_path, "'"))
+        if result != 0 {
+            println("error: Java compilation failed")
+            return 1
+        }
+        result = system_cmd(format("jar --create --file '", jar_path,
+            "' --main-class '", entry_class, "' -C '", classes_dir, "' ."))
+        if result != 0 {
+            println("error: JAR creation failed")
+            return 1
+        }
+        return 0
+}
+
 priv BuildPaths := struct {
     name := ""
     c_path := ""
@@ -384,6 +440,12 @@ priv BuildPaths := struct {
     h_path := ""
     til_path := ""
     py_path := ""
+    jvm_root := ""
+    jvm_source_path := ""
+    jvm_classes_dir := ""
+    jvm_args_path := ""
+    jvm_package := ""
+    jvm_entry_class := ""
     do_lib := false
 }
 
@@ -402,6 +464,21 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     }
     name := basename.substr(0, name_len)
     paths.name = name.clone()
+
+    if target.is(Target.Jvm) {
+        segment := jvm_package_segment(name)
+        paths.jvm_root = format("gen/jvm/", name)
+        paths.jvm_package = format("til.generated.", segment)
+        paths.jvm_source_path = format(paths.jvm_root,
+            "/src/til/generated/", segment, "/Main.java")
+        paths.jvm_classes_dir = format(paths.jvm_root, "/classes")
+        paths.jvm_args_path = format(paths.jvm_root, "/sources.args")
+        paths.jvm_entry_class = format(paths.jvm_package, ".Main")
+        paths.bin_path = format("bin/", name, ".jar")
+        if custom_bin.len() > 0 { paths.bin_path = custom_bin.clone() }
+        paths.do_lib = lp.cur_mode.is_library
+        return paths
+    }
 
     mut source_ext := ".c"
     if target_lang(target).is(Lang.HolyC) { source_ext = ".HC" }
@@ -422,7 +499,20 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     return paths
 }
 
-priv make_build_dirs := proc(paths: BuildPaths) {
+priv make_build_dirs := proc(paths: BuildPaths, target: Target) {
+    if target.is(Target.Jvm) {
+        src_slash := paths.jvm_source_path.rfind("/")
+        src_dir := paths.jvm_source_path.substr(0, src_slash.to_usize())
+        if mkdir_p(src_dir) != 0 { panic("failed to create JVM source output dir") }
+        if mkdir_p(paths.jvm_classes_dir) != 0 { panic("failed to create JVM classes output dir") }
+        if paths.do_lib.not() {
+            bin_slash := paths.bin_path.rfind("/")
+            mut bin_dir := "bin"
+            if bin_slash > 0 { bin_dir = paths.bin_path.substr(0, bin_slash.to_usize()) }
+            if mkdir_p(bin_dir) != 0 { panic("failed to create JAR output dir") }
+        }
+        return
+    }
     // The .c / _forward.h pair is written for EVERY mode, to c_path and to
     // the fwd_path derived from it, so its directory has to exist whatever
     // the mode is. The library branch used to create only gen/til + gen/lib
@@ -453,14 +543,24 @@ priv make_build_dirs := proc(paths: BuildPaths) {
 }
 
 priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target) returns I32 {
-    if target_lang(target).is(Lang.HolyC) {
+    lang := target_lang(target)
+    if lang.is(Lang.Java) {
+        return jvm_codegen_translate(lp, paths.jvm_source_path,
+            paths.jvm_args_path, paths.jvm_package)
+    }
+    if lang.is(Lang.HolyC) {
         return c_codegen_translate_holyc(lp, paths.c_path)
     }
     return c_codegen_translate_outputs(lp, paths.c_path, paths.fwd_path,
         paths.h_path, paths.til_path, paths.py_path, paths.name, paths.do_lib)
 }
 
-priv print_translate_success := proc(paths: BuildPaths) {
+priv print_translate_success := proc(paths: BuildPaths, target: Target) {
+    if target.is(Target.Jvm) {
+        println(format("Generated: ", paths.jvm_source_path))
+        println(format("Generated: ", paths.jvm_args_path))
+        return
+    }
     println(format("Generated: ", paths.c_path))
     if paths.fwd_path.len() > 0 { println(format("Generated: ", paths.fwd_path)) }
     if paths.do_lib {
@@ -471,7 +571,12 @@ priv print_translate_success := proc(paths: BuildPaths) {
 }
 
 priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
-    if target_lang(target).is(Lang.HolyC) {
+    lang := target_lang(target)
+    if lang.is(Lang.Java) {
+        return compile_jvm(paths.jvm_root, paths.jvm_args_path,
+            paths.jvm_classes_dir, paths.bin_path, paths.jvm_entry_class)
+    }
+    if lang.is(Lang.HolyC) {
         println("error: HolyC output must be compiled and run inside TempleOS; use 'translate --target=templeos'")
         return 1
     }
@@ -487,19 +592,19 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
 
 cmd_translate := proc(mut lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {
     paths := derive_build_paths(lp, "", custom_c, target)
-    make_build_dirs(paths)
+    make_build_dirs(paths, target)
     result := translate_ast(lp, paths, target)
-    if result == 0 { print_translate_success(paths) }
+    if result == 0 { print_translate_success(paths, target) }
     return result
 }
 
 cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    make_build_dirs(paths)
+    make_build_dirs(paths, target)
     mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.eq(0).and(paths.do_lib) {
-        print_translate_success(paths)
+        print_translate_success(paths, target)
         println(format("Generated: gen/lib/lib", paths.name, shared_lib_extension(target)))
         println(format("Generated: gen/lib/lib", paths.name, ".a"))
     }
@@ -620,10 +725,17 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
     }
 
     paths := derive_build_paths(lp, "", "", target)
-    make_build_dirs(paths)
+    make_build_dirs(paths, target)
     mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result != 0 { return result }
+
+    if target.is(Target.Jvm) {
+        jar_dst := format(install_prefix, "/bin/", paths.name, ".jar")
+        result = install_file(paths.bin_path, jar_dst, "install JAR")
+        if result == 0 { print_install_success(jar_dst) }
+        return result
+    }
 
     if paths.do_lib {
         so_dst := format(install_prefix, "/lib/lib", paths.name, shared_lib_extension(target))
@@ -681,20 +793,30 @@ priv asan_child_prefix := proc(asan: Bool) returns Str {
     return ""
 }
 
+priv run_artifact := proc(paths: BuildPaths, user_argv: Vec(Str),
+    target: Target, asan: Bool) returns I32 {
+        mut cmd := ""
+        if target.is(Target.Jvm) {
+            cmd = format("java -Xverify:all -jar '", paths.bin_path, "'")
+        } else {
+            cmd = format(asan_child_prefix(asan), paths.bin_path)
+        }
+        for uarg : Str in user_argv {
+            cmd = cmd.format(" '", uarg, "'")
+        }
+        return system_cmd(cmd)
+}
+
 cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     if lp.cur_mode.is_library {
         panic("cannot run a library -- use translate or build")
     }
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    make_build_dirs(paths)
+    make_build_dirs(paths, target)
     mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result == 0 {
-        mut cmd := format(asan_child_prefix(asan), paths.bin_path)
-        for uarg : Str in user_argv {
-            cmd = cmd.format(" '", uarg, "'")
-        }
-        result = system_cmd(cmd)
+        result = run_artifact(paths, user_argv, target, asan)
     }
     return result
 }
@@ -705,10 +827,13 @@ cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv
 cmd_test_build_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
     paths.do_lib = false
-    make_build_dirs(paths)
+    make_build_dirs(paths, target)
     mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
-    if result == 0 { result = system_cmd(format(asan_child_prefix(asan), paths.bin_path)) }
+    if result == 0 {
+        empty_argv := Vec(Str).new()
+        result = run_artifact(paths, empty_argv, target, asan)
+    }
     return result
 }
 

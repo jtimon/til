@@ -292,7 +292,8 @@ typedef struct Vec__GenericFuncSource Vec__GenericFuncSource;
 enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
-    Lang_TAG_TIL
+    Lang_TAG_TIL,
+    Lang_TAG_Java
 };
 typedef struct Lang Lang;
 enum {
@@ -307,7 +308,8 @@ enum {
     Target_TAG_MacosX64,
     Target_TAG_MacosArm64,
     Target_TAG_Wasm32,
-    Target_TAG_TempleosX86
+    Target_TAG_TempleosX86,
+    Target_TAG_Jvm
 };
 typedef struct Target Target;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
@@ -1131,6 +1133,12 @@ typedef struct priv___src_self_builder_til__BuildPaths {
     Str h_path;
     Str til_path;
     Str py_path;
+    Str jvm_root;
+    Str jvm_source_path;
+    Str jvm_classes_dir;
+    Str jvm_args_path;
+    Str jvm_package;
+    Str jvm_entry_class;
     Bool do_lib;
 } priv___src_self_builder_til__BuildPaths;
 
@@ -1332,8 +1340,10 @@ typedef struct CliArgs {
     Str path;
     Str custom_bin;
     Str custom_c;
+    Bool custom_c_set;
     Str target_str;
     Str cc;
+    Bool cc_set;
     Str install_prefix;
     USize path_idx;
     Bool early_return;

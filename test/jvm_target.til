@@ -1,0 +1,12 @@
+mode cli
+
+import("../src/self/targets")
+
+main := proc() {
+    target := target_from_str("jvm")
+    assert_eq(target_uptr_name(target), "U64")
+    assert_eq(executable_extension(target), ".jar")
+    assert(target_lang(target).is(Lang.Java))
+    // TODO #379: remove this once entrypoint procs may have no proc calls.
+    noop_proc()
+}
