@@ -164,7 +164,9 @@ F64 str_parse_f64(const Str *s);
 F64 F64_clone(const F64 *v);
 
 // U32 comparisons
-I64 U32_cmp(U32 a, U32 b);
+static inline __attribute__((always_inline)) I64 U32_cmp(U32 a, U32 b) {
+    return (a > b) ? 1 : (a < b) ? -1 : 0;
+}
 
 // U32 conversions
 I64 U32_to_i64(U32 a);

@@ -184,6 +184,11 @@ From ~bin/til_prof translate test/maps.til~ on the current compiler (snapshot
 running ~bin/til run examples/profile.til test/maps.til 32~ (the absolute
 numbers drift; the ranking is what matters).
 
+The instrumented build reports conceptual entries for inlined functions, so
+~U32_cmp~ remains in this table even though normal builds force-inline it.
+Callgrind measures the uninstrumented effect: inlining removed 21.6M
+instructions from this workload (2.3176B -> 2.2960B, 0.93%).
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |

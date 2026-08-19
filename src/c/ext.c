@@ -588,9 +588,6 @@ F64 F64_clone(const F64 *v) { return *v; }
 
 // U32 arithmetic
 
-// U32 comparisons
-I64 U32_cmp(U32 a, U32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
-
 // U32 conversions
 I64 U32_to_i64(U32 a) { return (I64)a; }
 I32 U32_to_i32(U32 a) { return (I32)a; }
