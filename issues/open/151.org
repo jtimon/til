@@ -60,7 +60,7 @@
     print to TempleOS HolyC and use a final top-level call as the guest
     entrypoint; do not require ~src/til.til~, mode gui, libffi, or the
     POSIX C runtime.
-  - [ ] Add scalar locals, arithmetic/core_func lowering, direct calls,
+  - [X] Add scalar locals, arithmetic/core_func lowering, direct calls,
     conditionals, and loops, then grow a named TempleOS example corpus one
     passing example at a time.
   - [ ] Add TempleOS-native allocation, strings, collections, filesystem,
@@ -78,7 +78,12 @@
   I64 arithmetic/comparisons, mutation, conditionals, loops, literal output,
   and ~I64.to_str()~ output. TempleOS 5.03 compiled and ran that generated
   file under QEMU TCG and reported ~TILTEST:PASS~. User-defined direct calls
-  remain the unchecked part of this incremental-plan item.
+  were the remaining part of this incremental-plan item.
+
+  The third slice emits ~examples/templeos_calls.til~ with scalar parameters,
+  return values, forward declarations, function definitions, and direct calls.
+  TempleOS 5.03 compiled and ran it under QEMU TCG and reported
+  ~TILTEST:PASS~.
 
 *** QEMU validation
 

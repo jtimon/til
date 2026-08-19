@@ -1,1 +1,1 @@
-error: HolyC codegen: user functions are not supported yet
+error: HolyC codegen: unsupported direct call 'noop_proc'

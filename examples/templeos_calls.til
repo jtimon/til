@@ -1,0 +1,9 @@
+mode script
+
+twice := proc(n: I64) returns I64 {
+    println("Inside twice")
+    return n.mul(2)
+}
+
+result := twice(21)
+println(result.to_str())
