@@ -15,6 +15,23 @@ test_circular_import_funcs_and_types := test() {
     assert_eq(I64, b.from_a(), 8)
 }
 
+// #174: both bodies are in an import cycle and call a method generated for
+// the type declared on the other side. The declaration sweep must finish for
+// the whole graph before either body is typed.
+test_circular_import_generated_methods := test() {
+    a1 := make_a(5)
+    a2 := make_a(5)
+    a3 := make_a(6)
+    b1 := make_b(7)
+    b2 := make_b(7)
+    b3 := make_b(8)
+
+    assert(a_uses_generated_b_eq(b1, b2))
+    assert(a_uses_generated_b_eq(b1, b3).not())
+    assert(b_uses_generated_a_eq(a1, a2))
+    assert(b_uses_generated_a_eq(a1, a3).not())
+}
+
 test_circular_import_template_instantiation := test() {
     ib := make_i64_box(42)
     ref iv : I64 = ib.get()

@@ -7583,9 +7583,8 @@ priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
 // get_binding; the topo-ordered import recursion above guarantees
 // every import's layouts are already done before the parent file's
 // layouts run, and within a file compute_*_layout recurses on
-// nested defs for local forward references. The remaining
-// Enum clone methodgen and the post-init re-registration loops stay in
-// init_declarations_global; enum payload types are explicit.
+// nested defs for local forward references. Enum/interface methodgen
+// already completed in the earlier type_methods_file sweep.
 priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     if ctx.imports_typer_decls_done.has(path) {
         return 0

@@ -10,25 +10,23 @@ type cycle could run before the other side's generated methods existed.
 The original concrete Vec/Str cycle also disappeared when Vec stopped
 storing its element type as a Str.
 
-The typer now completes graph-wide field and declaration sweeps before
-starting its graph-wide body sweep. The implemented version of the old
-two-sweep proposal has three sweeps because unannotated struct fields need
-their own graph-wide inference barrier before layout and method generation.
-Struct layout and clone/delete/eq/cmp/to_str generation run in the
-declaration sweep, so every body sees the generated methods before it is
-typed.
+The typer now completes graph-wide method-preparation, field, and declaration
+sweeps before starting its graph-wide body sweep. The implemented version of
+the old two-sweep proposal has four sweeps: enum/interface methods needed by
+field defaults are prepared first, unannotated struct fields need their own
+inference barrier, then struct layout and field-dependent
+clone/delete/eq/cmp/to_str generation run in the declaration sweep. Every body
+therefore sees the generated methods before it is typed.
 
 Issue #338's ~test_field_type_inferred_from_plain_function_call~ exercises
 the moved struct generation path and covers generated clone, eq, cmp, and
-to_str after field inference; the two-pass full suite also exercises the
-compiler's real cyclic core import graph. Neither is a focused reproduction
-of #174: the struct test is single-file, while the circular-import tests use
-hand-written methods. A direct generated-method-across-circular-import test
-would improve isolation, but the architectural blocker itself is gone.
+to_str after field inference. ~test_circular_import_generated_methods~ is the
+focused #174 regression: each side of an import cycle has a body that calls
+the other side's generated ~eq~, proving declaration generation finishes for
+the graph before either body is checked.
 
-Issue [[./165.org][#165]] moved enum generation to a graph-wide init barrier;
-enum and interface generation still runs before the typer, but neither blocks
-typer-time method generation. Re-analysis also found two additional
+Issue [[./165.org][#165]] moved enum and interface generation into the typer's
+graph-wide method-preparation sweep. Re-analysis also found two additional
 order-sensitive paths inside the field/declaration sweeps, recorded in #165's
 post-mortem. They are separate from the resolved method-body/import-cycle
 failure recorded here.
