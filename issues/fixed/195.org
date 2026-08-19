@@ -1,6 +1,17 @@
 # priority: low
 # category: cleanups
-** OPEN #195 Consider removing ~mode test~
+** FIXED #195 Consider removing ~mode test~
+
+*** Post-mortem
+
+  The issue treated ~mode test~ as syntactic sugar because ~til test~ can
+  discover and run test declarations in any mode. That overlooks the
+  mode's file-kind semantics: ~mode lib~ marks a file as a compilable
+  library, which is not true of dedicated test files. We kept ~mode test~
+  and documented in ~doc/self.org~ that it behaves like ~mode lib~ under
+  ~til test~, while retaining its non-library meaning and automatic test
+  execution for plain ~til interpret~ and ~til build~. No regression test
+  was added because behavior did not change.
 
   Now that ~til test foo.til~ works on any file regardless of mode and
   discovers test() decls inline (issue #51), the dedicated ~mode test~

@@ -275,6 +275,16 @@
   in-suite ~make test~ won't catch this because the helper isn't part
   of the suite.
 
+** Test-mode files
+
+  Keep test files in ~mode test~ rather than changing them to ~mode lib~.
+  ~til test file.til~ discovers and runs test declarations regardless of
+  the file's mode, so under that command ~mode test~ has no behavioral
+  difference from ~mode lib~. The modes still describe different kinds of
+  files, though: ~mode lib~ marks a file as a compilable library, while
+  ~mode test~ marks a test program and makes plain ~til interpret~ and
+  ~til build~ run its tests automatically.
+
 ** Commands
 
   Every one of these also works as ~bin/make <goal>~, which is the same
