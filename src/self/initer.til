@@ -96,13 +96,21 @@ priv struct_field_supports_generated_method := func(fd: Declaration, method: Str
     // eq/to_str of its own, and the template instantiation cannot have one
     // either. Matching on the source spelling because the field carries the
     // APPLICATION (`Option(ref X)`), which no scope lookup resolves.
-    fd_tn := field_inferred_type_name(fd, symbols)
+    if fd.til_type.is(Type.Unknown) { return false }
+    fd_tn := fd.type_name()
     if fd_tn.starts_with("Option(ref ").or(fd_tn.starts_with("Option__ref_")) { return false }
-    type_name := field_inferred_type_name(fd, symbols)
+    type_name := fd.type_name()
     if type_name.len() == 0 { return false }
     resolved := type_from_name_init_name(type_name, scope, symbols)
     if resolved.is_funcptr().or(resolved.is(Type.Body)) { return false }
-    return init_type_supports_generated_method(type_name, method, scope, symbols)
+    if is_primitive(resolved) { return true }
+    if type_name.eq("Str").and(method.eq("to_str")) { return true }
+    if type_name == "Dynamic" { return false }
+    def_o := scope.get_struct(type_name, symbols)
+    if def_o.is_none() { return false }
+    ref def : Expr = def_o.unwrap()
+    if init_ns_has_func(def, method) { return true }
+    return method.eq("eq").and(init_ns_has_func(def, "cmp"))
 }
 
 priv struct_fields_support_generated_method := func(sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
@@ -256,7 +264,7 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
         mut name_part := Expr.new(NodeType.Literal(Literal.Str(format(ts_fname, "="))), line, col)
         fmt_call.add_child(own name_part)
         mut field := make_struct_field_access("self", ts_fname, line, col, symbols)
-        type_name := field_inferred_type_name(fd, symbols)
+        type_name := fd.type_name()
         if type_name == "Str" {
             fmt_call.add_child(own field)
         } else {
@@ -288,7 +296,7 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
     sdd2.push_member(own Declaration(name = "to_str", default_value = Option(Expr).Some(own fdef)))
 }
 
-priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut ctx: Context) {
+gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children[0].node_type.is(NodeType.StructDef).not() { return }
 
@@ -299,6 +307,11 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
 
     ref mut sdef : Expr = stmt.children[0]
     ref mut sdd : StructDef = structdef_of(sdef)
+    // Field-sensitive methodgen runs after the typer's field pass. If field
+    // typing reported an error, do not build bodies from unresolved types.
+    for fd : Declaration in sdd.fields {
+        if fd.til_type.is(Type.Unknown) { return }
+    }
     has_clone := sdd.ns_index.has("clone")
     has_delete := sdd.ns_index.has("delete")
     has_hash := sdd.ns_index.has("hash")
@@ -330,17 +343,14 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
                 mut pass_directly := false
                 if fd.own_type.is(OwnType.Ref) {
                     pass_directly = true
-                } else if fd.own_type.is(OwnType.Own).not().and(type_is_callable_storage(type_from_name_init_name(field_inferred_type_name(fd, ctx.symbols), scope, ctx.symbols))) {
+                } else if fd.own_type.is(OwnType.Own).not().and(type_is_callable_storage(declaration_resolved_type(fd, scope, ctx.symbols))) {
                     pass_directly = true
-                } else if fd.own_type.is(OwnType.Own).not().and(is_pod_type_for_clone(field_inferred_type_name(fd, ctx.symbols), scope, ctx.symbols)) {
+                } else if fd.own_type.is(OwnType.Own).not().and(is_pod_type_for_clone(fd.type_name(), scope, ctx.symbols)) {
                     // POD field: value-copy is the clone, so pass
                     // directly and skip the wasteful `.clone()` wrap.
-                    // Uses field_inferred_type_name so that
-                    // `mut x := 0` (no explicit annotation) also
-                    // benefits -- inference picks I64 from the
-                    // LiteralNum default value.  Own-typed fields are
-                    // excluded: their value-copy aliases the heap
-                    // payload.
+                    // The field declaration already carries the typer's
+                    // resolved type. Own-typed fields are excluded: their
+                    // value-copy aliases the heap payload.
                     pass_directly = true
                 }
 
@@ -414,7 +424,7 @@ priv gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, 
                 // that does real work. An `own` field is a box the delete
                 // really does free.
                 if fd.own_type.is(OwnType.Own).not() {
-                    if init_delete_is_noop(field_inferred_type_name(fd, ctx.symbols), scope, ctx.symbols) { continue }
+                    if init_delete_is_noop(fd.type_name(), scope, ctx.symbols) { continue }
                 }
 
                 mut del_acc := Expr.new(field_access_node(ctx.symbols.intern("delete")), stmt.line, stmt.col)
@@ -1895,29 +1905,6 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
     }
 }
 
-// The type name a call's callee names -- `T(...)` and `T.method(...)` both
-// yield "T". Leaves `ftype` untouched when the callee is neither shape, which
-// is why this sets in place instead of returning: the callers fall back to
-// whatever they had already derived.
-priv set_ftype_from_call_callee := func(call: Expr, mut ftype: Str, symbols: SymbolPool) {
-    if call.children.len() == 0 { return }
-    ref callee : Expr = call.children[0]
-    switch callee.node_type {
-    case .Ident(ft):
-        ftype = Str.clone(ft.ident_name(symbols.names))
-    case .FieldAccess:
-        if callee.children.len() > 0 {
-            ref type_node : Expr = callee.children[0]
-            switch type_node.node_type {
-            case .Ident(ft):
-                ftype = Str.clone(ft.ident_name(symbols.names))
-            case:
-            }
-        }
-    case:
-    }
-}
-
 compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeScope, mut ctx: Context) {
     if ctx.struct_layouts.has(name) { return }
     // Set sentinel so nested recursion into self-referential types
@@ -1944,40 +1931,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                 fsz = UPtr.size()
                 falign = UPtr.size()
 
-                mut ftype := fd.type_name()
-                if ftype.len() == 0 {
-                    if fd.default_value.is_some() {
-                        ref def_val : Expr = fd.default_expr()
-                        def_tname_o := expr_type_name_ref(def_val)
-                        if def_tname_o.is_some() {
-                            ref def_tname : Str = def_tname_o.unwrap()
-                            ftype = def_tname.clone()
-                        } else if def_val.node_type.is(NodeType.FCall) {
-                            set_ftype_from_call_callee(def_val, ftype, ctx.symbols)
-                        } else if def_val.node_type.is(NodeType.FieldAccess) {
-                            if def_val.children.len() > 0 {
-                                ref type_node : Expr = def_val.children[0]
-                                switch type_node.node_type {
-                                case .Ident(ft):
-                                    ftype = Str.clone(ft.ident_name(ctx.symbols.names))
-                                case:
-                                }
-                            }
-                        } else if def_val.node_type.is(NodeType.FieldAccess) {
-                            if def_val.children.len() > 0 {
-                                ref type_node : Expr = def_val.children[0]
-                                switch type_node.node_type {
-                                case .Ident(ft):
-                                    ftype = Str.clone(ft.ident_name(ctx.symbols.names))
-                                case:
-                                }
-                            }
-                        }
-                        if ftype.len() > 0 {
-                            fd.til_type = declaration_type_from_name(ftype)
-                        }
-                    }
-                }
+                ftype := fd.type_name()
                 // #286: classify own-pointer struct/enum fields so the cache-
                 // driven deep free can recurse into them (they are pointers to
                 // separate heap blocks). Exclude primitives (incl. U8 -- a
@@ -2012,44 +1966,6 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
 
             } else {
                 mut ftype := fd.type_name()
-                if ftype.len() == 0 {
-                    if fd.default_value.is_some() {
-                        ref def_val : Expr = fd.default_expr()
-                        if def_val.node_type.is_literal_num() {
-                            // Same rule for a struct field with no explicit
-                            // type: `x := 1.5` is an F32 field, not an I64 one.
-                            ftype = "I64"
-                            switch def_val.node_type {
-                            case .Literal(Literal.Num(fnum)):
-                                if fnum.is_float() { ftype = "F32" }
-                            case:
-                            }
-                        }
-                        else if def_val.node_type.is_literal_str() { ftype = "Str" }
-                        else if def_val.node_type.is_literal_bool() { ftype = "Bool" }
-                        else {
-                            def_tname_o := expr_type_name_ref(def_val)
-                            if def_tname_o.is_some() {
-                                ref def_tname : Str = def_tname_o.unwrap()
-                                ftype = def_tname.clone()
-                            } else if def_val.node_type.is(NodeType.FCall) {
-                                set_ftype_from_call_callee(def_val, ftype, ctx.symbols)
-                            } else if def_val.node_type.is(NodeType.FieldAccess) {
-                                if def_val.children.len() > 0 {
-                                    ref type_node : Expr = def_val.children[0]
-                                    switch type_node.node_type {
-                                    case .Ident(ft):
-                                        ftype = Str.clone(ft.ident_name(ctx.symbols.names))
-                                    case:
-                                    }
-                                }
-                            }
-                        }
-                        if ftype.len() > 0 {
-                            fd.til_type = declaration_type_from_name(ftype)
-                        }
-                    }
-                }
 
                 // #192: USize/UPtr are target-dependent aliases. KEEP the
                 // alias name on fd.til_type so the C emitter spells the
@@ -5220,15 +5136,13 @@ init_declarations_global := func(mut ctx: Context, mut program: Expr, mut scope:
         }
     }
 
-    // Scope-using method generation that still lives here pending
-    // the #174 method-body cycle work: clone+delete for structs,
-    // missing-clone for enums. Layout computation, size methodgen
-    // and cmp/unity methodgen all moved to type_decls_file (the
-    // typer's first sweep) as part of #147 step 3-4 / #174 work.
+    // Interface/default expansion still runs before typing. Struct
+    // clone/delete/eq/cmp/to_str generation moved to type_decls_file so it
+    // can consume field types inferred by the typer. Enum clone generation
+    // remains here because enum payload types are explicit.
     for si : USize in struct_idxs {
         gen_interface_box_fields_for_stmt(program.children[si])
         gen_interface_clone_delete_for_stmt(program.children[si], ctx.symbols)
-        gen_struct_clone_delete_for_stmt(program.children[si], scope, ctx)
         gen_implements_defaults_for_stmt(program.children[si], scope, ctx.symbols)
     }
     for ei : USize in enum_idxs {

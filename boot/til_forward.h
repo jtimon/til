@@ -1717,6 +1717,7 @@ typedef struct Context {
     Set__Str imports_init_seed_done;
     Set__Str imports_init_active;
     Set__Str imports_init_done;
+    Set__Str imports_typer_fields_done;
     Set__Str imports_typer_decls_done;
     Set__Str imports_typer_bodies_done;
     Set__Str type_gen_synths;

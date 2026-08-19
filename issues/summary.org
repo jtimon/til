@@ -11,7 +11,6 @@
 *** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
-*** [[./open/338.org][#338]] Unify type inference: fields use real inference, typer stamps inferred types into the AST
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs

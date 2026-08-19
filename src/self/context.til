@@ -1056,14 +1056,16 @@ Context := struct {
     imports_init_seed_done := Set(Str).new()
     imports_init_active := Set(Str).new()
     imports_init_done := Set(Str).new()
-    // Two-sweep typer (issue #174 / #147 step 3-4 prep). The typer
-    // recursion is split into a decls-first sweep (struct/enum decls,
-    // methodgen, layout) and a bodies sweep (function body
-    // type-checking). The decls sweep produces all method-name
+    // Multi-sweep typer (issue #174 / #338). The typer recursion is split
+    // into field inference, declaration work (methodgen/layout), and body
+    // type-checking. The field sweep stamps every struct field before layout
+    // recursively inspects sibling types. The declaration sweep produces all
+    // method-name
     // bindings before any body type-checks, so the Vec/Str/I64 method
     // cycle that #174 catalogues is broken: bodies in either
-    // direction always see the other's methods. Each sweep has its
-    // own per-file memo Set.
+    // direction always see the other's methods. Each sweep has its own
+    // per-file memo Set.
+    imports_typer_fields_done := Set(Str).new()
     imports_typer_decls_done := Set(Str).new()
     imports_typer_bodies_done := Set(Str).new()
     // Issue #267: deterministic type-gen macro instantiations such as
@@ -2012,72 +2014,6 @@ declaration_resolved_type := func(decl: Declaration, scope: TypeScope, symbols: 
     return decl.til_type.clone()
 }
 
-// The type-application spelling a method call's RECEIVER names, or "":
-// `Vec(Str).new` -> "Vec(Str)", `Map(Str, I64).new` -> "Map(Str, I64)".
-// Only all-Ident applications are rendered; anything else (a nested
-// application, a computed receiver) stays "" and the caller falls back to
-// "type unknown here", which is what every reader assumed before.
-priv type_application_name := func(callee: Expr, symbols: SymbolPool) returns Str {
-    if callee.children.len() == 0 { return "" }
-    ref recv : Expr = callee.children[0]
-    // Already monomorphized by the initer (`Vec__Str.new()`): the
-    // receiver is a bare type name, which is the answer.
-    switch recv.node_type {
-    case .Ident(mn): return Str.clone(mn.ident_name(symbols.names))
-    case:
-    }
-    if recv.node_type.is(NodeType.FCall).not() { return "" }
-    if recv.children.len() < 2 { return "" }
-    mut base := ""
-    switch recv.children[0].node_type {
-    case .Ident(bn): base = Str.clone(bn.ident_name(symbols.names))
-    case: return ""
-    }
-    mut out := base.format("(")
-    for i in 1..recv.children.len() {
-        if i > 1 { out = out.format(", ") }
-        switch recv.children[i].node_type {
-        case .Ident(an): out = out.format(an.ident_name(symbols.names))
-        case: return ""
-        }
-    }
-    return out.format(")")
-}
-
-field_inferred_type_name := func(fd: Declaration, symbols: SymbolPool) returns Str {
-    if fd.til_type.is(Type.Unknown).not() { return fd.type_name() }
-    if fd.default_value.is_none() { return "" }
-    ref def_val : Expr = fd.default_expr()
-    switch def_val.node_type {
-    case .Literal(Literal.Num):  return "I64"
-    case .Literal(Literal.Bool): return "Bool"
-    case .Literal(Literal.Str):  return "Str"
-    case .FCall:
-        if def_val.children.len() == 0 { return "" }
-        switch def_val.children[0].node_type {
-        case .Ident(cn): return Str.clone(cn.ident_name(symbols.names))
-        case .FieldAccess:
-            // A template instance built through its own constructor:
-            // `lines := Vec(Str).new()`. The callee is a FieldAccess
-            // (`Vec(Str).new`) whose RECEIVER is the type application
-            // `Vec(Str)` -- not a bare Ident, so the arm above misses it
-            // and the field looked untyped. That mattered once the
-            // containers grew a to_str: a struct is granted its auto
-            // to_str only when every field's type is KNOWN here, so an
-            // unannotated container field silently disqualified the whole
-            // struct, and `Vec(ThatStruct)` then failed to type-check its
-            // own to_str body ("no namespace function 'to_str'").
-            // Rebuild the application spelling; downstream resolution
-            // already handles it (an explicitly annotated
-            // `lines : Vec(Str) = ...` field always worked).
-            return type_application_name(def_val.children[0], symbols)
-        case:
-        }
-    case:
-    }
-    return ""
-}
-
 // Issue #289: the element type name of an `array(T, ...)` / `vec(T, ...)`
 // pseudo-literal -- the bare type token in child(1) (e.g. `I64` in
 // `array(I64, 1, 2, 3)`, or the synthesized `Array__Str` in
@@ -2148,12 +2084,13 @@ init_delete_is_noop := func(type_name: Str, scope: TypeScope, symbols: SymbolPoo
         for idn_fd : Declaration in idn_sd.fields {
             if idn_fd.own_type.is(OwnType.Ref) { continue }
             if idn_fd.own_type.is(OwnType.Own) { return false }
-            if init_delete_is_noop(field_inferred_type_name(idn_fd, symbols), scope, symbols).not() { return false }
+            if init_delete_is_noop(idn_fd.type_name(), scope, symbols).not() { return false }
         }
         return true
     case .EnumDef(idn_ed):
         for idn_vd : VariantDef in idn_ed.variants {
             if idn_vd.payload_type.len() == 0 { continue }
+            if idn_vd.payload_ref { continue }
             if init_delete_is_noop(idn_vd.payload_type, scope, symbols).not() { return false }
         }
         return true
@@ -2176,13 +2113,14 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope, symbols: SymbolP
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { continue }
-            ftn := field_inferred_type_name(fd, symbols)
+            ftn := fd.type_name()
             if is_pod_type_for_clone(ftn, scope, symbols).not() { return false }
         }
         return true
     case .EnumDef(edd):
         for vd : VariantDef in edd.variants {
             ref pt : Str = vd.payload_type
+            if vd.payload_ref { continue }
             if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope, symbols).not()) { return false }
         }
         return true

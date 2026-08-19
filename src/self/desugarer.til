@@ -1403,7 +1403,7 @@ priv normalize_ctor_type := func(tn: Str) returns Str {
     return tn
 }
 
-// Type name of a struct field, "" if unknown.
+// Type name stamped on a struct field by the typer, "" if typing failed.
 priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) returns Str {
     sdef_o := ctx.scope.get_struct(type_name, ctx.symbols)
     if sdef_o.is_none() { return "" }
@@ -1413,34 +1413,7 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
         fd_o := member_get(sd.fields_index, sd.fields, field_name)
         if fd_o.is_some() {
             ref fd : Declaration = fd_o.unwrap()
-            if fd.til_type.is(Type.Unknown).not() { return fd.type_name() }
-            tn := til_type_name(fd.til_type)
-            if tn.len() > 0 { return tn }
-            // Field declared without an explicit type AND its
-            // til_type hasn't been inferred yet (extend_throwing_func_sigs
-            // runs before infer_body, so init expressions like
-            // `payload_types := Map(I64, Str).new()` haven't been
-            // typed). Guess from the default-value Expr: a bare
-            // ctor FCall like `Map(K, V).new()` or `Vec(T).new()` lets
-            // us read the type off the callee.
-            if fd.default_value.is_none() { return "" }
-            ref dv : Expr = fd.default_expr()
-            if dv.node_type.is(NodeType.FCall).and(dv.children.len().gt(0)) {
-                ref dv_callee : Expr = dv.children[0]
-                switch dv_callee.node_type {
-                case .FieldAccess:
-                    if dv_callee.children.len() > 0 {
-                        switch dv_callee.children[0].node_type {
-                        case .Ident(dv_recv): return Str.clone(dv_recv.ident_name(ctx.symbols.names))
-                        case:
-                        }
-                    }
-                case .Ident(dv_id):
-                    return normalize_ctor_type(dv_id.ident_name(ctx.symbols.names))
-                case:
-                }
-            }
-            return ""
+            return fd.type_name()
         }
     case:
     }

@@ -3928,68 +3928,75 @@ priv interface_method_conforms := func(iface_name: Str, impl_name: Str, iface_fd
     }
 }
 
-priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: Str, mut ctx: Context) {
-    expr.set_til_type(Type.None)
-    mut inner := TypeScope(parent = Option(ref TypeScope).Some(scope), current_type_name = type_name.clone())
+// The first sweep infers only fields that lack an annotation, stamping the
+// type needed by layout and methodgen. The body sweep performs the normal
+// full default-value validation once layout-dependent parameter normalization
+// is available, then rebuilds the same type-local bindings.
+priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_types_only: Bool, mut ctx: Context) {
     switch expr.node_type {
     case .StructDef(tc_sdd):
         mut tcfi : USize = 0
         for mut fd : Declaration in tc_sdd.fields {
             ref tc_fname : Str = tc_sdd.field_name_at(tcfi)
             tcfi = tcfi + 1
-            if fd.redundant_mut {
-                // A mandatory mut field has no default expr to anchor the
-                // error; report it on the type definition node instead.
-                mut rm_at : Option(ref Expr) = Option(ref Expr).Some(expr)
-                if fd.default_value.is_some() { rm_at = Option(ref Expr).Some(fd.default_expr()) }
-                rm_at.unwrap().type_error(format("redundant 'mut' on struct field '", tc_fname, "': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
-            }
-            // Issue #281: a `loc: Str = __LOC__` field default must stay the
-            // Loc sentinel here -- inferring it now would resolve it to this
-            // definition site. It is resolved per-constructor-call by the
-            // default-fill (resolve_default_value) to the CALLER's location.
-            if fd.default_value.is_some()
-                .and(fd.default_expr().node_type.is(NodeType.Loc).not()) {
-                // #341: `kind : Shape = .Nothing` -- same rule as a typed
-                // local, with the field's annotation as the expectation.
-                if fd.til_type.is(Type.Unknown).not() {
-                    qualify_dotted_expr(fd.default_expr(), type_from_name(fd.type_name(), inner, ctx), ctx.symbols)
-                }
-                infer_expr(inner, fd.default_expr(), 0, ctx)
-                check_ref_field_owned_default(tc_fname, fd, inner, ctx)
-            }
-            if fd.til_type.is(Type.Unknown).not() {
-                declared_name := fd.type_name()
-                declared_type := type_from_name(declared_name, inner, ctx)
-                if declared_type.is(Type.Unknown).not() {
-                    if declared_name.eq("USize").or(declared_name.eq("UPtr")).not() {
-                        fd.til_type = declared_type.clone()
-                    }
-                    if fd.default_value.is_some() {
-                        // #321: a 0 default on a Dynamic field is the null
-                        // spelling (a hoisted-literal borrow otherwise).
-                        rewrite_zero_to_null(fd.default_expr(), declared_type, fd.own_type.is(OwnType.Own))
-                        if fd.default_expr().node_type.is_literal_num().and(is_numeric_type(declared_type)) {
-                            fd.default_expr().set_til_type(declared_type)
-                        }
-                        if fd.default_expr().node_type.is_literal_null().not() {
-                            narrow_dynamic(fd.default_expr(), declared_type)
-                        }
-                        // The `__LOC__` sentinel above is deliberately left
-                        // uninferred, so it has no value type to compare.
-                        if fd.default_expr().node_type.is(NodeType.Loc).not() {
-                            check_declared_value_type(fd.default_expr(), tc_fname, fd.default_expr(), declared_type, declared_name, inner, ctx)
-                        }
-                    }
+            if infer_types_only {
+                if fd.til_type.is(Type.Unknown).and(fd.default_value.is_some())
+                    .and(fd.default_expr().node_type.is(NodeType.Loc).not()) {
+                    // Inference can desugar constructors in place. Run it on
+                    // a clone so the source default remains valid for normal
+                    // body-sweep validation and per-call default filling.
+                    mut inference_value := fd.default_expr().clone()
+                    infer_expr(inner, inference_value, 0, ctx)
+                    fd.til_type = inference_value.til_type().clone()
                 }
             } else {
-                if fd.default_value.is_none() {
+                if fd.redundant_mut {
+                    // A mandatory mut field has no default expr to anchor the
+                    // error; report it on the type definition node instead.
+                    mut rm_at : Option(ref Expr) = Option(ref Expr).Some(expr)
+                    if fd.default_value.is_some() { rm_at = Option(ref Expr).Some(fd.default_expr()) }
+                    rm_at.unwrap().type_error(format("redundant 'mut' on struct field '", tc_fname, "': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
+                }
+                // Issue #281: a `loc: Str = __LOC__` field default must stay
+                // the Loc sentinel here. It is resolved per-constructor-call
+                // by resolve_default_value to the caller's location.
+                if fd.default_value.is_some()
+                    .and(fd.default_expr().node_type.is(NodeType.Loc).not()) {
+                    // #341: `kind : Shape = .Nothing` -- same rule as a typed
+                    // local, with the field's annotation as the expectation.
+                    if fd.til_type.is(Type.Unknown).not() {
+                        qualify_dotted_expr(fd.default_expr(), type_from_name(fd.type_name(), inner, ctx), ctx.symbols)
+                    }
+                    infer_expr(inner, fd.default_expr(), 0, ctx)
+                    check_ref_field_owned_default(tc_fname, fd, inner, ctx)
+                }
+                if fd.til_type.is(Type.Unknown).not() {
+                    declared_name := fd.type_name()
+                    declared_type := type_from_name(declared_name, inner, ctx)
+                    if declared_type.is(Type.Unknown).not() {
+                        if declared_name.eq("USize").or(declared_name.eq("UPtr")).not() {
+                            fd.til_type = declared_type.clone()
+                        }
+                        if fd.default_value.is_some() {
+                            // #321: a 0 default on a Dynamic field is the null
+                            // spelling (a hoisted-literal borrow otherwise).
+                            rewrite_zero_to_null(fd.default_expr(), declared_type, fd.own_type.is(OwnType.Own))
+                            if fd.default_expr().node_type.is_literal_num().and(is_numeric_type(declared_type)) {
+                                fd.default_expr().set_til_type(declared_type)
+                            }
+                            if fd.default_expr().node_type.is_literal_null().not() {
+                                narrow_dynamic(fd.default_expr(), declared_type)
+                            }
+                            if fd.default_expr().node_type.is(NodeType.Loc).not() {
+                                check_declared_value_type(fd.default_expr(), tc_fname, fd.default_expr(), declared_type, declared_name, inner, ctx)
+                            }
+                        }
+                    }
+                } else if fd.default_value.is_none() {
                     // #242: no default means there is no expression to infer
                     // the field type from, so an explicit `: Type` is required.
                     // (No default expr to anchor the error; use the def node.)
                     expr.type_error(format("field '", tc_fname, "' has no default value, so it needs an explicit type: '", tc_fname, " : Type'"), ctx)
-                } else if fd.default_value.is_some() {
-                    fd.til_type =fd.default_expr().til_type().clone()
                 }
             }
             field_semantic_type := declaration_resolved_type(fd, inner, ctx.symbols)
@@ -4027,6 +4034,16 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
                 }
             }
         }
+    case:
+    }
+}
+
+priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: Str, mut ctx: Context) {
+    expr.set_til_type(Type.None)
+    mut inner := TypeScope(parent = Option(ref TypeScope).Some(scope), current_type_name = type_name.clone())
+    switch expr.node_type {
+    case .StructDef:
+        type_struct_fields(expr, inner, false, ctx)
     case .EnumDef(tc_edd):
         // Issue #57: see typer_resolve_enum_payload_types.
         typer_resolve_enum_payload_types(tc_edd, inner, ctx)
@@ -7335,25 +7352,24 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     return ctx.errors
 }
 
-// Two-sweep typer driver (#174 / #147 step 3-4 prep). type_file calls
-// type_decls_file first (decls + methodgen + layout, future home of
-// init_declarations_global's scope-using work) and then
-// type_bodies_file (function body type-checking). Both walks are
+// Multi-sweep typer driver (#174 / #338). type_file first infers every
+// struct field, then runs methodgen/layout, then type-checks function bodies.
+// All walks are
 // rstil-style: recurse on imports in source order, then handle this
 // file. The split memo Sets (imports_typer_decls_done /
 // imports_typer_bodies_done) ensure each file is visited at most once
 // per sweep, and the per-file ordering "imports first, then this
 // file" within each sweep matches today's single-sweep behaviour.
 //
-// type_decls_file currently owns layout computation
+// type_decls_file owns layout computation,
 // (compute_struct_layout / compute_enum_layout), the layout-dependent
 // size methodgen (gen_*_size_method_for_stmt), and the scope-free
-// cmp/unity derived-method helpers. Subsequent commits relocate the
-// scope-using methodgen (gen_struct_clone_delete,
-// gen_missing_enum_clone) the same way and eventually retire
-// init_declarations_global's heavy parts entirely.
+// cmp/unity derived-method helpers, and field-sensitive struct methodgen.
+// Enum clone methodgen remains in init because enum payload types are
+// explicit.
 type_file := proc(path: Str, mut ctx: Context) returns I32 {
     mut total : I32 = 0
+    total = total + type_fields_file(path, ctx)
     total = total + type_decls_file(path, ctx)
     total = total + type_bodies_file(path, ctx)
     return total
@@ -7371,10 +7387,13 @@ priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut
         if rhs.node_type.is(NodeType.StructDef) {
             switch stmt.node_type {
             case .Decl(d):
+                mut inner := TypeScope(parent = Option(ref TypeScope).Some(ctx.scope), current_type_name = d.name.clone())
+                type_struct_fields(rhs, inner, true, ctx)
                 compute_struct_layout(d.name, rhs, ctx.scope, ctx)
             case:
             }
             gen_struct_size_method_for_stmt(stmt, ctx)
+            gen_struct_clone_delete_for_stmt(stmt, ctx.scope, ctx)
         } else if rhs.node_type.is(NodeType.EnumDef) {
             switch stmt.node_type {
             case .Decl(d):
@@ -7406,20 +7425,81 @@ type_repl_delta := proc(path: Str, mut program: Expr, mut ctx: Context) returns 
     return total
 }
 
-// First of two typer sweeps: per file, recurse on imports first
+// First typer sweep: infer and stamp all struct fields before recursive layout
+// can inspect a sibling type. This is a distinct graph-wide sweep rather than
+// a per-file pre-loop because compute_struct_layout follows type references
+// outside import order.
+priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
+    if ctx.imports_typer_fields_done.has(path) {
+        return 0
+    }
+    ctx.imports_typer_fields_done.add(own path.clone())
+
+    ref mut iu : ImportUnit = ctx.imported[path]
+    mut total : I32 = 0
+    ast_count : USize = count_ast_imports(iu.ast, ctx.symbols)
+    auto_count : USize = iu.imports.len() - ast_count
+    for i in 0..auto_count {
+        ref dep : Str = iu.imports[i]
+        total = total + type_fields_file(dep, ctx)
+    }
+    mut import_idx : USize = auto_count
+    for stmt : Expr in iu.ast.children {
+        mut is_imp := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            ref imp_stmt : Expr = stmt.children[0]
+            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
+                if imp_stmt.children[1].node_type.is_literal_str() {
+                    switch imp_stmt.children[0].node_type {
+                    case .Ident(id):
+                        if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
+                    case:
+                    }
+                }
+            }
+        } else if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
+            if stmt.children[1].node_type.is_literal_str() {
+                switch stmt.children[0].node_type {
+                case .Ident(id):
+                    if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
+                case:
+                }
+            }
+        }
+        if is_imp {
+            ref dep : Str = iu.imports[import_idx]
+            total = total + type_fields_file(dep, ctx)
+            import_idx++
+        }
+    }
+
+    context_enter_file(ctx, path)
+    for mut stmt : Expr in iu.ast.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        ref mut rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.StructDef).not() { continue }
+        switch stmt.node_type {
+        case .Decl(d):
+            mut inner := TypeScope(parent = Option(ref TypeScope).Some(ctx.scope), current_type_name = d.name.clone())
+            type_struct_fields(rhs, inner, true, ctx)
+        case:
+        }
+    }
+    return total
+}
+
+// Second typer sweep: per file, recurse on imports first
 // (matching the existing rstil-style ordering), then walk top-level
-// decls and do struct/enum layout computation, layout-dependent size
-// methodgen, and the scope-free cmp/unity derived-method helpers.
+// decls, compute struct/enum layouts, synthesize field-sensitive struct
+// methods, and run the scope-free cmp/unity helpers.
 // Layout's nested-type lookups follow scope.get_struct /
 // get_binding; the topo-ordered import recursion above guarantees
 // every import's layouts are already done before the parent file's
 // layouts run, and within a file compute_*_layout recurses on
 // nested defs for local forward references. The remaining
-// scope-using methodgen (gen_struct_clone_delete,
-// gen_missing_enum_clone) and the post-init re-registration loops
-// stay in init_declarations_global for now -- they hit the #174
-// method-body cycle and will migrate once the second sweep takes
-// over function bodies.
+// Enum clone methodgen and the post-init re-registration loops stay in
+// init_declarations_global; enum payload types are explicit.
 priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     if ctx.imports_typer_decls_done.has(path) {
         return 0
@@ -7468,7 +7548,7 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     }
 
     // Per-decl work in source order: compute struct/enum layouts,
-    // synthesize the layout-dependent size method, and run the
+    // synthesize field-sensitive and layout-dependent methods, and run the
     // scope-free cmp/unity derived-method helpers. Layout has to run
     // before gen_*_size_method_for_stmt (which reads ctx.struct_layouts)
     // and before the cmp/unity
@@ -7492,6 +7572,7 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
             case:
             }
             gen_struct_size_method_for_stmt(stmt, ctx)
+            gen_struct_clone_delete_for_stmt(stmt, ctx.scope, ctx)
         } else if rhs.node_type.is(NodeType.EnumDef) {
             switch stmt.node_type {
             case .Decl(d):
@@ -7522,7 +7603,7 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     return total
 }
 
-// Per-file body type-check sweep (the second of two). The recursion
+// Per-file body type-check sweep (the last typer sweep). The recursion
 // here is the same shape as the current single-sweep type_file: walk
 // imports in source order, then type_check_unit. Renamed from
 // type_file to make the two-sweep split explicit.

@@ -1,6 +1,32 @@
 # priority: high
 # category: cleanups
-** OPEN #338 Unify type inference: fields use real inference, typer stamps inferred types into the AST
+** FIXED #338 Unify type inference: fields use real inference, typer stamps inferred types into the AST
+
+*** Post-mortem
+
+The initer and layout pass tried to infer unannotated field types from
+the default expression's syntax before the typer ran.  A plain function
+call was therefore stamped with the function's name instead of its
+return type, and generated-method eligibility could disagree with the
+method bodies the typer later checked.
+
+The typer now has a graph-wide field sweep before layout and method
+generation.  It runs normal expression inference on a clone of every
+unannotated default and stamps the result into ~Declaration.til_type~;
+layout, lifecycle generation, and throw lowering consume that stamped
+type without syntactic fallbacks.  Struct method generation moved from
+the initer into the declaration sweep and requires resolved field types
+and methods actually present in the field type's AST.  Borrowed enum
+payloads are also classified as pointer copies during recursive
+clone/delete analysis.
+
+The declaration consolidation that landed before this fix had already
+made ~Declaration.til_type~ the single AST type slot, so the issue's
+second requested state required no additional representation.  The
+regression is
+~test_field_type_inferred_from_plain_function_call~ in
+~test/structs.til~; it covers field access and generated clone, delete,
+eq, cmp, and to_str for a field defaulted by a plain function call.
 
 Two related problems, both symptoms of type inference not being one
 system:

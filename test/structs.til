@@ -626,6 +626,28 @@ test_field_type_derived_through_new_call := test() {
     assert_eq(Str, o.to_str(), "DerivedFieldOuter(label=x, inner=Inner(7))")
 }
 
+PlainCallInner := struct {
+    label := "seven"
+    n := 7
+}
+
+make_plain_call_inner := func() returns PlainCallInner {
+    return PlainCallInner()
+}
+
+PlainCallOuter := struct {
+    inner := make_plain_call_inner()
+}
+
+test_field_type_inferred_from_plain_function_call := test() {
+    o := PlainCallOuter()
+    assert_eq(I64, o.inner.n, 7)
+    assert_eq(Str, o.to_str(), "PlainCallOuter(inner=PlainCallInner(label=seven, n=7))")
+    c := o.clone()
+    assert(c.eq(o))
+    assert_eq(I64, c.cmp(o), 0)
+}
+
 // --- #340: field init shorthand -------------------------------------
 //
 // In a struct literal a bare identifier that names a field stands for
