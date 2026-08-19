@@ -1,0 +1,6 @@
+mode lib
+
+library_namespace_b_value := func() returns I64 {
+    values := array(I64, 20, 22)
+    return values[0].clone() + values[1].clone()
+}

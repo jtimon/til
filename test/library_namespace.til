@@ -1,0 +1,24 @@
+mode cli
+
+import("../src/std/sys")
+
+main := proc() {
+    Cmd.new("bin/til", "build", "test/library_namespace_a.til").run_checked()
+    Cmd.new("bin/til", "build", "test/library_namespace_b.til").run_checked()
+
+    Cmd.new("cc", "-Werror", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
+        "gen/lib/liblibrary_namespace_a.a", "gen/lib/liblibrary_namespace_b.a",
+        "-lm", "-o", "tmp/library_namespace_static").run_checked()
+    Cmd.new("tmp/library_namespace_static").run_checked()
+
+    Cmd.new("cc", "-Werror", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
+        "-Lgen/lib", "-llibrary_namespace_a", "-llibrary_namespace_b",
+        "-Wl,-rpath,gen/lib", "-lm", "-o", "tmp/library_namespace_shared").run_checked()
+    Cmd.new("tmp/library_namespace_shared").run_checked()
+
+    consumer := Cmd.new("bin/til", "run", "test/library_namespace_consumer.til")
+    consumer.env("LIBRARY_PATH", "gen/lib")
+    consumer.env("LD_LIBRARY_PATH", "gen/lib")
+    consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    consumer.run_checked()
+}

@@ -5651,6 +5651,222 @@ priv builder_global_static_prefix := func(name: Str, ctx: Context) returns Str {
     return "static "
 }
 
+priv c_lib_hex_byte := func(byte: U8) returns Str {
+    digits := "0123456789abcdef"
+    hi := byte.shr(4).band(15).to_usize()
+    lo := byte.band(15).to_usize()
+    return format(digits.substr(hi, 1), digits.substr(lo, 1))
+}
+
+// #90: artifact names are arbitrary path basenames, not C identifiers. Keep
+// alphanumerics readable and escape every other byte (including '_') so the
+// mapping is injective: a-b and a_x2db cannot collapse to one ABI namespace.
+priv c_lib_prefix := func(lib_name: Str) returns Str {
+    mut out := Str.with_capacity(lib_name.len().mul(4) + 6)
+    out.push_str("til_")
+    for i in 0..lib_name.len() {
+        ref c : I8 = lib_name.get(i)
+        alpha := c.gte('a').and(c.lte('z')).or(c.gte('A').and(c.lte('Z')))
+        if alpha.or(c.gte('0').and(c.lte('9'))) {
+            out.push_str(Str.from_byte(c.cast(U8)))
+        } else {
+            out.push_str("_x")
+            out.push_str(c_lib_hex_byte(c.cast(U8)))
+        }
+    }
+    out.push_str("__")
+    return out
+}
+
+priv c_lib_symbol := func(lib_name: Str, name: Str) returns Str {
+    return format(c_lib_prefix(lib_name), name)
+}
+
+priv c_lib_shared_primitive := func(name: Str) returns Bool {
+    return name.eq("I8").or(name.eq("U8")).or(name.eq("I16")).or(name.eq("U16"))
+        .or(name.eq("I32")).or(name.eq("U32")).or(name.eq("I64")).or(name.eq("U64"))
+        .or(name.eq("F32")).or(name.eq("F64")).or(name.eq("Bool"))
+        .or(name.eq("USize")).or(name.eq("UPtr"))
+}
+
+priv c_lib_add_name := func(name: Str, mut names: Vec(Str), mut seen: Set(Str)) {
+    if name.len() == 0 { return }
+    if c_lib_shared_primitive(name) { return }
+    // ext.c supplies this name only for mingw's C runtime; nng calls it by
+    // the standard spelling, so it is an external toolchain boundary.
+    if name.eq("timespec_get") { return }
+    if seen.has(name) { return }
+    seen.add(own name.clone())
+    names.push(own name.clone())
+}
+
+priv c_lib_collect_ast_names := func(lp: LoadedProgram, mut names: Vec(Str), mut seen: Set(Str)) {
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len() == 0 { continue }
+            ref dd : Declaration = decl_of(stmt)
+            ref rhs : Expr = stmt.children[0]
+            switch rhs.node_type {
+            case .FuncDef(fd):
+                // Bodyless ext/core declarations name someone else's C
+                // symbol. Runtime definitions owned by ext.c are recovered
+                // from ext.h below; libc and user link() dependencies stay
+                // deliberately unprefixed.
+                if fd.func_type.is_bodyless().not() {
+                    c_lib_add_name(func_to_c(dd.name), names, seen)
+                } else if rhs.children.len() == 0 {
+                    // A FuncSig is a C typedef, not an external function.
+                    c_lib_add_name(dd.name, names, seen)
+                }
+            case:
+                c_lib_add_name(dd.name, names, seen)
+            }
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                mut ni : USize = 0
+                ref ns : Vec(Declaration) = def_ns_decls(rhs)
+                for _nsd : Declaration in ns {
+                    c_lib_add_name(dd.name.concat3("_", def_ns_name_at(rhs, ni)), names, seen)
+                    ni++
+                }
+            }
+            switch rhs.node_type {
+            case .EnumDef(edd):
+                for vd : VariantDef in edd.variants {
+                    c_lib_add_name(format(dd.name, "_TAG_", vd.name), names, seen)
+                }
+            case:
+            }
+        }
+    }
+}
+
+priv c_header_ident_byte := func(c: I8) returns Bool {
+    return c.gte('a').and(c.lte('z')).or(c.gte('A').and(c.lte('Z')))
+        .or(c.gte('0').and(c.lte('9'))).or(c.eq('_'))
+}
+
+priv c_header_ident_before := func(line: Str, pos: USize) returns Str {
+    mut end := pos
+    while end > 0 {
+        ref c : I8 = line.get(end - 1)
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('*')) { end-- }
+        else { break }
+    }
+    mut start := end
+    while start > 0 {
+        if c_header_ident_byte(line.get(start - 1)).not() { break }
+        start--
+    }
+    if start == end { return "" }
+    return line.substr(start, end - start).clone()
+}
+
+// Collect actual C declarations from the generated forward header and the
+// hand-written runtime header. This catches raw helper families which do not
+// have a source Declaration while keeping local variables and struct fields
+// out of the preprocessor namespace map.
+priv c_lib_collect_header_names := func(content: Str, mut names: Vec(Str), mut seen: Set(Str)) {
+    for raw : Str in content.split("\n") {
+        line := raw.trim()
+        if line.len() == 0 { continue }
+        if line.starts_with("#").or(line.starts_with("//")).or(line.starts_with("/*")) { continue }
+        if line.ends_with(";").not() { continue }
+        paren := line.rfind("(")
+        if paren >= 0 {
+            name := c_header_ident_before(line, paren.to_usize())
+            if name.eq("defined").or(name.eq("__attribute__")) { continue }
+            c_lib_add_name(name, names, seen)
+            continue
+        }
+        if line.starts_with("extern ") {
+            c_lib_add_name(c_header_ident_before(line, line.len() - 1), names, seen)
+        }
+    }
+}
+
+priv c_lib_collect_c_source_names := func(content: Str, mut names: Vec(Str), mut seen: Set(Str)) {
+    mut pending := ""
+    for raw : Str in content.split("\n") {
+        if raw.len() == 0 { continue }
+        line := raw.trim()
+        if pending.len() > 0 {
+            pending = format(pending, " ", line)
+            if line.find("{") >= 0 {
+                paren_pending := pending.find("(")
+                if paren_pending >= 0 {
+                    c_lib_add_name(c_header_ident_before(pending, paren_pending.to_usize()), names, seen)
+                }
+                pending = ""
+            } else if line.ends_with(";") {
+                pending = ""
+            }
+            continue
+        }
+        // An ext.c-owned definition begins at file scope. Indented braces and
+        // declarations are locals; static definitions are intentionally TU-local.
+        ref first : I8 = raw.get(0)
+        if first.eq(' ').or(first.eq('\t')) { continue }
+        if line.starts_with("static ").or(line.starts_with("#")).or(line.starts_with("//")) { continue }
+        if line.find("(") < 0 { continue }
+        if line.find("{") < 0 {
+            if line.ends_with(";").not() { pending = line.clone() }
+            continue
+        }
+        // The first '(' belongs to the function declarator. rfind would land
+        // on a cast/call in a one-line body (`{ return (I16)v; }`) and mistake
+        // the C keyword `return` for the definition's name.
+        paren := line.find("(")
+        if paren < 0 { continue }
+        c_lib_add_name(c_header_ident_before(line, paren.to_usize()), names, seen)
+    }
+}
+
+priv emit_lib_c_name_map := proc(f: File, ctx: Context) {
+    if ctx.builder_lib_c_prefix.len() == 0 { return }
+    for name : Str in ctx.builder_lib_c_names {
+        f.write("#define ").write(name).write(" ").write(ctx.builder_lib_c_prefix).write(name).write("\n")
+    }
+    f.write("\n")
+}
+
+priv emit_lib_c_name_unmap := proc(f: File, ctx: Context) {
+    if ctx.builder_lib_c_prefix.len() == 0 { return }
+    f.write("\n")
+    for name : Str in ctx.builder_lib_c_names {
+        f.write("#undef ").write(name).write("\n")
+    }
+}
+
+priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_name: Str) {
+    mut names := Vec(Str).new()
+    mut seen := Set(Str).new()
+    c_lib_collect_ast_names(lp, names, seen)
+
+    fwd_content := File.readfile(fwd_path)
+    c_lib_collect_header_names(fwd_content, names, seen)
+    ext_h_path := format(lp.ext_c_path.strip_suffix(".c"), ".h")
+    c_lib_collect_header_names(File.readfile(ext_h_path), names, seen)
+    c_lib_collect_c_source_names(File.readfile(lp.ext_c_path), names, seen)
+    // These two bodies are emitted by c_codegen for core ext_proc declarations
+    // rather than defined in ext.c, so neither declaration parser sees them.
+    c_lib_add_name("print_single", names, seen)
+    c_lib_add_name("print_flush", names, seen)
+
+    lp.ctx.builder_lib_c_prefix = c_lib_prefix(lib_name)
+    lp.ctx.builder_lib_c_names = names
+
+    f := File.new(fwd_path, true)
+    f.write("#pragma once\n")
+    emit_lib_c_name_map(f, lp.ctx)
+    if fwd_content.starts_with("#pragma once\n") {
+        f.write(fwd_content.strip_prefix("#pragma once\n"))
+    } else {
+        f.write(fwd_content)
+    }
+}
+
 priv builder_static_prefix := func(ctx: Context) returns Str {
     if ctx.builder_static_ok { return "static " }
     return ""
@@ -6122,40 +6338,120 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     lp.ctx.builder_forward_declared = Set(Str).new()
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
-    f.write("#pragma once\n#include \"ext.h\"\n\n")
+    f.write("#pragma once\n")
+    emit_lib_c_name_map(f, lp.ctx)
+    f.write("#include \"ext.h\"\n\n")
     if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)
     emit_funcsig_typedefs_lp(f, lp)
     emit_header_defs_and_funcs_lp(f, lp)
     emit_header_global_decls_lp(f, lp)
     f.write("#include \"ext.h\"\n\n")
+    emit_lib_c_name_unmap(f, lp.ctx)
     return 0
 }
 
-priv emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns Bool {
-    if fd.func_type.is_bodyless() { return has_ns }
-    if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
+priv binding_type_name := func(name: Str, ctx: Context, lib_name: Str) returns Str {
+    if ctx.type_gen_synths.has(name) { return c_lib_symbol(lib_name, name) }
+    return name.clone()
+}
+
+priv binding_decl_name := func(name: Str, ctx: Context, lib_name: Str) returns Str {
+    if ctx.type_gen_synths.has(name).or(ctx.generic_func_synths.has(name)) {
+        return c_lib_symbol(lib_name, name)
+    }
+    return name.clone()
+}
+
+priv emit_binding_func_decl := proc(f: File, name: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
     mut kw := "ext_func"
     if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "ext_proc" }
-    f.write("    ").write(fdd_name).write(" := ").write(kw).write("(")
+    f.write(name).write(" := ").write(kw).write("(")
     for p in 0..fd.params.len() {
         if p > 0 { f.write(", ") }
         ref param : Declaration = fd.params[p]
         if param.own_type.is(OwnType.Own) { f.write("own ") }
-        f.write(param.name).write(": ").write(param.type_name())
+        pi := p.to_i32()
+        if pi == fd.variadic_index { f.write("..") }
+        if pi == fd.kwargs_index {
+            f.write(param.name).write(": ...")
+        } else {
+            f.write(param.name).write(": ").write(binding_type_name(param.type_name(), ctx, lib_name))
+        }
     }
     f.write(")")
     if fd.return_type.len() > 0 {
         f.write(" returns ")
         if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
         if fd.return_own_type.is(OwnType.Shallow) { f.write("shallow ") }
-        f.write(fd.return_type)
+        f.write(binding_type_name(fd.return_type, ctx, lib_name))
     }
     f.write(" {}\n")
-    return has_ns
 }
 
-priv emit_binding_ns_methods := proc(f: File, def: Expr) {
+priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
+    mut kw := "func"
+    if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "proc" }
+    f.write(indent)
+    f.write(name).write(" := ").write(kw).write("(")
+    for p in 0..fd.params.len() {
+        if p > 0 { f.write(", ") }
+        ref param : Declaration = fd.params[p]
+        if param.own_type.is(OwnType.Own) { f.write("own ") }
+        pi := p.to_i32()
+        if pi == fd.variadic_index { f.write("..") }
+        if pi == fd.kwargs_index {
+            f.write(param.name).write(": ...")
+        } else {
+            f.write(param.name).write(": ").write(binding_type_name(param.type_name(), ctx, lib_name))
+        }
+    }
+    f.write(")")
+    if fd.return_type.len() > 0 {
+        f.write(" returns ")
+        if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
+        // `shallow` is part of an ext declaration's ABI but redundant (and
+        // rejected) on an ordinary wrapper returning a primitive by value.
+        if fd.return_own_type.is(OwnType.Shallow).and(is_scalar_type_name(fd.return_type).not()) {
+            f.write("shallow ")
+        }
+        f.write(binding_type_name(fd.return_type, ctx, lib_name))
+    }
+    f.write(" { ")
+    if fd.return_type.len() > 0 { f.write("return ") }
+    f.write(actual).write("(")
+    for a in 0..fd.params.len() {
+        if a > 0 { f.write(", ") }
+        ref arg : Declaration = fd.params[a]
+        if arg.own_type.is(OwnType.Own) { f.write("own ") }
+        ai := a.to_i32()
+        if ai.eq(fd.variadic_index).or(ai.eq(fd.kwargs_index)) { f.write("..") }
+        f.write(arg.name)
+    }
+    f.write(") }\n")
+}
+
+priv emit_binding_ns_actuals := proc(f: File, owner: Str, def: Expr, ctx: Context, lib_name: Str) {
+    ref ns : Vec(Declaration) = def_ns_decls(def)
+    mut i : USize = 0
+    for nsd : Declaration in ns {
+        cur := i
+        i++
+        if nsd.default_value.is_none() { continue }
+        switch nsd.default_expr().node_type {
+        case .FuncDef(fd):
+            if fd.func_type.is_bodyless() { continue }
+            ref method : Str = def_ns_name_at(def, cur)
+            source_name := owner.concat3("_", method)
+            actual := c_lib_symbol(lib_name, source_name)
+            emit_binding_func_decl(f, actual, fd, ctx, lib_name)
+            f.write("\n")
+        case:
+        }
+    }
+}
+
+priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Context, lib_name: Str) {
     mut has_ns := false
     ref ebi_ns : Vec(Declaration) = def_ns_decls(def)
     mut ebi : USize = 0
@@ -6165,7 +6461,12 @@ priv emit_binding_ns_methods := proc(f: File, def: Expr) {
         if nsd.default_value.is_none() { continue }
         switch nsd.default_expr().node_type {
         case .FuncDef(fd):
-            has_ns = emit_binding_ns_method(f, def_ns_name_at(def, cur_ebi), fd, has_ns)
+            if fd.func_type.is_bodyless() { continue }
+            if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
+            ref method : Str = def_ns_name_at(def, cur_ebi)
+            source_name := owner.concat3("_", method)
+            actual := c_lib_symbol(lib_name, source_name)
+            emit_binding_wrapper(f, "    ", method, actual, fd, ctx, lib_name)
         case:
         }
     }
@@ -6185,7 +6486,9 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
             ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case .StructDef(btb_sdd):
-                f.write(dd.name).write(" := struct {\n")
+                emit_binding_ns_actuals(f, dd.name, rhs, lp.ctx, lib_name)
+                binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
+                f.write(binding_name).write(" := struct {\n")
                 mut btbr : USize = 0
                 for fdd : Declaration in btb_sdd.fields {
                     f.write("    ")
@@ -6195,49 +6498,37 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                     if fdd.is_mut.not() { f.write("const ") }
                     f.write(btb_sdd.field_name_at(btbr))
                     btbr = btbr + 1
-                    if fdd.til_type.is(Type.Unknown).not() { f.write(" : ").write(fdd.type_name()) }
+                    if fdd.til_type.is(Type.Unknown).not() {
+                        f.write(" : ").write(binding_type_name(fdd.type_name(), lp.ctx, lib_name))
+                    }
                     f.write(" := ")
                     if fdd.default_value.is_some() { emit_til_default(f, fdd.til_type) }
                     else { f.write("0") }
                     f.write("\n")
                 }
-                emit_binding_ns_methods(f, rhs)
+                emit_binding_ns_methods(f, dd.name, rhs, lp.ctx, lib_name)
                 f.write("}\n\n")
             case .EnumDef(bind_edd):
-                f.write(dd.name).write(" := enum {\n")
+                emit_binding_ns_actuals(f, dd.name, rhs, lp.ctx, lib_name)
+                binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
+                f.write(binding_name).write(" := enum {\n")
                 for bind_vd : VariantDef in bind_edd.variants {
                     f.write("    ").write(bind_vd.name)
-                    if bind_vd.payload_type.len() > 0 { f.write(": ").write(bind_vd.payload_type) }
+                    if bind_vd.payload_type.len() > 0 {
+                        f.write(": ").write(binding_type_name(bind_vd.payload_type, lp.ctx, lib_name))
+                    }
                     f.write(",\n")
                 }
-                emit_binding_ns_methods(f, rhs)
+                emit_binding_ns_methods(f, dd.name, rhs, lp.ctx, lib_name)
                 f.write("}\n\n")
             case .FuncDef(fd):
                 if fd.func_type.is_bodyless() { continue }
                 if fd.func_type.is(FuncType.Test) { continue }
-                mut kw := "ext_func"
-                if fd.func_type.is(FuncType.Proc) { kw = "ext_proc" }
-                f.write(dd.name).write(" := ").write(kw).write("(")
-                for p in 0..fd.params.len() {
-                    if p > 0 { f.write(", ") }
-                    ref param : Declaration = fd.params[p]
-                    if param.own_type.is(OwnType.Own) { f.write("own ") }
-                    pi := p.to_i32()
-                    if pi == fd.variadic_index { f.write("..") }
-                    if pi == fd.kwargs_index {
-                        f.write(param.name).write(": ...")
-                    } else {
-                        f.write(param.name).write(": ").write(param.type_name())
-                    }
-                }
-                f.write(")")
-                if fd.return_type.len() > 0 {
-                    f.write(" returns ")
-                    if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
-                    if fd.return_own_type.is(OwnType.Shallow) { f.write("shallow ") }
-                    f.write(fd.return_type)
-                }
-                f.write(" {}\n\n")
+                actual_name := c_lib_symbol(lib_name, dd.name)
+                emit_binding_func_decl(f, actual_name, fd, lp.ctx, lib_name)
+                binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
+                emit_binding_wrapper(f, "", binding_name, actual_name, fd, lp.ctx, lib_name)
+                f.write("\n")
             case:
             }
             case:
@@ -6278,6 +6569,10 @@ priv type_name_to_ctypes_return := func(name: Str, is_shallow: Bool) returns Str
     base := type_name_to_ctypes(name)
     if is_shallow { return base }
     return format("ctypes.POINTER(", base, ")")
+}
+
+priv emit_python_lib_symbol := proc(f: File, lib_name: Str, name: Str) {
+    f.write("_lib.").write(c_lib_symbol(lib_name, name))
 }
 
 priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns I32 {
@@ -6434,7 +6729,8 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     switch nsd.default_expr().node_type {
                     case .FuncDef(fd):
                     if fd.func_type.is_bodyless() { continue }
-                    f.write("_lib.").write(dd.name).write("_").write(def_ns_name_at(rhs, cur_pybi))
+                    py_ns_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_pybi))
+                    emit_python_lib_symbol(f, lib_name, py_ns_name)
                     f.write(".argtypes = [")
                     for p in 0..fd.params.len() {
                         if p > 0 { f.write(", ") }
@@ -6445,11 +6741,11 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     f.write("]\n")
                     if fd.return_type.len() > 0 {
                         rs := func_returns_c_value(fd)
-                        f.write("_lib.").write(dd.name).write("_").write(def_ns_name_at(rhs, cur_pybi))
+                        emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = ")
                         f.write(type_name_to_ctypes_return(fd.return_type, rs)).write("\n")
                     } else {
-                        f.write("_lib.").write(dd.name).write("_").write(def_ns_name_at(rhs, cur_pybi))
+                        emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = None\n")
                     }
                     f.write("\n")
@@ -6466,7 +6762,8 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     c_name := func_to_c(dd.name)
 
                     // argtypes
-                    f.write("_lib.").write(c_name).write(".argtypes = [")
+                    emit_python_lib_symbol(f, lib_name, c_name)
+                    f.write(".argtypes = [")
                     for p in 0..fd.params.len() {
                         if p > 0 { f.write(", ") }
                         ref param : Declaration = fd.params[p]
@@ -6483,10 +6780,12 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     // restype
                     if fd.return_type.len() > 0 {
                         rs := func_returns_c_value(fd)
-                        f.write("_lib.").write(c_name).write(".restype = ")
+                        emit_python_lib_symbol(f, lib_name, c_name)
+                        f.write(".restype = ")
                         f.write(type_name_to_ctypes_return(fd.return_type, rs)).write("\n")
                     } else {
-                        f.write("_lib.").write(c_name).write(".restype = None\n")
+                        emit_python_lib_symbol(f, lib_name, c_name)
+                        f.write(".restype = None\n")
                     }
                     f.write("\n")
                 case:
@@ -6518,9 +6817,11 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
 
             // eq
             if has_eq {
-                f.write("_lib.").write(sname).write("_eq.argtypes = [ctypes.POINTER(")
+                emit_python_lib_symbol(f, lib_name, format(sname, "_eq"))
+                f.write(".argtypes = [ctypes.POINTER(")
                 f.write(sname).write("), ctypes.POINTER(").write(sname).write(")]\n")
-                f.write("_lib.").write(sname).write("_eq.restype = ")
+                emit_python_lib_symbol(f, lib_name, format(sname, "_eq"))
+                f.write(".restype = ")
                 f.write(eq_ret).write("\n\n")
             }
 
@@ -6532,30 +6833,30 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
 
                 if hp {
                     // is_Variant
-                    f.write("_lib.").write(sname).write("_is_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_is_", py_vn))
                     f.write(".argtypes = [ctypes.POINTER(").write(sname).write(")]\n")
-                    f.write("_lib.").write(sname).write("_is_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_is_", py_vn))
                     f.write(".restype = ").write(is_ret).write("\n\n")
                 }
 
                 if py_vt.len() > 0 {
                     // Constructor: takes payload, returns POINTER(Enum)
-                    f.write("_lib.").write(sname).write("_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
                     f.write(".argtypes = [")
                     f.write(type_name_to_ctypes_param(py_vt, false)).write("]\n")
-                    f.write("_lib.").write(sname).write("_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
                     f.write(".restype = ctypes.POINTER(").write(sname).write(")\n\n")
                     // get_Variant
-                    f.write("_lib.").write(sname).write("_get_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_get_", py_vn))
                     f.write(".argtypes = [ctypes.POINTER(").write(sname).write(")]\n")
-                    f.write("_lib.").write(sname).write("_get_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_get_", py_vn))
                     f.write(".restype = ")
                     f.write(type_name_to_ctypes_param(py_vt, false)).write("\n\n")
                 } else {
                     // Constructor: no args, returns POINTER(Enum)
-                    f.write("_lib.").write(sname).write("_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
                     f.write(".argtypes = []\n")
-                    f.write("_lib.").write(sname).write("_").write(py_vn)
+                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
                     f.write(".restype = ctypes.POINTER(").write(sname).write(")\n\n")
                 }
             }
@@ -8634,9 +8935,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     f := File.new(c_output_path, true)
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")
+    emit_lib_c_name_map(f, lp.ctx)
 
-    mut is_script := true
-    if mode.decls_only { is_script = false }
+    is_script := is_lib.not().and(mode.decls_only.not())
 
     // #326: the dyn/reflection inventory must be in place before the first
     // gated emission (the forward-declaration block).
@@ -9296,6 +9597,9 @@ c_codegen_translate_holyc := proc(lp: LoadedProgram, output_path: Str) returns I
 c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, do_lib: Bool) returns I32 {
     builder_prepare_emit(lp)
     mut result := build_forward_header_lp(fwd_path, lp)
+    if result.eq(0).and(do_lib) {
+        prepare_lib_c_namespace(lp, fwd_path, lib_name)
+    }
     if result == 0 {
         result = build(lp.cur_mode, lp.run_tests, c_path, lp)
     }

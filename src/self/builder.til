@@ -47,6 +47,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
 
     // Compile library .c to object
     obj_path := format("gen/lib/", lib_name, ".o")
+    fwd_path := forward_header_path(c_path)
     mut cmd := compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -I", ext_dir,
         " -c ", c_path, " -o ", obj_path)
     mut result := system_cmd(cmd)
@@ -57,7 +58,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
 
     // Compile ext.c to object
     ext_obj := "gen/lib/ext.o"
-    cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -I", ext_dir,
+    cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
         " -c ", ext_c_path, " -o ", ext_obj)
     result = system_cmd(cmd)
     if result != 0 {
@@ -69,7 +70,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     mut user_obj := ""
     if uc.len() > 0 {
         user_obj = "gen/lib/user.o"
-        cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -I", ext_dir, ifl,
+        cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -include ", fwd_path, " -I", ext_dir, ifl,
             " -c ", uc, " -o ", user_obj)
         result = system_cmd(cmd)
         if result != 0 {

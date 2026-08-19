@@ -1336,6 +1336,11 @@ Context := struct {
     // -- a consumer can call any exported constructor or `size`, and no
     // walk of THIS program can see that call.
     builder_keep_all_exports := false
+    // #90: a library's generated C identifiers are rewritten through one
+    // deterministic per-library namespace. The forward header owns the map;
+    // the .c emitter and public-header emitter consume this same ordered list.
+    builder_lib_c_prefix := ""
+    builder_lib_c_names := Vec(Str).new()
     // #326: does any emitted statement write a Str THROUGH a pointer? Only
     // those three shapes call TIL_LIT_GUARD, and the pool -- with its
     // `#define` -- is emitted long before any body, so the answer has to

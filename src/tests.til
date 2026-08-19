@@ -569,6 +569,11 @@ main := proc(args: ..Str) {
     // examples/lib/ and the installer kept copying the old path.
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
 
+    // #90: independently generated libraries own separate C namespaces.
+    // The driver checks combined headers, static/shared links, and both Til bindings.
+    add_single(tests, "library_namespace", "build", 0, "",
+        format(TIL, " run test/library_namespace.til"))
+
     // The non-zero half of the value-returning-main contract: `return 7`
     // is process exit status 7 on both backends. The compiled `int main`
     // always did this; the interpreter used to discard the value and

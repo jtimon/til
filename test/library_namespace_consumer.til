@@ -1,0 +1,10 @@
+mode cli
+
+import("../gen/til/library_namespace_a")
+import("../gen/til/library_namespace_b")
+
+main := proc() returns I64 {
+    if library_namespace_a_value() != 21 { return 1 }
+    if library_namespace_b_value() != 42 { return 2 }
+    return 0
+}

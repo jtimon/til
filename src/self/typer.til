@@ -3890,10 +3890,11 @@ priv expr_uses_self_field := proc(e: Expr, field_name: Str, symbols: SymbolPool)
 
 // Walk a struct's namespace decls; for the user-written `delete`
 // (skip auto-generated ones), verify the body references each `own`
-// field that the struct declares. A miss means the field's heap
-// allocation has no path out -- the destructor silently leaks every
-// time it runs. Issued at struct typing time so the error points at
-// the struct declaration.
+// field that the struct declares. Consuming `own self` as a whole is the
+// other valid path: ownership of every field transfers to that callee.
+// Otherwise a miss means the field's heap allocation has no path out --
+// the destructor silently leaks every time it runs. Issued at struct
+// typing time so the error points at the struct declaration.
 priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, mut ctx: Context) {
     switch sdef.node_type {
     case .StructDef(cdsdd):
@@ -3906,6 +3907,7 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, mu
             if cdfd.auto_generated { return }
             if cdnd.default_expr().children.len() == 0 { return }
             ref cdbody : Expr = cdnd.default_expr().children[0]
+            if expr_transfers_own(cdbody, "self", ctx.scope, ctx) { return }
             mut cdfi : USize = 0
             for fd : Declaration in cdsdd.fields {
                 cur_cdfi := cdfi

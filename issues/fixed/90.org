@@ -1,6 +1,19 @@
 # priority: low
 # category: cleanups
-** WIP #90 Til libraries: avoid symbol conflicts between independent libs
+** FIXED #90 Til libraries: avoid symbol conflicts between independent libs
+
+*** Post-mortem
+
+Library output reused unqualified generated, generic, and runtime C names,
+and its generated Til bindings repeated synthesized generic type names. Each
+library now derives an injective C namespace from its artifact name and uses
+the existing forward header as the namespace map for generated C, ~ext.c~,
+declared ~link_c~ definitions, public headers, and language bindings. Library
+output also uses its constructor initializer instead of emitting ~main~.
+
+~test/library_namespace.til~ builds two libraries with the same ~Array(I64)~
+and ~Vec(I64)~ instantiations, then compiles and runs combined-header static
+and shared C consumers and a Til consumer importing both generated bindings.
 
 When two til libraries are linked into the same C program, they both
 define core, generated specialization, and C runtime symbols. This matters

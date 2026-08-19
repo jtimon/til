@@ -1784,6 +1784,8 @@ typedef struct Context {
     Bool builder_static_ok;
     Bool param_value_abi_ok;
     Bool builder_keep_all_exports;
+    Str builder_lib_c_prefix;
+    Vec__Str builder_lib_c_names;
     Bool builder_lit_guard_used;
     Bool builder_cstr_used;
     Bool builder_closure_rt_used;

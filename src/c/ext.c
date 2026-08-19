@@ -1,4 +1,6 @@
+#ifndef TIL_LIBRARY_BUILD
 #include "../../boot/til_forward.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +75,7 @@ static Str *ext_str_clone_box(const Str *val) {
     return out;
 }
 
+#undef Str_clone
 #define Str_clone ext_str_clone_box
 
 static void stdio_capture_fail(const char *op) {
