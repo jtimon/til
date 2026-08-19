@@ -18,6 +18,10 @@ clone; the original default still goes through strict method lookup in the
 body sweep. An ineligible method therefore remains an error rather than
 becoming a fallback.
 
+Subsequent #380 work removed the remaining dependency on whether the method
+receiver's fields had already been inferred. Follow-up [[./381.org][#381]]
+deduplicated the ineligible-method diagnostic.
+
 Regressions: ~test_generated_methods_ignore_struct_order~ and
 ~test_field_default_calls_generated_method~ in ~test/structs.til~. The
 ~BadGeneratedDefault~ fixture in ~test/typer_errors.til~ pins strict rejection.

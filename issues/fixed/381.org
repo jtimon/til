@@ -1,0 +1,21 @@
+# priority: high
+# category: bugs
+** FIXED #381 Deduplicate generated method default diagnostics
+
+*** Post-mortem
+
+The latest #380 follow-up already made field inference independent of target
+declaration order by exposing every generated method name's fixed return type
+on the disposable inference clone. One error cascade remained: when strict
+body-sweep lookup rejected an actually ineligible method, field validation
+then compared its Unknown result with the provisionally inferred field type
+and emitted a secondary type-mismatch diagnostic.
+
+Body-sweep field validation now skips that secondary comparison when expression
+inference already reported an error, leaving strict method lookup as the one
+focused diagnostic.
+
+Regression: the ~BadGeneratedDefault~ fixture still rejects ~NoCmp.to_str~,
+while the exact typer-error count drops from latest master's 230 to 228: two
+field defaults exercised the same secondary-comparison path.
+~make clean && make test~ passes 419/419 after the rebase.

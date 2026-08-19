@@ -65,7 +65,7 @@ Two modules sit underneath every phase below:
 - The typer runs four coordinated graph-wide sweeps over the reachable
   `ImportUnit`s. The method-preparation sweep normalizes enum payload aliases
   and generates enum/interface methods needed by field defaults. The field
-  sweep infers unannotated struct fields; eligible ordinary generated methods
+  sweep infers unannotated struct fields; ordinary generated method names
   expose only their fixed return signature on this disposable inference clone.
   The declaration sweep computes struct/enum layouts and generates struct
   clone/delete/hash/eq/cmp/to_str plus size/cmp/unity-derived methods. Only

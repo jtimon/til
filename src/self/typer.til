@@ -1802,14 +1802,13 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
     return bits.band(callee_bit).bor(bits.band(callee_bit.bnot()).shl(1))
 }
 
-// Issue #380: the field sweep infers on a clone only to stamp the field type;
-// the original default is inferred and validated again in the body sweep.
-// Ordinary struct methods cannot be materialized until every field type is
-// settled, so expose their fixed return signatures during the provisional
-// inference instead of producing a declaration-order error. Do not inspect
-// field capabilities here: a later declaration's fields may not be settled
-// yet. If the method is not actually generated, strict lookup on the original
-// expression reports it before codegen.
+// Issues #380/#381: the field sweep infers on a clone only to stamp the field
+// type; the original default is inferred and validated again in the body
+// sweep. Ordinary struct methods cannot be materialized until every field
+// type is settled, but every generated method NAME has a fixed return type.
+// Expose that signature on the disposable clone regardless of current
+// eligibility. If the method is not actually generated, strict lookup on the
+// original expression reports it once before codegen.
 priv infer_provisional_generated_method := func(method: Str, receiver: Expr, mut call: Expr, mut scope: TypeScope, mut ctx: Context) returns Bool {
     switch method {
     case "clone":
@@ -3975,6 +3974,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
         for mut fd : Declaration in tc_sdd.fields {
             ref tc_fname : Str = tc_sdd.field_name_at(tcfi)
             tcfi = tcfi + 1
+            mut default_inference_failed := false
             if infer_types_only {
                 if fd.til_type.is(Type.Unknown).and(fd.default_value.is_some())
                     .and(fd.default_expr().node_type.is(NodeType.Loc).not()) {
@@ -4006,7 +4006,9 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                     if fd.til_type.is(Type.Unknown).not() {
                         qualify_dotted_expr(fd.default_expr(), type_from_name(fd.type_name(), inner, ctx), ctx.symbols)
                     }
+                    errors_before_default := ctx.errors
                     infer_expr(inner, fd.default_expr(), 0, ctx)
+                    default_inference_failed = ctx.errors > errors_before_default
                     check_ref_field_owned_default(tc_fname, fd, inner, ctx)
                 }
                 if fd.til_type.is(Type.Unknown).not() {
@@ -4026,7 +4028,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                             if fd.default_expr().node_type.is_literal_null().not() {
                                 narrow_dynamic(fd.default_expr(), declared_type)
                             }
-                            if fd.default_expr().node_type.is(NodeType.Loc).not() {
+                            if fd.default_expr().node_type.is(NodeType.Loc).not().and(default_inference_failed.not()) {
                                 check_declared_value_type(fd.default_expr(), tc_fname, fd.default_expr(), declared_type, declared_name, inner, ctx)
                             }
                         }

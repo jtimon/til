@@ -128,7 +128,7 @@ priv struct_field_supports_generated_method := func(fd: Declaration, method: Str
     return false
 }
 
-struct_fields_support_generated_method := func(sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+priv struct_fields_support_generated_method := func(sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
     for fd : Declaration in sdd.fields {
         if struct_field_supports_generated_method(fd, method, scope, symbols).not() { return false }
     }
