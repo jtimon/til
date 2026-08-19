@@ -1,16 +1,6 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-b0fa1b9c4
+#+SUBTITLE: til 0.0.1-6b8af1922
 #+OPTIONS: toc:t
-
-* struct_fields_support_generated_method
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.initer.struct_fields_support_generated_method
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func struct_fields_support_generated_method(sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
-#+end_src
 
 * gen_struct_clone_delete_for_stmt
 :PROPERTIES:

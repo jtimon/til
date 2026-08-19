@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-b0fa1b9c4
+#+SUBTITLE: til 0.0.1-6b8af1922
 #+OPTIONS: toc:t
 
 * Core
@@ -2616,6 +2616,29 @@ namespace:
 }
 #+end_src
 
+** [[file:src/core/ast.org::#til.src.core.ast.PrecomputedSequenceData][PrecomputedSequenceData]]
+#+begin_src til
+struct PrecomputedSequenceData {
+    mut til_type : Type
+    mut element_type : Type
+    mut capacity : USize
+    mut ordinal : USize
+namespace:
+    func eq(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func to_str(_self: PrecomputedSequenceData) returns Str
+    func size() returns shallow USize
+    func clone(self: PrecomputedSequenceData) returns PrecomputedSequenceData
+    func delete(own self: PrecomputedSequenceData, shallow call_free: Bool)
+    func hash(self: PrecomputedSequenceData, hasher: HashFn) returns shallow U64
+    func cmp(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow I64
+    func lt(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func gt(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func neq(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func lte(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func gte(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+}
+#+end_src
+
 ** [[file:src/core/ast.org::#til.src.core.ast.TYPE_NONE][TYPE_NONE]]
 #+begin_src til
 TYPE_NONE is a Type
@@ -2718,6 +2741,7 @@ enum NodeType {
     Loc
     BodyValue: CaptureBlockData
     ListPattern
+    PrecomputedSequence: PrecomputedSequenceData
 namespace:
     func is_literal_str(self: NodeType) returns shallow Bool
     func is_literal_num(self: NodeType) returns shallow Bool
@@ -2756,6 +2780,7 @@ namespace:
     ext_func Loc() returns NodeType
     ext_func BodyValue(own val: CaptureBlockData) returns NodeType
     ext_func ListPattern() returns NodeType
+    ext_func PrecomputedSequence(own val: PrecomputedSequenceData) returns NodeType
     core_func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)
@@ -6774,6 +6799,8 @@ struct Context {
     mut builder_static_ok : Bool
     mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
+    mut builder_lib_c_prefix : Str
+    mut builder_lib_c_names : Vec__Str
     mut builder_lit_guard_used : Bool
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
@@ -9767,11 +9794,6 @@ func Option__ref_Mode.unwrap(self: Option__ref_Mode) returns ref Mode
 func Option__ref_Mode.take(own self: Option__ref_Mode) returns ref Mode
 #+end_src
 
-** [[file:src/self/initer.org::#til.src.self.initer.struct_fields_support_generated_method][struct_fields_support_generated_method]]
-#+begin_src til
-func struct_fields_support_generated_method(sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
-#+end_src
-
 ** [[file:src/self/initer.org::#til.src.self.initer.gen_struct_clone_delete_for_stmt][gen_struct_clone_delete_for_stmt]]
 #+begin_src til
 func gen_struct_clone_delete_for_stmt(mut stmt: Expr, scope: TypeScope, mut ctx: Context)
@@ -11265,7 +11287,6 @@ func forward_header_path(path: Str) returns Str
 #+begin_src til
 struct ProgramUnit {
     mut path : Str
-    mut mode : Mode
 namespace:
     func size() returns shallow USize
     func clone(self: ProgramUnit) returns ProgramUnit
@@ -12994,11 +13015,6 @@ proc build_forward_header_lp(fwd_path: Str, mut lp: LoadedProgram) returns shall
 proc builder_prepare_emit(mut lp: LoadedProgram)
 #+end_src
 
-** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.c_codegen_translate_holyc][c_codegen_translate_holyc]]
-#+begin_src til
-proc c_codegen_translate_holyc(lp: LoadedProgram, output_path: Str) returns shallow I32
-#+end_src
-
 ** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.c_codegen_translate_outputs][c_codegen_translate_outputs]]
 #+begin_src til
 proc c_codegen_translate_outputs(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, shallow do_lib: Bool) returns shallow I32
@@ -13022,6 +13038,56 @@ Vec__DynCallInfo is a None
 ** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Vec__CollectionInfo][Vec__CollectionInfo]]
 #+begin_src til
 Vec__CollectionInfo is a None
+#+end_src
+
+** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Set__USize][Set__USize]]
+#+begin_src til
+struct Set__USize {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Set__USize
+    func with_capacity(shallow n: USize) returns Set__USize
+    func len(self: Set__USize) returns shallow USize
+    func clear(mut self: Set__USize)
+    func has(self: Set__USize, shallow val: USize) returns shallow Bool
+    func add(mut self: Set__USize, own val: USize)
+    func remove(mut self: Set__USize, shallow val: USize) returns shallow Bool
+    func delete(own self: Set__USize, shallow call_free: Bool)
+    func clone(self: Set__USize) returns Set__USize
+    func size() returns shallow USize
+}
+#+end_src
+
+** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Set__USize.new][Set__USize.new]]
+#+begin_src til
+func Set__USize.new() returns Set__USize
+#+end_src
+
+** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Set__USize.with_capacity][Set__USize.with_capacity]]
+#+begin_src til
+func Set__USize.with_capacity(shallow n: USize) returns Set__USize
+#+end_src
+
+** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Set__USize.clear][Set__USize.clear]]
+#+begin_src til
+func Set__USize.clear(mut self: Set__USize)
+#+end_src
+
+** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Set__USize.has][Set__USize.has]]
+#+begin_src til
+func Set__USize.has(self: Set__USize, shallow val: USize) returns shallow Bool
+#+end_src
+
+** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Set__USize.add][Set__USize.add]]
+#+begin_src til
+func Set__USize.add(mut self: Set__USize, own val: USize)
+#+end_src
+
+** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Set__USize.remove][Set__USize.remove]]
+#+begin_src til
+func Set__USize.remove(mut self: Set__USize, shallow val: USize) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo][Vec__priv___src_self_c_codegen_til__CollectionInfo]]
@@ -15426,6 +15492,11 @@ ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut
 #+end_src
 
 * Ungrouped
+
+** [[file:src/self/holyc_codegen.org::#til.src.self.holyc_codegen.holyc_codegen_translate][holyc_codegen_translate]]
+#+begin_src til
+proc holyc_codegen_translate(lp: LoadedProgram, output_path: Str) returns shallow I32
+#+end_src
 
 ** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.jvm_package_segment][jvm_package_segment]]
 #+begin_src til

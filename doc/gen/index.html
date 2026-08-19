@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-6b8af1922</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -76,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -2395,6 +2396,28 @@ namespace:
 }
 </code></pre>
 </li>
+<li><a href="src/core/ast.html#til.src.core.ast.PrecomputedSequenceData">PrecomputedSequenceData</a>
+<pre><code class="language-til">struct {
+    mut til_type : Type
+    mut element_type : Type
+    mut capacity : USize
+    mut ordinal : USize
+namespace:
+    func eq(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func to_str(_self: PrecomputedSequenceData) returns Str
+    func size() returns shallow USize
+    func clone(self: PrecomputedSequenceData) returns PrecomputedSequenceData
+    func delete(own self: PrecomputedSequenceData, shallow call_free: Bool)
+    func hash(self: PrecomputedSequenceData, hasher: HashFn) returns shallow U64
+    func cmp(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow I64
+    func lt(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func gt(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func neq(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func lte(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+    func gte(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
+}
+</code></pre>
+</li>
 <li><a href="src/core/ast.html#til.src.core.ast.TYPE_NONE">TYPE_NONE</a>
 <pre><code class="language-til"> is a Type
 </code></pre>
@@ -2482,6 +2505,7 @@ namespace:
     Loc
     BodyValue: CaptureBlockData
     ListPattern
+    PrecomputedSequence: PrecomputedSequenceData
 namespace:
     func is_literal_str(self: NodeType) returns shallow Bool
     func is_literal_num(self: NodeType) returns shallow Bool
@@ -2520,6 +2544,7 @@ namespace:
     ext_func Loc() returns NodeType
     ext_func BodyValue(own val: CaptureBlockData) returns NodeType
     ext_func ListPattern() returns NodeType
+    ext_func PrecomputedSequence(own val: PrecomputedSequenceData) returns NodeType
     core_func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)
@@ -5971,6 +5996,8 @@ namespace:
     mut builder_static_ok : Bool
     mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
+    mut builder_lib_c_prefix : Str
+    mut builder_lib_c_names : Vec__Str
     mut builder_lit_guard_used : Bool
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
@@ -8496,10 +8523,6 @@ namespace:
 <pre><code class="language-til">func (own self: Option__ref_Mode) returns ref Mode
 </code></pre>
 </li>
-<li><a href="src/self/initer.html#til.src.self.initer.struct_fields_support_generated_method">struct_fields_support_generated_method</a>
-<pre><code class="language-til">func (sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
-</code></pre>
-</li>
 <li><a href="src/self/initer.html#til.src.self.initer.gen_struct_clone_delete_for_stmt">gen_struct_clone_delete_for_stmt</a>
 <pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, mut ctx: Context)
 </code></pre>
@@ -9735,7 +9758,6 @@ namespace:
 <li><a href="src/self/loader.html#til.src.self.loader.ProgramUnit">ProgramUnit</a>
 <pre><code class="language-til">struct {
     mut path : Str
-    mut mode : Mode
 namespace:
     func size() returns shallow USize
     func clone(self: ProgramUnit) returns ProgramUnit
@@ -11202,10 +11224,6 @@ namespace:
 <pre><code class="language-til">proc (mut lp: LoadedProgram)
 </code></pre>
 </li>
-<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.c_codegen_translate_holyc">c_codegen_translate_holyc</a>
-<pre><code class="language-til">proc (lp: LoadedProgram, output_path: Str) returns shallow I32
-</code></pre>
-</li>
 <li><a href="src/self/c_codegen.html#til.src.self.c_codegen.c_codegen_translate_outputs">c_codegen_translate_outputs</a>
 <pre><code class="language-til">proc (mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, shallow do_lib: Bool) returns shallow I32
 </code></pre>
@@ -11224,6 +11242,49 @@ namespace:
 </li>
 <li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Vec__CollectionInfo">Vec__CollectionInfo</a>
 <pre><code class="language-til"> is a None
+</code></pre>
+</li>
+<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Set__USize">Set__USize</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Set__USize
+    func with_capacity(shallow n: USize) returns Set__USize
+    func len(self: Set__USize) returns shallow USize
+    func clear(mut self: Set__USize)
+    func has(self: Set__USize, shallow val: USize) returns shallow Bool
+    func add(mut self: Set__USize, own val: USize)
+    func remove(mut self: Set__USize, shallow val: USize) returns shallow Bool
+    func delete(own self: Set__USize, shallow call_free: Bool)
+    func clone(self: Set__USize) returns Set__USize
+    func size() returns shallow USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Set__USize.new">Set__USize.new</a>
+<pre><code class="language-til">func () returns Set__USize
+</code></pre>
+</li>
+<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Set__USize.with_capacity">Set__USize.with_capacity</a>
+<pre><code class="language-til">func (shallow n: USize) returns Set__USize
+</code></pre>
+</li>
+<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Set__USize.clear">Set__USize.clear</a>
+<pre><code class="language-til">func (mut self: Set__USize)
+</code></pre>
+</li>
+<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Set__USize.has">Set__USize.has</a>
+<pre><code class="language-til">func (self: Set__USize, shallow val: USize) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Set__USize.add">Set__USize.add</a>
+<pre><code class="language-til">func (mut self: Set__USize, own val: USize)
+</code></pre>
+</li>
+<li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Set__USize.remove">Set__USize.remove</a>
+<pre><code class="language-til">func (mut self: Set__USize, shallow val: USize) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/c_codegen.html#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo">Vec__priv___src_self_c_codegen_til__CollectionInfo</a>
@@ -13264,6 +13325,10 @@ namespace:
 <section>
 <h2>Ungrouped</h2>
 <ul class="doc-index">
+<li><a href="src/self/holyc_codegen.html#til.src.self.holyc_codegen.holyc_codegen_translate">holyc_codegen_translate</a>
+<pre><code class="language-til">proc (lp: LoadedProgram, output_path: Str) returns shallow I32
+</code></pre>
+</li>
 <li><a href="src/self/jvm_codegen.html#til.src.self.jvm_codegen.jvm_package_segment">jvm_package_segment</a>
 <pre><code class="language-til">func (name: Str) returns Str
 </code></pre>

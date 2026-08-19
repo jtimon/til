@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-b0fa1b9c4
+#+SUBTITLE: til 0.0.1-6b8af1922
 #+OPTIONS: toc:t
 
 * REPL_DOC_INDEX
@@ -31,7 +31,6 @@ func forward_header_path(path: Str) returns Str
 #+begin_src til
 struct ProgramUnit {
     mut path : Str
-    mut mode : Mode
 namespace:
     func size() returns shallow USize
     func clone(self: ProgramUnit) returns ProgramUnit

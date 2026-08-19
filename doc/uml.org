@@ -197,6 +197,11 @@
 ** CaptureBlockData: StructDef
 *** captures := Vec(Declaration).new()
 *** closure_name := ""
+** PrecomputedSequenceData: StructDef
+*** til_type := Type.Unknown
+*** element_type := Type.Unknown
+*** capacity : USize = 0
+*** ordinal : USize = 0
 ** NodeType: EnumDef
 *** Body
 *** Literal:Literal
@@ -225,7 +230,7 @@
 *** RestPattern
 *** CaptureBlock:CaptureBlockData
 *** Loc
-*** ... (2 more)
+*** ... (3 more)
 ** Expr: StructDef
 *** node_type := NodeType.Body
 *** children := Vec(Expr).new()
@@ -399,7 +404,7 @@
 *** imports_typer_bodies_done := Set(Str).new()
 *** infer_struct_fields_only := false
 *** type_gen_synths := Set(Str).new()
-*** ... (52 more)
+*** ... (54 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -423,7 +428,6 @@
 * loader
 ** ProgramUnit: StructDef
 *** path := ""
-*** mode := Mode()
 ** LoadedProgram: StructDef
 *** own core_units := Vec(ProgramUnit).new()
 *** own units := Vec(ProgramUnit).new()
@@ -623,6 +627,11 @@
 * eval_heap
 ** EvalHeap: StructDef
 *** unused : U8 = 0
+* holyc_codegen
+** HolyCEmitState: StructDef
+*** user_functions := Set(Str).new()
+*** needs_i64_div := false
+*** needs_i64_mod := false
 * jvm_codegen
 ** JvmEmitState: StructDef
 *** path := ""

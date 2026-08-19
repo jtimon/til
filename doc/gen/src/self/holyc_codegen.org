@@ -1,0 +1,12 @@
+#+TITLE: src/self/holyc_codegen.til
+#+SUBTITLE: til 0.0.1-6b8af1922
+#+OPTIONS: toc:t
+
+* holyc_codegen_translate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.holyc_codegen_translate
+:END:
+
+#+begin_src til
+proc holyc_codegen_translate(lp: LoadedProgram, output_path: Str) returns shallow I32
+#+end_src

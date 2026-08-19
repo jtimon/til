@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>src/core/tuple.til</title>
+<title>src/self/holyc_codegen.til</title>
 <style>
 :root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
 @media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
@@ -30,7 +30,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
-<li><a class="current" href="../../src/core/tuple.html">src/core/tuple.til</a><ul><li><a href="#til.src.core.tuple.Tuple">Tuple</a></li><li><a href="#til.src.core.tuple.Tuple.new">Tuple.new</a></li><li><a href="#til.src.core.tuple.Tuple.push_type_name">Tuple.push_type_name</a></li><li><a href="#til.src.core.tuple.Tuple.push">Tuple.push</a></li><li><a href="#til.src.core.tuple.Tuple.get">Tuple.get</a></li><li><a href="#til.src.core.tuple.Tuple.type_at">Tuple.type_at</a></li><li><a href="#til.src.core.tuple.Tuple.size_at">Tuple.size_at</a></li></ul></li>
+<li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
 <li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
 <li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
 <li><a href="../../src/core/io.html">src/core/io.til</a></li>
@@ -76,7 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
-<li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
+<li><a class="current" href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a><ul><li><a href="#til.src.self.holyc_codegen.holyc_codegen_translate">holyc_codegen_translate</a></li></ul></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -87,87 +87,10 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <ol id="til-doc-search-results" class="doc-search-results"></ol>
 </section>
 <nav><a href="../../index.html">Index</a></nav>
-<h1>src/core/tuple.til</h1>
-<article class="doc-entry" id="til.src.core.tuple.Tuple">
-<h2>Tuple</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Heterogeneous sequence of values with mixed types.</p>
-</div>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut total_size : USize
-    mut cap : USize
-    mut type_names : Vec__Str
-    mut type_sizes : Vec__USize
-namespace:
-    func new() returns Tuple
-    func len(self: Tuple) returns shallow USize
-    func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
-    func push(mut self: Tuple, T: Type, own val: Dynamic)
-    func get(self: Tuple, i: USize) returns ref Dynamic
-    func type_at(self: Tuple, i: USize) returns ref Str
-    func size_at(self: Tuple, i: USize) returns ref USize
-    func delete(own self: Tuple, shallow call_free: Bool)
-    func clone(self: Tuple) returns Tuple
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.tuple.Tuple.new">
-<h2>Tuple.new</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Create an empty Tuple.</p>
-</div>
-<pre><code class="language-til">func () returns Tuple
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.tuple.Tuple.push_type_name">
-<h2>Tuple.push_type_name</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Internal helper that keeps tuple metadata as string type names.</p>
-</div>
-<pre><code class="language-til">func (mut self: Tuple, own elem_type: Str, own val: Dynamic)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.tuple.Tuple.push">
-<h2>Tuple.push</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Append a value of the given type. <code>val</code> is owned.</p>
-</div>
-<pre><code class="language-til">func (mut self: Tuple, T: Type, own val: Dynamic)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.tuple.Tuple.get">
-<h2>Tuple.get</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Ref to element at index <code>i</code>. Panics if out of bounds.</p>
-</div>
-<pre><code class="language-til">func (self: Tuple, i: USize) returns ref Dynamic
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.tuple.Tuple.type_at">
-<h2>Tuple.type_at</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Type name of the element at index <code>i</code>. Panics if <code>i</code> is past
-the end.</p>
-</div>
-<pre><code class="language-til">func (self: Tuple, i: USize) returns ref Str
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.tuple.Tuple.size_at">
-<h2>Tuple.size_at</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Byte size of the element at index <code>i</code>. Panics if <code>i</code> is past
-the end.</p>
-</div>
-<pre><code class="language-til">func (self: Tuple, i: USize) returns ref USize
+<h1>src/self/holyc_codegen.til</h1>
+<article class="doc-entry" id="til.src.self.holyc_codegen.holyc_codegen_translate">
+<h2>holyc_codegen_translate</h2>
+<pre><code class="language-til">proc (lp: LoadedProgram, output_path: Str) returns shallow I32
 </code></pre>
 </article>
 </main></div>

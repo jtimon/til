@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-b0fa1b9c4
+#+SUBTITLE: til 0.0.1-6b8af1922
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -556,6 +556,8 @@ struct Context {
     mut builder_static_ok : Bool
     mut param_value_abi_ok : Bool
     mut builder_keep_all_exports : Bool
+    mut builder_lib_c_prefix : Str
+    mut builder_lib_c_names : Vec__Str
     mut builder_lit_guard_used : Bool
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
