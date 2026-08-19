@@ -38,7 +38,7 @@ high-priority entries are:
 And the following have apparently never appeared in the generated
 summary, even with the original committed file set:
 
-  - [[./open/114.org][#114]], [[./open/115.org][#115]], [[./open/116.org][#116]], [[./open/117.org][#117]], [[./open/124.org][#124]]
+  - [[./open/114.org][#114]], [[./open/115.org][#115]], [[./116.org][#116]], [[./open/117.org][#117]], [[./open/124.org][#124]]
 
 Repro:
 

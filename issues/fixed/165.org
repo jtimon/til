@@ -372,5 +372,5 @@
       on the graph-wide barrier before the next sweep starts. This enabled
       the struct half of step 2 to move without hitting the ~ast.til~->U32
       wall; enum/interface generation remains.
-   - ~[[../open/116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
+   - ~[[./116.org][#116]]~ Imported files are parsed in isolation -- same root-cause
      family (cross-file visibility vs. phase ordering).

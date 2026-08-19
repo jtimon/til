@@ -1,6 +1,31 @@
 # priority: high
 # category: cleanups
-** OPEN #116 Imported files are parsed in isolation
+** FIXED #116 Imported files are parsed in isolation
+
+*** Post-mortem
+
+    The issue treated isolated parsing as a semantic-visibility failure, but
+    the parser no longer resolves user-defined declarations. It records type
+    spelling with ~declaration_type_from_name~; unknown names become
+    ~Type.Custom(name)~ and are resolved only after the loader has built the
+    complete per-file import graph and init has seeded declarations across it.
+    Circular imports and importer-declared aliases therefore do not require a
+    shared parser scope.
+
+    The concrete blocker was removed in ~c6de72707~ ("Unify StructDefData into
+    StructDef"). ~src/core/ast.til~ now declares the canonical
+    ~StructDef : StructDef~ and uses it directly as the
+    ~NodeType.StructDef: StructDef~ payload. Later AST/Context work also removed
+    ~ExprData~, ~Expr.path~, merged-AST ownership, and parse-time semantic type
+    assumptions.
+
+    Per-file lexing/parsing is now the intended architecture: syntax and source
+    locations remain local to each file, while declaration visibility is a
+    responsibility of the seed/init/type phases. Existing self-hosting,
+    circular-import, forward-reference, and #165 importer-alias regressions
+    cover that boundary. No parser change is required.
+
+*** Historical analysis
 
 Imported files are currently lexed and parsed as standalone units, then
   merged later. They do not see declarations from the importing file during
@@ -39,14 +64,15 @@ Imported files are currently lexed and parsed as standalone units, then
     during isolated parse/bootstrap
   - relying on importer-local predeclarations to shape imported AST types
 
-  Relation to [[./122.org][#122]] (cancelled):
-  Both [[./116.org][#116]] and [[./122.org][#122]] stem from the same root cause -- imported files
-  not sharing context with the importer. [[./122.org][#122]] was the typing-phase
+  Relation to [[../cancelled/122.org][#122]] (cancelled):
+  Both [[./116.org][#116]] and [[../cancelled/122.org][#122]] stem from the same root cause -- imported files
+  not sharing context with the importer. [[../cancelled/122.org][#122]] was the typing-phase
   symptom (global ~current_mode~ applied to all files), [[./116.org][#116]] is the
   parsing-phase symptom (files can't see each other's declarations).
-  [[./122.org][#122]] was solved by per-path mode tracking (~context_set_mode_from_path~
-  in 55ffae8, file-declared mode priority in f0a7aaa). [[./116.org][#116]] remains
-  open because parse-time isolation is a deeper architectural constraint.
+  [[../cancelled/122.org][#122]] was solved by per-path mode tracking (~context_set_mode_from_path~
+  in 55ffae8, file-declared mode priority in f0a7aaa). [[./116.org][#116]] remained
+  open at the time because parse-time isolation looked like a deeper
+  architectural constraint.
   Any future mode-sensitive typing rule (func/proc exemptions, pure/pura
   restrictions, etc.) is already handled by the mode infrastructure.
 
@@ -60,4 +86,3 @@ Imported files are currently lexed and parsed as standalone units, then
   - keep ~StructDefData~ for now
   - treat the failed ~StructDef~ unification as a symptom of the import model,
     not just a naming conflict
-
