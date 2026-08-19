@@ -3977,6 +3977,12 @@ static unsigned til_prof_slot(void *fn) {
     return 0;   // table full: should not happen with the headroom above
 }
 
+// Lookup without insert, for naming slots that already exist. The ELF
+// symbol walk below is the only caller and that walk is linux-only, so the
+// definition has to carry the same guard: everywhere else it is a static
+// nobody calls, which clang under -Werror rejects outright
+// (-Wunused-function) on the mac natives and every mac cross-build.
+#ifdef __linux__
 static TilProfSlot *til_prof_find_slot(void *fn) __attribute__((no_instrument_function));
 static TilProfSlot *til_prof_find_slot(void *fn) {
     unsigned h = (unsigned)(((uintptr_t)fn >> 4) * 2654435761u) & (TIL_PROF_SLOTS - 1u);
@@ -3987,6 +3993,7 @@ static TilProfSlot *til_prof_find_slot(void *fn) {
     }
     return NULL;
 }
+#endif
 
 static void til_prof_bind_symbols(TilProfSymbols *symbols) __attribute__((no_instrument_function));
 static void til_prof_bind_symbols(TilProfSymbols *symbols) {
