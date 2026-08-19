@@ -1,0 +1,26 @@
+# priority: high
+# category: bugs
+** FIXED #380 Generated struct methods depend on declaration phase order
+
+*** Post-mortem
+
+The declaration sweep decided whether a struct could receive generated
+cmp/eq/to_str by checking whether each nested field type's method had already
+been materialized. A parent visited before its child therefore missed methods
+that the child received later. Separately, the field sweep inferred an
+unannotated default before ordinary struct method generation, so a default
+could not use a method that would exist by the body sweep.
+
+Generated-method capability now follows settled nested field types recursively
+instead of inspecting visit progress. During field-only inference, eligible
+generated methods expose their fixed return type on the disposable expression
+clone; the original default still goes through strict method lookup in the
+body sweep. An ineligible method therefore remains an error rather than
+becoming a fallback.
+
+Regressions: ~test_generated_methods_ignore_struct_order~ and
+~test_field_default_calls_generated_method~ in ~test/structs.til~. The
+~BadGeneratedDefault~ fixture in ~test/typer_errors.til~ pins strict rejection.
+The #174 coverage follow-up adds generated clone/eq/cmp/to_str calls across the
+existing circular-import fixture in ~test/circular_imports.til~.
+~make clean && make test~ passes 418/418.

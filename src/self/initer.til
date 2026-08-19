@@ -110,10 +110,25 @@ priv struct_field_supports_generated_method := func(fd: Declaration, method: Str
     if def_o.is_none() { return false }
     ref def : Expr = def_o.unwrap()
     if init_ns_has_func(def, method) { return true }
-    return method.eq("eq").and(init_ns_has_func(def, "cmp"))
+    if method.eq("eq").and(init_ns_has_func(def, "cmp")) { return true }
+    // Issue #380: the declaration sweep visits source order, so a nested
+    // struct may be fully capable of receiving this generated method before
+    // its method has actually been materialized. Inspect its settled field
+    // types recursively instead of making the parent's API depend on which
+    // declaration happened to be visited first. Value-field layout cycles
+    // are invalid; ref/own edges returned above and never recurse.
+    switch def.node_type {
+    case .StructDef(nested_sdd):
+        for nested_fd : Declaration in nested_sdd.fields {
+            if struct_field_supports_generated_method(nested_fd, method, scope, symbols).not() { return false }
+        }
+        return true
+    case:
+    }
+    return false
 }
 
-priv struct_fields_support_generated_method := func(sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+struct_fields_support_generated_method := func(sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
     for fd : Declaration in sdd.fields {
         if struct_field_supports_generated_method(fd, method, scope, symbols).not() { return false }
     }

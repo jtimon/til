@@ -13,6 +13,8 @@ test_circular_import_funcs_and_types := test() {
     assert_eq(I64, a_take_b(b), 10)
     assert_eq(I64, a.from_b(), 10)
     assert_eq(I64, b.from_a(), 8)
+    assert_eq(Str, circular_b_uses_a_generated_methods(),
+        "CircularGeneratedA(n=7)")
 }
 
 // #174: both bodies are in an import cycle and call a method generated for

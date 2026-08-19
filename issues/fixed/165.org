@@ -41,13 +41,13 @@
     from init; the clean full suite passed 414/414 before integration.
 
     Re-analysis while updating #174 identified two additional order-sensitive
-    method-generation paths not exercised by the alias regression. Struct
-    cmp/eq/to_str eligibility checks whether each field type's method is
-    already present, so a parent visited before its child can miss generated
-    methods. The field sweep also infers unannotated defaults before method
-    generation, so such a default cannot call another struct's generated
-    method. These are separate from both the fixed importer-alias failure and
-    #174's resolved method-body/import-cycle failure.
+    method-generation paths not exercised by the alias regression. Issue
+    [[./380.org][#380]] fixed both: nested generated-method capability now
+    follows field types recursively, and field-only inference can use an
+    eligible generated method's provisional return signature before strict
+    body-sweep validation. These paths were separate from both the fixed
+    importer-alias failure and #174's resolved method-body/import-cycle
+    failure.
 
    Symptom (historical, kept for context):
 
@@ -202,7 +202,8 @@
       nonclone/clone generation and interface clone/delete/default
       expansion subsequently moved into the typer's pre-field sweep.
 
-      Re-analysis after #174 found two additional source-order holes:
+      Re-analysis after #174 found two additional source-order holes, fixed
+      by [[./380.org][#380]]:
 
       - ~struct_field_supports_generated_method~ recognizes a nested
         struct's cmp/eq/to_str only if that method is already in the nested

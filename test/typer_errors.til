@@ -235,6 +235,11 @@ dyn_bad := dyn_vec.get(0).add(35)
 NoCmp := struct { own buf : Str = "" }
 bad_map := {NoCmp(): "one"}
 
+// #380: provisional field inference may learn a generated method's return
+// type, but the original default must still fail strict lookup when the field
+// shape disqualifies that method.
+BadGeneratedDefault := struct { text := NoCmp().to_str() }
+
 // set literal: element type must implement cmp
 bad_set := {NoCmp(), NoCmp()}
 

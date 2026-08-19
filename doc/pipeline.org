@@ -51,7 +51,7 @@ Two modules sit underneath every phase below:
 - Responsibilities:
   - seed and register types, funcs, globals, aliases across the import graph
   - build initial `TypeScope`
-  - auto-generate the enum/interface helpers not yet moved into the typer
+  - perform the remaining legacy global function/value re-registration
   - prepare enough metadata for typing
 
 4. Type check + desugar
@@ -62,12 +62,15 @@ Two modules sit underneath every phase below:
   inference) and
   [[file:../src/self/desugarer.til][src/self/desugarer.til]] (AST lowering /
   desugaring).
-- The typer runs three coordinated graph-wide sweeps over the reachable
-  `ImportUnit`s. The field sweep infers unannotated struct fields. The
-  declaration sweep computes struct/enum layouts and generates struct
+- The typer runs four coordinated graph-wide sweeps over the reachable
+  `ImportUnit`s. The method-preparation sweep normalizes enum payload aliases
+  and generates enum/interface methods needed by field defaults. The field
+  sweep infers unannotated struct fields; eligible ordinary generated methods
+  expose only their fixed return signature on this disposable inference clone.
+  The declaration sweep computes struct/enum layouts and generates struct
   clone/delete/hash/eq/cmp/to_str plus size/cmp/unity-derived methods. Only
-  after those sweeps finish does the body sweep resolve names and types,
-  infer expression types, and reject invalid programs.
+  after those sweeps finish does the body sweep strictly resolve names and
+  types, infer expression types, and reject invalid programs.
 - The body sweep drives type-directed desugaring: interleaved with inference,
   the desugarer rewrites high-level constructs later phases do not handle into
   plain til. The desugars read inferred types, which is why they run

@@ -11,6 +11,10 @@ ABox := struct {
     }
 }
 
+CircularGeneratedA := struct {
+    n := 0
+}
+
 make_a := func(n: I64) returns ABox { return ABox(n = n) }
 
 a_value := func(n: I64) returns I64 { return n.add(1) }

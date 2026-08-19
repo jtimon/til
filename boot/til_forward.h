@@ -1740,6 +1740,7 @@ typedef struct Context {
     Set__Str imports_typer_fields_done;
     Set__Str imports_typer_decls_done;
     Set__Str imports_typer_bodies_done;
+    Bool infer_struct_fields_only;
     Set__Str type_gen_synths;
     Map__Str_Expr generic_funcs;
     Set__Str generic_func_synths;

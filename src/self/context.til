@@ -1069,6 +1069,11 @@ Context := struct {
     imports_typer_fields_done := Set(Str).new()
     imports_typer_decls_done := Set(Str).new()
     imports_typer_bodies_done := Set(Str).new()
+    // Issue #380: type_struct_fields infers on a clone, then the body sweep
+    // validates the original default after generated methods exist. Missing
+    // generated methods may expose their fixed return type only during that
+    // provisional inference; normal method lookup remains strict.
+    infer_struct_fields_only := false
     // Issue #267: deterministic type-gen macro instantiations such as
     // `TemplVec__Bool` are shared across all initialized units. The first
     // unit that sees an inline `TemplVec(Bool)` owns the synthesized decl;

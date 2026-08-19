@@ -16,3 +16,11 @@ b_value := func(n: I64) returns I64 { return n.mul(2) }
 b_uses_a := func(n: I64) returns I64 { return a_value(n).add(1) }
 b_take_a := func(a: ABox) returns I64 { return a.n.add(4) }
 b_uses_generated_a_eq := func(a: ABox, b: ABox) returns Bool { return a.eq(b) }
+
+circular_b_uses_a_generated_methods := func() returns Str {
+    a := CircularGeneratedA(n = 7)
+    b := a.clone()
+    if b.eq(a).not() { return "eq failed" }
+    if b.cmp(a) != 0 { return "cmp failed" }
+    return b.to_str()
+}

@@ -648,6 +648,35 @@ test_field_type_inferred_from_plain_function_call := test() {
     assert_eq(I64, c.cmp(o), 0)
 }
 
+GeneratedOrderOuter := struct {
+    inner : GeneratedOrderInner
+}
+
+GeneratedOrderInner := struct {
+    n := 7
+}
+
+test_generated_methods_ignore_struct_order := test() {
+    a := GeneratedOrderOuter(inner = GeneratedOrderInner())
+    b := GeneratedOrderOuter(inner = GeneratedOrderInner())
+    assert(a.eq(b))
+    assert_eq(I64, a.cmp(b), 0)
+    assert_eq(Str, a.to_str(), "GeneratedOrderOuter(inner=GeneratedOrderInner(n=7))")
+}
+
+GeneratedDefaultInner := struct {
+    n := 9
+}
+
+GeneratedDefaultOuter := struct {
+    label := GeneratedDefaultInner().to_str()
+}
+
+test_field_default_calls_generated_method := test() {
+    o := GeneratedDefaultOuter()
+    assert_eq(Str, o.label, "GeneratedDefaultInner(n=9)")
+}
+
 // --- #340: field init shorthand -------------------------------------
 //
 // In a struct literal a bare identifier that names a field stands for

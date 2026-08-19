@@ -23,7 +23,10 @@ the moved struct generation path and covers generated clone, eq, cmp, and
 to_str after field inference. ~test_circular_import_generated_methods~ is the
 focused #174 regression: each side of an import cycle has a body that calls
 the other side's generated ~eq~, proving declaration generation finishes for
-the graph before either body is checked.
+the graph before either body is checked. Issue [[./380.org][#380]] extends the
+existing cycle fixture with generated clone/eq/cmp/to_str calls from one side
+on a struct declared on the other. The full suite also exercises the
+compiler's real cyclic core import graph.
 
 Issue [[./165.org][#165]] moved enum and interface generation into the typer's
 graph-wide method-preparation sweep. Re-analysis also found two additional

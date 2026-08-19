@@ -1802,6 +1802,47 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
     return bits.band(callee_bit).bor(bits.band(callee_bit.bnot()).shl(1))
 }
 
+// Issue #380: the field sweep infers on a clone only to stamp the field type;
+// the original default is inferred and validated again in the body sweep.
+// Ordinary struct methods cannot be materialized until every field type is
+// settled, so expose their fixed return signatures during the provisional
+// inference instead of producing a declaration-order error. If the method is
+// not actually generated, strict lookup on the original expression reports
+// it before codegen.
+priv infer_provisional_generated_method := func(method: Str, receiver: Expr, def: Expr, mut call: Expr, mut scope: TypeScope, mut ctx: Context) returns Bool {
+    ref sdd : StructDef = structdef_of(def)
+    switch method {
+    case "clone":
+        call.set_til_type(receiver.til_type())
+    case "eq":
+        if struct_fields_support_generated_method(sdd, "eq", scope, ctx.symbols).not() { return false }
+        call.set_til_type(Type.Primitive(Primitive.Bool))
+    case "neq", "lt", "gt", "lte", "gte":
+        if struct_fields_support_generated_method(sdd, "cmp", scope, ctx.symbols).not() { return false }
+        call.set_til_type(Type.Primitive(Primitive.Bool))
+    case "cmp":
+        if struct_fields_support_generated_method(sdd, "cmp", scope, ctx.symbols).not() { return false }
+        call.set_til_type(Type.Primitive(Primitive.I64))
+    case "to_str":
+        if struct_fields_support_generated_method(sdd, "to_str", scope, ctx.symbols).not() { return false }
+        call.set_til_type(Type.Struct("Str"))
+    case "size":
+        call.set_til_type(type_from_name("USize", scope, ctx))
+    case "hash":
+        for fd : Declaration in sdd.fields {
+            if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
+        }
+        call.set_til_type(Type.Primitive(Primitive.U64))
+    case:
+        return false
+    }
+    // This clone is discarded after its return type is copied to the field,
+    // but infer_expr still requires every successfully typed call to classify
+    // its callee. The original expression gets the real direct binding later.
+    mark_fcall_direct(call)
+    return true
+}
+
 priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) returns Bool {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     ref mut fa : Expr = e.children[0]
@@ -1953,6 +1994,12 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         mut nf1o := Option(ref Expr).None
         if sdef1_o.is_some() { nf1o = find_namespace_func(sdef1_o.unwrap(), method, scope, ctx.symbols) }
         if nf1o.is_none() {
+            if ctx.infer_struct_fields_only.and(sdef1_o.is_some()) {
+                ref provisional_def : Expr = sdef1_o.unwrap()
+                if provisional_def.node_type.is(NodeType.StructDef) {
+                    if infer_provisional_generated_method(method, obj, provisional_def, e, scope, ctx) { return true }
+                }
+            }
             if try_ufcs_rewrite(scope, e, fa, obj, method, m.field_access_sym(), type_name, ctx) {
                 return false
             }
@@ -3942,7 +3989,10 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                     // a clone so the source default remains valid for normal
                     // body-sweep validation and per-call default filling.
                     mut inference_value := fd.default_expr().clone()
+                    old_fields_only := ctx.infer_struct_fields_only
+                    ctx.infer_struct_fields_only = true
                     infer_expr(inner, inference_value, 0, ctx)
+                    ctx.infer_struct_fields_only = old_fields_only
                     fd.til_type = inference_value.til_type().clone()
                 }
             } else {
