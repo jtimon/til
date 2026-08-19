@@ -1291,7 +1291,7 @@ priv register_enum_def_for_stmt := proc(mut ctx: Context, stmt: Expr, mut scope:
     return register_enum_definition(ctx, stmt, scope)
 }
 
-priv gen_enum_nonclone_methods_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool) {
+gen_enum_nonclone_methods_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children[0].node_type.is(NodeType.EnumDef).not() { return }
 
@@ -1352,7 +1352,7 @@ priv gen_enum_nonclone_methods_for_stmt := func(mut stmt: Expr, scope: TypeScope
 
 }
 
-priv gen_missing_enum_clone_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool) {
+gen_missing_enum_clone_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children[0].node_type.is(NodeType.EnumDef).not() { return }
 
@@ -4692,6 +4692,8 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
 
     // Single AST walk: register every type name in scope (struct, enum,
     // funcsig) and bucket each remaining Decl's index for post-walk work.
+    // Enum/interface method generation now belongs to the typer's
+    // graph-wide method-preparation sweep.
     mut alias_idxs := Vec(USize).new()
     mut func_idxs := Vec(USize).new()
     mut value_idxs := Vec(USize).new()
@@ -4843,7 +4845,7 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
 // dyn_call/dyn_call_ret on those two fields (see the typer's interface
 // dispatch rewrite). Runs BEFORE clone/delete generation so the generated
 // helpers cover the new fields.
-priv gen_interface_box_fields_for_stmt := func(mut stmt: Expr) {
+gen_interface_box_fields_for_stmt := func(mut stmt: Expr) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     switch stmt.children[0].node_type {
     case .StructDef(sdd):
@@ -4927,7 +4929,7 @@ priv iface_box_ctor := func(stmt: Expr, sname: Str, own tn: Expr, own val: Expr,
 // / frees the concrete via dyn_call; a borrowed box copies / leaves the
 // pointer, exactly as before. Runs before gen_struct_clone_delete_for_stmt so
 // it sees clone/delete already present and skips them.
-priv gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
+gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     mut sname := ""
     switch stmt.node_type {
@@ -5021,7 +5023,7 @@ priv gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: Sy
     }
 }
 
-priv gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, symbols: SymbolPool) {
+gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     mut impl_name := ""
     switch stmt.node_type {
@@ -5106,7 +5108,7 @@ priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: 
 // only after every file has initialized, so an alias declared by an importer
 // is visible when an imported enum is prepared (#165). Keep width aliases as
 // the interface spelling; their target is selected per build target.
-priv normalize_enum_payload_aliases_for_stmt := func(mut stmt: Expr, scope: TypeScope, symbols: SymbolPool) {
+normalize_enum_payload_aliases_for_stmt := func(mut stmt: Expr, scope: TypeScope, symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
     switch stmt.children[0].node_type {
@@ -5129,22 +5131,16 @@ priv normalize_enum_payload_aliases_for_stmt := func(mut stmt: Expr, scope: Type
 init_declarations_global := func(mut ctx: Context, mut program: Expr, mut scope: TypeScope) returns I32 {
     errors : I32 = 0
 
-    // Single AST walk: bucket struct and enum decls for post-walk work,
-    // and bucket func/value decls in case global generation steps added
-    // new ones (size/derived methods) that need to be registered.
-    mut struct_idxs := Vec(USize).new()
-    mut enum_idxs := Vec(USize).new()
+    // Bucket func/value decls for the legacy post-init re-registration.
+    // Type method generation has moved to the typer; removing this remaining
+    // global pass is the next #165 step.
     mut func_idxs := Vec(USize).new()
     mut value_idxs := Vec(USize).new()
     for i in 0..program.children.len() {
         ref stmt : Expr = program.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.children[0]
-        if rhs.node_type.is(NodeType.StructDef) {
-            struct_idxs.push(own i)
-        } else if rhs.node_type.is(NodeType.EnumDef) {
-            enum_idxs.push(own i)
-        } else if rhs.node_type.is(NodeType.FuncDef) {
+        if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len() > 0 {
                 func_idxs.push(own i)
             }
@@ -5153,25 +5149,8 @@ init_declarations_global := func(mut ctx: Context, mut program: Expr, mut scope:
         }
     }
 
-    // Interface/default and enum expansion runs only after initialization
-    // has registered aliases for the whole import graph. Enum constructors
-    // must still exist before the typer's field sweep: field defaults in the
-    // compiler itself use namespace values such as Type.Unknown.
-    for si : USize in struct_idxs {
-        gen_interface_box_fields_for_stmt(program.children[si])
-        gen_interface_clone_delete_for_stmt(program.children[si], ctx.symbols)
-        gen_implements_defaults_for_stmt(program.children[si], scope, ctx.symbols)
-    }
-    for ei : USize in enum_idxs {
-        ref mut estmt : Expr = program.children[ei]
-        normalize_enum_payload_aliases_for_stmt(estmt, scope, ctx.symbols)
-        gen_implements_defaults_for_stmt(estmt, scope, ctx.symbols)
-        gen_enum_nonclone_methods_for_stmt(estmt, scope, ctx.symbols)
-        gen_missing_enum_clone_for_stmt(estmt, scope, ctx.symbols)
-    }
-    // Re-register function/value decls -- new ones may have been generated
-    // above (size methods etc) but those go into ns_decls, not program.children.
-    // Still re-register here to mirror the original ordering.
+    // Retain the legacy post-init function/value re-registration until the
+    // next #165 step removes this global pass.
     for fi : USize in func_idxs {
         register_function_def_for_stmt(ctx, program.children[fi], scope)
     }

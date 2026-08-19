@@ -7348,27 +7348,115 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     return ctx.errors
 }
 
-// Multi-sweep typer driver (#174 / #338). type_file first infers every
-// struct field, then runs methodgen/layout, then type-checks function bodies.
-// All walks are
-// rstil-style: recurse on imports in source order, then handle this
-// file. The split memo Sets (imports_typer_decls_done /
-// imports_typer_bodies_done) ensure each file is visited at most once
-// per sweep, and the per-file ordering "imports first, then this
-// file" within each sweep matches today's single-sweep behaviour.
+// Multi-sweep typer driver (#174 / #338 / #165). type_file first prepares
+// enum/interface methods needed by field defaults, then infers every struct
+// field, runs field-dependent methodgen/layout, and finally type-checks
+// function bodies. All walks are rstil-style: recurse on imports in source
+// order, then handle this file. A separate memo Set per sweep ensures each
+// file is visited at most once, and the per-file ordering "imports first,
+// then this file" matches the original single-sweep behaviour.
 //
 // type_decls_file owns layout computation,
 // (compute_struct_layout / compute_enum_layout), the layout-dependent
 // size methodgen (gen_*_size_method_for_stmt), and the scope-free
 // cmp/unity derived-method helpers, and field-sensitive struct methodgen.
-// Enum clone methodgen remains in init because enum payload types are
-// explicit.
 type_file := proc(path: Str, mut ctx: Context) returns I32 {
     mut total : I32 = 0
+    total = total + type_methods_file(path, ctx)
     total = total + type_fields_file(path, ctx)
     total = total + type_decls_file(path, ctx)
     total = total + type_bodies_file(path, ctx)
     return total
+}
+
+// Typer-owned preparation for methods that must exist while unannotated field
+// defaults are inferred. Preserve the initer ordering within each file:
+// interface box/lifecycle/default expansion first, then enum alias
+// normalization, defaults, and generated methods. Field-dependent ordinary
+// struct methods remain in type_decls_file after field inference.
+priv type_methods_file := proc(path: Str, mut ctx: Context) returns I32 {
+    if ctx.imports_typer_methods_done.has(path) { return 0 }
+    ctx.imports_typer_methods_done.add(own path.clone())
+
+    ref mut iu : ImportUnit = ctx.imported[path]
+    mut total : I32 = 0
+    ast_count : USize = count_ast_imports(iu.ast, ctx.symbols)
+    auto_count : USize = iu.imports.len() - ast_count
+    for i in 0..auto_count {
+        ref dep : Str = iu.imports[i]
+        total = total + type_methods_file(dep, ctx)
+    }
+    mut import_idx : USize = auto_count
+    for stmt : Expr in iu.ast.children {
+        mut is_imp := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            ref imp_stmt : Expr = stmt.children[0]
+            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
+                if imp_stmt.children[1].node_type.is_literal_str() {
+                    switch imp_stmt.children[0].node_type {
+                    case .Ident(id):
+                        if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
+                    case:
+                    }
+                }
+            }
+        } else if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
+            if stmt.children[1].node_type.is_literal_str() {
+                switch stmt.children[0].node_type {
+                case .Ident(id):
+                    if id.ident_name(ctx.symbols.names) == "import" { is_imp = true }
+                case:
+                }
+            }
+        }
+        if is_imp {
+            ref dep : Str = iu.imports[import_idx]
+            total = total + type_methods_file(dep, ctx)
+            import_idx++
+        }
+    }
+
+    type_methods_from(iu.ast, 0, ctx)
+    return total
+}
+
+priv type_methods_from := func(mut program: Expr, start_idx: USize, mut ctx: Context) {
+    for i in start_idx..program.children.len() {
+        ref mut stmt : Expr = program.children[i]
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            if stmt.children[0].node_type.is(NodeType.StructDef) {
+                gen_interface_box_fields_for_stmt(stmt)
+                gen_interface_clone_delete_for_stmt(stmt, ctx.symbols)
+                gen_implements_defaults_for_stmt(stmt, ctx.scope, ctx.symbols)
+            }
+        }
+    }
+    for i in start_idx..program.children.len() {
+        ref mut stmt : Expr = program.children[i]
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            if stmt.children[0].node_type.is(NodeType.EnumDef) {
+                normalize_enum_payload_aliases_for_stmt(stmt, ctx.scope, ctx.symbols)
+                gen_implements_defaults_for_stmt(stmt, ctx.scope, ctx.symbols)
+                gen_enum_nonclone_methods_for_stmt(stmt, ctx.scope, ctx.symbols)
+                gen_missing_enum_clone_for_stmt(stmt, ctx.scope, ctx.symbols)
+            }
+        }
+    }
+}
+
+priv type_repl_delta_fields_from := proc(mut program: Expr, start_idx: USize, mut ctx: Context) {
+    for i in start_idx..program.children.len() {
+        ref mut stmt : Expr = program.children[i]
+        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { continue }
+        ref mut rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.StructDef).not() { continue }
+        switch stmt.node_type {
+        case .Decl(d):
+            mut inner := TypeScope(parent = Option(ref TypeScope).Some(ctx.scope), current_type_name = d.name.clone())
+            type_struct_fields(rhs, inner, true, ctx)
+        case:
+        }
+    }
 }
 
 priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut ctx: Context) returns I32 {
@@ -7383,8 +7471,6 @@ priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut
         if rhs.node_type.is(NodeType.StructDef) {
             switch stmt.node_type {
             case .Decl(d):
-                mut inner := TypeScope(parent = Option(ref TypeScope).Some(ctx.scope), current_type_name = d.name.clone())
-                type_struct_fields(rhs, inner, true, ctx)
                 compute_struct_layout(d.name, rhs, ctx.scope, ctx)
             case:
             }
@@ -7412,18 +7498,22 @@ priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut
 type_repl_delta := proc(path: Str, mut program: Expr, mut ctx: Context) returns I32 {
     context_enter_file(ctx, path)
     mut total : I32 = 0
+    type_methods_from(program, 0, ctx)
+    type_repl_delta_fields_from(program, 0, ctx)
     total = total + type_repl_delta_decls_from(program, 0, ctx)
     post_decl_start := program.children.len()
     total = total + type_check_unit(path, program, ctx.scope, ctx)
+    type_methods_from(program, post_decl_start, ctx)
+    type_repl_delta_fields_from(program, post_decl_start, ctx)
     total = total + type_repl_delta_decls_from(program, post_decl_start, ctx)
     total = total + check_unused_priv_top_level(ctx.scope, ctx)
     total = total + check_unused_priv_members_in_program(program, path, ctx)
     return total
 }
 
-// First typer sweep: infer and stamp all struct fields before recursive layout
-// can inspect a sibling type. This is a distinct graph-wide sweep rather than
-// a per-file pre-loop because compute_struct_layout follows type references
+// Field inference sweep: stamp all struct fields before recursive layout can
+// inspect a sibling type. This is a distinct graph-wide sweep rather than a
+// per-file pre-loop because compute_struct_layout follows type references
 // outside import order.
 priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
     if ctx.imports_typer_fields_done.has(path) {

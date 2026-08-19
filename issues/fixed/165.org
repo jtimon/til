@@ -18,10 +18,11 @@
     tried to call a nonexistent namespace, and its C storage retained an
     undefined type name.
 
-    Enum generation now runs in ~init_declarations_global~, after initialization
-    has completed for the entire import graph but before field inference (which
-    needs enum namespace constants such as ~Type.Unknown~). At that barrier,
-    ordinary enum payload aliases are canonicalized in the existing
+    Enum generation now runs in the typer's graph-wide method-preparation
+    sweep, after initialization has completed for the entire import graph but
+    before field inference (which needs enum namespace constants such as
+    ~Type.Unknown~). At that barrier, ordinary enum payload aliases are
+    canonicalized in the existing
     ~VariantDef.payload_type~ slot before layout, niche selection, method
     generation, interpretation, and codegen consume it. ~USize~ and ~UPtr~ keep
     their target-independent interface spelling.
@@ -33,6 +34,11 @@
 
     The detailed text below is retained as historical analysis; several of its
     architectural TODOs were completed by the later issues named above.
+
+    The same typer sweep now owns interface box/lifecycle/default expansion
+    and all enum constructors and generated methods. The REPL uses the same
+    methods -> fields -> declarations ordering. No type method generation runs
+    from init; the clean full suite passed 414/414 before integration.
 
     Re-analysis while updating #174 identified two additional order-sensitive
     method-generation paths not exercised by the alias regression. Struct
@@ -177,7 +183,7 @@
       ~register_type_alias~ already handles user-defined type aliases
       when the target file is init'd before the alias file.
 
-   2. [PARTIAL, UNBLOCKED] Move ~gen_struct_clone_delete_for_stmt~,
+   2. [DONE] Move ~gen_struct_clone_delete_for_stmt~,
       ~gen_enum_nonclone_methods_for_stmt~,
       ~gen_missing_enum_clone_for_stmt~,
       ~gen_struct_size_method_for_stmt~,
@@ -192,9 +198,9 @@
       types, a graph-wide declaration sweep computes layouts and
       synthesizes struct clone/delete, size, cmp and unity methods,
       and only then does the graph-wide body sweep type-check method
-      bodies. This is option (b) below and fixes #174. Remaining here:
-      move enum nonclone/clone generation and the interface
-      clone/delete/default expansion out of the initer.
+      bodies. This is option (b) below and fixes #174. Enum
+      nonclone/clone generation and interface clone/delete/default
+      expansion subsequently moved into the typer's pre-field sweep.
 
       Re-analysis after #174 found two additional source-order holes:
 
@@ -259,16 +265,15 @@
          Closest to rstil's spirit (synthesis localized at use site)
          but adds bookkeeping for "is this struct already swept?".
 
-      Option (b) landed. Struct clone/delete and the scope-free
-      cmp/unity/size generators now run in the typer declaration
-      sweep. Enum and interface generators remain pre-typer.
+      Option (b) landed. Enum/interface preparation, struct
+      clone/delete, and the scope-free cmp/unity/size generators now
+      all run inside the typer.
 
       Sub-finding from the attempts: ~gen_cmp_derived_for_stmt~ and
       ~gen_unity_derived_for_stmt~ are scope-free pure AST transforms
       (they read only the struct's own ~ns_decls~). The actual
       scope-using prize for step 2 was ~gen_struct_clone_delete~ and
-      ~gen_enum_nonclone_methods~. The graph sweeps resolved the struct
-      side; enum generation remains to move.
+      ~gen_enum_nonclone_methods~. Both now run in typer-owned sweeps.
 
    3. [DONE] Replace ~compute_struct_layout~ + ~compute_enum_layout~ with a
       ~Context.struct_layouts~ map populated by the typer on first

@@ -1057,14 +1057,15 @@ Context := struct {
     imports_init_active := Set(Str).new()
     imports_init_done := Set(Str).new()
     // Multi-sweep typer (issue #174 / #338). The typer recursion is split
-    // into field inference, declaration work (methodgen/layout), and body
-    // type-checking. The field sweep stamps every struct field before layout
-    // recursively inspects sibling types. The declaration sweep produces all
-    // method-name
+    // into pre-field method preparation, field inference, declaration work
+    // (field-dependent methodgen/layout), and body type-checking. The field
+    // sweep stamps every struct field before layout recursively inspects
+    // sibling types. The declaration sweep produces all method-name
     // bindings before any body type-checks, so the Vec/Str/I64 method
     // cycle that #174 catalogues is broken: bodies in either
     // direction always see the other's methods. Each sweep has its own
     // per-file memo Set.
+    imports_typer_methods_done := Set(Str).new()
     imports_typer_fields_done := Set(Str).new()
     imports_typer_decls_done := Set(Str).new()
     imports_typer_bodies_done := Set(Str).new()
