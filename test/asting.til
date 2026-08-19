@@ -40,3 +40,26 @@ test_expr_children := test() {
     Expr.add_child(parent, own child2)
     assert_eq(USize, parent.children.len(), 2)
 }
+
+test_precomputed_sequence_payload := test() {
+    seq_type := Type.Struct("Vec__I64")
+    elem_type := Type.Primitive(Primitive.I64)
+    mut seq := Expr.new(NodeType.PrecomputedSequence(PrecomputedSequenceData(
+        til_type = seq_type.clone(), element_type = elem_type.clone(),
+        capacity = 4, ordinal = 7)), 3, 5)
+    mut element := Expr.new(literal_num_node("11"), 3, 5)
+    element.set_til_type(elem_type)
+    seq.add_child(own element)
+
+    cloned := seq.clone()
+    assert_eq(Str, node_name(cloned.node_type), "precomputed_sequence")
+    assert(cloned.til_type().eq(seq_type))
+    assert_eq(USize, cloned.children.len(), 1)
+    switch cloned.node_type {
+    case .PrecomputedSequence(data):
+        assert(data.element_type.eq(Type.Primitive(Primitive.I64)))
+        assert_eq(USize, data.capacity, 4)
+        assert_eq(USize, data.ordinal, 7)
+    case: UNREACHABLE()
+    }
+}

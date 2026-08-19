@@ -801,6 +801,25 @@ namespace:
     to_str := func(_self: CaptureBlockData) returns Str { return "CaptureBlock" }
 }
 
+/// Post-typecheck value for a compile-time Array/Vec result. Element values
+/// are the Expr children; the payload keeps the types needed for an empty
+/// sequence, its runtime capacity, and a deterministic C-template ordinal.
+/// No parser or typer path produces this node.
+PrecomputedSequenceData := struct {
+    til_type := Type.Unknown
+    element_type := Type.Unknown
+    capacity : USize = 0
+    ordinal : USize = 0
+namespace:
+    eq := func(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns Bool {
+        return a.til_type.eq(b.til_type)
+            .and(a.element_type.eq(b.element_type))
+            .and(a.capacity == b.capacity)
+            .and(a.ordinal == b.ordinal)
+    }
+    to_str := func(_self: PrecomputedSequenceData) returns Str { return "PrecomputedSequence" }
+}
+
 // Shared Type values for Expr.til_type()'s synthesized arms: node kinds
 // whose type is not stored in a payload (a Str literal is always
 // Type.Struct("Str"), an If is always Type.None, ...) return a ref to
@@ -891,6 +910,9 @@ NodeType := enum {
     // rejects any ListPattern that survives to it. Appended after BodyValue
     // so existing NodeType tags stay stable.
     ListPattern,
+    // Issue #70 preparation: internal recursively serializable Array/Vec
+    // value. Appended so every existing NodeType tag remains stable.
+    PrecomputedSequence: PrecomputedSequenceData,
 namespace:
     // is() compares only the outer enum tag, so is(NodeType.Literal(Literal.X))
     // cannot tell the literal kinds apart -- it matches any Literal. These
@@ -976,6 +998,7 @@ namespace:
         case .BodyValue:      return "BodyValue"
         case .RestPattern:    return "RestPattern"
         case .ListPattern:    return "ListPattern"
+        case .PrecomputedSequence: return "PrecomputedSequence"
         }
     }
 }
@@ -1123,6 +1146,7 @@ namespace:
         case .Catch:       return TYPE_NONE
         case .RestPattern, .ListPattern: return TYPE_UNKNOWN
         case .CaptureBlock: return TYPE_NONE
+        case .PrecomputedSequence(sd): return sd.til_type
         }
         return TYPE_UNKNOWN
     }
@@ -1142,6 +1166,8 @@ namespace:
             fd.til_type = t
         case .Match(md):
             md.til_type = t
+        case .PrecomputedSequence(sd):
+            sd.til_type = t
         case .Throw:
             if self.children.len() > 0 {
                 self.children[0].set_til_type(t)

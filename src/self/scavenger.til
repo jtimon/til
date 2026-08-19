@@ -199,6 +199,16 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
             sig_name := til_type_name(e.til_type())
             if sig_name.len() > 0 { vec_push_str(refs, sig_name) }
         }
+    case .PrecomputedSequence(data):
+        // The C emitter conjures Sequence.clone(&static_template), so there
+        // is no FCall child from which reachability could discover it.
+        seq_name := til_type_name(data.til_type)
+        if seq_name.len() == 0 { panic("precomputed sequence has unnamed type") }
+        vec_push_str(refs, seq_name)
+        push_qn(refs, seq_name, "clone")
+        elem_name := til_type_name(data.element_type)
+        if elem_name.len() == 0 { panic("precomputed sequence has unnamed element type") }
+        vec_push_str(refs, elem_name)
     case .Assign(adata):
         // An assignment TARGET names a binding the same way a read does --
         // the name lives in the node data, not in an Ident child, so

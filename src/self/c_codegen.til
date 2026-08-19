@@ -3303,23 +3303,44 @@ priv static_enum_clone_arg := func(e: Expr, ctx: Context) returns Option(ref Exp
     return Option(ref Expr).Some(e.children[1])
 }
 
-priv expr_has_c_static_initializer := func(e: Expr, mut ctx: Context) returns Bool {
+priv precomputed_sequence_symbol := func(data: PrecomputedSequenceData) returns Str {
+    return format("_til_precomputed_sequence_", data.ordinal.to_str())
+}
+
+priv precomputed_sequence_is_vec := func(data: PrecomputedSequenceData) returns Bool {
+    name := til_type_name(data.til_type)
+    if name.eq("Vec").or(name.starts_with("Vec__")) { return true }
+    if name.eq("Array").or(name.starts_with("Array__")) { return false }
+    panic(__LOC__, "precomputed sequence has non-sequence type: ", name)
+    return false
+}
+
+priv expr_has_c_initializer := func(e: Expr, allow_sequences: Bool, mut ctx: Context) returns Bool {
     switch e.node_type {
     case .Literal(Literal.Num): return true
     case .Literal(Literal.Bool): return true
     case .Literal(Literal.Str): return true
+    case .PrecomputedSequence(data):
+        if allow_sequences.not() { return false }
+        if e.children.len() > data.capacity { return false }
+        if precomputed_sequence_is_vec(data).not().and(e.children.len() != data.capacity) { return false }
+        for element : Expr in e.children {
+            if element.til_type().eq(data.element_type).not() { return false }
+            if expr_has_c_initializer(element, true, ctx).not() { return false }
+        }
+        return true
     case .FieldAccess:
         def_o := static_enum_def(e, ctx)
         if def_o.is_none() { return false }
         ref def : Expr = def_o.unwrap()
-        if enum_is_niche(def) { return false }
+        if enum_is_niche(def).and(allow_sequences.not()) { return false }
         ename_o := expr_type_name_ref(e)
         if ename_o.is_none() { return false }
         idx := enum_variant_access_index(e, ename_o.unwrap(), def, ctx.symbols)
         return idx.gte(0).and(enum_variant_type(def, idx).len() == 0)
     case .FCall:
         clone_arg_o := static_enum_clone_arg(e, ctx)
-        if clone_arg_o.is_some() { return expr_has_c_static_initializer(clone_arg_o.unwrap(), ctx) }
+        if clone_arg_o.is_some() { return expr_has_c_initializer(clone_arg_o.unwrap(), allow_sequences, ctx) }
 
         sdef_o := static_struct_ctor_def(e, ctx)
         if sdef_o.is_some() {
@@ -3329,7 +3350,7 @@ priv expr_has_c_static_initializer := func(e: Expr, mut ctx: Context) returns Bo
             for i in 0..sd.fields.len() {
                 ref field : Declaration = sd.fields[i]
                 if field.own_type.is(OwnType.Shallow).not() { return false }
-                if expr_has_c_static_initializer(e.children[i + 1], ctx).not() { return false }
+                if expr_has_c_initializer(e.children[i + 1], allow_sequences, ctx).not() { return false }
             }
             return true
         }
@@ -3337,17 +3358,21 @@ priv expr_has_c_static_initializer := func(e: Expr, mut ctx: Context) returns Bo
         def_o := static_enum_def(e, ctx)
         if def_o.is_none().or(e.children.len() != 2) { return false }
         ref def : Expr = def_o.unwrap()
-        if enum_is_niche(def) { return false }
+        if enum_is_niche(def).and(allow_sequences.not()) { return false }
         ename_o := expr_type_name_ref(e)
         if ename_o.is_none() { return false }
         idx := enum_variant_access_index(e.children[0], ename_o.unwrap(), def, ctx.symbols)
         if idx < 0 { return false }
         if enum_variant_type(def, idx).len() == 0 { return false }
         if enum_variant_payload_ref(def, idx) { return false }
-        return expr_has_c_static_initializer(e.children[1], ctx)
+        return expr_has_c_initializer(e.children[1], allow_sequences, ctx)
     case:
         return false
     }
+}
+
+priv expr_has_c_static_initializer := func(e: Expr, mut ctx: Context) returns Bool {
+    return expr_has_c_initializer(e, false, ctx)
 }
 
 priv global_decl_has_c_static_initializer := func(stmt: Expr, mut ctx: Context) returns Bool {
@@ -3368,10 +3393,24 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
         f.write("{.c_str = (I8 *)\"").write(s).write("\", .count = ")
         emit_usize(f, c_lit_byte_count(s))
         f.write("ULL, .cap = TIL_CAP_LIT}")
+    case .PrecomputedSequence(data):
+        symbol := precomputed_sequence_symbol(data)
+        f.write("{.data = ")
+        if data.capacity == 0 { f.write("NULL") }
+        else { f.write("(U8 *)").write(symbol).write("_data") }
+        if precomputed_sequence_is_vec(data) {
+            f.write(", .count = "); emit_usize(f, e.children.len()); f.write("ULL")
+        }
+        f.write(", .cap = "); emit_usize(f, data.capacity); f.write("ULL}")
     case .FieldAccess(member):
         ename_o := expr_type_name_ref(e)
         if ename_o.is_none() { panic(__LOC__, "static enum access has no type") }
-        f.write("{.tag = ").write(ename_o.unwrap()).write("_TAG_").write(member.field_access_name(ctx.symbols.names)).write("}")
+        def_o := static_enum_def(e, ctx)
+        if def_o.is_some().and(enum_is_niche(def_o.unwrap())) {
+            f.write("{.data = NULL}")
+        } else {
+            f.write("{.tag = ").write(ename_o.unwrap()).write("_TAG_").write(member.field_access_name(ctx.symbols.names)).write("}")
+        }
     case .FCall:
         clone_arg_o := static_enum_clone_arg(e, ctx)
         if clone_arg_o.is_some() {
@@ -3403,16 +3442,66 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
         switch e.children[0].node_type {
         case .FieldAccess(member):
             ref vname : Str = member.field_access_name(ctx.symbols.names)
-            f.write("{.tag = ").write(ename).write("_TAG_").write(vname)
-            f.write(", .data = {.").write(vname).write(" = ")
-            emit_c_static_initializer(f, e.children[1], ctx)
-            f.write("}}")
+            if enum_is_niche(def) {
+                payload_c := c_type_name(e.children[1].til_type(), til_type_name(e.children[1].til_type()), ctx)
+                f.write("{.data = &(").write(payload_c).write(")")
+                emit_c_static_initializer(f, e.children[1], ctx)
+                f.write("}")
+            } else {
+                f.write("{.tag = ").write(ename).write("_TAG_").write(vname)
+                f.write(", .data = {.").write(vname).write(" = ")
+                emit_c_static_initializer(f, e.children[1], ctx)
+                f.write("}}")
+            }
         case:
             panic(__LOC__, "static enum constructor callee is not a field access")
         }
     case:
         panic(__LOC__, "unsupported C static initializer: ", e.node_type.head_str(ctx.symbols.names))
     }
+}
+
+priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, mut emitted: Set(USize), mut ctx: Context) {
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref ns : Vec(Declaration) = def_ns_decls(e)
+        for d : Declaration in ns {
+            if d.default_value.is_some() { emit_precomputed_sequence_templates_expr(f, d.default_expr(), emitted, ctx) }
+        }
+    }
+    for child : Expr in e.children { emit_precomputed_sequence_templates_expr(f, child, emitted, ctx) }
+    switch e.node_type {
+    case .PrecomputedSequence(data):
+        if emitted.has(data.ordinal) { return }
+        if expr_has_c_initializer(e, true, ctx).not() { panic(__LOC__, "precomputed sequence is not recursively serializable") }
+        emitted.add(own data.ordinal.clone())
+        symbol := precomputed_sequence_symbol(data)
+        if data.capacity > 0 {
+            elem_c := c_type_name(data.element_type, til_type_name(data.element_type), ctx)
+            f.write("static ").write(elem_c).write(" ").write(symbol).write("_data[")
+            emit_usize(f, data.capacity)
+            f.write("] = {")
+            if e.children.len() == 0 { f.write("0") }
+            for i in 0..e.children.len() {
+                if i > 0 { f.write(", ") }
+                emit_c_static_initializer(f, e.children[i], ctx)
+            }
+            f.write("};\n")
+        }
+        seq_c := c_type_name(data.til_type, til_type_name(data.til_type), ctx)
+        f.write("static ").write(seq_c).write(" ").write(symbol).write(" = ")
+        emit_c_static_initializer(f, e, ctx)
+        f.write(";\n")
+    case:
+    }
+}
+
+priv emit_precomputed_sequence_templates := proc(f: File, mut lp: LoadedProgram) {
+    mut emitted := Set(USize).new()
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
+        emit_precomputed_sequence_templates_expr(f, iu.ast, emitted, lp.ctx)
+    }
+    if emitted.len() > 0 { f.write("\n") }
 }
 
 priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
@@ -4046,6 +4135,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
         else { f.write("NULL") }
     case .BodyValue:
         emit_capturing_closure_value(f, e, depth, ctx)
+    case .PrecomputedSequence(data):
+        seq_name := til_type_name(data.til_type)
+        f.write(seq_name).write("_clone(&").write(precomputed_sequence_symbol(data)).write(")")
     case .FieldAccess(fname):
         ref obj : Expr = e.children[0]
         if builder_fa_is_ns(e, ctx) {
@@ -9005,6 +9097,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     builder_register_str_lits(lp)
     builder_emit_str_lit_pool(f, lp.ctx)
     builder_emit_loc_region(f, lp.ctx)
+    emit_precomputed_sequence_templates(f, lp)
 
     emit_global_declarations(f, lp)
     emit_function_bodies(f, mode, lp)

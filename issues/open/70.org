@@ -72,9 +72,14 @@
     ~test_static_global_initializers~, namespace checks in
     ~test_struct_fold_values~, and ~examples/ffi/ext_module~ header assertions
     cover compiled, interpreted, and handwritten-C use.
-  - [ ] Preparation commit: append the precomputed-sequence AST variant and
+  - [X] Preparation commit: append the precomputed-sequence AST variant and
     add complete clone/delete, interpreter, scavenger, and C-emitter
-    handling, but no producer.
+    handling, but no producer. ~PrecomputedSequenceData~ carries collection
+    and element types for empty-sequence fidelity, capacity, and a stable
+    template ordinal; element expressions are children. The interpreter
+    materializes fresh backing storage, while C emits post-ordered typed
+    templates and clones them at each value site. ~test_precomputed_sequence_payload~
+    covers payload/child cloning and deletion through both test backends.
   - [ ] After that preparation lands, make constfolder produce the sequence,
     remove the Vec/Array/Map gates, and test empty/non-empty/nested
     collections, ownership, generated C, ASAN, and USize32/USize64 targets.

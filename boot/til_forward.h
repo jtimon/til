@@ -97,6 +97,7 @@ typedef struct Literal Literal;
 typedef struct MatchData MatchData;
 typedef struct CaseData CaseData;
 typedef struct CaptureBlockData CaptureBlockData;
+typedef struct PrecomputedSequenceData PrecomputedSequenceData;
 enum {
     NodeType_TAG_Body,
     NodeType_TAG_Literal,
@@ -126,7 +127,8 @@ enum {
     NodeType_TAG_CaptureBlock,
     NodeType_TAG_Loc,
     NodeType_TAG_BodyValue,
-    NodeType_TAG_ListPattern
+    NodeType_TAG_ListPattern,
+    NodeType_TAG_PrecomputedSequence
 };
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -345,6 +347,7 @@ typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
 typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_codegen_til__DynCallInfo;
+typedef struct Set__USize Set__USize;
 typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
@@ -583,6 +586,14 @@ typedef struct MatchData {
 typedef struct CaseData {
     USize pattern_count;
 } CaseData;
+
+
+typedef struct PrecomputedSequenceData {
+    Type til_type;
+    Type element_type;
+    USize capacity;
+    USize ordinal;
+} PrecomputedSequenceData;
 
 
 struct Option__ref_Declaration {
@@ -1117,6 +1128,13 @@ typedef struct priv___src_self_c_codegen_til__DynCallInfo {
 } priv___src_self_c_codegen_til__DynCallInfo;
 
 
+typedef struct Set__USize {
+    U8 *data;
+    USize count;
+    USize cap;
+} Set__USize;
+
+
 typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo {
     U8 *data;
     USize count;
@@ -1443,6 +1461,7 @@ struct NodeType {
         CaseData Case;
         CaptureBlockData CaptureBlock;
         CaptureBlockData BodyValue;
+        PrecomputedSequenceData PrecomputedSequence;
         void *_til_payload_align;
     } data;
 };

@@ -1554,6 +1554,47 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
     write_i32(result, enum_variant_tag(type_def, variant).to_i32())
 }
 
+priv eval_precomputed_sequence := proc(mut scope: Scope, mut e: Expr, data: PrecomputedSequenceData, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic) returns Dynamic {
+    seq_name := til_type_name(data.til_type)
+    is_vec := seq_name.eq("Vec").or(seq_name.starts_with("Vec__"))
+    is_array := seq_name.eq("Array").or(seq_name.starts_with("Array__"))
+    if is_vec.not().and(is_array.not()) { panic("precomputed sequence has non-sequence type: ", seq_name) }
+    if e.children.len() > data.capacity { panic("precomputed sequence count exceeds capacity") }
+    if is_array.and(e.children.len() != data.capacity) { panic("precomputed Array count differs from capacity") }
+
+    elem_name := til_type_name(data.element_type)
+    if elem_name.len() == 0 { panic("precomputed sequence has unnamed element type") }
+    elem_size := container_elem_size(elem_name, ctx)
+    mut result : Dynamic = destination
+    if result.is_null() { result = dispatch_result_alloc(data.til_type, ctx) }
+    mut elements : Dynamic = 0
+    if data.capacity > 0 { elements = EvalHeap.heap_alloc(data.capacity.mul(elem_size)) }
+
+    ref data_fl : FieldLayout = ctx_field_layout(seq_name, "data", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout(seq_name, "cap", ctx)
+    write_ptr(ptr_add(result, data_fl.offset), elements)
+    if cap_fl.size == 4 { write_u32(ptr_add(result, cap_fl.offset), data.capacity.to_u32()) }
+    else { write_u64(ptr_add(result, cap_fl.offset), data.capacity.to_u64()) }
+    if is_vec {
+        ref count_fl : FieldLayout = ctx_field_layout(seq_name, "count", ctx)
+        if count_fl.size == 4 { write_u32(ptr_add(result, count_fl.offset), e.children.len().to_u32()) }
+        else { write_u64(ptr_add(result, count_fl.offset), e.children.len().to_u64()) }
+    }
+
+    for i in 0..e.children.len() {
+        ref mut element : Expr = e.children[i]
+        if element.til_type().eq(data.element_type).not() { panic("precomputed sequence element type mismatch") }
+        mut element_info := raw_result_info_new()
+        ref mut slot : Dynamic = ptr_add(elements, i.mul(elem_size))
+        element_raw : Dynamic = eval_expr_raw_info(scope, element, ctx, element_info, slot)
+        if element_info.is_ref { panic("precomputed sequence element evaluated as a reference") }
+        if element_raw.ptr_eq(slot).not() { panic("precomputed sequence element ignored its destination") }
+    }
+    info.is_ref = false
+    info.is_word = false
+    return result
+}
+
 priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context, mut info: RawResultInfo, mut destination: Dynamic = bits_word(0)) returns Dynamic {
     ref expr_type : Type = e.til_type()
     info.source_type_p = to_ptr(interp_intern_type(expr_type, ctx))
@@ -1731,6 +1772,8 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
     case .BodyValue:
         closure : Dynamic = make_interp_closure(e, scope, ctx)
         return raw_result_finish(expr_type, closure, destination, false, ctx)
+    case .PrecomputedSequence(data):
+        return eval_precomputed_sequence(scope, e, data, ctx, info, destination)
     case .StructDef, .EnumDef:
         mut result : Dynamic = destination
         if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
@@ -4256,7 +4299,10 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
     case .Struct(sname):
         return heap_clone(sname, ptr, ctx)
     case .Enum(ename):
-        total : USize = ctx_total_size(ename, ctx)
+        // Interpreter enum values use the flat dispatch layout, not the
+        // compact generated-C struct layout. A payload-less enum can be one
+        // C byte but still occupies the dispatch tag word.
+        total : USize = dispatch_enum_size(ename, ctx)
         return heap_clone_enum(ename, ptr, total, ctx)
     case .FuncPtr:
         mut dst : Dynamic = EvalHeap.heap_alloc(Dynamic.size())

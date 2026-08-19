@@ -2838,6 +2838,7 @@ node_name := func(data: NodeType) returns Str {
     case .Catch:       return "catch"
     case .CaptureBlock: return "capture_block"
     case .BodyValue: return "body_value"
+    case .PrecomputedSequence: return "precomputed_sequence"
     case: return "?"
     }
 }
