@@ -26,19 +26,23 @@ is_target := func(name: Str) returns Bool {
     return false
 }
 
-walk := proc(e: Expr, path: Str) {
+// #292 interned the AST's identifiers: IdentData.name is a Sym into the
+// parse's SymbolPool, not the spelling, so the pool has to come along to
+// read a name back out.
+walk := proc(e: Expr, path: Str, symbols: SymbolPool) {
     switch e.node_type {
     case .FCall(_):
         if e.children.len().gt(1) {
             switch e.children[0].node_type {
             case .Ident(id):
-                if is_target(id.name) {
+                ref name : Str = id.ident_name(symbols.names)
+                if is_target(name) {
                     if e.children.len().gt(2) {
                         println(path, ":", e.line.to_str(), ":", e.col.to_str(),
-                            ": ", id.name, "(first, ...) -> first.", id.name, "(...)")
+                            ": ", name, "(first, ...) -> first.", name, "(...)")
                     } else {
                         println(path, ":", e.line.to_str(), ":", e.col.to_str(),
-                            ": ", id.name, "() -> .", id.name, "()")
+                            ": ", name, "() -> .", name, "()")
                     }
                     count++
                 }
@@ -48,7 +52,7 @@ walk := proc(e: Expr, path: Str) {
     case:
     }
     for c : Expr in e.children {
-        walk(c, path)
+        walk(c, path, symbols)
     }
 }
 
@@ -63,9 +67,9 @@ main := proc(args: ..Str) {
         tokens := tokenize(src, fp)
         mut mode_out := ""
         mut anon_type_counter : I64 = 0
-        mut symbols := SymbolPool()
+        symbols := SymbolPool()
         root := parse(tokens, src, fp, mode_out, anon_type_counter, symbols)
-        walk(root, fp)
+        walk(root, fp, symbols)
     }
     println("Total: ", count.to_str())
 }
