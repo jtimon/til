@@ -74,6 +74,12 @@
   ~build~ and ~run~ still fail explicitly until that guest path is
   integrated.
 
+  The second slice emits ~examples/fizzbuzz.til~, including scalar locals,
+  I64 arithmetic/comparisons, mutation, conditionals, loops, literal output,
+  and ~I64.to_str()~ output. TempleOS 5.03 compiled and ran that generated
+  file under QEMU TCG and reported ~TILTEST:PASS~. User-defined direct calls
+  remain the unchecked part of this incremental-plan item.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI

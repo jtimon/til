@@ -1,4 +1,4 @@
 mode script
 
-println("one")
-println("two")
+unsupported := proc() { noop_proc() }
+unsupported()

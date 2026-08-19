@@ -1,1 +1,1 @@
-error: HolyC codegen: expected exactly one string-literal println statement
+error: HolyC codegen: user functions are not supported yet

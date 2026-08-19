@@ -1,0 +1,52 @@
+I64 TilI64Mod(I64 a, I64 b)
+{
+    if (!b)
+        return 0;
+    return a % b;
+}
+
+I64 TilMain()
+{
+    I64 i = 1;
+    while (TRUE) {
+        I64 hoisted__I64_g28 = 100;
+        Bool _wcond_Bool_g7 = (i <= hoisted__I64_g28);
+        if (_wcond_Bool_g7) {
+        } else {
+            break;
+        }
+        I64 hoisted__I64_g29 = 15;
+        I64 hoisted__I64_g30 = TilI64Mod(i, hoisted__I64_g29);
+        I64 hoisted__I64_g31 = 0;
+        Bool hoisted__Bool_g32 = (hoisted__I64_g30 == hoisted__I64_g31);
+        if (hoisted__Bool_g32) {
+            "%s", "FizzBuzz";
+            "\n";
+        } else {
+            I64 hoisted__I64_g24 = 3;
+            I64 hoisted__I64_g25 = TilI64Mod(i, hoisted__I64_g24);
+            I64 hoisted__I64_g26 = 0;
+            Bool hoisted__Bool_g27 = (hoisted__I64_g25 == hoisted__I64_g26);
+            if (hoisted__Bool_g27) {
+                "%s", "Fizz";
+                "\n";
+            } else {
+                I64 hoisted__I64_g20 = 5;
+                I64 hoisted__I64_g21 = TilI64Mod(i, hoisted__I64_g20);
+                I64 hoisted__I64_g22 = 0;
+                Bool hoisted__Bool_g23 = (hoisted__I64_g21 == hoisted__I64_g22);
+                if (hoisted__Bool_g23) {
+                    "%s", "Buzz";
+                    "\n";
+                } else {
+                    "%d", i;
+                    "\n";
+                }
+            }
+        }
+        (++i);
+    }
+    return 0;
+}
+
+TilMain;
