@@ -1979,16 +1979,10 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         ufcs_desugared = true
         mut type_ident := Expr.new(ident_node(ctx.symbols.intern(type_name)), obj.line, obj.col)
         type_ident.set_til_type(Type.Struct(type_name.clone()))
-        // Move the receiver `obj` out of fa.children[0] (no clone) into a
-        // holder, then put the type ident in the vacated slot. push_take
-        // zeroes the source slot, so the .set below is a plain bit-overwrite
-        // of a dead slot. The moved receiver becomes the UFCS self-arg at
-        // position 1 (pushed into new_children further down), so we reuse the
-        // original subtree instead of cloning it and orphaning the original
-        // -- the clone+orphan was a per-UFCS-call leak of the whole receiver.
-        mut recv_holder := Vec(Expr).new()
-        recv_holder.push_take(fa.children, 0)
-        fa.children[0] = type_ident
+        // Move the callee into its exactly-sized destination first, then move
+        // the receiver directly out of that relocated callee. This reuses the
+        // original subtree without the one-element holder Vec that used to
+        // allocate once per UFCS call.
         // Keep every child-indexed call flag aligned with the argument it
         // describes when UFCS inserts self at position 1.
         ref mut ufcs_fcd : FCallData = fcall_of(e)
@@ -1996,9 +1990,11 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         ufcs_fcd.keep_outer_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.keep_outer_args)
         ufcs_fcd.ref_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.ref_args)
         ufcs_fcd.splat_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.splat_args)
-        mut new_children := Vec(Expr).new()
+        mut new_children := Vec(Expr).with_capacity(e.children.len() + 1)
         new_children.push_take(e.children, 0)
-        new_children.push_take(recv_holder, 0)
+        ref mut moved_fa : Expr = new_children[0]
+        new_children.push_take(moved_fa.children, 0)
+        moved_fa.children[0] = type_ident
         for i in 1..e.children.len() {
             new_children.push_take(e.children, i)
         }

@@ -2225,7 +2225,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
 
     mut old := body.children.take()
 
-    mut new_ch := Vec(Expr).new()
+    mut new_ch := Vec(Expr).with_capacity(old.len() + live.len())
     for i in 0..old.len() {
         ref mut stmt : Expr = old[i]
         if is_compile_directive(stmt, ctx.symbols) { continue }
@@ -2780,7 +2780,7 @@ priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, s
     }
     if found.not() { return false }
     mut old := node.children.take()
-    mut new_ch := Vec(Expr).new()
+    mut new_ch := Vec(Expr).with_capacity(old.len() + 1)
     for i in 0..old.len() {
         new_ch.push_take(old, i)
         if i == idx {
@@ -3259,7 +3259,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
 
     mut old := body.children.take()
 
-    mut new_ch := Vec(Expr).new()
+    mut new_ch := Vec(Expr).with_capacity(old.len() + locals_vec.len())
     for i in 0..old.len() {
         ref mut stmt : Expr = old[i]
         if is_compile_directive(stmt, ctx.symbols) { continue }

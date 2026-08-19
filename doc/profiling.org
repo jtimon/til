@@ -199,7 +199,7 @@ Top 32 by self time:
   | Array__U8_unsafe_set                            | 235K     | 23.1    | 39.3     |
   | Str_delete                                      | 1.09M    | 22.1    | 22.1     |
   | Str_clone                                       | 502K     | 16.7    | 16.7     |
-  | Expr_delete                                     | 178K     | 15.5    | 233.4    |
+  | Expr_delete                                     | 175K     | 15.3    | 222.7    |
   | expr_collect_stmt_facts                         | 143K     | 15.4    | 762.7    |
   | priv___src_self_garbager_til__fact_bit_test     | 385K     | 14.9    | 21.5     |
   | U32_to_u64                                      | 823K     | 14.0    | 14.0     |
@@ -225,14 +225,14 @@ Top 32 by bytes allocated:
 
   | function                                      | allocs | alloc_kb | calls   |
   |-----------------------------------------------+--------+----------+---------|
-  | Vec__Expr_push_take                           | 38.0K  | 18348.3  | 74.1K   |
-  | Vec__Expr_push                                | 39.1K  | 12031.9  | 42.8K   |
+  | Vec__Expr_with_capacity                       | 18.6K  | 13352.6  | 19.2K   |
+  | Vec__Expr_push                                | 39.0K  | 12021.8  | 42.8K   |
   | Map__U32_TypeBinding_set                      | 26.9K  | 9841.7   | 22.5K   |
-  | Vec__Expr_clone                               | 23.7K  | 6750.0   | 43.7K   |
+  | Vec__Expr_clone                               | 23.7K  | 6767.6   | 43.7K   |
   | Str_clone                                     | 443K   | 4748.0   | 502K    |
-  | Vec__Expr_with_capacity                       | 9.43K  | 4629.6   | 10.0K   |
+  | Vec__Expr_push_take                           | 10.3K  | 4120.9   | 71.4K   |
   | swap_bytes                                    | 98.8K  | 3810.8   | 98.8K   |
-  | Vec__Expr_append                              | 1.19K  | 2081.1   | 22.2K   |
+  | Vec__Expr_append                              | 1.14K  | 1929.8   | 22.2K   |
   | Vec__priv___src_self_garbager_til__LocalInfo_push | 7.66K | 1794.5 | 12.6K |
   | cfile_read_all                                | 63     | 1531.2   | 21      |
   | Vec__Token_push                               | 217    | 1407.1   | 27.5K   |
