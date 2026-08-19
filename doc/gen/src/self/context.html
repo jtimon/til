@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -49,7 +49,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
-<li><a class="current" href="../../src/self/context.html">src/self/context.til</a><ul><li><a href="#til.src.self.context.BorrowRoot">BorrowRoot</a></li><li><a href="#til.src.self.context.TypeBinding">TypeBinding</a></li><li><a href="#til.src.self.context.ScopeFind">ScopeFind</a></li><li><a href="#til.src.self.context.name_fingerprint">name_fingerprint</a></li><li><a href="#til.src.self.context.TypeScope">TypeScope</a></li><li><a href="#til.src.self.context.binding_func_type">binding_func_type</a></li><li><a href="#til.src.self.context.type_binding_is_type_token">type_binding_is_type_token</a></li><li><a href="#til.src.self.context.init_func_is_generic">init_func_is_generic</a></li><li><a href="#til.src.self.context.init_stmt_is_generic_source">init_stmt_is_generic_source</a></li><li><a href="#til.src.self.context.type_name_mentions_param">type_name_mentions_param</a></li><li><a href="#til.src.self.context.generic_source_throws_depend_on_type">generic_source_throws_depend_on_type</a></li><li><a href="#til.src.self.context.GenericFuncSource">GenericFuncSource</a></li><li><a href="#til.src.self.context.func_def_type">func_def_type</a></li><li><a href="#til.src.self.context.ImportUnit">ImportUnit</a></li><li><a href="#til.src.self.context.BuilderFuncScratch">BuilderFuncScratch</a></li><li><a href="#til.src.self.context.FfiState">FfiState</a></li><li><a href="#til.src.self.context.InternedTypes">InternedTypes</a></li><li><a href="#til.src.self.context.Context">Context</a></li><li><a href="#til.src.self.context.synth_suffix">synth_suffix</a></li><li><a href="#til.src.self.context.synth_suffix_unique">synth_suffix_unique</a></li><li><a href="#til.src.self.context.synth_owner_name">synth_owner_name</a></li><li><a href="#til.src.self.context.synth_symbol_suffix">synth_symbol_suffix</a></li><li><a href="#til.src.self.context.context_register_target_int_alias_types">context_register_target_int_alias_types</a></li><li><a href="#til.src.self.context.context_reset_type_scope">context_reset_type_scope</a></li><li><a href="#til.src.self.context.note_cross_file_use">note_cross_file_use</a></li><li><a href="#til.src.self.context.note_cross_file_type_use">note_cross_file_type_use</a></li><li><a href="#til.src.self.context.scope_target_usize_pname">scope_target_usize_pname</a></li><li><a href="#til.src.self.context.scope_target_uptr_pname">scope_target_uptr_pname</a></li><li><a href="#til.src.self.context.priv_c_name">priv_c_name</a></li><li><a href="#til.src.self.context.align_up">align_up</a></li><li><a href="#til.src.self.context.PRIM_NAMES">PRIM_NAMES</a></li><li><a href="#til.src.self.context._PRIM_NAMES_ek">_PRIM_NAMES_ek</a></li><li><a href="#til.src.self.context.WIDTH_ALIAS_NAMES">WIDTH_ALIAS_NAMES</a></li><li><a href="#til.src.self.context._WIDTH_ALIAS_NAMES_ek">_WIDTH_ALIAS_NAMES_ek</a></li><li><a href="#til.src.self.context.is_scalar_type_name">is_scalar_type_name</a></li><li><a href="#til.src.self.context.resolved_type_name">resolved_type_name</a></li><li><a href="#til.src.self.context.unsigned_prim_name_for_width">unsigned_prim_name_for_width</a></li><li><a href="#til.src.self.context.unsigned_prim_width_for_name">unsigned_prim_width_for_name</a></li><li><a href="#til.src.self.context.host_usize_pname">host_usize_pname</a></li><li><a href="#til.src.self.context.host_uptr_pname">host_uptr_pname</a></li><li><a href="#til.src.self.context.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.context.size_intrinsics_use_sizeof">size_intrinsics_use_sizeof</a></li><li><a href="#til.src.self.context.constfolder_classify_stmt">constfolder_classify_stmt</a></li><li><a href="#til.src.self.context.make_method_call_fcall">make_method_call_fcall</a></li><li><a href="#til.src.self.context.make_get_payload_fcall">make_get_payload_fcall</a></li><li><a href="#til.src.self.context.make_is_tag_check_fcall">make_is_tag_check_fcall</a></li><li><a href="#til.src.self.context.make_payload_ref_decl">make_payload_ref_decl</a></li><li><a href="#til.src.self.context.make_payload_ref_decls">make_payload_ref_decls</a></li><li><a href="#til.src.self.context.type_is_primitive">type_is_primitive</a></li><li><a href="#til.src.self.context.is_type_metatype">is_type_metatype</a></li><li><a href="#til.src.self.context.funcptr_eq">funcptr_eq</a></li><li><a href="#til.src.self.context.type_is_callable_storage">type_is_callable_storage</a></li><li><a href="#til.src.self.context.func_returns_c_value">func_returns_c_value</a></li><li><a href="#til.src.self.context.func_param_passes_c_value">func_param_passes_c_value</a></li><li><a href="#til.src.self.context.type_from_name_init_name">type_from_name_init_name</a></li><li><a href="#til.src.self.context.type_from_declaration_name">type_from_declaration_name</a></li><li><a href="#til.src.self.context.declaration_resolved_type">declaration_resolved_type</a></li><li><a href="#til.src.self.context.field_inferred_type_name">field_inferred_type_name</a></li><li><a href="#til.src.self.context.array_vec_elem_type_name">array_vec_elem_type_name</a></li><li><a href="#til.src.self.context.delete_body_is_free_only">delete_body_is_free_only</a></li><li><a href="#til.src.self.context.init_delete_is_noop">init_delete_is_noop</a></li><li><a href="#til.src.self.context.is_pod_type_for_clone">is_pod_type_for_clone</a></li><li><a href="#til.src.self.context.is_struct_or_enum">is_struct_or_enum</a></li><li><a href="#til.src.self.context.is_func_decl">is_func_decl</a></li><li><a href="#til.src.self.context.is_def">is_def</a></li><li><a href="#til.src.self.context.member_get">member_get</a></li><li><a href="#til.src.self.context.def_ns_decls">def_ns_decls</a></li><li><a href="#til.src.self.context.def_ns_name_at">def_ns_name_at</a></li><li><a href="#til.src.self.context.def_ns_has">def_ns_has</a></li><li><a href="#til.src.self.context.def_ns_get">def_ns_get</a></li><li><a href="#til.src.self.context.def_ns_pos">def_ns_pos</a></li><li><a href="#til.src.self.context.ns_const_eval_order">ns_const_eval_order</a></li><li><a href="#til.src.self.context.enum_has_payloads">enum_has_payloads</a></li><li><a href="#til.src.self.context.enum_tag_type">enum_tag_type</a></li><li><a href="#til.src.self.context.enum_tag_size">enum_tag_size</a></li><li><a href="#til.src.self.context.enum_variant_tag">enum_variant_tag</a></li><li><a href="#til.src.self.context.enum_variant_tag_at">enum_variant_tag_at</a></li><li><a href="#til.src.self.context.enum_variant_index">enum_variant_index</a></li><li><a href="#til.src.self.context.enum_variant_type">enum_variant_type</a></li><li><a href="#til.src.self.context.enum_variant_payload_const">enum_variant_payload_const</a></li><li><a href="#til.src.self.context.niche_payload_is_owned_box">niche_payload_is_owned_box</a></li><li><a href="#til.src.self.context.enum_variant_payload_funcsig">enum_variant_payload_funcsig</a></li><li><a href="#til.src.self.context.enum_is_niche">enum_is_niche</a></li><li><a href="#til.src.self.context.enum_niche_some_index">enum_niche_some_index</a></li><li><a href="#til.src.self.context.enum_variant_payload_ref">enum_variant_payload_ref</a></li><li><a href="#til.src.self.context.enum_payload_is_pointer_slot">enum_payload_is_pointer_slot</a></li><li><a href="#til.src.self.context.enum_has_ref_payload">enum_has_ref_payload</a></li><li><a href="#til.src.self.context.rhs_is_allocator_call">rhs_is_allocator_call</a></li><li><a href="#til.src.self.context.fn_never_returns">fn_never_returns</a></li><li><a href="#til.src.self.context.stmt_always_diverges">stmt_always_diverges</a></li><li><a href="#til.src.self.context.lazy_body_inlinable">lazy_body_inlinable</a></li><li><a href="#til.src.self.context.lazy_body_split_point">lazy_body_split_point</a></li><li><a href="#til.src.self.context.lazy_body_stmt_inlinable">lazy_body_stmt_inlinable</a></li><li><a href="#til.src.self.context.lazy_variadic_body_unrollable">lazy_variadic_body_unrollable</a></li><li><a href="#til.src.self.context.is_primitive">is_primitive</a></li><li><a href="#til.src.self.context.is_funcptr">is_funcptr</a></li><li><a href="#til.src.self.context.is_aggregate">is_aggregate</a></li><li><a href="#til.src.self.context.fcall_is_direct">fcall_is_direct</a></li><li><a href="#til.src.self.context.mark_fcall_direct">mark_fcall_direct</a></li><li><a href="#til.src.self.context.resolve_direct_fcall">resolve_direct_fcall</a></li><li><a href="#til.src.self.context.is_range_new_call">is_range_new_call</a></li><li><a href="#til.src.self.context.ast_print">ast_print</a></li><li><a href="#til.src.self.context.fcall_kwargs_count">fcall_kwargs_count</a></li><li><a href="#til.src.self.context.fcall_variadic_count">fcall_variadic_count</a></li><li><a href="#til.src.self.context.qname_cmp">qname_cmp</a></li><li><a href="#til.src.self.context.qname_keys_index">qname_keys_index</a></li><li><a href="#til.src.self.context.qname_in_set">qname_in_set</a></li><li><a href="#til.src.self.context.Map__Sym_TypeBinding">Map__Sym_TypeBinding</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot">Vec__BorrowRoot</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.new">Vec__BorrowRoot.new</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.with_capacity">Vec__BorrowRoot.with_capacity</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.clear">Vec__BorrowRoot.clear</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.delete_marked">Vec__BorrowRoot.delete_marked</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.push">Vec__BorrowRoot.push</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.append">Vec__BorrowRoot.append</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.take">Vec__BorrowRoot.take</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.move_to">Vec__BorrowRoot.move_to</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.move_from">Vec__BorrowRoot.move_from</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.unsafe_get">Vec__BorrowRoot.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.get">Vec__BorrowRoot.get</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.pop">Vec__BorrowRoot.pop</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.remove_at">Vec__BorrowRoot.remove_at</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.take_prefix">Vec__BorrowRoot.take_prefix</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.truncate">Vec__BorrowRoot.truncate</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.unsafe_set">Vec__BorrowRoot.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.set">Vec__BorrowRoot.set</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.push_take">Vec__BorrowRoot.push_take</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.delete">Vec__BorrowRoot.delete</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.clone">Vec__BorrowRoot.clone</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding">Map__U32_TypeBinding</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.new">Map__U32_TypeBinding.new</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.with_capacity">Map__U32_TypeBinding.with_capacity</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.clear">Map__U32_TypeBinding.clear</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.has">Map__U32_TypeBinding.has</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.get">Map__U32_TypeBinding.get</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.set">Map__U32_TypeBinding.set</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.remove">Map__U32_TypeBinding.remove</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope">Option__ref_TypeScope</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope.unwrap">Option__ref_TypeScope.unwrap</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope.take">Option__ref_TypeScope.take</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding">Option__ref_TypeBinding</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding.unwrap">Option__ref_TypeBinding.unwrap</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding.take">Option__ref_TypeBinding.take</a></li><li><a href="#til.src.self.context.Map__U32_Str">Map__U32_Str</a></li><li><a href="#til.src.self.context.Map__U32_Str.new">Map__U32_Str.new</a></li><li><a href="#til.src.self.context.Map__U32_Str.with_capacity">Map__U32_Str.with_capacity</a></li><li><a href="#til.src.self.context.Map__U32_Str.clear">Map__U32_Str.clear</a></li><li><a href="#til.src.self.context.Map__U32_Str.has">Map__U32_Str.has</a></li><li><a href="#til.src.self.context.Map__U32_Str.get">Map__U32_Str.get</a></li><li><a href="#til.src.self.context.Map__U32_Str.set">Map__U32_Str.set</a></li><li><a href="#til.src.self.context.Map__U32_Str.remove">Map__U32_Str.remove</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry">Map__Str_FFIEntry</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.new">Map__Str_FFIEntry.new</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.with_capacity">Map__Str_FFIEntry.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.clear">Map__Str_FFIEntry.clear</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.has">Map__Str_FFIEntry.has</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.get">Map__Str_FFIEntry.get</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.set">Map__Str_FFIEntry.set</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.remove">Map__Str_FFIEntry.remove</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox">Map__Str_ExprPtrBox</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.new">Map__Str_ExprPtrBox.new</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.with_capacity">Map__Str_ExprPtrBox.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.clear">Map__Str_ExprPtrBox.clear</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.has">Map__Str_ExprPtrBox.has</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.get">Map__Str_ExprPtrBox.get</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.set">Map__Str_ExprPtrBox.set</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.remove">Map__Str_ExprPtrBox.remove</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox">Vec__FFITypePtrBox</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.new">Vec__FFITypePtrBox.new</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.with_capacity">Vec__FFITypePtrBox.with_capacity</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.clear">Vec__FFITypePtrBox.clear</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.delete_marked">Vec__FFITypePtrBox.delete_marked</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.push">Vec__FFITypePtrBox.push</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.append">Vec__FFITypePtrBox.append</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.take">Vec__FFITypePtrBox.take</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.move_to">Vec__FFITypePtrBox.move_to</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.move_from">Vec__FFITypePtrBox.move_from</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.unsafe_get">Vec__FFITypePtrBox.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.get">Vec__FFITypePtrBox.get</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.pop">Vec__FFITypePtrBox.pop</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.remove_at">Vec__FFITypePtrBox.remove_at</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.take_prefix">Vec__FFITypePtrBox.take_prefix</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.truncate">Vec__FFITypePtrBox.truncate</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.unsafe_set">Vec__FFITypePtrBox.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.set">Vec__FFITypePtrBox.set</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.push_take">Vec__FFITypePtrBox.push_take</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.delete">Vec__FFITypePtrBox.delete</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.clone">Vec__FFITypePtrBox.clone</a></li><li><a href="#til.src.self.context.Map__Str_Mode">Map__Str_Mode</a></li><li><a href="#til.src.self.context.Map__Str_Mode.new">Map__Str_Mode.new</a></li><li><a href="#til.src.self.context.Map__Str_Mode.with_capacity">Map__Str_Mode.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Mode.clear">Map__Str_Mode.clear</a></li><li><a href="#til.src.self.context.Map__Str_Mode.has">Map__Str_Mode.has</a></li><li><a href="#til.src.self.context.Map__Str_Mode.get">Map__Str_Mode.get</a></li><li><a href="#til.src.self.context.Map__Str_Mode.set">Map__Str_Mode.set</a></li><li><a href="#til.src.self.context.Map__Str_Mode.remove">Map__Str_Mode.remove</a></li><li><a href="#til.src.self.context.Map__Str_FuncType">Map__Str_FuncType</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.new">Map__Str_FuncType.new</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.with_capacity">Map__Str_FuncType.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.clear">Map__Str_FuncType.clear</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.has">Map__Str_FuncType.has</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.get">Map__Str_FuncType.get</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.set">Map__Str_FuncType.set</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.remove">Map__Str_FuncType.remove</a></li><li><a href="#til.src.self.context.Option__Scope">Option__Scope</a></li><li><a href="#til.src.self.context.Option__Scope.unwrap">Option__Scope.unwrap</a></li><li><a href="#til.src.self.context.Option__Scope.take">Option__Scope.take</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit">Map__Str_ImportUnit</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.new">Map__Str_ImportUnit.new</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.with_capacity">Map__Str_ImportUnit.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.clear">Map__Str_ImportUnit.clear</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.has">Map__Str_ImportUnit.has</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.get">Map__Str_ImportUnit.get</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.set">Map__Str_ImportUnit.set</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.remove">Map__Str_ImportUnit.remove</a></li><li><a href="#til.src.self.context.Map__Str_Expr">Map__Str_Expr</a></li><li><a href="#til.src.self.context.Map__Str_Expr.new">Map__Str_Expr.new</a></li><li><a href="#til.src.self.context.Map__Str_Expr.with_capacity">Map__Str_Expr.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Expr.clear">Map__Str_Expr.clear</a></li><li><a href="#til.src.self.context.Map__Str_Expr.has">Map__Str_Expr.has</a></li><li><a href="#til.src.self.context.Map__Str_Expr.get">Map__Str_Expr.get</a></li><li><a href="#til.src.self.context.Map__Str_Expr.set">Map__Str_Expr.set</a></li><li><a href="#til.src.self.context.Map__Str_Expr.remove">Map__Str_Expr.remove</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout">Map__Str_StructLayout</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.new">Map__Str_StructLayout.new</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.with_capacity">Map__Str_StructLayout.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.clear">Map__Str_StructLayout.clear</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.has">Map__Str_StructLayout.has</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.get">Map__Str_StructLayout.get</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.set">Map__Str_StructLayout.set</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.remove">Map__Str_StructLayout.remove</a></li><li><a href="#til.src.self.context.Set__U32">Set__U32</a></li><li><a href="#til.src.self.context.Set__U32.new">Set__U32.new</a></li><li><a href="#til.src.self.context.Set__U32.with_capacity">Set__U32.with_capacity</a></li><li><a href="#til.src.self.context.Set__U32.clear">Set__U32.clear</a></li><li><a href="#til.src.self.context.Set__U32.has">Set__U32.has</a></li><li><a href="#til.src.self.context.Set__U32.add">Set__U32.add</a></li><li><a href="#til.src.self.context.Set__U32.remove">Set__U32.remove</a></li><li><a href="#til.src.self.context.Map__Str_I64">Map__Str_I64</a></li><li><a href="#til.src.self.context.Map__Str_I64.new">Map__Str_I64.new</a></li><li><a href="#til.src.self.context.Map__Str_I64.with_capacity">Map__Str_I64.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_I64.clear">Map__Str_I64.clear</a></li><li><a href="#til.src.self.context.Map__Str_I64.has">Map__Str_I64.has</a></li><li><a href="#til.src.self.context.Map__Str_I64.get">Map__Str_I64.get</a></li><li><a href="#til.src.self.context.Map__Str_I64.set">Map__Str_I64.set</a></li><li><a href="#til.src.self.context.Map__Str_I64.remove">Map__Str_I64.remove</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.new">Map__Str_call_Vec_Str.new</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.with_capacity">Map__Str_call_Vec_Str.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.clear">Map__Str_call_Vec_Str.clear</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.has">Map__Str_call_Vec_Str.has</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.get">Map__Str_call_Vec_Str.get</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.set">Map__Str_call_Vec_Str.set</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.remove">Map__Str_call_Vec_Str.remove</a></li><li><a href="#til.src.self.context.HashMap__Str_Str">HashMap__Str_Str</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.hasher">HashMap__Str_Str.hasher</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.new">HashMap__Str_Str.new</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.with_capacity">HashMap__Str_Str.with_capacity</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.clear">HashMap__Str_Str.clear</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.clone">HashMap__Str_Str.clone</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.get">HashMap__Str_Str.get</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.stored_hash">HashMap__Str_Str.stored_hash</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.remove">HashMap__Str_Str.remove</a></li><li><a href="#til.src.self.context.HashMap__Str_USize">HashMap__Str_USize</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.hasher">HashMap__Str_USize.hasher</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.new">HashMap__Str_USize.new</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.with_capacity">HashMap__Str_USize.with_capacity</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.clear">HashMap__Str_USize.clear</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.clone">HashMap__Str_USize.clone</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.get">HashMap__Str_USize.get</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.stored_hash">HashMap__Str_USize.stored_hash</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.remove">HashMap__Str_USize.remove</a></li><li><a href="#til.src.self.context.Map__Str_Bool">Map__Str_Bool</a></li><li><a href="#til.src.self.context.Map__Str_Bool.new">Map__Str_Bool.new</a></li><li><a href="#til.src.self.context.Map__Str_Bool.with_capacity">Map__Str_Bool.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Bool.clear">Map__Str_Bool.clear</a></li><li><a href="#til.src.self.context.Map__Str_Bool.has">Map__Str_Bool.has</a></li><li><a href="#til.src.self.context.Map__Str_Bool.get">Map__Str_Bool.get</a></li><li><a href="#til.src.self.context.Map__Str_Bool.set">Map__Str_Bool.set</a></li><li><a href="#til.src.self.context.Map__Str_Bool.remove">Map__Str_Bool.remove</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic">Map__Str_Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.new">Map__Str_Dynamic.new</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.with_capacity">Map__Str_Dynamic.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.clear">Map__Str_Dynamic.clear</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.has">Map__Str_Dynamic.has</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.get">Map__Str_Dynamic.get</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.set">Map__Str_Dynamic.set</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.remove">Map__Str_Dynamic.remove</a></li><li><a href="#til.src.self.context.Option__ref_Declaration">Option__ref_Declaration</a></li><li><a href="#til.src.self.context.Option__ref_Declaration.unwrap">Option__ref_Declaration.unwrap</a></li><li><a href="#til.src.self.context.Option__ref_Declaration.take">Option__ref_Declaration.take</a></li><li><a href="#til.src.self.context.Option__ref_Expr">Option__ref_Expr</a></li><li><a href="#til.src.self.context.Option__ref_Expr.unwrap">Option__ref_Expr.unwrap</a></li><li><a href="#til.src.self.context.Option__ref_Expr.take">Option__ref_Expr.take</a></li><li><a href="#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.new">Vec__TypeBinding.new</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.with_capacity">Vec__TypeBinding.with_capacity</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.clear">Vec__TypeBinding.clear</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.delete_marked">Vec__TypeBinding.delete_marked</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.push">Vec__TypeBinding.push</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.append">Vec__TypeBinding.append</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.take">Vec__TypeBinding.take</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.move_to">Vec__TypeBinding.move_to</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.move_from">Vec__TypeBinding.move_from</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.unsafe_get">Vec__TypeBinding.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.get">Vec__TypeBinding.get</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.pop">Vec__TypeBinding.pop</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.remove_at">Vec__TypeBinding.remove_at</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.take_prefix">Vec__TypeBinding.take_prefix</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.truncate">Vec__TypeBinding.truncate</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.unsafe_set">Vec__TypeBinding.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.set">Vec__TypeBinding.set</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.push_take">Vec__TypeBinding.push_take</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.delete">Vec__TypeBinding.delete</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.clone">Vec__TypeBinding.clone</a></li><li><a href="#til.src.self.context.Vec__FFIEntry">Vec__FFIEntry</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.new">Vec__FFIEntry.new</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.with_capacity">Vec__FFIEntry.with_capacity</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.clear">Vec__FFIEntry.clear</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.delete_marked">Vec__FFIEntry.delete_marked</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.push">Vec__FFIEntry.push</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.append">Vec__FFIEntry.append</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.take">Vec__FFIEntry.take</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.move_to">Vec__FFIEntry.move_to</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.move_from">Vec__FFIEntry.move_from</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.unsafe_get">Vec__FFIEntry.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.get">Vec__FFIEntry.get</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.pop">Vec__FFIEntry.pop</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.remove_at">Vec__FFIEntry.remove_at</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.take_prefix">Vec__FFIEntry.take_prefix</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.truncate">Vec__FFIEntry.truncate</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.unsafe_set">Vec__FFIEntry.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.set">Vec__FFIEntry.set</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.push_take">Vec__FFIEntry.push_take</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.delete">Vec__FFIEntry.delete</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.clone">Vec__FFIEntry.clone</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox">Vec__ExprPtrBox</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.new">Vec__ExprPtrBox.new</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.with_capacity">Vec__ExprPtrBox.with_capacity</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.clear">Vec__ExprPtrBox.clear</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.delete_marked">Vec__ExprPtrBox.delete_marked</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.push">Vec__ExprPtrBox.push</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.append">Vec__ExprPtrBox.append</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.take">Vec__ExprPtrBox.take</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.move_to">Vec__ExprPtrBox.move_to</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.move_from">Vec__ExprPtrBox.move_from</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.unsafe_get">Vec__ExprPtrBox.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.get">Vec__ExprPtrBox.get</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.pop">Vec__ExprPtrBox.pop</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.remove_at">Vec__ExprPtrBox.remove_at</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.take_prefix">Vec__ExprPtrBox.take_prefix</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.truncate">Vec__ExprPtrBox.truncate</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.unsafe_set">Vec__ExprPtrBox.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.set">Vec__ExprPtrBox.set</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.push_take">Vec__ExprPtrBox.push_take</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.delete">Vec__ExprPtrBox.delete</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.clone">Vec__ExprPtrBox.clone</a></li><li><a href="#til.src.self.context.Vec__Mode">Vec__Mode</a></li><li><a href="#til.src.self.context.Vec__Mode.new">Vec__Mode.new</a></li><li><a href="#til.src.self.context.Vec__Mode.with_capacity">Vec__Mode.with_capacity</a></li><li><a href="#til.src.self.context.Vec__Mode.clear">Vec__Mode.clear</a></li><li><a href="#til.src.self.context.Vec__Mode.delete_marked">Vec__Mode.delete_marked</a></li><li><a href="#til.src.self.context.Vec__Mode.push">Vec__Mode.push</a></li><li><a href="#til.src.self.context.Vec__Mode.append">Vec__Mode.append</a></li><li><a href="#til.src.self.context.Vec__Mode.take">Vec__Mode.take</a></li><li><a href="#til.src.self.context.Vec__Mode.move_to">Vec__Mode.move_to</a></li><li><a href="#til.src.self.context.Vec__Mode.move_from">Vec__Mode.move_from</a></li><li><a href="#til.src.self.context.Vec__Mode.unsafe_get">Vec__Mode.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__Mode.get">Vec__Mode.get</a></li><li><a href="#til.src.self.context.Vec__Mode.pop">Vec__Mode.pop</a></li><li><a href="#til.src.self.context.Vec__Mode.remove_at">Vec__Mode.remove_at</a></li><li><a href="#til.src.self.context.Vec__Mode.take_prefix">Vec__Mode.take_prefix</a></li><li><a href="#til.src.self.context.Vec__Mode.truncate">Vec__Mode.truncate</a></li><li><a href="#til.src.self.context.Vec__Mode.unsafe_set">Vec__Mode.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__Mode.set">Vec__Mode.set</a></li><li><a href="#til.src.self.context.Vec__Mode.push_take">Vec__Mode.push_take</a></li><li><a href="#til.src.self.context.Vec__Mode.delete">Vec__Mode.delete</a></li><li><a href="#til.src.self.context.Vec__Mode.clone">Vec__Mode.clone</a></li><li><a href="#til.src.self.context.Vec__FuncType">Vec__FuncType</a></li><li><a href="#til.src.self.context.Vec__FuncType.new">Vec__FuncType.new</a></li><li><a href="#til.src.self.context.Vec__FuncType.with_capacity">Vec__FuncType.with_capacity</a></li><li><a href="#til.src.self.context.Vec__FuncType.clear">Vec__FuncType.clear</a></li><li><a href="#til.src.self.context.Vec__FuncType.delete_marked">Vec__FuncType.delete_marked</a></li><li><a href="#til.src.self.context.Vec__FuncType.push">Vec__FuncType.push</a></li><li><a href="#til.src.self.context.Vec__FuncType.append">Vec__FuncType.append</a></li><li><a href="#til.src.self.context.Vec__FuncType.take">Vec__FuncType.take</a></li><li><a href="#til.src.self.context.Vec__FuncType.move_to">Vec__FuncType.move_to</a></li><li><a href="#til.src.self.context.Vec__FuncType.move_from">Vec__FuncType.move_from</a></li><li><a href="#til.src.self.context.Vec__FuncType.unsafe_get">Vec__FuncType.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__FuncType.get">Vec__FuncType.get</a></li><li><a href="#til.src.self.context.Vec__FuncType.pop">Vec__FuncType.pop</a></li><li><a href="#til.src.self.context.Vec__FuncType.remove_at">Vec__FuncType.remove_at</a></li><li><a href="#til.src.self.context.Vec__FuncType.take_prefix">Vec__FuncType.take_prefix</a></li><li><a href="#til.src.self.context.Vec__FuncType.truncate">Vec__FuncType.truncate</a></li><li><a href="#til.src.self.context.Vec__FuncType.unsafe_set">Vec__FuncType.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__FuncType.set">Vec__FuncType.set</a></li><li><a href="#til.src.self.context.Vec__FuncType.push_take">Vec__FuncType.push_take</a></li><li><a href="#til.src.self.context.Vec__FuncType.delete">Vec__FuncType.delete</a></li><li><a href="#til.src.self.context.Vec__FuncType.clone">Vec__FuncType.clone</a></li><li><a href="#til.src.self.context.Vec__ImportUnit">Vec__ImportUnit</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.new">Vec__ImportUnit.new</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.with_capacity">Vec__ImportUnit.with_capacity</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.clear">Vec__ImportUnit.clear</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.delete_marked">Vec__ImportUnit.delete_marked</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.push">Vec__ImportUnit.push</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.append">Vec__ImportUnit.append</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.take">Vec__ImportUnit.take</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.move_to">Vec__ImportUnit.move_to</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.move_from">Vec__ImportUnit.move_from</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.unsafe_get">Vec__ImportUnit.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.get">Vec__ImportUnit.get</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.pop">Vec__ImportUnit.pop</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.remove_at">Vec__ImportUnit.remove_at</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.take_prefix">Vec__ImportUnit.take_prefix</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.truncate">Vec__ImportUnit.truncate</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.unsafe_set">Vec__ImportUnit.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.set">Vec__ImportUnit.set</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.push_take">Vec__ImportUnit.push_take</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.delete">Vec__ImportUnit.delete</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.clone">Vec__ImportUnit.clone</a></li><li><a href="#til.src.self.context.Vec__StructLayout">Vec__StructLayout</a></li><li><a href="#til.src.self.context.Vec__StructLayout.new">Vec__StructLayout.new</a></li><li><a href="#til.src.self.context.Vec__StructLayout.with_capacity">Vec__StructLayout.with_capacity</a></li><li><a href="#til.src.self.context.Vec__StructLayout.clear">Vec__StructLayout.clear</a></li><li><a href="#til.src.self.context.Vec__StructLayout.delete_marked">Vec__StructLayout.delete_marked</a></li><li><a href="#til.src.self.context.Vec__StructLayout.push">Vec__StructLayout.push</a></li><li><a href="#til.src.self.context.Vec__StructLayout.append">Vec__StructLayout.append</a></li><li><a href="#til.src.self.context.Vec__StructLayout.take">Vec__StructLayout.take</a></li><li><a href="#til.src.self.context.Vec__StructLayout.move_to">Vec__StructLayout.move_to</a></li><li><a href="#til.src.self.context.Vec__StructLayout.move_from">Vec__StructLayout.move_from</a></li><li><a href="#til.src.self.context.Vec__StructLayout.unsafe_get">Vec__StructLayout.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__StructLayout.get">Vec__StructLayout.get</a></li><li><a href="#til.src.self.context.Vec__StructLayout.pop">Vec__StructLayout.pop</a></li><li><a href="#til.src.self.context.Vec__StructLayout.remove_at">Vec__StructLayout.remove_at</a></li><li><a href="#til.src.self.context.Vec__StructLayout.take_prefix">Vec__StructLayout.take_prefix</a></li><li><a href="#til.src.self.context.Vec__StructLayout.truncate">Vec__StructLayout.truncate</a></li><li><a href="#til.src.self.context.Vec__StructLayout.unsafe_set">Vec__StructLayout.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__StructLayout.set">Vec__StructLayout.set</a></li><li><a href="#til.src.self.context.Vec__StructLayout.push_take">Vec__StructLayout.push_take</a></li><li><a href="#til.src.self.context.Vec__StructLayout.delete">Vec__StructLayout.delete</a></li><li><a href="#til.src.self.context.Vec__StructLayout.clone">Vec__StructLayout.clone</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str">Vec__call_Vec_Str</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.new">Vec__call_Vec_Str.new</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.with_capacity">Vec__call_Vec_Str.with_capacity</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.clear">Vec__call_Vec_Str.clear</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.delete_marked">Vec__call_Vec_Str.delete_marked</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.push">Vec__call_Vec_Str.push</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.append">Vec__call_Vec_Str.append</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.take">Vec__call_Vec_Str.take</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.move_to">Vec__call_Vec_Str.move_to</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.move_from">Vec__call_Vec_Str.move_from</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.unsafe_get">Vec__call_Vec_Str.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.get">Vec__call_Vec_Str.get</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.pop">Vec__call_Vec_Str.pop</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.remove_at">Vec__call_Vec_Str.remove_at</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.take_prefix">Vec__call_Vec_Str.take_prefix</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.truncate">Vec__call_Vec_Str.truncate</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.unsafe_set">Vec__call_Vec_Str.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.set">Vec__call_Vec_Str.set</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.push_take">Vec__call_Vec_Str.push_take</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.delete">Vec__call_Vec_Str.delete</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.clone">Vec__call_Vec_Str.clone</a></li><li><a href="#til.src.self.context.adopt__BorrowRoot">adopt__BorrowRoot</a></li><li><a href="#til.src.self.context.adopt__TypeBinding">adopt__TypeBinding</a></li><li><a href="#til.src.self.context.adopt__FFIEntry">adopt__FFIEntry</a></li><li><a href="#til.src.self.context.adopt__ExprPtrBox">adopt__ExprPtrBox</a></li><li><a href="#til.src.self.context.adopt__FFITypePtrBox">adopt__FFITypePtrBox</a></li><li><a href="#til.src.self.context.adopt__Mode">adopt__Mode</a></li><li><a href="#til.src.self.context.adopt__FuncType">adopt__FuncType</a></li><li><a href="#til.src.self.context.adopt__ImportUnit">adopt__ImportUnit</a></li><li><a href="#til.src.self.context.adopt__StructLayout">adopt__StructLayout</a></li><li><a href="#til.src.self.context.adopt__Vec__Str">adopt__Vec__Str</a></li></ul></li>
+<li><a class="current" href="../../src/self/context.html">src/self/context.til</a><ul><li><a href="#til.src.self.context.realpath_str">realpath_str</a></li><li><a href="#til.src.self.context.display_path">display_path</a></li><li><a href="#til.src.self.context.resolve_import_abs">resolve_import_abs</a></li><li><a href="#til.src.self.context.BorrowRoot">BorrowRoot</a></li><li><a href="#til.src.self.context.TypeBinding">TypeBinding</a></li><li><a href="#til.src.self.context.ScopeFind">ScopeFind</a></li><li><a href="#til.src.self.context.name_fingerprint">name_fingerprint</a></li><li><a href="#til.src.self.context.TyperFuncState">TyperFuncState</a></li><li><a href="#til.src.self.context.TypeScope">TypeScope</a></li><li><a href="#til.src.self.context.binding_func_type">binding_func_type</a></li><li><a href="#til.src.self.context.type_binding_is_type_token">type_binding_is_type_token</a></li><li><a href="#til.src.self.context.init_func_is_generic">init_func_is_generic</a></li><li><a href="#til.src.self.context.init_stmt_is_generic_source">init_stmt_is_generic_source</a></li><li><a href="#til.src.self.context.type_name_mentions_param">type_name_mentions_param</a></li><li><a href="#til.src.self.context.generic_source_throws_depend_on_type">generic_source_throws_depend_on_type</a></li><li><a href="#til.src.self.context.GenericFuncSource">GenericFuncSource</a></li><li><a href="#til.src.self.context.func_def_type">func_def_type</a></li><li><a href="#til.src.self.context.ImportUnit">ImportUnit</a></li><li><a href="#til.src.self.context.import_path_for_stmt">import_path_for_stmt</a></li><li><a href="#til.src.self.context.resolve_import_for_stmt">resolve_import_for_stmt</a></li><li><a href="#til.src.self.context.BuilderFuncScratch">BuilderFuncScratch</a></li><li><a href="#til.src.self.context.FfiState">FfiState</a></li><li><a href="#til.src.self.context.InternedTypes">InternedTypes</a></li><li><a href="#til.src.self.context.EvalState">EvalState</a></li><li><a href="#til.src.self.context.Context">Context</a></li><li><a href="#til.src.self.context.synth_suffix">synth_suffix</a></li><li><a href="#til.src.self.context.synth_suffix_unique">synth_suffix_unique</a></li><li><a href="#til.src.self.context.synth_owner_name">synth_owner_name</a></li><li><a href="#til.src.self.context.synth_symbol_suffix">synth_symbol_suffix</a></li><li><a href="#til.src.self.context.context_register_target_int_alias_types">context_register_target_int_alias_types</a></li><li><a href="#til.src.self.context.context_reset_type_scope">context_reset_type_scope</a></li><li><a href="#til.src.self.context.note_cross_file_use">note_cross_file_use</a></li><li><a href="#til.src.self.context.note_cross_file_type_use">note_cross_file_type_use</a></li><li><a href="#til.src.self.context.scope_target_usize_pname">scope_target_usize_pname</a></li><li><a href="#til.src.self.context.scope_target_uptr_pname">scope_target_uptr_pname</a></li><li><a href="#til.src.self.context.priv_c_name">priv_c_name</a></li><li><a href="#til.src.self.context.align_up">align_up</a></li><li><a href="#til.src.self.context.PRIM_NAMES">PRIM_NAMES</a></li><li><a href="#til.src.self.context._PRIM_NAMES_ek">_PRIM_NAMES_ek</a></li><li><a href="#til.src.self.context.WIDTH_ALIAS_NAMES">WIDTH_ALIAS_NAMES</a></li><li><a href="#til.src.self.context._WIDTH_ALIAS_NAMES_ek">_WIDTH_ALIAS_NAMES_ek</a></li><li><a href="#til.src.self.context.resolved_type_name">resolved_type_name</a></li><li><a href="#til.src.self.context.unsigned_prim_name_for_width">unsigned_prim_name_for_width</a></li><li><a href="#til.src.self.context.unsigned_prim_width_for_name">unsigned_prim_width_for_name</a></li><li><a href="#til.src.self.context.host_usize_pname">host_usize_pname</a></li><li><a href="#til.src.self.context.host_uptr_pname">host_uptr_pname</a></li><li><a href="#til.src.self.context.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.context.size_intrinsics_use_sizeof">size_intrinsics_use_sizeof</a></li><li><a href="#til.src.self.context.constfolder_classify_stmt">constfolder_classify_stmt</a></li><li><a href="#til.src.self.context.make_method_call_fcall">make_method_call_fcall</a></li><li><a href="#til.src.self.context.make_get_payload_fcall">make_get_payload_fcall</a></li><li><a href="#til.src.self.context.make_is_tag_check_fcall">make_is_tag_check_fcall</a></li><li><a href="#til.src.self.context.make_payload_ref_decl">make_payload_ref_decl</a></li><li><a href="#til.src.self.context.make_payload_ref_decls">make_payload_ref_decls</a></li><li><a href="#til.src.self.context.type_is_primitive">type_is_primitive</a></li><li><a href="#til.src.self.context.is_type_metatype">is_type_metatype</a></li><li><a href="#til.src.self.context.funcptr_eq">funcptr_eq</a></li><li><a href="#til.src.self.context.type_is_callable_storage">type_is_callable_storage</a></li><li><a href="#til.src.self.context.func_returns_c_value">func_returns_c_value</a></li><li><a href="#til.src.self.context.func_param_passes_c_value">func_param_passes_c_value</a></li><li><a href="#til.src.self.context.func_param_has_stack_outer">func_param_has_stack_outer</a></li><li><a href="#til.src.self.context.type_from_name_init_name">type_from_name_init_name</a></li><li><a href="#til.src.self.context.type_from_declaration_name">type_from_declaration_name</a></li><li><a href="#til.src.self.context.declaration_resolved_type">declaration_resolved_type</a></li><li><a href="#til.src.self.context.array_vec_elem_type_name">array_vec_elem_type_name</a></li><li><a href="#til.src.self.context.delete_body_is_free_only">delete_body_is_free_only</a></li><li><a href="#til.src.self.context.init_delete_is_noop">init_delete_is_noop</a></li><li><a href="#til.src.self.context.is_pod_type_for_clone">is_pod_type_for_clone</a></li><li><a href="#til.src.self.context.is_struct_or_enum">is_struct_or_enum</a></li><li><a href="#til.src.self.context.is_func_decl">is_func_decl</a></li><li><a href="#til.src.self.context.is_def">is_def</a></li><li><a href="#til.src.self.context.member_get">member_get</a></li><li><a href="#til.src.self.context.def_ns_decls">def_ns_decls</a></li><li><a href="#til.src.self.context.def_ns_name_at">def_ns_name_at</a></li><li><a href="#til.src.self.context.def_ns_has">def_ns_has</a></li><li><a href="#til.src.self.context.def_ns_get">def_ns_get</a></li><li><a href="#til.src.self.context.def_ns_pos">def_ns_pos</a></li><li><a href="#til.src.self.context.ns_const_eval_order">ns_const_eval_order</a></li><li><a href="#til.src.self.context.enum_has_payloads">enum_has_payloads</a></li><li><a href="#til.src.self.context.enum_tag_type">enum_tag_type</a></li><li><a href="#til.src.self.context.enum_tag_size">enum_tag_size</a></li><li><a href="#til.src.self.context.enum_variant_tag">enum_variant_tag</a></li><li><a href="#til.src.self.context.enum_variant_tag_at">enum_variant_tag_at</a></li><li><a href="#til.src.self.context.enum_variant_index_for_tag">enum_variant_index_for_tag</a></li><li><a href="#til.src.self.context.enum_variant_index">enum_variant_index</a></li><li><a href="#til.src.self.context.enum_variant_type">enum_variant_type</a></li><li><a href="#til.src.self.context.enum_variant_payload_const">enum_variant_payload_const</a></li><li><a href="#til.src.self.context.niche_payload_is_owned_box">niche_payload_is_owned_box</a></li><li><a href="#til.src.self.context.enum_variant_payload_funcsig">enum_variant_payload_funcsig</a></li><li><a href="#til.src.self.context.enum_is_niche">enum_is_niche</a></li><li><a href="#til.src.self.context.enum_niche_some_index">enum_niche_some_index</a></li><li><a href="#til.src.self.context.enum_variant_payload_ref">enum_variant_payload_ref</a></li><li><a href="#til.src.self.context.enum_payload_is_pointer_slot">enum_payload_is_pointer_slot</a></li><li><a href="#til.src.self.context.enum_has_ref_payload">enum_has_ref_payload</a></li><li><a href="#til.src.self.context.rhs_is_allocator_call">rhs_is_allocator_call</a></li><li><a href="#til.src.self.context.fn_never_returns">fn_never_returns</a></li><li><a href="#til.src.self.context.stmt_always_diverges">stmt_always_diverges</a></li><li><a href="#til.src.self.context.lazy_body_inlinable">lazy_body_inlinable</a></li><li><a href="#til.src.self.context.lazy_body_split_point">lazy_body_split_point</a></li><li><a href="#til.src.self.context.lazy_body_stmt_inlinable">lazy_body_stmt_inlinable</a></li><li><a href="#til.src.self.context.lazy_variadic_body_unrollable">lazy_variadic_body_unrollable</a></li><li><a href="#til.src.self.context.is_primitive">is_primitive</a></li><li><a href="#til.src.self.context.is_funcptr">is_funcptr</a></li><li><a href="#til.src.self.context.is_aggregate">is_aggregate</a></li><li><a href="#til.src.self.context.fcall_is_direct">fcall_is_direct</a></li><li><a href="#til.src.self.context.mark_fcall_direct">mark_fcall_direct</a></li><li><a href="#til.src.self.context.resolve_direct_fcall">resolve_direct_fcall</a></li><li><a href="#til.src.self.context.is_range_new_call">is_range_new_call</a></li><li><a href="#til.src.self.context.ast_print">ast_print</a></li><li><a href="#til.src.self.context.fcall_kwargs_count">fcall_kwargs_count</a></li><li><a href="#til.src.self.context.fcall_variadic_count">fcall_variadic_count</a></li><li><a href="#til.src.self.context.qname_cmp">qname_cmp</a></li><li><a href="#til.src.self.context.qname_keys_index">qname_keys_index</a></li><li><a href="#til.src.self.context.qname_in_set">qname_in_set</a></li><li><a href="#til.src.self.context.Map__Sym_Dynamic">Map__Sym_Dynamic</a></li><li><a href="#til.src.self.context.Map__Sym_TypeBinding">Map__Sym_TypeBinding</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot">Vec__BorrowRoot</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.new">Vec__BorrowRoot.new</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.with_capacity">Vec__BorrowRoot.with_capacity</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.clear">Vec__BorrowRoot.clear</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.delete_marked">Vec__BorrowRoot.delete_marked</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.push">Vec__BorrowRoot.push</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.append">Vec__BorrowRoot.append</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.take">Vec__BorrowRoot.take</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.move_to">Vec__BorrowRoot.move_to</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.move_from">Vec__BorrowRoot.move_from</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.unsafe_get">Vec__BorrowRoot.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.get">Vec__BorrowRoot.get</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.pop">Vec__BorrowRoot.pop</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.remove_at">Vec__BorrowRoot.remove_at</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.take_prefix">Vec__BorrowRoot.take_prefix</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.truncate">Vec__BorrowRoot.truncate</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.unsafe_set">Vec__BorrowRoot.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.set">Vec__BorrowRoot.set</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.push_take">Vec__BorrowRoot.push_take</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.delete">Vec__BorrowRoot.delete</a></li><li><a href="#til.src.self.context.Vec__BorrowRoot.clone">Vec__BorrowRoot.clone</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding">Map__U32_TypeBinding</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.new">Map__U32_TypeBinding.new</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.with_capacity">Map__U32_TypeBinding.with_capacity</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.clear">Map__U32_TypeBinding.clear</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.has">Map__U32_TypeBinding.has</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.get">Map__U32_TypeBinding.get</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.set">Map__U32_TypeBinding.set</a></li><li><a href="#til.src.self.context.Map__U32_TypeBinding.remove">Map__U32_TypeBinding.remove</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic">Map__U32_Dynamic</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic.new">Map__U32_Dynamic.new</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic.with_capacity">Map__U32_Dynamic.with_capacity</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic.clear">Map__U32_Dynamic.clear</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic.has">Map__U32_Dynamic.has</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic.get">Map__U32_Dynamic.get</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic.set">Map__U32_Dynamic.set</a></li><li><a href="#til.src.self.context.Map__U32_Dynamic.remove">Map__U32_Dynamic.remove</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope">Option__ref_TypeScope</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope.unwrap">Option__ref_TypeScope.unwrap</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope.take">Option__ref_TypeScope.take</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding">Option__ref_TypeBinding</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding.unwrap">Option__ref_TypeBinding.unwrap</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding.take">Option__ref_TypeBinding.take</a></li><li><a href="#til.src.self.context.Map__U32_Str">Map__U32_Str</a></li><li><a href="#til.src.self.context.Map__U32_Str.new">Map__U32_Str.new</a></li><li><a href="#til.src.self.context.Map__U32_Str.with_capacity">Map__U32_Str.with_capacity</a></li><li><a href="#til.src.self.context.Map__U32_Str.clear">Map__U32_Str.clear</a></li><li><a href="#til.src.self.context.Map__U32_Str.has">Map__U32_Str.has</a></li><li><a href="#til.src.self.context.Map__U32_Str.get">Map__U32_Str.get</a></li><li><a href="#til.src.self.context.Map__U32_Str.set">Map__U32_Str.set</a></li><li><a href="#til.src.self.context.Map__U32_Str.remove">Map__U32_Str.remove</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry">Map__Str_FFIEntry</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.new">Map__Str_FFIEntry.new</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.with_capacity">Map__Str_FFIEntry.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.clear">Map__Str_FFIEntry.clear</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.has">Map__Str_FFIEntry.has</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.get">Map__Str_FFIEntry.get</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.set">Map__Str_FFIEntry.set</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry.remove">Map__Str_FFIEntry.remove</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox">Map__Str_ExprPtrBox</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.new">Map__Str_ExprPtrBox.new</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.with_capacity">Map__Str_ExprPtrBox.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.clear">Map__Str_ExprPtrBox.clear</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.has">Map__Str_ExprPtrBox.has</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.get">Map__Str_ExprPtrBox.get</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.set">Map__Str_ExprPtrBox.set</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox.remove">Map__Str_ExprPtrBox.remove</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox">Vec__FFITypePtrBox</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.new">Vec__FFITypePtrBox.new</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.with_capacity">Vec__FFITypePtrBox.with_capacity</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.clear">Vec__FFITypePtrBox.clear</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.delete_marked">Vec__FFITypePtrBox.delete_marked</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.push">Vec__FFITypePtrBox.push</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.append">Vec__FFITypePtrBox.append</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.take">Vec__FFITypePtrBox.take</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.move_to">Vec__FFITypePtrBox.move_to</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.move_from">Vec__FFITypePtrBox.move_from</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.unsafe_get">Vec__FFITypePtrBox.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.get">Vec__FFITypePtrBox.get</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.pop">Vec__FFITypePtrBox.pop</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.remove_at">Vec__FFITypePtrBox.remove_at</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.take_prefix">Vec__FFITypePtrBox.take_prefix</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.truncate">Vec__FFITypePtrBox.truncate</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.unsafe_set">Vec__FFITypePtrBox.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.set">Vec__FFITypePtrBox.set</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.push_take">Vec__FFITypePtrBox.push_take</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.delete">Vec__FFITypePtrBox.delete</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox.clone">Vec__FFITypePtrBox.clone</a></li><li><a href="#til.src.self.context.Map__Str_Mode">Map__Str_Mode</a></li><li><a href="#til.src.self.context.Map__Str_Mode.new">Map__Str_Mode.new</a></li><li><a href="#til.src.self.context.Map__Str_Mode.with_capacity">Map__Str_Mode.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Mode.clear">Map__Str_Mode.clear</a></li><li><a href="#til.src.self.context.Map__Str_Mode.has">Map__Str_Mode.has</a></li><li><a href="#til.src.self.context.Map__Str_Mode.get">Map__Str_Mode.get</a></li><li><a href="#til.src.self.context.Map__Str_Mode.set">Map__Str_Mode.set</a></li><li><a href="#til.src.self.context.Map__Str_Mode.remove">Map__Str_Mode.remove</a></li><li><a href="#til.src.self.context.Map__Str_FuncType">Map__Str_FuncType</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.new">Map__Str_FuncType.new</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.with_capacity">Map__Str_FuncType.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.clear">Map__Str_FuncType.clear</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.has">Map__Str_FuncType.has</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.get">Map__Str_FuncType.get</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.set">Map__Str_FuncType.set</a></li><li><a href="#til.src.self.context.Map__Str_FuncType.remove">Map__Str_FuncType.remove</a></li><li><a href="#til.src.self.context.Option__Scope">Option__Scope</a></li><li><a href="#til.src.self.context.Option__Scope.unwrap">Option__Scope.unwrap</a></li><li><a href="#til.src.self.context.Option__Scope.take">Option__Scope.take</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit">Map__Str_ImportUnit</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.new">Map__Str_ImportUnit.new</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.with_capacity">Map__Str_ImportUnit.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.clear">Map__Str_ImportUnit.clear</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.has">Map__Str_ImportUnit.has</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.get">Map__Str_ImportUnit.get</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.set">Map__Str_ImportUnit.set</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit.remove">Map__Str_ImportUnit.remove</a></li><li><a href="#til.src.self.context.Map__Str_Expr">Map__Str_Expr</a></li><li><a href="#til.src.self.context.Map__Str_Expr.new">Map__Str_Expr.new</a></li><li><a href="#til.src.self.context.Map__Str_Expr.with_capacity">Map__Str_Expr.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Expr.clear">Map__Str_Expr.clear</a></li><li><a href="#til.src.self.context.Map__Str_Expr.has">Map__Str_Expr.has</a></li><li><a href="#til.src.self.context.Map__Str_Expr.get">Map__Str_Expr.get</a></li><li><a href="#til.src.self.context.Map__Str_Expr.set">Map__Str_Expr.set</a></li><li><a href="#til.src.self.context.Map__Str_Expr.remove">Map__Str_Expr.remove</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout">Map__Str_StructLayout</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.new">Map__Str_StructLayout.new</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.with_capacity">Map__Str_StructLayout.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.clear">Map__Str_StructLayout.clear</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.has">Map__Str_StructLayout.has</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.get">Map__Str_StructLayout.get</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.set">Map__Str_StructLayout.set</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout.remove">Map__Str_StructLayout.remove</a></li><li><a href="#til.src.self.context.Set__U32">Set__U32</a></li><li><a href="#til.src.self.context.Set__U32.new">Set__U32.new</a></li><li><a href="#til.src.self.context.Set__U32.with_capacity">Set__U32.with_capacity</a></li><li><a href="#til.src.self.context.Set__U32.clear">Set__U32.clear</a></li><li><a href="#til.src.self.context.Set__U32.has">Set__U32.has</a></li><li><a href="#til.src.self.context.Set__U32.add">Set__U32.add</a></li><li><a href="#til.src.self.context.Set__U32.remove">Set__U32.remove</a></li><li><a href="#til.src.self.context.Map__Str_I64">Map__Str_I64</a></li><li><a href="#til.src.self.context.Map__Str_I64.new">Map__Str_I64.new</a></li><li><a href="#til.src.self.context.Map__Str_I64.with_capacity">Map__Str_I64.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_I64.clear">Map__Str_I64.clear</a></li><li><a href="#til.src.self.context.Map__Str_I64.has">Map__Str_I64.has</a></li><li><a href="#til.src.self.context.Map__Str_I64.get">Map__Str_I64.get</a></li><li><a href="#til.src.self.context.Map__Str_I64.set">Map__Str_I64.set</a></li><li><a href="#til.src.self.context.Map__Str_I64.remove">Map__Str_I64.remove</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.new">Map__Str_call_Vec_Str.new</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.with_capacity">Map__Str_call_Vec_Str.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.clear">Map__Str_call_Vec_Str.clear</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.has">Map__Str_call_Vec_Str.has</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.get">Map__Str_call_Vec_Str.get</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.set">Map__Str_call_Vec_Str.set</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str.remove">Map__Str_call_Vec_Str.remove</a></li><li><a href="#til.src.self.context.HashMap__Str_Str">HashMap__Str_Str</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.hasher">HashMap__Str_Str.hasher</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.new">HashMap__Str_Str.new</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.with_capacity">HashMap__Str_Str.with_capacity</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.clear">HashMap__Str_Str.clear</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.clone">HashMap__Str_Str.clone</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.get">HashMap__Str_Str.get</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.stored_hash">HashMap__Str_Str.stored_hash</a></li><li><a href="#til.src.self.context.HashMap__Str_Str.remove">HashMap__Str_Str.remove</a></li><li><a href="#til.src.self.context.HashMap__Str_USize">HashMap__Str_USize</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.hasher">HashMap__Str_USize.hasher</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.new">HashMap__Str_USize.new</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.with_capacity">HashMap__Str_USize.with_capacity</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.clear">HashMap__Str_USize.clear</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.clone">HashMap__Str_USize.clone</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.get">HashMap__Str_USize.get</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.stored_hash">HashMap__Str_USize.stored_hash</a></li><li><a href="#til.src.self.context.HashMap__Str_USize.remove">HashMap__Str_USize.remove</a></li><li><a href="#til.src.self.context.Map__Str_Bool">Map__Str_Bool</a></li><li><a href="#til.src.self.context.Map__Str_Bool.new">Map__Str_Bool.new</a></li><li><a href="#til.src.self.context.Map__Str_Bool.with_capacity">Map__Str_Bool.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Bool.clear">Map__Str_Bool.clear</a></li><li><a href="#til.src.self.context.Map__Str_Bool.has">Map__Str_Bool.has</a></li><li><a href="#til.src.self.context.Map__Str_Bool.get">Map__Str_Bool.get</a></li><li><a href="#til.src.self.context.Map__Str_Bool.set">Map__Str_Bool.set</a></li><li><a href="#til.src.self.context.Map__Str_Bool.remove">Map__Str_Bool.remove</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic">Map__Str_Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.new">Map__Str_Dynamic.new</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.with_capacity">Map__Str_Dynamic.with_capacity</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.clear">Map__Str_Dynamic.clear</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.has">Map__Str_Dynamic.has</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.get">Map__Str_Dynamic.get</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.set">Map__Str_Dynamic.set</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic.remove">Map__Str_Dynamic.remove</a></li><li><a href="#til.src.self.context.Option__ref_Expr">Option__ref_Expr</a></li><li><a href="#til.src.self.context.Option__ref_Expr.unwrap">Option__ref_Expr.unwrap</a></li><li><a href="#til.src.self.context.Option__ref_Expr.take">Option__ref_Expr.take</a></li><li><a href="#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.new">Vec__TypeBinding.new</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.with_capacity">Vec__TypeBinding.with_capacity</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.clear">Vec__TypeBinding.clear</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.delete_marked">Vec__TypeBinding.delete_marked</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.push">Vec__TypeBinding.push</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.append">Vec__TypeBinding.append</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.take">Vec__TypeBinding.take</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.move_to">Vec__TypeBinding.move_to</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.move_from">Vec__TypeBinding.move_from</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.unsafe_get">Vec__TypeBinding.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.get">Vec__TypeBinding.get</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.pop">Vec__TypeBinding.pop</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.remove_at">Vec__TypeBinding.remove_at</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.take_prefix">Vec__TypeBinding.take_prefix</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.truncate">Vec__TypeBinding.truncate</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.unsafe_set">Vec__TypeBinding.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.set">Vec__TypeBinding.set</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.push_take">Vec__TypeBinding.push_take</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.delete">Vec__TypeBinding.delete</a></li><li><a href="#til.src.self.context.Vec__TypeBinding.clone">Vec__TypeBinding.clone</a></li><li><a href="#til.src.self.context.Vec__FFIEntry">Vec__FFIEntry</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.new">Vec__FFIEntry.new</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.with_capacity">Vec__FFIEntry.with_capacity</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.clear">Vec__FFIEntry.clear</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.delete_marked">Vec__FFIEntry.delete_marked</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.push">Vec__FFIEntry.push</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.append">Vec__FFIEntry.append</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.take">Vec__FFIEntry.take</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.move_to">Vec__FFIEntry.move_to</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.move_from">Vec__FFIEntry.move_from</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.unsafe_get">Vec__FFIEntry.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.get">Vec__FFIEntry.get</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.pop">Vec__FFIEntry.pop</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.remove_at">Vec__FFIEntry.remove_at</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.take_prefix">Vec__FFIEntry.take_prefix</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.truncate">Vec__FFIEntry.truncate</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.unsafe_set">Vec__FFIEntry.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.set">Vec__FFIEntry.set</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.push_take">Vec__FFIEntry.push_take</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.delete">Vec__FFIEntry.delete</a></li><li><a href="#til.src.self.context.Vec__FFIEntry.clone">Vec__FFIEntry.clone</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox">Vec__ExprPtrBox</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.new">Vec__ExprPtrBox.new</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.with_capacity">Vec__ExprPtrBox.with_capacity</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.clear">Vec__ExprPtrBox.clear</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.delete_marked">Vec__ExprPtrBox.delete_marked</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.push">Vec__ExprPtrBox.push</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.append">Vec__ExprPtrBox.append</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.take">Vec__ExprPtrBox.take</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.move_to">Vec__ExprPtrBox.move_to</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.move_from">Vec__ExprPtrBox.move_from</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.unsafe_get">Vec__ExprPtrBox.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.get">Vec__ExprPtrBox.get</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.pop">Vec__ExprPtrBox.pop</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.remove_at">Vec__ExprPtrBox.remove_at</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.take_prefix">Vec__ExprPtrBox.take_prefix</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.truncate">Vec__ExprPtrBox.truncate</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.unsafe_set">Vec__ExprPtrBox.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.set">Vec__ExprPtrBox.set</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.push_take">Vec__ExprPtrBox.push_take</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.delete">Vec__ExprPtrBox.delete</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox.clone">Vec__ExprPtrBox.clone</a></li><li><a href="#til.src.self.context.Vec__Mode">Vec__Mode</a></li><li><a href="#til.src.self.context.Vec__Mode.new">Vec__Mode.new</a></li><li><a href="#til.src.self.context.Vec__Mode.with_capacity">Vec__Mode.with_capacity</a></li><li><a href="#til.src.self.context.Vec__Mode.clear">Vec__Mode.clear</a></li><li><a href="#til.src.self.context.Vec__Mode.delete_marked">Vec__Mode.delete_marked</a></li><li><a href="#til.src.self.context.Vec__Mode.push">Vec__Mode.push</a></li><li><a href="#til.src.self.context.Vec__Mode.append">Vec__Mode.append</a></li><li><a href="#til.src.self.context.Vec__Mode.take">Vec__Mode.take</a></li><li><a href="#til.src.self.context.Vec__Mode.move_to">Vec__Mode.move_to</a></li><li><a href="#til.src.self.context.Vec__Mode.move_from">Vec__Mode.move_from</a></li><li><a href="#til.src.self.context.Vec__Mode.unsafe_get">Vec__Mode.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__Mode.get">Vec__Mode.get</a></li><li><a href="#til.src.self.context.Vec__Mode.pop">Vec__Mode.pop</a></li><li><a href="#til.src.self.context.Vec__Mode.remove_at">Vec__Mode.remove_at</a></li><li><a href="#til.src.self.context.Vec__Mode.take_prefix">Vec__Mode.take_prefix</a></li><li><a href="#til.src.self.context.Vec__Mode.truncate">Vec__Mode.truncate</a></li><li><a href="#til.src.self.context.Vec__Mode.unsafe_set">Vec__Mode.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__Mode.set">Vec__Mode.set</a></li><li><a href="#til.src.self.context.Vec__Mode.push_take">Vec__Mode.push_take</a></li><li><a href="#til.src.self.context.Vec__Mode.delete">Vec__Mode.delete</a></li><li><a href="#til.src.self.context.Vec__Mode.clone">Vec__Mode.clone</a></li><li><a href="#til.src.self.context.Vec__FuncType">Vec__FuncType</a></li><li><a href="#til.src.self.context.Vec__FuncType.new">Vec__FuncType.new</a></li><li><a href="#til.src.self.context.Vec__FuncType.with_capacity">Vec__FuncType.with_capacity</a></li><li><a href="#til.src.self.context.Vec__FuncType.clear">Vec__FuncType.clear</a></li><li><a href="#til.src.self.context.Vec__FuncType.delete_marked">Vec__FuncType.delete_marked</a></li><li><a href="#til.src.self.context.Vec__FuncType.push">Vec__FuncType.push</a></li><li><a href="#til.src.self.context.Vec__FuncType.append">Vec__FuncType.append</a></li><li><a href="#til.src.self.context.Vec__FuncType.take">Vec__FuncType.take</a></li><li><a href="#til.src.self.context.Vec__FuncType.move_to">Vec__FuncType.move_to</a></li><li><a href="#til.src.self.context.Vec__FuncType.move_from">Vec__FuncType.move_from</a></li><li><a href="#til.src.self.context.Vec__FuncType.unsafe_get">Vec__FuncType.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__FuncType.get">Vec__FuncType.get</a></li><li><a href="#til.src.self.context.Vec__FuncType.pop">Vec__FuncType.pop</a></li><li><a href="#til.src.self.context.Vec__FuncType.remove_at">Vec__FuncType.remove_at</a></li><li><a href="#til.src.self.context.Vec__FuncType.take_prefix">Vec__FuncType.take_prefix</a></li><li><a href="#til.src.self.context.Vec__FuncType.truncate">Vec__FuncType.truncate</a></li><li><a href="#til.src.self.context.Vec__FuncType.unsafe_set">Vec__FuncType.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__FuncType.set">Vec__FuncType.set</a></li><li><a href="#til.src.self.context.Vec__FuncType.push_take">Vec__FuncType.push_take</a></li><li><a href="#til.src.self.context.Vec__FuncType.delete">Vec__FuncType.delete</a></li><li><a href="#til.src.self.context.Vec__FuncType.clone">Vec__FuncType.clone</a></li><li><a href="#til.src.self.context.Vec__ImportUnit">Vec__ImportUnit</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.new">Vec__ImportUnit.new</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.with_capacity">Vec__ImportUnit.with_capacity</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.clear">Vec__ImportUnit.clear</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.delete_marked">Vec__ImportUnit.delete_marked</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.push">Vec__ImportUnit.push</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.append">Vec__ImportUnit.append</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.take">Vec__ImportUnit.take</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.move_to">Vec__ImportUnit.move_to</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.move_from">Vec__ImportUnit.move_from</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.unsafe_get">Vec__ImportUnit.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.get">Vec__ImportUnit.get</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.pop">Vec__ImportUnit.pop</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.remove_at">Vec__ImportUnit.remove_at</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.take_prefix">Vec__ImportUnit.take_prefix</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.truncate">Vec__ImportUnit.truncate</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.unsafe_set">Vec__ImportUnit.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.set">Vec__ImportUnit.set</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.push_take">Vec__ImportUnit.push_take</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.delete">Vec__ImportUnit.delete</a></li><li><a href="#til.src.self.context.Vec__ImportUnit.clone">Vec__ImportUnit.clone</a></li><li><a href="#til.src.self.context.Vec__StructLayout">Vec__StructLayout</a></li><li><a href="#til.src.self.context.Vec__StructLayout.new">Vec__StructLayout.new</a></li><li><a href="#til.src.self.context.Vec__StructLayout.with_capacity">Vec__StructLayout.with_capacity</a></li><li><a href="#til.src.self.context.Vec__StructLayout.clear">Vec__StructLayout.clear</a></li><li><a href="#til.src.self.context.Vec__StructLayout.delete_marked">Vec__StructLayout.delete_marked</a></li><li><a href="#til.src.self.context.Vec__StructLayout.push">Vec__StructLayout.push</a></li><li><a href="#til.src.self.context.Vec__StructLayout.append">Vec__StructLayout.append</a></li><li><a href="#til.src.self.context.Vec__StructLayout.take">Vec__StructLayout.take</a></li><li><a href="#til.src.self.context.Vec__StructLayout.move_to">Vec__StructLayout.move_to</a></li><li><a href="#til.src.self.context.Vec__StructLayout.move_from">Vec__StructLayout.move_from</a></li><li><a href="#til.src.self.context.Vec__StructLayout.unsafe_get">Vec__StructLayout.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__StructLayout.get">Vec__StructLayout.get</a></li><li><a href="#til.src.self.context.Vec__StructLayout.pop">Vec__StructLayout.pop</a></li><li><a href="#til.src.self.context.Vec__StructLayout.remove_at">Vec__StructLayout.remove_at</a></li><li><a href="#til.src.self.context.Vec__StructLayout.take_prefix">Vec__StructLayout.take_prefix</a></li><li><a href="#til.src.self.context.Vec__StructLayout.truncate">Vec__StructLayout.truncate</a></li><li><a href="#til.src.self.context.Vec__StructLayout.unsafe_set">Vec__StructLayout.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__StructLayout.set">Vec__StructLayout.set</a></li><li><a href="#til.src.self.context.Vec__StructLayout.push_take">Vec__StructLayout.push_take</a></li><li><a href="#til.src.self.context.Vec__StructLayout.delete">Vec__StructLayout.delete</a></li><li><a href="#til.src.self.context.Vec__StructLayout.clone">Vec__StructLayout.clone</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str">Vec__call_Vec_Str</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.new">Vec__call_Vec_Str.new</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.with_capacity">Vec__call_Vec_Str.with_capacity</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.clear">Vec__call_Vec_Str.clear</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.delete_marked">Vec__call_Vec_Str.delete_marked</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.push">Vec__call_Vec_Str.push</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.append">Vec__call_Vec_Str.append</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.take">Vec__call_Vec_Str.take</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.move_to">Vec__call_Vec_Str.move_to</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.move_from">Vec__call_Vec_Str.move_from</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.unsafe_get">Vec__call_Vec_Str.unsafe_get</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.get">Vec__call_Vec_Str.get</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.pop">Vec__call_Vec_Str.pop</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.remove_at">Vec__call_Vec_Str.remove_at</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.take_prefix">Vec__call_Vec_Str.take_prefix</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.truncate">Vec__call_Vec_Str.truncate</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.unsafe_set">Vec__call_Vec_Str.unsafe_set</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.set">Vec__call_Vec_Str.set</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.push_take">Vec__call_Vec_Str.push_take</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.delete">Vec__call_Vec_Str.delete</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str.clone">Vec__call_Vec_Str.clone</a></li><li><a href="#til.src.self.context.adopt__BorrowRoot">adopt__BorrowRoot</a></li><li><a href="#til.src.self.context.adopt__TypeBinding">adopt__TypeBinding</a></li><li><a href="#til.src.self.context.adopt__FFIEntry">adopt__FFIEntry</a></li><li><a href="#til.src.self.context.adopt__ExprPtrBox">adopt__ExprPtrBox</a></li><li><a href="#til.src.self.context.adopt__FFITypePtrBox">adopt__FFITypePtrBox</a></li><li><a href="#til.src.self.context.adopt__Mode">adopt__Mode</a></li><li><a href="#til.src.self.context.adopt__FuncType">adopt__FuncType</a></li><li><a href="#til.src.self.context.adopt__ImportUnit">adopt__ImportUnit</a></li><li><a href="#til.src.self.context.adopt__StructLayout">adopt__StructLayout</a></li><li><a href="#til.src.self.context.adopt__Vec__Str">adopt__Vec__Str</a></li></ul></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
@@ -61,6 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -85,6 +87,24 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/context.til</h1>
+<article class="doc-entry" id="til.src.self.context.realpath_str">
+<h2>realpath_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">ext_proc (path: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.display_path">
+<h2>display_path</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (p: Str, cwd: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.resolve_import_abs">
+<h2>resolve_import_abs</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc (import_path: Str, base_dir: Str, lib_dir: Str) returns Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.context.BorrowRoot">
 <h2>BorrowRoot</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -98,11 +118,11 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func to_str(self: BorrowRoot) returns Str
+    func size() returns shallow USize
     func clone(self: BorrowRoot) returns BorrowRoot
     func delete(own self: BorrowRoot, shallow call_free: Bool)
     func hash(self: BorrowRoot, hasher: HashFn) returns shallow U64
     func cmp(a: BorrowRoot, b: BorrowRoot) returns shallow I64
-    func size() returns shallow USize
     func lt(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func gt(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func neq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
@@ -134,6 +154,8 @@ namespace:
     mut written : Bool
     mut mut_explicit : Bool
     mut is_raw_alloc : Bool
+    mut is_str_view : Bool
+    mut str_view_base : Str
     mut orig_name : Str
     mut dynvec_elem : Str
     mut declared_type_name : Str
@@ -141,10 +163,10 @@ namespace:
 namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns shallow Bool
     func to_str(self: TypeBinding) returns Str
+    func size() returns shallow USize
     func clone(self: TypeBinding) returns TypeBinding
     func delete(own self: TypeBinding, shallow call_free: Bool)
     func hash(self: TypeBinding, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -172,6 +194,25 @@ namespace:
 <pre><code class="language-til">func (name: Str) returns shallow U64
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.context.TyperFuncState">
+<h2>TyperFuncState</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct {
+    mut current_top_func_name : Str
+    mut typer_return_type_name : Str
+    mut proc_calls_count : I32
+    mut proc_def_depth : I32
+    mut auto_gen_depth : I32
+    mut throw_used_local_names : Set__Str
+    mut lowering_param_types : Map__Str_Str
+namespace:
+    func size() returns shallow USize
+    func clone(self: TyperFuncState) returns TyperFuncState
+    func delete(own self: TyperFuncState, shallow call_free: Bool)
+    func hash(self: TyperFuncState, hasher: HashFn) returns shallow U64
+}
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.context.TypeScope">
 <h2>TypeScope</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -179,14 +220,18 @@ namespace:
     mut bindings : Map__U32_TypeBinding
     mut target_usize_pname : Str
     mut target_uptr_pname : Str
-    mut func_defs : Map__Str_Dynamic
-    mut struct_defs : Map__Str_Dynamic
+    mut func_defs : Map__U32_Dynamic
+    mut struct_defs : Map__U32_Dynamic
     mut parent : Option__ref_TypeScope
     mut is_func_root : Bool
+    mut current_type_name : Str
+    mut typer_func : TyperFuncState
     mut bindings_filt : U64
     mut func_defs_filt : U64
     mut struct_defs_filt : U64
 namespace:
+    func typer_func_state(mut self: TypeScope) returns ref TyperFuncState
+    func active_type_name(self: TypeScope) returns ref Str
     func local_binding_sym(self: TypeScope, sym: U32) returns shallow Option__ref_TypeBinding
     func local_binding_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_TypeBinding
     func has_local_binding_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
@@ -201,35 +246,36 @@ namespace:
     func bound_in_this_func_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
     func bound_in_this_func_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
     func get_func_type_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow FuncType
-    func get_struct(self: TypeScope, name: Str) returns shallow Option__ref_Expr
-    func get_struct_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func struct_def_of_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func get_struct(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func get_struct_by_sym(self: TypeScope, sym: U32) returns shallow Option__ref_Expr
+    func get_struct_fp(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func struct_def_of_sym(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
     func struct_def_of_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
-    func struct_def_of_by_sym(self: TypeScope, sym: U32, symbols: SymbolPool) returns shallow Option__ref_Expr
-    func lookup_func_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
-    func lookup_func_by_sym(self: TypeScope, sym: U32, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func struct_def_of_by_sym(self: TypeScope, sym: U32, _symbols: SymbolPool) returns shallow Option__ref_Expr
+    func lookup_func_sym(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func lookup_func_by_sym(self: TypeScope, sym: U32, _symbols: SymbolPool) returns shallow Option__ref_Expr
     func lookup_func_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
-    func any_func_def(self: TypeScope, name: Str) returns shallow Bool
-    func any_func_def_fp(self: TypeScope, name: Str, shallow fp: U64) returns shallow Bool
-    func local_struct_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func local_func_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func lookup_func_symbol_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func any_func_def(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
+    func any_func_def_sym(self: TypeScope, shallow sym: U32, shallow fp: U64) returns shallow Bool
+    func local_struct_def_fp(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func local_func_def_fp(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func lookup_func_symbol_sym(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
     func lookup_func_symbol_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
     func set_func_def_name(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool)
-    func set_func_symbol_name(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool)
+    func set_func_symbol_name(mut self: TypeScope, name: Str, fdef: Expr, mut symbols: SymbolPool)
     func set_struct_def(mut self: TypeScope, name: Str, sdef: Expr, symbols: SymbolPool)
     func is_mut_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
     func is_mut_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
-    func erase_func_def(mut self: TypeScope, name: Str)
+    func erase_func_def(mut self: TypeScope, name: Str, symbols: SymbolPool)
     func erase_binding(mut self: TypeScope, name: Str)
-    func erase_struct_def(mut self: TypeScope, name: Str)
-    func erase_ast_decl(mut self: TypeScope, name: Str, shallow erase_decl_binding: Bool)
+    func erase_struct_def(mut self: TypeScope, name: Str, symbols: SymbolPool)
+    func erase_ast_decl(mut self: TypeScope, name: Str, shallow erase_decl_binding: Bool, symbols: SymbolPool)
     func refresh_lookup_filters(mut self: TypeScope)
     func set(mut self: TypeScope, name: Str, type: Type, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool)
+    func size() returns shallow USize
     func clone(self: TypeScope) returns TypeScope
     func delete(own self: TypeScope, shallow call_free: Bool)
     func hash(self: TypeScope, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -276,14 +322,15 @@ namespace:
     mut name : Str
     mut path : Str
     mut is_priv : Bool
+    mut identity_name : Str
 namespace:
     func eq(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
     func to_str(self: GenericFuncSource) returns Str
+    func size() returns shallow USize
     func clone(self: GenericFuncSource) returns GenericFuncSource
     func delete(own self: GenericFuncSource, shallow call_free: Bool)
     func hash(self: GenericFuncSource, hasher: HashFn) returns shallow U64
     func cmp(a: GenericFuncSource, b: GenericFuncSource) returns shallow I64
-    func size() returns shallow USize
     func lt(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
     func gt(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
     func neq(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
@@ -305,12 +352,26 @@ namespace:
     mut mode_str : Str
     mut mode : Mode
     own mut ast : Expr
-    mut imports : Vec__Str
+    mut import_dir : Str
+    mut import_lib_dir : Str
+    mut mode_import : Str
 namespace:
+    func size() returns shallow USize
     func clone(self: ImportUnit) returns ImportUnit
     func delete(own self: ImportUnit, shallow call_free: Bool)
-    func size() returns shallow USize
 }
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.import_path_for_stmt">
+<h2>import_path_for_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (stmt: Expr, source_path: Str, symbols: SymbolPool) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.resolve_import_for_stmt">
+<h2>resolve_import_for_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc (stmt: Expr, source_path: Str, iu: ImportUnit, cwd: Str, imported: Map__Str_ImportUnit, symbols: SymbolPool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.BuilderFuncScratch">
@@ -330,11 +391,15 @@ namespace:
     mut ref_dyn_locals : Set__U32
     mut ptr_locals : Set__U32
     mut shadowed_params : Set__U32
+    mut ctor_seq : I32
+    mut in_func_def : Bool
+    mut in_main_func : Bool
+    mut current_fdef : Option__ref_Expr
 namespace:
+    func size() returns shallow USize
     func clone(self: BuilderFuncScratch) returns BuilderFuncScratch
     func delete(own self: BuilderFuncScratch, shallow call_free: Bool)
     func hash(self: BuilderFuncScratch, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -351,10 +416,10 @@ namespace:
     mut type_cache : Vec__FFITypePtrBox
     mut type_cache_inited : Bool
 namespace:
+    func size() returns shallow USize
     func clone(self: FfiState) returns FfiState
     func delete(own self: FfiState, shallow call_free: Bool)
     func hash(self: FfiState, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -371,8 +436,33 @@ namespace:
 namespace:
     func clone(_self: InternedTypes) returns InternedTypes
     func delete(own self: InternedTypes, shallow call_free: Bool)
-    func hash(self: InternedTypes, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: InternedTypes, hasher: HashFn) returns shallow U64
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.EvalState">
+<h2>EvalState</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct {
+    mut has_return : Bool
+    mut has_break : Bool
+    mut has_continue : Bool
+    ref mut return_value : Dynamic
+    mut interp_ret_is_ref : Bool
+    ref mut interp_ret_dest : Dynamic
+    mut interp_ret_type : Option__ref_Str
+    mut interp_ret_own_type : OwnType
+    mut interp_cstr_arg : Bool
+    mut constfold_active : Bool
+    mut eval_aborted : Bool
+    mut repl_session : Bool
+    mut ns_fields : Option__Scope
+    mut cached_str_name : Str
+namespace:
+    func size() returns shallow USize
+    func clone(self: EvalState) returns EvalState
+    func delete(own self: EvalState, shallow call_free: Bool)
 }
 </code></pre>
 </article>
@@ -393,27 +483,19 @@ namespace:
     mut constfolder_foldables : Map__Str_FuncType
     mut constfolder_known : Option__Scope
     mut constfolder_assigned : Set__Str
-    mut has_return : Bool
-    mut has_break : Bool
-    mut has_continue : Bool
-    ref mut return_value : Dynamic
-    mut interp_ret_is_ref : Bool
-    ref mut interp_ret_dest : Dynamic
-    mut interp_ret_type : Option__ref_Str
-    mut interp_ret_own_type : OwnType
-    mut interp_cstr_arg : Bool
-    mut constfold_active : Bool
-    mut eval_aborted : Bool
-    mut repl_session : Bool
-    mut ns_fields : Option__Scope
+    mut eval : EvalState
     mut imported : Map__Str_ImportUnit
+    mut import_cwd : Str
     mut check_unused_imports : Bool
     mut import_use_edges : Set__Str
     mut imports_init_seed_done : Set__Str
     mut imports_init_active : Set__Str
     mut imports_init_done : Set__Str
+    mut imports_typer_methods_done : Set__Str
+    mut imports_typer_fields_done : Set__Str
     mut imports_typer_decls_done : Set__Str
     mut imports_typer_bodies_done : Set__Str
+    mut infer_struct_fields_only : Bool
     mut type_gen_synths : Set__Str
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
@@ -422,7 +504,6 @@ namespace:
     mut scope : TypeScope
     mut is_repl : Bool
     mut struct_layouts : Map__Str_StructLayout
-    mut typing_namespace_member : Bool
     mut closure_emit_env : Str
     mut closure_emit_captures : Set__U32
     mut funcsig_names : Set__U32
@@ -432,13 +513,6 @@ namespace:
     mut throw_type_registry : Vec__Str
     mut throws_global : Map__Str_call_Vec_Str
     mut bang_counter : I64
-    mut lowering_param_types : Map__Str_Str
-    mut typer_return_type_name : Str
-    mut ctor_seq : I32
-    mut in_func_def : Bool
-    mut in_main_func : Bool
-    mut proc_calls_count : I32
-    mut proc_def_depth : I32
     mut hoist_counter : I32
     mut va_counter : I32
     mut kw_counter : I32
@@ -447,10 +521,6 @@ namespace:
     mut synth_symbol_seq : Map__Str_I64
     mut lazy_stmt_temp_counter : I64
     mut errors : I32
-    mut current_type_name : Str
-    mut current_top_func_name : Str
-    mut auto_gen_depth : I32
-    mut throw_used_local_names : Set__Str
     mut priv_ref_edges : Map__Str_call_Vec_Str
     mut builder_func : BuilderFuncScratch
     mut builder_str_lit_symbols : HashMap__Str_Str
@@ -475,16 +545,14 @@ namespace:
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
     mut builder_prog_closed_world : Bool
-    mut current_fdef : Option__ref_Expr
-    mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
     mut interned_types : InternedTypes
     mut ffi : FfiState
     mut symbols : SymbolPool
 namespace:
+    func size() returns shallow USize
     func clone(self: Context) returns Context
     func delete(own self: Context, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -582,12 +650,6 @@ namespace:
 <h2>_WIDTH_ALIAS_NAMES_ek</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til"> is a I64
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.is_scalar_type_name">
-<h2>is_scalar_type_name</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (n: Str) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.resolved_type_name">
@@ -704,6 +766,12 @@ namespace:
 <pre><code class="language-til">func (fd: FunctionDef, shallow i: USize, shallow value_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.context.func_param_has_stack_outer">
+<h2>func_param_has_stack_outer</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (fd: FunctionDef, shallow i: USize, shallow stack_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.context.type_from_name_init_name">
 <h2>type_from_name_init_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -720,12 +788,6 @@ namespace:
 <h2>declaration_resolved_type</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func (decl: Declaration, scope: TypeScope, symbols: SymbolPool) returns Type
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.field_inferred_type_name">
-<h2>field_inferred_type_name</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fd: Declaration, symbols: SymbolPool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.array_vec_elem_type_name">
@@ -840,6 +902,12 @@ namespace:
 <h2>enum_variant_tag_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func (enum_def: Expr, shallow idx: I32) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.enum_variant_index_for_tag">
+<h2>enum_variant_index_for_tag</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (enum_def: Expr, shallow tag: I64) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.enum_variant_index">
@@ -1020,6 +1088,12 @@ namespace:
 <h2>qname_in_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func (s: Set__Str, a: Str, sep: Str, b: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__Sym_Dynamic">
+<h2>Map__Sym_Dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til"> is a None
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.Map__Sym_TypeBinding">
@@ -1311,8 +1385,8 @@ namespace:
     func remove(mut self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
     func delete(own self: Map__U32_TypeBinding, shallow call_free: Bool)
     func clone(self: Map__U32_TypeBinding) returns Map__U32_TypeBinding
-    func hash(self: Map__U32_TypeBinding, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__U32_TypeBinding, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -1382,6 +1456,96 @@ on a missing key.</p>
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic">
+<h2>Map__U32_Dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct {
+    mut keys : Vec__U32
+    mut values : Vec__Dynamic
+namespace:
+    func new() returns Map__U32_Dynamic
+    func with_capacity(shallow n: USize) returns Map__U32_Dynamic
+    func len(self: Map__U32_Dynamic) returns shallow USize
+    func clear(mut self: Map__U32_Dynamic)
+    func has(self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
+    func get(self: Map__U32_Dynamic, key: U32, mut _err_kind: I64) returns ref Dynamic
+    func set(mut self: Map__U32_Dynamic, shallow key: U32, own val: Dynamic)
+    func remove(mut self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
+    func delete(own self: Map__U32_Dynamic, shallow call_free: Bool)
+    func clone(self: Map__U32_Dynamic) returns Map__U32_Dynamic
+    func size() returns shallow USize
+    func hash(self: Map__U32_Dynamic, hasher: HashFn) returns shallow U64
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic.new">
+<h2>Map__U32_Dynamic.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Create an empty Map of the types provided for the key and values respectively.
+The key type must implement <code>cmp</code>.</p>
+</div>
+<pre><code class="language-til">func () returns Map__U32_Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic.with_capacity">
+<h2>Map__U32_Dynamic.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
+<code>n</code> reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Map__U32_Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic.clear">
+<h2>Map__U32_Dynamic.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__U32_Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic.has">
+<h2>Map__U32_Dynamic.has</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>True if a value exists for the given key.</p>
+</div>
+<pre><code class="language-til">func (self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic.get">
+<h2>Map__U32_Dynamic.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
+<code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
+on a missing key.</p>
+</div>
+<pre><code class="language-til">func (self: Map__U32_Dynamic, key: U32, mut _err_kind: I64) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic.set">
+<h2>Map__U32_Dynamic.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__U32_Dynamic, shallow key: U32, own val: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Map__U32_Dynamic.remove">
+<h2>Map__U32_Dynamic.remove</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.Option__ref_TypeScope">
@@ -1505,8 +1669,8 @@ namespace:
     func remove(mut self: Map__U32_Str, shallow key: U32) returns shallow Bool
     func delete(own self: Map__U32_Str, shallow call_free: Bool)
     func clone(self: Map__U32_Str) returns Map__U32_Str
-    func hash(self: Map__U32_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__U32_Str, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -1595,8 +1759,8 @@ namespace:
     func remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
     func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
     func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
-    func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -1685,8 +1849,8 @@ namespace:
     func remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
     func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
     func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
-    func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2041,8 +2205,8 @@ namespace:
     func remove(mut self: Map__Str_Mode, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Mode, shallow call_free: Bool)
     func clone(self: Map__Str_Mode) returns Map__Str_Mode
-    func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2131,8 +2295,8 @@ namespace:
     func remove(mut self: Map__Str_FuncType, key: Str) returns shallow Bool
     func delete(own self: Map__Str_FuncType, shallow call_free: Bool)
     func clone(self: Map__Str_FuncType) returns Map__Str_FuncType
-    func hash(self: Map__Str_FuncType, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_FuncType, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2272,8 +2436,8 @@ namespace:
     func remove(mut self: Map__Str_ImportUnit, key: Str) returns shallow Bool
     func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
     func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
-    func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2362,8 +2526,8 @@ namespace:
     func remove(mut self: Map__Str_Expr, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Expr, shallow call_free: Bool)
     func clone(self: Map__Str_Expr) returns Map__Str_Expr
-    func hash(self: Map__Str_Expr, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Expr, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2452,8 +2616,8 @@ namespace:
     func remove(mut self: Map__Str_StructLayout, key: Str) returns shallow Bool
     func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
     func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
-    func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2629,8 +2793,8 @@ namespace:
     func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
     func delete(own self: Map__Str_I64, shallow call_free: Bool)
     func clone(self: Map__Str_I64) returns Map__Str_I64
-    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2719,8 +2883,8 @@ namespace:
     func remove(mut self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
     func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
-    func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2818,8 +2982,8 @@ namespace:
     func rehash(mut self: HashMap__Str_Str)
     func delete(own self: HashMap__Str_Str, shallow call_free: Bool)
     func remove(mut self: HashMap__Str_Str, key: Str) returns shallow Bool
-    func hash(self: HashMap__Str_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: HashMap__Str_Str, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -2951,8 +3115,8 @@ namespace:
     func rehash(mut self: HashMap__Str_USize)
     func delete(own self: HashMap__Str_USize, shallow call_free: Bool)
     func remove(mut self: HashMap__Str_USize, key: Str) returns shallow Bool
-    func hash(self: HashMap__Str_USize, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: HashMap__Str_USize, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -3075,8 +3239,8 @@ namespace:
     func remove(mut self: Map__Str_Bool, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Bool, shallow call_free: Bool)
     func clone(self: Map__Str_Bool) returns Map__Str_Bool
-    func hash(self: Map__Str_Bool, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Bool, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -3165,8 +3329,8 @@ namespace:
     func remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
     func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
-    func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -3236,59 +3400,6 @@ on a missing key.</p>
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.Option__ref_Declaration">
-<h2>Option__ref_Declaration</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">enum {
-    None
-    Some: Declaration
-namespace:
-    func is_some(shallow self: Option__ref_Declaration) returns shallow Bool
-    func is_none(shallow self: Option__ref_Declaration) returns shallow Bool
-    func unwrap_or(self: Option__ref_Declaration, default_v: Declaration) returns ref Declaration
-    func unwrap(self: Option__ref_Declaration) returns ref Declaration
-    func take(own self: Option__ref_Declaration) returns ref Declaration
-    ext_func None() returns shallow Option__ref_Declaration
-    ext_func Some(val: Declaration) returns shallow Option__ref_Declaration
-    core_func is(self: Option__ref_Declaration, other: Option__ref_Declaration) returns shallow Bool
-    func eq(shallow self: Option__ref_Declaration, shallow other: Option__ref_Declaration) returns shallow Bool
-    func delete(own self: Option__ref_Declaration, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_Declaration) returns Str
-    func clone(self: Option__ref_Declaration) returns shallow Option__ref_Declaration
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.Option__ref_Declaration.unwrap">
-<h2>Option__ref_Declaration.unwrap</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>The contained value; PANICS on None, ala Rust's unwrap. For the
-<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.</p>
-</div>
-<pre><code class="language-til">func (self: Option__ref_Declaration) returns ref Declaration
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.Option__ref_Declaration.take">
-<h2>Option__ref_Declaration.take</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<div class="doc-body">
-<p>The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.</p>
-</div>
-<pre><code class="language-til">func (own self: Option__ref_Declaration) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.Option__ref_Expr">
@@ -5475,61 +5586,61 @@ unless <code>call_free</code> is false.</p>
 <article class="doc-entry" id="til.src.self.context.adopt__BorrowRoot">
 <h2>adopt__BorrowRoot</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: BorrowRoot)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: BorrowRoot)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__TypeBinding">
 <h2>adopt__TypeBinding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: TypeBinding)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: TypeBinding)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__FFIEntry">
 <h2>adopt__FFIEntry</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: FFIEntry)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: FFIEntry)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__ExprPtrBox">
 <h2>adopt__ExprPtrBox</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: ExprPtrBox)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: ExprPtrBox)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__FFITypePtrBox">
 <h2>adopt__FFITypePtrBox</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: FFITypePtrBox)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: FFITypePtrBox)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__Mode">
 <h2>adopt__Mode</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: Mode)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: Mode)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__FuncType">
 <h2>adopt__FuncType</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: FuncType)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: FuncType)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__ImportUnit">
 <h2>adopt__ImportUnit</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: ImportUnit)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: ImportUnit)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__StructLayout">
 <h2>adopt__StructLayout</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: StructLayout)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: StructLayout)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.adopt__Vec__Str">
 <h2>adopt__Vec__Str</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: Vec__Str)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: Vec__Str)
 </code></pre>
 </article>
 </main></div>

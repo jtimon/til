@@ -1,5 +1,5 @@
 #+TITLE: src/self/binder.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * generate_bindings
@@ -19,28 +19,38 @@ proc generate_bindings(in_path: Str, out_path: Str)
 :END:
 
 #+begin_src til
-struct Map__Str_AuditedDecl {
+Map__Str_AuditedDecl is a None
+#+end_src
+
+* Map__Str_priv___src_self_binder_til__AuditedDecl
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl
+:group: Compiler tools
+:END:
+
+#+begin_src til
+struct Map__Str_priv___src_self_binder_til__AuditedDecl {
     mut keys : Vec__Str
-    mut values : Vec__AuditedDecl
+    mut values : Vec__priv___src_self_binder_til__AuditedDecl
 namespace:
-    func new() returns Map__Str_AuditedDecl
-    func with_capacity(shallow n: USize) returns Map__Str_AuditedDecl
-    func len(self: Map__Str_AuditedDecl) returns shallow USize
-    func clear(mut self: Map__Str_AuditedDecl)
-    func has(self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
-    func get(self: Map__Str_AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
-    func set(mut self: Map__Str_AuditedDecl, key: Str, own val: priv___src_self_binder_til__AuditedDecl)
-    func remove(mut self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_AuditedDecl, shallow call_free: Bool)
-    func clone(self: Map__Str_AuditedDecl) returns Map__Str_AuditedDecl
-    func hash(self: Map__Str_AuditedDecl, hasher: HashFn) returns shallow U64
+    func new() returns Map__Str_priv___src_self_binder_til__AuditedDecl
+    func with_capacity(shallow n: USize) returns Map__Str_priv___src_self_binder_til__AuditedDecl
+    func len(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns shallow USize
+    func clear(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl)
+    func has(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
+    func get(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+    func set(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str, own val: priv___src_self_binder_til__AuditedDecl)
+    func remove(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_priv___src_self_binder_til__AuditedDecl, shallow call_free: Bool)
+    func clone(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns Map__Str_priv___src_self_binder_til__AuditedDecl
     func size() returns shallow USize
+    func hash(self: Map__Str_priv___src_self_binder_til__AuditedDecl, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
-* Map__Str_AuditedDecl.new
+* Map__Str_priv___src_self_binder_til__AuditedDecl.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Map__Str_AuditedDecl.new
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.new
 :group: Compiler tools
 :END:
 
@@ -48,12 +58,12 @@ Create an empty Map of the types provided for the key and values respectively.
 The key type must implement ~cmp~.
 
 #+begin_src til
-func Map__Str_AuditedDecl.new() returns Map__Str_AuditedDecl
+func Map__Str_priv___src_self_binder_til__AuditedDecl.new() returns Map__Str_priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Map__Str_AuditedDecl.with_capacity
+* Map__Str_priv___src_self_binder_til__AuditedDecl.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Map__Str_AuditedDecl.with_capacity
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.with_capacity
 :group: Compiler tools
 :END:
 
@@ -62,36 +72,36 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_AuditedDecl.with_capacity(shallow n: USize) returns Map__Str_AuditedDecl
+func Map__Str_priv___src_self_binder_til__AuditedDecl.with_capacity(shallow n: USize) returns Map__Str_priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Map__Str_AuditedDecl.clear
+* Map__Str_priv___src_self_binder_til__AuditedDecl.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Map__Str_AuditedDecl.clear
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.clear
 :group: Compiler tools
 :END:
 
 Drop all live keys and values but keep the allocated storage so the Map can be reused.
 
 #+begin_src til
-func Map__Str_AuditedDecl.clear(mut self: Map__Str_AuditedDecl)
+func Map__Str_priv___src_self_binder_til__AuditedDecl.clear(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Map__Str_AuditedDecl.has
+* Map__Str_priv___src_self_binder_til__AuditedDecl.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Map__Str_AuditedDecl.has
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.has
 :group: Compiler tools
 :END:
 
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_AuditedDecl.has(self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
+func Map__Str_priv___src_self_binder_til__AuditedDecl.has(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
 #+end_src
 
-* Map__Str_AuditedDecl.get
+* Map__Str_priv___src_self_binder_til__AuditedDecl.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Map__Str_AuditedDecl.get
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.get
 :group: Compiler tools
 :END:
 
@@ -100,73 +110,73 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_AuditedDecl.get(self: Map__Str_AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+func Map__Str_priv___src_self_binder_til__AuditedDecl.get(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Map__Str_AuditedDecl.set
+* Map__Str_priv___src_self_binder_til__AuditedDecl.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Map__Str_AuditedDecl.set
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.set
 :group: Compiler tools
 :END:
 
 Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
-func Map__Str_AuditedDecl.set(mut self: Map__Str_AuditedDecl, key: Str, own val: priv___src_self_binder_til__AuditedDecl)
+func Map__Str_priv___src_self_binder_til__AuditedDecl.set(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str, own val: priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Map__Str_AuditedDecl.remove
+* Map__Str_priv___src_self_binder_til__AuditedDecl.remove
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Map__Str_AuditedDecl.remove
+:CUSTOM_ID: til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.remove
 :group: Compiler tools
 :END:
 
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_AuditedDecl.remove(mut self: Map__Str_AuditedDecl, key: Str) returns shallow Bool
+func Map__Str_priv___src_self_binder_til__AuditedDecl.remove(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
 #+end_src
 
-* Vec__AuditedDecl
+* Vec__priv___src_self_binder_til__AuditedDecl
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl
 :group: Compiler tools
 :END:
 
 #+begin_src til
-struct Vec__AuditedDecl {
+struct Vec__priv___src_self_binder_til__AuditedDecl {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__AuditedDecl
-    func with_capacity(shallow n: USize) returns Vec__AuditedDecl
-    func len(self: Vec__AuditedDecl) returns shallow USize
-    func clear(mut self: Vec__AuditedDecl)
-    func delete_marked(mut self: Vec__AuditedDecl, marks: Dynamic)
-    func push(mut self: Vec__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
-    func append(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
-    func take(mut self: Vec__AuditedDecl) returns Vec__AuditedDecl
-    func move_to(own self: Vec__AuditedDecl, mut dest: Vec__AuditedDecl)
-    func move_from(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
-    func unsafe_get(self: Vec__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
-    func get(self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
-    func pop(mut self: Vec__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
-    func remove_at(mut self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__AuditedDecl, shallow n: USize) returns Vec__AuditedDecl
-    func truncate(mut self: Vec__AuditedDecl, shallow n: USize)
-    func unsafe_set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
-    func set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
-    func push_take(mut self: Vec__AuditedDecl, mut src: Vec__AuditedDecl, shallow i: USize)
-    func delete(own self: Vec__AuditedDecl, shallow call_free: Bool)
-    func clone(self: Vec__AuditedDecl) returns Vec__AuditedDecl
+    func new() returns Vec__priv___src_self_binder_til__AuditedDecl
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
+    func len(self: Vec__priv___src_self_binder_til__AuditedDecl) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_binder_til__AuditedDecl)
+    func delete_marked(mut self: Vec__priv___src_self_binder_til__AuditedDecl, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
+    func append(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own other: Vec__priv___src_self_binder_til__AuditedDecl)
+    func take(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
+    func move_to(own self: Vec__priv___src_self_binder_til__AuditedDecl, mut dest: Vec__priv___src_self_binder_til__AuditedDecl)
+    func move_from(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own other: Vec__priv___src_self_binder_til__AuditedDecl)
+    func unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
+    func get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+    func pop(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
+    func remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
+    func truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
+    func set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_binder_til__AuditedDecl, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__AuditedDecl.new
+* Vec__priv___src_self_binder_til__AuditedDecl.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.new
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.new
 :group: Compiler tools
 :END:
 
@@ -177,12 +187,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__AuditedDecl.new() returns Vec__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.new() returns Vec__priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Vec__AuditedDecl.with_capacity
+* Vec__priv___src_self_binder_til__AuditedDecl.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.with_capacity
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.with_capacity
 :group: Compiler tools
 :END:
 
@@ -194,12 +204,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__AuditedDecl.with_capacity(shallow n: USize) returns Vec__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.with_capacity(shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Vec__AuditedDecl.clear
+* Vec__priv___src_self_binder_til__AuditedDecl.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.clear
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.clear
 :group: Compiler tools
 :END:
 
@@ -207,12 +217,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__AuditedDecl.clear(mut self: Vec__AuditedDecl)
+func Vec__priv___src_self_binder_til__AuditedDecl.clear(mut self: Vec__priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Vec__AuditedDecl.delete_marked
+* Vec__priv___src_self_binder_til__AuditedDecl.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.delete_marked
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.delete_marked
 :group: Compiler tools
 :END:
 
@@ -223,12 +233,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__AuditedDecl.delete_marked(mut self: Vec__AuditedDecl, marks: Dynamic)
+func Vec__priv___src_self_binder_til__AuditedDecl.delete_marked(mut self: Vec__priv___src_self_binder_til__AuditedDecl, marks: Dynamic)
 #+end_src
 
-* Vec__AuditedDecl.push
+* Vec__priv___src_self_binder_til__AuditedDecl.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.push
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.push
 :group: Compiler tools
 :END:
 
@@ -236,12 +246,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__AuditedDecl.push(mut self: Vec__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
+func Vec__priv___src_self_binder_til__AuditedDecl.push(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Vec__AuditedDecl.append
+* Vec__priv___src_self_binder_til__AuditedDecl.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.append
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.append
 :group: Compiler tools
 :END:
 
@@ -249,12 +259,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__AuditedDecl.append(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
+func Vec__priv___src_self_binder_til__AuditedDecl.append(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own other: Vec__priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Vec__AuditedDecl.take
+* Vec__priv___src_self_binder_til__AuditedDecl.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.take
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.take
 :group: Compiler tools
 :END:
 
@@ -269,12 +279,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__AuditedDecl.take(mut self: Vec__AuditedDecl) returns Vec__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.take(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Vec__AuditedDecl.move_to
+* Vec__priv___src_self_binder_til__AuditedDecl.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.move_to
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.move_to
 :group: Compiler tools
 :END:
 
@@ -291,12 +301,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__AuditedDecl.move_to(own self: Vec__AuditedDecl, mut dest: Vec__AuditedDecl)
+func Vec__priv___src_self_binder_til__AuditedDecl.move_to(own self: Vec__priv___src_self_binder_til__AuditedDecl, mut dest: Vec__priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Vec__AuditedDecl.move_from
+* Vec__priv___src_self_binder_til__AuditedDecl.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.move_from
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.move_from
 :group: Compiler tools
 :END:
 
@@ -305,12 +315,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__AuditedDecl.move_from(mut self: Vec__AuditedDecl, own other: Vec__AuditedDecl)
+func Vec__priv___src_self_binder_til__AuditedDecl.move_from(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own other: Vec__priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Vec__AuditedDecl.unsafe_get
+* Vec__priv___src_self_binder_til__AuditedDecl.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.unsafe_get
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.unsafe_get
 :group: Compiler tools
 :END:
 
@@ -321,12 +331,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__AuditedDecl.unsafe_get(self: Vec__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Vec__AuditedDecl.get
+* Vec__priv___src_self_binder_til__AuditedDecl.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.get
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.get
 :group: Compiler tools
 :END:
 
@@ -336,12 +346,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__AuditedDecl.get(self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Vec__AuditedDecl.pop
+* Vec__priv___src_self_binder_til__AuditedDecl.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.pop
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.pop
 :group: Compiler tools
 :END:
 
@@ -349,24 +359,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__AuditedDecl.pop(mut self: Vec__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.pop(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Vec__AuditedDecl.remove_at
+* Vec__priv___src_self_binder_til__AuditedDecl.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.remove_at
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.remove_at
 :group: Compiler tools
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__AuditedDecl.remove_at(mut self: Vec__AuditedDecl, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_binder_til__AuditedDecl.remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__AuditedDecl.take_prefix
+* Vec__priv___src_self_binder_til__AuditedDecl.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.take_prefix
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.take_prefix
 :group: Compiler tools
 :END:
 
@@ -374,12 +384,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__AuditedDecl.take_prefix(mut self: Vec__AuditedDecl, shallow n: USize) returns Vec__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
 #+end_src
 
-* Vec__AuditedDecl.truncate
+* Vec__priv___src_self_binder_til__AuditedDecl.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.truncate
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.truncate
 :group: Compiler tools
 :END:
 
@@ -389,12 +399,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__AuditedDecl.truncate(mut self: Vec__AuditedDecl, shallow n: USize)
+func Vec__priv___src_self_binder_til__AuditedDecl.truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize)
 #+end_src
 
-* Vec__AuditedDecl.unsafe_set
+* Vec__priv___src_self_binder_til__AuditedDecl.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.unsafe_set
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.unsafe_set
 :group: Compiler tools
 :END:
 
@@ -403,12 +413,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__AuditedDecl.unsafe_set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
+func Vec__priv___src_self_binder_til__AuditedDecl.unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
-* Vec__AuditedDecl.set
+* Vec__priv___src_self_binder_til__AuditedDecl.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.set
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.set
 :group: Compiler tools
 :END:
 
@@ -417,12 +427,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__AuditedDecl.set(mut self: Vec__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+func Vec__priv___src_self_binder_til__AuditedDecl.set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
 #+end_src
 
-* Vec__AuditedDecl.push_take
+* Vec__priv___src_self_binder_til__AuditedDecl.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.push_take
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.push_take
 :group: Compiler tools
 :END:
 
@@ -431,12 +441,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__AuditedDecl.push_take(mut self: Vec__AuditedDecl, mut src: Vec__AuditedDecl, shallow i: USize)
+func Vec__priv___src_self_binder_til__AuditedDecl.push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize)
 #+end_src
 
-* Vec__AuditedDecl.delete
+* Vec__priv___src_self_binder_til__AuditedDecl.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.delete
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.delete
 :group: Compiler tools
 :END:
 
@@ -444,19 +454,19 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__AuditedDecl.delete(own self: Vec__AuditedDecl, shallow call_free: Bool)
+func Vec__priv___src_self_binder_til__AuditedDecl.delete(own self: Vec__priv___src_self_binder_til__AuditedDecl, shallow call_free: Bool)
 #+end_src
 
-* Vec__AuditedDecl.clone
+* Vec__priv___src_self_binder_til__AuditedDecl.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.binder.Vec__AuditedDecl.clone
+:CUSTOM_ID: til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.clone
 :group: Compiler tools
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__AuditedDecl.clone(self: Vec__AuditedDecl) returns Vec__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.clone(self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
 #+end_src
 
 * adopt__priv___src_self_binder_til__AuditedDecl
@@ -466,5 +476,5 @@ func Vec__AuditedDecl.clone(self: Vec__AuditedDecl) returns Vec__AuditedDecl
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_binder_til__AuditedDecl(dest: Dynamic, own src: priv___src_self_binder_til__AuditedDecl)
+func adopt__priv___src_self_binder_til__AuditedDecl(mut dest: Dynamic, own src: priv___src_self_binder_til__AuditedDecl)
 #+end_src

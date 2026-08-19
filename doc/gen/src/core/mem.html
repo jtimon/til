@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -61,6 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -100,19 +102,19 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.core.mem.til_closure_slot_delete">
 <h2>til_closure_slot_delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (slot: Dynamic)
+<pre><code class="language-til">ext_func (mut slot: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.til_closure_slot_take">
 <h2>til_closure_slot_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (slot: Dynamic, closure: Dynamic)
+<pre><code class="language-til">ext_func (mut slot: Dynamic, closure: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.til_closure_slot_pop">
 <h2>til_closure_slot_pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (slot: Dynamic) returns Dynamic
+<pre><code class="language-til">ext_func (mut slot: Dynamic) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.til_closure_slot_clone">
@@ -154,85 +156,85 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.core.mem.write_ptr">
 <h2>write_ptr</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, val: Dynamic)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, val: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_i64">
 <h2>write_i64</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: I64)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_u8">
 <h2>write_u8</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: U8)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: U8)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_i8">
 <h2>write_i8</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: I8)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: I8)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_i16">
 <h2>write_i16</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: I16)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: I16)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_u16">
 <h2>write_u16</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: U16)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: U16)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_i32">
 <h2>write_i32</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: I32)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: I32)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_u32">
 <h2>write_u32</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: U32)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: U32)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_u64">
 <h2>write_u64</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: U64)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_f32">
 <h2>write_f32</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: F32)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: F32)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.write_bool">
 <h2>write_bool</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: Bool)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.memcpy">
 <h2>memcpy</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, src: Dynamic, shallow len: UPtr)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, src: Dynamic, shallow len: UPtr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.memmove">
 <h2>memmove</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, src: Dynamic, shallow len: UPtr)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, src: Dynamic, shallow len: UPtr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.memset">
 <h2>memset</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func (dest: Dynamic, shallow val: I32, shallow len: UPtr)
+<pre><code class="language-til">ext_func (mut dest: Dynamic, shallow val: I32, shallow len: UPtr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.memcmp">
@@ -272,7 +274,7 @@ scheduled delete). It outlived #302: the lowering still needs an
 untyped swap that predates monomorphization, so this stays as the
 primitive the typed swap/move below are built on.</p>
 </div>
-<pre><code class="language-til">func (a: Dynamic, b: Dynamic, shallow size: UPtr)
+<pre><code class="language-til">func (mut a: Dynamic, mut b: Dynamic, shallow size: UPtr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.adopt_from">
@@ -294,7 +296,7 @@ the size exactly as T.size() does. The caller guarantees dest is
 uninitialized and that src holds a live value; that is the unsafe
 part, and why this belongs to container internals like swap_bytes.</p>
 </div>
-<pre><code class="language-til">func (dest: Dynamic, src: Dynamic, shallow size: UPtr)
+<pre><code class="language-til">func (mut dest: Dynamic, mut src: Dynamic, shallow size: UPtr)
 </code></pre>
 </article>
 </main></div>

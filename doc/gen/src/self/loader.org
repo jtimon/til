@@ -1,16 +1,6 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
-
-* realpath_str
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.realpath_str
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-ext_proc realpath_str(path: Str) returns Str
-#+end_src
 
 * REPL_DOC_INDEX
 :PROPERTIES:
@@ -42,12 +32,19 @@ func forward_header_path(path: Str) returns Str
 struct ProgramUnit {
     mut path : Str
     mut mode : Mode
-    mut imports : Vec__Str
 namespace:
+    func size() returns shallow USize
     func clone(self: ProgramUnit) returns ProgramUnit
     func delete(own self: ProgramUnit, shallow call_free: Bool)
     func hash(self: ProgramUnit, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
+    func cmp(a: ProgramUnit, b: ProgramUnit) returns shallow I64
+    func to_str(self: ProgramUnit) returns Str
+    func eq(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func lt(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func gt(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func neq(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func lte(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func gte(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
 }
 #+end_src
 
@@ -78,8 +75,8 @@ struct LoadedProgram {
 namespace:
     func unit_paths(self: LoadedProgram) returns Vec__Str
     func delete(own self: LoadedProgram, shallow call_free: Bool)
-    func clone(self: LoadedProgram) returns LoadedProgram
     func size() returns shallow USize
+    func clone(self: LoadedProgram) returns LoadedProgram
 }
 #+end_src
 
@@ -127,12 +124,12 @@ struct DocMeta {
     mut deprecated : Str
     mut hidden : Bool
 namespace:
+    func size() returns shallow USize
     func clone(self: DocMeta) returns DocMeta
     func delete(own self: DocMeta, shallow call_free: Bool)
     func hash(self: DocMeta, hasher: HashFn) returns shallow U64
     func cmp(a: DocMeta, b: DocMeta) returns shallow I64
     func to_str(self: DocMeta) returns Str
-    func size() returns shallow USize
     func eq(a: DocMeta, b: DocMeta) returns shallow Bool
     func lt(a: DocMeta, b: DocMeta) returns shallow Bool
     func gt(a: DocMeta, b: DocMeta) returns shallow Bool
@@ -380,6 +377,16 @@ proc prepare_program(mut lp: LoadedProgram, shallow run_tests: Bool)
 
 #+begin_src til
 proc cmd_ast(lp: LoadedProgram)
+#+end_src
+
+* Vec__ImportCheckEntry
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+Vec__ImportCheckEntry is a None
 #+end_src
 
 * Vec__ProgramUnit
@@ -714,46 +721,46 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__ProgramUnit.clone(self: Vec__ProgramUnit) returns Vec__ProgramUnit
 #+end_src
 
-* Vec__ImportCheckEntry
+* Vec__priv___src_self_loader_til__ImportCheckEntry
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry
 :group: Compiler frontend
 :END:
 
 #+begin_src til
-struct Vec__ImportCheckEntry {
+struct Vec__priv___src_self_loader_til__ImportCheckEntry {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__ImportCheckEntry
-    func with_capacity(shallow n: USize) returns Vec__ImportCheckEntry
-    func len(self: Vec__ImportCheckEntry) returns shallow USize
-    func clear(mut self: Vec__ImportCheckEntry)
-    func delete_marked(mut self: Vec__ImportCheckEntry, marks: Dynamic)
-    func push(mut self: Vec__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
-    func append(mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
-    func take(mut self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
-    func move_to(own self: Vec__ImportCheckEntry, mut dest: Vec__ImportCheckEntry)
-    func move_from(mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
-    func unsafe_get(self: Vec__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
-    func get(self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
-    func pop(mut self: Vec__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
-    func remove_at(mut self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__ImportCheckEntry, shallow n: USize) returns Vec__ImportCheckEntry
-    func truncate(mut self: Vec__ImportCheckEntry, shallow n: USize)
-    func unsafe_set(mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
-    func set(mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
-    func push_take(mut self: Vec__ImportCheckEntry, mut src: Vec__ImportCheckEntry, shallow i: USize)
-    func delete(own self: Vec__ImportCheckEntry, shallow call_free: Bool)
-    func clone(self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
+    func new() returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func len(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func delete_marked(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
+    func append(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func move_to(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut dest: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func move_from(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func unsafe_get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func pop(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
+    func remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
+    func set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__ImportCheckEntry.new
+* Vec__priv___src_self_loader_til__ImportCheckEntry.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.new
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.new
 :group: Compiler frontend
 :END:
 
@@ -764,12 +771,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__ImportCheckEntry.new() returns Vec__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.new() returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
-* Vec__ImportCheckEntry.with_capacity
+* Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.with_capacity
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity
 :group: Compiler frontend
 :END:
 
@@ -781,12 +788,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__ImportCheckEntry.with_capacity(shallow n: USize) returns Vec__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity(shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
-* Vec__ImportCheckEntry.clear
+* Vec__priv___src_self_loader_til__ImportCheckEntry.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.clear
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.clear
 :group: Compiler frontend
 :END:
 
@@ -794,12 +801,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__ImportCheckEntry.clear(mut self: Vec__ImportCheckEntry)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.clear(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry)
 #+end_src
 
-* Vec__ImportCheckEntry.delete_marked
+* Vec__priv___src_self_loader_til__ImportCheckEntry.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.delete_marked
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.delete_marked
 :group: Compiler frontend
 :END:
 
@@ -810,12 +817,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__ImportCheckEntry.delete_marked(mut self: Vec__ImportCheckEntry, marks: Dynamic)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.delete_marked(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, marks: Dynamic)
 #+end_src
 
-* Vec__ImportCheckEntry.push
+* Vec__priv___src_self_loader_til__ImportCheckEntry.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.push
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.push
 :group: Compiler frontend
 :END:
 
@@ -823,12 +830,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__ImportCheckEntry.push(mut self: Vec__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.push(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
 #+end_src
 
-* Vec__ImportCheckEntry.append
+* Vec__priv___src_self_loader_til__ImportCheckEntry.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.append
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.append
 :group: Compiler frontend
 :END:
 
@@ -836,12 +843,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__ImportCheckEntry.append(mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.append(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
 #+end_src
 
-* Vec__ImportCheckEntry.take
+* Vec__priv___src_self_loader_til__ImportCheckEntry.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.take
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.take
 :group: Compiler frontend
 :END:
 
@@ -856,12 +863,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__ImportCheckEntry.take(mut self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
-* Vec__ImportCheckEntry.move_to
+* Vec__priv___src_self_loader_til__ImportCheckEntry.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.move_to
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.move_to
 :group: Compiler frontend
 :END:
 
@@ -878,12 +885,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__ImportCheckEntry.move_to(own self: Vec__ImportCheckEntry, mut dest: Vec__ImportCheckEntry)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.move_to(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut dest: Vec__priv___src_self_loader_til__ImportCheckEntry)
 #+end_src
 
-* Vec__ImportCheckEntry.move_from
+* Vec__priv___src_self_loader_til__ImportCheckEntry.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.move_from
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.move_from
 :group: Compiler frontend
 :END:
 
@@ -892,12 +899,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__ImportCheckEntry.move_from(mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.move_from(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
 #+end_src
 
-* Vec__ImportCheckEntry.unsafe_get
+* Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.unsafe_get
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_get
 :group: Compiler frontend
 :END:
 
@@ -908,12 +915,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__ImportCheckEntry.unsafe_get(self: Vec__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
-* Vec__ImportCheckEntry.get
+* Vec__priv___src_self_loader_til__ImportCheckEntry.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.get
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.get
 :group: Compiler frontend
 :END:
 
@@ -923,12 +930,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__ImportCheckEntry.get(self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
-* Vec__ImportCheckEntry.pop
+* Vec__priv___src_self_loader_til__ImportCheckEntry.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.pop
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.pop
 :group: Compiler frontend
 :END:
 
@@ -936,24 +943,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__ImportCheckEntry.pop(mut self: Vec__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.pop(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
-* Vec__ImportCheckEntry.remove_at
+* Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.remove_at
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at
 :group: Compiler frontend
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__ImportCheckEntry.remove_at(mut self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__ImportCheckEntry.take_prefix
+* Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.take_prefix
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix
 :group: Compiler frontend
 :END:
 
@@ -961,12 +968,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__ImportCheckEntry.take_prefix(mut self: Vec__ImportCheckEntry, shallow n: USize) returns Vec__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
-* Vec__ImportCheckEntry.truncate
+* Vec__priv___src_self_loader_til__ImportCheckEntry.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.truncate
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.truncate
 :group: Compiler frontend
 :END:
 
@@ -976,12 +983,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__ImportCheckEntry.truncate(mut self: Vec__ImportCheckEntry, shallow n: USize)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize)
 #+end_src
 
-* Vec__ImportCheckEntry.unsafe_set
+* Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.unsafe_set
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set
 :group: Compiler frontend
 :END:
 
@@ -990,12 +997,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__ImportCheckEntry.unsafe_set(mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
 #+end_src
 
-* Vec__ImportCheckEntry.set
+* Vec__priv___src_self_loader_til__ImportCheckEntry.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.set
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.set
 :group: Compiler frontend
 :END:
 
@@ -1004,12 +1011,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__ImportCheckEntry.set(mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
 #+end_src
 
-* Vec__ImportCheckEntry.push_take
+* Vec__priv___src_self_loader_til__ImportCheckEntry.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.push_take
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.push_take
 :group: Compiler frontend
 :END:
 
@@ -1018,12 +1025,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__ImportCheckEntry.push_take(mut self: Vec__ImportCheckEntry, mut src: Vec__ImportCheckEntry, shallow i: USize)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize)
 #+end_src
 
-* Vec__ImportCheckEntry.delete
+* Vec__priv___src_self_loader_til__ImportCheckEntry.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.delete
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.delete
 :group: Compiler frontend
 :END:
 
@@ -1031,19 +1038,19 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__ImportCheckEntry.delete(own self: Vec__ImportCheckEntry, shallow call_free: Bool)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow call_free: Bool)
 #+end_src
 
-* Vec__ImportCheckEntry.clone
+* Vec__priv___src_self_loader_til__ImportCheckEntry.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.loader.Vec__ImportCheckEntry.clone
+:CUSTOM_ID: til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.clone
 :group: Compiler frontend
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__ImportCheckEntry.clone(self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
 * adopt__ProgramUnit
@@ -1053,7 +1060,7 @@ func Vec__ImportCheckEntry.clone(self: Vec__ImportCheckEntry) returns Vec__Impor
 :END:
 
 #+begin_src til
-func adopt__ProgramUnit(dest: Dynamic, own src: ProgramUnit)
+func adopt__ProgramUnit(mut dest: Dynamic, own src: ProgramUnit)
 #+end_src
 
 * adopt__priv___src_self_loader_til__ImportCheckEntry
@@ -1063,5 +1070,5 @@ func adopt__ProgramUnit(dest: Dynamic, own src: ProgramUnit)
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_loader_til__ImportCheckEntry(dest: Dynamic, own src: priv___src_self_loader_til__ImportCheckEntry)
+func adopt__priv___src_self_loader_til__ImportCheckEntry(mut dest: Dynamic, own src: priv___src_self_loader_til__ImportCheckEntry)
 #+end_src

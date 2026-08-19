@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -58,9 +58,10 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Compiler backend</h2><ul>
 <li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
-<li><a class="current" href="../../src/self/garbager.html">src/self/garbager.til</a><ul><li><a href="#til.src.self.garbager.garbager_destroy_body">garbager_destroy_body</a></li><li><a href="#til.src.self.garbager.garbager_destroy_func_body">garbager_destroy_func_body</a></li><li><a href="#til.src.self.garbager.garbager_destroy">garbager_destroy</a></li><li><a href="#til.src.self.garbager.Array__USize">Array__USize</a></li><li><a href="#til.src.self.garbager.Array__USize.new">Array__USize.new</a></li><li><a href="#til.src.self.garbager.Array__USize.unsafe_get">Array__USize.unsafe_get</a></li><li><a href="#til.src.self.garbager.Array__USize.get">Array__USize.get</a></li><li><a href="#til.src.self.garbager.Array__USize.unsafe_set">Array__USize.unsafe_set</a></li><li><a href="#til.src.self.garbager.Array__USize.set">Array__USize.set</a></li><li><a href="#til.src.self.garbager.Array__USize.concat">Array__USize.concat</a></li><li><a href="#til.src.self.garbager.Array__USize.to_vec">Array__USize.to_vec</a></li><li><a href="#til.src.self.garbager.Array__Bool">Array__Bool</a></li><li><a href="#til.src.self.garbager.Array__Bool.new">Array__Bool.new</a></li><li><a href="#til.src.self.garbager.Array__Bool.unsafe_get">Array__Bool.unsafe_get</a></li><li><a href="#til.src.self.garbager.Array__Bool.get">Array__Bool.get</a></li><li><a href="#til.src.self.garbager.Array__Bool.unsafe_set">Array__Bool.unsafe_set</a></li><li><a href="#til.src.self.garbager.Array__Bool.set">Array__Bool.set</a></li><li><a href="#til.src.self.garbager.Array__Bool.concat">Array__Bool.concat</a></li><li><a href="#til.src.self.garbager.Array__Bool.to_vec">Array__Bool.to_vec</a></li><li><a href="#til.src.self.garbager.Array__U8">Array__U8</a></li><li><a href="#til.src.self.garbager.Array__U8.new">Array__U8.new</a></li><li><a href="#til.src.self.garbager.Array__U8.unsafe_get">Array__U8.unsafe_get</a></li><li><a href="#til.src.self.garbager.Array__U8.get">Array__U8.get</a></li><li><a href="#til.src.self.garbager.Array__U8.unsafe_set">Array__U8.unsafe_set</a></li><li><a href="#til.src.self.garbager.Array__U8.set">Array__U8.set</a></li><li><a href="#til.src.self.garbager.Array__U8.concat">Array__U8.concat</a></li><li><a href="#til.src.self.garbager.Array__U8.to_vec">Array__U8.to_vec</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge">Vec__GcBorrowEdge</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.new">Vec__GcBorrowEdge.new</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.with_capacity">Vec__GcBorrowEdge.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.clear">Vec__GcBorrowEdge.clear</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.delete_marked">Vec__GcBorrowEdge.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.push">Vec__GcBorrowEdge.push</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.append">Vec__GcBorrowEdge.append</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.take">Vec__GcBorrowEdge.take</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.move_to">Vec__GcBorrowEdge.move_to</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.move_from">Vec__GcBorrowEdge.move_from</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.unsafe_get">Vec__GcBorrowEdge.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.get">Vec__GcBorrowEdge.get</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.pop">Vec__GcBorrowEdge.pop</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.remove_at">Vec__GcBorrowEdge.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.take_prefix">Vec__GcBorrowEdge.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.truncate">Vec__GcBorrowEdge.truncate</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.unsafe_set">Vec__GcBorrowEdge.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.set">Vec__GcBorrowEdge.set</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.push_take">Vec__GcBorrowEdge.push_take</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.delete">Vec__GcBorrowEdge.delete</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge.clone">Vec__GcBorrowEdge.clone</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo">Vec__LocalInfo</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.new">Vec__LocalInfo.new</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.with_capacity">Vec__LocalInfo.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.clear">Vec__LocalInfo.clear</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.delete_marked">Vec__LocalInfo.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.push">Vec__LocalInfo.push</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.append">Vec__LocalInfo.append</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.take">Vec__LocalInfo.take</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.move_to">Vec__LocalInfo.move_to</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.move_from">Vec__LocalInfo.move_from</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.unsafe_get">Vec__LocalInfo.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.get">Vec__LocalInfo.get</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.pop">Vec__LocalInfo.pop</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.remove_at">Vec__LocalInfo.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.take_prefix">Vec__LocalInfo.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.truncate">Vec__LocalInfo.truncate</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.unsafe_set">Vec__LocalInfo.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.set">Vec__LocalInfo.set</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.push_take">Vec__LocalInfo.push_take</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.delete">Vec__LocalInfo.delete</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo.clone">Vec__LocalInfo.clone</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock">Vec__GcCfgBlock</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.new">Vec__GcCfgBlock.new</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.with_capacity">Vec__GcCfgBlock.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.clear">Vec__GcCfgBlock.clear</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.delete_marked">Vec__GcCfgBlock.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.push">Vec__GcCfgBlock.push</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.append">Vec__GcCfgBlock.append</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.take">Vec__GcCfgBlock.take</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.move_to">Vec__GcCfgBlock.move_to</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.move_from">Vec__GcCfgBlock.move_from</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.unsafe_get">Vec__GcCfgBlock.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.get">Vec__GcCfgBlock.get</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.pop">Vec__GcCfgBlock.pop</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.remove_at">Vec__GcCfgBlock.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.take_prefix">Vec__GcCfgBlock.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.truncate">Vec__GcCfgBlock.truncate</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.unsafe_set">Vec__GcCfgBlock.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.set">Vec__GcCfgBlock.set</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.push_take">Vec__GcCfgBlock.push_take</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.delete">Vec__GcCfgBlock.delete</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock.clone">Vec__GcCfgBlock.clone</a></li><li><a href="#til.src.self.garbager.Vec__U8">Vec__U8</a></li><li><a href="#til.src.self.garbager.Vec__U8.new">Vec__U8.new</a></li><li><a href="#til.src.self.garbager.Vec__U8.with_capacity">Vec__U8.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__U8.clear">Vec__U8.clear</a></li><li><a href="#til.src.self.garbager.Vec__U8.delete_marked">Vec__U8.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__U8.push">Vec__U8.push</a></li><li><a href="#til.src.self.garbager.Vec__U8.append">Vec__U8.append</a></li><li><a href="#til.src.self.garbager.Vec__U8.take">Vec__U8.take</a></li><li><a href="#til.src.self.garbager.Vec__U8.move_to">Vec__U8.move_to</a></li><li><a href="#til.src.self.garbager.Vec__U8.move_from">Vec__U8.move_from</a></li><li><a href="#til.src.self.garbager.Vec__U8.unsafe_get">Vec__U8.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__U8.get">Vec__U8.get</a></li><li><a href="#til.src.self.garbager.Vec__U8.pop">Vec__U8.pop</a></li><li><a href="#til.src.self.garbager.Vec__U8.remove_at">Vec__U8.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__U8.take_prefix">Vec__U8.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__U8.truncate">Vec__U8.truncate</a></li><li><a href="#til.src.self.garbager.Vec__U8.unsafe_set">Vec__U8.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__U8.set">Vec__U8.set</a></li><li><a href="#til.src.self.garbager.Vec__U8.push_take">Vec__U8.push_take</a></li><li><a href="#til.src.self.garbager.Vec__U8.delete">Vec__U8.delete</a></li><li><a href="#til.src.self.garbager.Vec__U8.clone">Vec__U8.clone</a></li><li><a href="#til.src.self.garbager.swap__priv___src_self_garbager_til__LocalInfo">swap__priv___src_self_garbager_til__LocalInfo</a></li><li><a href="#til.src.self.garbager.adopt__U8">adopt__U8</a></li><li><a href="#til.src.self.garbager.adopt__priv___src_self_garbager_til__GcBorrowEdge">adopt__priv___src_self_garbager_til__GcBorrowEdge</a></li><li><a href="#til.src.self.garbager.adopt__priv___src_self_garbager_til__LocalInfo">adopt__priv___src_self_garbager_til__LocalInfo</a></li><li><a href="#til.src.self.garbager.adopt__priv___src_self_garbager_til__GcCfgBlock">adopt__priv___src_self_garbager_til__GcCfgBlock</a></li></ul></li>
+<li><a class="current" href="../../src/self/garbager.html">src/self/garbager.til</a><ul><li><a href="#til.src.self.garbager.garbager_destroy_body">garbager_destroy_body</a></li><li><a href="#til.src.self.garbager.garbager_validate">garbager_validate</a></li><li><a href="#til.src.self.garbager.garbager_destroy">garbager_destroy</a></li><li><a href="#til.src.self.garbager.Vec__LocalInfo">Vec__LocalInfo</a></li><li><a href="#til.src.self.garbager.Vec__GcCfgBlock">Vec__GcCfgBlock</a></li><li><a href="#til.src.self.garbager.Vec__GcBorrowEdge">Vec__GcBorrowEdge</a></li><li><a href="#til.src.self.garbager.Array__USize">Array__USize</a></li><li><a href="#til.src.self.garbager.Array__USize.new">Array__USize.new</a></li><li><a href="#til.src.self.garbager.Array__USize.unsafe_get">Array__USize.unsafe_get</a></li><li><a href="#til.src.self.garbager.Array__USize.get">Array__USize.get</a></li><li><a href="#til.src.self.garbager.Array__USize.unsafe_set">Array__USize.unsafe_set</a></li><li><a href="#til.src.self.garbager.Array__USize.set">Array__USize.set</a></li><li><a href="#til.src.self.garbager.Array__USize.concat">Array__USize.concat</a></li><li><a href="#til.src.self.garbager.Array__USize.to_vec">Array__USize.to_vec</a></li><li><a href="#til.src.self.garbager.Array__Bool">Array__Bool</a></li><li><a href="#til.src.self.garbager.Array__Bool.new">Array__Bool.new</a></li><li><a href="#til.src.self.garbager.Array__Bool.unsafe_get">Array__Bool.unsafe_get</a></li><li><a href="#til.src.self.garbager.Array__Bool.get">Array__Bool.get</a></li><li><a href="#til.src.self.garbager.Array__Bool.unsafe_set">Array__Bool.unsafe_set</a></li><li><a href="#til.src.self.garbager.Array__Bool.set">Array__Bool.set</a></li><li><a href="#til.src.self.garbager.Array__Bool.concat">Array__Bool.concat</a></li><li><a href="#til.src.self.garbager.Array__Bool.to_vec">Array__Bool.to_vec</a></li><li><a href="#til.src.self.garbager.Array__U8">Array__U8</a></li><li><a href="#til.src.self.garbager.Array__U8.new">Array__U8.new</a></li><li><a href="#til.src.self.garbager.Array__U8.unsafe_get">Array__U8.unsafe_get</a></li><li><a href="#til.src.self.garbager.Array__U8.get">Array__U8.get</a></li><li><a href="#til.src.self.garbager.Array__U8.unsafe_set">Array__U8.unsafe_set</a></li><li><a href="#til.src.self.garbager.Array__U8.set">Array__U8.set</a></li><li><a href="#til.src.self.garbager.Array__U8.concat">Array__U8.concat</a></li><li><a href="#til.src.self.garbager.Array__U8.to_vec">Array__U8.to_vec</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge">Vec__priv___src_self_garbager_til__GcBorrowEdge</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.new">Vec__priv___src_self_garbager_til__GcBorrowEdge.new</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity">Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.clear">Vec__priv___src_self_garbager_til__GcBorrowEdge.clear</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.delete_marked">Vec__priv___src_self_garbager_til__GcBorrowEdge.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.push">Vec__priv___src_self_garbager_til__GcBorrowEdge.push</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.append">Vec__priv___src_self_garbager_til__GcBorrowEdge.append</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.take">Vec__priv___src_self_garbager_til__GcBorrowEdge.take</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.move_to">Vec__priv___src_self_garbager_til__GcBorrowEdge.move_to</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.move_from">Vec__priv___src_self_garbager_til__GcBorrowEdge.move_from</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_get">Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.get">Vec__priv___src_self_garbager_til__GcBorrowEdge.get</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.pop">Vec__priv___src_self_garbager_til__GcBorrowEdge.pop</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at">Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix">Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate">Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set">Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.set">Vec__priv___src_self_garbager_til__GcBorrowEdge.set</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take">Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.delete">Vec__priv___src_self_garbager_til__GcBorrowEdge.delete</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.clone">Vec__priv___src_self_garbager_til__GcBorrowEdge.clone</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo">Vec__priv___src_self_garbager_til__LocalInfo</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.new">Vec__priv___src_self_garbager_til__LocalInfo.new</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.with_capacity">Vec__priv___src_self_garbager_til__LocalInfo.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.clear">Vec__priv___src_self_garbager_til__LocalInfo.clear</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.delete_marked">Vec__priv___src_self_garbager_til__LocalInfo.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.push">Vec__priv___src_self_garbager_til__LocalInfo.push</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.append">Vec__priv___src_self_garbager_til__LocalInfo.append</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.take">Vec__priv___src_self_garbager_til__LocalInfo.take</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.move_to">Vec__priv___src_self_garbager_til__LocalInfo.move_to</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.move_from">Vec__priv___src_self_garbager_til__LocalInfo.move_from</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.unsafe_get">Vec__priv___src_self_garbager_til__LocalInfo.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.get">Vec__priv___src_self_garbager_til__LocalInfo.get</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.pop">Vec__priv___src_self_garbager_til__LocalInfo.pop</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.remove_at">Vec__priv___src_self_garbager_til__LocalInfo.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.take_prefix">Vec__priv___src_self_garbager_til__LocalInfo.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.truncate">Vec__priv___src_self_garbager_til__LocalInfo.truncate</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set">Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.set">Vec__priv___src_self_garbager_til__LocalInfo.set</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.push_take">Vec__priv___src_self_garbager_til__LocalInfo.push_take</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.delete">Vec__priv___src_self_garbager_til__LocalInfo.delete</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.clone">Vec__priv___src_self_garbager_til__LocalInfo.clone</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock">Vec__priv___src_self_garbager_til__GcCfgBlock</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.new">Vec__priv___src_self_garbager_til__GcCfgBlock.new</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity">Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.clear">Vec__priv___src_self_garbager_til__GcCfgBlock.clear</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.delete_marked">Vec__priv___src_self_garbager_til__GcCfgBlock.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.push">Vec__priv___src_self_garbager_til__GcCfgBlock.push</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.append">Vec__priv___src_self_garbager_til__GcCfgBlock.append</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.take">Vec__priv___src_self_garbager_til__GcCfgBlock.take</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.move_to">Vec__priv___src_self_garbager_til__GcCfgBlock.move_to</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.move_from">Vec__priv___src_self_garbager_til__GcCfgBlock.move_from</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_get">Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.get">Vec__priv___src_self_garbager_til__GcCfgBlock.get</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.pop">Vec__priv___src_self_garbager_til__GcCfgBlock.pop</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at">Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix">Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.truncate">Vec__priv___src_self_garbager_til__GcCfgBlock.truncate</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set">Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.set">Vec__priv___src_self_garbager_til__GcCfgBlock.set</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.push_take">Vec__priv___src_self_garbager_til__GcCfgBlock.push_take</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.delete">Vec__priv___src_self_garbager_til__GcCfgBlock.delete</a></li><li><a href="#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.clone">Vec__priv___src_self_garbager_til__GcCfgBlock.clone</a></li><li><a href="#til.src.self.garbager.Option__ref_FunctionDef">Option__ref_FunctionDef</a></li><li><a href="#til.src.self.garbager.Option__ref_FunctionDef.unwrap">Option__ref_FunctionDef.unwrap</a></li><li><a href="#til.src.self.garbager.Option__ref_FunctionDef.take">Option__ref_FunctionDef.take</a></li><li><a href="#til.src.self.garbager.Vec__U8">Vec__U8</a></li><li><a href="#til.src.self.garbager.Vec__U8.new">Vec__U8.new</a></li><li><a href="#til.src.self.garbager.Vec__U8.with_capacity">Vec__U8.with_capacity</a></li><li><a href="#til.src.self.garbager.Vec__U8.clear">Vec__U8.clear</a></li><li><a href="#til.src.self.garbager.Vec__U8.delete_marked">Vec__U8.delete_marked</a></li><li><a href="#til.src.self.garbager.Vec__U8.push">Vec__U8.push</a></li><li><a href="#til.src.self.garbager.Vec__U8.append">Vec__U8.append</a></li><li><a href="#til.src.self.garbager.Vec__U8.take">Vec__U8.take</a></li><li><a href="#til.src.self.garbager.Vec__U8.move_to">Vec__U8.move_to</a></li><li><a href="#til.src.self.garbager.Vec__U8.move_from">Vec__U8.move_from</a></li><li><a href="#til.src.self.garbager.Vec__U8.unsafe_get">Vec__U8.unsafe_get</a></li><li><a href="#til.src.self.garbager.Vec__U8.get">Vec__U8.get</a></li><li><a href="#til.src.self.garbager.Vec__U8.pop">Vec__U8.pop</a></li><li><a href="#til.src.self.garbager.Vec__U8.remove_at">Vec__U8.remove_at</a></li><li><a href="#til.src.self.garbager.Vec__U8.take_prefix">Vec__U8.take_prefix</a></li><li><a href="#til.src.self.garbager.Vec__U8.truncate">Vec__U8.truncate</a></li><li><a href="#til.src.self.garbager.Vec__U8.unsafe_set">Vec__U8.unsafe_set</a></li><li><a href="#til.src.self.garbager.Vec__U8.set">Vec__U8.set</a></li><li><a href="#til.src.self.garbager.Vec__U8.push_take">Vec__U8.push_take</a></li><li><a href="#til.src.self.garbager.Vec__U8.delete">Vec__U8.delete</a></li><li><a href="#til.src.self.garbager.Vec__U8.clone">Vec__U8.clone</a></li><li><a href="#til.src.self.garbager.swap__priv___src_self_garbager_til__LocalInfo">swap__priv___src_self_garbager_til__LocalInfo</a></li><li><a href="#til.src.self.garbager.adopt__U8">adopt__U8</a></li><li><a href="#til.src.self.garbager.adopt__priv___src_self_garbager_til__GcBorrowEdge">adopt__priv___src_self_garbager_til__GcBorrowEdge</a></li><li><a href="#til.src.self.garbager.adopt__priv___src_self_garbager_til__LocalInfo">adopt__priv___src_self_garbager_til__LocalInfo</a></li><li><a href="#til.src.self.garbager.adopt__priv___src_self_garbager_til__GcCfgBlock">adopt__priv___src_self_garbager_til__GcCfgBlock</a></li></ul></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -91,16 +93,34 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">proc (mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.garbager_destroy_func_body">
-<h2>garbager_destroy_func_body</h2>
+<article class="doc-entry" id="til.src.self.garbager.garbager_validate">
+<h2>garbager_validate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">proc (mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns shallow Bool
+<pre><code class="language-til">proc (mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.garbager.garbager_destroy">
 <h2>garbager_destroy</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">proc (mut ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo">
+<h2>Vec__LocalInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock">
+<h2>Vec__GcCfgBlock</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge">
+<h2>Vec__GcBorrowEdge</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.garbager.Array__USize">
@@ -409,41 +429,41 @@ loop whose nodes no later pass would infer.</p>
 <pre><code class="language-til">func (self: Array__U8) returns Vec__U8
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge">
-<h2>Vec__GcBorrowEdge</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__GcBorrowEdge
-    func with_capacity(shallow n: USize) returns Vec__GcBorrowEdge
-    func len(self: Vec__GcBorrowEdge) returns shallow USize
-    func clear(mut self: Vec__GcBorrowEdge)
-    func delete_marked(mut self: Vec__GcBorrowEdge, marks: Dynamic)
-    func push(mut self: Vec__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
-    func append(mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
-    func take(mut self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
-    func move_to(own self: Vec__GcBorrowEdge, mut dest: Vec__GcBorrowEdge)
-    func move_from(mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
-    func unsafe_get(self: Vec__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
-    func get(self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
-    func pop(mut self: Vec__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
-    func remove_at(mut self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__GcBorrowEdge, shallow n: USize) returns Vec__GcBorrowEdge
-    func truncate(mut self: Vec__GcBorrowEdge, shallow n: USize)
-    func unsafe_set(mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
-    func set(mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
-    func push_take(mut self: Vec__GcBorrowEdge, mut src: Vec__GcBorrowEdge, shallow i: USize)
-    func delete(own self: Vec__GcBorrowEdge, shallow call_free: Bool)
-    func clone(self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
+    func new() returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func len(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
+    func append(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func move_to(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut dest: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
+    func get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+    func pop(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func truncate(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
+    func set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
     func size() returns shallow USize
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.new">
-<h2>Vec__GcBorrowEdge.new</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.new">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -452,11 +472,11 @@ and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
 the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 </div>
-<pre><code class="language-til">func () returns Vec__GcBorrowEdge
+<pre><code class="language-til">func () returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.with_capacity">
-<h2>Vec__GcBorrowEdge.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -466,21 +486,21 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__GcBorrowEdge
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.clear">
-<h2>Vec__GcBorrowEdge.clear</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.clear">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.delete_marked">
-<h2>Vec__GcBorrowEdge.delete_marked</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.delete_marked">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -489,31 +509,31 @@ compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, marks: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.push">
-<h2>Vec__GcBorrowEdge.push</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.push">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.append">
-<h2>Vec__GcBorrowEdge.append</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.append">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
 <code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.take">
-<h2>Vec__GcBorrowEdge.take</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.take">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -525,11 +545,11 @@ ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
 uses the two move forms below instead.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.move_to">
-<h2>Vec__GcBorrowEdge.move_to</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.move_to">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -543,22 +563,22 @@ Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__GcBorrowEdge, mut dest: Vec__GcBorrowEdge)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut dest: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.move_from">
-<h2>Vec__GcBorrowEdge.move_from</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.move_from">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
 argument: <code>dest.move_from(own src)</code>.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.unsafe_get">
-<h2>Vec__GcBorrowEdge.unsafe_get</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_get">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -567,11 +587,11 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.get">
-<h2>Vec__GcBorrowEdge.get</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.get">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -579,40 +599,40 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.pop">
-<h2>Vec__GcBorrowEdge.pop</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.pop">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.remove_at">
-<h2>Vec__GcBorrowEdge.remove_at</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.take_prefix">
-<h2>Vec__GcBorrowEdge.take_prefix</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, shallow n: USize) returns Vec__GcBorrowEdge
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.truncate">
-<h2>Vec__GcBorrowEdge.truncate</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -620,96 +640,96 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.unsafe_set">
-<h2>Vec__GcBorrowEdge.unsafe_set</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.set">
-<h2>Vec__GcBorrowEdge.set</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.set">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.push_take">
-<h2>Vec__GcBorrowEdge.push_take</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcBorrowEdge, mut src: Vec__GcBorrowEdge, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.delete">
-<h2>Vec__GcBorrowEdge.delete</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.delete">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__GcBorrowEdge, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow call_free: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcBorrowEdge.clone">
-<h2>Vec__GcBorrowEdge.clone</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.clone">
+<h2>Vec__priv___src_self_garbager_til__GcBorrowEdge.clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo">
-<h2>Vec__LocalInfo</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__LocalInfo
-    func with_capacity(shallow n: USize) returns Vec__LocalInfo
-    func len(self: Vec__LocalInfo) returns shallow USize
-    func clear(mut self: Vec__LocalInfo)
-    func delete_marked(mut self: Vec__LocalInfo, marks: Dynamic)
-    func push(mut self: Vec__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
-    func append(mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
-    func take(mut self: Vec__LocalInfo) returns Vec__LocalInfo
-    func move_to(own self: Vec__LocalInfo, mut dest: Vec__LocalInfo)
-    func move_from(mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
-    func unsafe_get(self: Vec__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
-    func get(self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
-    func pop(mut self: Vec__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
-    func remove_at(mut self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__LocalInfo, shallow n: USize) returns Vec__LocalInfo
-    func truncate(mut self: Vec__LocalInfo, shallow n: USize)
-    func unsafe_set(mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
-    func set(mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
-    func push_take(mut self: Vec__LocalInfo, mut src: Vec__LocalInfo, shallow i: USize)
-    func delete(own self: Vec__LocalInfo, shallow call_free: Bool)
-    func clone(self: Vec__LocalInfo) returns Vec__LocalInfo
+    func new() returns Vec__priv___src_self_garbager_til__LocalInfo
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func len(self: Vec__priv___src_self_garbager_til__LocalInfo) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_garbager_til__LocalInfo)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__LocalInfo, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
+    func append(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
+    func take(mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func move_to(own self: Vec__priv___src_self_garbager_til__LocalInfo, mut dest: Vec__priv___src_self_garbager_til__LocalInfo)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
+    func get(self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+    func pop(mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func truncate(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
+    func set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
     func size() returns shallow USize
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.new">
-<h2>Vec__LocalInfo.new</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.new">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -718,11 +738,11 @@ and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
 the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 </div>
-<pre><code class="language-til">func () returns Vec__LocalInfo
+<pre><code class="language-til">func () returns Vec__priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.with_capacity">
-<h2>Vec__LocalInfo.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.with_capacity">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -732,21 +752,21 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__LocalInfo
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.clear">
-<h2>Vec__LocalInfo.clear</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.clear">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.delete_marked">
-<h2>Vec__LocalInfo.delete_marked</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.delete_marked">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -755,31 +775,31 @@ compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, marks: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.push">
-<h2>Vec__LocalInfo.push</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.push">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.append">
-<h2>Vec__LocalInfo.append</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.append">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
 <code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.take">
-<h2>Vec__LocalInfo.take</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.take">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -791,11 +811,11 @@ ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
 uses the two move forms below instead.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo) returns Vec__LocalInfo
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.move_to">
-<h2>Vec__LocalInfo.move_to</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.move_to">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -809,22 +829,22 @@ Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__LocalInfo, mut dest: Vec__LocalInfo)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_garbager_til__LocalInfo, mut dest: Vec__priv___src_self_garbager_til__LocalInfo)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.move_from">
-<h2>Vec__LocalInfo.move_from</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.move_from">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
 argument: <code>dest.move_from(own src)</code>.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.unsafe_get">
-<h2>Vec__LocalInfo.unsafe_get</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.unsafe_get">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.unsafe_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -833,11 +853,11 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.get">
-<h2>Vec__LocalInfo.get</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.get">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -845,40 +865,40 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.pop">
-<h2>Vec__LocalInfo.pop</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.pop">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.remove_at">
-<h2>Vec__LocalInfo.remove_at</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.remove_at">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.take_prefix">
-<h2>Vec__LocalInfo.take_prefix</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.take_prefix">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, shallow n: USize) returns Vec__LocalInfo
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.truncate">
-<h2>Vec__LocalInfo.truncate</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.truncate">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -886,96 +906,96 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.unsafe_set">
-<h2>Vec__LocalInfo.unsafe_set</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.set">
-<h2>Vec__LocalInfo.set</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.set">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.push_take">
-<h2>Vec__LocalInfo.push_take</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.push_take">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.push_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__LocalInfo, mut src: Vec__LocalInfo, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.delete">
-<h2>Vec__LocalInfo.delete</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.delete">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__LocalInfo, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_garbager_til__LocalInfo, shallow call_free: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__LocalInfo.clone">
-<h2>Vec__LocalInfo.clone</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.clone">
+<h2>Vec__priv___src_self_garbager_til__LocalInfo.clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__LocalInfo) returns Vec__LocalInfo
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock">
-<h2>Vec__GcCfgBlock</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__GcCfgBlock
-    func with_capacity(shallow n: USize) returns Vec__GcCfgBlock
-    func len(self: Vec__GcCfgBlock) returns shallow USize
-    func clear(mut self: Vec__GcCfgBlock)
-    func delete_marked(mut self: Vec__GcCfgBlock, marks: Dynamic)
-    func push(mut self: Vec__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
-    func append(mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
-    func take(mut self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
-    func move_to(own self: Vec__GcCfgBlock, mut dest: Vec__GcCfgBlock)
-    func move_from(mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
-    func unsafe_get(self: Vec__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
-    func get(self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
-    func pop(mut self: Vec__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
-    func remove_at(mut self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__GcCfgBlock, shallow n: USize) returns Vec__GcCfgBlock
-    func truncate(mut self: Vec__GcCfgBlock, shallow n: USize)
-    func unsafe_set(mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
-    func set(mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
-    func push_take(mut self: Vec__GcCfgBlock, mut src: Vec__GcCfgBlock, shallow i: USize)
-    func delete(own self: Vec__GcCfgBlock, shallow call_free: Bool)
-    func clone(self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
+    func new() returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func len(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
+    func append(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func move_to(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut dest: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
+    func get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+    func pop(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func truncate(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
+    func set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
     func size() returns shallow USize
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.new">
-<h2>Vec__GcCfgBlock.new</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.new">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -984,11 +1004,11 @@ and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
 the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 </div>
-<pre><code class="language-til">func () returns Vec__GcCfgBlock
+<pre><code class="language-til">func () returns Vec__priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.with_capacity">
-<h2>Vec__GcCfgBlock.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -998,21 +1018,21 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__GcCfgBlock
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.clear">
-<h2>Vec__GcCfgBlock.clear</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.clear">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.delete_marked">
-<h2>Vec__GcCfgBlock.delete_marked</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.delete_marked">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -1021,31 +1041,31 @@ compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, marks: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.push">
-<h2>Vec__GcCfgBlock.push</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.push">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.append">
-<h2>Vec__GcCfgBlock.append</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.append">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
 <code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.take">
-<h2>Vec__GcCfgBlock.take</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.take">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -1057,11 +1077,11 @@ ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
 uses the two move forms below instead.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.move_to">
-<h2>Vec__GcCfgBlock.move_to</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.move_to">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -1075,22 +1095,22 @@ Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__GcCfgBlock, mut dest: Vec__GcCfgBlock)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut dest: Vec__priv___src_self_garbager_til__GcCfgBlock)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.move_from">
-<h2>Vec__GcCfgBlock.move_from</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.move_from">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
 argument: <code>dest.move_from(own src)</code>.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.unsafe_get">
-<h2>Vec__GcCfgBlock.unsafe_get</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_get">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -1099,11 +1119,11 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.get">
-<h2>Vec__GcCfgBlock.get</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.get">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -1111,40 +1131,40 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.pop">
-<h2>Vec__GcCfgBlock.pop</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.pop">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.remove_at">
-<h2>Vec__GcCfgBlock.remove_at</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.take_prefix">
-<h2>Vec__GcCfgBlock.take_prefix</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, shallow n: USize) returns Vec__GcCfgBlock
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.truncate">
-<h2>Vec__GcCfgBlock.truncate</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.truncate">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -1152,59 +1172,112 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.unsafe_set">
-<h2>Vec__GcCfgBlock.unsafe_set</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.set">
-<h2>Vec__GcCfgBlock.set</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.set">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.push_take">
-<h2>Vec__GcCfgBlock.push_take</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.push_take">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.push_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GcCfgBlock, mut src: Vec__GcCfgBlock, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.delete">
-<h2>Vec__GcCfgBlock.delete</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.delete">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__GcCfgBlock, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow call_free: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.garbager.Vec__GcCfgBlock.clone">
-<h2>Vec__GcCfgBlock.clone</h2>
+<article class="doc-entry" id="til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.clone">
+<h2>Vec__priv___src_self_garbager_til__GcCfgBlock.clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
+<pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.garbager.Option__ref_FunctionDef">
+<h2>Option__ref_FunctionDef</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">enum {
+    None
+    Some: FunctionDef
+namespace:
+    func is_some(shallow self: Option__ref_FunctionDef) returns shallow Bool
+    func is_none(shallow self: Option__ref_FunctionDef) returns shallow Bool
+    func unwrap_or(self: Option__ref_FunctionDef, default_v: FunctionDef) returns ref FunctionDef
+    func unwrap(self: Option__ref_FunctionDef) returns ref FunctionDef
+    func take(own self: Option__ref_FunctionDef) returns ref FunctionDef
+    ext_func None() returns shallow Option__ref_FunctionDef
+    ext_func Some(val: FunctionDef) returns shallow Option__ref_FunctionDef
+    core_func is(self: Option__ref_FunctionDef, other: Option__ref_FunctionDef) returns shallow Bool
+    func eq(shallow self: Option__ref_FunctionDef, shallow other: Option__ref_FunctionDef) returns shallow Bool
+    func delete(own self: Option__ref_FunctionDef, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_FunctionDef) returns Str
+    func clone(self: Option__ref_FunctionDef) returns shallow Option__ref_FunctionDef
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.garbager.Option__ref_FunctionDef.unwrap">
+<h2>Option__ref_FunctionDef.unwrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__ref_FunctionDef) returns ref FunctionDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.garbager.Option__ref_FunctionDef.take">
+<h2>Option__ref_FunctionDef.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__ref_FunctionDef) returns ref FunctionDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.garbager.Vec__U8">
@@ -1482,25 +1555,25 @@ unless <code>call_free</code> is false.</p>
 <article class="doc-entry" id="til.src.self.garbager.adopt__U8">
 <h2>adopt__U8</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: U8)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: U8)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.garbager.adopt__priv___src_self_garbager_til__GcBorrowEdge">
 <h2>adopt__priv___src_self_garbager_til__GcBorrowEdge</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_garbager_til__GcBorrowEdge)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_garbager_til__GcBorrowEdge)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.garbager.adopt__priv___src_self_garbager_til__LocalInfo">
 <h2>adopt__priv___src_self_garbager_til__LocalInfo</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_garbager_til__LocalInfo)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_garbager_til__LocalInfo)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.garbager.adopt__priv___src_self_garbager_til__GcCfgBlock">
 <h2>adopt__priv___src_self_garbager_til__GcCfgBlock</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_garbager_til__GcCfgBlock)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_garbager_til__GcCfgBlock)
 </code></pre>
 </article>
 </main></div>

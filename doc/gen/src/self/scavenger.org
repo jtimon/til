@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -79,28 +79,38 @@ proc scavenge_imported(mut lp: LoadedProgram)
 :END:
 
 #+begin_src til
-struct Map__Str_DeclRef {
+Map__Str_DeclRef is a None
+#+end_src
+
+* Map__Str_priv___src_self_scavenger_til__DeclRef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Map__Str_priv___src_self_scavenger_til__DeclRef {
     mut keys : Vec__Str
-    mut values : Vec__DeclRef
+    mut values : Vec__priv___src_self_scavenger_til__DeclRef
 namespace:
-    func new() returns Map__Str_DeclRef
-    func with_capacity(shallow n: USize) returns Map__Str_DeclRef
-    func len(self: Map__Str_DeclRef) returns shallow USize
-    func clear(mut self: Map__Str_DeclRef)
-    func has(self: Map__Str_DeclRef, key: Str) returns shallow Bool
-    func get(self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
-    func set(mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
-    func remove(mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_DeclRef, shallow call_free: Bool)
-    func clone(self: Map__Str_DeclRef) returns Map__Str_DeclRef
-    func hash(self: Map__Str_DeclRef, hasher: HashFn) returns shallow U64
+    func new() returns Map__Str_priv___src_self_scavenger_til__DeclRef
+    func with_capacity(shallow n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
+    func len(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns shallow USize
+    func clear(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef)
+    func has(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
+    func get(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+    func set(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
+    func remove(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
+    func clone(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns Map__Str_priv___src_self_scavenger_til__DeclRef
     func size() returns shallow USize
+    func hash(self: Map__Str_priv___src_self_scavenger_til__DeclRef, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
-* Map__Str_DeclRef.new
+* Map__Str_priv___src_self_scavenger_til__DeclRef.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Map__Str_DeclRef.new
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.new
 :group: Compiler backend
 :END:
 
@@ -108,12 +118,12 @@ Create an empty Map of the types provided for the key and values respectively.
 The key type must implement ~cmp~.
 
 #+begin_src til
-func Map__Str_DeclRef.new() returns Map__Str_DeclRef
+func Map__Str_priv___src_self_scavenger_til__DeclRef.new() returns Map__Str_priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Map__Str_DeclRef.with_capacity
+* Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Map__Str_DeclRef.with_capacity
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity
 :group: Compiler backend
 :END:
 
@@ -122,36 +132,36 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_DeclRef.with_capacity(shallow n: USize) returns Map__Str_DeclRef
+func Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity(shallow n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Map__Str_DeclRef.clear
+* Map__Str_priv___src_self_scavenger_til__DeclRef.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Map__Str_DeclRef.clear
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.clear
 :group: Compiler backend
 :END:
 
 Drop all live keys and values but keep the allocated storage so the Map can be reused.
 
 #+begin_src til
-func Map__Str_DeclRef.clear(mut self: Map__Str_DeclRef)
+func Map__Str_priv___src_self_scavenger_til__DeclRef.clear(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Map__Str_DeclRef.has
+* Map__Str_priv___src_self_scavenger_til__DeclRef.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Map__Str_DeclRef.has
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.has
 :group: Compiler backend
 :END:
 
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_DeclRef.has(self: Map__Str_DeclRef, key: Str) returns shallow Bool
+func Map__Str_priv___src_self_scavenger_til__DeclRef.has(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
 #+end_src
 
-* Map__Str_DeclRef.get
+* Map__Str_priv___src_self_scavenger_til__DeclRef.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Map__Str_DeclRef.get
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.get
 :group: Compiler backend
 :END:
 
@@ -160,73 +170,73 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_DeclRef.get(self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+func Map__Str_priv___src_self_scavenger_til__DeclRef.get(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Map__Str_DeclRef.set
+* Map__Str_priv___src_self_scavenger_til__DeclRef.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Map__Str_DeclRef.set
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.set
 :group: Compiler backend
 :END:
 
 Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
-func Map__Str_DeclRef.set(mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
+func Map__Str_priv___src_self_scavenger_til__DeclRef.set(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Map__Str_DeclRef.remove
+* Map__Str_priv___src_self_scavenger_til__DeclRef.remove
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Map__Str_DeclRef.remove
+:CUSTOM_ID: til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.remove
 :group: Compiler backend
 :END:
 
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_DeclRef.remove(mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
+func Map__Str_priv___src_self_scavenger_til__DeclRef.remove(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
 #+end_src
 
-* Vec__DeclRef
+* Vec__priv___src_self_scavenger_til__DeclRef
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef
 :group: Compiler backend
 :END:
 
 #+begin_src til
-struct Vec__DeclRef {
+struct Vec__priv___src_self_scavenger_til__DeclRef {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__DeclRef
-    func with_capacity(shallow n: USize) returns Vec__DeclRef
-    func len(self: Vec__DeclRef) returns shallow USize
-    func clear(mut self: Vec__DeclRef)
-    func delete_marked(mut self: Vec__DeclRef, marks: Dynamic)
-    func push(mut self: Vec__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
-    func append(mut self: Vec__DeclRef, own other: Vec__DeclRef)
-    func take(mut self: Vec__DeclRef) returns Vec__DeclRef
-    func move_to(own self: Vec__DeclRef, mut dest: Vec__DeclRef)
-    func move_from(mut self: Vec__DeclRef, own other: Vec__DeclRef)
-    func unsafe_get(self: Vec__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
-    func get(self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
-    func pop(mut self: Vec__DeclRef) returns priv___src_self_scavenger_til__DeclRef
-    func remove_at(mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
-    func truncate(mut self: Vec__DeclRef, shallow n: USize)
-    func unsafe_set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
-    func set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
-    func push_take(mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
-    func delete(own self: Vec__DeclRef, shallow call_free: Bool)
-    func clone(self: Vec__DeclRef) returns Vec__DeclRef
+    func new() returns Vec__priv___src_self_scavenger_til__DeclRef
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func len(self: Vec__priv___src_self_scavenger_til__DeclRef) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_scavenger_til__DeclRef)
+    func delete_marked(mut self: Vec__priv___src_self_scavenger_til__DeclRef, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
+    func append(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
+    func take(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func move_to(own self: Vec__priv___src_self_scavenger_til__DeclRef, mut dest: Vec__priv___src_self_scavenger_til__DeclRef)
+    func move_from(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
+    func unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+    func get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+    func pop(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns priv___src_self_scavenger_til__DeclRef
+    func remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+    func set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__DeclRef.new
+* Vec__priv___src_self_scavenger_til__DeclRef.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.new
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.new
 :group: Compiler backend
 :END:
 
@@ -237,12 +247,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__DeclRef.new() returns Vec__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.new() returns Vec__priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Vec__DeclRef.with_capacity
+* Vec__priv___src_self_scavenger_til__DeclRef.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.with_capacity
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.with_capacity
 :group: Compiler backend
 :END:
 
@@ -254,12 +264,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__DeclRef.with_capacity(shallow n: USize) returns Vec__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.with_capacity(shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Vec__DeclRef.clear
+* Vec__priv___src_self_scavenger_til__DeclRef.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.clear
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.clear
 :group: Compiler backend
 :END:
 
@@ -267,12 +277,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__DeclRef.clear(mut self: Vec__DeclRef)
+func Vec__priv___src_self_scavenger_til__DeclRef.clear(mut self: Vec__priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Vec__DeclRef.delete_marked
+* Vec__priv___src_self_scavenger_til__DeclRef.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.delete_marked
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.delete_marked
 :group: Compiler backend
 :END:
 
@@ -283,12 +293,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__DeclRef.delete_marked(mut self: Vec__DeclRef, marks: Dynamic)
+func Vec__priv___src_self_scavenger_til__DeclRef.delete_marked(mut self: Vec__priv___src_self_scavenger_til__DeclRef, marks: Dynamic)
 #+end_src
 
-* Vec__DeclRef.push
+* Vec__priv___src_self_scavenger_til__DeclRef.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.push
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.push
 :group: Compiler backend
 :END:
 
@@ -296,12 +306,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__DeclRef.push(mut self: Vec__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
+func Vec__priv___src_self_scavenger_til__DeclRef.push(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Vec__DeclRef.append
+* Vec__priv___src_self_scavenger_til__DeclRef.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.append
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.append
 :group: Compiler backend
 :END:
 
@@ -309,12 +319,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__DeclRef.append(mut self: Vec__DeclRef, own other: Vec__DeclRef)
+func Vec__priv___src_self_scavenger_til__DeclRef.append(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Vec__DeclRef.take
+* Vec__priv___src_self_scavenger_til__DeclRef.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.take
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.take
 :group: Compiler backend
 :END:
 
@@ -329,12 +339,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__DeclRef.take(mut self: Vec__DeclRef) returns Vec__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.take(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Vec__DeclRef.move_to
+* Vec__priv___src_self_scavenger_til__DeclRef.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.move_to
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.move_to
 :group: Compiler backend
 :END:
 
@@ -351,12 +361,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__DeclRef.move_to(own self: Vec__DeclRef, mut dest: Vec__DeclRef)
+func Vec__priv___src_self_scavenger_til__DeclRef.move_to(own self: Vec__priv___src_self_scavenger_til__DeclRef, mut dest: Vec__priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Vec__DeclRef.move_from
+* Vec__priv___src_self_scavenger_til__DeclRef.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.move_from
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.move_from
 :group: Compiler backend
 :END:
 
@@ -365,12 +375,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__DeclRef.move_from(mut self: Vec__DeclRef, own other: Vec__DeclRef)
+func Vec__priv___src_self_scavenger_til__DeclRef.move_from(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Vec__DeclRef.unsafe_get
+* Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.unsafe_get
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get
 :group: Compiler backend
 :END:
 
@@ -381,12 +391,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__DeclRef.unsafe_get(self: Vec__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Vec__DeclRef.get
+* Vec__priv___src_self_scavenger_til__DeclRef.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.get
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.get
 :group: Compiler backend
 :END:
 
@@ -396,12 +406,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__DeclRef.get(self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Vec__DeclRef.pop
+* Vec__priv___src_self_scavenger_til__DeclRef.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.pop
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.pop
 :group: Compiler backend
 :END:
 
@@ -409,24 +419,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__DeclRef.pop(mut self: Vec__DeclRef) returns priv___src_self_scavenger_til__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.pop(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Vec__DeclRef.remove_at
+* Vec__priv___src_self_scavenger_til__DeclRef.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.remove_at
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.remove_at
 :group: Compiler backend
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__DeclRef.remove_at(mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_scavenger_til__DeclRef.remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__DeclRef.take_prefix
+* Vec__priv___src_self_scavenger_til__DeclRef.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.take_prefix
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.take_prefix
 :group: Compiler backend
 :END:
 
@@ -434,12 +444,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__DeclRef.take_prefix(mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
 #+end_src
 
-* Vec__DeclRef.truncate
+* Vec__priv___src_self_scavenger_til__DeclRef.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.truncate
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.truncate
 :group: Compiler backend
 :END:
 
@@ -449,12 +459,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__DeclRef.truncate(mut self: Vec__DeclRef, shallow n: USize)
+func Vec__priv___src_self_scavenger_til__DeclRef.truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize)
 #+end_src
 
-* Vec__DeclRef.unsafe_set
+* Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.unsafe_set
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set
 :group: Compiler backend
 :END:
 
@@ -463,12 +473,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__DeclRef.unsafe_set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+func Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-* Vec__DeclRef.set
+* Vec__priv___src_self_scavenger_til__DeclRef.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.set
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.set
 :group: Compiler backend
 :END:
 
@@ -477,12 +487,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__DeclRef.set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+func Vec__priv___src_self_scavenger_til__DeclRef.set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
 #+end_src
 
-* Vec__DeclRef.push_take
+* Vec__priv___src_self_scavenger_til__DeclRef.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.push_take
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.push_take
 :group: Compiler backend
 :END:
 
@@ -491,12 +501,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__DeclRef.push_take(mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
+func Vec__priv___src_self_scavenger_til__DeclRef.push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize)
 #+end_src
 
-* Vec__DeclRef.delete
+* Vec__priv___src_self_scavenger_til__DeclRef.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.delete
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.delete
 :group: Compiler backend
 :END:
 
@@ -504,19 +514,19 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__DeclRef.delete(own self: Vec__DeclRef, shallow call_free: Bool)
+func Vec__priv___src_self_scavenger_til__DeclRef.delete(own self: Vec__priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
 #+end_src
 
-* Vec__DeclRef.clone
+* Vec__priv___src_self_scavenger_til__DeclRef.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.scavenger.Vec__DeclRef.clone
+:CUSTOM_ID: til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.clone
 :group: Compiler backend
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__DeclRef.clone(self: Vec__DeclRef) returns Vec__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.clone(self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
 #+end_src
 
 * adopt__priv___src_self_scavenger_til__DeclRef
@@ -526,5 +536,5 @@ func Vec__DeclRef.clone(self: Vec__DeclRef) returns Vec__DeclRef
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_scavenger_til__DeclRef(dest: Dynamic, own src: priv___src_self_scavenger_til__DeclRef)
+func adopt__priv___src_self_scavenger_til__DeclRef(mut dest: Dynamic, own src: priv___src_self_scavenger_til__DeclRef)
 #+end_src

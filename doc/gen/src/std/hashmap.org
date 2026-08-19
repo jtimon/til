@@ -1,5 +1,5 @@
 #+TITLE: src/std/hashmap.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * HASHMAP_INIT_BUCKETS
@@ -693,7 +693,7 @@ func Vec__U64.clone(self: Vec__U64) returns Vec__U64
 :END:
 
 #+begin_src til
-func adopt__I64(dest: Dynamic, own src: I64)
+func adopt__I64(mut dest: Dynamic, own src: I64)
 #+end_src
 
 * adopt__U64
@@ -703,5 +703,5 @@ func adopt__I64(dest: Dynamic, own src: I64)
 :END:
 
 #+begin_src til
-func adopt__U64(dest: Dynamic, own src: U64)
+func adopt__U64(mut dest: Dynamic, own src: U64)
 #+end_src

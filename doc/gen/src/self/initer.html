@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -51,7 +51,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
-<li><a class="current" href="../../src/self/initer.html">src/self/initer.til</a><ul><li><a href="#til.src.self.initer.collect_enum_variants">collect_enum_variants</a></li><li><a href="#til.src.self.initer.register_funcsig_alias_for_stmt">register_funcsig_alias_for_stmt</a></li><li><a href="#til.src.self.initer.register_function_def_for_stmt">register_function_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_struct_size_method_for_stmt">gen_struct_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_size_method_for_stmt">gen_enum_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_unity_derived_for_stmt">gen_unity_derived_for_stmt</a></li><li><a href="#til.src.self.initer.gen_cmp_derived_for_stmt">gen_cmp_derived_for_stmt</a></li><li><a href="#til.src.self.initer.compute_struct_layout">compute_struct_layout</a></li><li><a href="#til.src.self.initer.compute_enum_layout">compute_enum_layout</a></li><li><a href="#til.src.self.initer.ctx_total_size">ctx_total_size</a></li><li><a href="#til.src.self.initer.EMPTY_FIELD_LAYOUT">EMPTY_FIELD_LAYOUT</a></li><li><a href="#til.src.self.initer.ctx_field_layout">ctx_field_layout</a></li><li><a href="#til.src.self.initer.init_lift_in_body">init_lift_in_body</a></li><li><a href="#til.src.self.initer.init_refresh_seeded_scope_defs">init_refresh_seeded_scope_defs</a></li><li><a href="#til.src.self.initer.GenericSources">GenericSources</a></li><li><a href="#til.src.self.initer.generic_instantiate">generic_instantiate</a></li><li><a href="#til.src.self.initer.init_scan_unresolved_generic_calls">init_scan_unresolved_generic_calls</a></li><li><a href="#til.src.self.initer.init_retire_generic_sources">init_retire_generic_sources</a></li><li><a href="#til.src.self.initer.init_declarations_global">init_declarations_global</a></li><li><a href="#til.src.self.initer.count_ast_imports">count_ast_imports</a></li><li><a href="#til.src.self.initer.init_file">init_file</a></li><li><a href="#til.src.self.initer.init_repl_delta">init_repl_delta</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.new">Map__Str_GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.with_capacity">Map__Str_GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.clear">Map__Str_GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.has">Map__Str_GenericFuncSource.has</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.get">Map__Str_GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.set">Map__Str_GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.remove">Map__Str_GenericFuncSource.remove</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource">Vec__GenericFuncSource</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.new">Vec__GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.with_capacity">Vec__GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clear">Vec__GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete_marked">Vec__GenericFuncSource.delete_marked</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push">Vec__GenericFuncSource.push</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.append">Vec__GenericFuncSource.append</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take">Vec__GenericFuncSource.take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_to">Vec__GenericFuncSource.move_to</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_from">Vec__GenericFuncSource.move_from</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_get">Vec__GenericFuncSource.unsafe_get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.get">Vec__GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.pop">Vec__GenericFuncSource.pop</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.remove_at">Vec__GenericFuncSource.remove_at</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take_prefix">Vec__GenericFuncSource.take_prefix</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.truncate">Vec__GenericFuncSource.truncate</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_set">Vec__GenericFuncSource.unsafe_set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.set">Vec__GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push_take">Vec__GenericFuncSource.push_take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete">Vec__GenericFuncSource.delete</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clone">Vec__GenericFuncSource.clone</a></li><li><a href="#til.src.self.initer.adopt__GenericFuncSource">adopt__GenericFuncSource</a></li></ul></li>
+<li><a class="current" href="../../src/self/initer.html">src/self/initer.til</a><ul><li><a href="#til.src.self.initer.struct_fields_support_generated_method">struct_fields_support_generated_method</a></li><li><a href="#til.src.self.initer.gen_struct_clone_delete_for_stmt">gen_struct_clone_delete_for_stmt</a></li><li><a href="#til.src.self.initer.collect_enum_variants">collect_enum_variants</a></li><li><a href="#til.src.self.initer.gen_enum_nonclone_methods_for_stmt">gen_enum_nonclone_methods_for_stmt</a></li><li><a href="#til.src.self.initer.gen_missing_enum_clone_for_stmt">gen_missing_enum_clone_for_stmt</a></li><li><a href="#til.src.self.initer.register_funcsig_alias_for_stmt">register_funcsig_alias_for_stmt</a></li><li><a href="#til.src.self.initer.register_function_def_for_stmt">register_function_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_struct_size_method_for_stmt">gen_struct_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_size_method_for_stmt">gen_enum_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_unity_derived_for_stmt">gen_unity_derived_for_stmt</a></li><li><a href="#til.src.self.initer.gen_cmp_derived_for_stmt">gen_cmp_derived_for_stmt</a></li><li><a href="#til.src.self.initer.compute_struct_layout">compute_struct_layout</a></li><li><a href="#til.src.self.initer.compute_enum_layout">compute_enum_layout</a></li><li><a href="#til.src.self.initer.ctx_total_size">ctx_total_size</a></li><li><a href="#til.src.self.initer.EMPTY_FIELD_LAYOUT">EMPTY_FIELD_LAYOUT</a></li><li><a href="#til.src.self.initer.ctx_field_layout">ctx_field_layout</a></li><li><a href="#til.src.self.initer.init_lift_in_body">init_lift_in_body</a></li><li><a href="#til.src.self.initer.init_refresh_seeded_scope_defs">init_refresh_seeded_scope_defs</a></li><li><a href="#til.src.self.initer.GenericSources">GenericSources</a></li><li><a href="#til.src.self.initer.generic_instantiate">generic_instantiate</a></li><li><a href="#til.src.self.initer.init_scan_unresolved_generic_calls">init_scan_unresolved_generic_calls</a></li><li><a href="#til.src.self.initer.init_retire_generic_sources">init_retire_generic_sources</a></li><li><a href="#til.src.self.initer.gen_interface_box_fields_for_stmt">gen_interface_box_fields_for_stmt</a></li><li><a href="#til.src.self.initer.gen_interface_clone_delete_for_stmt">gen_interface_clone_delete_for_stmt</a></li><li><a href="#til.src.self.initer.gen_implements_defaults_for_stmt">gen_implements_defaults_for_stmt</a></li><li><a href="#til.src.self.initer.normalize_enum_payload_aliases_for_stmt">normalize_enum_payload_aliases_for_stmt</a></li><li><a href="#til.src.self.initer.init_file">init_file</a></li><li><a href="#til.src.self.initer.init_repl_delta">init_repl_delta</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.new">Map__Str_GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.with_capacity">Map__Str_GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.clear">Map__Str_GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.has">Map__Str_GenericFuncSource.has</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.get">Map__Str_GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.set">Map__Str_GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.remove">Map__Str_GenericFuncSource.remove</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource">Vec__GenericFuncSource</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.new">Vec__GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.with_capacity">Vec__GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clear">Vec__GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete_marked">Vec__GenericFuncSource.delete_marked</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push">Vec__GenericFuncSource.push</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.append">Vec__GenericFuncSource.append</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take">Vec__GenericFuncSource.take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_to">Vec__GenericFuncSource.move_to</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_from">Vec__GenericFuncSource.move_from</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_get">Vec__GenericFuncSource.unsafe_get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.get">Vec__GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.pop">Vec__GenericFuncSource.pop</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.remove_at">Vec__GenericFuncSource.remove_at</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take_prefix">Vec__GenericFuncSource.take_prefix</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.truncate">Vec__GenericFuncSource.truncate</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_set">Vec__GenericFuncSource.unsafe_set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.set">Vec__GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push_take">Vec__GenericFuncSource.push_take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete">Vec__GenericFuncSource.delete</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clone">Vec__GenericFuncSource.clone</a></li><li><a href="#til.src.self.initer.adopt__GenericFuncSource">adopt__GenericFuncSource</a></li></ul></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
 <li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
@@ -61,6 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -85,10 +87,34 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/initer.til</h1>
+<article class="doc-entry" id="til.src.self.initer.struct_fields_support_generated_method">
+<h2>struct_fields_support_generated_method</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (sdd: StructDef, method: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.initer.gen_struct_clone_delete_for_stmt">
+<h2>gen_struct_clone_delete_for_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, mut ctx: Context)
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.initer.collect_enum_variants">
 <h2>collect_enum_variants</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func (enum_def: Expr, mut variant_names: Vec__Str, mut variant_types: Vec__Str, mut has_payloads: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.initer.gen_enum_nonclone_methods_for_stmt">
+<h2>gen_enum_nonclone_methods_for_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.initer.gen_missing_enum_clone_for_stmt">
+<h2>gen_missing_enum_clone_for_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.register_funcsig_alias_for_stmt">
@@ -177,10 +203,10 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut sources : Map__Str_GenericFuncSource
     mut late : Bool
 namespace:
+    func size() returns shallow USize
     func clone(self: GenericSources) returns GenericSources
     func delete(own self: GenericSources, shallow call_free: Bool)
     func hash(self: GenericSources, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -199,19 +225,31 @@ namespace:
 <article class="doc-entry" id="til.src.self.initer.init_retire_generic_sources">
 <h2>init_retire_generic_sources</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut program: Expr, mut scope: TypeScope) returns shallow Bool
+<pre><code class="language-til">func (mut program: Expr, mut scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.initer.init_declarations_global">
-<h2>init_declarations_global</h2>
+<article class="doc-entry" id="til.src.self.initer.gen_interface_box_fields_for_stmt">
+<h2>gen_interface_box_fields_for_stmt</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut ctx: Context, mut program: Expr, mut scope: TypeScope) returns shallow I32
+<pre><code class="language-til">func (mut stmt: Expr)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.initer.count_ast_imports">
-<h2>count_ast_imports</h2>
+<article class="doc-entry" id="til.src.self.initer.gen_interface_clone_delete_for_stmt">
+<h2>gen_interface_clone_delete_for_stmt</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (body: Expr, symbols: SymbolPool) returns shallow USize
+<pre><code class="language-til">func (mut stmt: Expr, mut symbols: SymbolPool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.initer.gen_implements_defaults_for_stmt">
+<h2>gen_implements_defaults_for_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, symbols: SymbolPool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.initer.normalize_enum_payload_aliases_for_stmt">
+<h2>normalize_enum_payload_aliases_for_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.init_file">
@@ -243,8 +281,8 @@ namespace:
     func remove(mut self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
     func delete(own self: Map__Str_GenericFuncSource, shallow call_free: Bool)
     func clone(self: Map__Str_GenericFuncSource) returns Map__Str_GenericFuncSource
-    func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -585,7 +623,7 @@ unless <code>call_free</code> is false.</p>
 <article class="doc-entry" id="til.src.self.initer.adopt__GenericFuncSource">
 <h2>adopt__GenericFuncSource</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: GenericFuncSource)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: GenericFuncSource)
 </code></pre>
 </article>
 </main></div>

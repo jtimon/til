@@ -5150,40 +5150,6 @@ normalize_enum_payload_aliases_for_stmt := func(mut stmt: Expr, scope: TypeScope
     }
 }
 
-// Count ~import("...")~ FCalls at the top level of `body`. The unused-import
-// diagnostic uses this to skip loader-injected mode imports, which have no
-// source AST node.
-count_ast_imports := func(body: Expr, symbols: SymbolPool) returns USize {
-    mut n : USize = 0
-    for stmt : Expr in body.children {
-        mut is_imp := false
-        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            ref imp_stmt : Expr = stmt.children[0]
-            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
-                if imp_stmt.children[1].node_type.is_literal_str() {
-                    switch imp_stmt.children[0].node_type {
-                    case .Ident(id):
-                        if id.ident_name(symbols.names) == "import" { is_imp = true }
-                    case:
-                    }
-                }
-            }
-        } else {
-            if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
-                if stmt.children[1].node_type.is_literal_str() {
-                    switch stmt.children[0].node_type {
-                    case .Ident(id):
-                        if id.ident_name(symbols.names) == "import" { is_imp = true }
-                    case:
-                    }
-                }
-            }
-        }
-        if is_imp { n = n + 1 }
-    }
-    return n
-}
-
 // Seed a unit AND everything it imports, before any of them runs its
 // declarations pass. init_file used to seed only its own unit and then
 // recurse, which made cross-unit generic monomorphization depend on
@@ -5200,8 +5166,11 @@ priv init_seed_tree := proc(path: Str, mut ctx: Context) {
     if ctx.imported.has(path).not() { return }
     ref mut iu : ImportUnit = ctx.imported[path]
     _ : I32 = init_seed_declarations_unit(path, iu.ast, ctx.scope, ctx)
-    for p : Str in iu.imports {
-        init_seed_tree(p, ctx)
+    if iu.mode_import.len() > 0 { init_seed_tree(iu.mode_import, ctx) }
+    for stmt : Expr in iu.ast.children {
+        dep := resolve_import_for_stmt(stmt, path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols)
+        if dep.len() > 0 { init_seed_tree(dep, ctx) }
     }
 }
 
@@ -5219,7 +5188,14 @@ init_file := proc(path: Str, mut ctx: Context) returns I32 {
     ctx.mode = iu.mode.clone()
     init_seed_tree(path, ctx)
 
-    for dep : Str in iu.imports { init_file(dep, ctx) }
+    // Mode auto-imports have no source call; explicit edges are resolved
+    // directly from their AST statements in source order (#165 step 5).
+    if iu.mode_import.len() > 0 { init_file(iu.mode_import, ctx) }
+    for stmt : Expr in iu.ast.children {
+        dep := resolve_import_for_stmt(stmt, path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols)
+        if dep.len() > 0 { init_file(dep, ctx) }
+    }
 
     ctx.mode = iu.mode.clone()
     init_declarations_unit(path, iu.ast, ctx.scope, ctx)

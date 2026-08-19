@@ -298,12 +298,13 @@
       side table). Layout computation now runs from the typer's
       declaration sweep and all later phases read the Context tables.
 
-   4. [TODO] Drop ~init_declarations_global~ entirely. Once steps 1-3 land,
-      every job it does (layouts, size methods, derived methods, late
-      func/value re-registration) lives inside the typer's per-decl
-      visit. Initer is one driver and one walk per file.
+   4. [DONE] Drop ~init_declarations_global~ entirely. Layout and method
+      generation live in typer sweeps; function/value registration already
+      happens in ~init_declarations_unit~. The loader retains only the narrow
+      AST-definition pointer refresh required after initialization grows a
+      unit AST.
 
-   5. [PARTIAL] Replace ~extract_imports~ + the pre-built ~iu.imports~
+   5. [DONE] Replace ~extract_imports~ + the pre-built ~iu.imports~
       list with rstil-style in-walk recursion. ~init_file~ becomes
       ~init_body~: walk the AST in source order, and on
       ~import("...")~ FCalls recurse through ~ctx.imports_init_done~.
@@ -311,32 +312,13 @@
       driven by extract_imports rather than the AST itself) and is a
       precondition for circular imports (see ~[[./163.org][#163]]~).
 
-      Landed: ~init_file~ and ~type_file~ now walk
-      ~iu.ast.children~ in source order and recurse on each
-      ~import("...")~ FCall. ~iu.imports~ is kept as a side table
-      that maps the i-th import FCall to its resolved disp path.
-
-      Mode auto-imports (e.g. ~mode gui~ -> ~gui.til~) are prepended
-      to ~iu.imports~ by the loader without a matching AST FCall.
-      The walk handles them by computing
-      ~auto_count = iu.imports.len() - count_ast_imports(iu.ast)~
-      and recursing into the leading ~auto_count~ entries before the
-      AST walk. Without this, files like [[file:../../examples/snake.til][examples/snake.til]]
-      (mode gui, zero explicit imports) silently dropped the gui.til
-      auto-import; the regression surfaced as 13 GUI build failures
-      with errors like ~snake.til:253:96: field access on non-struct~
-      (gen_struct_clone_delete generated ~Sound_clone~ with
-      ~unknown expr type~ placeholders because ~Sound~ from gui.til
-      was never registered).
-
-      Still TODO: drop ~extract_imports~ and ~iu.imports~ entirely.
-      That requires a path resolver in initer/typer that maps a raw
-      ~import("vec.til")~ literal to its canonical disp path at
-      walk time, which needs the importing file's directory + lib_dir
-      + cwd from the loader. The loader still uses extract_imports
-      to drive its parse-time recursion. That change implements the spirit
-      of step 5 (AST-driven ordering) without the full mechanical
-      drop.
+      Loader discovery, ~init_file~, and all typer sweeps now resolve each
+      ~import("...")~ call directly from its owning AST using per-unit base and
+      library roots plus the Context cwd. Namespace-import declarations retain
+      their FCall as a bare dependency statement after alias rewriting. Mode
+      auto-imports remain the one explicit edge field because no source call
+      represents them. ~ProgramUnit.imports~, ~ImportUnit.imports~,
+      ~extract_imports~, and the positional count/index machinery are gone.
 
    6. [DONE] Alphabetize [[file:../../src/core/core.til][src/core/core.til]]'s imports and put
       ~USize := U32~ wherever (its own file, top of core.til,

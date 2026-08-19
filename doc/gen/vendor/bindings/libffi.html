@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -61,6 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a class="current" href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a><ul><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_VOID">FFI_TYPE_VOID</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_INT">FFI_TYPE_INT</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_FLOAT">FFI_TYPE_FLOAT</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_DOUBLE">FFI_TYPE_DOUBLE</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_LONGDOUBLE">FFI_TYPE_LONGDOUBLE</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT8">FFI_TYPE_UINT8</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT8">FFI_TYPE_SINT8</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT16">FFI_TYPE_UINT16</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT16">FFI_TYPE_SINT16</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT32">FFI_TYPE_UINT32</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT32">FFI_TYPE_SINT32</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT64">FFI_TYPE_UINT64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT64">FFI_TYPE_SINT64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_STRUCT">FFI_TYPE_STRUCT</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_POINTER">FFI_TYPE_POINTER</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_COMPLEX">FFI_TYPE_COMPLEX</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT128">FFI_TYPE_UINT128</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT128">FFI_TYPE_SINT128</a></li><li><a href="#til.vendor.bindings.libffi.ffi_arg">ffi_arg</a></li><li><a href="#til.vendor.bindings.libffi.ffi_sarg">ffi_sarg</a></li><li><a href="#til.vendor.bindings.libffi.ffi_abi">ffi_abi</a></li><li><a href="#til.vendor.bindings.libffi.FFI_FIRST_ABI">FFI_FIRST_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_UNIX64">FFI_UNIX64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_WIN64">FFI_WIN64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_EFI64">FFI_EFI64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_GNUW64">FFI_GNUW64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_LAST_ABI">FFI_LAST_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_DEFAULT_ABI">FFI_DEFAULT_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_CLOSURES">FFI_CLOSURES</a></li><li><a href="#til.vendor.bindings.libffi.FFI_GO_CLOSURES">FFI_GO_CLOSURES</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TRAMPOLINE_SIZE">FFI_TRAMPOLINE_SIZE</a></li><li><a href="#til.vendor.bindings.libffi.FFI_NATIVE_RAW_API">FFI_NATIVE_RAW_API</a></li><li><a href="#til.vendor.bindings.libffi.FFI_64_BIT_MAX">FFI_64_BIT_MAX</a></li><li><a href="#til.vendor.bindings.libffi.ffi_type">ffi_type</a></li><li><a href="#til.vendor.bindings.libffi.ffi_status">ffi_status</a></li><li><a href="#til.vendor.bindings.libffi.FFI_OK">FFI_OK</a></li><li><a href="#til.vendor.bindings.libffi.FFI_BAD_TYPEDEF">FFI_BAD_TYPEDEF</a></li><li><a href="#til.vendor.bindings.libffi.FFI_BAD_ABI">FFI_BAD_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_BAD_ARGTYPE">FFI_BAD_ARGTYPE</a></li><li><a href="#til.vendor.bindings.libffi.ffi_cif">ffi_cif</a></li><li><a href="#til.vendor.bindings.libffi.FFI_SIZEOF_ARG">FFI_SIZEOF_ARG</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw">ffi_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw">ffi_java_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_call">ffi_raw_call</a></li><li><a href="#til.vendor.bindings.libffi.ffi_ptrarray_to_raw">ffi_ptrarray_to_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_to_ptrarray">ffi_raw_to_ptrarray</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_size">ffi_raw_size</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_call">ffi_java_raw_call</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_ptrarray_to_raw">ffi_java_ptrarray_to_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_to_ptrarray">ffi_java_raw_to_ptrarray</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_size">ffi_java_raw_size</a></li><li><a href="#til.vendor.bindings.libffi.FFI_VERSION_NUMBER">FFI_VERSION_NUMBER</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_version">ffi_get_version</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_version_number">ffi_get_version_number</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_default_abi">ffi_get_default_abi</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_closure_size">ffi_get_closure_size</a></li><li><a href="#til.vendor.bindings.libffi.ffi_closure">ffi_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_closure_alloc">ffi_closure_alloc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_closure_free">ffi_closure_free</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_closure_loc">ffi_prep_closure_loc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_closure">ffi_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_closure">ffi_java_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_raw_closure">ffi_prep_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_raw_closure_loc">ffi_prep_raw_closure_loc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_java_raw_closure">ffi_prep_java_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_java_raw_closure_loc">ffi_prep_java_raw_closure_loc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_go_closure">ffi_go_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_go_closure">ffi_prep_go_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_go">ffi_call_go</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_cif">ffi_prep_cif</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_cif_var">ffi_prep_cif_var</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call">ffi_call</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan">ffi_call_plan</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan_alloc">ffi_call_plan_alloc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan_invoke">ffi_call_plan_invoke</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan_free">ffi_call_plan_free</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_struct_offsets">ffi_get_struct_offsets</a></li></ul></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -292,9 +294,9 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut type : U16
     own mut elements : U8
 namespace:
+    func size() returns shallow USize
     func clone(self: ffi_type) returns ffi_type
     func delete(own self: ffi_type, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -340,9 +342,9 @@ namespace:
     mut flags : U32
     mut extra_cif_fields : U32
 namespace:
+    func size() returns shallow USize
     func clone(self: ffi_cif) returns ffi_cif
     func delete(own self: ffi_cif, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -447,12 +449,12 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
+    func size() returns shallow USize
     func clone(_self: ffi_closure) returns ffi_closure
     func delete(own self: ffi_closure, shallow call_free: Bool)
     func hash(self: ffi_closure, hasher: HashFn) returns shallow U64
     func cmp(_a: ffi_closure, _b: ffi_closure) returns shallow I64
     func to_str(_self: ffi_closure) returns Str
-    func size() returns shallow USize
     func eq(a: ffi_closure, b: ffi_closure) returns shallow Bool
     func lt(a: ffi_closure, b: ffi_closure) returns shallow Bool
     func gt(a: ffi_closure, b: ffi_closure) returns shallow Bool
@@ -485,12 +487,12 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
+    func size() returns shallow USize
     func clone(_self: ffi_raw_closure) returns ffi_raw_closure
     func delete(own self: ffi_raw_closure, shallow call_free: Bool)
     func hash(self: ffi_raw_closure, hasher: HashFn) returns shallow U64
     func cmp(_a: ffi_raw_closure, _b: ffi_raw_closure) returns shallow I64
     func to_str(_self: ffi_raw_closure) returns Str
-    func size() returns shallow USize
     func eq(a: ffi_raw_closure, b: ffi_raw_closure) returns shallow Bool
     func lt(a: ffi_raw_closure, b: ffi_raw_closure) returns shallow Bool
     func gt(a: ffi_raw_closure, b: ffi_raw_closure) returns shallow Bool
@@ -505,12 +507,12 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
+    func size() returns shallow USize
     func clone(_self: ffi_java_raw_closure) returns ffi_java_raw_closure
     func delete(own self: ffi_java_raw_closure, shallow call_free: Bool)
     func hash(self: ffi_java_raw_closure, hasher: HashFn) returns shallow U64
     func cmp(_a: ffi_java_raw_closure, _b: ffi_java_raw_closure) returns shallow I64
     func to_str(_self: ffi_java_raw_closure) returns Str
-    func size() returns shallow USize
     func eq(a: ffi_java_raw_closure, b: ffi_java_raw_closure) returns shallow Bool
     func lt(a: ffi_java_raw_closure, b: ffi_java_raw_closure) returns shallow Bool
     func gt(a: ffi_java_raw_closure, b: ffi_java_raw_closure) returns shallow Bool
@@ -549,12 +551,12 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
+    func size() returns shallow USize
     func clone(_self: ffi_go_closure) returns ffi_go_closure
     func delete(own self: ffi_go_closure, shallow call_free: Bool)
     func hash(self: ffi_go_closure, hasher: HashFn) returns shallow U64
     func cmp(_a: ffi_go_closure, _b: ffi_go_closure) returns shallow I64
     func to_str(_self: ffi_go_closure) returns Str
-    func size() returns shallow USize
     func eq(a: ffi_go_closure, b: ffi_go_closure) returns shallow Bool
     func lt(a: ffi_go_closure, b: ffi_go_closure) returns shallow Bool
     func gt(a: ffi_go_closure, b: ffi_go_closure) returns shallow Bool
@@ -599,12 +601,12 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
+    func size() returns shallow USize
     func clone(_self: ffi_call_plan) returns ffi_call_plan
     func delete(own self: ffi_call_plan, shallow call_free: Bool)
     func hash(self: ffi_call_plan, hasher: HashFn) returns shallow U64
     func cmp(_a: ffi_call_plan, _b: ffi_call_plan) returns shallow I64
     func to_str(_self: ffi_call_plan) returns Str
-    func size() returns shallow USize
     func eq(a: ffi_call_plan, b: ffi_call_plan) returns shallow Bool
     func lt(a: ffi_call_plan, b: ffi_call_plan) returns shallow Bool
     func gt(a: ffi_call_plan, b: ffi_call_plan) returns shallow Bool

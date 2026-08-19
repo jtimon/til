@@ -1,6 +1,36 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
+
+* realpath_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.realpath_str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+ext_proc realpath_str(path: Str) returns Str
+#+end_src
+
+* display_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.display_path
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func display_path(p: Str, cwd: Str) returns Str
+#+end_src
+
+* resolve_import_abs
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.resolve_import_abs
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc resolve_import_abs(import_path: Str, base_dir: Str, lib_dir: Str) returns Str
+#+end_src
 
 * BorrowRoot
 :PROPERTIES:
@@ -19,11 +49,11 @@ struct BorrowRoot {
 namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func to_str(self: BorrowRoot) returns Str
+    func size() returns shallow USize
     func clone(self: BorrowRoot) returns BorrowRoot
     func delete(own self: BorrowRoot, shallow call_free: Bool)
     func hash(self: BorrowRoot, hasher: HashFn) returns shallow U64
     func cmp(a: BorrowRoot, b: BorrowRoot) returns shallow I64
-    func size() returns shallow USize
     func lt(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func gt(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
     func neq(a: BorrowRoot, b: BorrowRoot) returns shallow Bool
@@ -59,6 +89,8 @@ struct TypeBinding {
     mut written : Bool
     mut mut_explicit : Bool
     mut is_raw_alloc : Bool
+    mut is_str_view : Bool
+    mut str_view_base : Str
     mut orig_name : Str
     mut dynvec_elem : Str
     mut declared_type_name : Str
@@ -66,10 +98,10 @@ struct TypeBinding {
 namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns shallow Bool
     func to_str(self: TypeBinding) returns Str
+    func size() returns shallow USize
     func clone(self: TypeBinding) returns TypeBinding
     func delete(own self: TypeBinding, shallow call_free: Bool)
     func hash(self: TypeBinding, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -105,6 +137,29 @@ namespace:
 func name_fingerprint(name: Str) returns shallow U64
 #+end_src
 
+* TyperFuncState
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.TyperFuncState
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct TyperFuncState {
+    mut current_top_func_name : Str
+    mut typer_return_type_name : Str
+    mut proc_calls_count : I32
+    mut proc_def_depth : I32
+    mut auto_gen_depth : I32
+    mut throw_used_local_names : Set__Str
+    mut lowering_param_types : Map__Str_Str
+namespace:
+    func size() returns shallow USize
+    func clone(self: TyperFuncState) returns TyperFuncState
+    func delete(own self: TyperFuncState, shallow call_free: Bool)
+    func hash(self: TyperFuncState, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
 * TypeScope
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.TypeScope
@@ -116,14 +171,18 @@ struct TypeScope {
     mut bindings : Map__U32_TypeBinding
     mut target_usize_pname : Str
     mut target_uptr_pname : Str
-    mut func_defs : Map__Str_Dynamic
-    mut struct_defs : Map__Str_Dynamic
+    mut func_defs : Map__U32_Dynamic
+    mut struct_defs : Map__U32_Dynamic
     mut parent : Option__ref_TypeScope
     mut is_func_root : Bool
+    mut current_type_name : Str
+    mut typer_func : TyperFuncState
     mut bindings_filt : U64
     mut func_defs_filt : U64
     mut struct_defs_filt : U64
 namespace:
+    func typer_func_state(mut self: TypeScope) returns ref TyperFuncState
+    func active_type_name(self: TypeScope) returns ref Str
     func local_binding_sym(self: TypeScope, sym: U32) returns shallow Option__ref_TypeBinding
     func local_binding_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_TypeBinding
     func has_local_binding_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
@@ -138,35 +197,36 @@ namespace:
     func bound_in_this_func_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
     func bound_in_this_func_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
     func get_func_type_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow FuncType
-    func get_struct(self: TypeScope, name: Str) returns shallow Option__ref_Expr
-    func get_struct_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func struct_def_of_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func get_struct(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func get_struct_by_sym(self: TypeScope, sym: U32) returns shallow Option__ref_Expr
+    func get_struct_fp(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func struct_def_of_sym(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
     func struct_def_of_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
-    func struct_def_of_by_sym(self: TypeScope, sym: U32, symbols: SymbolPool) returns shallow Option__ref_Expr
-    func lookup_func_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
-    func lookup_func_by_sym(self: TypeScope, sym: U32, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func struct_def_of_by_sym(self: TypeScope, sym: U32, _symbols: SymbolPool) returns shallow Option__ref_Expr
+    func lookup_func_sym(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func lookup_func_by_sym(self: TypeScope, sym: U32, _symbols: SymbolPool) returns shallow Option__ref_Expr
     func lookup_func_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
-    func any_func_def(self: TypeScope, name: Str) returns shallow Bool
-    func any_func_def_fp(self: TypeScope, name: Str, shallow fp: U64) returns shallow Bool
-    func local_struct_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func local_func_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
-    func lookup_func_symbol_sym(self: TypeScope, name: Str, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func any_func_def(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
+    func any_func_def_sym(self: TypeScope, shallow sym: U32, shallow fp: U64) returns shallow Bool
+    func local_struct_def_fp(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
+    func local_func_def_fp(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
+    func lookup_func_symbol_sym(self: TypeScope, sym: U32, fp: U64) returns shallow Option__ref_Expr
     func lookup_func_symbol_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Option__ref_Expr
     func set_func_def_name(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool)
-    func set_func_symbol_name(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool)
+    func set_func_symbol_name(mut self: TypeScope, name: Str, fdef: Expr, mut symbols: SymbolPool)
     func set_struct_def(mut self: TypeScope, name: Str, sdef: Expr, symbols: SymbolPool)
     func is_mut_sym(self: TypeScope, shallow sym: U32) returns shallow Bool
     func is_mut_name(self: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
-    func erase_func_def(mut self: TypeScope, name: Str)
+    func erase_func_def(mut self: TypeScope, name: Str, symbols: SymbolPool)
     func erase_binding(mut self: TypeScope, name: Str)
-    func erase_struct_def(mut self: TypeScope, name: Str)
-    func erase_ast_decl(mut self: TypeScope, name: Str, shallow erase_decl_binding: Bool)
+    func erase_struct_def(mut self: TypeScope, name: Str, symbols: SymbolPool)
+    func erase_ast_decl(mut self: TypeScope, name: Str, shallow erase_decl_binding: Bool, symbols: SymbolPool)
     func refresh_lookup_filters(mut self: TypeScope)
     func set(mut self: TypeScope, name: Str, type: Type, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool)
+    func size() returns shallow USize
     func clone(self: TypeScope) returns TypeScope
     func delete(own self: TypeScope, shallow call_free: Bool)
     func hash(self: TypeScope, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -241,14 +301,15 @@ struct GenericFuncSource {
     mut name : Str
     mut path : Str
     mut is_priv : Bool
+    mut identity_name : Str
 namespace:
     func eq(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
     func to_str(self: GenericFuncSource) returns Str
+    func size() returns shallow USize
     func clone(self: GenericFuncSource) returns GenericFuncSource
     func delete(own self: GenericFuncSource, shallow call_free: Bool)
     func hash(self: GenericFuncSource, hasher: HashFn) returns shallow U64
     func cmp(a: GenericFuncSource, b: GenericFuncSource) returns shallow I64
-    func size() returns shallow USize
     func lt(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
     func gt(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
     func neq(a: GenericFuncSource, b: GenericFuncSource) returns shallow Bool
@@ -278,12 +339,34 @@ struct ImportUnit {
     mut mode_str : Str
     mut mode : Mode
     own mut ast : Expr
-    mut imports : Vec__Str
+    mut import_dir : Str
+    mut import_lib_dir : Str
+    mut mode_import : Str
 namespace:
+    func size() returns shallow USize
     func clone(self: ImportUnit) returns ImportUnit
     func delete(own self: ImportUnit, shallow call_free: Bool)
-    func size() returns shallow USize
 }
+#+end_src
+
+* import_path_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.import_path_for_stmt
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func import_path_for_stmt(stmt: Expr, source_path: Str, symbols: SymbolPool) returns Str
+#+end_src
+
+* resolve_import_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.resolve_import_for_stmt
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc resolve_import_for_stmt(stmt: Expr, source_path: Str, iu: ImportUnit, cwd: Str, imported: Map__Str_ImportUnit, symbols: SymbolPool) returns Str
 #+end_src
 
 * BuilderFuncScratch
@@ -307,11 +390,15 @@ struct BuilderFuncScratch {
     mut ref_dyn_locals : Set__U32
     mut ptr_locals : Set__U32
     mut shadowed_params : Set__U32
+    mut ctor_seq : I32
+    mut in_func_def : Bool
+    mut in_main_func : Bool
+    mut current_fdef : Option__ref_Expr
 namespace:
+    func size() returns shallow USize
     func clone(self: BuilderFuncScratch) returns BuilderFuncScratch
     func delete(own self: BuilderFuncScratch, shallow call_free: Bool)
     func hash(self: BuilderFuncScratch, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -332,10 +419,10 @@ struct FfiState {
     mut type_cache : Vec__FFITypePtrBox
     mut type_cache_inited : Bool
 namespace:
+    func size() returns shallow USize
     func clone(self: FfiState) returns FfiState
     func delete(own self: FfiState, shallow call_free: Bool)
     func hash(self: FfiState, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -356,8 +443,37 @@ struct InternedTypes {
 namespace:
     func clone(_self: InternedTypes) returns InternedTypes
     func delete(own self: InternedTypes, shallow call_free: Bool)
-    func hash(self: InternedTypes, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: InternedTypes, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* EvalState
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.EvalState
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct EvalState {
+    mut has_return : Bool
+    mut has_break : Bool
+    mut has_continue : Bool
+    ref mut return_value : Dynamic
+    mut interp_ret_is_ref : Bool
+    ref mut interp_ret_dest : Dynamic
+    mut interp_ret_type : Option__ref_Str
+    mut interp_ret_own_type : OwnType
+    mut interp_cstr_arg : Bool
+    mut constfold_active : Bool
+    mut eval_aborted : Bool
+    mut repl_session : Bool
+    mut ns_fields : Option__Scope
+    mut cached_str_name : Str
+namespace:
+    func size() returns shallow USize
+    func clone(self: EvalState) returns EvalState
+    func delete(own self: EvalState, shallow call_free: Bool)
 }
 #+end_src
 
@@ -382,27 +498,19 @@ struct Context {
     mut constfolder_foldables : Map__Str_FuncType
     mut constfolder_known : Option__Scope
     mut constfolder_assigned : Set__Str
-    mut has_return : Bool
-    mut has_break : Bool
-    mut has_continue : Bool
-    ref mut return_value : Dynamic
-    mut interp_ret_is_ref : Bool
-    ref mut interp_ret_dest : Dynamic
-    mut interp_ret_type : Option__ref_Str
-    mut interp_ret_own_type : OwnType
-    mut interp_cstr_arg : Bool
-    mut constfold_active : Bool
-    mut eval_aborted : Bool
-    mut repl_session : Bool
-    mut ns_fields : Option__Scope
+    mut eval : EvalState
     mut imported : Map__Str_ImportUnit
+    mut import_cwd : Str
     mut check_unused_imports : Bool
     mut import_use_edges : Set__Str
     mut imports_init_seed_done : Set__Str
     mut imports_init_active : Set__Str
     mut imports_init_done : Set__Str
+    mut imports_typer_methods_done : Set__Str
+    mut imports_typer_fields_done : Set__Str
     mut imports_typer_decls_done : Set__Str
     mut imports_typer_bodies_done : Set__Str
+    mut infer_struct_fields_only : Bool
     mut type_gen_synths : Set__Str
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
@@ -411,7 +519,6 @@ struct Context {
     mut scope : TypeScope
     mut is_repl : Bool
     mut struct_layouts : Map__Str_StructLayout
-    mut typing_namespace_member : Bool
     mut closure_emit_env : Str
     mut closure_emit_captures : Set__U32
     mut funcsig_names : Set__U32
@@ -421,13 +528,6 @@ struct Context {
     mut throw_type_registry : Vec__Str
     mut throws_global : Map__Str_call_Vec_Str
     mut bang_counter : I64
-    mut lowering_param_types : Map__Str_Str
-    mut typer_return_type_name : Str
-    mut ctor_seq : I32
-    mut in_func_def : Bool
-    mut in_main_func : Bool
-    mut proc_calls_count : I32
-    mut proc_def_depth : I32
     mut hoist_counter : I32
     mut va_counter : I32
     mut kw_counter : I32
@@ -436,10 +536,6 @@ struct Context {
     mut synth_symbol_seq : Map__Str_I64
     mut lazy_stmt_temp_counter : I64
     mut errors : I32
-    mut current_type_name : Str
-    mut current_top_func_name : Str
-    mut auto_gen_depth : I32
-    mut throw_used_local_names : Set__Str
     mut priv_ref_edges : Map__Str_call_Vec_Str
     mut builder_func : BuilderFuncScratch
     mut builder_str_lit_symbols : HashMap__Str_Str
@@ -464,16 +560,14 @@ struct Context {
     mut builder_cstr_used : Bool
     mut builder_closure_rt_used : Bool
     mut builder_prog_closed_world : Bool
-    mut current_fdef : Option__ref_Expr
-    mut cached_str_name : Str
     mut interp_type_defs : Map__Str_Dynamic
     mut interned_types : InternedTypes
     mut ffi : FfiState
     mut symbols : SymbolPool
 namespace:
+    func size() returns shallow USize
     func clone(self: Context) returns Context
     func delete(own self: Context, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -635,16 +729,6 @@ WIDTH_ALIAS_NAMES is a Array__Str
 
 #+begin_src til
 _WIDTH_ALIAS_NAMES_ek is a I64
-#+end_src
-
-* is_scalar_type_name
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.is_scalar_type_name
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func is_scalar_type_name(n: Str) returns shallow Bool
 #+end_src
 
 * resolved_type_name
@@ -837,6 +921,16 @@ func func_returns_c_value(fd: FunctionDef) returns shallow Bool
 func func_param_passes_c_value(fd: FunctionDef, shallow i: USize, shallow value_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
+* func_param_has_stack_outer
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.func_param_has_stack_outer
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func func_param_has_stack_outer(fd: FunctionDef, shallow i: USize, shallow stack_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
 * type_from_name_init_name
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.type_from_name_init_name
@@ -865,16 +959,6 @@ func type_from_declaration_name(name: Str, scope: TypeScope, symbols: SymbolPool
 
 #+begin_src til
 func declaration_resolved_type(decl: Declaration, scope: TypeScope, symbols: SymbolPool) returns Type
-#+end_src
-
-* field_inferred_type_name
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.field_inferred_type_name
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func field_inferred_type_name(fd: Declaration, symbols: SymbolPool) returns Str
 #+end_src
 
 * array_vec_elem_type_name
@@ -1065,6 +1149,16 @@ func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I64
 
 #+begin_src til
 func enum_variant_tag_at(enum_def: Expr, shallow idx: I32) returns shallow I64
+#+end_src
+
+* enum_variant_index_for_tag
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_variant_index_for_tag
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func enum_variant_index_for_tag(enum_def: Expr, shallow tag: I64) returns shallow I32
 #+end_src
 
 * enum_variant_index
@@ -1365,6 +1459,16 @@ func qname_keys_index(keys: Vec__Str, a: Str, sep: Str, b: Str) returns shallow 
 
 #+begin_src til
 func qname_in_set(s: Set__Str, a: Str, sep: Str, b: Str) returns shallow Bool
+#+end_src
+
+* Map__Sym_Dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Sym_Dynamic
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+Map__Sym_Dynamic is a None
 #+end_src
 
 * Map__Sym_TypeBinding
@@ -1730,8 +1834,8 @@ namespace:
     func remove(mut self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
     func delete(own self: Map__U32_TypeBinding, shallow call_free: Bool)
     func clone(self: Map__U32_TypeBinding) returns Map__U32_TypeBinding
-    func hash(self: Map__U32_TypeBinding, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__U32_TypeBinding, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -1822,6 +1926,121 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__U32_TypeBinding.remove(mut self: Map__U32_TypeBinding, shallow key: U32) returns shallow Bool
+#+end_src
+
+* Map__U32_Dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Map__U32_Dynamic {
+    mut keys : Vec__U32
+    mut values : Vec__Dynamic
+namespace:
+    func new() returns Map__U32_Dynamic
+    func with_capacity(shallow n: USize) returns Map__U32_Dynamic
+    func len(self: Map__U32_Dynamic) returns shallow USize
+    func clear(mut self: Map__U32_Dynamic)
+    func has(self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
+    func get(self: Map__U32_Dynamic, key: U32, mut _err_kind: I64) returns ref Dynamic
+    func set(mut self: Map__U32_Dynamic, shallow key: U32, own val: Dynamic)
+    func remove(mut self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
+    func delete(own self: Map__U32_Dynamic, shallow call_free: Bool)
+    func clone(self: Map__U32_Dynamic) returns Map__U32_Dynamic
+    func size() returns shallow USize
+    func hash(self: Map__U32_Dynamic, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* Map__U32_Dynamic.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic.new
+:group: Compiler frontend
+:END:
+
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func Map__U32_Dynamic.new() returns Map__U32_Dynamic
+#+end_src
+
+* Map__U32_Dynamic.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Map__U32_Dynamic.with_capacity(shallow n: USize) returns Map__U32_Dynamic
+#+end_src
+
+* Map__U32_Dynamic.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic.clear
+:group: Compiler frontend
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__U32_Dynamic.clear(mut self: Map__U32_Dynamic)
+#+end_src
+
+* Map__U32_Dynamic.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic.has
+:group: Compiler frontend
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__U32_Dynamic.has(self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
+#+end_src
+
+* Map__U32_Dynamic.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic.get
+:group: Compiler frontend
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__U32_Dynamic.get(self: Map__U32_Dynamic, key: U32, mut _err_kind: I64) returns ref Dynamic
+#+end_src
+
+* Map__U32_Dynamic.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic.set
+:group: Compiler frontend
+:END:
+
+Insert or overwrite the value for ~key~. The value is owned.
+
+#+begin_src til
+func Map__U32_Dynamic.set(mut self: Map__U32_Dynamic, shallow key: U32, own val: Dynamic)
+#+end_src
+
+* Map__U32_Dynamic.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__U32_Dynamic.remove
+:group: Compiler frontend
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__U32_Dynamic.remove(mut self: Map__U32_Dynamic, shallow key: U32) returns shallow Bool
 #+end_src
 
 * Option__ref_TypeScope
@@ -1969,8 +2188,8 @@ namespace:
     func remove(mut self: Map__U32_Str, shallow key: U32) returns shallow Bool
     func delete(own self: Map__U32_Str, shallow call_free: Bool)
     func clone(self: Map__U32_Str) returns Map__U32_Str
-    func hash(self: Map__U32_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__U32_Str, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -2084,8 +2303,8 @@ namespace:
     func remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
     func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
     func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
-    func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -2199,8 +2418,8 @@ namespace:
     func remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
     func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
     func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
-    func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -2646,8 +2865,8 @@ namespace:
     func remove(mut self: Map__Str_Mode, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Mode, shallow call_free: Bool)
     func clone(self: Map__Str_Mode) returns Map__Str_Mode
-    func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -2761,8 +2980,8 @@ namespace:
     func remove(mut self: Map__Str_FuncType, key: Str) returns shallow Bool
     func delete(own self: Map__Str_FuncType, shallow call_free: Bool)
     func clone(self: Map__Str_FuncType) returns Map__Str_FuncType
-    func hash(self: Map__Str_FuncType, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_FuncType, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -2937,8 +3156,8 @@ namespace:
     func remove(mut self: Map__Str_ImportUnit, key: Str) returns shallow Bool
     func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
     func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
-    func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -3052,8 +3271,8 @@ namespace:
     func remove(mut self: Map__Str_Expr, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Expr, shallow call_free: Bool)
     func clone(self: Map__Str_Expr) returns Map__Str_Expr
-    func hash(self: Map__Str_Expr, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Expr, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -3167,8 +3386,8 @@ namespace:
     func remove(mut self: Map__Str_StructLayout, key: Str) returns shallow Bool
     func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
     func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
-    func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -3391,8 +3610,8 @@ namespace:
     func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
     func delete(own self: Map__Str_I64, shallow call_free: Bool)
     func clone(self: Map__Str_I64) returns Map__Str_I64
-    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -3506,8 +3725,8 @@ namespace:
     func remove(mut self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
     func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
-    func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -3630,8 +3849,8 @@ namespace:
     func rehash(mut self: HashMap__Str_Str)
     func delete(own self: HashMap__Str_Str, shallow call_free: Bool)
     func remove(mut self: HashMap__Str_Str, key: Str) returns shallow Bool
-    func hash(self: HashMap__Str_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: HashMap__Str_Str, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -3791,8 +4010,8 @@ namespace:
     func rehash(mut self: HashMap__Str_USize)
     func delete(own self: HashMap__Str_USize, shallow call_free: Bool)
     func remove(mut self: HashMap__Str_USize, key: Str) returns shallow Bool
-    func hash(self: HashMap__Str_USize, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: HashMap__Str_USize, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -3943,8 +4162,8 @@ namespace:
     func remove(mut self: Map__Str_Bool, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Bool, shallow call_free: Bool)
     func clone(self: Map__Str_Bool) returns Map__Str_Bool
-    func hash(self: Map__Str_Bool, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Bool, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -4058,8 +4277,8 @@ namespace:
     func remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
     func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
-    func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -4150,69 +4369,6 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_Dynamic.remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
-#+end_src
-
-* Option__ref_Declaration
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Option__ref_Declaration
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-enum Option__ref_Declaration {
-    None
-    Some: Declaration
-namespace:
-    func is_some(shallow self: Option__ref_Declaration) returns shallow Bool
-    func is_none(shallow self: Option__ref_Declaration) returns shallow Bool
-    func unwrap_or(self: Option__ref_Declaration, default_v: Declaration) returns ref Declaration
-    func unwrap(self: Option__ref_Declaration) returns ref Declaration
-    func take(own self: Option__ref_Declaration) returns ref Declaration
-    ext_func None() returns shallow Option__ref_Declaration
-    ext_func Some(val: Declaration) returns shallow Option__ref_Declaration
-    core_func is(self: Option__ref_Declaration, other: Option__ref_Declaration) returns shallow Bool
-    func eq(shallow self: Option__ref_Declaration, shallow other: Option__ref_Declaration) returns shallow Bool
-    func delete(own self: Option__ref_Declaration, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_Declaration) returns Str
-    func clone(self: Option__ref_Declaration) returns shallow Option__ref_Declaration
-    func size() returns shallow USize
-}
-#+end_src
-
-* Option__ref_Declaration.unwrap
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Option__ref_Declaration.unwrap
-:group: Compiler frontend
-:END:
-
-The contained value; PANICS on None, ala Rust's unwrap. For the
-~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a ~switch~ when both arms do real work, and ~unwrap_or~ when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.
-
-#+begin_src til
-func Option__ref_Declaration.unwrap(self: Option__ref_Declaration) returns ref Declaration
-#+end_src
-
-* Option__ref_Declaration.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Option__ref_Declaration.take
-:group: Compiler frontend
-:END:
-
-The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an ~Option(Expr)~ returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.
-
-#+begin_src til
-func Option__ref_Declaration.take(own self: Option__ref_Declaration) returns ref Declaration
 #+end_src
 
 * Option__ref_Expr
@@ -6941,7 +7097,7 @@ func Vec__call_Vec_Str.clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
 :END:
 
 #+begin_src til
-func adopt__BorrowRoot(dest: Dynamic, own src: BorrowRoot)
+func adopt__BorrowRoot(mut dest: Dynamic, own src: BorrowRoot)
 #+end_src
 
 * adopt__TypeBinding
@@ -6951,7 +7107,7 @@ func adopt__BorrowRoot(dest: Dynamic, own src: BorrowRoot)
 :END:
 
 #+begin_src til
-func adopt__TypeBinding(dest: Dynamic, own src: TypeBinding)
+func adopt__TypeBinding(mut dest: Dynamic, own src: TypeBinding)
 #+end_src
 
 * adopt__FFIEntry
@@ -6961,7 +7117,7 @@ func adopt__TypeBinding(dest: Dynamic, own src: TypeBinding)
 :END:
 
 #+begin_src til
-func adopt__FFIEntry(dest: Dynamic, own src: FFIEntry)
+func adopt__FFIEntry(mut dest: Dynamic, own src: FFIEntry)
 #+end_src
 
 * adopt__ExprPtrBox
@@ -6971,7 +7127,7 @@ func adopt__FFIEntry(dest: Dynamic, own src: FFIEntry)
 :END:
 
 #+begin_src til
-func adopt__ExprPtrBox(dest: Dynamic, own src: ExprPtrBox)
+func adopt__ExprPtrBox(mut dest: Dynamic, own src: ExprPtrBox)
 #+end_src
 
 * adopt__FFITypePtrBox
@@ -6981,7 +7137,7 @@ func adopt__ExprPtrBox(dest: Dynamic, own src: ExprPtrBox)
 :END:
 
 #+begin_src til
-func adopt__FFITypePtrBox(dest: Dynamic, own src: FFITypePtrBox)
+func adopt__FFITypePtrBox(mut dest: Dynamic, own src: FFITypePtrBox)
 #+end_src
 
 * adopt__Mode
@@ -6991,7 +7147,7 @@ func adopt__FFITypePtrBox(dest: Dynamic, own src: FFITypePtrBox)
 :END:
 
 #+begin_src til
-func adopt__Mode(dest: Dynamic, own src: Mode)
+func adopt__Mode(mut dest: Dynamic, own src: Mode)
 #+end_src
 
 * adopt__FuncType
@@ -7001,7 +7157,7 @@ func adopt__Mode(dest: Dynamic, own src: Mode)
 :END:
 
 #+begin_src til
-func adopt__FuncType(dest: Dynamic, own src: FuncType)
+func adopt__FuncType(mut dest: Dynamic, own src: FuncType)
 #+end_src
 
 * adopt__ImportUnit
@@ -7011,7 +7167,7 @@ func adopt__FuncType(dest: Dynamic, own src: FuncType)
 :END:
 
 #+begin_src til
-func adopt__ImportUnit(dest: Dynamic, own src: ImportUnit)
+func adopt__ImportUnit(mut dest: Dynamic, own src: ImportUnit)
 #+end_src
 
 * adopt__StructLayout
@@ -7021,7 +7177,7 @@ func adopt__ImportUnit(dest: Dynamic, own src: ImportUnit)
 :END:
 
 #+begin_src til
-func adopt__StructLayout(dest: Dynamic, own src: StructLayout)
+func adopt__StructLayout(mut dest: Dynamic, own src: StructLayout)
 #+end_src
 
 * adopt__Vec__Str
@@ -7031,5 +7187,5 @@ func adopt__StructLayout(dest: Dynamic, own src: StructLayout)
 :END:
 
 #+begin_src til
-func adopt__Vec__Str(dest: Dynamic, own src: Vec__Str)
+func adopt__Vec__Str(mut dest: Dynamic, own src: Vec__Str)
 #+end_src

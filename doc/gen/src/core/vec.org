@@ -1,5 +1,5 @@
 #+TITLE: src/core/vec.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * vec
@@ -490,5 +490,5 @@ func Vec__Dynamic.clone(self: Vec__Dynamic) returns Vec__Dynamic
 :END:
 
 #+begin_src til
-func adopt__Dynamic(dest: Dynamic, own src: Dynamic)
+func adopt__Dynamic(mut dest: Dynamic, own src: Dynamic)
 #+end_src

@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -24,9 +24,9 @@ struct InterpCallableBox {
     ref mut func_def : Expr
     mut env : Option__Scope
 namespace:
+    func size() returns shallow USize
     func clone(self: InterpCallableBox) returns InterpCallableBox
     func delete(own self: InterpCallableBox, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -58,10 +58,11 @@ struct HeapBinding {
     mut is_static_callable : Bool
     mut moved_out : Bool
     mut is_raw_alloc : Bool
+    mut payload_released : Bool
 namespace:
+    func size() returns shallow USize
     func clone(self: HeapBinding) returns HeapBinding
     func delete(own self: HeapBinding, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -78,10 +79,10 @@ struct Scope {
     mut parent : Option__ref_Scope
     mut is_call_scope : Bool
 namespace:
+    func size() returns shallow USize
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, shallow call_free: Bool)
     func hash(self: Scope, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -96,14 +97,14 @@ struct InterpSession {
     mut global : Option__Scope
     mut core_evaluated : Bool
     mut user_argc : USize
-    mut retained_programs : Vec__DynPtrBox
+    mut retained_programs : Vec__priv___src_self_interpreter_til__DynPtrBox
     mut is_repl : Bool
     mut evaluated_units : Set__Str
 namespace:
+    func size() returns shallow USize
     func clone(self: InterpSession) returns InterpSession
     func delete(own self: InterpSession, shallow call_free: Bool)
     func hash(self: InterpSession, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -115,6 +116,16 @@ namespace:
 
 #+begin_src til
 func lookup_interp_type_def(name: Str, ctx: Context) returns shallow Option__ref_Expr
+#+end_src
+
+* enum_data_tag_key
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.enum_data_tag_key
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func enum_data_tag_key(data: Dynamic, enum_def: Expr) returns shallow I64
 #+end_src
 
 * raw_type_is_prim
@@ -204,7 +215,7 @@ func scope_set_raw_owned(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic
 :END:
 
 #+begin_src til
-proc eval_expr_raw(mut scope: Scope, mut e: Expr, mut ctx: Context, destination: Dynamic) returns Dynamic
+proc eval_expr_raw(mut scope: Scope, mut e: Expr, mut ctx: Context, mut destination: Dynamic) returns Dynamic
 #+end_src
 
 * scope_get
@@ -354,7 +365,7 @@ func scope_free(own s: Scope)
 :END:
 
 #+begin_src til
-func populate_cached_aggregate_defs(mut ctx: Context, program: Expr)
+func populate_cached_aggregate_defs(mut ctx: Context, mut program: Expr)
 #+end_src
 
 * interpreter_init_ns
@@ -566,8 +577,8 @@ struct FFIEntry {
     own mut arg_types : U8
 namespace:
     func clone(self: FFIEntry) returns FFIEntry
-    func delete(own self: FFIEntry, shallow call_free: Bool)
     func size() returns shallow USize
+    func delete(own self: FFIEntry, shallow call_free: Bool)
 }
 #+end_src
 
@@ -581,9 +592,9 @@ namespace:
 struct ExprPtrBox {
     ref mut ptr : Expr
 namespace:
+    func size() returns shallow USize
     func clone(self: ExprPtrBox) returns ExprPtrBox
     func delete(own self: ExprPtrBox, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -598,8 +609,8 @@ struct FFITypePtrBox {
     own mut ptr : ffi_type
 namespace:
     func clone(self: FFITypePtrBox) returns FFITypePtrBox
-    func delete(own self: FFITypePtrBox, shallow call_free: Bool)
     func size() returns shallow USize
+    func delete(own self: FFITypePtrBox, shallow call_free: Bool)
 }
 #+end_src
 
@@ -710,7 +721,7 @@ func dispatch_result_alloc(t: Type, ctx: Context) returns Dynamic
 :END:
 
 #+begin_src til
-func str_copy_into(result: Dynamic, src: Str, ctx: Context)
+func str_copy_into(mut result: Dynamic, src: Str, ctx: Context)
 #+end_src
 
 * ffi_init_scan_program
@@ -731,6 +742,16 @@ proc ffi_init_scan_program(program: Expr, mut ctx: Context)
 
 #+begin_src til
 proc ffi_cleanup(mut ctx: Context)
+#+end_src
+
+* Vec__InterpAlias
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias
+:group: Compiler tools
+:END:
+
+#+begin_src til
+Vec__InterpAlias is a None
 #+end_src
 
 * Map__Str_HeapBinding
@@ -754,8 +775,8 @@ namespace:
     func remove(mut self: Map__Str_HeapBinding, key: Str) returns shallow Bool
     func delete(own self: Map__Str_HeapBinding, shallow call_free: Bool)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
-    func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -970,46 +991,46 @@ a clone would copy a whole subtree and break node identity.
 func Option__ref_Dynamic.take(own self: Option__ref_Dynamic) returns ref Dynamic
 #+end_src
 
-* Vec__DynPtrBox
+* Vec__priv___src_self_interpreter_til__DynPtrBox
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox
 :group: Compiler tools
 :END:
 
 #+begin_src til
-struct Vec__DynPtrBox {
+struct Vec__priv___src_self_interpreter_til__DynPtrBox {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__DynPtrBox
-    func with_capacity(shallow n: USize) returns Vec__DynPtrBox
-    func len(self: Vec__DynPtrBox) returns shallow USize
-    func clear(mut self: Vec__DynPtrBox)
-    func delete_marked(mut self: Vec__DynPtrBox, marks: Dynamic)
-    func push(mut self: Vec__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
-    func append(mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
-    func take(mut self: Vec__DynPtrBox) returns Vec__DynPtrBox
-    func move_to(own self: Vec__DynPtrBox, mut dest: Vec__DynPtrBox)
-    func move_from(mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
-    func unsafe_get(self: Vec__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
-    func get(self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
-    func pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
-    func remove_at(mut self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__DynPtrBox, shallow n: USize) returns Vec__DynPtrBox
-    func truncate(mut self: Vec__DynPtrBox, shallow n: USize)
-    func unsafe_set(mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox)
-    func set(mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
-    func push_take(mut self: Vec__DynPtrBox, mut src: Vec__DynPtrBox, shallow i: USize)
-    func delete(own self: Vec__DynPtrBox, shallow call_free: Bool)
-    func clone(self: Vec__DynPtrBox) returns Vec__DynPtrBox
+    func new() returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func len(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox)
+    func delete_marked(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
+    func append(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own other: Vec__priv___src_self_interpreter_til__DynPtrBox)
+    func take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func move_to(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut dest: Vec__priv___src_self_interpreter_til__DynPtrBox)
+    func move_from(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own other: Vec__priv___src_self_interpreter_til__DynPtrBox)
+    func unsafe_get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
+    func get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+    func pop(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox)
+    func set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__DynPtrBox.new
+* Vec__priv___src_self_interpreter_til__DynPtrBox.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.new
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.new
 :group: Compiler tools
 :END:
 
@@ -1020,12 +1041,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__DynPtrBox.new() returns Vec__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.new() returns Vec__priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__DynPtrBox.with_capacity
+* Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.with_capacity
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity
 :group: Compiler tools
 :END:
 
@@ -1037,12 +1058,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__DynPtrBox.with_capacity(shallow n: USize) returns Vec__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity(shallow n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__DynPtrBox.clear
+* Vec__priv___src_self_interpreter_til__DynPtrBox.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.clear
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.clear
 :group: Compiler tools
 :END:
 
@@ -1050,12 +1071,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__DynPtrBox.clear(mut self: Vec__DynPtrBox)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.clear(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
-* Vec__DynPtrBox.delete_marked
+* Vec__priv___src_self_interpreter_til__DynPtrBox.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.delete_marked
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.delete_marked
 :group: Compiler tools
 :END:
 
@@ -1066,12 +1087,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__DynPtrBox.delete_marked(mut self: Vec__DynPtrBox, marks: Dynamic)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.delete_marked(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, marks: Dynamic)
 #+end_src
 
-* Vec__DynPtrBox.push
+* Vec__priv___src_self_interpreter_til__DynPtrBox.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.push
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.push
 :group: Compiler tools
 :END:
 
@@ -1079,12 +1100,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__DynPtrBox.push(mut self: Vec__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.push(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
-* Vec__DynPtrBox.append
+* Vec__priv___src_self_interpreter_til__DynPtrBox.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.append
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.append
 :group: Compiler tools
 :END:
 
@@ -1092,12 +1113,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__DynPtrBox.append(mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.append(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own other: Vec__priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
-* Vec__DynPtrBox.take
+* Vec__priv___src_self_interpreter_til__DynPtrBox.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.take
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.take
 :group: Compiler tools
 :END:
 
@@ -1112,12 +1133,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__DynPtrBox.take(mut self: Vec__DynPtrBox) returns Vec__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__DynPtrBox.move_to
+* Vec__priv___src_self_interpreter_til__DynPtrBox.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.move_to
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.move_to
 :group: Compiler tools
 :END:
 
@@ -1134,12 +1155,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__DynPtrBox.move_to(own self: Vec__DynPtrBox, mut dest: Vec__DynPtrBox)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.move_to(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut dest: Vec__priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
-* Vec__DynPtrBox.move_from
+* Vec__priv___src_self_interpreter_til__DynPtrBox.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.move_from
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.move_from
 :group: Compiler tools
 :END:
 
@@ -1148,12 +1169,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__DynPtrBox.move_from(mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.move_from(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own other: Vec__priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
-* Vec__DynPtrBox.unsafe_get
+* Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.unsafe_get
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_get
 :group: Compiler tools
 :END:
 
@@ -1164,12 +1185,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__DynPtrBox.unsafe_get(self: Vec__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__DynPtrBox.get
+* Vec__priv___src_self_interpreter_til__DynPtrBox.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.get
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.get
 :group: Compiler tools
 :END:
 
@@ -1179,12 +1200,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__DynPtrBox.get(self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__DynPtrBox.pop
+* Vec__priv___src_self_interpreter_til__DynPtrBox.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.pop
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.pop
 :group: Compiler tools
 :END:
 
@@ -1192,24 +1213,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__DynPtrBox.pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.pop(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__DynPtrBox.remove_at
+* Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.remove_at
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at
 :group: Compiler tools
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__DynPtrBox.remove_at(mut self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__DynPtrBox.take_prefix
+* Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.take_prefix
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix
 :group: Compiler tools
 :END:
 
@@ -1217,12 +1238,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__DynPtrBox.take_prefix(mut self: Vec__DynPtrBox, shallow n: USize) returns Vec__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__DynPtrBox.truncate
+* Vec__priv___src_self_interpreter_til__DynPtrBox.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.truncate
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.truncate
 :group: Compiler tools
 :END:
 
@@ -1232,12 +1253,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__DynPtrBox.truncate(mut self: Vec__DynPtrBox, shallow n: USize)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: USize)
 #+end_src
 
-* Vec__DynPtrBox.unsafe_set
+* Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.unsafe_set
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set
 :group: Compiler tools
 :END:
 
@@ -1246,12 +1267,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__DynPtrBox.unsafe_set(mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
-* Vec__DynPtrBox.set
+* Vec__priv___src_self_interpreter_til__DynPtrBox.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.set
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.set
 :group: Compiler tools
 :END:
 
@@ -1260,12 +1281,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__DynPtrBox.set(mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
 #+end_src
 
-* Vec__DynPtrBox.push_take
+* Vec__priv___src_self_interpreter_til__DynPtrBox.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.push_take
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.push_take
 :group: Compiler tools
 :END:
 
@@ -1274,12 +1295,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__DynPtrBox.push_take(mut self: Vec__DynPtrBox, mut src: Vec__DynPtrBox, shallow i: USize)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize)
 #+end_src
 
-* Vec__DynPtrBox.delete
+* Vec__priv___src_self_interpreter_til__DynPtrBox.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.delete
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.delete
 :group: Compiler tools
 :END:
 
@@ -1287,61 +1308,61 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__DynPtrBox.delete(own self: Vec__DynPtrBox, shallow call_free: Bool)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow call_free: Bool)
 #+end_src
 
-* Vec__DynPtrBox.clone
+* Vec__priv___src_self_interpreter_til__DynPtrBox.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox.clone
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.clone
 :group: Compiler tools
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__DynPtrBox.clone(self: Vec__DynPtrBox) returns Vec__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.clone(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
-* Vec__InterpAlias
+* Vec__priv___src_self_interpreter_til__InterpAlias
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias
 :group: Compiler tools
 :END:
 
 #+begin_src til
-struct Vec__InterpAlias {
+struct Vec__priv___src_self_interpreter_til__InterpAlias {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__InterpAlias
-    func with_capacity(shallow n: USize) returns Vec__InterpAlias
-    func len(self: Vec__InterpAlias) returns shallow USize
-    func clear(mut self: Vec__InterpAlias)
-    func delete_marked(mut self: Vec__InterpAlias, marks: Dynamic)
-    func push(mut self: Vec__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
-    func append(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
-    func take(mut self: Vec__InterpAlias) returns Vec__InterpAlias
-    func move_to(own self: Vec__InterpAlias, mut dest: Vec__InterpAlias)
-    func move_from(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
-    func unsafe_get(self: Vec__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
-    func get(self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
-    func pop(mut self: Vec__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
-    func remove_at(mut self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__InterpAlias, shallow n: USize) returns Vec__InterpAlias
-    func truncate(mut self: Vec__InterpAlias, shallow n: USize)
-    func unsafe_set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
-    func set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
-    func push_take(mut self: Vec__InterpAlias, mut src: Vec__InterpAlias, shallow i: USize)
-    func delete(own self: Vec__InterpAlias, shallow call_free: Bool)
-    func clone(self: Vec__InterpAlias) returns Vec__InterpAlias
+    func new() returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func len(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_interpreter_til__InterpAlias)
+    func delete_marked(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
+    func append(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own other: Vec__priv___src_self_interpreter_til__InterpAlias)
+    func take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func move_to(own self: Vec__priv___src_self_interpreter_til__InterpAlias, mut dest: Vec__priv___src_self_interpreter_til__InterpAlias)
+    func move_from(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own other: Vec__priv___src_self_interpreter_til__InterpAlias)
+    func unsafe_get(self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
+    func get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+    func pop(mut self: Vec__priv___src_self_interpreter_til__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
+    func set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__InterpAlias.new
+* Vec__priv___src_self_interpreter_til__InterpAlias.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.new
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.new
 :group: Compiler tools
 :END:
 
@@ -1352,12 +1373,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__InterpAlias.new() returns Vec__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.new() returns Vec__priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
-* Vec__InterpAlias.with_capacity
+* Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.with_capacity
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity
 :group: Compiler tools
 :END:
 
@@ -1369,12 +1390,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__InterpAlias.with_capacity(shallow n: USize) returns Vec__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity(shallow n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
-* Vec__InterpAlias.clear
+* Vec__priv___src_self_interpreter_til__InterpAlias.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.clear
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.clear
 :group: Compiler tools
 :END:
 
@@ -1382,12 +1403,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__InterpAlias.clear(mut self: Vec__InterpAlias)
+func Vec__priv___src_self_interpreter_til__InterpAlias.clear(mut self: Vec__priv___src_self_interpreter_til__InterpAlias)
 #+end_src
 
-* Vec__InterpAlias.delete_marked
+* Vec__priv___src_self_interpreter_til__InterpAlias.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.delete_marked
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.delete_marked
 :group: Compiler tools
 :END:
 
@@ -1398,12 +1419,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__InterpAlias.delete_marked(mut self: Vec__InterpAlias, marks: Dynamic)
+func Vec__priv___src_self_interpreter_til__InterpAlias.delete_marked(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, marks: Dynamic)
 #+end_src
 
-* Vec__InterpAlias.push
+* Vec__priv___src_self_interpreter_til__InterpAlias.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.push
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.push
 :group: Compiler tools
 :END:
 
@@ -1411,12 +1432,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__InterpAlias.push(mut self: Vec__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
+func Vec__priv___src_self_interpreter_til__InterpAlias.push(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
 #+end_src
 
-* Vec__InterpAlias.append
+* Vec__priv___src_self_interpreter_til__InterpAlias.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.append
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.append
 :group: Compiler tools
 :END:
 
@@ -1424,12 +1445,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__InterpAlias.append(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+func Vec__priv___src_self_interpreter_til__InterpAlias.append(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own other: Vec__priv___src_self_interpreter_til__InterpAlias)
 #+end_src
 
-* Vec__InterpAlias.take
+* Vec__priv___src_self_interpreter_til__InterpAlias.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.take
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.take
 :group: Compiler tools
 :END:
 
@@ -1444,12 +1465,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__InterpAlias.take(mut self: Vec__InterpAlias) returns Vec__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
-* Vec__InterpAlias.move_to
+* Vec__priv___src_self_interpreter_til__InterpAlias.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.move_to
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.move_to
 :group: Compiler tools
 :END:
 
@@ -1466,12 +1487,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__InterpAlias.move_to(own self: Vec__InterpAlias, mut dest: Vec__InterpAlias)
+func Vec__priv___src_self_interpreter_til__InterpAlias.move_to(own self: Vec__priv___src_self_interpreter_til__InterpAlias, mut dest: Vec__priv___src_self_interpreter_til__InterpAlias)
 #+end_src
 
-* Vec__InterpAlias.move_from
+* Vec__priv___src_self_interpreter_til__InterpAlias.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.move_from
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.move_from
 :group: Compiler tools
 :END:
 
@@ -1480,12 +1501,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__InterpAlias.move_from(mut self: Vec__InterpAlias, own other: Vec__InterpAlias)
+func Vec__priv___src_self_interpreter_til__InterpAlias.move_from(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own other: Vec__priv___src_self_interpreter_til__InterpAlias)
 #+end_src
 
-* Vec__InterpAlias.unsafe_get
+* Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.unsafe_get
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_get
 :group: Compiler tools
 :END:
 
@@ -1496,12 +1517,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__InterpAlias.unsafe_get(self: Vec__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_get(self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
-* Vec__InterpAlias.get
+* Vec__priv___src_self_interpreter_til__InterpAlias.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.get
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.get
 :group: Compiler tools
 :END:
 
@@ -1511,12 +1532,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__InterpAlias.get(self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
-* Vec__InterpAlias.pop
+* Vec__priv___src_self_interpreter_til__InterpAlias.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.pop
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.pop
 :group: Compiler tools
 :END:
 
@@ -1524,24 +1545,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__InterpAlias.pop(mut self: Vec__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.pop(mut self: Vec__priv___src_self_interpreter_til__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
-* Vec__InterpAlias.remove_at
+* Vec__priv___src_self_interpreter_til__InterpAlias.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.remove_at
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.remove_at
 :group: Compiler tools
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__InterpAlias.remove_at(mut self: Vec__InterpAlias, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__InterpAlias.remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__InterpAlias.take_prefix
+* Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.take_prefix
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix
 :group: Compiler tools
 :END:
 
@@ -1549,12 +1570,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__InterpAlias.take_prefix(mut self: Vec__InterpAlias, shallow n: USize) returns Vec__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
-* Vec__InterpAlias.truncate
+* Vec__priv___src_self_interpreter_til__InterpAlias.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.truncate
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.truncate
 :group: Compiler tools
 :END:
 
@@ -1564,12 +1585,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__InterpAlias.truncate(mut self: Vec__InterpAlias, shallow n: USize)
+func Vec__priv___src_self_interpreter_til__InterpAlias.truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: USize)
 #+end_src
 
-* Vec__InterpAlias.unsafe_set
+* Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.unsafe_set
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set
 :group: Compiler tools
 :END:
 
@@ -1578,12 +1599,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__InterpAlias.unsafe_set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
+func Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
 #+end_src
 
-* Vec__InterpAlias.set
+* Vec__priv___src_self_interpreter_til__InterpAlias.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.set
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.set
 :group: Compiler tools
 :END:
 
@@ -1592,12 +1613,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__InterpAlias.set(mut self: Vec__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__InterpAlias.set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
 #+end_src
 
-* Vec__InterpAlias.push_take
+* Vec__priv___src_self_interpreter_til__InterpAlias.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.push_take
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.push_take
 :group: Compiler tools
 :END:
 
@@ -1606,12 +1627,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__InterpAlias.push_take(mut self: Vec__InterpAlias, mut src: Vec__InterpAlias, shallow i: USize)
+func Vec__priv___src_self_interpreter_til__InterpAlias.push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize)
 #+end_src
 
-* Vec__InterpAlias.delete
+* Vec__priv___src_self_interpreter_til__InterpAlias.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.delete
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.delete
 :group: Compiler tools
 :END:
 
@@ -1619,19 +1640,19 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__InterpAlias.delete(own self: Vec__InterpAlias, shallow call_free: Bool)
+func Vec__priv___src_self_interpreter_til__InterpAlias.delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow call_free: Bool)
 #+end_src
 
-* Vec__InterpAlias.clone
+* Vec__priv___src_self_interpreter_til__InterpAlias.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__InterpAlias.clone
+:CUSTOM_ID: til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.clone
 :group: Compiler tools
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__InterpAlias.clone(self: Vec__InterpAlias) returns Vec__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.clone(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
 * Option__ref_ffi_type
@@ -2034,7 +2055,7 @@ func Vec__HeapBinding.clone(self: Vec__HeapBinding) returns Vec__HeapBinding
 :END:
 
 #+begin_src til
-func adopt__HeapBinding(dest: Dynamic, own src: HeapBinding)
+func adopt__HeapBinding(mut dest: Dynamic, own src: HeapBinding)
 #+end_src
 
 * adopt__priv___src_self_interpreter_til__DynPtrBox
@@ -2044,7 +2065,7 @@ func adopt__HeapBinding(dest: Dynamic, own src: HeapBinding)
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_interpreter_til__DynPtrBox(dest: Dynamic, own src: priv___src_self_interpreter_til__DynPtrBox)
+func adopt__priv___src_self_interpreter_til__DynPtrBox(mut dest: Dynamic, own src: priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
 * adopt__priv___src_self_interpreter_til__InterpAlias
@@ -2054,5 +2075,5 @@ func adopt__priv___src_self_interpreter_til__DynPtrBox(dest: Dynamic, own src: p
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_interpreter_til__InterpAlias(dest: Dynamic, own src: priv___src_self_interpreter_til__InterpAlias)
+func adopt__priv___src_self_interpreter_til__InterpAlias(mut dest: Dynamic, own src: priv___src_self_interpreter_til__InterpAlias)
 #+end_src

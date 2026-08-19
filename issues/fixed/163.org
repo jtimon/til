@@ -6,34 +6,29 @@
 
     Most of this issue landed incrementally before its final re-analysis:
     ~Context.imported~ owns one canonical ~ImportUnit~ per file, each containing
-    that file's AST, mode, and resolved direct-import graph; init, typer,
+    that file's AST and mode; init, typer,
     constfolder, scavenger, interpreter, and builders operate on per-file units;
     ~Context.path~ supplies current-file diagnostics; circular imports work; and
     ~Expr.path~ is gone.
 
-    The remaining duplication was in the drivers. ~ProgramUnit~ still copied
-    mode/import metadata it never read, while init and each of the typer's four
-    graph sweeps rescanned the source AST to rediscover import calls and map
-    them positionally back onto ~ImportUnit.imports~. Those scans did not
-    interleave local work -- every sweep processed all imports before its unit
-    anyway -- and loader-injected mode imports required brittle offset math.
+    One duplicated source of truth remained: loader discovery
+    extracted every explicit import into ~ImportUnit.imports~, while the same
+    edge stayed in the AST. Init and typer walks then matched calls to paths by
+    position, with separate offset arithmetic for mode auto-imports.
 
-    ~ProgramUnit~ now carries only ordering/path metadata. Init and typer recurse
-    directly through the canonical ~ImportUnit.imports~ edges, including mode
-    auto-imports, then process the unit. This removes four repeated typer scans,
-    the init scan, and the duplicate ~ProgramUnit~ mode/import vectors.
+    Explicit dependency edges now live only in their AST calls. Each
+    ~ImportUnit~ stores the base and optional library root needed to resolve
+    those calls to canonical Context keys during every graph walk. Namespace
+    import desugaring preserves the call as a bare statement, and the sole
+    dependency without a source call -- a mode auto-import -- has one dedicated
+    field. ~ProgramUnit.imports~, ~ImportUnit.imports~, ~extract_imports~, and
+    all positional matching are removed.
 
-    ~extract_imports~ remains intentionally in the loader: parsing import calls
-    is how the loader discovers the direct graph in the first place.
-    ~ImportUnit.imports~ is that graph's source of truth, not a second cache.
-    The only remaining AST-to-edge positional walk is the unused-import
-    diagnostic, which preserves the user's original path spelling while
-    pairing explicit imports with resolved edges and skipping synthetic mode
-    imports.
-
-    Regression coverage is the existing circular, selective, mode-auto-import,
-    unused-import, REPL, and self-translation suites. ~make clean && make test~
-    passes 419/419.
+    Regression: ~test_namespace_import_priv_siblings~ in ~test/imports.til~
+    has no duplicate bare import, so it proves a rewritten namespace import
+    remains the AST edge that loads and visits its dependency. The existing
+    circular-import, mode, REPL, selective-import, and unused-import tests cover
+    the other resolution paths.
 
 *** Historical goals
 

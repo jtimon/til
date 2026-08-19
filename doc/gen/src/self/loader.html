@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -54,13 +54,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
-<li><a class="current" href="../../src/self/loader.html">src/self/loader.til</a><ul><li><a href="#til.src.self.loader.realpath_str">realpath_str</a></li><li><a href="#til.src.self.loader.REPL_DOC_INDEX">REPL_DOC_INDEX</a></li><li><a href="#til.src.self.loader.forward_header_path">forward_header_path</a></li><li><a href="#til.src.self.loader.ProgramUnit">ProgramUnit</a></li><li><a href="#til.src.self.loader.LoadedProgram">LoadedProgram</a></li><li><a href="#til.src.self.loader.repl_clone_loaded_program">repl_clone_loaded_program</a></li><li><a href="#til.src.self.loader.retarget_loaded_aliases">retarget_loaded_aliases</a></li><li><a href="#til.src.self.loader.load_program">load_program</a></li><li><a href="#til.src.self.loader.DocMeta">DocMeta</a></li><li><a href="#til.src.self.loader.doc_keyword_value">doc_keyword_value</a></li><li><a href="#til.src.self.loader.doc_false_value">doc_false_value</a></li><li><a href="#til.src.self.loader.doc_meta_line">doc_meta_line</a></li><li><a href="#til.src.self.loader.parse_doc_meta">parse_doc_meta</a></li><li><a href="#til.src.self.loader.format_doc_for_help">format_doc_for_help</a></li><li><a href="#til.src.self.loader.format_decl_info">format_decl_info</a></li><li><a href="#til.src.self.loader.format_member_info">format_member_info</a></li><li><a href="#til.src.self.loader.format_field_info">format_field_info</a></li><li><a href="#til.src.self.loader.format_variant_info">format_variant_info</a></li><li><a href="#til.src.self.loader.collect_decl_packed">collect_decl_packed</a></li><li><a href="#til.src.self.loader.build_doc_init_line">build_doc_init_line</a></li><li><a href="#til.src.self.loader.build_doc_init_line_org_files">build_doc_init_line_org_files</a></li><li><a href="#til.src.self.loader.lazy_recursive_variadic_def">lazy_recursive_variadic_def</a></li><li><a href="#til.src.self.loader.type_program_errors">type_program_errors</a></li><li><a href="#til.src.self.loader.finish_init_and_type_program">finish_init_and_type_program</a></li><li><a href="#til.src.self.loader.init_and_type_program_errors">init_and_type_program_errors</a></li><li><a href="#til.src.self.loader.init_and_type_program">init_and_type_program</a></li><li><a href="#til.src.self.loader.finish_prepare_program">finish_prepare_program</a></li><li><a href="#til.src.self.loader.repl_finish_prepare_program">repl_finish_prepare_program</a></li><li><a href="#til.src.self.loader.repl_init_cached_program">repl_init_cached_program</a></li><li><a href="#til.src.self.loader.repl_type_delta_program">repl_type_delta_program</a></li><li><a href="#til.src.self.loader.repl_prepare_delta_program">repl_prepare_delta_program</a></li><li><a href="#til.src.self.loader.prepare_program">prepare_program</a></li><li><a href="#til.src.self.loader.cmd_ast">cmd_ast</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit">Vec__ProgramUnit</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.new">Vec__ProgramUnit.new</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.with_capacity">Vec__ProgramUnit.with_capacity</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.clear">Vec__ProgramUnit.clear</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.delete_marked">Vec__ProgramUnit.delete_marked</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.push">Vec__ProgramUnit.push</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.append">Vec__ProgramUnit.append</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.take">Vec__ProgramUnit.take</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.move_to">Vec__ProgramUnit.move_to</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.move_from">Vec__ProgramUnit.move_from</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.unsafe_get">Vec__ProgramUnit.unsafe_get</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.get">Vec__ProgramUnit.get</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.pop">Vec__ProgramUnit.pop</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.remove_at">Vec__ProgramUnit.remove_at</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.take_prefix">Vec__ProgramUnit.take_prefix</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.truncate">Vec__ProgramUnit.truncate</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.unsafe_set">Vec__ProgramUnit.unsafe_set</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.set">Vec__ProgramUnit.set</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.push_take">Vec__ProgramUnit.push_take</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.delete">Vec__ProgramUnit.delete</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.clone">Vec__ProgramUnit.clone</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry">Vec__ImportCheckEntry</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.new">Vec__ImportCheckEntry.new</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.with_capacity">Vec__ImportCheckEntry.with_capacity</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.clear">Vec__ImportCheckEntry.clear</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.delete_marked">Vec__ImportCheckEntry.delete_marked</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.push">Vec__ImportCheckEntry.push</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.append">Vec__ImportCheckEntry.append</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.take">Vec__ImportCheckEntry.take</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.move_to">Vec__ImportCheckEntry.move_to</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.move_from">Vec__ImportCheckEntry.move_from</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.unsafe_get">Vec__ImportCheckEntry.unsafe_get</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.get">Vec__ImportCheckEntry.get</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.pop">Vec__ImportCheckEntry.pop</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.remove_at">Vec__ImportCheckEntry.remove_at</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.take_prefix">Vec__ImportCheckEntry.take_prefix</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.truncate">Vec__ImportCheckEntry.truncate</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.unsafe_set">Vec__ImportCheckEntry.unsafe_set</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.set">Vec__ImportCheckEntry.set</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.push_take">Vec__ImportCheckEntry.push_take</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.delete">Vec__ImportCheckEntry.delete</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry.clone">Vec__ImportCheckEntry.clone</a></li><li><a href="#til.src.self.loader.adopt__ProgramUnit">adopt__ProgramUnit</a></li><li><a href="#til.src.self.loader.adopt__priv___src_self_loader_til__ImportCheckEntry">adopt__priv___src_self_loader_til__ImportCheckEntry</a></li></ul></li>
+<li><a class="current" href="../../src/self/loader.html">src/self/loader.til</a><ul><li><a href="#til.src.self.loader.REPL_DOC_INDEX">REPL_DOC_INDEX</a></li><li><a href="#til.src.self.loader.forward_header_path">forward_header_path</a></li><li><a href="#til.src.self.loader.ProgramUnit">ProgramUnit</a></li><li><a href="#til.src.self.loader.LoadedProgram">LoadedProgram</a></li><li><a href="#til.src.self.loader.repl_clone_loaded_program">repl_clone_loaded_program</a></li><li><a href="#til.src.self.loader.retarget_loaded_aliases">retarget_loaded_aliases</a></li><li><a href="#til.src.self.loader.load_program">load_program</a></li><li><a href="#til.src.self.loader.DocMeta">DocMeta</a></li><li><a href="#til.src.self.loader.doc_keyword_value">doc_keyword_value</a></li><li><a href="#til.src.self.loader.doc_false_value">doc_false_value</a></li><li><a href="#til.src.self.loader.doc_meta_line">doc_meta_line</a></li><li><a href="#til.src.self.loader.parse_doc_meta">parse_doc_meta</a></li><li><a href="#til.src.self.loader.format_doc_for_help">format_doc_for_help</a></li><li><a href="#til.src.self.loader.format_decl_info">format_decl_info</a></li><li><a href="#til.src.self.loader.format_member_info">format_member_info</a></li><li><a href="#til.src.self.loader.format_field_info">format_field_info</a></li><li><a href="#til.src.self.loader.format_variant_info">format_variant_info</a></li><li><a href="#til.src.self.loader.collect_decl_packed">collect_decl_packed</a></li><li><a href="#til.src.self.loader.build_doc_init_line">build_doc_init_line</a></li><li><a href="#til.src.self.loader.build_doc_init_line_org_files">build_doc_init_line_org_files</a></li><li><a href="#til.src.self.loader.lazy_recursive_variadic_def">lazy_recursive_variadic_def</a></li><li><a href="#til.src.self.loader.type_program_errors">type_program_errors</a></li><li><a href="#til.src.self.loader.finish_init_and_type_program">finish_init_and_type_program</a></li><li><a href="#til.src.self.loader.init_and_type_program_errors">init_and_type_program_errors</a></li><li><a href="#til.src.self.loader.init_and_type_program">init_and_type_program</a></li><li><a href="#til.src.self.loader.finish_prepare_program">finish_prepare_program</a></li><li><a href="#til.src.self.loader.repl_finish_prepare_program">repl_finish_prepare_program</a></li><li><a href="#til.src.self.loader.repl_init_cached_program">repl_init_cached_program</a></li><li><a href="#til.src.self.loader.repl_type_delta_program">repl_type_delta_program</a></li><li><a href="#til.src.self.loader.repl_prepare_delta_program">repl_prepare_delta_program</a></li><li><a href="#til.src.self.loader.prepare_program">prepare_program</a></li><li><a href="#til.src.self.loader.cmd_ast">cmd_ast</a></li><li><a href="#til.src.self.loader.Vec__ImportCheckEntry">Vec__ImportCheckEntry</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit">Vec__ProgramUnit</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.new">Vec__ProgramUnit.new</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.with_capacity">Vec__ProgramUnit.with_capacity</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.clear">Vec__ProgramUnit.clear</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.delete_marked">Vec__ProgramUnit.delete_marked</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.push">Vec__ProgramUnit.push</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.append">Vec__ProgramUnit.append</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.take">Vec__ProgramUnit.take</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.move_to">Vec__ProgramUnit.move_to</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.move_from">Vec__ProgramUnit.move_from</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.unsafe_get">Vec__ProgramUnit.unsafe_get</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.get">Vec__ProgramUnit.get</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.pop">Vec__ProgramUnit.pop</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.remove_at">Vec__ProgramUnit.remove_at</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.take_prefix">Vec__ProgramUnit.take_prefix</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.truncate">Vec__ProgramUnit.truncate</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.unsafe_set">Vec__ProgramUnit.unsafe_set</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.set">Vec__ProgramUnit.set</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.push_take">Vec__ProgramUnit.push_take</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.delete">Vec__ProgramUnit.delete</a></li><li><a href="#til.src.self.loader.Vec__ProgramUnit.clone">Vec__ProgramUnit.clone</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry">Vec__priv___src_self_loader_til__ImportCheckEntry</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.new">Vec__priv___src_self_loader_til__ImportCheckEntry.new</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity">Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.clear">Vec__priv___src_self_loader_til__ImportCheckEntry.clear</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.delete_marked">Vec__priv___src_self_loader_til__ImportCheckEntry.delete_marked</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.push">Vec__priv___src_self_loader_til__ImportCheckEntry.push</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.append">Vec__priv___src_self_loader_til__ImportCheckEntry.append</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.take">Vec__priv___src_self_loader_til__ImportCheckEntry.take</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.move_to">Vec__priv___src_self_loader_til__ImportCheckEntry.move_to</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.move_from">Vec__priv___src_self_loader_til__ImportCheckEntry.move_from</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_get">Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_get</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.get">Vec__priv___src_self_loader_til__ImportCheckEntry.get</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.pop">Vec__priv___src_self_loader_til__ImportCheckEntry.pop</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at">Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix">Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.truncate">Vec__priv___src_self_loader_til__ImportCheckEntry.truncate</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set">Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.set">Vec__priv___src_self_loader_til__ImportCheckEntry.set</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.push_take">Vec__priv___src_self_loader_til__ImportCheckEntry.push_take</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.delete">Vec__priv___src_self_loader_til__ImportCheckEntry.delete</a></li><li><a href="#til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.clone">Vec__priv___src_self_loader_til__ImportCheckEntry.clone</a></li><li><a href="#til.src.self.loader.adopt__ProgramUnit">adopt__ProgramUnit</a></li><li><a href="#til.src.self.loader.adopt__priv___src_self_loader_til__ImportCheckEntry">adopt__priv___src_self_loader_til__ImportCheckEntry</a></li></ul></li>
 </ul>
 <h2>Compiler backend</h2><ul>
 <li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -85,12 +87,6 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/loader.til</h1>
-<article class="doc-entry" id="til.src.self.loader.realpath_str">
-<h2>realpath_str</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">ext_proc (path: Str) returns Str
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.loader.REPL_DOC_INDEX">
 <h2>REPL_DOC_INDEX</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -109,12 +105,19 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">struct {
     mut path : Str
     mut mode : Mode
-    mut imports : Vec__Str
 namespace:
+    func size() returns shallow USize
     func clone(self: ProgramUnit) returns ProgramUnit
     func delete(own self: ProgramUnit, shallow call_free: Bool)
     func hash(self: ProgramUnit, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
+    func cmp(a: ProgramUnit, b: ProgramUnit) returns shallow I64
+    func to_str(self: ProgramUnit) returns Str
+    func eq(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func lt(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func gt(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func neq(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func lte(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func gte(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
 }
 </code></pre>
 </article>
@@ -141,8 +144,8 @@ namespace:
 namespace:
     func unit_paths(self: LoadedProgram) returns Vec__Str
     func delete(own self: LoadedProgram, shallow call_free: Bool)
-    func clone(self: LoadedProgram) returns LoadedProgram
     func size() returns shallow USize
+    func clone(self: LoadedProgram) returns LoadedProgram
 }
 </code></pre>
 </article>
@@ -174,12 +177,12 @@ namespace:
     mut deprecated : Str
     mut hidden : Bool
 namespace:
+    func size() returns shallow USize
     func clone(self: DocMeta) returns DocMeta
     func delete(own self: DocMeta, shallow call_free: Bool)
     func hash(self: DocMeta, hasher: HashFn) returns shallow U64
     func cmp(a: DocMeta, b: DocMeta) returns shallow I64
     func to_str(self: DocMeta) returns Str
-    func size() returns shallow USize
     func eq(a: DocMeta, b: DocMeta) returns shallow Bool
     func lt(a: DocMeta, b: DocMeta) returns shallow Bool
     func gt(a: DocMeta, b: DocMeta) returns shallow Bool
@@ -331,6 +334,12 @@ namespace:
 <h2>cmd_ast</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">proc (lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry">
+<h2>Vec__ImportCheckEntry</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til"> is a None
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit">
@@ -599,41 +608,41 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (self: Vec__ProgramUnit) returns Vec__ProgramUnit
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry">
-<h2>Vec__ImportCheckEntry</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__ImportCheckEntry
-    func with_capacity(shallow n: USize) returns Vec__ImportCheckEntry
-    func len(self: Vec__ImportCheckEntry) returns shallow USize
-    func clear(mut self: Vec__ImportCheckEntry)
-    func delete_marked(mut self: Vec__ImportCheckEntry, marks: Dynamic)
-    func push(mut self: Vec__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
-    func append(mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
-    func take(mut self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
-    func move_to(own self: Vec__ImportCheckEntry, mut dest: Vec__ImportCheckEntry)
-    func move_from(mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
-    func unsafe_get(self: Vec__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
-    func get(self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
-    func pop(mut self: Vec__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
-    func remove_at(mut self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__ImportCheckEntry, shallow n: USize) returns Vec__ImportCheckEntry
-    func truncate(mut self: Vec__ImportCheckEntry, shallow n: USize)
-    func unsafe_set(mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
-    func set(mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
-    func push_take(mut self: Vec__ImportCheckEntry, mut src: Vec__ImportCheckEntry, shallow i: USize)
-    func delete(own self: Vec__ImportCheckEntry, shallow call_free: Bool)
-    func clone(self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
+    func new() returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func len(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func delete_marked(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
+    func append(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func move_to(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut dest: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func move_from(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
+    func unsafe_get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func pop(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
+    func remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
+    func set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
     func size() returns shallow USize
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.new">
-<h2>Vec__ImportCheckEntry.new</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.new">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -642,11 +651,11 @@ and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
 the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 </div>
-<pre><code class="language-til">func () returns Vec__ImportCheckEntry
+<pre><code class="language-til">func () returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.with_capacity">
-<h2>Vec__ImportCheckEntry.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -656,21 +665,21 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__ImportCheckEntry
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.clear">
-<h2>Vec__ImportCheckEntry.clear</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.clear">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.delete_marked">
-<h2>Vec__ImportCheckEntry.delete_marked</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.delete_marked">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -679,31 +688,31 @@ compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, marks: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.push">
-<h2>Vec__ImportCheckEntry.push</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.push">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.append">
-<h2>Vec__ImportCheckEntry.append</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.append">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
 <code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.take">
-<h2>Vec__ImportCheckEntry.take</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.take">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -715,11 +724,11 @@ ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
 uses the two move forms below instead.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.move_to">
-<h2>Vec__ImportCheckEntry.move_to</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.move_to">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -733,22 +742,22 @@ Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__ImportCheckEntry, mut dest: Vec__ImportCheckEntry)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut dest: Vec__priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.move_from">
-<h2>Vec__ImportCheckEntry.move_from</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.move_from">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
 argument: <code>dest.move_from(own src)</code>.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, own other: Vec__ImportCheckEntry)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.unsafe_get">
-<h2>Vec__ImportCheckEntry.unsafe_get</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_get">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -757,11 +766,11 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.get">
-<h2>Vec__ImportCheckEntry.get</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.get">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -769,40 +778,40 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.pop">
-<h2>Vec__ImportCheckEntry.pop</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.pop">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.remove_at">
-<h2>Vec__ImportCheckEntry.remove_at</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.take_prefix">
-<h2>Vec__ImportCheckEntry.take_prefix</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, shallow n: USize) returns Vec__ImportCheckEntry
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.truncate">
-<h2>Vec__ImportCheckEntry.truncate</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.truncate">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -810,71 +819,71 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.unsafe_set">
-<h2>Vec__ImportCheckEntry.unsafe_set</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.set">
-<h2>Vec__ImportCheckEntry.set</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.set">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.push_take">
-<h2>Vec__ImportCheckEntry.push_take</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.push_take">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.push_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ImportCheckEntry, mut src: Vec__ImportCheckEntry, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.delete">
-<h2>Vec__ImportCheckEntry.delete</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.delete">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__ImportCheckEntry, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow call_free: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.loader.Vec__ImportCheckEntry.clone">
-<h2>Vec__ImportCheckEntry.clone</h2>
+<article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.clone">
+<h2>Vec__priv___src_self_loader_til__ImportCheckEntry.clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__ImportCheckEntry) returns Vec__ImportCheckEntry
+<pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.adopt__ProgramUnit">
 <h2>adopt__ProgramUnit</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: ProgramUnit)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: ProgramUnit)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.adopt__priv___src_self_loader_til__ImportCheckEntry">
 <h2>adopt__priv___src_self_loader_til__ImportCheckEntry</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_loader_til__ImportCheckEntry)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
 </main></div>

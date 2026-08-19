@@ -3,6 +3,28 @@ mode lib
 import("parser")
 import("eval_heap")
 import("../std/hashmap")
+import("../std/file")
+
+// Filesystem canonicalization is shared by loader discovery and the later
+// per-file phase walks that resolve import calls directly from each AST.
+realpath_str := ext_proc(path: Str) returns Str {}
+
+display_path := func(p: Str, cwd: Str) returns Str {
+    prefix := format(cwd, "/")
+    rel := p.strip_prefix(prefix)
+    if File.is_absolute(rel) { return rel }
+    if rel.starts_with("./") { return rel }
+    return format("./", rel)
+}
+
+resolve_import_abs := proc(import_path: Str, base_dir: Str, lib_dir: Str) returns Str {
+    if File.is_absolute(import_path) { return realpath_str(import_path) }
+    mut abs := realpath_str(base_dir.format("/", import_path))
+    if abs.len().eq(0).and(lib_dir.len().gt(0)) {
+        abs = realpath_str(lib_dir.format("/", import_path))
+    }
+    return abs
+}
 
 // #344: one storage that a borrow reaches. A ref binding -- or a binding
 // whose value carries a borrowed payload -- records the bindings its value
@@ -793,9 +815,60 @@ ImportUnit := struct {
     mode_str := ""
     mode := Mode()
     own ast := Expr.new(NodeType.Body, 0, 0)
-    // Canonical display paths of this file's direct imports, in load order.
-    // Includes loader-injected mode imports that have no source AST node.
-    imports := Vec(Str).new()
+    import_dir := ""
+    import_lib_dir := ""
+    // Mode auto-imports are the one dependency edge with no source AST call.
+    mode_import := ""
+}
+
+priv import_path_for_call := func(imp: Expr, source_path: Str, symbols: SymbolPool) returns Str {
+    if imp.node_type.is(NodeType.FCall).not().or(imp.children.len().lt(2)) { return "" }
+    switch imp.children[0].node_type {
+    case .Ident(id):
+        if id.ident_name(symbols.names).eq("import").not() { return "" }
+    case:
+        return ""
+    }
+    switch imp.children[1].node_type {
+    case .Literal(Literal.Str(p)):
+        if p.ends_with(".til") {
+            bare := p.strip_suffix(".til")
+            loc := source_path.format(":", imp.line.to_str(), ":", imp.col.to_str())
+            panic("import path must not end in '.til' (got \"", p,
+                "\"); use import(\"", bare, "\") instead", loc = loc)
+        }
+        return format(p, ".til")
+    case:
+    }
+    return ""
+}
+
+// Return the normalized path from a bare or declaration-RHS import call, or
+// "" for a non-import statement. Explicit source paths omit the .til suffix.
+import_path_for_stmt := func(stmt: Expr, source_path: Str, symbols: SymbolPool) returns Str {
+    if stmt.node_type.is(NodeType.Decl) {
+        if stmt.children.len() == 0 { return "" }
+        return import_path_for_call(stmt.children[0], source_path, symbols)
+    }
+    return import_path_for_call(stmt, source_path, symbols)
+}
+
+// Resolve one AST import edge exactly as loader discovery did. A miss after
+// loading is an internal graph invariant violation, not recoverable control
+// flow: discovery already reported user-facing missing-file errors.
+resolve_import_for_stmt := proc(stmt: Expr, source_path: Str, iu: ImportUnit,
+        cwd: Str, imported: Map(Str, ImportUnit), symbols: SymbolPool) returns Str {
+    import_path := import_path_for_stmt(stmt, source_path, symbols)
+    if import_path.len() == 0 { return "" }
+    abs := resolve_import_abs(import_path, iu.import_dir, iu.import_lib_dir)
+    if abs.len() == 0 {
+        panic(source_path, ": loaded import no longer resolves: ", import_path)
+    }
+    disp := display_path(abs, cwd)
+    if imported.has(disp).not() {
+        panic(source_path, ": resolved import is absent from Context.imported: ", disp)
+    }
+    return disp
 }
 
 BuilderFuncScratch := struct {
@@ -1037,8 +1110,10 @@ Context := struct {
     // exposes each evaluation-local flag, slot, and cache separately.
     eval := EvalState()
 
-    // Import tracking (rstil-style). Map path -> (mode, ast).
+    // Import tracking (rstil-style). Explicit edges remain in each AST;
+    // ImportUnit carries only the roots needed to resolve them again.
     imported := Map(Str, ImportUnit).new()
+    import_cwd := ""
     // #154: unused-import check. The CLI enables it by default
     // (--check-unused-imports=false disables per invocation); the
     // Context default stays false so the REPL -- where an import is

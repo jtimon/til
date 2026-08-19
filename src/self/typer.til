@@ -7422,7 +7422,14 @@ priv type_methods_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    for dep : Str in iu.imports { total = total + type_methods_file(dep, ctx) }
+    if iu.mode_import.len() > 0 {
+        total = total + type_methods_file(iu.mode_import, ctx)
+    }
+    for stmt : Expr in iu.ast.children {
+        dep := resolve_import_for_stmt(stmt, path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols)
+        if dep.len() > 0 { total = total + type_methods_file(dep, ctx) }
+    }
 
     type_methods_from(iu.ast, 0, ctx)
     return total
@@ -7531,7 +7538,14 @@ priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    for dep : Str in iu.imports { total = total + type_fields_file(dep, ctx) }
+    if iu.mode_import.len() > 0 {
+        total = total + type_fields_file(iu.mode_import, ctx)
+    }
+    for stmt : Expr in iu.ast.children {
+        dep := resolve_import_for_stmt(stmt, path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols)
+        if dep.len() > 0 { total = total + type_fields_file(dep, ctx) }
+    }
 
     context_enter_file(ctx, path)
     for mut stmt : Expr in iu.ast.children {
@@ -7567,7 +7581,14 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    for dep : Str in iu.imports { total = total + type_decls_file(dep, ctx) }
+    if iu.mode_import.len() > 0 {
+        total = total + type_decls_file(iu.mode_import, ctx)
+    }
+    for stmt : Expr in iu.ast.children {
+        dep := resolve_import_for_stmt(stmt, path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols)
+        if dep.len() > 0 { total = total + type_decls_file(dep, ctx) }
+    }
 
     // Per-decl work in source order: compute struct/enum layouts,
     // synthesize field-sensitive and layout-dependent methods, and run the
@@ -7625,8 +7646,8 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     return total
 }
 
-// Per-file body type-check sweep (the last typer sweep): recurse through the
-// canonical direct-import graph, then type-check this unit.
+// Per-file body type-check sweep (the last typer sweep): recurse through mode
+// and explicit AST import edges, then type-check this unit.
 priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
     if ctx.imports_typer_bodies_done.has(path) {
         return 0
@@ -7635,8 +7656,17 @@ priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
 
+    // Mode auto-imports have no source call; explicit edges are resolved
+    // directly from their AST statements in source order (#165 step 5).
     mut total : I32 = 0
-    for dep : Str in iu.imports { total = total + type_bodies_file(dep, ctx) }
+    if iu.mode_import.len() > 0 {
+        total = total + type_bodies_file(iu.mode_import, ctx)
+    }
+    for stmt : Expr in iu.ast.children {
+        dep := resolve_import_for_stmt(stmt, path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols)
+        if dep.len() > 0 { total = total + type_bodies_file(dep, ctx) }
+    }
 
     context_enter_file(ctx, path)
     if iu.mode_str == "mode" {
@@ -7662,14 +7692,8 @@ priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
                     }
                 case:
                 }
-            } else if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-                if stmt.children[1].node_type.is_literal_str() {
-                    switch stmt.children[0].node_type {
-                    case .Ident(id):
-                        if id.ident_name(ctx.symbols.names) == "import" { is_valid = true }
-                    case:
-                    }
-                }
+            } else if import_path_for_stmt(stmt, path, ctx.symbols).len() > 0 {
+                is_valid = true
             }
             if is_valid.not() {
                 stmt.type_error("only Mode declarations (e.g. `cli := Mode(...)`) and imports are allowed in 'mode mode'", ctx)

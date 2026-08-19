@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -234,8 +234,10 @@ struct CliArgs {
     mut path : Str
     mut custom_bin : Str
     mut custom_c : Str
+    mut custom_c_set : Bool
     mut target_str : Str
     mut cc : Str
+    mut cc_set : Bool
     mut install_prefix : Str
     mut path_idx : USize
     mut early_return : Bool
@@ -245,9 +247,9 @@ struct CliArgs {
     mut check_unused_imports : Bool
     own mut extra_modes : Vec__Str
 namespace:
+    func size() returns shallow USize
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, shallow call_free: Bool)
-    func size() returns shallow USize
 }
 #+end_src
 

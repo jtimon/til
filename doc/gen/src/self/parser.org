@@ -1,5 +1,5 @@
 #+TITLE: src/self/parser.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * SymbolPool
@@ -19,10 +19,10 @@ namespace:
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32
     func resolve(self: SymbolPool, sym: U32) returns ref Str
+    func size() returns shallow USize
     func clone(self: SymbolPool) returns SymbolPool
     func delete(own self: SymbolPool, shallow call_free: Bool)
     func hash(self: SymbolPool, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -797,8 +797,8 @@ namespace:
     func remove(mut self: Map__Str_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Str, shallow call_free: Bool)
     func clone(self: Map__Str_Str) returns Map__Str_Str
-    func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -1240,7 +1240,7 @@ func swap__Expr(mut a: Expr, mut b: Expr)
 :END:
 
 #+begin_src til
-func adopt__U32(dest: Dynamic, own src: U32)
+func adopt__U32(mut dest: Dynamic, own src: U32)
 #+end_src
 
 * adopt__Bool
@@ -1250,5 +1250,5 @@ func adopt__U32(dest: Dynamic, own src: U32)
 :END:
 
 #+begin_src til
-func adopt__Bool(dest: Dynamic, own src: Bool)
+func adopt__Bool(mut dest: Dynamic, own src: Bool)
 #+end_src

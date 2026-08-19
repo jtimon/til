@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/self/c_codegen.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+.doc-layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,980px);justify-content:center;min-height:100vh}.doc-sidebar{position:sticky;top:0;align-self:start;box-sizing:border-box;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:1.5rem 1rem}.doc-sidebar h1{font-size:1.2rem;margin:0}.doc-version{color:var(--muted);font-size:.85rem}.doc-sidebar h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:1.4rem 0 .3rem}.doc-sidebar ul{list-style:none;margin:0;padding:0}.doc-sidebar ul ul{padding-left:.8rem}.doc-sidebar li{margin:.2rem 0}.doc-sidebar a{display:block;padding:.15rem .35rem;border-radius:5px;text-decoration:none}.doc-sidebar a.current{background:var(--line);font-weight:700}main{box-sizing:border-box;width:100%;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+.doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
+@media(max-width:760px){.doc-layout{display:block}.doc-sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);max-height:45vh}.doc-sidebar nav{columns:2;column-gap:1rem}main{padding-top:1.25rem}}@media(max-width:480px){.doc-sidebar nav{columns:1}}
+</style>
+<script src="../../search.js" defer></script>
+</head>
+<body>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
+<li><a href="../../src/core/str.html">src/core/str.til</a></li>
+<li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
+<li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
+<li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
+<li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/option.html">src/core/option.til</a></li>
+<li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
+<li><a href="../../src/core/array.html">src/core/array.til</a></li>
+<li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
+<li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
+<li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
+<li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
+<li><a href="../../src/core/io.html">src/core/io.til</a></li>
+<li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
+<li><a href="../../src/core/range.html">src/core/range.til</a></li>
+<li><a href="../../src/core/set.html">src/core/set.til</a></li>
+<li><a href="../../src/core/core.html">src/core/core.til</a></li>
+</ul>
+<h2>Standard library</h2><ul>
+<li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
+<li><a href="../../src/std/file.html">src/std/file.til</a></li>
+<li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
+</ul>
+<h2>Compiler frontend</h2><ul>
+<li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
+<li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
+<li><a href="../../src/self/context.html">src/self/context.til</a></li>
+<li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
+<li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
+<li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
+<li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
+<li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
+</ul>
+<h2>Compiler backend</h2><ul>
+<li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
+<li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
+<li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
+<li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a class="current" href="../../src/self/c_codegen.html">src/self/c_codegen.til</a><ul><li><a href="#til.src.self.c_codegen.emit_funcsig_typedefs_prog">emit_funcsig_typedefs_prog</a></li><li><a href="#til.src.self.c_codegen.build_forward_header_lp">build_forward_header_lp</a></li><li><a href="#til.src.self.c_codegen.builder_prepare_emit">builder_prepare_emit</a></li><li><a href="#til.src.self.c_codegen.c_codegen_translate_holyc">c_codegen_translate_holyc</a></li><li><a href="#til.src.self.c_codegen.c_codegen_translate_outputs">c_codegen_translate_outputs</a></li><li><a href="#til.src.self.c_codegen.Map__Sym_Str">Map__Sym_Str</a></li><li><a href="#til.src.self.c_codegen.Set__Sym">Set__Sym</a></li><li><a href="#til.src.self.c_codegen.Vec__DynCallInfo">Vec__DynCallInfo</a></li><li><a href="#til.src.self.c_codegen.Vec__CollectionInfo">Vec__CollectionInfo</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo">Vec__priv___src_self_c_codegen_til__CollectionInfo</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.new">Vec__priv___src_self_c_codegen_til__CollectionInfo.new</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.with_capacity">Vec__priv___src_self_c_codegen_til__CollectionInfo.with_capacity</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.clear">Vec__priv___src_self_c_codegen_til__CollectionInfo.clear</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.delete_marked">Vec__priv___src_self_c_codegen_til__CollectionInfo.delete_marked</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.push">Vec__priv___src_self_c_codegen_til__CollectionInfo.push</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.append">Vec__priv___src_self_c_codegen_til__CollectionInfo.append</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.take">Vec__priv___src_self_c_codegen_til__CollectionInfo.take</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.move_to">Vec__priv___src_self_c_codegen_til__CollectionInfo.move_to</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.move_from">Vec__priv___src_self_c_codegen_til__CollectionInfo.move_from</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_get">Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_get</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.get">Vec__priv___src_self_c_codegen_til__CollectionInfo.get</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.pop">Vec__priv___src_self_c_codegen_til__CollectionInfo.pop</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.remove_at">Vec__priv___src_self_c_codegen_til__CollectionInfo.remove_at</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix">Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate">Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set">Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.set">Vec__priv___src_self_c_codegen_til__CollectionInfo.set</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take">Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.delete">Vec__priv___src_self_c_codegen_til__CollectionInfo.delete</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.clone">Vec__priv___src_self_c_codegen_til__CollectionInfo.clone</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo">Vec__priv___src_self_c_codegen_til__DynCallInfo</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.new">Vec__priv___src_self_c_codegen_til__DynCallInfo.new</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.with_capacity">Vec__priv___src_self_c_codegen_til__DynCallInfo.with_capacity</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.clear">Vec__priv___src_self_c_codegen_til__DynCallInfo.clear</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.delete_marked">Vec__priv___src_self_c_codegen_til__DynCallInfo.delete_marked</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.push">Vec__priv___src_self_c_codegen_til__DynCallInfo.push</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.append">Vec__priv___src_self_c_codegen_til__DynCallInfo.append</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.take">Vec__priv___src_self_c_codegen_til__DynCallInfo.take</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.move_to">Vec__priv___src_self_c_codegen_til__DynCallInfo.move_to</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.move_from">Vec__priv___src_self_c_codegen_til__DynCallInfo.move_from</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_get">Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_get</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.get">Vec__priv___src_self_c_codegen_til__DynCallInfo.get</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.pop">Vec__priv___src_self_c_codegen_til__DynCallInfo.pop</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.remove_at">Vec__priv___src_self_c_codegen_til__DynCallInfo.remove_at</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix">Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate">Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set">Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.set">Vec__priv___src_self_c_codegen_til__DynCallInfo.set</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take">Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.delete">Vec__priv___src_self_c_codegen_til__DynCallInfo.delete</a></li><li><a href="#til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.clone">Vec__priv___src_self_c_codegen_til__DynCallInfo.clone</a></li><li><a href="#til.src.self.c_codegen.adopt__priv___src_self_c_codegen_til__CollectionInfo">adopt__priv___src_self_c_codegen_til__CollectionInfo</a></li><li><a href="#til.src.self.c_codegen.adopt__priv___src_self_c_codegen_til__DynCallInfo">adopt__priv___src_self_c_codegen_til__DynCallInfo</a></li></ul></li>
+<li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
+</ul>
+<h2>Compiler tools</h2><ul>
+<li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
+<li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
+<li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
+</ul>
+<h2>CLI</h2><ul>
+<li><a href="../../src/til.html">src/til.til</a></li>
+</ul>
+<h2>Vendor bindings</h2><ul>
+<li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+</ul>
+<h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
+</ul>
+</nav></aside><main>
+<section class="doc-search" aria-label="Documentation search">
+<label for="til-doc-search">Search docs</label>
+<input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
+<ol id="til-doc-search-results" class="doc-search-results"></ol>
+</section>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/self/c_codegen.til</h1>
+<article class="doc-entry" id="til.src.self.c_codegen.emit_funcsig_typedefs_prog">
+<h2>emit_funcsig_typedefs_prog</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc (f: File, prog: Expr, mut ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.build_forward_header_lp">
+<h2>build_forward_header_lp</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc (fwd_path: Str, mut lp: LoadedProgram) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.builder_prepare_emit">
+<h2>builder_prepare_emit</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc (mut lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.c_codegen_translate_holyc">
+<h2>c_codegen_translate_holyc</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc (lp: LoadedProgram, output_path: Str) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.c_codegen_translate_outputs">
+<h2>c_codegen_translate_outputs</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc (mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, shallow do_lib: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Map__Sym_Str">
+<h2>Map__Sym_Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Set__Sym">
+<h2>Set__Sym</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__DynCallInfo">
+<h2>Vec__DynCallInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__CollectionInfo">
+<h2>Vec__CollectionInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func len(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+    func delete_marked(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own val: priv___src_self_c_codegen_til__CollectionInfo)
+    func append(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own other: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+    func take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func move_to(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut dest: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+    func move_from(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own other: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+    func unsafe_get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: USize) returns ref priv___src_self_c_codegen_til__CollectionInfo
+    func get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
+    func pop(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns priv___src_self_c_codegen_til__CollectionInfo
+    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func truncate(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo)
+    func set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.new">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.with_capacity">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.clear">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.delete_marked">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.push">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. <code>val</code> is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own val: priv___src_self_c_codegen_til__CollectionInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.append">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own other: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.take">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.move_to">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut dest: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.move_from">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: <code>dest.move_from(own src)</code>.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own other: Vec__priv___src_self_c_codegen_til__CollectionInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_get">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: USize) returns ref priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.get">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.pop">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.remove_at">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.set">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.delete">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless <code>call_free</code> is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.clone">
+<h2>Vec__priv___src_self_c_codegen_til__CollectionInfo.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func len(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+    func delete_marked(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own val: priv___src_self_c_codegen_til__DynCallInfo)
+    func append(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own other: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+    func take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func move_to(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut dest: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+    func move_from(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own other: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+    func unsafe_get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: USize) returns ref priv___src_self_c_codegen_til__DynCallInfo
+    func get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
+    func pop(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns priv___src_self_c_codegen_til__DynCallInfo
+    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func truncate(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo)
+    func set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.new">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.with_capacity">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.clear">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.delete_marked">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.push">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. <code>val</code> is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own val: priv___src_self_c_codegen_til__DynCallInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.append">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own other: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.take">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.move_to">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut dest: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.move_from">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: <code>dest.move_from(own src)</code>.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own other: Vec__priv___src_self_c_codegen_til__DynCallInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_get">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: USize) returns ref priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.get">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.pop">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.remove_at">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.set">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.delete">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless <code>call_free</code> is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.clone">
+<h2>Vec__priv___src_self_c_codegen_til__DynCallInfo.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.adopt__priv___src_self_c_codegen_til__CollectionInfo">
+<h2>adopt__priv___src_self_c_codegen_til__CollectionInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_c_codegen_til__CollectionInfo)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.c_codegen.adopt__priv___src_self_c_codegen_til__DynCallInfo">
+<h2>adopt__priv___src_self_c_codegen_til__DynCallInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_c_codegen_til__DynCallInfo)
+</code></pre>
+</article>
+</main></div>
+</body>
+</html>

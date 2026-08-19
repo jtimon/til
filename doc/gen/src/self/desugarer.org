@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -39,7 +39,7 @@ proc typer_lift_lambdas(mut scope: TypeScope, mut prog: Expr, mut ctx: Context)
 :END:
 
 #+begin_src til
-proc lower_guard_bang_calls(scope: TypeScope, mut guard_if: Expr, mut dest: Vec__Expr, resolve_body: Expr, mut ctx: Context)
+proc lower_guard_bang_calls(mut scope: TypeScope, mut guard_if: Expr, mut dest: Vec__Expr, resolve_body: Expr, mut ctx: Context)
 #+end_src
 
 * subtree_references_name
@@ -149,7 +149,7 @@ func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: 
 :END:
 
 #+begin_src til
-proc process_throw_catch_in_func_body(mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType)
+proc process_throw_catch_in_func_body(mut scope: TypeScope, mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType)
 #+end_src
 
 * stmt_contains_match
@@ -179,7 +179,7 @@ func splice_stmts_before(mut body: Expr, shallow idx: USize, mut pre: Vec__Expr)
 :END:
 
 #+begin_src til
-proc collect_switch_case_bindings(mut ctx: Context, e: Expr, body: Expr)
+proc collect_switch_case_bindings(mut scope: TypeScope, mut ctx: Context, e: Expr, body: Expr)
 #+end_src
 
 * make_switch_case_condition
@@ -270,6 +270,16 @@ func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_b
 
 #+begin_src til
 proc body_pre_passes(mut ctx: Context, mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32) returns shallow Bool
+#+end_src
+
+* hoist_constfolded_stack_outer_ctors
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.hoist_constfolded_stack_outer_ctors
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc hoist_constfolded_stack_outer_ctors(mut ctx: Context, mut program: Expr)
 #+end_src
 
 * Vec__I32
@@ -611,5 +621,5 @@ func Vec__I32.clone(self: Vec__I32) returns Vec__I32
 :END:
 
 #+begin_src til
-func adopt__I32(dest: Dynamic, own src: I32)
+func adopt__I32(mut dest: Dynamic, own src: I32)
 #+end_src

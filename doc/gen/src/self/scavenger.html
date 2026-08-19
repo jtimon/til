@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -60,7 +60,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
-<li><a class="current" href="../../src/self/scavenger.html">src/self/scavenger.til</a><ul><li><a href="#til.src.self.scavenger.vec_push_str">vec_push_str</a></li><li><a href="#til.src.self.scavenger.push_qn">push_qn</a></li><li><a href="#til.src.self.scavenger.collect_refs">collect_refs</a></li><li><a href="#til.src.self.scavenger.scav_value_decl_sweepable">scav_value_decl_sweepable</a></li><li><a href="#til.src.self.scavenger.scavenge_filter">scavenge_filter</a></li><li><a href="#til.src.self.scavenger.dce_program_bodies">dce_program_bodies</a></li><li><a href="#til.src.self.scavenger.scavenge_imported">scavenge_imported</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef">Map__Str_DeclRef</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef.new">Map__Str_DeclRef.new</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef.with_capacity">Map__Str_DeclRef.with_capacity</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef.clear">Map__Str_DeclRef.clear</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef.has">Map__Str_DeclRef.has</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef.get">Map__Str_DeclRef.get</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef.set">Map__Str_DeclRef.set</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef.remove">Map__Str_DeclRef.remove</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef">Vec__DeclRef</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.new">Vec__DeclRef.new</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.with_capacity">Vec__DeclRef.with_capacity</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.clear">Vec__DeclRef.clear</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.delete_marked">Vec__DeclRef.delete_marked</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.push">Vec__DeclRef.push</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.append">Vec__DeclRef.append</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.take">Vec__DeclRef.take</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.move_to">Vec__DeclRef.move_to</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.move_from">Vec__DeclRef.move_from</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.unsafe_get">Vec__DeclRef.unsafe_get</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.get">Vec__DeclRef.get</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.pop">Vec__DeclRef.pop</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.remove_at">Vec__DeclRef.remove_at</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.take_prefix">Vec__DeclRef.take_prefix</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.truncate">Vec__DeclRef.truncate</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.unsafe_set">Vec__DeclRef.unsafe_set</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.set">Vec__DeclRef.set</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.push_take">Vec__DeclRef.push_take</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.delete">Vec__DeclRef.delete</a></li><li><a href="#til.src.self.scavenger.Vec__DeclRef.clone">Vec__DeclRef.clone</a></li><li><a href="#til.src.self.scavenger.adopt__priv___src_self_scavenger_til__DeclRef">adopt__priv___src_self_scavenger_til__DeclRef</a></li></ul></li>
+<li><a class="current" href="../../src/self/scavenger.html">src/self/scavenger.til</a><ul><li><a href="#til.src.self.scavenger.vec_push_str">vec_push_str</a></li><li><a href="#til.src.self.scavenger.push_qn">push_qn</a></li><li><a href="#til.src.self.scavenger.collect_refs">collect_refs</a></li><li><a href="#til.src.self.scavenger.scav_value_decl_sweepable">scav_value_decl_sweepable</a></li><li><a href="#til.src.self.scavenger.scavenge_filter">scavenge_filter</a></li><li><a href="#til.src.self.scavenger.dce_program_bodies">dce_program_bodies</a></li><li><a href="#til.src.self.scavenger.scavenge_imported">scavenge_imported</a></li><li><a href="#til.src.self.scavenger.Map__Str_DeclRef">Map__Str_DeclRef</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef">Map__Str_priv___src_self_scavenger_til__DeclRef</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.new">Map__Str_priv___src_self_scavenger_til__DeclRef.new</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity">Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.clear">Map__Str_priv___src_self_scavenger_til__DeclRef.clear</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.has">Map__Str_priv___src_self_scavenger_til__DeclRef.has</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.get">Map__Str_priv___src_self_scavenger_til__DeclRef.get</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.set">Map__Str_priv___src_self_scavenger_til__DeclRef.set</a></li><li><a href="#til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.remove">Map__Str_priv___src_self_scavenger_til__DeclRef.remove</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef">Vec__priv___src_self_scavenger_til__DeclRef</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.new">Vec__priv___src_self_scavenger_til__DeclRef.new</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.with_capacity">Vec__priv___src_self_scavenger_til__DeclRef.with_capacity</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.clear">Vec__priv___src_self_scavenger_til__DeclRef.clear</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.delete_marked">Vec__priv___src_self_scavenger_til__DeclRef.delete_marked</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.push">Vec__priv___src_self_scavenger_til__DeclRef.push</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.append">Vec__priv___src_self_scavenger_til__DeclRef.append</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.take">Vec__priv___src_self_scavenger_til__DeclRef.take</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.move_to">Vec__priv___src_self_scavenger_til__DeclRef.move_to</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.move_from">Vec__priv___src_self_scavenger_til__DeclRef.move_from</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get">Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.get">Vec__priv___src_self_scavenger_til__DeclRef.get</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.pop">Vec__priv___src_self_scavenger_til__DeclRef.pop</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.remove_at">Vec__priv___src_self_scavenger_til__DeclRef.remove_at</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.take_prefix">Vec__priv___src_self_scavenger_til__DeclRef.take_prefix</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.truncate">Vec__priv___src_self_scavenger_til__DeclRef.truncate</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set">Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.set">Vec__priv___src_self_scavenger_til__DeclRef.set</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.push_take">Vec__priv___src_self_scavenger_til__DeclRef.push_take</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.delete">Vec__priv___src_self_scavenger_til__DeclRef.delete</a></li><li><a href="#til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.clone">Vec__priv___src_self_scavenger_til__DeclRef.clone</a></li><li><a href="#til.src.self.scavenger.adopt__priv___src_self_scavenger_til__DeclRef">adopt__priv___src_self_scavenger_til__DeclRef</a></li></ul></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -130,128 +132,134 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef">
 <h2>Map__Str_DeclRef</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
-    mut values : Vec__DeclRef
+    mut values : Vec__priv___src_self_scavenger_til__DeclRef
 namespace:
-    func new() returns Map__Str_DeclRef
-    func with_capacity(shallow n: USize) returns Map__Str_DeclRef
-    func len(self: Map__Str_DeclRef) returns shallow USize
-    func clear(mut self: Map__Str_DeclRef)
-    func has(self: Map__Str_DeclRef, key: Str) returns shallow Bool
-    func get(self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
-    func set(mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
-    func remove(mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_DeclRef, shallow call_free: Bool)
-    func clone(self: Map__Str_DeclRef) returns Map__Str_DeclRef
-    func hash(self: Map__Str_DeclRef, hasher: HashFn) returns shallow U64
+    func new() returns Map__Str_priv___src_self_scavenger_til__DeclRef
+    func with_capacity(shallow n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
+    func len(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns shallow USize
+    func clear(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef)
+    func has(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
+    func get(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+    func set(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
+    func remove(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
+    func clone(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns Map__Str_priv___src_self_scavenger_til__DeclRef
     func size() returns shallow USize
+    func hash(self: Map__Str_priv___src_self_scavenger_til__DeclRef, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef.new">
-<h2>Map__Str_DeclRef.new</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.new">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
 The key type must implement <code>cmp</code>.</p>
 </div>
-<pre><code class="language-til">func () returns Map__Str_DeclRef
+<pre><code class="language-til">func () returns Map__Str_priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef.with_capacity">
-<h2>Map__Str_DeclRef.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_DeclRef
+<pre><code class="language-til">func (shallow n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef.clear">
-<h2>Map__Str_DeclRef.clear</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.clear">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Map__Str_DeclRef)
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef.has">
-<h2>Map__Str_DeclRef.has</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.has">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef.has</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>True if a value exists for the given key.</p>
 </div>
-<pre><code class="language-til">func (self: Map__Str_DeclRef, key: Str) returns shallow Bool
+<pre><code class="language-til">func (self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef.get">
-<h2>Map__Str_DeclRef.get</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.get">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
 <code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
 on a missing key.</p>
 </div>
-<pre><code class="language-til">func (self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef.set">
-<h2>Map__Str_DeclRef.set</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.set">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
 </div>
-<pre><code class="language-til">func (mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, own val: priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Map__Str_DeclRef.remove">
-<h2>Map__Str_DeclRef.remove</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.remove">
+<h2>Map__Str_priv___src_self_scavenger_til__DeclRef.remove</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
-<pre><code class="language-til">func (mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef">
-<h2>Vec__DeclRef</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__DeclRef
-    func with_capacity(shallow n: USize) returns Vec__DeclRef
-    func len(self: Vec__DeclRef) returns shallow USize
-    func clear(mut self: Vec__DeclRef)
-    func delete_marked(mut self: Vec__DeclRef, marks: Dynamic)
-    func push(mut self: Vec__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
-    func append(mut self: Vec__DeclRef, own other: Vec__DeclRef)
-    func take(mut self: Vec__DeclRef) returns Vec__DeclRef
-    func move_to(own self: Vec__DeclRef, mut dest: Vec__DeclRef)
-    func move_from(mut self: Vec__DeclRef, own other: Vec__DeclRef)
-    func unsafe_get(self: Vec__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
-    func get(self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
-    func pop(mut self: Vec__DeclRef) returns priv___src_self_scavenger_til__DeclRef
-    func remove_at(mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
-    func truncate(mut self: Vec__DeclRef, shallow n: USize)
-    func unsafe_set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
-    func set(mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
-    func push_take(mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
-    func delete(own self: Vec__DeclRef, shallow call_free: Bool)
-    func clone(self: Vec__DeclRef) returns Vec__DeclRef
+    func new() returns Vec__priv___src_self_scavenger_til__DeclRef
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func len(self: Vec__priv___src_self_scavenger_til__DeclRef) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_scavenger_til__DeclRef)
+    func delete_marked(mut self: Vec__priv___src_self_scavenger_til__DeclRef, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
+    func append(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
+    func take(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func move_to(own self: Vec__priv___src_self_scavenger_til__DeclRef, mut dest: Vec__priv___src_self_scavenger_til__DeclRef)
+    func move_from(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
+    func unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+    func get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+    func pop(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns priv___src_self_scavenger_til__DeclRef
+    func remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+    func set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
     func size() returns shallow USize
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.new">
-<h2>Vec__DeclRef.new</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.new">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -260,11 +268,11 @@ and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
 the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 </div>
-<pre><code class="language-til">func () returns Vec__DeclRef
+<pre><code class="language-til">func () returns Vec__priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.with_capacity">
-<h2>Vec__DeclRef.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.with_capacity">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -274,21 +282,21 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__DeclRef
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.clear">
-<h2>Vec__DeclRef.clear</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.clear">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.delete_marked">
-<h2>Vec__DeclRef.delete_marked</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.delete_marked">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -297,31 +305,31 @@ compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, marks: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.push">
-<h2>Vec__DeclRef.push</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.push">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.append">
-<h2>Vec__DeclRef.append</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.append">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
 <code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, own other: Vec__DeclRef)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.take">
-<h2>Vec__DeclRef.take</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.take">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -333,11 +341,11 @@ ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
 uses the two move forms below instead.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef) returns Vec__DeclRef
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.move_to">
-<h2>Vec__DeclRef.move_to</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.move_to">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -351,22 +359,22 @@ Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__DeclRef, mut dest: Vec__DeclRef)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_scavenger_til__DeclRef, mut dest: Vec__priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.move_from">
-<h2>Vec__DeclRef.move_from</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.move_from">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
 argument: <code>dest.move_from(own src)</code>.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, own other: Vec__DeclRef)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.unsafe_get">
-<h2>Vec__DeclRef.unsafe_get</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -375,11 +383,11 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.get">
-<h2>Vec__DeclRef.get</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.get">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -387,40 +395,40 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.pop">
-<h2>Vec__DeclRef.pop</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.pop">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef) returns priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.remove_at">
-<h2>Vec__DeclRef.remove_at</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.remove_at">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.take_prefix">
-<h2>Vec__DeclRef.take_prefix</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.take_prefix">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.truncate">
-<h2>Vec__DeclRef.truncate</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.truncate">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -428,65 +436,65 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.unsafe_set">
-<h2>Vec__DeclRef.unsafe_set</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.set">
-<h2>Vec__DeclRef.set</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.set">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.push_take">
-<h2>Vec__DeclRef.push_take</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.push_take">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.push_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DeclRef, mut src: Vec__DeclRef, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.delete">
-<h2>Vec__DeclRef.delete</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.delete">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__DeclRef, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.scavenger.Vec__DeclRef.clone">
-<h2>Vec__DeclRef.clone</h2>
+<article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.clone">
+<h2>Vec__priv___src_self_scavenger_til__DeclRef.clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DeclRef) returns Vec__DeclRef
+<pre><code class="language-til">func (self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.adopt__priv___src_self_scavenger_til__DeclRef">
 <h2>adopt__priv___src_self_scavenger_til__DeclRef</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_scavenger_til__DeclRef)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
 </main></div>

@@ -12,14 +12,6 @@ import("garbager")
 import("constfolder")
 import("scavenger")
 
-// --- External C bridges used by the loader ---
-
-// realpath_str resolves a path against the live filesystem/CWD, so its result
-// is not a pure function of its argument -- folding it would bake a
-// CWD-dependent path at build time. It is ext_proc (not ext_func) so the
-// const-folder never folds it; see #283. Its func callers below are procs too.
-realpath_str := ext_proc(path: Str) returns Str {}
-
 // --- Leaf helpers ---
 
 REPL_DOC_INDEX := "doc/gen/index.org"
@@ -29,20 +21,6 @@ priv normalize_mode_name := func(mode_name: Str) returns Str {
         return mode_name
     }
     return "script"
-}
-
-// Strip CWD prefix so embedded file:line:col strings are repo-relative,
-// not absolute. Prepend "./" so emacs recognizes the path as relative.
-priv display_path := func(p: Str, cwd: Str) returns Str {
-    prefix := format(cwd, "/")
-    rel := p.strip_prefix(prefix)
-    if File.is_absolute(rel) {
-        return rel
-    }
-    if rel.starts_with("./") {
-        return rel
-    }
-    return format("./", rel)
 }
 
 priv require_mode := func(ctx: Context, path: Str, mode_name: Str) returns ref Mode {
@@ -95,98 +73,16 @@ ProgramUnit := struct {
     path := ""
 }
 
-// Resolve a file's direct import paths to display paths.
-priv resolve_import_disps := proc(import_paths: Vec(Str), base_dir: Str, lib_dir: Str, cwd: Str) returns Vec(Str) {
-    mut out := Vec(Str).new()
-    for import_path : Str in import_paths {
-        // An absolute import path is used as-is (the REPL injects one for
-        // std/doc, since its tmp file's directory floats with the cwd).
-        mut abs := ""
-        if File.is_absolute(import_path) {
-            abs = realpath_str(import_path)
-        } else {
-            mut try_path := base_dir.format("/", import_path)
-            abs = realpath_str(try_path)
-            if abs.eq("").and(lib_dir.len().gt(0)) {
-                try_path = lib_dir.format("/", import_path)
-                abs = realpath_str(try_path)
-            }
-        }
-        if abs == "" { continue }
-        out.push(own display_path(abs, cwd))
-    }
-    return out
-}
-
-// Extract import("path") calls from AST body, returning paths as Vec of Str*.
-// The .til suffix is appended internally; paths already ending in ".til" are
-// rejected with a helpful error suggesting the bare-name form.
-priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(Str), symbols: SymbolPool) {
-    if imp_stmt.children.len() >= 2 {
-        switch imp_stmt.children[0].node_type {
-        case .Ident(c0id):
-            if c0id.ident_name(symbols.names) == "import" {
-                switch imp_stmt.children[1].node_type {
-                case .Literal(Literal.Str(p)):
-                    if p.ends_with(".til") {
-                        bare := p.strip_suffix(".til")
-                        loc := path.format(":", imp_stmt.line.to_str(), ":", imp_stmt.col.to_str())
-                        panic("import path must not end in '.til' (got \"", p,
-                            "\"); use import(\"", bare, "\") instead", loc = loc)
-                    }
-                    paths.push(own format(p, ".til"))
-                case:
-                }
-            }
-        case:
-        }
-    }
-}
-
-priv extract_imports := func(mut body: Expr, path: Str, symbols: SymbolPool) returns Vec(Str) {
-    mut paths := Vec(Str).new()
-    for mut stmt : Expr in body.children {
-        mut is_imp := false
-        mut is_decl_rhs := false
-        if stmt.node_type.is(NodeType.FCall) {
-            is_imp = true
-        } else if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.children[0].node_type.is(NodeType.FCall) {
-                is_imp = true
-                is_decl_rhs = true
-            }
-        }
-
-        if is_imp {
-            if is_decl_rhs {
-                extract_one_import(stmt.children[0], path, paths, symbols)
-            } else {
-                extract_one_import(stmt, path, paths, symbols)
-            }
-        }
-    }
-    return paths
-}
-
-// Recursively resolve imports.
-priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
-    mut resolved_set: Set(Str), mut stack: Vec(Expr),
-    mut units: Vec(ProgramUnit), lib_dir: Str,
-    mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
-        for import_path : Str in import_paths {
-            // Absolute paths are used as-is (REPL std/doc injection); else
-            // try relative to the importing file's directory, then lib_dir
-            mut abs := ""
-            if File.is_absolute(import_path) {
-                abs = realpath_str(import_path)
-            } else {
-                mut try_path := base_dir.format("/", import_path)
-                abs = realpath_str(try_path)
-                if abs.eq("").and(lib_dir.len().gt(0)) {
-                    try_path = lib_dir.format("/", import_path)
-                    abs = realpath_str(try_path)
-                }
-            }
+// Discover explicit dependency edges directly from the importing AST. The
+// calls stay in that AST for init and typer recursion; no positional side
+// table mirrors them.
+priv resolve_imports := proc(body: Expr, source_path: Str, base_dir: Str,
+    mut resolved_set: Set(Str), mut units: Vec(ProgramUnit), lib_dir: Str,
+    mut ctx: Context, cwd: Str) returns I32 {
+        for stmt : Expr in body.children {
+            import_path := import_path_for_stmt(stmt, source_path, ctx.symbols)
+            if import_path.len() == 0 { continue }
+            abs := resolve_import_abs(import_path, base_dir, lib_dir)
             if abs == "" {
                 println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
                 return 1
@@ -217,26 +113,20 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             sub_mode = normalize_mode_name(sub_mode)
             ref sub_mode_def : Mode = require_mode(ctx, disp, sub_mode)
             context_register_path_mode(ctx, disp, sub_mode_def)
-            sub_imports := extract_imports(sub_ast, disp, ctx.symbols)
 
             // Get imported file's directory for recursive resolution
             sub_dir := dir_of(abs)
 
-            sub_import_disps := resolve_import_disps(sub_imports, sub_dir, lib_dir, cwd)
-
-            // Recurse for sub-imports
-            if sub_imports.len() > 0 {
-                err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, units, lib_dir,
-                    ctx, default_mode, cwd)
-                if err > 0 {
-                    return err
-                }
+            err := resolve_imports(sub_ast, disp, sub_dir, resolved_set, units,
+                lib_dir, ctx, cwd)
+            if err > 0 {
+                return err
             }
 
             // Store canonical import unit in ctx (rstil-style).
-            mut iu := ImportUnit(mode = sub_mode_def.clone())
+            mut iu := ImportUnit(mode = sub_mode_def.clone(),
+                import_dir = sub_dir.clone(), import_lib_dir = lib_dir.clone())
             iu.ast.take_children(sub_ast)
-            iu.imports = sub_import_disps.clone()
             ctx.imported.set(disp, own iu)
 
             // Record ordering metadata as a ProgramUnit.
@@ -862,7 +752,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     }
 
     // Store in lp.ctx.imported so it can be typechecked.
-    mut iu := ImportUnit(mode_str = mode_str.clone())
+    mut iu := ImportUnit(mode_str = mode_str.clone(), import_dir = dir_of(abs_path))
     switch mode_resolve(lp.ctx, mode_str) {
     case .Some(mode_mode_def): iu.mode = mode_mode_def.clone()
     case .None:
@@ -875,7 +765,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
 }
 
 // Load core.til + user file + imports + mode auto_import. Returns a
-// LoadedProgram with the merged ASTs and link info populated.
+// LoadedProgram with canonical per-file ASTs and link info populated.
 // import_base overrides the directory user imports resolve against. Empty
 // (every file compile) means the entrypoint's own directory, as always; the
 // REPL passes the user's cwd so its tmp/ scratch file does not leak into the
@@ -884,6 +774,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
 load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), import_base: Str = "") returns LoadedProgram {
     mut lp := LoadedProgram()
     context_init_mode_registry(lp.ctx)
+    lp.ctx.import_cwd = cwd.clone()
     lp.path = path.clone()
     lp.ext_c_path = ext_c_path.clone()
     lp.target = detect_current_target()
@@ -898,19 +789,18 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
     mut resolved := Set(Str).new()
-    mut resolve_stack := Vec(Expr).new()
 
     // Resolve mode files' imports
     mut core_units := Vec(ProgramUnit).new()
     for mode_file : Str in lp.mode_files {
-        ref mut miu_temp : ImportUnit = lp.ctx.imported[mode_file]
-        mode_imports := extract_imports(miu_temp.ast, mode_file, lp.ctx.symbols)
+        mode_dir := lp.ctx.imported[mode_file].import_dir.clone()
+        mode_auto_import := lp.ctx.imported[mode_file].mode.auto_import.clone()
         mut auto_disp := ""
-        if miu_temp.mode.auto_import.len() > 0 {
-            mut auto_path := bin_dir.format("/", miu_temp.mode.auto_import, ".til")
+        if mode_auto_import.len() > 0 {
+            mut auto_path := bin_dir.format("/", mode_auto_import, ".til")
             if realpath_str(auto_path) == "" {
                 // If it fails relative to bin_dir, maybe it's relative to the CWD (for custom modes in other projects)
-                auto_path = cwd.format("/", miu_temp.mode.auto_import, ".til")
+                auto_path = cwd.format("/", mode_auto_import, ".til")
             }
             abs_auto := realpath_str(auto_path)
             if abs_auto.len() > 0 {
@@ -930,7 +820,15 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                     ref mode_auto_def : Mode = require_mode(lp.ctx, disp_auto, mode_auto)
                     context_register_path_mode(lp.ctx, disp_auto, mode_auto_def)
 
-                    mut iu_auto := ImportUnit(mode_str = mode_auto.clone())
+                    auto_dir := dir_of(abs_auto)
+                    err := resolve_imports(ast_auto, disp_auto, auto_dir, resolved,
+                        core_units, "", lp.ctx, cwd)
+                    if err > 0 {
+                        panic("failed to resolve imports for mode auto-import ", disp_auto)
+                    }
+
+                    mut iu_auto := ImportUnit(mode_str = mode_auto.clone(),
+                        import_dir = auto_dir.clone())
                     iu_auto.mode = mode_auto_def.clone()
                     iu_auto.ast.take_children(ast_auto)
                     lp.ctx.imported.set(disp_auto, own iu_auto)
@@ -941,18 +839,14 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                 auto_disp = display_path(abs_auto, cwd)
             }
         }
-        if mode_imports.len() > 0 {
-            mode_dir := dir_of(realpath_str(mode_file))
-            err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
-                core_units, "", lp.ctx, "lib", cwd)
-            if err > 0 {
-                panic("failed to resolve imports for mode file ", mode_file)
-            }
-            ref mut miu : ImportUnit = lp.ctx.imported[mode_file]
-            miu.imports = resolve_import_disps(mode_imports, mode_dir, "", cwd)
+        err := resolve_imports(lp.ctx.imported[mode_file].ast, mode_file,
+            mode_dir, resolved, core_units, "", lp.ctx, cwd)
+        if err > 0 {
+            panic("failed to resolve imports for mode file ", mode_file)
         }
         if auto_disp.len() > 0 {
-            lp.ctx.imported[mode_file].imports.push(own auto_disp)
+            ref mut mode_iu_edge : ImportUnit = lp.ctx.imported[mode_file]
+            mode_iu_edge.mode_import = auto_disp
         }
     }
 
@@ -987,12 +881,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         resolved.add(own core_abs.clone())
     }
 
-    // Resolve core imports
-    core_imports := extract_imports(core_ast, core_disp, lp.ctx.symbols)
-    if core_imports.len().gt(0).and(skip_core.not()) {
+    // Resolve core imports directly from the parsed AST.
+    if skip_core.not() {
         core_dir := format(bin_dir, "/src/core")
-        err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
-            core_units, "", lp.ctx, "lib", cwd)
+        err := resolve_imports(core_ast, core_disp, core_dir, resolved,
+            core_units, "", lp.ctx, cwd)
         if err > 0 {
             panic("failed to resolve core imports")
         }
@@ -1014,7 +907,6 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         lp.load_errors = parse_errors_user_ast
         return lp
     }
-    imports := extract_imports(user_ast, path, lp.ctx.symbols)
     mode_str = normalize_mode_name(mode_str)
     ref cur_mode : Mode = require_mode(lp.ctx, path, mode_str)
     context_register_path_mode(lp.ctx, path, cur_mode)
@@ -1034,24 +926,21 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // file in the user's cwd", which is where the user thinks he is.
     mut import_dir := user_dir.clone()
     if import_base.len() > 0 { import_dir = import_base.clone() }
-    user_import_disps := resolve_import_disps(imports, import_dir, lib_dir, cwd)
-    if imports.len() > 0 {
-        err := resolve_imports(imports, import_dir, resolved, resolve_stack,
-            units, lib_dir, lp.ctx, "", cwd)
-        // A missing or unparsable import is USER error -- a typo at the REPL
-        // prompt is enough -- so it is recorded, not fatal. cmd_* exits on it;
-        // the REPL drops the turn and keeps the session. (Core and mode-file
-        // resolution still panic above: those failing means a broken install.)
-        if err > 0 {
-            lp.load_errors = err
-            return lp
-        }
+    mut err := resolve_imports(user_ast, path, import_dir, resolved, units,
+        lib_dir, lp.ctx, cwd)
+    // A missing or unparsable import is USER error -- a typo at the REPL
+    // prompt is enough -- so it is recorded, not fatal. cmd_* exits on it;
+    // the REPL drops the turn and keeps the session. (Core and mode-file
+    // resolution still panic above: those failing means a broken install.)
+    if err > 0 {
+        lp.load_errors = err
+        return lp
     }
 
     // Core entrypoint import unit.
-    mut core_iu := ImportUnit(mode = core_mode.clone())
+    mut core_iu := ImportUnit(mode = core_mode.clone(),
+        import_dir = format(bin_dir, "/src/core"))
     core_iu.ast.take_children(core_ast)
-    core_iu.imports = resolve_import_disps(core_imports, format(bin_dir, "/src/core"), "", cwd)
     lp.ctx.imported.set(core_disp, own core_iu)
 
     // Core entrypoint unit (after its imports).
@@ -1069,8 +958,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         if realpath_str(mode_til_path) == "" {
             mode_til_path = bin_dir.format("/src/modes/", auto_import, ".til")
         }
-        mode_disp = display_path(mode_til_path, cwd)
-        mode_source := File.readfile(mode_til_path)
+        mode_abs := realpath_str(mode_til_path)
+        mode_disp = display_path(mode_abs, cwd)
+        resolved.add(own mode_abs.clone())
+        mode_source := File.readfile(mode_abs)
         mode_tokens := tokenize(mode_source, mode_disp)
         mut mode_mode := ""
         mut parse_errors_mode_ast : I32 = 0
@@ -1084,20 +975,18 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         context_register_path_mode(lp.ctx, mode_disp, mode_mode_def)
 
         // Resolve the auto-import file's own imports (mirrors core.til).
-        mode_imports := extract_imports(mode_ast, mode_disp, lp.ctx.symbols)
-        mode_dir := dir_of(realpath_str(mode_til_path))
-        if mode_imports.len() > 0 {
-            err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
-                units, lib_dir, lp.ctx, "", cwd)
-            if err > 0 {
-                panic("failed to resolve mode auto-import imports")
-            }
+        mode_dir := dir_of(mode_abs)
+        err = resolve_imports(mode_ast, mode_disp, mode_dir, resolved,
+            units, lib_dir, lp.ctx, cwd)
+        if err > 0 {
+            panic("failed to resolve mode auto-import imports")
         }
 
         // Mode auto-import import unit.
-        mut mode_iu := ImportUnit(mode = mode_mode_def.clone())
+        mut mode_iu := ImportUnit(mode = mode_mode_def.clone(),
+            import_dir = mode_dir.clone(),
+            import_lib_dir = lib_dir.clone())
         mode_iu.ast.take_children(mode_ast)
-        mode_iu.imports = resolve_import_disps(mode_imports, mode_dir, lib_dir, cwd)
         lp.ctx.imported.set(mode_disp, own mode_iu)
 
         // Mode auto-import unit.
@@ -1107,18 +996,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     }
 
     // User entrypoint import unit.
-    mut user_iu := ImportUnit(mode = cur_mode.clone())
+    mut user_iu := ImportUnit(mode = cur_mode.clone(),
+        import_dir = import_dir.clone(), import_lib_dir = lib_dir.clone(),
+        mode_import = mode_disp.clone())
     user_iu.ast.take_children(user_ast)
-    // Ensure mode auto-import runs before the file's explicit imports.
-    // This matches the merged AST order and keeps per-file init/type in sync.
-    if mode_disp.len() > 0 {
-        mut all_imports := Vec(Str).new()
-        all_imports.push(own mode_disp.clone())
-        for dep : Str in user_import_disps { all_imports.push(own dep.clone()) }
-        user_iu.imports = all_imports
-    } else {
-        user_iu.imports = user_import_disps.clone()
-    }
     lp.ctx.imported.set(path, own user_iu)
 
     // User entrypoint unit.
@@ -1914,29 +1795,9 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
     }
 }
 
-// An `import("path")` call: callee named `import`, first argument a string
-// literal. The two callers differ only in where the call sits -- as a Decl's
-// RHS or as a bare statement -- so both hand the call here.
-priv is_valid_import_call := func(imp_stmt_ref: Expr, symbols: SymbolPool) returns Bool {
-    if imp_stmt_ref.children.len() < 2 { return false }
-    switch imp_stmt_ref.children[0].node_type {
-    case .Ident(id):
-        if id.ident_name(symbols.names) == "import" {
-            switch imp_stmt_ref.children[1].node_type {
-            case .Literal(Literal.Str(_p)):
-                return true
-            case:
-            }
-        }
-    case:
-    }
-    return false
-}
-
 priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: Context) {
     mut old := iu.ast.children.take()
     mut new_ch := Vec(Expr).new()
-    mut imp_idx : USize = 0
     mut ns_alias_names := Set(Str).new()
     mut ns_alias_members := Set(Str).new()
     mut ns_alias_paths := Map(Str, Str).new()
@@ -1964,22 +1825,14 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: C
 
         mut handled := false
         if is_imp {
-            mut is_valid_import := false
-            if is_decl_rhs { is_valid_import = is_valid_import_call(stmt.children[0], ctx.symbols) }
-            else { is_valid_import = is_valid_import_call(stmt, ctx.symbols) }
-
-            if is_valid_import {
-                mut resolved := ""
-                if imp_idx < iu.imports.len() {
-                    resolved = iu.imports[imp_idx].clone()
-                }
-                imp_idx++
+            resolved := resolve_import_for_stmt(stmt, path, iu,
+                ctx.import_cwd, ctx.imported, ctx.symbols)
+            if resolved.len() > 0 {
                 if is_decl_rhs.and(decl_name.starts_with("_")) {
                     // #154: `_name := import(...)` is the unused-import
                     // opt-out. The alias is deliberately never read, so
                     // no rewrite map entry is needed. The file itself
-                    // stays loaded (the loader resolved it already); only
-                    // the decl is dropped.
+                    // stays loaded; only the alias binding is dropped.
                     handled = true
                 } else if is_decl_rhs {
                     handled = desugar_one_import(stmt.children[0], decl_name, ctx, resolved, ns_alias_names, ns_alias_members, ns_alias_paths)
@@ -1989,7 +1842,12 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: C
             }
         }
 
-        if handled.not() {
+        if handled {
+            // Keep the dependency edge as a bare call after removing the
+            // namespace alias declaration. Later phase walks recurse from
+            // source AST calls rather than a parallel import list.
+            new_ch.push_take(stmt.children, 0)
+        } else {
             new_ch.push_take(old, i)
         }
     }
@@ -4117,8 +3975,7 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
 //
 // One entry per explicit import stmt in a user unit, snapshotted BEFORE
 // desugar_namespace_imports rewrites `name := import(...)` decls into
-// local ns structs -- the AST-position -> iu.imports mapping is only
-// 1:1 while both forms are still in the AST.
+// bare dependency calls and rewrites qualified uses.
 priv ImportCheckEntry := struct {
     path := ""       // importing unit's display path
     line : U32 = 0
@@ -4128,53 +3985,22 @@ priv ImportCheckEntry := struct {
     decl_name := ""  // non-empty for `name := import(...)` form
 }
 
-// True when imp_stmt is an import FCall of the exact shape that
-// count_ast_imports counts; writes the path literal into label on success.
-priv import_stmt_label := func(imp_stmt: Expr, mut label: Str, symbols: SymbolPool) returns Bool {
-    if imp_stmt.children.len() < 2 { return false }
-    if imp_stmt.children[1].node_type.is_literal_str().not() { return false }
-    mut is_imp := false
-    switch imp_stmt.children[0].node_type {
-    case .Ident(id):
-        if id.ident_name(symbols.names) == "import" { is_imp = true }
-    case:
-    }
-    if is_imp.not() { return false }
-    switch imp_stmt.children[1].node_type {
-    case .Literal(Literal.Str(p)):
-        label = p.clone()
-    case:
-    }
-    return true
-}
-
-priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut entries: Vec(ImportCheckEntry), symbols: SymbolPool) {
-    // Leading iu.imports entries with no matching AST stmt are
-    // loader-injected mode auto-imports; skip them because this diagnostic
-    // applies only to explicit source imports.
-    ast_count : USize = count_ast_imports(iu.ast, symbols)
-    mut import_idx : USize = iu.imports.len() - ast_count
+priv collect_import_check_entries := proc(unit_path: Str, iu: ImportUnit,
+        mut entries: Vec(ImportCheckEntry), ctx: Context) {
     for stmt : Expr in iu.ast.children {
         mut decl_name := ""
-        mut label := ""
-        mut is_imp := false
+        import_path := import_path_for_stmt(stmt, unit_path, ctx.symbols)
+        if import_path.len() == 0 { continue }
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.children[0].node_type.is(NodeType.FCall) {
-                is_imp = import_stmt_label(stmt.children[0], label, symbols)
-                if is_imp {
-                    switch stmt.node_type {
-                    case .Decl(dd):
-                        decl_name = dd.name.clone()
-                    case:
-                    }
-                }
+            switch stmt.node_type {
+            case .Decl(dd):
+                decl_name = dd.name.clone()
+            case:
             }
-        } else if stmt.node_type.is(NodeType.FCall) {
-            is_imp = import_stmt_label(stmt, label, symbols)
         }
-        if is_imp.not() { continue }
-        ref dep : Str = iu.imports[import_idx]
-        import_idx++
+        label := import_path.strip_suffix(".til")
+        dep := resolve_import_for_stmt(stmt, unit_path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols)
         entries.push(own ImportCheckEntry(path = unit_path.clone(),
             line = stmt.line, col = stmt.col, label = label.clone(),
             dep = dep.clone(), decl_name = decl_name.clone()))
@@ -4211,13 +4037,13 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
 
     // #154 prototype: snapshot every explicit import stmt per user unit
-    // before the namespace-import desugar below rewrites the decl form
-    // away. Core units are exempt -- aggregators like core.til import
+    // before the namespace-import desugar below removes the alias binding.
+    // Core units are exempt -- aggregators like core.til import
     // to re-export by design.
     mut import_check_entries := Vec(ImportCheckEntry).new()
     if lp.ctx.check_unused_imports {
         for icu : ProgramUnit in lp.units {
-            collect_import_check_entries(icu.path, lp.ctx.imported[icu.path], import_check_entries, lp.ctx.symbols)
+            collect_import_check_entries(icu.path, lp.ctx.imported[icu.path], import_check_entries, lp.ctx)
         }
     }
 

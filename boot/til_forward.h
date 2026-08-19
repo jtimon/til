@@ -1553,7 +1553,9 @@ typedef struct ImportUnit {
     Str mode_str;
     Mode mode;
     Expr *ast;
-    Vec__Str imports;
+    Str import_dir;
+    Str import_lib_dir;
+    Str mode_import;
 } ImportUnit;
 
 
@@ -1756,6 +1758,7 @@ typedef struct Context {
     Set__Str constfolder_assigned;
     EvalState eval;
     Map__Str_ImportUnit imported;
+    Str import_cwd;
     Bool check_unused_imports;
     Set__Str import_use_edges;
     Set__Str imports_init_seed_done;

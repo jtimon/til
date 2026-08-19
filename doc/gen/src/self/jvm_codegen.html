@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>src/std/mode_type.til</title>
+<title>src/self/jvm_codegen.til</title>
 <style>
 :root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
 @media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
@@ -40,7 +40,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/core.html">src/core/core.til</a></li>
 </ul>
 <h2>Standard library</h2><ul>
-<li><a class="current" href="../../src/std/mode_type.html">src/std/mode_type.til</a><ul><li><a href="#til.src.std.mode_type.Mode">Mode</a></li></ul></li>
+<li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
 <li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
@@ -76,7 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
-<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a class="current" href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a><ul><li><a href="#til.src.self.jvm_codegen.jvm_package_segment">jvm_package_segment</a></li><li><a href="#til.src.self.jvm_codegen.jvm_codegen_translate">jvm_codegen_translate</a></li></ul></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -86,32 +86,15 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <ol id="til-doc-search-results" class="doc-search-results"></ol>
 </section>
 <nav><a href="../../index.html">Index</a></nav>
-<h1>src/std/mode_type.til</h1>
-<article class="doc-entry" id="til.src.std.mode_type.Mode">
-<h2>Mode</h2>
-<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
-<pre><code class="language-til">struct {
-    mut needs_main : Bool
-    mut decls_only : Bool
-    mut auto_import : Str
-    mut is_library : Bool
-    mut is_pure : Bool
-    mut run_tests : Bool
-    mut debug_prints : Bool
-namespace:
-    func size() returns shallow USize
-    func clone(self: Mode) returns Mode
-    func delete(own self: Mode, shallow call_free: Bool)
-    func hash(self: Mode, hasher: HashFn) returns shallow U64
-    func cmp(a: Mode, b: Mode) returns shallow I64
-    func to_str(self: Mode) returns Str
-    func eq(a: Mode, b: Mode) returns shallow Bool
-    func lt(a: Mode, b: Mode) returns shallow Bool
-    func gt(a: Mode, b: Mode) returns shallow Bool
-    func neq(a: Mode, b: Mode) returns shallow Bool
-    func lte(a: Mode, b: Mode) returns shallow Bool
-    func gte(a: Mode, b: Mode) returns shallow Bool
-}
+<h1>src/self/jvm_codegen.til</h1>
+<article class="doc-entry" id="til.src.self.jvm_codegen.jvm_package_segment">
+<h2>jvm_package_segment</h2>
+<pre><code class="language-til">func (name: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.jvm_codegen.jvm_codegen_translate">
+<h2>jvm_codegen_translate</h2>
+<pre><code class="language-til">proc (lp: LoadedProgram, source_dir: Str, package_dir: Str, source_path: Str, args_path: Str, package_name: Str) returns shallow I32
 </code></pre>
 </article>
 </main></div>

@@ -110,6 +110,7 @@
 *** ref_return_params : U64 = 0
 *** ref_return_into_params : U64 = 0
 *** ref_return_carried_params : U64 = 0
+*** namespace_decl := Option(ref Declaration).None
 ** FCallData: StructDef
 *** does_throw := false
 *** is_bang := false
@@ -279,6 +280,8 @@
 *** written := false
 *** mut_explicit := false
 *** is_raw_alloc := false
+*** is_str_view := false
+*** str_view_base := ""
 *** orig_name := ""
 *** dynvec_elem := ""
 *** declared_type_name := ""
@@ -286,14 +289,24 @@
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
+** TyperFuncState: StructDef
+*** current_top_func_name := ""
+*** typer_return_type_name := ""
+*** proc_calls_count : I32 = 0
+*** proc_def_depth : I32 = 0
+*** auto_gen_depth : I32 = 0
+*** throw_used_local_names := Set(Str).new()
+*** lowering_param_types := Map(Str, Str).new()
 ** TypeScope: StructDef
 *** bindings := Map(Sym, TypeBinding).new()
 *** target_usize_pname := "U32"
 *** target_uptr_pname := "U64"
-*** func_defs := Map(Str, Dynamic).new()
-*** struct_defs := Map(Str, Dynamic).new()
+*** func_defs := Map(Sym, Dynamic).new()
+*** struct_defs := Map(Sym, Dynamic).new()
 *** parent := Option(ref TypeScope).None
 *** is_func_root := false
+*** current_type_name := ""
+*** typer_func := TyperFuncState()
 *** bindings_filt : U64 = 0
 *** func_defs_filt : U64 = 0
 *** struct_defs_filt : U64 = 0
@@ -301,11 +314,14 @@
 *** name := ""
 *** path := ""
 *** is_priv := false
+*** identity_name := ""
 ** ImportUnit: StructDef
 *** mode_str := ""
 *** mode := Mode()
 *** own ast := Expr.new(NodeType.Body, 0, 0)
-*** imports := Vec(Str).new()
+*** import_dir := ""
+*** import_lib_dir := ""
+*** mode_import := ""
 ** BuilderFuncScratch: StructDef
 *** local_fn_sigs := Map(Str, Dynamic).new()
 *** body_refs := Set(Sym).new()
@@ -320,6 +336,10 @@
 *** ref_dyn_locals := Set(Sym).new()
 *** ptr_locals := Set(Sym).new()
 *** shadowed_params := Set(Sym).new()
+*** ctor_seq : I32 = 0
+*** in_func_def := false
+*** in_main_func := false
+*** current_fdef := Option(ref Expr).None
 ** FfiState: StructDef
 *** dispatch_map := Map(Str, Dynamic).new()
 *** dispatch_inited := false
@@ -336,6 +356,21 @@
 *** enums := Map(Str, Dynamic).new()
 *** customs := Map(Str, Dynamic).new()
 *** funcsigs := Map(Str, Dynamic).new()
+** EvalState: StructDef
+*** has_return := false
+*** has_break := false
+*** has_continue := false
+*** ref return_value : Dynamic = 0
+*** interp_ret_is_ref := false
+*** ref interp_ret_dest : Dynamic = 0
+*** interp_ret_type := Option(ref Str).None
+*** interp_ret_own_type := OwnType.Shallow
+*** interp_cstr_arg := false
+*** constfold_active := false
+*** eval_aborted := false
+*** repl_session := false
+*** ns_fields := Option(Scope).None
+*** cached_str_name := ""
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
@@ -350,26 +385,27 @@
 *** constfolder_foldables := Map(Str, FuncType).new()
 *** constfolder_known := Option(Scope).None
 *** constfolder_assigned := Set(Str).new()
-*** has_return := false
-*** has_break := false
-*** has_continue := false
-*** ref return_value : Dynamic = 0
-*** interp_ret_is_ref := false
-*** ref interp_ret_dest : Dynamic = 0
-*** interp_ret_type := Option(ref Str).None
-*** interp_ret_own_type := OwnType.Shallow
-*** interp_cstr_arg := false
-*** constfold_active := false
-*** eval_aborted := false
-*** repl_session := false
-*** ns_fields := Option(Scope).None
+*** eval := EvalState()
 *** imported := Map(Str, ImportUnit).new()
-*** ... (74 more)
+*** import_cwd := ""
+*** check_unused_imports := false
+*** import_use_edges := Set(Str).new()
+*** imports_init_seed_done := Set(Str).new()
+*** imports_init_active := Set(Str).new()
+*** imports_init_done := Set(Str).new()
+*** imports_typer_methods_done := Set(Str).new()
+*** imports_typer_fields_done := Set(Str).new()
+*** imports_typer_decls_done := Set(Str).new()
+*** imports_typer_bodies_done := Set(Str).new()
+*** infer_struct_fields_only := false
+*** type_gen_synths := Set(Str).new()
+*** ... (52 more)
 * targets
 ** Lang: EnumDef
 *** C
 *** HolyC
 *** TIL
+*** Java
 ** Target: EnumDef
 *** LinuxX64
 *** LinuxArm64
@@ -383,11 +419,11 @@
 *** MacosArm64
 *** Wasm32
 *** TempleosX86
+*** Jvm
 * loader
 ** ProgramUnit: StructDef
 *** path := ""
 *** mode := Mode()
-*** imports := Vec(Str).new()
 ** LoadedProgram: StructDef
 *** own core_units := Vec(ProgramUnit).new()
 *** own units := Vec(ProgramUnit).new()
@@ -476,6 +512,14 @@
 ** DeclRef: StructDef
 *** path := ""
 *** idx : USize = 0
+* c_codegen
+** CollectionInfo: StructDef
+*** ref type_name : Str
+*** is_vec : I32 = 0
+** DynCallInfo: StructDef
+*** ref method : Str
+*** nargs : I32 = 1
+*** has_return := false
 * builder
 ** BuildPaths: StructDef
 *** name := ""
@@ -485,6 +529,14 @@
 *** h_path := ""
 *** til_path := ""
 *** py_path := ""
+*** jvm_root := ""
+*** jvm_source_dir := ""
+*** jvm_package_dir := ""
+*** jvm_source_path := ""
+*** jvm_classes_dir := ""
+*** jvm_args_path := ""
+*** jvm_package := ""
+*** jvm_entry_class := ""
 *** do_lib := false
 ** DocEntry: StructDef
 *** name := ""
@@ -498,13 +550,6 @@
 *** deprecated := ""
 ** DocCatalog: StructDef
 *** entries := Vec(DocEntry).new()
-** CollectionInfo: StructDef
-*** ref type_name : Str
-*** is_vec : I32 = 0
-** DynCallInfo: StructDef
-*** ref method : Str
-*** nargs : I32 = 1
-*** has_return := false
 * interpreter
 ** InterpCallableBox: StructDef
 *** magic : U64 = 0
@@ -521,6 +566,7 @@
 *** is_static_callable := false
 *** moved_out := false
 *** is_raw_alloc := false
+*** payload_released := false
 ** Scope: StructDef
 *** heap_bindings := Map(Str, HeapBinding).new()
 *** heap_aliases := Map(Str, Str).new()
@@ -577,6 +623,10 @@
 * eval_heap
 ** EvalHeap: StructDef
 *** unused : U8 = 0
+* jvm_codegen
+** JvmEmitState: StructDef
+*** path := ""
+*** errors : I32 = 0
 * repl_editor
 ** EditAction: EnumDef
 *** Continue

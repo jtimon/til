@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -61,6 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -98,10 +100,10 @@ namespace:
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32
     func resolve(self: SymbolPool, sym: U32) returns ref Str
+    func size() returns shallow USize
     func clone(self: SymbolPool) returns SymbolPool
     func delete(own self: SymbolPool, shallow call_free: Bool)
     func hash(self: SymbolPool, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -678,8 +680,8 @@ namespace:
     func remove(mut self: Map__Str_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Str, shallow call_free: Bool)
     func clone(self: Map__Str_Str) returns Map__Str_Str
-    func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -1026,13 +1028,13 @@ unless <code>call_free</code> is false.</p>
 <article class="doc-entry" id="til.src.self.parser.adopt__U32">
 <h2>adopt__U32</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: U32)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: U32)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.adopt__Bool">
 <h2>adopt__Bool</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: Bool)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: Bool)
 </code></pre>
 </article>
 </main></div>

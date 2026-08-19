@@ -1,0 +1,21 @@
+#+TITLE: src/self/jvm_codegen.til
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
+#+OPTIONS: toc:t
+
+* jvm_package_segment
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.jvm_package_segment
+:END:
+
+#+begin_src til
+func jvm_package_segment(name: Str) returns Str
+#+end_src
+
+* jvm_codegen_translate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.jvm_codegen_translate
+:END:
+
+#+begin_src til
+proc jvm_codegen_translate(lp: LoadedProgram, source_dir: Str, package_dir: Str, source_path: Str, args_path: Str, package_name: Str) returns shallow I32
+#+end_src

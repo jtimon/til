@@ -1,5 +1,5 @@
 #+TITLE: src/self/targets.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * Lang
@@ -13,10 +13,12 @@ enum Lang {
     C
     HolyC
     TIL
+    Java
 namespace:
     C : I64
     HolyC : I64
     TIL : I64
+    Java : I64
     core_func is(self: Lang, other: Lang) returns shallow Bool
     func eq(self: Lang, other: Lang) returns shallow Bool
     func delete(own self: Lang, shallow call_free: Bool)
@@ -52,6 +54,7 @@ enum Target {
     MacosArm64
     Wasm32
     TempleosX86
+    Jvm
 namespace:
     LinuxX64 : I64
     LinuxArm64 : I64
@@ -65,6 +68,7 @@ namespace:
     MacosArm64 : I64
     Wasm32 : I64
     TempleosX86 : I64
+    Jvm : I64
     core_func is(self: Target, other: Target) returns shallow Bool
     func eq(self: Target, other: Target) returns shallow Bool
     func delete(own self: Target, shallow call_free: Bool)
@@ -118,6 +122,16 @@ func target_uptr_name(target: Target) returns Str
 
 #+begin_src til
 func target_usize_name(target: Target) returns Str
+#+end_src
+
+* target_lang
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_lang
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func target_lang(target: Target) returns Lang
 #+end_src
 
 * toolchain_command

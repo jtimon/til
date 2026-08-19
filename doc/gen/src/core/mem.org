@@ -1,5 +1,5 @@
 #+TITLE: src/core/mem.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * free
@@ -29,7 +29,7 @@ ext_func til_closure_delete(closure: Dynamic)
 :END:
 
 #+begin_src til
-ext_func til_closure_slot_delete(slot: Dynamic)
+ext_func til_closure_slot_delete(mut slot: Dynamic)
 #+end_src
 
 * til_closure_slot_take
@@ -39,7 +39,7 @@ ext_func til_closure_slot_delete(slot: Dynamic)
 :END:
 
 #+begin_src til
-ext_func til_closure_slot_take(slot: Dynamic, closure: Dynamic)
+ext_func til_closure_slot_take(mut slot: Dynamic, closure: Dynamic)
 #+end_src
 
 * til_closure_slot_pop
@@ -49,7 +49,7 @@ ext_func til_closure_slot_take(slot: Dynamic, closure: Dynamic)
 :END:
 
 #+begin_src til
-ext_func til_closure_slot_pop(slot: Dynamic) returns Dynamic
+ext_func til_closure_slot_pop(mut slot: Dynamic) returns Dynamic
 #+end_src
 
 * til_closure_slot_clone
@@ -119,7 +119,7 @@ ext_func deref(slot: Dynamic) returns ref Dynamic
 :END:
 
 #+begin_src til
-ext_func write_ptr(dest: Dynamic, val: Dynamic)
+ext_func write_ptr(mut dest: Dynamic, val: Dynamic)
 #+end_src
 
 * write_i64
@@ -129,7 +129,7 @@ ext_func write_ptr(dest: Dynamic, val: Dynamic)
 :END:
 
 #+begin_src til
-ext_func write_i64(dest: Dynamic, shallow val: I64)
+ext_func write_i64(mut dest: Dynamic, shallow val: I64)
 #+end_src
 
 * write_u8
@@ -139,7 +139,7 @@ ext_func write_i64(dest: Dynamic, shallow val: I64)
 :END:
 
 #+begin_src til
-ext_func write_u8(dest: Dynamic, shallow val: U8)
+ext_func write_u8(mut dest: Dynamic, shallow val: U8)
 #+end_src
 
 * write_i8
@@ -149,7 +149,7 @@ ext_func write_u8(dest: Dynamic, shallow val: U8)
 :END:
 
 #+begin_src til
-ext_func write_i8(dest: Dynamic, shallow val: I8)
+ext_func write_i8(mut dest: Dynamic, shallow val: I8)
 #+end_src
 
 * write_i16
@@ -159,7 +159,7 @@ ext_func write_i8(dest: Dynamic, shallow val: I8)
 :END:
 
 #+begin_src til
-ext_func write_i16(dest: Dynamic, shallow val: I16)
+ext_func write_i16(mut dest: Dynamic, shallow val: I16)
 #+end_src
 
 * write_u16
@@ -169,7 +169,7 @@ ext_func write_i16(dest: Dynamic, shallow val: I16)
 :END:
 
 #+begin_src til
-ext_func write_u16(dest: Dynamic, shallow val: U16)
+ext_func write_u16(mut dest: Dynamic, shallow val: U16)
 #+end_src
 
 * write_i32
@@ -179,7 +179,7 @@ ext_func write_u16(dest: Dynamic, shallow val: U16)
 :END:
 
 #+begin_src til
-ext_func write_i32(dest: Dynamic, shallow val: I32)
+ext_func write_i32(mut dest: Dynamic, shallow val: I32)
 #+end_src
 
 * write_u32
@@ -189,7 +189,7 @@ ext_func write_i32(dest: Dynamic, shallow val: I32)
 :END:
 
 #+begin_src til
-ext_func write_u32(dest: Dynamic, shallow val: U32)
+ext_func write_u32(mut dest: Dynamic, shallow val: U32)
 #+end_src
 
 * write_u64
@@ -199,7 +199,7 @@ ext_func write_u32(dest: Dynamic, shallow val: U32)
 :END:
 
 #+begin_src til
-ext_func write_u64(dest: Dynamic, shallow val: U64)
+ext_func write_u64(mut dest: Dynamic, shallow val: U64)
 #+end_src
 
 * write_f32
@@ -209,7 +209,7 @@ ext_func write_u64(dest: Dynamic, shallow val: U64)
 :END:
 
 #+begin_src til
-ext_func write_f32(dest: Dynamic, shallow val: F32)
+ext_func write_f32(mut dest: Dynamic, shallow val: F32)
 #+end_src
 
 * write_bool
@@ -219,7 +219,7 @@ ext_func write_f32(dest: Dynamic, shallow val: F32)
 :END:
 
 #+begin_src til
-ext_func write_bool(dest: Dynamic, shallow val: Bool)
+ext_func write_bool(mut dest: Dynamic, shallow val: Bool)
 #+end_src
 
 * memcpy
@@ -229,7 +229,7 @@ ext_func write_bool(dest: Dynamic, shallow val: Bool)
 :END:
 
 #+begin_src til
-ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: UPtr)
+ext_func memcpy(mut dest: Dynamic, src: Dynamic, shallow len: UPtr)
 #+end_src
 
 * memmove
@@ -239,7 +239,7 @@ ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: UPtr)
 :END:
 
 #+begin_src til
-ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: UPtr)
+ext_func memmove(mut dest: Dynamic, src: Dynamic, shallow len: UPtr)
 #+end_src
 
 * memset
@@ -249,7 +249,7 @@ ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: UPtr)
 :END:
 
 #+begin_src til
-ext_func memset(dest: Dynamic, shallow val: I32, shallow len: UPtr)
+ext_func memset(mut dest: Dynamic, shallow val: I32, shallow len: UPtr)
 #+end_src
 
 * memcmp
@@ -308,7 +308,7 @@ untyped swap that predates monomorphization, so this stays as the
 primitive the typed swap/move below are built on.
 
 #+begin_src til
-func swap_bytes(a: Dynamic, b: Dynamic, shallow size: UPtr)
+func swap_bytes(mut a: Dynamic, mut b: Dynamic, shallow size: UPtr)
 #+end_src
 
 * adopt_from
@@ -335,5 +335,5 @@ uninitialized and that src holds a live value; that is the unsafe
 part, and why this belongs to container internals like swap_bytes.
 
 #+begin_src til
-func adopt_from(dest: Dynamic, src: Dynamic, shallow size: UPtr)
+func adopt_from(mut dest: Dynamic, mut src: Dynamic, shallow size: UPtr)
 #+end_src

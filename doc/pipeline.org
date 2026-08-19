@@ -11,8 +11,8 @@ Two modules sit underneath every phase below:
 - Load:
   - `prepare_program(...)` and friends
   - Implemented in til: [[file:../src/self/loader.til][src/self/loader.til]]
-  - Drives the whole pipeline: discovers and reads source files,
-    resolves recursive `import(...)`, picks the mode, then runs
+  - Drives the whole pipeline: discovers and reads source files by walking
+    `import(...)` calls directly in each AST, picks the mode, then runs
     tokenize -> parse -> init -> type -> asap -> constfolder -> scavenge
     in order on the canonical per-file ASTs in `Context.imported` before
     handing the surviving units to a back end. The CLI
@@ -21,9 +21,9 @@ Two modules sit underneath every phase below:
 - Context:
   - `Context`, `TypeScope`, `TypeBinding`, ...
   - Implemented in til: [[file:../src/self/context.til][src/self/context.til]]
-  - The shared state threaded through the phases: imported units,
-    the active mode, the type scope and its name/type bindings, and
-    the FFI map. Every phase reads and mutates the same `Context`.
+  - The shared state threaded through the phases: imported units and their
+    path-resolution roots, the active mode, the type scope and its name/type
+    bindings, and the FFI map. Every phase reads and mutates the same `Context`.
 
 1. Tokenize
 
@@ -41,17 +41,18 @@ Two modules sit underneath every phase below:
   - recursive `import(...)` files
   - optional mode auto-import file from `src/modes/*.til`
 - Result: one `ImportUnit` AST per loaded file in `Context.imported`, plus
-  `ProgramUnit` path/import ordering metadata in `LoadedProgram`.
+  `ProgramUnit` path/mode ordering metadata in `LoadedProgram`. Explicit
+  dependency edges remain only as AST calls; the sole non-AST edge is a mode
+  auto-import recorded on its owning `ImportUnit`.
 
 3. Init declarations
 
-- `init_seed_tree(...)`, then recursive `init_file(...)`, followed by the
-  remaining `init_declarations_global(...)` work
+- `init_seed_tree(...)`, then recursive `init_file(...)`
 - Implemented in til: [[file:../src/self/initer.til][src/self/initer.til]]
 - Responsibilities:
   - seed and register types, funcs, globals, aliases across the import graph
   - build initial `TypeScope`
-  - perform the remaining legacy global function/value re-registration
+  - recurse through explicit AST import calls and mode auto-import edges
   - prepare enough metadata for typing
 
 4. Type check + desugar

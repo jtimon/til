@@ -1,5 +1,5 @@
 #+TITLE: src/std/hash.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * KNUTH_MULT

@@ -1,5 +1,5 @@
 #+TITLE: src/core/kwargs_map.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * KwargsMap
@@ -21,10 +21,10 @@ namespace:
     func get(self: KwargsMap, key: Str) returns ref Dynamic
     func type_at(self: KwargsMap, key: Str) returns ref Str
     func size_at(self: KwargsMap, key: Str) returns ref USize
+    func size() returns shallow USize
     func clone(self: KwargsMap) returns KwargsMap
     func delete(own self: KwargsMap, shallow call_free: Bool)
     func hash(self: KwargsMap, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 #+end_src
 
@@ -121,8 +121,8 @@ namespace:
     func remove(mut self: Map__Str_Tuple, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Tuple, shallow call_free: Bool)
     func clone(self: Map__Str_Tuple) returns Map__Str_Tuple
-    func hash(self: Map__Str_Tuple, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_Tuple, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
@@ -554,5 +554,5 @@ func Vec__Tuple.clone(self: Vec__Tuple) returns Vec__Tuple
 :END:
 
 #+begin_src til
-func adopt__Tuple(dest: Dynamic, own src: Tuple)
+func adopt__Tuple(mut dest: Dynamic, own src: Tuple)
 #+end_src

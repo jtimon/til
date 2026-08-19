@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-80788b616</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b0fa1b9c4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -52,7 +52,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
-<li><a class="current" href="../../src/self/typer.html">src/self/typer.til</a><ul><li><a href="#til.src.self.typer.fa_is_ns">fa_is_ns</a></li><li><a href="#til.src.self.typer.make_til_type_expr">make_til_type_expr</a></li><li><a href="#til.src.self.typer.fa_own_type">fa_own_type</a></li><li><a href="#til.src.self.typer.I64Name">I64Name</a></li><li><a href="#til.src.self.typer.U8Name">U8Name</a></li><li><a href="#til.src.self.typer.I8Name">I8Name</a></li><li><a href="#til.src.self.typer.I16Name">I16Name</a></li><li><a href="#til.src.self.typer.U16Name">U16Name</a></li><li><a href="#til.src.self.typer.I32Name">I32Name</a></li><li><a href="#til.src.self.typer.U32Name">U32Name</a></li><li><a href="#til.src.self.typer.U64Name">U64Name</a></li><li><a href="#til.src.self.typer.F32Name">F32Name</a></li><li><a href="#til.src.self.typer.F64Name">F64Name</a></li><li><a href="#til.src.self.typer.BoolName">BoolName</a></li><li><a href="#til.src.self.typer.type_error">type_error</a></li><li><a href="#til.src.self.typer.type_error_at">type_error_at</a></li><li><a href="#til.src.self.typer.find_namespace_func">find_namespace_func</a></li><li><a href="#til.src.self.typer.find_ns_decl">find_ns_decl</a></li><li><a href="#til.src.self.typer.resolve_fn_sig">resolve_fn_sig</a></li><li><a href="#til.src.self.typer.fcall_returns_own">fcall_returns_own</a></li><li><a href="#til.src.self.typer.is_clone_fcall">is_clone_fcall</a></li><li><a href="#til.src.self.typer.resolve_default_value">resolve_default_value</a></li><li><a href="#til.src.self.typer.expr_declared_type_name">expr_declared_type_name</a></li><li><a href="#til.src.self.typer.infer_expr">infer_expr</a></li><li><a href="#til.src.self.typer.PTR_SIZE_BYTES">PTR_SIZE_BYTES</a></li><li><a href="#til.src.self.typer.check_unused_locals">check_unused_locals</a></li><li><a href="#til.src.self.typer.check_unused_mut_locals">check_unused_mut_locals</a></li><li><a href="#til.src.self.typer.mark_binding_referenced">mark_binding_referenced</a></li><li><a href="#til.src.self.typer.check_unused_priv_top_level">check_unused_priv_top_level</a></li><li><a href="#til.src.self.typer.check_unused_priv_members_in_program">check_unused_priv_members_in_program</a></li><li><a href="#til.src.self.typer.is_simple_lvalue_expr">is_simple_lvalue_expr</a></li><li><a href="#til.src.self.typer.is_compile_directive">is_compile_directive</a></li><li><a href="#til.src.self.typer.infer_body_stmt">infer_body_stmt</a></li><li><a href="#til.src.self.typer.reregister_repl_scope_defs">reregister_repl_scope_defs</a></li><li><a href="#til.src.self.typer.infer_body">infer_body</a></li><li><a href="#til.src.self.typer.normalize_scope_bindings">normalize_scope_bindings</a></li><li><a href="#til.src.self.typer.type_file">type_file</a></li><li><a href="#til.src.self.typer.type_repl_delta">type_repl_delta</a></li><li><a href="#til.src.self.typer.rhs_is_clone_fcall">rhs_is_clone_fcall</a></li><li><a href="#til.src.self.typer.assign_target_is_func_local">assign_target_is_func_local</a></li><li><a href="#til.src.self.typer.is_numeric_type">is_numeric_type</a></li><li><a href="#til.src.self.typer.is_integral_numeric_type">is_integral_numeric_type</a></li><li><a href="#til.src.self.typer.literal_in_range">literal_in_range</a></li><li><a href="#til.src.self.typer.type_from_name">type_from_name</a></li><li><a href="#til.src.self.typer.resolve_type_alias">resolve_type_alias</a></li><li><a href="#til.src.self.typer.resolve_type_alias_for_name">resolve_type_alias_for_name</a></li><li><a href="#til.src.self.typer.usize_type">usize_type</a></li><li><a href="#til.src.self.typer.type_has_cmp">type_has_cmp</a></li><li><a href="#til.src.self.typer.expr_uses_var">expr_uses_var</a></li><li><a href="#til.src.self.typer.expr_contains_decl">expr_contains_decl</a></li><li><a href="#til.src.self.typer.expr_used_in_nested_func">expr_used_in_nested_func</a></li><li><a href="#til.src.self.typer.type_prefix">type_prefix</a></li><li><a href="#til.src.self.typer.type_to_name">type_to_name</a></li><li><a href="#til.src.self.typer.make_closure_delete_call">make_closure_delete_call</a></li><li><a href="#til.src.self.typer.make_delete_call">make_delete_call</a></li><li><a href="#til.src.self.typer.transfer_is_shallow_field_value_copy">transfer_is_shallow_field_value_copy</a></li><li><a href="#til.src.self.typer.make_free_call">make_free_call</a></li><li><a href="#til.src.self.typer.make_clone_call">make_clone_call</a></li><li><a href="#til.src.self.typer.make_ns_call">make_ns_call</a></li><li><a href="#til.src.self.typer.variadic_array_type_name">variadic_array_type_name</a></li><li><a href="#til.src.self.typer.arg_addressed_ident">arg_addressed_ident</a></li><li><a href="#til.src.self.typer.expr_transfers_own">expr_transfers_own</a></li><li><a href="#til.src.self.typer.FactIndex">FactIndex</a></li><li><a href="#til.src.self.typer.fact_bit_search">fact_bit_search</a></li><li><a href="#til.src.self.typer.fact_bit_of">fact_bit_of</a></li><li><a href="#til.src.self.typer.fact_bit_record">fact_bit_record</a></li><li><a href="#til.src.self.typer.fact_record_name">fact_record_name</a></li><li><a href="#til.src.self.typer.expr_collect_ptr_escapes">expr_collect_ptr_escapes</a></li><li><a href="#til.src.self.typer.expr_collect_stmt_facts">expr_collect_stmt_facts</a></li><li><a href="#til.src.self.typer.fcall_returns_dynamic_storage">fcall_returns_dynamic_storage</a></li><li><a href="#til.src.self.typer.RootBits">RootBits</a></li><li><a href="#til.src.self.typer.fcall_is_get_method">fcall_is_get_method</a></li><li><a href="#til.src.self.typer.fcall_returns_ref">fcall_returns_ref</a></li><li><a href="#til.src.self.typer.Vec__CtorArg">Vec__CtorArg</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.new">Vec__CtorArg.new</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.with_capacity">Vec__CtorArg.with_capacity</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.clear">Vec__CtorArg.clear</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.delete_marked">Vec__CtorArg.delete_marked</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.push">Vec__CtorArg.push</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.append">Vec__CtorArg.append</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.take">Vec__CtorArg.take</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.move_to">Vec__CtorArg.move_to</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.move_from">Vec__CtorArg.move_from</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.unsafe_get">Vec__CtorArg.unsafe_get</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.get">Vec__CtorArg.get</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.pop">Vec__CtorArg.pop</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.remove_at">Vec__CtorArg.remove_at</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.take_prefix">Vec__CtorArg.take_prefix</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.truncate">Vec__CtorArg.truncate</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.unsafe_set">Vec__CtorArg.unsafe_set</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.set">Vec__CtorArg.set</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.push_take">Vec__CtorArg.push_take</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.delete">Vec__CtorArg.delete</a></li><li><a href="#til.src.self.typer.Vec__CtorArg.clone">Vec__CtorArg.clone</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits">Map__Str_RootBits</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.new">Map__Str_RootBits.new</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.with_capacity">Map__Str_RootBits.with_capacity</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.clear">Map__Str_RootBits.clear</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.has">Map__Str_RootBits.has</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.get">Map__Str_RootBits.get</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.set">Map__Str_RootBits.set</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.remove">Map__Str_RootBits.remove</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode">Vec__CoverageNode</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.new">Vec__CoverageNode.new</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.with_capacity">Vec__CoverageNode.with_capacity</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.clear">Vec__CoverageNode.clear</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.delete_marked">Vec__CoverageNode.delete_marked</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.push">Vec__CoverageNode.push</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.append">Vec__CoverageNode.append</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.take">Vec__CoverageNode.take</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.move_to">Vec__CoverageNode.move_to</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.move_from">Vec__CoverageNode.move_from</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.unsafe_get">Vec__CoverageNode.unsafe_get</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.get">Vec__CoverageNode.get</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.pop">Vec__CoverageNode.pop</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.remove_at">Vec__CoverageNode.remove_at</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.take_prefix">Vec__CoverageNode.take_prefix</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.truncate">Vec__CoverageNode.truncate</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.unsafe_set">Vec__CoverageNode.unsafe_set</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.set">Vec__CoverageNode.set</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.push_take">Vec__CoverageNode.push_take</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.delete">Vec__CoverageNode.delete</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode.clone">Vec__CoverageNode.clone</a></li><li><a href="#til.src.self.typer.Vec__RootBits">Vec__RootBits</a></li><li><a href="#til.src.self.typer.Vec__RootBits.new">Vec__RootBits.new</a></li><li><a href="#til.src.self.typer.Vec__RootBits.with_capacity">Vec__RootBits.with_capacity</a></li><li><a href="#til.src.self.typer.Vec__RootBits.clear">Vec__RootBits.clear</a></li><li><a href="#til.src.self.typer.Vec__RootBits.delete_marked">Vec__RootBits.delete_marked</a></li><li><a href="#til.src.self.typer.Vec__RootBits.push">Vec__RootBits.push</a></li><li><a href="#til.src.self.typer.Vec__RootBits.append">Vec__RootBits.append</a></li><li><a href="#til.src.self.typer.Vec__RootBits.take">Vec__RootBits.take</a></li><li><a href="#til.src.self.typer.Vec__RootBits.move_to">Vec__RootBits.move_to</a></li><li><a href="#til.src.self.typer.Vec__RootBits.move_from">Vec__RootBits.move_from</a></li><li><a href="#til.src.self.typer.Vec__RootBits.unsafe_get">Vec__RootBits.unsafe_get</a></li><li><a href="#til.src.self.typer.Vec__RootBits.get">Vec__RootBits.get</a></li><li><a href="#til.src.self.typer.Vec__RootBits.pop">Vec__RootBits.pop</a></li><li><a href="#til.src.self.typer.Vec__RootBits.remove_at">Vec__RootBits.remove_at</a></li><li><a href="#til.src.self.typer.Vec__RootBits.take_prefix">Vec__RootBits.take_prefix</a></li><li><a href="#til.src.self.typer.Vec__RootBits.truncate">Vec__RootBits.truncate</a></li><li><a href="#til.src.self.typer.Vec__RootBits.unsafe_set">Vec__RootBits.unsafe_set</a></li><li><a href="#til.src.self.typer.Vec__RootBits.set">Vec__RootBits.set</a></li><li><a href="#til.src.self.typer.Vec__RootBits.push_take">Vec__RootBits.push_take</a></li><li><a href="#til.src.self.typer.Vec__RootBits.delete">Vec__RootBits.delete</a></li><li><a href="#til.src.self.typer.Vec__RootBits.clone">Vec__RootBits.clone</a></li><li><a href="#til.src.self.typer.adopt__priv___src_self_typer_til__CtorArg">adopt__priv___src_self_typer_til__CtorArg</a></li><li><a href="#til.src.self.typer.adopt__RootBits">adopt__RootBits</a></li><li><a href="#til.src.self.typer.adopt__priv___src_self_typer_til__CoverageNode">adopt__priv___src_self_typer_til__CoverageNode</a></li></ul></li>
+<li><a class="current" href="../../src/self/typer.html">src/self/typer.til</a><ul><li><a href="#til.src.self.typer.fa_is_ns">fa_is_ns</a></li><li><a href="#til.src.self.typer.make_til_type_expr">make_til_type_expr</a></li><li><a href="#til.src.self.typer.fa_own_type">fa_own_type</a></li><li><a href="#til.src.self.typer.I64Name">I64Name</a></li><li><a href="#til.src.self.typer.U8Name">U8Name</a></li><li><a href="#til.src.self.typer.I8Name">I8Name</a></li><li><a href="#til.src.self.typer.I16Name">I16Name</a></li><li><a href="#til.src.self.typer.U16Name">U16Name</a></li><li><a href="#til.src.self.typer.I32Name">I32Name</a></li><li><a href="#til.src.self.typer.U32Name">U32Name</a></li><li><a href="#til.src.self.typer.U64Name">U64Name</a></li><li><a href="#til.src.self.typer.F32Name">F32Name</a></li><li><a href="#til.src.self.typer.F64Name">F64Name</a></li><li><a href="#til.src.self.typer.BoolName">BoolName</a></li><li><a href="#til.src.self.typer.type_error">type_error</a></li><li><a href="#til.src.self.typer.type_error_at">type_error_at</a></li><li><a href="#til.src.self.typer.find_namespace_func">find_namespace_func</a></li><li><a href="#til.src.self.typer.find_ns_decl">find_ns_decl</a></li><li><a href="#til.src.self.typer.resolve_fn_sig">resolve_fn_sig</a></li><li><a href="#til.src.self.typer.fcall_returns_own">fcall_returns_own</a></li><li><a href="#til.src.self.typer.is_clone_fcall">is_clone_fcall</a></li><li><a href="#til.src.self.typer.resolve_default_value">resolve_default_value</a></li><li><a href="#til.src.self.typer.expr_declared_type_name">expr_declared_type_name</a></li><li><a href="#til.src.self.typer.infer_expr">infer_expr</a></li><li><a href="#til.src.self.typer.PTR_SIZE_BYTES">PTR_SIZE_BYTES</a></li><li><a href="#til.src.self.typer.check_unused_locals">check_unused_locals</a></li><li><a href="#til.src.self.typer.check_unused_mut_locals">check_unused_mut_locals</a></li><li><a href="#til.src.self.typer.mark_binding_referenced">mark_binding_referenced</a></li><li><a href="#til.src.self.typer.check_unused_priv_top_level">check_unused_priv_top_level</a></li><li><a href="#til.src.self.typer.check_unused_priv_members_in_program">check_unused_priv_members_in_program</a></li><li><a href="#til.src.self.typer.is_simple_lvalue_expr">is_simple_lvalue_expr</a></li><li><a href="#til.src.self.typer.is_compile_directive">is_compile_directive</a></li><li><a href="#til.src.self.typer.infer_body_stmt">infer_body_stmt</a></li><li><a href="#til.src.self.typer.reregister_repl_scope_defs">reregister_repl_scope_defs</a></li><li><a href="#til.src.self.typer.infer_body">infer_body</a></li><li><a href="#til.src.self.typer.normalize_scope_bindings">normalize_scope_bindings</a></li><li><a href="#til.src.self.typer.type_file">type_file</a></li><li><a href="#til.src.self.typer.type_repl_delta">type_repl_delta</a></li><li><a href="#til.src.self.typer.rhs_is_clone_fcall">rhs_is_clone_fcall</a></li><li><a href="#til.src.self.typer.assign_target_is_func_local">assign_target_is_func_local</a></li><li><a href="#til.src.self.typer.is_numeric_type">is_numeric_type</a></li><li><a href="#til.src.self.typer.is_integral_numeric_type">is_integral_numeric_type</a></li><li><a href="#til.src.self.typer.literal_in_range">literal_in_range</a></li><li><a href="#til.src.self.typer.type_from_name">type_from_name</a></li><li><a href="#til.src.self.typer.resolve_type_alias">resolve_type_alias</a></li><li><a href="#til.src.self.typer.resolve_type_alias_for_name">resolve_type_alias_for_name</a></li><li><a href="#til.src.self.typer.usize_type">usize_type</a></li><li><a href="#til.src.self.typer.type_has_cmp">type_has_cmp</a></li><li><a href="#til.src.self.typer.expr_uses_var">expr_uses_var</a></li><li><a href="#til.src.self.typer.expr_contains_decl">expr_contains_decl</a></li><li><a href="#til.src.self.typer.expr_used_in_nested_func">expr_used_in_nested_func</a></li><li><a href="#til.src.self.typer.type_prefix">type_prefix</a></li><li><a href="#til.src.self.typer.type_to_name">type_to_name</a></li><li><a href="#til.src.self.typer.make_closure_delete_call">make_closure_delete_call</a></li><li><a href="#til.src.self.typer.make_delete_call">make_delete_call</a></li><li><a href="#til.src.self.typer.transfer_is_shallow_field_value_copy">transfer_is_shallow_field_value_copy</a></li><li><a href="#til.src.self.typer.make_free_call">make_free_call</a></li><li><a href="#til.src.self.typer.make_clone_call">make_clone_call</a></li><li><a href="#til.src.self.typer.make_ns_call">make_ns_call</a></li><li><a href="#til.src.self.typer.variadic_array_type_name">variadic_array_type_name</a></li><li><a href="#til.src.self.typer.arg_addressed_ident">arg_addressed_ident</a></li><li><a href="#til.src.self.typer.expr_transfers_own">expr_transfers_own</a></li><li><a href="#til.src.self.typer.field_assign_transfers_own">field_assign_transfers_own</a></li><li><a href="#til.src.self.typer.FactIndex">FactIndex</a></li><li><a href="#til.src.self.typer.fact_bit_search">fact_bit_search</a></li><li><a href="#til.src.self.typer.fact_bit_of">fact_bit_of</a></li><li><a href="#til.src.self.typer.fact_bit_record">fact_bit_record</a></li><li><a href="#til.src.self.typer.fact_record_name">fact_record_name</a></li><li><a href="#til.src.self.typer.expr_collect_ptr_escapes">expr_collect_ptr_escapes</a></li><li><a href="#til.src.self.typer.expr_collect_stmt_facts">expr_collect_stmt_facts</a></li><li><a href="#til.src.self.typer.fcall_returns_dynamic_storage">fcall_returns_dynamic_storage</a></li><li><a href="#til.src.self.typer.RootBits">RootBits</a></li><li><a href="#til.src.self.typer.fcall_is_get_method">fcall_is_get_method</a></li><li><a href="#til.src.self.typer.fcall_returns_ref">fcall_returns_ref</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg">Vec__priv___src_self_typer_til__CtorArg</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.new">Vec__priv___src_self_typer_til__CtorArg.new</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.with_capacity">Vec__priv___src_self_typer_til__CtorArg.with_capacity</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.clear">Vec__priv___src_self_typer_til__CtorArg.clear</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.delete_marked">Vec__priv___src_self_typer_til__CtorArg.delete_marked</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.push">Vec__priv___src_self_typer_til__CtorArg.push</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.append">Vec__priv___src_self_typer_til__CtorArg.append</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.take">Vec__priv___src_self_typer_til__CtorArg.take</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.move_to">Vec__priv___src_self_typer_til__CtorArg.move_to</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.move_from">Vec__priv___src_self_typer_til__CtorArg.move_from</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.unsafe_get">Vec__priv___src_self_typer_til__CtorArg.unsafe_get</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.get">Vec__priv___src_self_typer_til__CtorArg.get</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.pop">Vec__priv___src_self_typer_til__CtorArg.pop</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.remove_at">Vec__priv___src_self_typer_til__CtorArg.remove_at</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.take_prefix">Vec__priv___src_self_typer_til__CtorArg.take_prefix</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.truncate">Vec__priv___src_self_typer_til__CtorArg.truncate</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.unsafe_set">Vec__priv___src_self_typer_til__CtorArg.unsafe_set</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.set">Vec__priv___src_self_typer_til__CtorArg.set</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.push_take">Vec__priv___src_self_typer_til__CtorArg.push_take</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.delete">Vec__priv___src_self_typer_til__CtorArg.delete</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.clone">Vec__priv___src_self_typer_til__CtorArg.clone</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits">Map__Str_RootBits</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.new">Map__Str_RootBits.new</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.with_capacity">Map__Str_RootBits.with_capacity</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.clear">Map__Str_RootBits.clear</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.has">Map__Str_RootBits.has</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.get">Map__Str_RootBits.get</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.set">Map__Str_RootBits.set</a></li><li><a href="#til.src.self.typer.Map__Str_RootBits.remove">Map__Str_RootBits.remove</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode">Vec__priv___src_self_typer_til__CoverageNode</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.new">Vec__priv___src_self_typer_til__CoverageNode.new</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.with_capacity">Vec__priv___src_self_typer_til__CoverageNode.with_capacity</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.clear">Vec__priv___src_self_typer_til__CoverageNode.clear</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.delete_marked">Vec__priv___src_self_typer_til__CoverageNode.delete_marked</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.push">Vec__priv___src_self_typer_til__CoverageNode.push</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.append">Vec__priv___src_self_typer_til__CoverageNode.append</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.take">Vec__priv___src_self_typer_til__CoverageNode.take</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.move_to">Vec__priv___src_self_typer_til__CoverageNode.move_to</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.move_from">Vec__priv___src_self_typer_til__CoverageNode.move_from</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.unsafe_get">Vec__priv___src_self_typer_til__CoverageNode.unsafe_get</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.get">Vec__priv___src_self_typer_til__CoverageNode.get</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.pop">Vec__priv___src_self_typer_til__CoverageNode.pop</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.remove_at">Vec__priv___src_self_typer_til__CoverageNode.remove_at</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.take_prefix">Vec__priv___src_self_typer_til__CoverageNode.take_prefix</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.truncate">Vec__priv___src_self_typer_til__CoverageNode.truncate</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.unsafe_set">Vec__priv___src_self_typer_til__CoverageNode.unsafe_set</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.set">Vec__priv___src_self_typer_til__CoverageNode.set</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.push_take">Vec__priv___src_self_typer_til__CoverageNode.push_take</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.delete">Vec__priv___src_self_typer_til__CoverageNode.delete</a></li><li><a href="#til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.clone">Vec__priv___src_self_typer_til__CoverageNode.clone</a></li><li><a href="#til.src.self.typer.Vec__RootBits">Vec__RootBits</a></li><li><a href="#til.src.self.typer.Vec__RootBits.new">Vec__RootBits.new</a></li><li><a href="#til.src.self.typer.Vec__RootBits.with_capacity">Vec__RootBits.with_capacity</a></li><li><a href="#til.src.self.typer.Vec__RootBits.clear">Vec__RootBits.clear</a></li><li><a href="#til.src.self.typer.Vec__RootBits.delete_marked">Vec__RootBits.delete_marked</a></li><li><a href="#til.src.self.typer.Vec__RootBits.push">Vec__RootBits.push</a></li><li><a href="#til.src.self.typer.Vec__RootBits.append">Vec__RootBits.append</a></li><li><a href="#til.src.self.typer.Vec__RootBits.take">Vec__RootBits.take</a></li><li><a href="#til.src.self.typer.Vec__RootBits.move_to">Vec__RootBits.move_to</a></li><li><a href="#til.src.self.typer.Vec__RootBits.move_from">Vec__RootBits.move_from</a></li><li><a href="#til.src.self.typer.Vec__RootBits.unsafe_get">Vec__RootBits.unsafe_get</a></li><li><a href="#til.src.self.typer.Vec__RootBits.get">Vec__RootBits.get</a></li><li><a href="#til.src.self.typer.Vec__RootBits.pop">Vec__RootBits.pop</a></li><li><a href="#til.src.self.typer.Vec__RootBits.remove_at">Vec__RootBits.remove_at</a></li><li><a href="#til.src.self.typer.Vec__RootBits.take_prefix">Vec__RootBits.take_prefix</a></li><li><a href="#til.src.self.typer.Vec__RootBits.truncate">Vec__RootBits.truncate</a></li><li><a href="#til.src.self.typer.Vec__RootBits.unsafe_set">Vec__RootBits.unsafe_set</a></li><li><a href="#til.src.self.typer.Vec__RootBits.set">Vec__RootBits.set</a></li><li><a href="#til.src.self.typer.Vec__RootBits.push_take">Vec__RootBits.push_take</a></li><li><a href="#til.src.self.typer.Vec__RootBits.delete">Vec__RootBits.delete</a></li><li><a href="#til.src.self.typer.Vec__RootBits.clone">Vec__RootBits.clone</a></li><li><a href="#til.src.self.typer.adopt__RootBits">adopt__RootBits</a></li><li><a href="#til.src.self.typer.adopt__priv___src_self_typer_til__CtorArg">adopt__priv___src_self_typer_til__CtorArg</a></li><li><a href="#til.src.self.typer.adopt__priv___src_self_typer_til__CoverageNode">adopt__priv___src_self_typer_til__CoverageNode</a></li></ul></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
 <li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
 </ul>
@@ -61,6 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
@@ -75,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -238,7 +240,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.check_unused_locals">
 <h2>check_unused_locals</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (scope: TypeScope, path: Str, mut ctx: Context)
+<pre><code class="language-til">proc (mut scope: TypeScope, path: Str, mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.check_unused_mut_locals">
@@ -250,7 +252,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.mark_binding_referenced">
 <h2>mark_binding_referenced</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut ctx: Context, mut b: TypeBinding)
+<pre><code class="language-til">func (mut scope: TypeScope, mut ctx: Context, mut b: TypeBinding)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.check_unused_priv_top_level">
@@ -370,7 +372,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.type_has_cmp">
 <h2>type_has_cmp</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (scope: TypeScope, type_name: Str) returns shallow Bool
+<pre><code class="language-til">func (scope: TypeScope, type_name: Str, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.expr_uses_var">
@@ -457,6 +459,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">func (e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.typer.field_assign_transfers_own">
+<h2>field_assign_transfers_own</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.typer.FactIndex">
 <h2>FactIndex</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -464,10 +472,10 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut filt : U64
     mut idx : Map__Str_USize
 namespace:
+    func size() returns shallow USize
     func clone(self: FactIndex) returns FactIndex
     func delete(own self: FactIndex, shallow call_free: Bool)
     func hash(self: FactIndex, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -526,11 +534,11 @@ namespace:
     func bor(self: RootBits, other: RootBits) returns RootBits
     func all(self: RootBits) returns shallow U64
     func is_zero(self: RootBits) returns shallow Bool
+    func size() returns shallow USize
     func clone(self: RootBits) returns RootBits
     func delete(own self: RootBits, shallow call_free: Bool)
     func hash(self: RootBits, hasher: HashFn) returns shallow U64
     func cmp(a: RootBits, b: RootBits) returns shallow I64
-    func size() returns shallow USize
     func lt(a: RootBits, b: RootBits) returns shallow Bool
     func gt(a: RootBits, b: RootBits) returns shallow Bool
     func neq(a: RootBits, b: RootBits) returns shallow Bool
@@ -551,41 +559,41 @@ namespace:
 <pre><code class="language-til">func (fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow I32
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg">
-<h2>Vec__CtorArg</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg">
+<h2>Vec__priv___src_self_typer_til__CtorArg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__CtorArg
-    func with_capacity(shallow n: USize) returns Vec__CtorArg
-    func len(self: Vec__CtorArg) returns shallow USize
-    func clear(mut self: Vec__CtorArg)
-    func delete_marked(mut self: Vec__CtorArg, marks: Dynamic)
-    func push(mut self: Vec__CtorArg, own val: priv___src_self_typer_til__CtorArg)
-    func append(mut self: Vec__CtorArg, own other: Vec__CtorArg)
-    func take(mut self: Vec__CtorArg) returns Vec__CtorArg
-    func move_to(own self: Vec__CtorArg, mut dest: Vec__CtorArg)
-    func move_from(mut self: Vec__CtorArg, own other: Vec__CtorArg)
-    func unsafe_get(self: Vec__CtorArg, i: USize) returns ref priv___src_self_typer_til__CtorArg
-    func get(self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
-    func pop(mut self: Vec__CtorArg) returns shallow priv___src_self_typer_til__CtorArg
-    func remove_at(mut self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__CtorArg, shallow n: USize) returns Vec__CtorArg
-    func truncate(mut self: Vec__CtorArg, shallow n: USize)
-    func unsafe_set(mut self: Vec__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg)
-    func set(mut self: Vec__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64)
-    func push_take(mut self: Vec__CtorArg, mut src: Vec__CtorArg, shallow i: USize)
-    func delete(own self: Vec__CtorArg, shallow call_free: Bool)
-    func clone(self: Vec__CtorArg) returns Vec__CtorArg
+    func new() returns Vec__priv___src_self_typer_til__CtorArg
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_typer_til__CtorArg
+    func len(self: Vec__priv___src_self_typer_til__CtorArg) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_typer_til__CtorArg)
+    func delete_marked(mut self: Vec__priv___src_self_typer_til__CtorArg, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_typer_til__CtorArg, own val: priv___src_self_typer_til__CtorArg)
+    func append(mut self: Vec__priv___src_self_typer_til__CtorArg, own other: Vec__priv___src_self_typer_til__CtorArg)
+    func take(mut self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
+    func move_to(own self: Vec__priv___src_self_typer_til__CtorArg, mut dest: Vec__priv___src_self_typer_til__CtorArg)
+    func move_from(mut self: Vec__priv___src_self_typer_til__CtorArg, own other: Vec__priv___src_self_typer_til__CtorArg)
+    func unsafe_get(self: Vec__priv___src_self_typer_til__CtorArg, i: USize) returns ref priv___src_self_typer_til__CtorArg
+    func get(self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
+    func pop(mut self: Vec__priv___src_self_typer_til__CtorArg) returns shallow priv___src_self_typer_til__CtorArg
+    func remove_at(mut self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_typer_til__CtorArg, shallow n: USize) returns Vec__priv___src_self_typer_til__CtorArg
+    func truncate(mut self: Vec__priv___src_self_typer_til__CtorArg, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg)
+    func set(mut self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_typer_til__CtorArg, mut src: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_typer_til__CtorArg, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
     func size() returns shallow USize
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.new">
-<h2>Vec__CtorArg.new</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.new">
+<h2>Vec__priv___src_self_typer_til__CtorArg.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -594,11 +602,11 @@ and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
 the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 </div>
-<pre><code class="language-til">func () returns Vec__CtorArg
+<pre><code class="language-til">func () returns Vec__priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.with_capacity">
-<h2>Vec__CtorArg.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.with_capacity">
+<h2>Vec__priv___src_self_typer_til__CtorArg.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -608,21 +616,21 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__CtorArg
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.clear">
-<h2>Vec__CtorArg.clear</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.clear">
+<h2>Vec__priv___src_self_typer_til__CtorArg.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.delete_marked">
-<h2>Vec__CtorArg.delete_marked</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.delete_marked">
+<h2>Vec__priv___src_self_typer_til__CtorArg.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -631,31 +639,31 @@ compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, marks: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.push">
-<h2>Vec__CtorArg.push</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.push">
+<h2>Vec__priv___src_self_typer_til__CtorArg.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, own val: priv___src_self_typer_til__CtorArg)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, own val: priv___src_self_typer_til__CtorArg)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.append">
-<h2>Vec__CtorArg.append</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.append">
+<h2>Vec__priv___src_self_typer_til__CtorArg.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
 <code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, own other: Vec__CtorArg)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, own other: Vec__priv___src_self_typer_til__CtorArg)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.take">
-<h2>Vec__CtorArg.take</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.take">
+<h2>Vec__priv___src_self_typer_til__CtorArg.take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -667,11 +675,11 @@ ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
 uses the two move forms below instead.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg) returns Vec__CtorArg
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.move_to">
-<h2>Vec__CtorArg.move_to</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.move_to">
+<h2>Vec__priv___src_self_typer_til__CtorArg.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -685,22 +693,22 @@ Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__CtorArg, mut dest: Vec__CtorArg)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_typer_til__CtorArg, mut dest: Vec__priv___src_self_typer_til__CtorArg)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.move_from">
-<h2>Vec__CtorArg.move_from</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.move_from">
+<h2>Vec__priv___src_self_typer_til__CtorArg.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
 argument: <code>dest.move_from(own src)</code>.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, own other: Vec__CtorArg)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, own other: Vec__priv___src_self_typer_til__CtorArg)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.unsafe_get">
-<h2>Vec__CtorArg.unsafe_get</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.unsafe_get">
+<h2>Vec__priv___src_self_typer_til__CtorArg.unsafe_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -709,11 +717,11 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__CtorArg, i: USize) returns ref priv___src_self_typer_til__CtorArg
+<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CtorArg, i: USize) returns ref priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.get">
-<h2>Vec__CtorArg.get</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.get">
+<h2>Vec__priv___src_self_typer_til__CtorArg.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -721,40 +729,40 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
+<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.pop">
-<h2>Vec__CtorArg.pop</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.pop">
+<h2>Vec__priv___src_self_typer_til__CtorArg.pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg) returns shallow priv___src_self_typer_til__CtorArg
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg) returns shallow priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.remove_at">
-<h2>Vec__CtorArg.remove_at</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.remove_at">
+<h2>Vec__priv___src_self_typer_til__CtorArg.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.take_prefix">
-<h2>Vec__CtorArg.take_prefix</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.take_prefix">
+<h2>Vec__priv___src_self_typer_til__CtorArg.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, shallow n: USize) returns Vec__CtorArg
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, shallow n: USize) returns Vec__priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.truncate">
-<h2>Vec__CtorArg.truncate</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.truncate">
+<h2>Vec__priv___src_self_typer_til__CtorArg.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -762,59 +770,59 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, shallow n: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.unsafe_set">
-<h2>Vec__CtorArg.unsafe_set</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.unsafe_set">
+<h2>Vec__priv___src_self_typer_til__CtorArg.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.set">
-<h2>Vec__CtorArg.set</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.set">
+<h2>Vec__priv___src_self_typer_til__CtorArg.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.push_take">
-<h2>Vec__CtorArg.push_take</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.push_take">
+<h2>Vec__priv___src_self_typer_til__CtorArg.push_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CtorArg, mut src: Vec__CtorArg, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CtorArg, mut src: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.delete">
-<h2>Vec__CtorArg.delete</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.delete">
+<h2>Vec__priv___src_self_typer_til__CtorArg.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__CtorArg, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_typer_til__CtorArg, shallow call_free: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg.clone">
-<h2>Vec__CtorArg.clone</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg.clone">
+<h2>Vec__priv___src_self_typer_til__CtorArg.clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__CtorArg) returns Vec__CtorArg
+<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.Map__Str_RootBits">
@@ -834,8 +842,8 @@ namespace:
     func remove(mut self: Map__Str_RootBits, key: Str) returns shallow Bool
     func delete(own self: Map__Str_RootBits, shallow call_free: Bool)
     func clone(self: Map__Str_RootBits) returns Map__Str_RootBits
-    func hash(self: Map__Str_RootBits, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+    func hash(self: Map__Str_RootBits, hasher: HashFn) returns shallow U64
 }
 </code></pre>
 </article>
@@ -907,41 +915,41 @@ on a missing key.</p>
 <pre><code class="language-til">func (mut self: Map__Str_RootBits, key: Str) returns shallow Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode">
-<h2>Vec__CoverageNode</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode">
+<h2>Vec__priv___src_self_typer_til__CoverageNode</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__CoverageNode
-    func with_capacity(shallow n: USize) returns Vec__CoverageNode
-    func len(self: Vec__CoverageNode) returns shallow USize
-    func clear(mut self: Vec__CoverageNode)
-    func delete_marked(mut self: Vec__CoverageNode, marks: Dynamic)
-    func push(mut self: Vec__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
-    func append(mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
-    func take(mut self: Vec__CoverageNode) returns Vec__CoverageNode
-    func move_to(own self: Vec__CoverageNode, mut dest: Vec__CoverageNode)
-    func move_from(mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
-    func unsafe_get(self: Vec__CoverageNode, i: USize) returns ref priv___src_self_typer_til__CoverageNode
-    func get(self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
-    func pop(mut self: Vec__CoverageNode) returns priv___src_self_typer_til__CoverageNode
-    func remove_at(mut self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__CoverageNode, shallow n: USize) returns Vec__CoverageNode
-    func truncate(mut self: Vec__CoverageNode, shallow n: USize)
-    func unsafe_set(mut self: Vec__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode)
-    func set(mut self: Vec__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64)
-    func push_take(mut self: Vec__CoverageNode, mut src: Vec__CoverageNode, shallow i: USize)
-    func delete(own self: Vec__CoverageNode, shallow call_free: Bool)
-    func clone(self: Vec__CoverageNode) returns Vec__CoverageNode
+    func new() returns Vec__priv___src_self_typer_til__CoverageNode
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
+    func len(self: Vec__priv___src_self_typer_til__CoverageNode) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_typer_til__CoverageNode)
+    func delete_marked(mut self: Vec__priv___src_self_typer_til__CoverageNode, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_typer_til__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
+    func append(mut self: Vec__priv___src_self_typer_til__CoverageNode, own other: Vec__priv___src_self_typer_til__CoverageNode)
+    func take(mut self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
+    func move_to(own self: Vec__priv___src_self_typer_til__CoverageNode, mut dest: Vec__priv___src_self_typer_til__CoverageNode)
+    func move_from(mut self: Vec__priv___src_self_typer_til__CoverageNode, own other: Vec__priv___src_self_typer_til__CoverageNode)
+    func unsafe_get(self: Vec__priv___src_self_typer_til__CoverageNode, i: USize) returns ref priv___src_self_typer_til__CoverageNode
+    func get(self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
+    func pop(mut self: Vec__priv___src_self_typer_til__CoverageNode) returns priv___src_self_typer_til__CoverageNode
+    func remove_at(mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
+    func truncate(mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode)
+    func set(mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_typer_til__CoverageNode, mut src: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_typer_til__CoverageNode, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
     func size() returns shallow USize
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.new">
-<h2>Vec__CoverageNode.new</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.new">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.new</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -950,11 +958,11 @@ and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
 the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 </div>
-<pre><code class="language-til">func () returns Vec__CoverageNode
+<pre><code class="language-til">func () returns Vec__priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.with_capacity">
-<h2>Vec__CoverageNode.with_capacity</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.with_capacity">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.with_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -964,21 +972,21 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__CoverageNode
+<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.clear">
-<h2>Vec__CoverageNode.clear</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.clear">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.clear</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.delete_marked">
-<h2>Vec__CoverageNode.delete_marked</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.delete_marked">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.delete_marked</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -987,31 +995,31 @@ compact the survivors forward and update count. This is the
 container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, marks: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.push">
-<h2>Vec__CoverageNode.push</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.push">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.push</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.append">
-<h2>Vec__CoverageNode.append</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.append">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
 <code>other</code> is taken by ownership and will be empty after the call.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, own other: Vec__priv___src_self_typer_til__CoverageNode)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.take">
-<h2>Vec__CoverageNode.take</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.take">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -1023,11 +1031,11 @@ ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
 pointer&quot; compiling itself. Everything the caller can give away
 uses the two move forms below instead.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode) returns Vec__CoverageNode
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.move_to">
-<h2>Vec__CoverageNode.move_to</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.move_to">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.move_to</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -1041,22 +1049,22 @@ Blanking the source leaves a genuinely valid lazy-empty Vec, so
 a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__CoverageNode, mut dest: Vec__CoverageNode)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_typer_til__CoverageNode, mut dest: Vec__priv___src_self_typer_til__CoverageNode)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.move_from">
-<h2>Vec__CoverageNode.move_from</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.move_from">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.move_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
 consumed -- it is the value being emptied, so it is the owned
 argument: <code>dest.move_from(own src)</code>.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, own other: Vec__priv___src_self_typer_til__CoverageNode)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.unsafe_get">
-<h2>Vec__CoverageNode.unsafe_get</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.unsafe_get">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.unsafe_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -1065,11 +1073,11 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__CoverageNode, i: USize) returns ref priv___src_self_typer_til__CoverageNode
+<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CoverageNode, i: USize) returns ref priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.get">
-<h2>Vec__CoverageNode.get</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.get">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -1077,40 +1085,40 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
+<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.pop">
-<h2>Vec__CoverageNode.pop</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.pop">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.pop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode) returns priv___src_self_typer_til__CoverageNode
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode) returns priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.remove_at">
-<h2>Vec__CoverageNode.remove_at</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.remove_at">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.remove_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.take_prefix">
-<h2>Vec__CoverageNode.take_prefix</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.take_prefix">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.take_prefix</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, shallow n: USize) returns Vec__CoverageNode
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.truncate">
-<h2>Vec__CoverageNode.truncate</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.truncate">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.truncate</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -1118,59 +1126,59 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow n: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.unsafe_set">
-<h2>Vec__CoverageNode.unsafe_set</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.unsafe_set">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.unsafe_set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.set">
-<h2>Vec__CoverageNode.set</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.set">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.push_take">
-<h2>Vec__CoverageNode.push_take</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.push_take">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.push_take</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__CoverageNode, mut src: Vec__CoverageNode, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__CoverageNode, mut src: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.delete">
-<h2>Vec__CoverageNode.delete</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.delete">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__CoverageNode, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__priv___src_self_typer_til__CoverageNode, shallow call_free: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode.clone">
-<h2>Vec__CoverageNode.clone</h2>
+<article class="doc-entry" id="til.src.self.typer.Vec__priv___src_self_typer_til__CoverageNode.clone">
+<h2>Vec__priv___src_self_typer_til__CoverageNode.clone</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__CoverageNode) returns Vec__CoverageNode
+<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.Vec__RootBits">
@@ -1439,22 +1447,22 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (self: Vec__RootBits) returns Vec__RootBits
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.typer.adopt__priv___src_self_typer_til__CtorArg">
-<h2>adopt__priv___src_self_typer_til__CtorArg</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_typer_til__CtorArg)
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.typer.adopt__RootBits">
 <h2>adopt__RootBits</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: RootBits)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: RootBits)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.adopt__priv___src_self_typer_til__CtorArg">
+<h2>adopt__priv___src_self_typer_til__CtorArg</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_typer_til__CtorArg)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.adopt__priv___src_self_typer_til__CoverageNode">
 <h2>adopt__priv___src_self_typer_til__CoverageNode</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (dest: Dynamic, own src: priv___src_self_typer_til__CoverageNode)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_typer_til__CoverageNode)
 </code></pre>
 </article>
 </main></div>

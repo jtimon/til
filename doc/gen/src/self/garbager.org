@@ -1,5 +1,5 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-80788b616
+#+SUBTITLE: til 0.0.1-b0fa1b9c4
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
@@ -12,14 +12,14 @@
 proc garbager_destroy_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
 #+end_src
 
-* garbager_destroy_func_body
+* garbager_validate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.garbager_destroy_func_body
+:CUSTOM_ID: til.src.self.garbager.garbager_validate
 :group: Compiler backend
 :END:
 
 #+begin_src til
-proc garbager_destroy_func_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope, fd: FunctionDef) returns shallow Bool
+proc garbager_validate(mut ctx: Context)
 #+end_src
 
 * garbager_destroy
@@ -30,6 +30,36 @@ proc garbager_destroy_func_body(mut ctx: Context, mut body: Expr, mut scope: Typ
 
 #+begin_src til
 proc garbager_destroy(mut ctx: Context)
+#+end_src
+
+* Vec__LocalInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+Vec__LocalInfo is a None
+#+end_src
+
+* Vec__GcCfgBlock
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock
+:group: Compiler backend
+:END:
+
+#+begin_src til
+Vec__GcCfgBlock is a None
+#+end_src
+
+* Vec__GcBorrowEdge
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge
+:group: Compiler backend
+:END:
+
+#+begin_src til
+Vec__GcBorrowEdge is a None
 #+end_src
 
 * Array__USize
@@ -413,46 +443,46 @@ loop whose nodes no later pass would infer.
 func Array__U8.to_vec(self: Array__U8) returns Vec__U8
 #+end_src
 
-* Vec__GcBorrowEdge
+* Vec__priv___src_self_garbager_til__GcBorrowEdge
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge
 :group: Compiler backend
 :END:
 
 #+begin_src til
-struct Vec__GcBorrowEdge {
+struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__GcBorrowEdge
-    func with_capacity(shallow n: USize) returns Vec__GcBorrowEdge
-    func len(self: Vec__GcBorrowEdge) returns shallow USize
-    func clear(mut self: Vec__GcBorrowEdge)
-    func delete_marked(mut self: Vec__GcBorrowEdge, marks: Dynamic)
-    func push(mut self: Vec__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
-    func append(mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
-    func take(mut self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
-    func move_to(own self: Vec__GcBorrowEdge, mut dest: Vec__GcBorrowEdge)
-    func move_from(mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
-    func unsafe_get(self: Vec__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
-    func get(self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
-    func pop(mut self: Vec__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
-    func remove_at(mut self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__GcBorrowEdge, shallow n: USize) returns Vec__GcBorrowEdge
-    func truncate(mut self: Vec__GcBorrowEdge, shallow n: USize)
-    func unsafe_set(mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
-    func set(mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
-    func push_take(mut self: Vec__GcBorrowEdge, mut src: Vec__GcBorrowEdge, shallow i: USize)
-    func delete(own self: Vec__GcBorrowEdge, shallow call_free: Bool)
-    func clone(self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
+    func new() returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func len(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
+    func append(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func move_to(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut dest: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
+    func get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+    func pop(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func truncate(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
+    func set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__GcBorrowEdge.new
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.new
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.new
 :group: Compiler backend
 :END:
 
@@ -463,12 +493,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__GcBorrowEdge.new() returns Vec__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.new() returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__GcBorrowEdge.with_capacity
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.with_capacity
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity
 :group: Compiler backend
 :END:
 
@@ -480,12 +510,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__GcBorrowEdge.with_capacity(shallow n: USize) returns Vec__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__GcBorrowEdge.clear
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.clear
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.clear
 :group: Compiler backend
 :END:
 
@@ -493,12 +523,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__GcBorrowEdge.clear(mut self: Vec__GcBorrowEdge)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.clear(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
-* Vec__GcBorrowEdge.delete_marked
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.delete_marked
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.delete_marked
 :group: Compiler backend
 :END:
 
@@ -509,12 +539,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__GcBorrowEdge.delete_marked(mut self: Vec__GcBorrowEdge, marks: Dynamic)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.delete_marked(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, marks: Dynamic)
 #+end_src
 
-* Vec__GcBorrowEdge.push
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.push
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.push
 :group: Compiler backend
 :END:
 
@@ -522,12 +552,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__GcBorrowEdge.push(mut self: Vec__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.push(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
-* Vec__GcBorrowEdge.append
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.append
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.append
 :group: Compiler backend
 :END:
 
@@ -535,12 +565,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__GcBorrowEdge.append(mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.append(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
-* Vec__GcBorrowEdge.take
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.take
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.take
 :group: Compiler backend
 :END:
 
@@ -555,12 +585,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__GcBorrowEdge.take(mut self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__GcBorrowEdge.move_to
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.move_to
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.move_to
 :group: Compiler backend
 :END:
 
@@ -577,12 +607,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__GcBorrowEdge.move_to(own self: Vec__GcBorrowEdge, mut dest: Vec__GcBorrowEdge)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.move_to(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut dest: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
-* Vec__GcBorrowEdge.move_from
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.move_from
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.move_from
 :group: Compiler backend
 :END:
 
@@ -591,12 +621,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__GcBorrowEdge.move_from(mut self: Vec__GcBorrowEdge, own other: Vec__GcBorrowEdge)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.move_from(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
-* Vec__GcBorrowEdge.unsafe_get
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.unsafe_get
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_get
 :group: Compiler backend
 :END:
 
@@ -607,12 +637,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__GcBorrowEdge.unsafe_get(self: Vec__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: USize) returns ref priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__GcBorrowEdge.get
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.get
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.get
 :group: Compiler backend
 :END:
 
@@ -622,12 +652,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__GcBorrowEdge.get(self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__GcBorrowEdge.pop
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.pop
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.pop
 :group: Compiler backend
 :END:
 
@@ -635,24 +665,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__GcBorrowEdge.pop(mut self: Vec__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.pop(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__GcBorrowEdge.remove_at
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.remove_at
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at
 :group: Compiler backend
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__GcBorrowEdge.remove_at(mut self: Vec__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__GcBorrowEdge.take_prefix
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.take_prefix
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix
 :group: Compiler backend
 :END:
 
@@ -660,12 +690,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__GcBorrowEdge.take_prefix(mut self: Vec__GcBorrowEdge, shallow n: USize) returns Vec__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__GcBorrowEdge.truncate
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.truncate
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate
 :group: Compiler backend
 :END:
 
@@ -675,12 +705,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__GcBorrowEdge.truncate(mut self: Vec__GcBorrowEdge, shallow n: USize)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: USize)
 #+end_src
 
-* Vec__GcBorrowEdge.unsafe_set
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.unsafe_set
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set
 :group: Compiler backend
 :END:
 
@@ -689,12 +719,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__GcBorrowEdge.unsafe_set(mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
-* Vec__GcBorrowEdge.set
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.set
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.set
 :group: Compiler backend
 :END:
 
@@ -703,12 +733,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__GcBorrowEdge.set(mut self: Vec__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
 #+end_src
 
-* Vec__GcBorrowEdge.push_take
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.push_take
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take
 :group: Compiler backend
 :END:
 
@@ -717,12 +747,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__GcBorrowEdge.push_take(mut self: Vec__GcBorrowEdge, mut src: Vec__GcBorrowEdge, shallow i: USize)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: USize)
 #+end_src
 
-* Vec__GcBorrowEdge.delete
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.delete
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.delete
 :group: Compiler backend
 :END:
 
@@ -730,61 +760,61 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__GcBorrowEdge.delete(own self: Vec__GcBorrowEdge, shallow call_free: Bool)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow call_free: Bool)
 #+end_src
 
-* Vec__GcBorrowEdge.clone
+* Vec__priv___src_self_garbager_til__GcBorrowEdge.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcBorrowEdge.clone
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcBorrowEdge.clone
 :group: Compiler backend
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__GcBorrowEdge.clone(self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.clone(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
-* Vec__LocalInfo
+* Vec__priv___src_self_garbager_til__LocalInfo
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo
 :group: Compiler backend
 :END:
 
 #+begin_src til
-struct Vec__LocalInfo {
+struct Vec__priv___src_self_garbager_til__LocalInfo {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__LocalInfo
-    func with_capacity(shallow n: USize) returns Vec__LocalInfo
-    func len(self: Vec__LocalInfo) returns shallow USize
-    func clear(mut self: Vec__LocalInfo)
-    func delete_marked(mut self: Vec__LocalInfo, marks: Dynamic)
-    func push(mut self: Vec__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
-    func append(mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
-    func take(mut self: Vec__LocalInfo) returns Vec__LocalInfo
-    func move_to(own self: Vec__LocalInfo, mut dest: Vec__LocalInfo)
-    func move_from(mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
-    func unsafe_get(self: Vec__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
-    func get(self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
-    func pop(mut self: Vec__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
-    func remove_at(mut self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__LocalInfo, shallow n: USize) returns Vec__LocalInfo
-    func truncate(mut self: Vec__LocalInfo, shallow n: USize)
-    func unsafe_set(mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
-    func set(mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
-    func push_take(mut self: Vec__LocalInfo, mut src: Vec__LocalInfo, shallow i: USize)
-    func delete(own self: Vec__LocalInfo, shallow call_free: Bool)
-    func clone(self: Vec__LocalInfo) returns Vec__LocalInfo
+    func new() returns Vec__priv___src_self_garbager_til__LocalInfo
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func len(self: Vec__priv___src_self_garbager_til__LocalInfo) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_garbager_til__LocalInfo)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__LocalInfo, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
+    func append(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
+    func take(mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func move_to(own self: Vec__priv___src_self_garbager_til__LocalInfo, mut dest: Vec__priv___src_self_garbager_til__LocalInfo)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
+    func get(self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+    func pop(mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func truncate(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
+    func set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__LocalInfo.new
+* Vec__priv___src_self_garbager_til__LocalInfo.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.new
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.new
 :group: Compiler backend
 :END:
 
@@ -795,12 +825,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__LocalInfo.new() returns Vec__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.new() returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__LocalInfo.with_capacity
+* Vec__priv___src_self_garbager_til__LocalInfo.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.with_capacity
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.with_capacity
 :group: Compiler backend
 :END:
 
@@ -812,12 +842,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__LocalInfo.with_capacity(shallow n: USize) returns Vec__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__LocalInfo.clear
+* Vec__priv___src_self_garbager_til__LocalInfo.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.clear
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.clear
 :group: Compiler backend
 :END:
 
@@ -825,12 +855,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__LocalInfo.clear(mut self: Vec__LocalInfo)
+func Vec__priv___src_self_garbager_til__LocalInfo.clear(mut self: Vec__priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
-* Vec__LocalInfo.delete_marked
+* Vec__priv___src_self_garbager_til__LocalInfo.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.delete_marked
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.delete_marked
 :group: Compiler backend
 :END:
 
@@ -841,12 +871,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__LocalInfo.delete_marked(mut self: Vec__LocalInfo, marks: Dynamic)
+func Vec__priv___src_self_garbager_til__LocalInfo.delete_marked(mut self: Vec__priv___src_self_garbager_til__LocalInfo, marks: Dynamic)
 #+end_src
 
-* Vec__LocalInfo.push
+* Vec__priv___src_self_garbager_til__LocalInfo.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.push
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.push
 :group: Compiler backend
 :END:
 
@@ -854,12 +884,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__LocalInfo.push(mut self: Vec__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
+func Vec__priv___src_self_garbager_til__LocalInfo.push(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
-* Vec__LocalInfo.append
+* Vec__priv___src_self_garbager_til__LocalInfo.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.append
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.append
 :group: Compiler backend
 :END:
 
@@ -867,12 +897,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__LocalInfo.append(mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
+func Vec__priv___src_self_garbager_til__LocalInfo.append(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
-* Vec__LocalInfo.take
+* Vec__priv___src_self_garbager_til__LocalInfo.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.take
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.take
 :group: Compiler backend
 :END:
 
@@ -887,12 +917,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__LocalInfo.take(mut self: Vec__LocalInfo) returns Vec__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.take(mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__LocalInfo.move_to
+* Vec__priv___src_self_garbager_til__LocalInfo.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.move_to
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.move_to
 :group: Compiler backend
 :END:
 
@@ -909,12 +939,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__LocalInfo.move_to(own self: Vec__LocalInfo, mut dest: Vec__LocalInfo)
+func Vec__priv___src_self_garbager_til__LocalInfo.move_to(own self: Vec__priv___src_self_garbager_til__LocalInfo, mut dest: Vec__priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
-* Vec__LocalInfo.move_from
+* Vec__priv___src_self_garbager_til__LocalInfo.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.move_from
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.move_from
 :group: Compiler backend
 :END:
 
@@ -923,12 +953,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__LocalInfo.move_from(mut self: Vec__LocalInfo, own other: Vec__LocalInfo)
+func Vec__priv___src_self_garbager_til__LocalInfo.move_from(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
-* Vec__LocalInfo.unsafe_get
+* Vec__priv___src_self_garbager_til__LocalInfo.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.unsafe_get
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.unsafe_get
 :group: Compiler backend
 :END:
 
@@ -939,12 +969,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__LocalInfo.unsafe_get(self: Vec__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.unsafe_get(self: Vec__priv___src_self_garbager_til__LocalInfo, i: USize) returns ref priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__LocalInfo.get
+* Vec__priv___src_self_garbager_til__LocalInfo.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.get
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.get
 :group: Compiler backend
 :END:
 
@@ -954,12 +984,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__LocalInfo.get(self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.get(self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__LocalInfo.pop
+* Vec__priv___src_self_garbager_til__LocalInfo.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.pop
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.pop
 :group: Compiler backend
 :END:
 
@@ -967,24 +997,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__LocalInfo.pop(mut self: Vec__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.pop(mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__LocalInfo.remove_at
+* Vec__priv___src_self_garbager_til__LocalInfo.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.remove_at
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.remove_at
 :group: Compiler backend
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__LocalInfo.remove_at(mut self: Vec__LocalInfo, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__LocalInfo.remove_at(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__LocalInfo.take_prefix
+* Vec__priv___src_self_garbager_til__LocalInfo.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.take_prefix
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.take_prefix
 :group: Compiler backend
 :END:
 
@@ -992,12 +1022,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__LocalInfo.take_prefix(mut self: Vec__LocalInfo, shallow n: USize) returns Vec__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.take_prefix(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize) returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__LocalInfo.truncate
+* Vec__priv___src_self_garbager_til__LocalInfo.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.truncate
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.truncate
 :group: Compiler backend
 :END:
 
@@ -1007,12 +1037,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__LocalInfo.truncate(mut self: Vec__LocalInfo, shallow n: USize)
+func Vec__priv___src_self_garbager_til__LocalInfo.truncate(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: USize)
 #+end_src
 
-* Vec__LocalInfo.unsafe_set
+* Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.unsafe_set
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set
 :group: Compiler backend
 :END:
 
@@ -1021,12 +1051,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__LocalInfo.unsafe_set(mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
+func Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
-* Vec__LocalInfo.set
+* Vec__priv___src_self_garbager_til__LocalInfo.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.set
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.set
 :group: Compiler backend
 :END:
 
@@ -1035,12 +1065,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__LocalInfo.set(mut self: Vec__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__LocalInfo.set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
 #+end_src
 
-* Vec__LocalInfo.push_take
+* Vec__priv___src_self_garbager_til__LocalInfo.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.push_take
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.push_take
 :group: Compiler backend
 :END:
 
@@ -1049,12 +1079,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__LocalInfo.push_take(mut self: Vec__LocalInfo, mut src: Vec__LocalInfo, shallow i: USize)
+func Vec__priv___src_self_garbager_til__LocalInfo.push_take(mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: USize)
 #+end_src
 
-* Vec__LocalInfo.delete
+* Vec__priv___src_self_garbager_til__LocalInfo.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.delete
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.delete
 :group: Compiler backend
 :END:
 
@@ -1062,61 +1092,61 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__LocalInfo.delete(own self: Vec__LocalInfo, shallow call_free: Bool)
+func Vec__priv___src_self_garbager_til__LocalInfo.delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, shallow call_free: Bool)
 #+end_src
 
-* Vec__LocalInfo.clone
+* Vec__priv___src_self_garbager_til__LocalInfo.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo.clone
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__LocalInfo.clone
 :group: Compiler backend
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__LocalInfo.clone(self: Vec__LocalInfo) returns Vec__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.clone(self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
-* Vec__GcCfgBlock
+* Vec__priv___src_self_garbager_til__GcCfgBlock
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock
 :group: Compiler backend
 :END:
 
 #+begin_src til
-struct Vec__GcCfgBlock {
+struct Vec__priv___src_self_garbager_til__GcCfgBlock {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__GcCfgBlock
-    func with_capacity(shallow n: USize) returns Vec__GcCfgBlock
-    func len(self: Vec__GcCfgBlock) returns shallow USize
-    func clear(mut self: Vec__GcCfgBlock)
-    func delete_marked(mut self: Vec__GcCfgBlock, marks: Dynamic)
-    func push(mut self: Vec__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
-    func append(mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
-    func take(mut self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
-    func move_to(own self: Vec__GcCfgBlock, mut dest: Vec__GcCfgBlock)
-    func move_from(mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
-    func unsafe_get(self: Vec__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
-    func get(self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
-    func pop(mut self: Vec__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
-    func remove_at(mut self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__GcCfgBlock, shallow n: USize) returns Vec__GcCfgBlock
-    func truncate(mut self: Vec__GcCfgBlock, shallow n: USize)
-    func unsafe_set(mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
-    func set(mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
-    func push_take(mut self: Vec__GcCfgBlock, mut src: Vec__GcCfgBlock, shallow i: USize)
-    func delete(own self: Vec__GcCfgBlock, shallow call_free: Bool)
-    func clone(self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
+    func new() returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func len(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns shallow USize
+    func clear(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
+    func append(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func move_to(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut dest: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
+    func get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+    func pop(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func truncate(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
+    func set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize)
+    func delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__GcCfgBlock.new
+* Vec__priv___src_self_garbager_til__GcCfgBlock.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.new
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.new
 :group: Compiler backend
 :END:
 
@@ -1127,12 +1157,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__GcCfgBlock.new() returns Vec__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.new() returns Vec__priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
-* Vec__GcCfgBlock.with_capacity
+* Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.with_capacity
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity
 :group: Compiler backend
 :END:
 
@@ -1144,12 +1174,12 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__GcCfgBlock.with_capacity(shallow n: USize) returns Vec__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity(shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
-* Vec__GcCfgBlock.clear
+* Vec__priv___src_self_garbager_til__GcCfgBlock.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.clear
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.clear
 :group: Compiler backend
 :END:
 
@@ -1157,12 +1187,12 @@ Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__GcCfgBlock.clear(mut self: Vec__GcCfgBlock)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.clear(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
-* Vec__GcCfgBlock.delete_marked
+* Vec__priv___src_self_garbager_til__GcCfgBlock.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.delete_marked
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.delete_marked
 :group: Compiler backend
 :END:
 
@@ -1173,12 +1203,12 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__GcCfgBlock.delete_marked(mut self: Vec__GcCfgBlock, marks: Dynamic)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.delete_marked(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, marks: Dynamic)
 #+end_src
 
-* Vec__GcCfgBlock.push
+* Vec__priv___src_self_garbager_til__GcCfgBlock.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.push
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.push
 :group: Compiler backend
 :END:
 
@@ -1186,12 +1216,12 @@ Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__GcCfgBlock.push(mut self: Vec__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.push(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
-* Vec__GcCfgBlock.append
+* Vec__priv___src_self_garbager_til__GcCfgBlock.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.append
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.append
 :group: Compiler backend
 :END:
 
@@ -1199,12 +1229,12 @@ Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__GcCfgBlock.append(mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.append(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
-* Vec__GcCfgBlock.take
+* Vec__priv___src_self_garbager_til__GcCfgBlock.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.take
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.take
 :group: Compiler backend
 :END:
 
@@ -1219,12 +1249,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__GcCfgBlock.take(mut self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
-* Vec__GcCfgBlock.move_to
+* Vec__priv___src_self_garbager_til__GcCfgBlock.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.move_to
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.move_to
 :group: Compiler backend
 :END:
 
@@ -1241,12 +1271,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__GcCfgBlock.move_to(own self: Vec__GcCfgBlock, mut dest: Vec__GcCfgBlock)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.move_to(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut dest: Vec__priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
-* Vec__GcCfgBlock.move_from
+* Vec__priv___src_self_garbager_til__GcCfgBlock.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.move_from
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.move_from
 :group: Compiler backend
 :END:
 
@@ -1255,12 +1285,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__GcCfgBlock.move_from(mut self: Vec__GcCfgBlock, own other: Vec__GcCfgBlock)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.move_from(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
-* Vec__GcCfgBlock.unsafe_get
+* Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.unsafe_get
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_get
 :group: Compiler backend
 :END:
 
@@ -1271,12 +1301,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__GcCfgBlock.unsafe_get(self: Vec__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: USize) returns ref priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
-* Vec__GcCfgBlock.get
+* Vec__priv___src_self_garbager_til__GcCfgBlock.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.get
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.get
 :group: Compiler backend
 :END:
 
@@ -1286,12 +1316,12 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__GcCfgBlock.get(self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
-* Vec__GcCfgBlock.pop
+* Vec__priv___src_self_garbager_til__GcCfgBlock.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.pop
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.pop
 :group: Compiler backend
 :END:
 
@@ -1299,24 +1329,24 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__GcCfgBlock.pop(mut self: Vec__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.pop(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
-* Vec__GcCfgBlock.remove_at
+* Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.remove_at
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at
 :group: Compiler backend
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__GcCfgBlock.remove_at(mut self: Vec__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, mut _err_kind: I64)
 #+end_src
 
-* Vec__GcCfgBlock.take_prefix
+* Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.take_prefix
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix
 :group: Compiler backend
 :END:
 
@@ -1324,12 +1354,12 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__GcCfgBlock.take_prefix(mut self: Vec__GcCfgBlock, shallow n: USize) returns Vec__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
-* Vec__GcCfgBlock.truncate
+* Vec__priv___src_self_garbager_til__GcCfgBlock.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.truncate
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.truncate
 :group: Compiler backend
 :END:
 
@@ -1339,12 +1369,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__GcCfgBlock.truncate(mut self: Vec__GcCfgBlock, shallow n: USize)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.truncate(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: USize)
 #+end_src
 
-* Vec__GcCfgBlock.unsafe_set
+* Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.unsafe_set
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set
 :group: Compiler backend
 :END:
 
@@ -1353,12 +1383,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__GcCfgBlock.unsafe_set(mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
-* Vec__GcCfgBlock.set
+* Vec__priv___src_self_garbager_til__GcCfgBlock.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.set
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.set
 :group: Compiler backend
 :END:
 
@@ -1367,12 +1397,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__GcCfgBlock.set(mut self: Vec__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
 #+end_src
 
-* Vec__GcCfgBlock.push_take
+* Vec__priv___src_self_garbager_til__GcCfgBlock.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.push_take
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.push_take
 :group: Compiler backend
 :END:
 
@@ -1381,12 +1411,12 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__GcCfgBlock.push_take(mut self: Vec__GcCfgBlock, mut src: Vec__GcCfgBlock, shallow i: USize)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.push_take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: USize)
 #+end_src
 
-* Vec__GcCfgBlock.delete
+* Vec__priv___src_self_garbager_til__GcCfgBlock.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.delete
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.delete
 :group: Compiler backend
 :END:
 
@@ -1394,19 +1424,82 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__GcCfgBlock.delete(own self: Vec__GcCfgBlock, shallow call_free: Bool)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow call_free: Bool)
 #+end_src
 
-* Vec__GcCfgBlock.clone
+* Vec__priv___src_self_garbager_til__GcCfgBlock.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Vec__GcCfgBlock.clone
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock.clone
 :group: Compiler backend
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__GcCfgBlock.clone(self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.clone(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+#+end_src
+
+* Option__ref_FunctionDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Option__ref_FunctionDef
+:group: Compiler backend
+:END:
+
+#+begin_src til
+enum Option__ref_FunctionDef {
+    None
+    Some: FunctionDef
+namespace:
+    func is_some(shallow self: Option__ref_FunctionDef) returns shallow Bool
+    func is_none(shallow self: Option__ref_FunctionDef) returns shallow Bool
+    func unwrap_or(self: Option__ref_FunctionDef, default_v: FunctionDef) returns ref FunctionDef
+    func unwrap(self: Option__ref_FunctionDef) returns ref FunctionDef
+    func take(own self: Option__ref_FunctionDef) returns ref FunctionDef
+    ext_func None() returns shallow Option__ref_FunctionDef
+    ext_func Some(val: FunctionDef) returns shallow Option__ref_FunctionDef
+    core_func is(self: Option__ref_FunctionDef, other: Option__ref_FunctionDef) returns shallow Bool
+    func eq(shallow self: Option__ref_FunctionDef, shallow other: Option__ref_FunctionDef) returns shallow Bool
+    func delete(own self: Option__ref_FunctionDef, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_FunctionDef) returns Str
+    func clone(self: Option__ref_FunctionDef) returns shallow Option__ref_FunctionDef
+    func size() returns shallow USize
+}
+#+end_src
+
+* Option__ref_FunctionDef.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Option__ref_FunctionDef.unwrap
+:group: Compiler backend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__ref_FunctionDef.unwrap(self: Option__ref_FunctionDef) returns ref FunctionDef
+#+end_src
+
+* Option__ref_FunctionDef.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Option__ref_FunctionDef.take
+:group: Compiler backend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__ref_FunctionDef.take(own self: Option__ref_FunctionDef) returns ref FunctionDef
 #+end_src
 
 * Vec__U8
@@ -1758,7 +1851,7 @@ func swap__priv___src_self_garbager_til__LocalInfo(mut a: priv___src_self_garbag
 :END:
 
 #+begin_src til
-func adopt__U8(dest: Dynamic, own src: U8)
+func adopt__U8(mut dest: Dynamic, own src: U8)
 #+end_src
 
 * adopt__priv___src_self_garbager_til__GcBorrowEdge
@@ -1768,7 +1861,7 @@ func adopt__U8(dest: Dynamic, own src: U8)
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_garbager_til__GcBorrowEdge(dest: Dynamic, own src: priv___src_self_garbager_til__GcBorrowEdge)
+func adopt__priv___src_self_garbager_til__GcBorrowEdge(mut dest: Dynamic, own src: priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
 * adopt__priv___src_self_garbager_til__LocalInfo
@@ -1778,7 +1871,7 @@ func adopt__priv___src_self_garbager_til__GcBorrowEdge(dest: Dynamic, own src: p
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_garbager_til__LocalInfo(dest: Dynamic, own src: priv___src_self_garbager_til__LocalInfo)
+func adopt__priv___src_self_garbager_til__LocalInfo(mut dest: Dynamic, own src: priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
 * adopt__priv___src_self_garbager_til__GcCfgBlock
@@ -1788,5 +1881,5 @@ func adopt__priv___src_self_garbager_til__LocalInfo(dest: Dynamic, own src: priv
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_garbager_til__GcCfgBlock(dest: Dynamic, own src: priv___src_self_garbager_til__GcCfgBlock)
+func adopt__priv___src_self_garbager_til__GcCfgBlock(mut dest: Dynamic, own src: priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
