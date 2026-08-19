@@ -1,12 +1,88 @@
 # priority: low
 # category: cleanups
-** OPEN #90 Til libraries: avoid symbol conflicts between independent libs
+** WIP #90 Til libraries: avoid symbol conflicts between independent libs
 
 When two til libraries are linked into the same C program, they both
-  define Vec, Map, Str, etc. from core.til. With ~--allow-multiple-definition~
-  this works but is fragile. Proper solution: compile core.til into a
-  shared ~libcoretil.a~ that all til libraries link against, or use
-  namespaced symbols (e.g. ~_til_Vec_push~). Not urgent — current
-  approach works for the compiler itself. Only matters when til is used
-  as a library language by external C programs.
+define core, generated specialization, and C runtime symbols. This matters
+when til is used as a library language by external C programs.
 
+*** Re-analysis (2026-08-19)
+
+The original description predates private path mangling (#179), library
+scavenging and closed-world C linkage (#326), cross-target library output
+(#25), installed libraries (#42), and the USize ABI switch (#309). Those
+changes reduced each library, but did not isolate it:
+
+- Library mode deliberately keeps its exported ABI non-static. Core and
+  generated support declarations still become global definitions.
+- ~compile_lib~ puts the complete hand-written ~ext.o~ in every shared and
+  static library. Its runtime symbols are global too.
+- The generated public header repeats core struct definitions and support
+  prototypes, so composition fails before linking when two headers are
+  included in one C translation unit.
+- Library C currently emits ~main~ instead of the existing constructor
+  path: ~is_script~ is initialized independently of ~is_lib~, making
+  ~emit_lib_init~ unreachable for normal library modes.
+
+Concrete reproduction with ~examples/lib/cell.til~ and
+~examples/lib/alphabeta.til~:
+
+- Their shared objects have 230 common exported symbol names.
+- Linking both static archives fails on ~main~, ~CAP_LIT~, ~Str_clone~,
+  ~Array__Str_*~, ~println~, and the rest of the common support surface.
+- Linking both shared objects succeeds, but the second object's
+  ~Str_clone~ and ~CAP_LIT~ relocations are interposable and bind by load
+  order rather than to that library's own implementation.
+- Including both generated headers fails with redefinitions of ~Str~,
+  ~Array__Str~, ~Dynamic~, and their associated prototypes.
+
+The two old proposals are insufficient:
+
+- A common ~libcoretil.a~ does not own program-specific generic
+  instantiations, generated helpers, or arbitrary ~link_c~ code. It also
+  introduces a target/ASAN/USize/version ABI matrix and a new installed
+  dependency.
+- A fixed prefix such as ~_til_~ only moves the collision: every library
+  would still export the same prefixed names. The namespace must include
+  the library identity.
+
+*** Required invariant
+
+Two libraries whose own public declaration names do not conflict must be
+usable together from one C program, through either their static or shared
+artifacts, without special linker flags. Including both public headers must
+compile. Each library must bind to its own generated/runtime implementation,
+including when another library was built by a different til version with the
+same public ABI settings. Different targets or USize settings are distinct
+ABIs, not composable libraries. A genuine collision between the libraries'
+own public APIs should remain a loud error.
+
+*** Proposed implementation
+
+Use a deterministic C namespace derived from the library artifact name,
+for example ~til_cell__ca_step~ and ~til_cell__Str_clone~.
+
+1. Prefix every symbol owned by a library: source definitions, globals,
+   generated generic/lifecycle helpers, reflection helpers, initializer,
+   and the bundled ~src/c/ext.c~ runtime. Do not rename unresolved external
+   dependencies such as libc or symbols supplied by a separately linked C
+   library.
+2. Namespace generated C tags/typedefs as well as linker symbols, so two
+   generated headers compose even when both libraries instantiate the same
+   til type name.
+3. Emit the real prefixed names in the C header. Generate til aliases or
+   forwarding methods and Python lookups so those language bindings retain
+   the original source-level API names.
+4. Reuse the existing generated forward header as the compile-time symbol
+   map for the generated C, ~ext.c~, and declared ~link_c~ definitions; do
+   not add another generated artifact.
+5. Emit the existing constructor-based library initializer, never ~main~.
+6. Add one regression that builds two tiny libraries sharing core and the
+   same generic instantiations, includes both headers, and links/calls both
+   static archives. Run the equivalent shared-library program too, plus a
+   til consumer of both generated bindings.
+
+This intentionally changes the generated C ABI. Existing C consumers must
+rebuild against the newly generated header; generated til/Python consumers
+keep their source-level names. No compatibility aliases should be emitted,
+because unprefixed aliases recreate the conflict this issue removes.
