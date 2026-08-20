@@ -17,8 +17,11 @@ extern U0 TilWritePtr(U8 *slot,U8 *value);
 
 I64 TilMain()
 {
-    "%s", "Hello World!";
-    "\n";
+    TilStr hoisted__Str_g9;
+    TilStrInitLit(&hoisted__Str_g9, "Hello World!", 12);
+    TilStrWrite(&hoisted__Str_g9);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g9, FALSE);
     return 0;
 }
 

@@ -1,0 +1,18 @@
+mode script
+
+literal := "  1234  "
+copy := literal.clone()
+view := copy.substr(2, 4)
+borrowed := view.borrowed_view()
+
+mut out := Str.with_capacity(8)
+out.push_str("ab")
+out.push_str(borrowed)
+
+println(out)
+number := literal.trim().to_i64()
+println(number.to_str())
+println(out.len().to_i64().to_str())
+
+own out.delete()
+own copy.delete()

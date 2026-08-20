@@ -19,8 +19,11 @@ extern I64 twice(I64 n);
 
 I64 twice(I64 n)
 {
-    "%s", "Inside twice";
-    "\n";
+    TilStr hoisted__Str_twice_2;
+    TilStrInitLit(&hoisted__Str_twice_2, "Inside twice", 12);
+    TilStrWrite(&hoisted__Str_twice_2);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_twice_2, FALSE);
     I64 hoisted__I64_3 = 2;
     I64 hoisted__I64_4 = (n * hoisted__I64_3);
     return hoisted__I64_4;
@@ -28,12 +31,18 @@ I64 twice(I64 n)
 
 I64 TilMain()
 {
-    "%s", "Imported calls helper";
-    "\n";
+    TilStr hoisted__Str_g9;
+    TilStrInitLit(&hoisted__Str_g9, "Imported calls helper", 21);
+    TilStrWrite(&hoisted__Str_g9);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g9, FALSE);
     I64 hoisted__I64_g10 = 21;
     I64 result = twice(hoisted__I64_g10);
-    "%d", result;
-    "\n";
+    TilStr hoisted__Str_g13;
+    TilStrFromI64(&hoisted__Str_g13, result);
+    TilStrWrite(&hoisted__Str_g13);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g13, FALSE);
     return 0;
 }
 

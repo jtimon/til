@@ -15,6 +15,7 @@ priv HolyCEmitState := struct {
 
 priv HolyCLocalState := struct {
     pointer_types := Map(Str, Str).new()
+    str_names := Set(Str).new()
 }
 
 priv holyc_direct_call_name := func(e: Expr, ctx: Context) returns Str {
@@ -93,37 +94,6 @@ priv holyc_print_array_name := func(e: Expr, ctx: Context) returns Str {
     }
 }
 
-priv holyc_lit_has_nul := func(s: Str) returns Bool {
-    mut i : USize = 0
-    while i < s.len() {
-        ref ch : I8 = s.unsafe_get(i)
-        if ch.eq(0) { return true }
-        if ch.eq('\\').and(i.add(1).lt(s.len())) {
-            ref next : I8 = s.unsafe_get(i + 1)
-            if next.eq('0') { return true }
-            if next.eq('x') {
-                mut j := i + 2
-                mut digits : USize = 0
-                mut any_nonzero := false
-                while j < s.len() {
-                    digit := digit_value(s.unsafe_get(j))
-                    if digit < 0 { break }
-                    if digit != 0 { any_nonzero = true }
-                    digits++
-                    j++
-                }
-                if digits.gt(0).and(any_nonzero.not()) { return true }
-                i = j
-                continue
-            }
-            i = i + 2
-            continue
-        }
-        i++
-    }
-    return false
-}
-
 priv holyc_indent := func(depth: USize) returns Str {
     mut out := ""
     for _ in 0..depth { out = format(out, "    ") }
@@ -154,7 +124,44 @@ priv holyc_storage_type_name := func(name: Str) returns Str {
 }
 
 priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState {
-    return HolyCLocalState(pointer_types = locals.pointer_types.clone())
+    return HolyCLocalState(pointer_types = locals.pointer_types.clone(),
+        str_names = locals.str_names.clone())
+}
+
+// Post-escape byte count for source-form string literals. HolyC receives the
+// same escaped spelling as C, but TilStr.count names the resulting bytes.
+priv holyc_lit_byte_count := func(s: Str) returns USize {
+    n := s.len()
+    mut count : USize = 0
+    mut i : USize = 0
+    while i < n {
+        ref b : I8 = s.unsafe_get(i)
+        if b.eq('\\').and(i.add(1).lt(n)) {
+            ref next : I8 = s.unsafe_get(i + 1)
+            if next == 'x' {
+                mut hex_i := i + 2
+                while hex_i < n {
+                    if digit_value(s.unsafe_get(hex_i)).lt(0) { break }
+                    hex_i++
+                }
+                if hex_i > i + 2 {
+                    i = hex_i
+                    count++
+                    continue
+                }
+            }
+            i = i + 2
+            count++
+            continue
+        }
+        if b.eq('"').and(i.add(1).lt(n)).and(s.unsafe_get(i + 1).eq('"')) {
+            i = i + 2
+            continue
+        }
+        i++
+        count++
+    }
+    return count
 }
 
 priv holyc_decl_pointer_type := func(decl: Declaration, rhs: Expr,
@@ -199,6 +206,71 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
 
 priv holyc_checked_load := func(name: Str, type_name: Str) returns Str {
     return format("(*(TilCheckPtr(", name, "))(", type_name, " *))")
+}
+
+priv holyc_str_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
+    mut error: Str) returns Str {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        if locals.str_names.has(name) { return format("&", name) }
+    case:
+    }
+    error = format("unsupported Str value '", node_name(e.node_type), "'")
+    return ""
+}
+
+priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
+    mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
+    switch e.node_type {
+    case .Literal(Literal.Str(s)):
+        return format("TilStrInitLit(&", dest, ", \"", s, "\", ",
+            holyc_lit_byte_count(s).to_str(), ")")
+    case .FCall:
+        if e.children.len() == 0 {
+            error = "Str initializer call has no callee"
+            return ""
+        }
+        method := holyc_field_call_name(e, ctx)
+        owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols))
+        if owner == "Str" {
+            if method.eq("clone").or(method.eq("to_str")) {
+                if e.children.len() != 2 { error = format("invalid Str.", method, " call"); return "" }
+                src := holyc_str_ref(e.children[1], ctx, locals, error)
+                return format("TilStrClone(&", dest, ", ", src, ")")
+            }
+            if method == "with_capacity" {
+                if e.children.len() != 2 { error = "invalid Str.with_capacity call"; return "" }
+                cap := holyc_expr(e.children[1], ctx, state, locals, error)
+                return format("TilStrWithCapacity(&", dest, ", ", cap, ")")
+            }
+            if method == "substr" {
+                if e.children.len() != 4 { error = "invalid Str.substr call"; return "" }
+                src := holyc_str_ref(e.children[1], ctx, locals, error)
+                start := holyc_expr(e.children[2], ctx, state, locals, error)
+                count := holyc_expr(e.children[3], ctx, state, locals, error)
+                return format("TilStrSubstr(&", dest, ", ", src, ", ", start, ", ", count, ")")
+            }
+            if method.eq("borrowed_view").or(method.eq("trim_start")).or(method.eq("trim")) {
+                if e.children.len() != 2 { error = format("invalid Str.", method, " call"); return "" }
+                src := holyc_str_ref(e.children[1], ctx, locals, error)
+                mut runtime_name := "TilStrBorrowedView"
+                if method == "trim_start" { runtime_name = "TilStrTrimStart" }
+                if method == "trim" { runtime_name = "TilStrTrim" }
+                return format(runtime_name, "(&", dest, ", ", src, ")")
+            }
+        }
+        if owner.eq("I64").and(method.eq("to_str")) {
+            if e.children.len() != 2 { error = "invalid I64.to_str call"; return "" }
+            value := holyc_expr(e.children[1], ctx, state, locals, error)
+            return format("TilStrFromI64(&", dest, ", ", value, ")")
+        }
+        error = format("unsupported Str initializer call '", owner, ".", method, "'")
+        return ""
+    case:
+        error = format("unsupported Str initializer '", node_name(e.node_type), "'")
+        return ""
+    }
 }
 
 priv holyc_narrow_wrap := func(value: Str, owner: Str) returns Str {
@@ -335,6 +407,46 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         case .FieldAccess(fa):
             ref method : Str = fa.field_access_name(ctx.symbols.names)
             owner := holyc_storage_type_name(holyc_field_owner_name(callee, ctx.symbols))
+            if owner == "Str" {
+                if method == "len" {
+                    if e.children.len() != 2 { error = "invalid Str.len call"; return "" }
+                    src := holyc_str_ref(e.children[1], ctx, locals, error)
+                    return format("(", src, ")->count")
+                }
+                if method == "to_i64" {
+                    if e.children.len() != 2 { error = "invalid Str.to_i64 call"; return "" }
+                    src := holyc_str_ref(e.children[1], ctx, locals, error)
+                    return format("TilStrToI64(", src, ")")
+                }
+                if method == "is_empty" {
+                    if e.children.len() != 2 { error = "invalid Str.is_empty call"; return "" }
+                    src := holyc_str_ref(e.children[1], ctx, locals, error)
+                    return format("((", src, ")->count == 0)")
+                }
+                if method.eq("eq").or(method.eq("neq")).or(method.eq("cmp")) {
+                    if e.children.len() != 3 { error = format("invalid Str.", method, " call"); return "" }
+                    left := holyc_str_ref(e.children[1], ctx, locals, error)
+                    right := holyc_str_ref(e.children[2], ctx, locals, error)
+                    mut value := format("TilStrEq(", left, ", ", right, ")")
+                    if method == "neq" { value = format("(!", value, ")") }
+                    if method == "cmp" { value = format("TilStrCmp(", left, ", ", right, ")") }
+                    return value
+                }
+                if method == "push_str" {
+                    if e.children.len() != 3 { error = "invalid Str.push_str call"; return "" }
+                    dest := holyc_str_ref(e.children[1], ctx, locals, error)
+                    src := holyc_str_ref(e.children[2], ctx, locals, error)
+                    return format("TilStrPush(", dest, ", ", src, ")")
+                }
+                if method == "delete" {
+                    if e.children.len() != 3 { error = "invalid Str.delete call"; return "" }
+                    src := holyc_str_ref(e.children[1], ctx, locals, error)
+                    call_free := holyc_expr(e.children[2], ctx, state, locals, error)
+                    return format("TilStrDelete(", src, ", ", call_free, ")")
+                }
+                error = format("unsupported call 'Str.", method, "'")
+                return ""
+            }
             if method == "size" {
                 if e.children.len() != 1 {
                     error = "invalid core call 'size'"
@@ -367,7 +479,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 right := holyc_pointer_expr(e.children[2], ctx, state, locals, error)
                 return format("(", left, " == ", right, ")")
             }
-            if method.eq("to_i64").and(owner.eq("U8")) {
+            if method.eq("to_i64").and(holyc_scalar_type_name(owner)) {
                 if e.children.len() != 2 {
                     error = "invalid core call 'to_i64'"
                     return ""
@@ -433,6 +545,11 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             return value
         case .Ident(id):
             ref name : Str = id.ident_name(ctx.symbols.names)
+            if name == "print_single" {
+                if e.children.len() != 2 { error = "invalid call 'print_single'"; return "" }
+                value := holyc_str_ref(e.children[1], ctx, locals, error)
+                return format("TilStrWrite(", value, ")")
+            }
             if name == "malloc" {
                 if e.children.len() != 2 { error = "invalid call 'malloc'"; return "" }
                 count := holyc_expr(e.children[1], ctx, state, locals, error)
@@ -603,27 +720,14 @@ priv holyc_print_scaffold := func(body: Expr, start: USize, depth: USize,
         error = "invalid println value name"
         return
     }
-    switch value_stmt.children[0].node_type {
-    case .Literal(Literal.Str(s)):
-        if holyc_lit_has_nul(s) {
-            error = "println string literals containing NUL are not supported"
-            return
-        }
-        output = format(prelude, prefix, "\"%s\", \"", s, "\";\n", prefix, "\"\\n\";\n")
-    case .FCall:
-        ref value : Expr = value_stmt.children[0]
-        if holyc_field_call_name(value, ctx).neq("to_str").or(value.children.len().neq(2))
-            .or(til_type_name_c(value.children[1].til_type()) != "I64") {
-            error = "println currently supports string literals and I64.to_str()"
-            return
-        }
-        value_code := holyc_expr(value.children[1], ctx, state, locals, error)
-        if error.len() > 0 { return }
-        output = format(prelude, prefix, "\"%d\", ", value_code, ";\n", prefix, "\"\\n\";\n")
-    case:
-        error = "println currently supports string literals and I64.to_str()"
-        return
-    }
+    value_init := holyc_str_init(value_name, value_stmt.children[0], ctx, state, locals, error)
+    if error.len() > 0 { return }
+    output = format(prelude,
+        prefix, "TilStr ", value_name, ";\n",
+        prefix, value_init, ";\n",
+        prefix, "TilStrWrite(&", value_name, ");\n",
+        prefix, "TilRawWrite(\"\\n\", 1);\n",
+        prefix, "TilStrDelete(&", value_name, ", FALSE);\n")
 
     mut set_array := ""
     mut set_index := ""
@@ -677,34 +781,46 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
                 error = "nested functions are not supported yet"
                 return ""
             }
-            pointer_type := holyc_decl_pointer_type(decl, stmt.children[0], ctx.symbols)
-            if pointer_type.len() > 0 {
-                if pointer_type.neq("Dynamic").and(holyc_scalar_type_name(pointer_type).not()) {
-                    error = format("unsupported pointer declaration type '", pointer_type, "'")
-                    return ""
-                }
-                value := holyc_pointer_expr(stmt.children[0], ctx, state, locals, error)
+            decl_type := holyc_storage_type_name(decl.type_name())
+            if decl_type == "Str" {
+                value := holyc_str_init(decl.name, stmt.children[0], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
-                mut storage_type := pointer_type
-                if storage_type == "Dynamic" { storage_type = "U8" }
-                out = format(out, prefix, storage_type, " *", decl.name, " = ", value, ";\n")
-                locals.pointer_types.set(decl.name, own pointer_type)
+                out = format(out, prefix, "TilStr ", decl.name, ";\n",
+                    prefix, value, ";\n")
+                locals.str_names.add(own decl.name.clone())
             } else {
-                scalar_type := holyc_storage_type_name(til_type_name_c(stmt.til_type()))
-                if holyc_scalar_type_name(scalar_type).not() {
-                    error = format("unsupported declaration type '", til_type_name_c(stmt.til_type()), "'")
-                    return ""
+                pointer_type := holyc_decl_pointer_type(decl, stmt.children[0], ctx.symbols)
+                if pointer_type.len() > 0 {
+                    if pointer_type.neq("Dynamic").and(holyc_scalar_type_name(pointer_type).not()) {
+                        error = format("unsupported pointer declaration type '", pointer_type, "'")
+                        return ""
+                    }
+                    value := holyc_pointer_expr(stmt.children[0], ctx, state, locals, error)
+                    if error.len() > 0 { return "" }
+                    mut storage_type := pointer_type
+                    if storage_type == "Dynamic" { storage_type = "U8" }
+                    out = format(out, prefix, storage_type, " *", decl.name, " = ", value, ";\n")
+                    locals.pointer_types.set(decl.name, own pointer_type)
+                } else {
+                    scalar_type := decl_type
+                    if holyc_scalar_type_name(scalar_type).not() {
+                        error = format("unsupported declaration type '", decl.type_name(), "'")
+                        return ""
+                    }
+                    value := holyc_expr(stmt.children[0], ctx, state, locals, error)
+                    if error.len() > 0 { return "" }
+                    out = format(out, prefix, scalar_type, " ", decl.name, " = ", value, ";\n")
                 }
-                value := holyc_expr(stmt.children[0], ctx, state, locals, error)
-                if error.len() > 0 { return "" }
-                out = format(out, prefix, scalar_type, " ", decl.name, " = ", value, ";\n")
             }
         case .Assign(assign):
             if stmt.children.len() != 1 {
                 error = "invalid scalar assignment"
                 return ""
             }
-            if locals.pointer_types.has(assign.name) {
+            if locals.str_names.has(assign.name) {
+                error = "Str assignment is not supported yet"
+                return ""
+            } else if locals.pointer_types.has(assign.name) {
                 ref pointer_type : Str = locals.pointer_types[assign.name]
                 if pointer_type.eq("Dynamic").or(holyc_expr_is_pointer(stmt.children[0], ctx, locals)) {
                     value := holyc_pointer_expr(stmt.children[0], ctx, state, locals, error)

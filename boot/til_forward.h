@@ -1171,6 +1171,7 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Map__Str_Str pointer_types;
+    Set__Str str_names;
 } priv___src_self_holyc_codegen_til__HolyCLocalState;
 
 

@@ -24,8 +24,11 @@ I64 TilMain()
     U8 *recovered = back;
     TilFree(recovered);
     TilFree(slot);
-    "%s", "ok";
-    "\n";
+    TilStr hoisted__Str_g10;
+    TilStrInitLit(&hoisted__Str_g10, "ok", 2);
+    TilStrWrite(&hoisted__Str_g10);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g10, FALSE);
     U8 *slot2 = TilMAlloc(8);
     I8 *b = TilMAlloc(4);
     TilWritePtr(slot2, b);
@@ -33,8 +36,11 @@ I64 TilMain()
     U8 *recovered2 = back2;
     TilFree(recovered2);
     TilFree(slot2);
-    "%s", "ok2";
-    "\n";
+    TilStr hoisted__Str_g13;
+    TilStrInitLit(&hoisted__Str_g13, "ok2", 3);
+    TilStrWrite(&hoisted__Str_g13);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g13, FALSE);
     return 0;
 }
 

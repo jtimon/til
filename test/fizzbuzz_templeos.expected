@@ -37,27 +37,39 @@ I64 TilMain()
         I64 hoisted__I64_g31 = 0;
         Bool hoisted__Bool_g32 = (hoisted__I64_g30 == hoisted__I64_g31);
         if (hoisted__Bool_g32) {
-            "%s", "FizzBuzz";
-            "\n";
+            TilStr hoisted__Str_g10;
+            TilStrInitLit(&hoisted__Str_g10, "FizzBuzz", 8);
+            TilStrWrite(&hoisted__Str_g10);
+            TilRawWrite("\n", 1);
+            TilStrDelete(&hoisted__Str_g10, FALSE);
         } else {
             I64 hoisted__I64_g24 = 3;
             I64 hoisted__I64_g25 = TilI64Mod(i, hoisted__I64_g24);
             I64 hoisted__I64_g26 = 0;
             Bool hoisted__Bool_g27 = (hoisted__I64_g25 == hoisted__I64_g26);
             if (hoisted__Bool_g27) {
-                "%s", "Fizz";
-                "\n";
+                TilStr hoisted__Str_g13;
+                TilStrInitLit(&hoisted__Str_g13, "Fizz", 4);
+                TilStrWrite(&hoisted__Str_g13);
+                TilRawWrite("\n", 1);
+                TilStrDelete(&hoisted__Str_g13, FALSE);
             } else {
                 I64 hoisted__I64_g20 = 5;
                 I64 hoisted__I64_g21 = TilI64Mod(i, hoisted__I64_g20);
                 I64 hoisted__I64_g22 = 0;
                 Bool hoisted__Bool_g23 = (hoisted__I64_g21 == hoisted__I64_g22);
                 if (hoisted__Bool_g23) {
-                    "%s", "Buzz";
-                    "\n";
+                    TilStr hoisted__Str_g16;
+                    TilStrInitLit(&hoisted__Str_g16, "Buzz", 4);
+                    TilStrWrite(&hoisted__Str_g16);
+                    TilRawWrite("\n", 1);
+                    TilStrDelete(&hoisted__Str_g16, FALSE);
                 } else {
-                    "%d", i;
-                    "\n";
+                    TilStr hoisted__Str_g19;
+                    TilStrFromI64(&hoisted__Str_g19, i);
+                    TilStrWrite(&hoisted__Str_g19);
+                    TilRawWrite("\n", 1);
+                    TilStrDelete(&hoisted__Str_g19, FALSE);
                 }
             }
         }

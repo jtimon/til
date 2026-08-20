@@ -89,9 +89,14 @@
     requiring NUL termination. ~TilPanic~ emits counted bytes and throws the
     catchable TempleOS exception ~'TILPANIC'~. Null dereferences emit exactly
     ~panic: null deref\n~ and throw that same exception.
-  - The runtime's presence does not make Til Dynamic/pointer expressions
-    representable. Those ext_func calls remain explicit codegen errors until
-    pointer declarations and lowering are implemented.
+  - Dynamic and typed raw pointers use one native pointer word. Typed scalar
+    pointer reads check for null before loading; pointer-bearing aggregates and
+    pointer function interfaces remain unsupported until aggregate ABI work.
+  - ~TilStr~ matches til's three-field value (~c_str~, ~count~, ~cap~), with
+    U32 counts/capacities and the same literal/view sentinels. TempleOS rejects
+    class-valued function returns, so Str constructors, clones, views, and
+    integer formatting initialize caller-owned stack values through explicit
+    out parameters rather than heap-boxing the struct.
 
 *** Incremental plan
 
@@ -222,6 +227,19 @@
   calloc, overlap-safe memmove, memcmp, realloc, null tests, pointer equality,
   and ~to_ptr~. Pointer-bearing aggregates and pointer function interfaces
   remain explicit unsupported shapes for later slices.
+
+  The ninth slice introduces the native three-field ~TilStr~ value and
+  out-parameter runtime operations for literals, owned clones, capacity-backed
+  mutation, substr/borrowed/trim views, deletion, comparison, signed integer
+  parsing/formatting, and counted output. The existing lowered one-element
+  ~println~ scaffold now builds and writes a real Str instead of treating its
+  contents as a TempleOS format string, so embedded NUL bytes and percent signs
+  remain data. ~test/script_str_runtime.til~ is shared unchanged by the
+  interpreter, C backend, and HolyC translation; TempleOS 5.03 compiled and ran
+  it with ~TILTEST:PASS~. A guest self-check additionally covered clone buffer
+  independence, view pointer identity, prefixed integer parsing, and I64_MIN
+  formatting. Str assignment, user-function Str parameters/returns, and real
+  ~Array(Str)~ execution remain in the unchecked Str milestone.
 
 *** QEMU validation
 
