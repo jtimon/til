@@ -1,0 +1,49 @@
+# priority: medium
+# category: cleanups
+** OPEN #383 Coordinate alternative backend runtimes and conformance tests
+
+Several active backend efforts need one convention for native runtime
+boundaries and one path toward conformance. Without coordination, each backend
+can grow a parallel runtime layout and a prefixed copy of the test suite that
+slowly diverges from the language semantics tested by C with GCC and Clang.
+
+The existing tests are the semantic source of truth. New backends should pass
+those same source tests incrementally rather than permanently cloning them as
+~holyc_*~, ~jvm_*~, or other backend-specific variants. Target-specific tests
+remain appropriate for translation goldens, native syntax, explicit rejection
+diagnostics, and small temporary steps at the unsupported frontier. Those
+fixtures should be retired or replaced by the shared test when the backend can
+run it. Decide one temporary-fixture location before adding enough prefixed
+files to require a directory; ~test/tmp/<backend>/~ is one candidate, but it
+must not become a second conformance suite.
+
+Each backend should also expose the same conceptual external boundary using
+the native source format, following the existing C runtime rather than
+reimplementing compiler semantics independently:
+
+  - C: ~ext.c~ / ~ext.h~, exercised by GCC and Clang.
+  - TempleOS HolyC: ~ext.HC~.
+  - JVM: ~ext.java~.
+  - Native assembly: ~ext.fasm~ or the selected assembler's native extension.
+  - BEAM: ~ext.beam~ or the selected source/runtime boundary format.
+
+The filenames describe a role, not byte-identical APIs: platform primitives
+will differ, but allocation, memory, strings, output, panic, files, timing,
+tasks, and other external operations should retain one documented semantic
+contract wherever the target supports them. Unsupported operations must fail
+explicitly rather than acquire silent substitutes.
+
+*** Coordination checklist
+
+  - [ ] Inventory active alternative backends and their current runtime/test
+    layouts before any session adds another competing convention.
+  - [ ] Pin the common semantic contract implemented by ~ext.c~ and identify
+    which operations each native ~ext.<target>~ boundary can provide.
+  - [ ] Decide the repository layout and native filename for every active
+    backend, including HolyC, JVM, assembly, and BEAM.
+  - [ ] Decide how each backend selects progressively larger sets of existing
+    tests without introducing a second test registry or copied test bodies.
+  - [ ] Decide where genuinely backend-specific and temporary frontier
+    fixtures live, and define when they are removed.
+  - [ ] Update active backend issues to reference these conventions before
+    their runtime or conformance harness grows further.
