@@ -195,6 +195,11 @@ The compiler's ~SymbolPool~ uses the shared ~fnv1a~ implementation in
 -> 93.68M instructions in the former parser-local function and 2.32040B ->
 2.30498B overall (0.66%) without changing valid ASCII symbol hashes.
 
+The garbager recurses into nested control-flow bodies in place when the parent
+body has no direct exit. Avoiding an unread flow table and unchanged parent
+~Vec(Expr)~ rebuild removed 1,872 allocations and 1.84 MiB, while callgrind
+measured 2.50127B -> 2.49534B instructions (0.24%).
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
@@ -236,12 +241,12 @@ Top 32 by bytes allocated:
 
   | function                                      | allocs | alloc_kb | calls   |
   |-----------------------------------------------+--------+----------+---------|
-  | Vec__Expr_with_capacity                       | 18.9K  | 13516.2  | 19.5K   |
+  | Vec__Expr_with_capacity                       | 17.3K  | 13135.7  | 17.9K   |
   | Vec__Expr_push                                | 39.4K  | 12122.9  | 43.2K   |
   | Vec__Expr_clone                               | 23.8K  | 6799.2   | 43.9K   |
   | Str_clone                                     | 448K   | 4860.0   | 508K    |
   | Map__U32_TypeBinding_set                      | 7.72K  | 4362.9   | 22.7K   |
-  | Vec__Expr_push_take                           | 10.4K  | 4158.7   | 72.2K   |
+  | Vec__Expr_push_take                           | 10.6K  | 4667.4   | 66.1K   |
   | swap_bytes                                    | 99.3K  | 3824.9   | 99.3K   |
   | Vec__TypeBinding_with_capacity                | 3.99K  | 2561.6   | 6.33K   |
   | Vec__Expr_append                              | 1.14K  | 1921.9   | 22.3K   |
@@ -260,7 +265,7 @@ Top 32 by bytes allocated:
   | Vec__priv___src_self_garbager_til__GcCfgBlock_push | 3.37K | 456.3 | 5.16K |
   | Vec__I64_push                                 | 9.12K  | 347.5    | 18.3K   |
   | Vec__Declaration_clone                        | 1.42K  | 300.8    | 3.14K   |
-  | Vec__Expr_take                                | 17.2K  | 268.5    | 17.2K   |
+  | Vec__Expr_take                                | 15.6K  | 244.1    | 15.6K   |
   | TypeScope_find_name                           | 1.40K  | 251.0    | 1.46K   |
   | Map__Str_Str_set                              | 4.99K  | 218.5    | 3.60K   |
   | scope_free                                    | 2.72K  | 212.3    | 2.72K   |
