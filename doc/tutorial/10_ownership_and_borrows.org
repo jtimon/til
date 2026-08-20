@@ -1,0 +1,93 @@
+* Ownership and Borrows
+
+Til gives every owned compound value one owner and destroys it automatically
+after its last use. Function signatures say whether a call borrows, mutably
+borrows, or takes ownership of an argument.
+
+** Borrowing by default
+
+A plain parameter borrows its argument read-only:
+
+#+begin_src til
+display := proc(text: Str) {
+    println(text)
+}
+
+name := format("Ada")
+display(name)
+display(name)
+#+end_src
+
+The caller still owns ~name~ after each call. Scalars use the same syntax even
+though they require no destruction.
+
+** Mutable borrows
+
+~mut~ permits writes through a borrow without transferring ownership:
+
+#+begin_src til
+append_mark := func(mut text: Str) {
+    text.push_str("!")
+}
+
+mut greeting := format("hello")
+append_mark(greeting)
+#+end_src
+
+The source binding must be mutable, and the caller continues to own it.
+
+** Ownership transfer
+
+~own~ moves responsibility to the callee:
+
+#+begin_src til
+consume := func(own text: Str) returns USize {
+    return text.len()
+}
+
+name := format("Ada")
+size := consume(own name)
+#+end_src
+
+Using ~name~ after that call is a compile error. The callee destroys the value
+after its last use. Container operations such as ~Vec.push(own value)~ use the
+same transfer to make the container the new owner.
+
+Clone when two independent owned values are required:
+
+#+begin_src til
+name := format("Ada")
+copy := name.clone()
+size := consume(own copy)
+display(name)
+#+end_src
+
+** Explicit references
+
+~ref~ declares an explicit borrowed local, field, or return. Indexing a vector
+provides a common example:
+
+#+begin_src til
+names := vec(Str, "Ada", "Grace")
+ref first : Str = names[0]
+println(first)
+#+end_src
+
+The reference does not own or destroy its target. Til extends the owner's
+lifetime while a valid borrow remains. ~ref mut~ combines an explicit reference
+with write permission.
+
+** Returns and destruction
+
+Return values are owned by the caller unless the signature says ~returns ref
+Type~. Returning a reference is therefore an explicit lifetime promise and
+should point only to data that outlives the call.
+
+Til inserts destruction as soon as an owned value is no longer used, including
+on ~return~, ~break~, and ~continue~ paths. Application code normally does not
+call ~delete~ manually. The exact rules for fields, closures, shallow values,
+and generated C representation are in
+[[file:../concepts/ownership.org][Ownership and ASAP Destruction]].
+
+The next chapter handles operations that can fail and verifies behavior with
+tests.

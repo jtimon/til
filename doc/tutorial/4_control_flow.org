@@ -1,0 +1,118 @@
+* Control Flow
+
+Til uses conditions, loops, and pattern selection to decide which statements
+run. Conditions must produce ~Bool~ values.
+
+** Conditions
+
+~if~, ~else if~, and ~else~ select one branch:
+
+#+begin_src til
+temperature := 18
+
+if temperature < 10 {
+    println("cold")
+} else if temperature < 25 {
+    println("comfortable")
+} else {
+    println("hot")
+}
+#+end_src
+
+Braces are required. A condition does not need parentheses.
+
+** While loops
+
+A ~while~ loop repeats while its condition remains true:
+
+#+begin_src til
+mut countdown := 3
+while countdown > 0 {
+    println(countdown.to_str())
+    countdown--
+}
+#+end_src
+
+Use ~break~ to leave a loop and ~continue~ to begin its next iteration.
+
+** For loops and ranges
+
+~for~ iterates over ranges and other iterable values. A range excludes its end:
+
+#+begin_src til
+mut total := 0
+for n in 1..5 {
+    total = total + n
+}
+#+end_src
+
+This adds 1, 2, 3, and 4. Descending ranges work as well. Collection iteration
+is covered in chapter 9.
+
+** FizzBuzz
+
+The expression and control-flow rules are enough for a complete FizzBuzz
+script:
+
+#+begin_src til
+mode script
+
+for n in 1..101 {
+    if n % 15 == 0 {
+        println("FizzBuzz")
+    } else if n % 3 == 0 {
+        println("Fizz")
+    } else if n % 5 == 0 {
+        println("Buzz")
+    } else {
+        println(n.to_str())
+    }
+}
+#+end_src
+
+Save it as ~fizzbuzz.til~ and run ~til fizzbuzz.til~. The repository also has
+[[file:../../examples/fizzbuzz.til][a compact FizzBuzz example]].
+
+** Switch statements
+
+~switch~ compares one subject against cases. The first matching case runs, and
+~case:~ is the default:
+
+#+begin_src til
+mut label := ""
+switch 5 {
+case 0: label = "zero"
+case 1..9: label = "digit"
+case: label = "larger"
+}
+#+end_src
+
+A range used as a case pattern includes both endpoints, unlike an iteration
+range. Several patterns can share a body:
+
+#+begin_src til
+switch 3 {
+case 1, 3, 5: println("small odd")
+case 2, 4, 6: println("small even")
+case: println("other")
+}
+#+end_src
+
+** Match expressions
+
+~match~ uses the same case syntax but produces a value. Every possible input
+must be covered:
+
+#+begin_src til
+score := 7
+label := match score {
+case 0: "none"
+case 1..9: "some"
+case: "many"
+}
+#+end_src
+
+Enums make exhaustive ~switch~ and ~match~ especially useful; chapter 6 shows
+how payload patterns bind data.
+
+The next chapter moves repeated logic into functions and procedures.

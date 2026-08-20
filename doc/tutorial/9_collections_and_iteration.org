@@ -1,0 +1,91 @@
+* Collections and Iteration
+
+Til provides fixed arrays, growable vectors, maps, sets, and strings. They use
+the same method, indexing, and iteration conventions as user-defined types.
+
+** Arrays and vectors
+
+~array~ creates a fixed collection. ~vec~ creates a growable ~Vec~:
+
+#+begin_src til
+fixed := array(I64, 10, 20, 30)
+mut numbers := vec(I64, 10, 20)
+numbers.push(own 30)
+#+end_src
+
+The explicit constructor is useful when starting empty:
+
+#+begin_src til
+mut names := Vec(Str).new()
+names.push(own "Ada")
+names.push(own "Grace")
+#+end_src
+
+~push~ takes ownership of its new element, which is why the call says ~own~.
+Chapter 10 explains ownership transfer in detail.
+
+Both arrays and vectors expose ~len~ and indexing:
+
+#+begin_src til
+first := numbers[0]
+count := numbers.len()
+numbers[1] = 25
+#+end_src
+
+Indexing is checked and panics when the index is out of bounds. The explicit
+~get~ and ~set~ methods can instead participate in the error handling covered
+in chapter 11.
+
+** Iteration
+
+~for~ works with arrays, vectors, strings, maps, and user-defined iterable
+types:
+
+#+begin_src til
+mut total := 0
+for n : I64 in numbers {
+    total = total + n
+}
+#+end_src
+
+The element type is usually inferred, so ~for n in numbers~ is equivalent.
+~break~ and ~continue~ work as they do in range loops.
+
+** Maps
+
+A map literal infers its key and value types:
+
+#+begin_src til
+scores := {"Ada": 10, "Grace": 12}
+ada_score := scores["Ada"]
+#+end_src
+
+Use ~Map(K, V).new()~ when building a map incrementally:
+
+#+begin_src til
+mut scores := Map(Str, I64).new()
+scores.set("Ada", own 10)
+scores.set("Grace", own 12)
+#+end_src
+
+Map iteration can bind both key and value:
+
+#+begin_src til
+for name, score in scores {
+    println(name, ": ", score.to_str())
+}
+#+end_src
+
+Maps provide ~has~, ~set~, ~remove~, ~len~, and indexed lookup. ~Set(T)~ and
+the hash-based collection types follow the same typed-constructor style.
+
+** Iterable convention
+
+Iteration is not restricted to built-in collections. A type that supplies the
+expected length and unchecked element access operations can participate in a
+~for~ loop. This keeps iteration extensible without a separate iterator syntax.
+See [[file:../../test/loops.til][test/loops.til]] for ranges, strings,
+collections, and a user-defined iterable.
+
+The next chapter explains who owns collection elements and other compound
+values.

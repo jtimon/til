@@ -1,0 +1,85 @@
+* Structs and Enums
+
+Structs group fields into one product type. Enums describe a choice between
+variants, optionally carrying data.
+
+** Structs
+
+A struct definition is another name-first declaration:
+
+#+begin_src til
+Point := struct {
+    x : I64 = 0
+    y : I64 = 0
+    const dimensions := 2
+}
+#+end_src
+
+Fields have defaults, so construction may provide all, some, or none of them:
+
+#+begin_src til
+origin := Point()
+mut p := Point(x = 3, y = 4)
+p.x = 5
+#+end_src
+
+Struct fields are mutable by default, but the containing value must be mutable
+to change one. ~const~ makes a field immutable. This differs deliberately from
+locals and parameters, which are immutable by default.
+
+Field access uses a dot:
+
+#+begin_src til
+distance_squared := p.x * p.x + p.y * p.y
+#+end_src
+
+** Enums
+
+An enum variant may be a plain tag or carry one typed payload:
+
+#+begin_src til
+Token := enum {
+    Number: I64
+    Word: Str
+    End
+}
+
+number := Token.Number(42)
+word := Token.Word("hello")
+end_token := Token.End
+#+end_src
+
+Variants live under the enum's name. A ~switch~ pattern can bind a payload:
+
+#+begin_src til
+mut description := ""
+switch number {
+case Token.Number(value): description = value.to_str()
+case Token.Word(text): description = text
+case Token.End: description = "end"
+}
+#+end_src
+
+The switch is exhaustive because every variant appears. Use ~_~ for a payload
+that is intentionally ignored, or ~case:~ when several remaining variants have
+the same behavior.
+
+A ~match~ can turn variants into a value directly:
+
+#+begin_src til
+kind := match word {
+case Token.Number(_): "number"
+case Token.Word(_): "word"
+case Token.End: "end"
+}
+#+end_src
+
+** Generated operations
+
+Til generates common operations such as ~clone~, ~delete~, and ~size~ when a
+type does not provide its own. Enums also receive operations for comparing and
+identifying variants. The complete lists and override rules are in
+[[file:../concepts/auto.org][Auto-generated methods]] and
+[[file:../concepts/enums.org][Enum semantics]].
+
+The next chapter groups declarations and operations into namespaces.

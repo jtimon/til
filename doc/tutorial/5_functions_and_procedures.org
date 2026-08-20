@@ -1,0 +1,93 @@
+* Functions and Procedures
+
+Til distinguishes pure computation from effects in a callable's declaration.
+Both forms use name-first syntax.
+
+** Functions
+
+A ~func~ computes without undeclared external effects:
+
+#+begin_src til
+double := func(n: I64) returns I64 {
+    return n * 2
+}
+
+answer := double(21)
+#+end_src
+
+Parameters require types. Use ~returns Type~ when the callable returns a value.
+A function may call other functions.
+
+** Procedures
+
+A ~proc~ may perform effects such as terminal or file I/O:
+
+#+begin_src til
+greet := proc(name: Str) {
+    println("Hello, ", name)
+}
+
+greet("Ada")
+#+end_src
+
+Both ~func~ and ~proc~ may return values. The distinction is effects, not the
+presence of a result. A function cannot call a procedure; a procedure that
+performs no procedural operation should be a function.
+
+** Default and named arguments
+
+A parameter can provide a default value. Calls may name arguments:
+
+#+begin_src til
+clamp_low := func(value: I64, minimum: I64 = 0) returns I64 {
+    if value < minimum { return minimum }
+    return value
+}
+
+a := clamp_low(-3)
+b := clamp_low(value = 2, minimum = 5)
+#+end_src
+
+Named arguments are also used by struct constructors, where they identify
+fields rather than parameters.
+
+** Declared mutation
+
+A ~mut~ parameter is a mutable borrow. Mutation is part of the signature, so it
+does not make the callable a procedure:
+
+#+begin_src til
+advance := func(mut value: I64, by: I64 = 1) {
+    value = value + by
+}
+
+mut position := 10
+advance(position, by = 5)
+#+end_src
+
+The caller must pass a mutable value to a ~mut~ parameter. Ownership transfer
+through ~own~ is similarly visible and is covered in chapter 10.
+
+** Refactoring FizzBuzz
+
+The previous chapter's branch can become a reusable function:
+
+#+begin_src til
+fizzbuzz_value := func(n: I64) returns Str {
+    if n % 15 == 0 { return "FizzBuzz" }
+    if n % 3 == 0 { return "Fizz" }
+    if n % 5 == 0 { return "Buzz" }
+    return n.to_str()
+}
+
+for n in 1..101 {
+    println(fizzbuzz_value(n))
+}
+#+end_src
+
+Til also has specialized callable forms for core operations, foreign
+functions, lazy evaluation, macros, and tests. Most application code uses
+~func~ and ~proc~; see [[file:../concepts/functions.org][Function kinds]] for
+the complete classification.
+
+The next chapter defines new data shapes with structs and enums.

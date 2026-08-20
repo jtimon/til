@@ -1,0 +1,68 @@
+* Modules and Imports
+
+Each Til source file is a module. Imports load public declarations from another
+file; ~priv~ keeps implementation details inside their declaring file.
+
+** A library file
+
+Put reusable declarations in a ~mode lib~ file. For example, ~math.til~ could
+contain:
+
+#+begin_src til
+mode lib
+
+priv square := func(n: I64) returns I64 {
+    return n * n
+}
+
+sum_of_squares := func(a: I64, b: I64) returns I64 {
+    return square(a) + square(b)
+}
+#+end_src
+
+Declarations are public by default. Importers can call ~sum_of_squares~, while
+~square~ remains available only inside ~math.til~.
+
+** Bare imports
+
+A bare import adds the selected file's public declarations to the importing
+file's scope:
+
+#+begin_src til
+mode script
+import("math")
+
+println(sum_of_squares(3, 4).to_str())
+#+end_src
+
+Import paths are relative to the importing file and omit the ~.til~ extension.
+
+** Namespace imports
+
+Assign an import when its declarations should stay behind a local namespace:
+
+#+begin_src til
+math := import("math")
+answer := math.sum_of_squares(3, 4)
+#+end_src
+
+This is useful when libraries expose similar names or when the module name
+helps the call read clearly.
+
+** Selective imports
+
+Names after the path import only those public declarations:
+
+#+begin_src til
+import("math", sum_of_squares)
+#+end_src
+
+An import cannot expose a ~priv~ declaration. Top-level privacy is a cross-file
+boundary; struct fields and namespace members use the stricter rules described
+in chapter 7. The full visibility table is in
+[[file:../concepts/qualifiers.org::*Visibility (priv keyword)][the qualifier reference]].
+
+Modes remain per file. An application may therefore import several ~mode lib~
+files while its entry file uses ~mode script~, ~mode cli~, or ~mode gui~.
+
+The next chapter works with collections supplied by Til's core library.
