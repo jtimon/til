@@ -230,38 +230,38 @@ Top 32 by bytes allocated:
 
   | function                                      | allocs | alloc_kb | calls   |
   |-----------------------------------------------+--------+----------+---------|
-  | Vec__Expr_with_capacity                       | 18.6K  | 13352.6  | 19.2K   |
-  | Vec__Expr_push                                | 39.0K  | 12021.8  | 42.8K   |
-  | Map__U32_TypeBinding_set                      | 26.9K  | 9841.7   | 22.5K   |
-  | Vec__Expr_clone                               | 23.7K  | 6767.6   | 43.7K   |
-  | Str_clone                                     | 443K   | 4748.0   | 502K    |
-  | Vec__Expr_push_take                           | 10.3K  | 4120.9   | 71.4K   |
-  | swap_bytes                                    | 98.8K  | 3810.8   | 98.8K   |
-  | Vec__Expr_append                              | 1.14K  | 1929.8   | 22.2K   |
-  | Vec__priv___src_self_garbager_til__LocalInfo_push | 7.66K | 1794.5 | 12.6K |
-  | cfile_read_all                                | 63     | 1531.2   | 21      |
-  | Vec__Token_push                               | 217    | 1407.1   | 27.5K   |
-  | Array__Str_new                                | 25.8K  | 1245.8   | 25.8K   |
-  | Vec__Str_push                                 | 15.2K  | 1219.4   | 32.3K   |
-  | Map__Str_HeapBinding_set                      | 10.5K  | 1111.8   | 8.48K   |
-  | Map__Str_USize_set                            | 13.7K  | 954.7    | 17.7K   |
-  | Str_with_capacity                             | 35.9K  | 787.6    | 35.9K   |
+  | Vec__Expr_with_capacity                       | 18.9K  | 13516.2  | 19.5K   |
+  | Vec__Expr_push                                | 39.4K  | 12122.9  | 43.2K   |
+  | Vec__Expr_clone                               | 23.8K  | 6799.2   | 43.9K   |
+  | Str_clone                                     | 448K   | 4860.0   | 508K    |
+  | Map__U32_TypeBinding_set                      | 8.36K  | 4511.6   | 22.7K   |
+  | Vec__Expr_push_take                           | 10.4K  | 4158.7   | 72.2K   |
+  | swap_bytes                                    | 99.3K  | 3824.9   | 99.3K   |
+  | Vec__TypeBinding_with_capacity                | 3.99K  | 2453.5   | 6.33K   |
+  | Vec__Expr_append                              | 1.14K  | 1921.9   | 22.3K   |
+  | Vec__priv___src_self_garbager_til__LocalInfo_push | 7.72K | 1804.4 | 12.7K |
+  | cfile_read_all                                | 63     | 1532.3   | 21      |
+  | Vec__Token_push                               | 217    | 1407.1   | 27.7K   |
+  | Array__Str_new                                | 27.7K  | 1315.7   | 27.7K   |
+  | Vec__Str_push                                 | 15.2K  | 1219.1   | 32.3K   |
+  | Map__Str_HeapBinding_set                      | 10.6K  | 1113.2   | 8.49K   |
+  | Map__Str_USize_set                            | 13.9K  | 961.0    | 17.8K   |
+  | Str_with_capacity                             | 37.9K  | 865.9    | 37.9K   |
   | Vec__Token_clone                              | 21     | 703.8    | 21      |
-  | Vec__U64_with_capacity                        | 14.0K  | 629.9    | 14.0K   |
-  | Set__Str_add                                  | 3.94K  | 551.6    | 27.6K   |
-  | Vec__Declaration_push                         | 2.10K  | 539.4    | 2.93K   |
-  | Vec__priv___src_self_garbager_til__GcCfgBlock_push | 3.36K | 446.1 | 5.03K |
-  | Vec__I64_push                                 | 9.05K  | 345.1    | 18.2K   |
-  | Vec__Declaration_clone                        | 1.41K  | 298.9    | 3.12K   |
-  | Vec__Expr_take                                | 16.9K  | 264.4    | 16.9K   |
-  | TypeScope_find_name                           | 1.40K  | 250.7    | 1.46K   |
-  | Map__Str_Str_set                              | 4.99K  | 218.4    | 3.59K   |
-  | scope_free                                    | 2.71K  | 211.3    | 2.71K   |
-  | U64_to_str_ext                                | 22.0K  | 198.5    | 11.0K   |
-  | Option__Expr_take                             | 950    | 163.3    | 950     |
-  | Vec__priv___src_self_garbager_til__GcBorrowEdge_push | 1.65K | 114.0 | 1.83K |
-  | Array__U8_new                                 | 10.1K  | 111.1    | 10.1K   |
-  | scope_new                                     | 1.41K  | 110.2    | 1.41K   |
+  | Vec__U64_with_capacity                        | 14.1K  | 633.7    | 14.1K   |
+  | Set__Str_add                                  | 3.95K  | 552.7    | 27.7K   |
+  | Vec__Declaration_push                         | 2.13K  | 545.8    | 2.97K   |
+  | Vec__priv___src_self_garbager_til__GcCfgBlock_push | 3.37K | 456.3 | 5.16K |
+  | Vec__I64_push                                 | 9.12K  | 347.5    | 18.3K   |
+  | Vec__Declaration_clone                        | 1.42K  | 300.8    | 3.14K   |
+  | Vec__Expr_take                                | 17.2K  | 268.5    | 17.2K   |
+  | TypeScope_find_name                           | 1.40K  | 251.0    | 1.46K   |
+  | Map__Str_Str_set                              | 4.99K  | 218.5    | 3.60K   |
+  | scope_free                                    | 2.72K  | 212.3    | 2.72K   |
+  | U64_to_str_ext                                | 22.2K  | 200.2    | 11.1K   |
+  | Option__Expr_take                             | 974    | 167.4    | 974     |
+  | Vec__priv___src_self_garbager_til__GcBorrowEdge_push | 1.66K | 114.8 | 1.84K |
+  | Array__U8_new                                 | 10.3K  | 112.6    | 10.3K   |
 
 ** Status
 

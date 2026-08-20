@@ -3369,13 +3369,29 @@ priv garbager_register_own_captures := func(mut ctx: Context, captures: Vec(Decl
     }
 }
 
+// Mirror typer_body_binding_count for the scopes reconstructed by this pass.
+priv garbager_body_binding_count := func(body: Expr) returns USize {
+    mut count : USize = 0
+    for stmt : Expr in body.children {
+        if stmt.node_type.is(NodeType.Decl) { count++ }
+    }
+    return count
+}
+
 // Struct/enum namespace declarations are payload-owned AST, not Expr children.
 // Rebuild the type scope infer_type_def_expr used, including fields in source
 // order, then visit field defaults and namespace values so method bodies join
 // the same post-order destruction walk as ordinary functions.
 priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_name: Str,
     parent: TypeScope, insert: Bool) {
-    mut type_scope := TypeScope(parent = Option(ref TypeScope).Some(parent), current_type_name = type_name.clone())
+    mut binding_capacity : USize = 0
+    switch type_def.node_type {
+    case .StructDef(sd): binding_capacity = sd.fields.len()
+    case:
+    }
+    mut type_scope := TypeScope(
+        bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+        parent = Option(ref TypeScope).Some(parent), current_type_name = type_name.clone())
     switch type_def.node_type {
     case .StructDef(sd):
         mut field_idx : USize = 0
@@ -3415,7 +3431,10 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         if fd.func_type.is_bodyless() { return }
         if expr.children.len() == 0 { return }
         ref mut func_body : Expr = expr.children[0]
-        mut func_scope := TypeScope(parent = Option(ref TypeScope).Some(scope), is_func_root = true)
+        binding_capacity := fd.params.len() + garbager_body_binding_count(func_body)
+        mut func_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+            parent = Option(ref TypeScope).Some(scope), is_func_root = true)
         garbager_register_params(ctx, fd, func_scope, expr.line, expr.col)
         garbager_walk_body(ctx, func_body, func_scope, true,
             Option(ref FunctionDef).Some(fd), Vec(Declaration).new(), insert)
@@ -3423,19 +3442,29 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
     case .CaptureBlock(cbd):
         if expr.children.len() == 0 { return }
         ref mut capture_body : Expr = expr.children[0]
-        mut capture_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut binding_capacity := garbager_body_binding_count(capture_body)
+        for cap : Declaration in cbd.captures {
+            if cap.own_type.is(OwnType.Own) { binding_capacity++ }
+        }
+        mut capture_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+            parent = Option(ref TypeScope).Some(scope))
         garbager_walk_body(ctx, capture_body, capture_scope, true,
             Option(ref FunctionDef).None, cbd.captures, insert)
         return
     case .BodyValue:
         if expr.children.len() == 0 { return }
         ref mut value_body : Expr = expr.children[0]
-        mut value_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut value_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(garbager_body_binding_count(value_body)),
+            parent = Option(ref TypeScope).Some(scope))
         garbager_walk_body(ctx, value_body, value_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
         return
     case .Body:
-        mut body_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut body_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(garbager_body_binding_count(expr)),
+            parent = Option(ref TypeScope).Some(scope))
         garbager_walk_body(ctx, expr, body_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
         return

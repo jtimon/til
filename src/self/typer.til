@@ -4083,7 +4083,14 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
 
 priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: Str, mut ctx: Context) {
     expr.set_til_type(Type.None)
-    mut inner := TypeScope(parent = Option(ref TypeScope).Some(scope), current_type_name = type_name.clone())
+    mut binding_capacity : USize = 0
+    switch expr.node_type {
+    case .StructDef(sdd): binding_capacity = sdd.fields.len()
+    case:
+    }
+    mut inner := TypeScope(
+        bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+        parent = Option(ref TypeScope).Some(scope), current_type_name = type_name.clone())
     switch expr.node_type {
     case .StructDef:
         type_struct_fields(expr, inner, false, ctx)
@@ -4282,6 +4289,16 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
     if expr.node_type.is(NodeType.StructDef) {
         check_user_delete_frees_own_fields(inner.active_type_name(), expr, ctx)
     }
+}
+
+// Nested bodies own separate scopes, so only direct declarations contribute
+// to this scope's known initial capacity. Later synthesized bindings may grow it.
+priv typer_body_binding_count := func(body: Expr) returns USize {
+    mut count : USize = 0
+    for stmt : Expr in body.children {
+        if stmt.node_type.is(NodeType.Decl) { count++ }
+    }
+    return count
 }
 
 // Issue #223 step 3: a struct is auto-shallow (safe to pass/return by a
@@ -4749,7 +4766,13 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 expr.type_error("proc not allowed in pure mode", ctx)
             }
         }
-        mut func_scope := TypeScope(parent = Option(ref TypeScope).Some(scope), is_func_root = true)
+        mut binding_capacity := fdef.params.len()
+        if expr.children.len() > 0 {
+            binding_capacity = binding_capacity + typer_body_binding_count(expr.children[0])
+        }
+        mut func_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+            parent = Option(ref TypeScope).Some(scope), is_func_root = true)
         func_scope.typer_func.current_top_func_name = top_func_name.clone()
         func_scope.typer_func.proc_def_depth = parent_func_state.proc_def_depth
         func_scope.typer_func.auto_gen_depth = parent_func_state.auto_gen_depth
@@ -5540,12 +5563,16 @@ priv infer_if_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, i
     if type_is_primitive(if_cond_t, Primitive.Bool).not().and(if_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("if condition must be Bool", ctx)
     }
-    mut then_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut then_scope := TypeScope(
+        bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
+        parent = Option(ref TypeScope).Some(scope))
     infer_body(then_scope, stmt.children[1], in_func, 1, in_loop, returns_ref, 0, ctx)
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
     if stmt.children.len() > 2 {
-        mut else_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut else_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt.children[2])),
+            parent = Option(ref TypeScope).Some(scope))
         infer_body(else_scope, stmt.children[2], in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(else_scope, ctx.path, ctx)
         check_unused_mut_locals(else_scope, ctx.path, ctx)
@@ -5876,7 +5903,9 @@ priv infer_while_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32
         }
         body.children.move_from(own new_ch)
     }
-    mut while_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut while_scope := TypeScope(
+        bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
+        parent = Option(ref TypeScope).Some(scope))
     infer_body(while_scope, stmt.children[1], in_func, 1, 1, returns_ref, 0, ctx)
     check_unused_locals(while_scope, ctx.path, ctx)
     check_unused_mut_locals(while_scope, ctx.path, ctx)
@@ -6788,7 +6817,9 @@ priv infer_body_value_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx
     }
     ref mut body : Expr = expr.children[0]
     body_value_check_no_return(body, ctx)
-    mut body_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut body_scope := TypeScope(
+        bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(body)),
+        parent = Option(ref TypeScope).Some(scope))
     mut capture_source_muts := Vec(Bool).new()
     mut capture_source_written := Vec(Bool).new()
     capture_private_mut_begin(scope, captures, capture_source_muts, capture_source_written, ctx.symbols)
@@ -6933,7 +6964,13 @@ priv infer_capture_block := proc(mut scope: TypeScope, mut stmt: Expr,
         cbody.children.move_from(own new_ch)
     }
     ref mut body : Expr = stmt.children[0]
-    mut block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+    mut binding_capacity := typer_body_binding_count(body)
+    for cap : Declaration in captures {
+        if cap.own_type.is(OwnType.Own) { binding_capacity++ }
+    }
+    mut block_scope := TypeScope(
+        bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+        parent = Option(ref TypeScope).Some(scope))
     infer_body(block_scope, body, in_func, 1, in_loop, returns_ref, 0, ctx)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, block_scope, root, captures, ctx)
@@ -7023,7 +7060,9 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
     case .If:
         infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case .Body:
-        mut block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut block_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt)),
+            parent = Option(ref TypeScope).Some(scope))
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(block_scope, ctx.path, ctx)
         check_unused_mut_locals(block_scope, ctx.path, ctx)
@@ -7059,7 +7098,9 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
         // statements need infer_body so var refs etc. resolve.
         if stmt.children.len() == 3 {
             ref mut body_expr : Expr = stmt.children[2]
-            mut catch_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+            mut catch_scope := TypeScope(
+                bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(body_expr)),
+                parent = Option(ref TypeScope).Some(scope))
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
             check_unused_locals(catch_scope, ctx.path, ctx)
             check_unused_mut_locals(catch_scope, ctx.path, ctx)
@@ -11416,7 +11457,9 @@ priv infer_clike_switch := proc(mut scope: TypeScope, mut stmt: Expr, enum_def_o
             has_last_case = true
         }
         ref mut case_body : Expr = cn.children[body_idx]
-        mut case_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut case_scope := TypeScope(
+            bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(case_body)),
+            parent = Option(ref TypeScope).Some(scope))
         infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(case_scope, ctx.path, ctx)
         check_unused_mut_locals(case_scope, ctx.path, ctx)
