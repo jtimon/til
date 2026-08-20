@@ -1,0 +1,26 @@
+* Til Concepts
+
+These handwritten documents explain Til's language model and implementation
+in depth. They are organized by subject rather than as a reading sequence. For
+a guided introduction, start with [[file:../tutorial/index.org][the tutorial]].
+Generated declaration documentation is under
+[[file:../gen/index.org][doc/gen/]].
+
+** Language Semantics
+
+- [[file:modes.org][Modes]]
+- [[file:functions.org][Function kinds]]
+- [[file:ufcs.org][Uniform Function Call Syntax]]
+- [[file:enums.org][Enum semantics]]
+- [[file:throws.org][Throw and catch]]
+
+** Values And Memory
+
+- [[file:ownership.org][Ownership and ASAP destruction]]
+- [[file:qualifiers.org][Qualifier-to-C reference]]
+- [[file:strings.org][String design]]
+
+** Derived Behavior And Implementation
+
+- [[file:auto.org][Auto-generated methods]]
+- [[file:garbager.org][The compile-time garbager]]

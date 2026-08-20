@@ -44,6 +44,8 @@ main := proc() returns I64 {
     // runtime and the generated compiler C it links. Plus what mode gui
     // stands on (issue #348): the FFI bindings the mode imports, and
     // each linked archive with the .so twin the interpreter dlopens.
+    // Both handwritten documentation trees and the generated reference
+    // are part of the installed compiler support tree.
     require(format(PREFIX, "/bin/til"))
     require(format(PREFIX, "/lib/til/src/core/core.til"))
     require(format(PREFIX, "/lib/til/src/std/file.til"))
@@ -56,6 +58,10 @@ main := proc() returns I64 {
     require(format(PREFIX, "/lib/til/src/modes/gui.til"))
     require(format(PREFIX, "/lib/til/src/c/ext.c"))
     require(format(PREFIX, "/lib/til/boot/til.c"))
+    require(format(PREFIX, "/lib/til/doc/concepts/index.org"))
+    require(format(PREFIX, "/lib/til/doc/concepts/ownership.org"))
+    require(format(PREFIX, "/lib/til/doc/tutorial/index.org"))
+    require(format(PREFIX, "/lib/til/doc/tutorial/1_getting_started.org"))
     require(format(PREFIX, "/lib/til/doc/gen/index.org"))
 
     // Paths are relative to WORK, where the program is compiled: the

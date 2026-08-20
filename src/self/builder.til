@@ -701,6 +701,10 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
         rc = install_file(src_path, format(dst_root, "/", lib), format("install ", lib))
         if rc != 0 { return rc }
     }
+    rc = install_tree(format(root, "/doc/concepts"), format(dst_root, "/doc/concepts"), "install compiler concept documentation")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/doc/tutorial"), format(dst_root, "/doc/tutorial"), "install compiler tutorial")
+    if rc != 0 { return rc }
     rc = install_tree(format(root, "/doc/gen"), format(dst_root, "/doc/gen"), "install generated compiler documentation")
     if rc != 0 { return rc }
     return 0
