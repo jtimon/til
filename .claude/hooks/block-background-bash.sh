@@ -75,6 +75,12 @@ for cmdline_file in /proc/[0-9]*/cmdline; do
     # Skip anything in the same process group as the hook (its own
     # forks: the python invocations above, etc).
     [ -n "$self_pgid" ] && [ "$other_pgid" = "$self_pgid" ] && continue
+    # Skip the Claude CLI harness itself. Its argv carries user prompt
+    # text (--replay-user-messages, -p "make clean && make test", ...),
+    # so the build regex below matches that TEXT rather than a real
+    # build, and every Bash call in the session is blocked forever.
+    argv0=$(tr '\0' '\n' < "$cmdline_file" 2>/dev/null | sed -n '1p')
+    [ "${argv0##*/}" = "claude" ] && continue
     # cmdline is NUL-separated; convert to spaces for grep.
     other_cmdline=$(tr '\0' ' ' < "$cmdline_file" 2>/dev/null)
     if echo "$other_cmdline" | grep -qE "$match_regex"; then

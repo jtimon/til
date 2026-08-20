@@ -503,17 +503,39 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
     }
 }
 
+// True when this node is one ~raw_to_expr~ rebuilt from an evaluated value.
+// The three kinds it can emit answer from three different places: a rebuilt
+// FCall carries the mark in its own payload, a PrecomputedSequence has no
+// other construction site in the compiler, and a rebuilt Literal is
+// indistinguishable from a source-written one -- which costs nothing,
+// because the only caller that looks at literals accepts them either way.
+priv expr_is_constfold_value := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .FCall(fc): return fc.constfold_value
+    case .PrecomputedSequence: return true
+    case: return false
+    }
+}
+
+// Mark a node ~raw_to_expr~ just returned as constfolder-rebuilt. Only an
+// FCall stores it; the other two kinds are already self-identifying above.
+priv mark_constfold_value := func(mut e: Expr) {
+    if e.node_type.is(NodeType.FCall).not() { return }
+    ref mut fcd : FCallData = fcall_of(e)
+    fcd.constfold_value = true
+}
+
 priv expr_is_serialized_value := func(e: Expr) returns Bool {
     switch e.node_type {
     case .Literal(Literal.Num): return true
     case .Literal(Literal.Str): return true
     case .Literal(Literal.Bool): return true
-    case: return e.constfold_value
+    case: return expr_is_constfold_value(e)
     }
 }
 
 priv expr_is_serialized_aggregate := func(e: Expr) returns Bool {
-    return e.constfold_value.and(e.node_type.is(NodeType.Literal).not())
+    return expr_is_constfold_value(e)
 }
 
 priv add_known_call_arg := func(mut scope: Scope, mut call: Expr, raw: Dynamic, shallow t: Type, src: Expr, idx: USize, mut ctx: Context) {
@@ -1138,7 +1160,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // Preserve aliases such as USize rather than replacing them with the
     // resolved primitive used to decode the raw bytes.
     lit_local.set_til_type(fcall.til_type())
-    lit_local.constfold_value = true
+    mark_constfold_value(lit_local)
     return Option(Expr).Some(own lit_local)
 }
 
@@ -1408,7 +1430,7 @@ priv fold_va_calls := proc(mut scope: Scope, mut e: Expr, va: Str, mut ctx: Cont
                 if lit_o.is_some() {
                     mut lit : Expr = Option(Expr).take(own lit_o)
                     lit.set_til_type(child.til_type())
-                    lit.constfold_value = true
+                    mark_constfold_value(lit)
                     e.children[i] = lit
                     // The variadic fold also replaces a Decl RHS after the
                     // garbager chose its storage; the post-fold
@@ -1609,7 +1631,7 @@ priv dce_orphan_serialized_values := func(mut body: Expr, program_scope: Bool, c
             if dstmt.children.len() > 0 {
                 ref drhs : Expr = dstmt.children[0]
                 generated_literal := dd.name.starts_with("hoisted__").and(drhs.node_type.is(NodeType.Literal))
-                folded_local := program_scope.not().and(drhs.constfold_value)
+                folded_local := program_scope.not().and(expr_is_constfold_value(drhs))
                 if generated_literal.or(folded_local) {
                     mut used_elsewhere := false
                     for ui in 0..body.children.len() {
@@ -1757,7 +1779,7 @@ priv fold_ns_data_value := func(owner: Str, def: Expr, idx: USize, mut nsd: Decl
     if folded_o.is_none() { return }
     mut folded : Expr = Option(Expr).take(own folded_o)
     folded.set_til_type(value_type)
-    folded.constfold_value = true
+    mark_constfold_value(folded)
     nsd.default_value = Option(Expr).Some(own folded)
 }
 

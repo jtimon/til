@@ -465,6 +465,14 @@ namespace:
 ///     post-desugar. Step 7 of #147 closes here: the trailing typer
 ///     resolution artifact is gone.
 FCallData := struct {
+    // Set only on a constructor call the constfolder REBUILT from a
+    // successful compile-time evaluation (~raw_to_expr~); a call the user
+    // wrote in source stays false. This used to sit on ~Expr~, where every
+    // node in the tree paid for it and only the three kinds ~raw_to_expr~
+    // can emit ever read it -- and of those, a rebuilt ~Literal~ is already
+    // recognised by its node kind and a ~PrecomputedSequence~ has no other
+    // origin, so the flag only ever carried information here.
+    constfold_value := false
     // Issue #198: parser sets this when the call is followed by ~?~,
     // marking it as a call to a throwing function. The typer
     // validates that does_throw matches the callee's throws set.
@@ -1094,9 +1102,6 @@ Expr := struct {
     children := Vec(Expr).new()
     line : U32 = 0
     col : U32 = 0
-    // Set only on target-neutral values reconstructed from successful
-    // compile-time evaluation. Source-written constructors remain false.
-    constfold_value : Bool = false
 
 namespace:
     /// Null-safe delete. The auto-generated version dereferences ~self~

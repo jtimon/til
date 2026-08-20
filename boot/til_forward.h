@@ -486,6 +486,7 @@ typedef struct Declaration {
 
 
 typedef struct FCallData {
+    Bool constfold_value;
     Bool does_throw;
     Bool is_bang;
     U64 own_args;
@@ -1523,7 +1524,6 @@ typedef struct Expr {
     Vec__Expr children;
     U32 line;
     U32 col;
-    Bool constfold_value;
 } Expr;
 
 
