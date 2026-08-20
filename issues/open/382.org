@@ -1,6 +1,16 @@
 # priority: low
 # category: features
-** OPEN #382 Add concise construction of Some borrowed refs
+** WIP #382 Add concise construction of Some borrowed refs
+
+*** Progress
+
+- [x] Add generic ~safe_ref(value)~ construction and focused borrow-identity
+  coverage.
+- [x] Teach late generic substitution to rewrite nested generated type names
+  such as ~Option__ref_T~ in function bodies.
+- [ ] After the substitution support lands in bootstrap, replace explicit
+  ~Option(ref T).Some(value)~ construction expressions throughout the
+  codebase and close this issue.
 
 Til forbids NULL refs, so wrapping an existing ref in an Option is always a
 safe conversion. The current spelling repeats the complete destination type:

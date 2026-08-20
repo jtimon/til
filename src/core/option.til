@@ -56,3 +56,8 @@ Option := macro(T: Type) returns EnumDef {
         }
     }
 }
+
+/// Wrap a non-null borrowed ref in an Option without repeating its type.
+safe_ref := func(T: Type, value: T) returns Option(ref T) {
+    return Option(ref T).Some(value)
+}

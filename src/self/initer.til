@@ -2654,7 +2654,7 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), ref_params: Set(Str), n
     return ""
 }
 
-priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_params: Set(Str), symbols: SymbolPool) {
+priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
     switch e.node_type {
     case .Decl(dd):
         // Issue #243: a body-local declaration (`ref x : T = ...`,
@@ -2688,6 +2688,15 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
                 ref repl_expr : Expr = subs[nm]
                 e.children[i] = repl_expr.clone()
                 replaced = true
+            } else {
+                // Late generic sources have already hoisted nested type
+                // applications, so Option(ref T) appears as Option__ref_T.
+                // Substitute type-parameter segments in that identifier too.
+                new_name := init_subst_ident_name(subs, ref_params, nm, symbols)
+                if new_name.len() > 0 {
+                    c.node_type = ident_node(symbols.intern(new_name))
+                    replaced = true
+                }
             }
         case:
         }
@@ -2717,7 +2726,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
 // CHILDREN (through the parent's children.set), so slot owners replace
 // the whole Expr via plain field assignment -- the old value is
 // reclaimed by the FieldAssign's own delete (issue #272).
-priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr), ref_params: Set(Str), symbols: SymbolPool) {
+priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
     mut nm := ""
     switch holder.default_expr().node_type {
     case .Ident(idn): nm = Str.clone(idn.ident_name(symbols.names))
@@ -2730,7 +2739,7 @@ priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Exp
     }
 }
 
-priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr), ref_params: Set(Str), symbols: SymbolPool) {
+priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
     for mut fd : Declaration in sdef.fields {
         // #320: a field typed by a ref-qualified type param becomes a ref
         // (borrowed) field of the substituted type; with no default it is
@@ -2764,7 +2773,7 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr),
     }
 }
 
-priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref_params: Set(Str), symbols: SymbolPool) {
+priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
     for mut vd : VariantDef in edef.variants {
         if vd.payload_type.len() > 0 {
             // #320: a payload typed by a ref-qualified type param is a
@@ -2798,7 +2807,7 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref
     }
 }
 
-priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), ref_params: Set(Str), symbols: SymbolPool) {
+priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
     for mut pd : Declaration in fdd.params {
         new_type := init_subst_ident_name(subs, ref_params, pd.type_name(), symbols)
         if new_type.len() > 0 {
@@ -2824,7 +2833,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), 
     }
 }
 
-priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), ref_params: Set(Str), symbols: SymbolPool) {
+priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
     switch def.node_type {
     case .StructDef(sdd):
         init_subst_struct_params(sdd, subs, ref_params, symbols)
@@ -2920,7 +2929,7 @@ priv init_macro_cond_eval := func(cond: Expr, symbols: SymbolPool) returns I32 {
 // must be a NodeType.Body. Returns NULL when the shape isn't a single
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return; the caller falls back to leaving the macro un-expanded.
-priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), symbols: SymbolPool) returns Option(ref Expr) {
+priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), mut symbols: SymbolPool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
