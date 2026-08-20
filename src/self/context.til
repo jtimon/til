@@ -683,7 +683,15 @@ type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding, symbols: Sy
         // ...) are builtins too, and reading one as a type token turned a
         // local named `vec` in a generic's value slot into a bogus type
         // application (#328).
-        return bfd_o.unwrap().children.len() == 0
+        //
+        // is_func_decl separates the two things that BOTH resolve to that
+        // bodyless def: the signature's own declaration `ABin := func(a:
+        // I64, b: I64) returns I64` (a type name), and any VALUE of that
+        // type -- a param `f: ABin`, a local, a struct field -- which
+        // carries the same def so calls through it resolve. Without it,
+        // `gapply(f, 2, 5)` read the funcptr VALUE as a type argument and
+        // died on "undefined type 'f'" instead of inferring T = ABin.
+        return bfd_o.unwrap().children.len().eq(0).and(b.is_func_decl)
     }
     if b.is_builtin { return true }
     return false

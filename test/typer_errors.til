@@ -1494,3 +1494,12 @@ terr391_data := terr391_v.data
 GNoEv328 := struct { n := 0 }
 gpair_noev328 := func(T: Type, a: T, b: T) returns T { return a }
 gnoev_conflict : GNoEv328 = gpair_noev328("s", GNoEv328())
+
+// #328 follow-up: a bare function argument has no NAME for T to be. The
+// answer would have to be a registered type and `func(...)` written
+// inline never got one, so the diagnostic points at the fix (declare it
+// through a FuncSig) rather than blaming Dynamic, which is a different
+// reason with a different remedy.
+gbare_apply328 := func(T: Type, f: T, a: I64, b: I64) returns I64 { return f(a, b) }
+gbare_fn328 := func(a: I64, b: I64) returns I64 { return a + b }
+gbare_call328 := gbare_apply328(gbare_fn328, 2, 5)

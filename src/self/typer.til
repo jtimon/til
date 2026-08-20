@@ -3184,6 +3184,12 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
     mut soft_num := Set(Str).new()
     mut soft_float := Set(Str).new()
     mut soft_empty := Set(Str).new()
+    // A function VALUE argument whose signature has no name: the answer
+    // would have to be a registered type, and a bare `f := func(...)`
+    // never got one. Tracked apart from soft_empty so the diagnostic can
+    // point at the fix (annotate the function with a FuncSig) instead of
+    // blaming Dynamic.
+    mut soft_unnamed_func := Set(Str).new()
     mut nested_only := Set(Str).new()
     // A parameter reached only through a generated instance name
     // (`Vec__T`) is deduced by lining the two spellings up below; the flag
@@ -3266,7 +3272,8 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
                 }
                 mut spell := expr_declared_type_name(scope, arg, ctx.symbols)
                 if spell.len() == 0 {
-                    soft_empty.add(own ptype_name.clone())
+                    if at.is_funcptr() { soft_unnamed_func.add(own ptype_name.clone()) }
+                    else { soft_empty.add(own ptype_name.clone()) }
                     continue
                 }
                 // The equality key comes from the operand's TYPE; a plain
@@ -3342,6 +3349,9 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
             } else if nested_only.has(tp.name) {
                 e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
                     "': it appears only inside another type (nested type arguments are not deduced); pass it explicitly"), ctx)
+            } else if soft_unnamed_func.has(tp.name) {
+                e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
+                    "': the function argument has no named signature to deduce it from; declare it through a FuncSig (f : SomeSig = func(...)) or pass the type explicitly"), ctx)
             } else if soft_empty.has(tp.name) {
                 e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
                     "': Dynamic and null arguments establish no type; pass it explicitly"), ctx)
@@ -6164,7 +6174,12 @@ priv infer_decl_type_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
     return true
 }
 
-priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: Context) returns Bool {
+// `annotated_type_name` is infer_decl_stmt's snapshot of the ANNOTATION, taken
+// BEFORE the RHS is inferred, and "" when there was none. By the time
+// this runs, an unannotated `f := func(...) returns Str` has had its Decl
+// til_type filled in with the RETURN type, so asking here what the
+// annotation said answers "Str" for a declaration that never had one.
+priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, annotated_type_name: Str, mut ctx: Context) returns Bool {
     if is_func_decl(stmt).not() { return false }
     switch stmt.node_type {
     case .Decl(sdecl):
@@ -6217,6 +6232,15 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
         fb.is_func_decl = true
         fb.is_priv = sdecl.is_priv
         fb.orig_name = sdecl.orig_name.clone()
+        // #328 declared-spelling provenance, the same record
+        // finalize_decl_binding keeps for every other annotated local --
+        // this path returns before reaching it. `op : ABin = func(...)`
+        // is a funcptr whose SIGNATURE the annotation names, and that
+        // name is the only thing a generic can deduce T from when the
+        // function is passed as a value argument.
+        if annotated_type_name.len() > 0 {
+            fb.declared_type_name = annotated_type_name.clone()
+        }
         if fdef.sig.func_type.is_bodyless() {
             fb.is_builtin = true
         }
@@ -6904,6 +6928,12 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         return
     }
     had_declared_type := decl_of(stmt).til_type.is(Type.Unknown).not()
+    // The annotation's SPELLING, snapshot with the flag above and for the
+    // same reason: inferring the RHS overwrites an unannotated Decl's
+    // til_type (a `f := func(...) returns Str` ends up reading "Str"),
+    // so neither the flag nor the name survives to be asked for later.
+    mut declared_name_at_entry := ""
+    if had_declared_type { declared_name_at_entry = decl_of(stmt).type_name().clone() }
     mut dv_elem := ""
     ref first_child : Expr = stmt.children[0]
     if first_child.node_type.is(NodeType.StructDef).or(first_child.node_type.is(NodeType.EnumDef)) {
@@ -7021,7 +7051,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         }
     }
     if infer_decl_type_def(scope, stmt, ctx) { return }
-    if infer_decl_func_def(scope, stmt, ctx) { return }
+    if infer_decl_func_def(scope, stmt, declared_name_at_entry, ctx) { return }
     if infer_decl_type_alias_passthrough(scope, stmt, ctx.symbols) { return }
     ref sdecl : Declaration = decl_of(stmt)
     if sdecl.til_type.is(Type.Unknown).not() {

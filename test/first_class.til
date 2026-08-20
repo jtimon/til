@@ -1952,6 +1952,32 @@ test_generic_expected_type_infer := test() {
     assert_eq(I64, gexp_top328.n, 7)
 }
 
+// #328 follow-up: a FUNCTION passed as a value argument deduces T from
+// its named signature. Every one of these shapes -- an annotated local,
+// a FuncSig-typed parameter, a FuncSig-typed struct field -- carries the
+// signature's own bodyless FuncDef so calls through it resolve, which is
+// exactly what made type_binding_is_type_token read the funcptr VALUE as
+// a type ARGUMENT: `gsig_apply328(f, 2, 5)` died on "undefined type 'f'"
+// before the omitted path was ever reached. is_func_decl separates the
+// signature's declaration from a value of that type.
+GSig328 := func(a: I64, b: I64) returns I64
+gsig_add328 := func(a: I64, b: I64) returns I64 { return a + b }
+gsig_annotated328 : GSig328 = func(a: I64, b: I64) returns I64 { return a + b }
+gsig_apply328 := func(T: Type, f: T, a: I64, b: I64) returns I64 { return f(a, b) }
+GSigHolder328 := struct { op : GSig328 = gsig_add328 }
+gsig_via_param328 := func(f: GSig328) returns I64 { return gsig_apply328(f, 2, 5) }
+gsig_via_field328 := func(h: GSigHolder328) returns I64 { return gsig_apply328(h.op, 2, 5) }
+
+test_generic_infer_from_funcsig_argument := test() {
+    // Annotated local: the annotation names the signature.
+    assert_eq(I64, gsig_apply328(gsig_annotated328, 2, 5), 7)
+    // Parameter and field positions, which carry the same bodyless def.
+    assert_eq(I64, gsig_via_param328(gsig_add328), 7)
+    assert_eq(I64, gsig_via_field328(GSigHolder328()), 7)
+    // The explicit form keeps working and names the SAME instance.
+    assert_eq(I64, gsig_apply328(GSig328, gsig_add328, 2, 5), 7)
+}
+
 test_generic_func_angle_swap := test() {
     mut x := 1
     mut y := 2
