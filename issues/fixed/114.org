@@ -1,6 +1,18 @@
 # priority: low
 # category: features
-** OPEN #114 Source docs + repl help/introspection
+** FIXED #114 Source docs + repl help/introspection
+
+* Post-mortem
+  - Root cause: this early umbrella issue stayed open after its implementation
+    moved into the more detailed issues #157 and #233, so its progress section
+    no longer described the documentation system on master.
+  - Fix: #157 added ~///~ declaration docs, AST storage, qualified REPL
+    ~help()~, field/member docs, and ~til doc~. #233 completed the shared doc
+    catalog, generated Org and searchable HTML output, metadata, links,
+    navigation, and doctests. No second documentation path is needed.
+  - Regression coverage: parser doc-comment tests,
+    ~verify_doc_html_body_renderer~, generated doc index assertions,
+    ~write_doc_doctests~, and ~test/repl_help.til~.
 
 Add source-level documentation that can later be surfaced from the REPL and
   tooling. The long-term goal is that once ~[[./10.org][#10]]~ exists, users can ask for:
@@ -39,13 +51,13 @@ Add source-level documentation that can later be surfaced from the REPL and
    Depends conceptually on ~[[./10.org][#10]]~, but the syntax/storage side can be designed
    and implemented before the REPL command itself.
 
-   Progress:
+   Final state:
 
-   - ~///~ doc comments are parsed and attached to ~Declaration.doc~.
-   - [[file:../../src/core/doc.til][src/core/doc.til]] provides ~help(name)~ and the internal doc/kind blobs.
-   - Loader doc injection (~__doc_init__~ synthesis) is now REPL-only via a
-     hidden ~til interpret --repl-docs~ path (the normal loader pipeline does
-     not populate docs for ~til interpret/build/run/test/translate~).
-   - Next: real tooling output (docgen) under a dedicated command, likely
-     emitting ~.org~ (and optionally exporting to HTML).
-
+   - ~///~ doc comments are attached to declarations, fields, enum variants,
+     and namespace members.
+   - [[file:../../src/std/doc.til][src/std/doc.til]] provides REPL ~help(name)~ using the same generated
+     source documentation consumed by tooling.
+   - ~til doc~ emits Org and searchable HTML under ~doc/gen/~ from the shared
+     typed-AST catalog.
+   - Normal ~interpret/build/run/test/translate~ pipelines deliberately do not
+     populate the REPL registry or carry documentation into compiled programs.
