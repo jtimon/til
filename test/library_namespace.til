@@ -4,8 +4,16 @@ import("../src/std/sys")
 import("../src/std/file")
 
 main := proc() {
-    Cmd.new("bin/til", "build", "test/library_namespace_a.til").run_checked()
-    Cmd.new("bin/til", "build", "test/library_namespace_b.til").run_checked()
+    build_a := Cmd.new("bin/til", "build", "test/library_namespace_a.til")
+    build_b := Cmd.new("bin/til", "build", "test/library_namespace_b.til")
+    println(build_a.render())
+    println(build_b.render())
+    build_a.start()
+    build_b.start()
+    status_a := build_a.wait()
+    status_b := build_b.wait()
+    if status_a != 0 { panic("library_namespace_a build exited with ", status_a.to_str()) }
+    if status_b != 0 { panic("library_namespace_b build exited with ", status_b.to_str()) }
 
     py_a := File.readfile("gen/til/library_namespace_a.py")
     py_b := File.readfile("gen/til/library_namespace_b.py")

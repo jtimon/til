@@ -127,19 +127,20 @@ same name target the same canonical outputs throughout translation and remain
 unsupported unless the entire build gains private staging and atomic
 publication.
 
-For the different-library guarantee, key every intermediate object by the
-existing library name: ~gen/lib/<name>.o~, ~gen/lib/<name>_ext.o~, and optional
+The fix keys every intermediate object by the existing library name:
+~gen/lib/<name>.o~, ~gen/lib/<name>_ext.o~, and optional
 ~gen/lib/<name>_user.o~. ~compile_lib~ writes and consumes them; they stay under
 the existing ignored ~gen/~ tree, ~make clean~ removes them, and install still
-copies only the canonical public artifacts. Recreate the static archive at a
-fresh temporary path before publishing it: ~ar rcs~ updates an existing archive
-and otherwise retains stale members, including the old generic object names or
-an optional user object removed by a later source change.
+copies only the canonical public artifacts. The static archive is now created
+at a fresh process-specific path and renamed into place: ~ar rcs~ updates an
+existing archive and otherwise retains stale members, including the old generic
+object names or an optional user object removed by a later source change.
 
-The existing ~test/library_namespace.til~ fixture is the focused regression:
-start its two library builds together with ~Cmd.start~, wait for both, then keep
-the current static, shared, and Til consumers. Their distinct namespaces make
-cross-contaminated objects fail loudly without adding another fixture.
+The existing ~test/library_namespace.til~ fixture is the focused regression. It
+starts its two library builds together with ~Cmd.start~, waits for both, then
+keeps the current static, shared, and Til consumers. Their distinct namespaces
+make cross-contaminated objects fail loudly without adding another fixture.
+~make clean && make test~ passes 413/413.
 
 Process-private staging under ~gen/lib~ is the stronger alternative. To support
 same-name builds correctly it must cover generated C, forward/public headers,

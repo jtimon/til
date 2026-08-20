@@ -58,7 +58,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     }
 
     // Compile ext.c to object
-    ext_obj := "gen/lib/ext.o"
+    ext_obj := format("gen/lib/", lib_name, "_ext.o")
     cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
         " -c ", ext_c_path, " -o ", ext_obj)
     result = system_cmd(cmd)
@@ -70,7 +70,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     // Compile user .c to object if present
     mut user_obj := ""
     if uc.len() > 0 {
-        user_obj = "gen/lib/user.o"
+        user_obj = format("gen/lib/", lib_name, "_user.o")
         cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -include ", fwd_path, " -I", ext_dir, ifl,
             " -c ", uc, " -o ", user_obj)
         result = system_cmd(cmd)
@@ -97,14 +97,18 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
 
     // Create static library
     a_path := format("gen/lib/lib", lib_name, ".a")
-    cmd = format("ar rcs ", a_path,
+    a_tmp_path := format(a_path, ".tmp.", process_id().to_str())
+    File.remove(a_tmp_path)
+    cmd = format("ar rcs ", a_tmp_path,
         " ", obj_path, " ", ext_obj,
         " ", user_obj)
     result = system_cmd(cmd)
     if result != 0 {
+        File.remove(a_tmp_path)
         println("error: static library creation failed")
         return 1
     }
+    File.rename(a_tmp_path, a_path)
 
     return 0
 }

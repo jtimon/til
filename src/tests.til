@@ -1664,22 +1664,18 @@ main := proc(args: ..Str) {
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
         CountCheck(needle = "the result is a view sharing", expected_count = 3),
         CountCheck(needle = "dyn_call cannot delete the local", expected_count = 1))
-    parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
-    add_count(tests, "fcall_arg_parity_total_interp", "typer", "error:", 12, parity_cmd)
+    // One interpreter capture pins both the aggregate and each parity class.
+    add_counts(tests, "fcall_arg_parity_total_interp", "typer",
+        format(til_bin, " interpret test/fcall_arg_parity_error.til"),
+        CountCheck(needle = "error:", expected_count = 12),
+        CountCheck(needle = "duplicate argument for parameter", expected_count = 2),
+        CountCheck(needle = "missing argument for parameter", expected_count = 2),
+        CountCheck(needle = "too many arguments: expected 2, got 3", expected_count = 2),
+        CountCheck(needle = "positional argument after named argument", expected_count = 2),
+        CountCheck(needle = "argument type mismatch", expected_count = 2),
+        CountCheck(needle = "must be marked", expected_count = 2))
     add_count(tests, "fcall_arg_parity_total_build", "typer", "error:", 12,
         format(til_bin, " build", asan_flag, " test/fcall_arg_parity_error.til"))
-    add_count(tests, "fcall_arg_parity_duplicate", "typer",
-        "duplicate argument for parameter", 2, parity_cmd)
-    add_count(tests, "fcall_arg_parity_missing", "typer",
-        "missing argument for parameter", 2, parity_cmd)
-    add_count(tests, "fcall_arg_parity_extra", "typer",
-        "too many arguments: expected 2, got 3", 2, parity_cmd)
-    add_count(tests, "fcall_arg_parity_named_order", "typer",
-        "positional argument after named argument", 2, parity_cmd)
-    add_count(tests, "fcall_arg_parity_type", "typer",
-        "argument type mismatch", 2, parity_cmd)
-    add_count(tests, "fcall_arg_parity_own", "typer",
-        "must be marked", 2, parity_cmd)
     // #342: a `..` past the last bit of the per-argument bitmap is refused,
     // not silently dropped into the lowering as an ordinary element.
     add_count(tests, "splat_arg_limit_interp", "typer",
