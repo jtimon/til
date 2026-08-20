@@ -902,7 +902,9 @@ cyc_live_result := cyc_live_a(3)
 // spell the type argument; the explicit form of every one still works.
 
 // A type parameter used only by the return type has no value operand to
-// deduce it from (expected-result-type inference is separate work).
+// deduce it from, and an UNTYPED destination gives the expected-type
+// evidence (which now exists -- test_generic_expected_type_infer) nothing
+// to say either. The diagnostic names both ways out.
 g328_return_only := func(T: Type) returns T { return T() }
 g328_return_only_result := g328_return_only()
 
@@ -1484,3 +1486,11 @@ terr391_mut = terr391_s.c_str
 mut terr391_v := Vec(Str).new()
 terr391_v.push(own terr391_lit.clone())
 terr391_data := terr391_v.data
+
+// #328 follow-up: the Unknown-valued RHS of a typed decl. The
+// initializer's own failure (conflicting evidence) is the ONE error; the
+// "'x' declared as GNoEv328 but value is " follow-up -- with nothing to
+// print after "is" -- is suppressed noise, not a second diagnostic.
+GNoEv328 := struct { n := 0 }
+gpair_noev328 := func(T: Type, a: T, b: T) returns T { return a }
+gnoev_conflict : GNoEv328 = gpair_noev328("s", GNoEv328())

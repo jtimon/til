@@ -1205,6 +1205,16 @@ Context := struct {
     // call that built it -- this holder owns it for the unit. Reset
     // alongside generic_pending at type_check_unit entry.
     own func_gen_twins : Expr = Expr.new(NodeType.Body, 0, 0)
+    // #328 follow-up: expected-type evidence for generic inference.
+    // `v : Point = gdefault()` names T's answer in the ANNOTATION, which
+    // argument evidence cannot see (gdefault has no value parameters).
+    // infer_decl_stmt stores the resolved declared type name while the
+    // RHS is inferred; generic_expected_for pins the exact RHS node so
+    // only the OUTERMOST call reads it -- a generic nested deeper
+    // (`wrap(gdefault())`) feeds wrap's parameter, not the annotation.
+    // "" / null when no typed Decl is being inferred.
+    generic_expected_type := ""
+    ref generic_expected_for : Dynamic = 0
 
     scope := TypeScope()
     is_repl := false

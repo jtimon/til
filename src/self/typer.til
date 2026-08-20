@@ -3134,6 +3134,27 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
     return true
 }
 
+// #328 follow-up: what the DESTINATION's annotation says `pname` is, or
+// "". `p : Point = gdefault()` names T's answer in the annotation, which
+// argument evidence cannot see -- gdefault's T appears only in its return
+// type. Only the exact RHS node infer_decl_stmt pinned may read it (a
+// generic nested deeper feeds a parameter, not the annotation), and the
+// annotation only speaks about parameters the RETURN type mentions:
+// directly (`returns T` takes the whole name) or inside a generated
+// instance (`returns Vec(T)` against a declared `Vec__I64` decomposes by
+// the same segment line-up arguments use).
+priv generic_expected_evidence := func(e: Expr, gfd: FunctionDef, pname: Str, ctx: Context) returns Str {
+    if ctx.generic_expected_type.len() == 0 { return "" }
+    if ctx.generic_expected_for.is_null() { return "" }
+    if to_ptr(e).ptr_eq(ctx.generic_expected_for).not() { return "" }
+    ref rt : Str = gfd.sig.return_type
+    if rt.eq(pname) { return ctx.generic_expected_type.clone() }
+    if type_name_mentions_param(rt, pname) {
+        return generic_decompose_nested(gfd, rt, ctx.generic_expected_type, pname)
+    }
+    return ""
+}
+
 // Omitted application: desugar the call against the value-only signature,
 // infer every value argument, then read the type arguments back off the
 // formals that ARE a type parameter (`v: T`, `own v: T`, `xs: ..T`).
@@ -3145,7 +3166,10 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
 // coercion, no wildcard funcptr match, no integer widening, #224).
 // Numeric literals are SOFT: they narrow against hard evidence when there
 // is any, and otherwise pick the documented I64 / F32 default. Dynamic,
-// Unknown and null establish nothing at all.
+// Unknown and null establish nothing at all. The destination's annotation
+// (generic_expected_evidence) sits between the two: consulted when the
+// arguments' hard evidence is silent, and it beats the literal defaults --
+// `n : U8 = gid(7)` narrows the literal exactly as `n : U8 = 7` does.
 priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), display_name: Str, in_func: I32, mut ctx: Context) returns Bool {
     vo := generic_value_only_fdef(gfd)
     if desugar_fcall_args_for_fdef(e, display_name, vo, 0, ctx).not() { return false }
@@ -3291,13 +3315,31 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         mut chosen := ""
         if ev_spell.has(tp.name) {
             chosen = ev_spell[tp.name].clone()
-        } else if soft_num.has(tp.name) {
-            // Literal-only: the documented defaults. A fractional or
-            // exponent literal anywhere in the group picks F32.
-            if soft_float.has(tp.name) { chosen = "F32" } else { chosen = "I64" }
         }
         if chosen.len() == 0 {
-            if nested_only.has(tp.name) {
+            chosen = generic_expected_evidence(e, gfd, tp.name, ctx)
+        }
+        if chosen.len() == 0 {
+            if soft_num.has(tp.name) {
+                // Literal-only: the documented defaults. A fractional or
+                // exponent literal anywhere in the group picks F32.
+                if soft_float.has(tp.name) { chosen = "F32" } else { chosen = "I64" }
+            }
+        }
+        if chosen.len() == 0 {
+            // A parameter no value parameter mentions (`gdefault`'s T,
+            // return-type-only) can NEVER be argued from arguments -- say
+            // so, with both ways out, instead of implying the arguments
+            // were merely insufficient this time.
+            mut arg_mentioned := false
+            for np : Declaration in vo.sig.params {
+                np_t := np.type_name()
+                if np_t.eq(tp.name).or(type_name_mentions_param(np_t, tp.name)) { arg_mentioned = true }
+            }
+            if arg_mentioned.not() {
+                e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
+                    "': no value parameter mentions it; pass it explicitly, or declare the destination's type ('x : SomeType = ", display_name, "(...)')"), ctx)
+            } else if nested_only.has(tp.name) {
                 e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
                     "': it appears only inside another type (nested type arguments are not deduced); pass it explicitly"), ctx)
             } else if soft_empty.has(tp.name) {
@@ -6356,6 +6398,10 @@ priv fcall_is_raw_alloc := func(e: Expr, symbols: SymbolPool) returns Bool {
 // `at` is the node the diagnostic hangs off (the Decl stmt for a local,
 // the default expr for a field).
 priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared: Type, declared_name: Str, scope: TypeScope, mut ctx: Context) {
+    // An Unknown value type means the initializer's own inference already
+    // failed and reported; a second "'x' declared as T but value is "
+    // -- with nothing to print after "is" -- is pure noise on top of it.
+    if val.til_type().is(Type.Unknown) { return }
     if can_implicit_usize_coerce(val.til_type(), declared, declared_name).not()
         .and(val.til_type().is(declared).not())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
@@ -6941,15 +6987,30 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         dv_elem = dynvec_elem_from_new(stmt.children[0], ctx.symbols)
         // #341: `s : Shape = .Nothing` -- the annotation is the expected
         // enum, so fill the elided name in before the RHS is inferred.
+        // #328 follow-up: the same annotation is EVIDENCE for a generic
+        // RHS call whose arguments say nothing (`p : Point = gdefault()`,
+        // where T appears only in the return type). Stored on ctx, pinned
+        // to this exact RHS node; generic_infer_subs consumes it. Saved
+        // and restored rather than cleared: a Decl nested inside this RHS
+        // (a lambda argument's body) re-enters here before the outer
+        // call's type parameters are resolved.
+        saved_expected_type := ctx.generic_expected_type.clone()
+        ref saved_expected_for : Dynamic = ctx.generic_expected_for
         switch stmt.node_type {
         case .Decl(qdd):
             if qdd.til_type.is(Type.Unknown).not() {
                 qualify_dotted_expr(stmt.children[0], type_from_name(qdd.type_name(), scope, ctx), ctx.symbols)
+                if stmt.children[0].node_type.is(NodeType.FCall) {
+                    ctx.generic_expected_type = resolve_type_alias(scope, qdd.type_name(), ctx.symbols).clone()
+                    ctx.generic_expected_for = to_ptr(stmt.children[0])
+                }
             }
         case:
         }
         if tracked_func { infer_func_def_expr(scope, stmt.children[0], top_func_name, ctx) }
         else { infer_expr(scope, stmt.children[0], in_func, ctx) }
+        ctx.generic_expected_type = saved_expected_type.clone()
+        ctx.generic_expected_for = saved_expected_for
         if tracked_func {
             ctx.synth_owner = saved_synth_owner
             ctx.hoist_counter = saved_hoist_counter

@@ -3138,8 +3138,12 @@ priv init_macro_call_is_type_application := func(e: Expr, macro_fdef: Expr, macr
     case:
         return true
     }
-    // A no-arg call applies nothing, so there is nothing to misread.
-    if e.children.len() < 2 { return true }
+    // A zero-arg call of a generator that HAS type parameters cannot be
+    // their application -- it is the omitted form with no value arguments
+    // either (`gdefault_angle()`), left for the typer's expected-type
+    // inference. Expanding it here substituted nothing for T and left the
+    // template's own `T` references dangling in the output.
+    if e.children.len() < 2 { return false }
     for i in 1..e.children.len() {
         if init_arg_is_type_token(e.children[i], macros, scope, ctx).not() { return false }
     }

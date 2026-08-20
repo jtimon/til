@@ -1926,7 +1926,9 @@ main := proc(args: ..Str) {
     // frees its box and leaks what it owned. The needle counts both.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 235),
+        CountCheck(needle = "error:", expected_count = 236),
+        CountCheck(needle = "no value parameter mentions it", expected_count = 2),
+        CountCheck(needle = "conflicting evidence", expected_count = 2),
         CountCheck(needle = "no method 'to_str' for type 'NoCmp'", expected_count = 1),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
@@ -1939,7 +1941,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "binds the owned pointer field", expected_count = 3))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 235),
+        CountCheck(needle = "error:", expected_count = 236),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),

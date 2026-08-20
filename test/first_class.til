@@ -1918,6 +1918,40 @@ test_generic_func_angle_nested_type_arg := test() {
     aliased : MyI328 = 11
     assert_eq(I64, gid_angle(aliased), 11)
 }
+// #328 follow-up: the DESTINATION's annotation is evidence. `p : Point =
+// gdefault()` names T in the one place argument evidence cannot see -- T
+// appears only in the return type. It ranks between hard argument
+// evidence and the literal defaults, so `u : U8 = gid(7)` narrows the
+// literal exactly as `u : U8 = 7` does. A nested return decomposes by
+// the same segment line-up arguments use (`returns Vec(T)` against a
+// declared `Vec(I64)`). Identical through the func<T> sugar, whose
+// zero-arg call init used to expand as an EMPTY type application,
+// leaving the template's own T dangling in the output.
+GExp328 := struct { n := 7 }
+GExpAlias328 := GExp328
+gexp_default328 := func(T: Type) returns T { return T() }
+gexp_default_angle328 := func<T: Type>() returns T { return T() }
+gexp_wrapv328 := func(T: Type) returns Vec(T) {
+    v := Vec(T).new()
+    return v
+}
+// A file-scope typed decl goes through the same path as a local one.
+gexp_top328 : GExp328 = gexp_default328()
+
+test_generic_expected_type_infer := test() {
+    p : GExp328 = gexp_default328()
+    assert_eq(I64, p.n, 7)
+    u : U8 = gid328(7)
+    assert_eq(U8, u, 7)
+    al : GExpAlias328 = gexp_default328()
+    assert_eq(I64, al.n, 7)
+    s : GExp328 = gexp_default_angle328()
+    assert_eq(I64, s.n, 7)
+    w : Vec(I64) = gexp_wrapv328()
+    assert_eq(USize, w.len(), 0)
+    assert_eq(I64, gexp_top328.n, 7)
+}
+
 test_generic_func_angle_swap := test() {
     mut x := 1
     mut y := 2

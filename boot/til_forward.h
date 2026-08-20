@@ -1839,6 +1839,8 @@ typedef struct Context {
     Map__Str_Expr generic_type_deps;
     Expr *generic_pending;
     Expr *func_gen_twins;
+    Str generic_expected_type;
+    void * *generic_expected_for;
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
