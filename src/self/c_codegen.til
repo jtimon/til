@@ -10293,7 +10293,22 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
             if inv_unit_needs {
                 builder_collect_body_reads(lp.ctx.imported[upath].ast, inv_unit_reads, lp.ctx)
             }
-            builder_collect_ns_member_sites(lp.ctx.imported[upath].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_unit_reads, "", lp.ctx)
+            // A global the emitter materialises as a C static initializer
+            // makes no call at all: emit_c_static_initializer writes
+            // literals and compound literals, and it steps THROUGH the
+            // `T.clone(x)` the AST carries (static_enum_clone_arg) to write
+            // x's value in place. Recording sites under one kept
+            // Color_clone defined with no caller in
+            // test/unused_import_ok.til -- clang rejects that outright
+            // under -Werror (-Wunused-function) while gcc says nothing.
+            // Asked here, over the unit's top-level statements, because
+            // that is where emit_global_declarations asks it: the
+            // predicate reads a decl's SHAPE, and the same shape as a
+            // local is emitted as an ordinary call.
+            for inv_tl_stmt : Expr in lp.ctx.imported[upath].ast.children {
+                if global_decl_has_c_static_initializer(inv_tl_stmt, lp.ctx) { continue }
+                builder_collect_ns_member_sites(inv_tl_stmt, inv_round_sites, inv_stack_names, inv_dup_names, inv_unit_reads, "", lp.ctx)
+            }
         }
         n_sites := inv_round_sites.len()
         lp.ctx.builder_ns_member_sites = inv_round_sites.clone()
