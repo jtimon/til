@@ -79,6 +79,25 @@ public U8 *TilCAlloc(U64 nmemb,U64 size)
   return ptr;
 }
 
+public U8 *TilReAlloc(U8 *ptr,U64 count)
+{
+  I64 old_count,copy_count,native_count=TilNativeCount(count);
+  U8 *replacement;
+  if (!ptr)
+    return TilMAlloc(count);
+  replacement=MAlloc(native_count);
+  if (!replacement && count)
+    TilPanicZ("til: allocation failed\n");
+  old_count=MSize(ptr);
+  copy_count=old_count;
+  if (copy_count>native_count)
+    copy_count=native_count;
+  if (copy_count)
+    MemCpy(replacement,ptr,copy_count);
+  Free(ptr);
+  return replacement;
+}
+
 public U0 TilFree(U8 *ptr)
 {
   if (ptr)
@@ -140,4 +159,10 @@ public U8 *TilDeref(U8 **slot)
   if (!slot)
     TilNullDeref;
   return *slot;
+}
+
+public U0 TilWritePtr(U8 *slot,U8 *value)
+{
+  TilCheckPtr(slot);
+  *(slot(U8 **))=value;
 }

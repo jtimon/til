@@ -15,24 +15,25 @@ extern U0 TilWritePtr(U8 *slot,U8 *value);
 
 #include "/Home/Ext.HC"
 
-extern I64 twice(I64 n);
-
-I64 twice(I64 n)
-{
-    "%s", "Inside twice";
-    "\n";
-    I64 hoisted__I64_3 = 2;
-    I64 hoisted__I64_4 = (n * hoisted__I64_3);
-    return hoisted__I64_4;
-}
-
 I64 TilMain()
 {
-    "%s", "Imported calls helper";
+    U8 *slot = TilMAlloc(8);
+    U8 *hoisted__v_g7 = TilMAlloc(4);
+    TilWritePtr(slot, hoisted__v_g7);
+    U8 *back = TilDeref((slot)(U8 **));
+    U8 *recovered = back;
+    TilFree(recovered);
+    TilFree(slot);
+    "%s", "ok";
     "\n";
-    I64 hoisted__I64_g10 = 21;
-    I64 result = twice(hoisted__I64_g10);
-    "%d", result;
+    U8 *slot2 = TilMAlloc(8);
+    I8 *b = TilMAlloc(4);
+    TilWritePtr(slot2, b);
+    U8 *back2 = TilDeref((slot2)(U8 **));
+    U8 *recovered2 = back2;
+    TilFree(recovered2);
+    TilFree(slot2);
+    "%s", "ok2";
     "\n";
     return 0;
 }

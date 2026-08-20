@@ -656,6 +656,10 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos examples/templeos_calls.til '&&' cat gen/til/templeos_calls.HC"))
     add_single(tests, "holyc_scalar_semantics_translate", "build", 0, "test/templeos_scalars.expected",
         format(til_bin, " translate --target=templeos examples/templeos_scalars.til '&&' cat gen/til/templeos_scalars.HC"))
+    add_single(tests, "holyc_shared_raw_alloc_translate", "build", 0, "test/templeos_raw_alloc.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/templeos_raw_alloc.HC test/script_raw_alloc.til '&&' cat gen/c/templeos_raw_alloc.HC"))
+    add_single(tests, "holyc_shared_dynamic_free_translate", "build", 0, "test/templeos_dynamic_free.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/templeos_dynamic_free.HC test/script_dynamic_free.til '&&' cat gen/c/templeos_dynamic_free.HC"))
     add_single(tests, "holyc_rejects_continue", "build", 1, "test/holyc_continue.expected",
         format(til_bin, " translate --target=templeos -c gen/c/holyc_continue.HC test/holyc_continue.til"))
     add_single(tests, "holyc_rejects_f64", "build", 1, "test/holyc_f64.expected",

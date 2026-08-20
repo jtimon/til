@@ -125,6 +125,8 @@
     value versus pointer parameters and returns, null-deref/panic behavior,
     and TempleOS wrappers for ~MAlloc~, ~CAlloc~, ~Free~, raw memory, and raw
     output.
+  - [X] Add typed raw-pointer and Dynamic storage, checked scalar loads, and
+    explicit lowering for allocation, pointer, and raw-memory primitives.
   - [ ] Implement the general til ~Str~ representation in HolyC: literals,
     clone/delete, views, mutation, integer conversion, and native output.
     Keep the current lowered-~println~ scaffold optimization only until real
@@ -204,6 +206,22 @@
   ~templeos_calls_helper.til~ after running that imported unit's top-level
   initializer. TempleOS 5.03 compiled and ran the generated two-unit output
   under QEMU TCG and reported ~TILTEST:PASS~.
+
+  The eighth slice adds per-body pointer binding state so a typed allocator
+  local stores an address but reads through ~TilCheckPtr~, while Dynamic and
+  ~ref Dynamic~ bindings carry one pointer word. ~malloc~, ~calloc~,
+  ~realloc~, ~free~, ~memcpy~, ~memmove~, ~memset~, ~memcmp~, ~ptr_add~,
+  ~ptr_eq~, ~is_null~, ~deref~, ~write_ptr~, and ~to_ptr~ lower explicitly to
+  HolyC expressions or ~Ext.HC~ entrypoints. Scalar arguments used as raw
+  memory sources pass their address instead of being mistaken for pointers.
+  ~TilReAlloc~ preserves bytes with TempleOS ~MSize~ and ~TilWritePtr~ owns
+  pointer-slot mutation. The existing ~test/script_raw_alloc.til~ and
+  ~test/script_dynamic_free.til~ sources now serve as HolyC translation
+  fixtures without backend-specific source copies. Both ran under TempleOS
+  5.03 and reported ~TILTEST:PASS~; a self-checking guest probe also covered
+  calloc, overlap-safe memmove, memcmp, realloc, null tests, pointer equality,
+  and ~to_ptr~. Pointer-bearing aggregates and pointer function interfaces
+  remain explicit unsupported shapes for later slices.
 
 *** QEMU validation
 

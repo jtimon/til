@@ -1,0 +1,45 @@
+extern U8 *TilMAlloc(U64 count);
+extern U8 *TilCAlloc(U64 nmemb,U64 size);
+extern U8 *TilReAlloc(U8 *ptr,U64 count);
+extern U0 TilFree(U8 *ptr);
+extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);
+extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);
+extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);
+extern I32 TilMemCmp(U8 *a,U8 *b,U64 count);
+extern U0 TilRawWrite(U8 *data,U64 count);
+extern U0 TilPanic(U8 *data,U64 count);
+extern U0 TilNullDeref();
+extern U8 *TilCheckPtr(U8 *ptr);
+extern U8 *TilDeref(U8 **slot);
+extern U0 TilWritePtr(U8 *slot,U8 *value);
+
+#include "/Home/Ext.HC"
+
+I64 TilMain()
+{
+    U32 n = 4;
+    U8 *buf = TilMAlloc(n);
+    I32 hoisted__I32_g7 = 0;
+    TilMemSet(buf, hoisted__I32_g7, n);
+    I64 hoisted__I64_g8 = 65;
+    U64 hoisted__U64_g9 = 1;
+    TilMemCpy(buf, &hoisted__I64_g8, hoisted__U64_g9);
+    U64 off = 1;
+    U8 *hoisted__v_g10 = (buf + off);
+    I64 hoisted__I64_g11 = 66;
+    U64 hoisted__U64_g12 = 1;
+    TilMemCpy(hoisted__v_g10, &hoisted__I64_g11, hoisted__U64_g12);
+    U64 hoisted__U64_g13 = 0;
+    U8 *a = (buf + hoisted__U64_g13);
+    U8 *b = (buf + off);
+    I64 hoisted__I64_g15 = ((*(TilCheckPtr(a))(U8 *)))(I64);
+    "%d", hoisted__I64_g15;
+    "\n";
+    I64 hoisted__I64_g19 = ((*(TilCheckPtr(b))(U8 *)))(I64);
+    "%d", hoisted__I64_g19;
+    "\n";
+    TilFree(buf);
+    return 0;
+}
+
+TilMain;
