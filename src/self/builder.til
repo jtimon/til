@@ -197,7 +197,12 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     mut prof_link_flags := ""
     if prof.and(is_windows_target(target).not()) {
         prof_flags = " -finstrument-functions"
-        if asan.not() {
+        // --wrap belongs to GNU ld. Apple's rejects the link outright
+        // ("ld: unknown options: --wrap=malloc --wrap=calloc
+        // --wrap=realloc"), so a mac target gets the CPU profile without
+        // the allocation profile -- the same trade asan already makes.
+        prof_mac := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
+        if asan.not().and(prof_mac.not()) {
             prof_flags = format(prof_flags, " -DTIL_PROF_ALLOC")
             prof_link_flags = " -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc"
         }

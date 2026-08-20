@@ -1027,8 +1027,13 @@ main := proc(args: ..Str) {
     // dladdr sees exported symbols only. The profiler's Linux ELF fallback
     // must recover translation-unit-local generated functions such as
     // adopt__Str; TIL_PROF_TOP=0 puts every called function in both tables.
-    add_count(tests, "prof_resolves_static_symbols", "build", "adopt__Str", 2,
-        format(til_bin, " build --prof -o tmp/prof_static examples/hello_script.til '&&' TIL_PROF_TOP=0 tmp/prof_static"))
+    // Linux is not incidental here: the walk this asserts on is the
+    // `#ifdef __linux__` half of til_prof_bind_symbols, and elsewhere the
+    // slots keep the names dladdr gave them, so adopt__Str never appears.
+    if host_os() == "linux" {
+        add_count(tests, "prof_resolves_static_symbols", "build", "adopt__Str", 2,
+            format(til_bin, " build --prof -o tmp/prof_static examples/hello_script.til '&&' TIL_PROF_TOP=0 tmp/prof_static"))
+    }
     // A delete's call_free Bool literal is read by value in both back
     // ends, and the C emitter overrides it for a stack local -- so
     // hoisting it manufactured a dead `Bool hoisted__Bool_N` binding at
