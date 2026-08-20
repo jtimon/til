@@ -2072,6 +2072,12 @@ func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool
     }
     if fd.sig.func_type.is_bodyless() { return false }
     if i.to_i32() == fd.sig.variadic_index {
+        // #392: a ..Dynamic parameter's carrier is Tuple, not Array__Dynamic
+        // (which may ALSO exist); the outer-storage answer must name the
+        // struct the collector is actually built as.
+        if resolve_type_alias_for_name(scope, p.type_name(), symbols) == "Dynamic" {
+            return scope.get_struct("Tuple", symbols).is_some()
+        }
         arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name(), symbols))
         return scope.get_struct(arr_name, symbols).is_some()
     }

@@ -4250,6 +4250,72 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 // callee FuncDef; the remaining OutOfBounds / Array.set lookups use `scope`,
 // which works against either the per-body TypeScope (typecheck-time) or the
 // global one (post-fold).
+// #392 stage A: a ..Dynamic variadic block lowers through Tuple, the core
+// container that records each element's TYPE beside its bytes. An
+// Array(Dynamic) slot is one untyped word: a Str crossing into it was
+// truncated to its first 8 bytes (silent data loss) and teardown could not
+// know what to free (the compiled-side leaks #362 could not reach). The
+// desugar is the one place every element's static type is still in hand, so
+// each element becomes one `Tuple.push_type_name("<T>", own val)` -- the val
+// expr built with exactly the borrow/clone discipline the Array collector
+// used -- and a `..` splat of a raw Array(Dynamic) becomes one
+// `Tuple.push_all_dynamic(va, arr)`, elements riding along as raw words.
+// Walking the block in source order handles the plain, pure-splat and mixed
+// shapes uniformly, so this one function replaces all three Array paths.
+// Tuple.push_type_name never throws: no err slots. The name prefix is
+// deliberately NOT `_va_Array_`, which the constfolder reads as "an
+// Array-shaped build region, interpret it" (is_va_array_decl); Tuple builds
+// are simply not folded.
+priv desugar_dynamic_variadic_call := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, vi: I32, vc: USize, variadic_own: Bool) {
+    va_name := format("_va_Tuple_", synth_suffix(ctx, ctx.va_counter.to_str()))
+    ctx.va_counter++
+    mut new_call := make_ns_call("Tuple", "new", Type.Struct("Tuple"), e, ctx.symbols)
+    mut va_decl := Expr.new(NodeType.Decl(Declaration()), e.line, e.col)
+    ref mut dd : Declaration = decl_of(va_decl)
+    dd.name = va_name.clone()
+    dd.own_type = OwnType.Own
+    dd.is_mut = true
+    va_decl.set_til_type(Type.Struct("Tuple"))
+    va_decl.add_child(own new_call)
+    scope.set(va_name, Type.Struct("Tuple"), true, ctx.path, e.line, e.col, false, OwnType.Own, ctx.symbols)
+    new_ch.push(own va_decl)
+
+    vi_u := vi.to_usize()
+    for j in 0..vc {
+        ref arg : Expr = e.children[vi_u.add(j)]
+        if get_splat_arg(e, vi_u.add(j)) {
+            mut pa := make_ns_call("Tuple", "push_all_dynamic", Type.None, e, ctx.symbols)
+            mut pa_self := Expr.new(ident_node(ctx.symbols.intern(va_name)), e.line, e.col)
+            pa_self.set_til_type(Type.Struct("Tuple"))
+            pa.add_child(own pa_self)
+            pa.add_child(own arg.clone())
+            sync_own_args_from_callee(pa, scope, ctx.symbols)
+            new_ch.push(own pa)
+            continue
+        }
+        mut pc := make_ns_call("Tuple", "push_type_name", Type.None, e, ctx.symbols)
+        mut pc_self := Expr.new(ident_node(ctx.symbols.intern(va_name)), e.line, e.col)
+        pc_self.set_til_type(Type.Struct("Tuple"))
+        pc.add_child(own pc_self)
+        mut tn := resolve_type_alias_for_name(scope, type_to_name(arg.til_type()), ctx.symbols).clone()
+        // An argument that IS a Dynamic contributes a raw word; so does one
+        // whose type never resolved -- in a dynamic block "a word, no type"
+        // is the meaning of not knowing, not a guess.
+        if tn.len() == 0 { tn = "Dynamic" }
+        mut tn_lit := Expr.new(NodeType.Literal(Literal.Str(tn.clone())), e.line, e.col)
+        tn_lit.set_til_type(Type.Struct("Str"))
+        pc.add_child(own tn_lit)
+        mut val := build_variadic_arg_value(arg, scope, ctx.symbols)
+        pc.add_child(own val)
+        sync_own_args_from_callee(pc, scope, ctx.symbols)
+        new_ch.push(own pc)
+    }
+
+    rewrite_variadic_fcall_args(e, va_name, "Tuple", vi, vc, variadic_own, ctx.symbols)
+    ref mut fcd : FCallData = fcall_of(e)
+    fcd.splat_args = 0
+}
+
 priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, fdef: Expr) {
     mut skip := false
     switch e.children[0].node_type {
@@ -4263,6 +4329,11 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     vi := fd.sig.variadic_index + 1
     vc := fcall_variadic_count(e, fd.sig.params.len(), fd.sig.kwargs_index >= 0)
     elem_type := fd.sig.params[fd.sig.variadic_index.to_usize()].type_name()
+    variadic_own := fd.sig.params[fd.sig.variadic_index.to_usize()].own_type.is(OwnType.Own)
+    if variadic_carrier_type_name(scope, elem_type, ctx.symbols) == "Tuple" {
+        desugar_dynamic_variadic_call(ctx, e, new_ch, scope, vi, vc, variadic_own)
+        return
+    }
     array_type := variadic_array_type_name(scope, elem_type, ctx.symbols)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc, ctx.symbols) { return }
     if desugar_mixed_splat_variadic_call(ctx, e, new_ch, scope, elem_type, array_type, vi, vc) { return }
@@ -4276,7 +4347,6 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
         mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi.to_usize().add(j), j, ctx)
         new_ch.push(own setter)
     }
-    variadic_own := fd.sig.params[fd.sig.variadic_index.to_usize()].own_type.is(OwnType.Own)
     rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc, variadic_own, ctx.symbols)
 }
 

@@ -5026,7 +5026,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
                 is_ext_va := fdef.sig.func_type.is_bodyless()
                 if is_ext_va.not() { param.own_type = OwnType.Own }
-                va_type := variadic_array_type_name(scope, param.type_name(), ctx.symbols)
+                va_type := variadic_carrier_type_name(scope, param.type_name(), ctx.symbols)
                 func_scope.set(param.name, Type.Struct(va_type), false, ctx.path, expr.line, expr.col, true, param.own_type, ctx.symbols)
             } else if i.to_i32() == fdef.sig.kwargs_index {
                 // Same rationale as variadic above.
@@ -8765,6 +8765,18 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr,
 variadic_array_type_name := func(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str {
     if scope.get_struct("Array", symbols).is_some() { return "Array" }
     return format("Array__", resolve_type_alias_for_name(scope, elem_type, symbols))
+}
+
+// #392: the CARRIER a variadic parameter binds and travels as. For every
+// typed element it is the Array instance above; for `..Dynamic` it is Tuple,
+// the container that records each element's type at runtime -- an
+// Array(Dynamic) slot is one untyped word, so a Str crossing into it was
+// truncated to its first 8 bytes and its storage lost its only owner, and
+// teardown could not know what to free. array()/vec() literals keep using
+// variadic_array_type_name directly: a raw Array(Dynamic) stays raw.
+variadic_carrier_type_name := func(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str {
+    if resolve_type_alias_for_name(scope, elem_type, symbols) == "Dynamic" { return "Tuple" }
+    return variadic_array_type_name(scope, elem_type, symbols)
 }
 
 // #342: the inverse of variadic_array_type_name -- the element spelling of a

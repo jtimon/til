@@ -3436,7 +3436,7 @@ priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut sco
     for i in 0..fd.sig.params.len() {
         ref param : Declaration = fd.sig.params[i]
         if i.to_i32() == fd.sig.variadic_index {
-            va_type := Type.Struct(variadic_array_type_name(scope, param.type_name(), ctx.symbols))
+            va_type := Type.Struct(variadic_carrier_type_name(scope, param.type_name(), ctx.symbols))
             scope.set(param.name, va_type, param.is_mut, ctx.path, line, col,
                 true, param.own_type, ctx.symbols)
             continue

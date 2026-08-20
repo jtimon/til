@@ -328,3 +328,35 @@ test_splat_dynamic_variadic := test() {
     assert_eq(USize, splat_dyn_count(1, "a"), 2)
     assert_eq(USize, splat_dyn_count("a", ..d), 3)
 }
+
+// #392 stage A: a ..Dynamic variadic block lowers through Tuple, so each
+// element carries its TYPE beside its bytes. Before this the collector was an
+// Array(Dynamic) of untyped words: a Str element was truncated to its first 8
+// bytes (compiled leaked its storage, #362 could only fix the interpreter),
+// and a callee had no way to ask what an element was. type_at is the runtime
+// introspection, get(i) points at the element's full stored bytes, and a raw
+// Dynamic element (or a splat of an Array(Dynamic)) rides along as a word
+// tagged "Dynamic" with today's raw semantics.
+priv dyn_type_list := func(xs: ..Dynamic) returns Str {
+    mut out := ""
+    for i in 0..xs.len() {
+        out = format(out, xs.type_at(i), ",")
+    }
+    return out
+}
+
+priv dyn_first_str := func(xs: ..Dynamic) returns Str {
+    ref s : Str = xs.get(0)
+    return s.clone()
+}
+
+test_dynamic_variadic_tuple := test() {
+    v := format("run", "time")
+    assert_eq(Str, dyn_type_list(1, v, true), "I64,Str,Bool,")
+    // the value survives the crossing, and the source outlives the call
+    assert_eq(Str, dyn_first_str(v), "runtime")
+    assert_eq(Str, v, "runtime")
+    d := array(Dynamic, 1, 2)
+    assert_eq(Str, dyn_type_list(9, ..d), "I64,Dynamic,Dynamic,")
+    assert_eq(Str, dyn_type_list(), "")
+}

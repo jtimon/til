@@ -899,6 +899,10 @@ priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
 }
 
 priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) returns Str {
+    // #392: a ..Dynamic parameter travels as Tuple (each element tagged with
+    // its runtime type), never as Array__Dynamic -- see
+    // variadic_carrier_type_name in the typer, whose answer this must match.
+    if resolve_type_alias_for_name(ctx.scope, elem_type, ctx.symbols) == "Dynamic" { return "Tuple" }
     // Same naming rule as the type-gen macro (resolve_type_alias_for_name):
     // user aliases resolve, width aliases (USize/UPtr) keep their spelling,
     // so the C type name matches the monomorphized struct (Array__USize).
