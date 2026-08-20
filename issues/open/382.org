@@ -1,0 +1,28 @@
+# priority: low
+# category: features
+** OPEN #382 Add concise construction of Some borrowed refs
+
+Til forbids NULL refs, so wrapping an existing ref in an Option is always a
+safe conversion. The current spelling repeats the complete destination type:
+
+#+begin_src til
+Option(ref TypeScope).Some(scope)
+#+end_src
+
+This is correct but noisy, and the pattern is not specific to TypeScope. Add a
+generic concise spelling, provisionally ~safe_ref(scope)~, equivalent to
+~Option(ref T).Some(scope)~ for any ~ref T~.
+
+The design should:
+
+- infer ~T~ from the argument without repeating the payload type;
+- preserve the exact borrowed ref and its lifetime, with no clone, move, or
+  ownership change;
+- reject values that are not refs rather than introducing a nullable fallback;
+- work in returns, arguments, assignments, and aggregate initializers; and
+- choose a name that describes the operation clearly. ~safe_ref~ emphasizes
+  that the source ref cannot be NULL; ~some_ref~ may more directly describe
+  construction of the Option.
+
+After choosing the spelling, replace the verbose generic pattern throughout
+the codebase and add focused Option(ref T) coverage.

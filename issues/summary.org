@@ -42,6 +42,7 @@
 *** [[./open/370.org][#370]] til embeds in the lua/lisp sense: host program, guest til
 *** [[./open/374.org][#374]] BEAM backend alongside the C backend
 *** [[./open/375.org][#375]] JVM backend alongside the C backend
+*** [[./open/382.org][#382]] Add concise construction of Some borrowed refs
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
