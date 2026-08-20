@@ -687,17 +687,26 @@ main := proc(args: ..Str) {
         "proc has no proc/ext_proc calls; should be a func", 1,
         format(til_bin, " interpret test/proc_without_proc_call.til"))
 
-    // #375 Stages B/C: JVM owns a distinct Java output tree, emits the lowered
-    // hello_script entrypoint, and rejects C-only flags/unsupported AST nodes.
-    // None of these tests invokes a JDK, so the default suite remains JDK-free.
+    // #375 Stages B-E: JVM owns a distinct Java output tree, emits the lowered
+    // entrypoint, scalar slots, aggregate classes and virtual-heap calls, and
+    // rejects C-only flags. None invokes a JDK, so the default suite remains
+    // JDK-free; the CLI pairs pin the same corpora on interpreter/C.
     add_single(tests, "jvm_skeleton", "build", 0, "test/jvm_skeleton.expected",
         format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/hello_script/src/til/generated/p_hello_x5fscript/Main.java ')'"))
     add_count(tests, "jvm_sources_include_runtime", "build", "src/jvm/TilRuntime.java", 1,
-        format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/hello_script/sources.args ')'"))
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_unsupported.til '&&' cat gen/jvm/jvm_unsupported/sources.args ')'"))
     add_count(tests, "jvm_direct_call_source", "build", "f_p_show", 2,
         format("'(' ", til_bin, " translate --target=jvm test/jvm_scalar_smoke.til '&&' cat gen/jvm/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Unit_p_test_x2fjvm_x5fscalar_x5fsmoke_x2etil.java '&&' cat gen/jvm/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Main.java ')'"))
-    add_count(tests, "jvm_rejects_aggregate", "build", "JVM backend does not support expression (StructDef)", 1,
-        format(til_bin, " translate --target=jvm test/jvm_unsupported.til"))
+    add_count(tests, "jvm_stage_d_cells", "build", "TilRuntime.I64Cell", 6,
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_d.til '&&' cat gen/jvm/jvm_stage_d/src/til/generated/p_jvm_x5fstage_x5fd/*.java ')'"))
+    add_cli_pair(tests, "jvm_stage_d", "test/jvm_stage_d.til", "", 0,
+        "test/jvm_stage_d.expected", til_bin, asan_flag)
+    add_cli_pair(tests, "jvm_stage_e", "test/jvm_stage_e.til", "", 0,
+        "test/jvm_stage_e.expected", til_bin, asan_flag)
+    add_count(tests, "jvm_stage_e_aggregate_source", "build", "final class S_p_JvmPoint", 1,
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/S_p_JvmPoint.java ')'"))
+    add_count(tests, "jvm_stage_e_heap_source", "build", "TilRuntime.ptrAdd", 3,
+        format("'(' ", til_bin, " translate --target=jvm test/script_raw_alloc.til '&&' cat gen/jvm/script_raw_alloc/src/til/generated/p_script_x5fraw_x5falloc/Main.java ')'"))
     add_count(tests, "jvm_rejects_c_path", "build", "error: -c is not supported with --target=jvm", 1,
         format(til_bin, " translate --target=jvm -c gen/jvm/nope.java examples/hello_script.til"))
     add_count(tests, "jvm_rejects_cc", "build", "error: --cc is not supported with --target=jvm", 1,

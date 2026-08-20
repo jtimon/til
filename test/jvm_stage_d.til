@@ -1,0 +1,72 @@
+mode cli
+
+bump := func(mut x: I64) {
+    ref mut alias : I64 = x
+    alias = alias.add(1)
+}
+
+identity := func(x: I64) returns ref I64 {
+    return x
+}
+
+prim_throw := func(v: I64, fail: Bool) returns I64 throws I64 {
+    if fail { throw v }
+    return v
+}
+
+scalar_checks := proc(mut seed: I64) {
+    seed = seed.add(0)
+    one_u8 := seed.to_u8()
+    max_u8 := one_u8.sub(2)
+    wrap_u8 := max_u8.add(one_u8)
+    zero_div := seed.div(0)
+    zero_mod := seed.mod(0)
+
+    one_u32 := seed.to_u32()
+    zero_u32 := one_u32.sub(one_u32)
+    max_u32 := zero_u32.sub(one_u32)
+    u32_gt := max_u32.gt(zero_u32)
+
+    one_u64 := seed.cast(U64)
+    zero_u64 := one_u64.sub(one_u64)
+    max_u64 := zero_u64.sub(one_u64)
+    u64_gt := max_u64.gt(zero_u64)
+    shifted := max_u64.shr(63)
+
+    zero_f := F32.from_i64(seed.sub(seed))
+    one_f := F32.from_i64(seed)
+    big_f := F32.from_i64(seed.mul(2147483647))
+    bigger_f := big_f.mul(big_f)
+    huge_f := bigger_f.mul(bigger_f)
+    inf := huge_f.mul(big_f)
+    nan_value := inf.sub(inf)
+    neg_zero := F32.from_i64(seed.sub(2)).div(inf)
+    zero_div_f_ok := one_f.div(zero_f).eq(zero_f)
+    nan_ok := nan_value.eq(nan_value).not()
+    inf_ok := inf.gt(one_f)
+    neg_zero_ok := neg_zero.to_str().eq("-0")
+    nan_cmp_ok := nan_value.cmp(one_f).eq(0)
+    clone_ok := seed.clone().eq(seed)
+    u64_float_ok := max_u64.to_f64().gt(F64.from_i64(0))
+
+    println(wrap_u8.to_str(), " ", zero_div.to_str(), " ",
+        zero_mod.to_str(), " ", u32_gt.to_str(), " ", u64_gt.to_str(), " ",
+        shifted.to_str(), " ", zero_div_f_ok.to_str(), " ", nan_ok.to_str(), " ", inf_ok.to_str(), " ",
+        neg_zero_ok.to_str(), " ", nan_cmp_ok.to_str(), " ", clone_ok.to_str(),
+        " ", max_u32.to_i64().to_str(), " ", u64_float_ok.to_str())
+}
+
+main := proc() {
+    mut seed : I64 = 1
+    scalar_checks(seed)
+
+    mut n : I64 = 41
+    bump(n)
+    ref mut r : I64 = identity(n)
+    r = r.add(1)
+
+    mut payload : I64 = 0
+    prim_throw(7, true)?
+    catch (e: I64) { payload = e }
+    println(n.to_str(), " ", payload.to_str())
+}

@@ -359,7 +359,7 @@ JDK-free suite passes 417/417; Temurin 17 ~til run --target=jvm~ passes
 ~-Xverify:all~ and prints exactly ~Hello World!~, while the CLI/direct-call
 smoke prints ~6~.
 
-**** Stage D: scalar conformance, refs and lowered errors
+**** Stage D DONE: scalar conformance, refs and lowered errors
 
   - Complete every scalar core operation and ext conversion/clone/cmp.
   - Add typed cells and addressable locals/fields; support mut/ref scalar
@@ -368,6 +368,15 @@ smoke prints ~6~.
   - Add cross-backend tests for min/max wrap, zero div/mod, unsigned U32/U64,
     shifts, NaN/infinity/signed zero, mutation through refs, and payload and
     payload-less throws.
+
+Completed 2026-08-19: scalar core operations and ext conversions/clone/cmp now
+lower to Java with til's fixed-width, unsigned, zero-divisor and float rules.
+Typed scalar cells preserve mut/ref parameters, local aliases and ref returns;
+the same cells carry lowered error-kind and primitive-payload out-parameters.
+~test/jvm_stage_d.til~ produces byte-identical output under the interpreter,
+native C and Temurin 17 JVM verifier run, while ~jvm_stage_d_cells~ pins the
+generated cell ABI without adding a JDK dependency to the default suite. The
+full JDK-free suite passes 421/421.
 
 **** Stage E: aggregates and virtual memory
 
@@ -379,6 +388,20 @@ smoke prints ~6~.
   - Bring up Str first, then Array and Vec, then Map/Set and their dynamic
     variants. Run the existing focused test file for each type as it becomes
     supported; do not claim the whole corpus early.
+
+Core progress 2026-08-19: generated struct/enum classes now provide mutable
+fields, constructors, shallow copies, refs, clone/delete and move handling.
+The Java runtime has typed scalar slots plus a fixed-little-endian virtual heap
+with block identity, offsets, realloc, overlap-safe copies, typed object slots
+and loud null/bounds/use-after-free/double-free/partial-slot failures. The
+ordinary til Str, Array, Vec, Map and Set bodies compile through that heap;
+~test/jvm_stage_e.til~ produces identical interpreter, native C and verified
+Temurin 17 output while exercising aggregate mutation/borrows, primitive enum
+payloads, raw memory, containers, deep clone/delete and move. The existing
+~strings~, ~arrays~, ~vecs~, ~maps~ and ~sets~ focused files compile as Java 17
+with ~-Xlint:all -Werror~. Dynamic container variants and interface dispatch
+still depend on Stage F's FuncSig, Dynamic and reflection carriers, so Stage E
+remains open rather than claiming that corpus early.
 
 **** Stage F: first-class functions, Dynamic and reflection
 

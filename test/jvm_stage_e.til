@@ -1,0 +1,64 @@
+mode cli
+
+JvmPoint := struct {
+    x := 1
+    y := 2
+}
+
+JvmBorrow := struct {
+    ref point : JvmPoint
+    ref scalar : I64
+}
+
+JvmToken := enum { Num: I64, Eof }
+
+JvmOwned := struct {
+    text := "owned"
+}
+
+bump_jvm_field := func(mut n: I64) { n.inc() }
+
+main := proc() {
+    mut point := JvmPoint()
+    point.x = 7
+    copy := point.clone()
+
+    mut scalar : I64 = 8
+    borrowed := JvmBorrow(point = point, scalar = scalar)
+    bump_jvm_field(borrowed.scalar)
+
+    token := JvmToken.Num(42)
+
+    mut buf : U8 = malloc(JvmPoint.size())
+    memset(buf, 0, JvmPoint.size())
+    memcpy(buf, 65, 1)
+    ref first : U8 = ptr_add(buf, 0)
+    ref borrowed_scalar : I64 = borrowed.scalar
+
+    println(copy.x.to_str(), " ", borrowed_scalar.to_str(), " ",
+        token.is(JvmToken.Num).to_str(), " ", first.to_i64().to_str())
+    free(own buf)
+
+    mut values := Vec(I64).new()
+    values.push(own 3)
+    values.push(own 4)
+    ref second : I64 = values[1]
+
+    mut table := Map(Str, I64).new()
+    table.set("answer", own 42)
+    ref answer : I64 = table["answer"]
+
+    mut unique := Set(I64).new()
+    unique.add(own 7)
+    println(second.to_str(), " ", answer.to_str(), " ", unique.has(7).to_str())
+
+    mut original := JvmOwned()
+    cloned := original.clone()
+    own original.delete(false)
+    println(cloned.text)
+
+    moved_from := JvmOwned(text = "moved")
+    mut moved_to := JvmOwned(text = "old")
+    moved_to = moved_from
+    println(moved_to.text)
+}

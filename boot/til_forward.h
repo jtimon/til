@@ -1160,6 +1160,10 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
     Str path;
     I32 errors;
+    Set__Str cells;
+    Map__Str_Str cell_types;
+    Set__Str raw_refs;
+    Bool return_cell;
 } priv___src_self_jvm_codegen_til__JvmEmitState;
 
 
