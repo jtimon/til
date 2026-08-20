@@ -1914,6 +1914,60 @@ priv hoist_walk_consolidated := proc(
     parent.children[child_idx] = Expr.new(ident_node(ctx.symbols.intern(tmp_name)), line, col)
 }
 
+// A `?`-throwing call that RETURNS A REF and whose result is consumed by
+// a store: `r = a.get(5)?`, `h.x = a.get(5)?`, `r = a.get(5)?.add(1)`.
+// The store runs on BOTH paths -- the lowering only groups the statements
+// AFTER it under `if _err_kind == 0` -- but on the throw path the callee
+// fell through to its synthesized fallback return, which is NULL for a
+// `returns ref` signature. The store then dereferences it and the program
+// dies with "panic: null deref" instead of leaving the target alone for
+// the following `catch`.
+//
+// Hoist the call into a `ref` temp: the CALL still runs unguarded (it is
+// what sets _err_kind), while the store that consumes the temp moves under
+// the guard. A `ref` temp is a plain alias, so nothing is copied, moved or
+// freed on either path. Value-returning callees are left alone: their
+// fallback return is an ordinary default, so the store is harmless.
+// Postorder, so an inner `a.get(5)?` hoists out of `.add(1)` and not the
+// other way round; one hoist per store, which consumes one result.
+priv hoist_throwing_store_call := proc(
+    mut ctx: Context,
+    mut parent: Expr,
+    child_idx: USize,
+    mut pre_stmts: Vec(Expr)
+) returns Bool {
+    ref mut child : Expr = parent.children[child_idx]
+    if child.node_type.is(NodeType.FuncDef)
+        .or(child.node_type.is(NodeType.StructDef))
+        .or(child.node_type.is(NodeType.EnumDef)) { return false }
+    if child.node_type.is(NodeType.Body) { return false }
+    if child.node_type.is(NodeType.Case) { return false }
+    for gi in 0..child.children.len() {
+        if hoist_throwing_store_call(ctx, child, gi, pre_stmts) { return true }
+    }
+    if child.node_type.is(NodeType.FCall).not() { return false }
+    mut throws_here := false
+    switch child.node_type {
+    case .FCall(fcd_t): throws_here = fcd_t.does_throw
+    case:
+    }
+    if throws_here.not() { return false }
+    is_ref_ret := fcall_is_get_method(child, ctx.symbols)
+        .or(fcall_returns_ref(child, ctx.scope, ctx.symbols).neq(0))
+    if is_ref_ret.not() { return false }
+    line := child.line
+    col := child.col
+    tmp_name := format("_bang_ret_", synth_suffix(ctx, ctx.bang_counter.to_str()))
+    ctx.bang_counter = ctx.bang_counter + 1
+    mut tmp_decl_data := Declaration(name = tmp_name.clone())
+    tmp_decl_data.own_type = OwnType.Ref
+    mut tmp_decl := Expr.new(NodeType.Decl(tmp_decl_data), line, col)
+    tmp_decl.add_child(own child.clone())
+    pre_stmts.push(own tmp_decl)
+    parent.children[child_idx] = Expr.new(ident_node(ctx.symbols.intern(tmp_name)), line, col)
+    return true
+}
+
 // Walk stmt's expression tree hoisting nested bangs (not the
 // stmt-root bang). The stmt-root bang shape is handled by the
 // main per-stmt logic in process_throw_catch_in_body so it
@@ -2240,10 +2294,36 @@ priv process_throw_catch_in_body := proc(
         case .None:
         }
 
+        // 3b. Store whose value comes from a ref-returning throwing call
+        // (`r = a.get(5)?`, `r = a.get(5)!`): hoist the call into a ref
+        // temp so the store can be emitted AFTER whatever the error path
+        // needs -- the `if _err_kind == 0` guard at step 7b for `?`, the
+        // panic checks at step 7 for `!` -- instead of dereferencing the
+        // callee's NULL fallback return before either of them runs. See
+        // hoist_throwing_store_call. It runs BEFORE step 4 because the
+        // inject step clears does_throw once it has appended the _err_kind
+        // out-arg; the hoisted temp is fed through step 4 below so it gets
+        // the same out-args and registers its throw types in `pending` for
+        // the following catch. Decls are exempt: their binding has to
+        // exist on both paths, and a by-value Decl from a ref-returning
+        // callee is already rejected ("cannot own result of ref-returning
+        // function").
+        mut store_pre := Vec(Expr).new()
+        mut hoisted_store := false
+        if stmt.node_type.is(NodeType.Assign).or(stmt.node_type.is(NodeType.FieldAssign)) {
+            if stmt.children.len() > 0 {
+                hoisted_store = hoist_throwing_store_call(ctx, stmt, stmt.children.len() - 1, store_pre)
+            }
+        }
+
         // 4. Validate + inject err args on FCalls in stmt's tree.
         // Different stmt kinds expose their expressions in different
         // positions; recurse only into the expression slots and not
         // into nested bodies (which step 2 already covered).
+        for spi2 in 0..store_pre.len() {
+            ref mut hoisted_call_decl : Expr = store_pre[spi2]
+            validate_and_inject_expr_consolidated(scope, ctx, hoisted_call_decl, root_body, pending, seen, types_to_declare, path)
+        }
         switch stmt.node_type {
         case .Decl, .Assign, .FieldAssign:
             for mut sub : Expr in stmt.children {
@@ -2524,6 +2604,25 @@ priv process_throw_catch_in_body := proc(
                 seen_throwing = false
                 continue
             }
+            if hoisted_store {
+                // `r = a.get(5)!`: same ordering problem as the Return
+                // above. The store reads the hoisted temp, so the call and
+                // its panic checks have to precede it -- otherwise the
+                // store dereferences the NULL fallback return first and the
+                // program dies with "panic: null deref" instead of the
+                // intended "uncaught throw '<T>'". No guard: the checks
+                // panic, so the store is only ever reached on success.
+                for spi3 in 0..store_pre.len() {
+                    new_ch.push_take(store_pre, spi3)
+                }
+                for tn : Str in root_bang_throws {
+                    new_ch.push(own build_bang_lowered(ctx, tn, stmt_line, stmt_col))
+                    _matched_b3 := pending_remove_all_matching(pending, tn)
+                }
+                new_ch.push_take(old, j)
+                seen_throwing = false
+                continue
+            }
             if seen_throwing {
                 mut wrapped := make_if_kind_eq_zero_wrap(stmt, stmt_line, stmt_col, ctx.symbols)
                 new_ch.push(own wrapped)
@@ -2535,6 +2634,20 @@ priv process_throw_catch_in_body := proc(
                 _matched_b2 := pending_remove_all_matching(pending, tn)
             }
             seen_throwing = false
+            continue
+        }
+
+        // 7b. Emit the store hoisted in step 3b: the call first (unguarded,
+        // it is what sets _err_kind), then the store under
+        // `if _err_kind == 0`, which is also the group the statements after
+        // it get.
+        if hoisted_store {
+            for spi in 0..store_pre.len() {
+                new_ch.push_take(store_pre, spi)
+            }
+            mut guarded_store := make_if_kind_eq_zero_wrap(stmt, stmt_line, stmt_col, ctx.symbols)
+            new_ch.push(own guarded_store)
+            seen_throwing = true
             continue
         }
 

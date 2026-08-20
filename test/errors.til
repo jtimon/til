@@ -732,6 +732,102 @@ test_vec_get_oob := test() {
 }
 
 // ==========================================================
+// Assigning the result of a ref-returning `?` call.
+//
+// The lowering groups the statements AFTER a throwing call under
+// `if _err_kind == 0`, but the throwing statement itself has to run
+// unguarded -- it is what sets _err_kind. For `r = a.get(5)?` that put
+// the STORE on the error path too: `get` had fallen through to its
+// synthesized fallback return, NULL for a `returns ref` signature, and
+// the assignment dereferenced it ("panic: null deref") before the catch
+// could run. The call is now hoisted into a ref temp so only the store
+// moves under the guard. `ref x : T = a.get(5)?` never crashed (binding
+// a ref does not dereference it), which is why the tests above passed.
+// ==========================================================
+
+ThrowStoreHolder := struct {
+    x : I64 = 0
+}
+
+test_assign_from_ref_throw_oob := test() {
+    arr := array(I64, 10, 20, 30)
+    mut r : I64 = -1
+    r = arr.get(99)?
+    catch (err: OutOfBounds) { r = 42 }
+    assert_eq(I64, r, 42)
+}
+
+test_assign_from_ref_throw_ok := test() {
+    arr := array(I64, 10, 20, 30)
+    mut r : I64 = -1
+    r = arr.get(1)?
+    catch (err: OutOfBounds) { r = 42 }
+    assert_eq(I64, r, 20)
+}
+
+// The throwing call nested inside the stored expression: `.add(1)` reads
+// the same null ref, so the whole store has to move under the guard.
+test_assign_from_nested_ref_throw_oob := test() {
+    arr := array(I64, 10, 20, 30)
+    mut r : I64 = -1
+    r = arr.get(99)?.add(1)
+    catch (err: OutOfBounds) { r = 42 }
+    assert_eq(I64, r, 42)
+}
+
+test_assign_from_nested_ref_throw_ok := test() {
+    arr := array(I64, 10, 20, 30)
+    mut r : I64 = -1
+    r = arr.get(1)?.add(1)
+    catch (err: OutOfBounds) { r = 42 }
+    assert_eq(I64, r, 21)
+}
+
+test_field_assign_from_ref_throw_oob := test() {
+    arr := array(I64, 10, 20, 30)
+    mut h := ThrowStoreHolder()
+    h.x = arr.get(99)?
+    catch (err: OutOfBounds) { h.x = 42 }
+    assert_eq(I64, h.x, 42)
+}
+
+test_field_assign_from_ref_throw_ok := test() {
+    arr := array(I64, 10, 20, 30)
+    mut h := ThrowStoreHolder()
+    h.x = arr.get(1)?
+    catch (err: OutOfBounds) { h.x = 42 }
+    assert_eq(I64, h.x, 20)
+}
+
+// An owned element type: the hoisted temp is a ref alias, so the store
+// still copies out of the container exactly once on the success path and
+// touches nothing on the error path.
+test_assign_from_ref_throw_owned_elem := test() {
+    mut v := vec(Str)
+    v.push(own "hello")
+    mut s := ""
+    s = v.get(0)?
+    catch (err: OutOfBounds) { s = "boom" }
+    assert_eq(Str, s, "hello")
+    mut s2 := ""
+    s2 = v.get(9)?
+    catch (err: OutOfBounds) { s2 = "boom" }
+    assert_eq(Str, s2, "boom")
+}
+
+// The statements after the guarded store still run on the success path.
+test_assign_from_ref_throw_after_ok := test() {
+    arr := array(I64, 10, 20, 30)
+    mut r : I64 = -1
+    mut after := 0
+    r = arr.get(1)?
+    catch (err: OutOfBounds) { r = 42 }
+    after = 5
+    assert_eq(I64, r, 20)
+    assert_eq(I64, after, 5)
+}
+
+// ==========================================================
 // Issue #225 prep: statement-level `?`/`!` on method calls.
 //
 // A free-function call already parsed a trailing `?`/`!` at statement

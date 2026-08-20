@@ -2315,6 +2315,16 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_bang_panic_msg", "test/script_bang_panic_msg.til",
         "", 1, format(exp, "script_bang_panic_msg.out"), til_bin, asan_flag)
 
+    // Same panic, reached through a STORE (`r = v[9]`). The check used to
+    // be emitted after the assignment, so the store dereferenced the
+    // ref-returning callee's NULL fallback return first and the program
+    // died with "panic: null deref" instead of this message.
+    File.writefile(format(exp, "script_bang_store_panic_msg.out"),
+        format("7", NL,
+            "test/script_bang_store_panic_msg.til:18:1: panic: uncaught throw 'OutOfBounds'", NL))
+    add_cli_pair(tests, "script_bang_store_panic_msg", "test/script_bang_store_panic_msg.til",
+        "", 1, format(exp, "script_bang_store_panic_msg.out"), til_bin, asan_flag)
+
     // A bare TODO() keeps working and still points at the CALL SITE, not at
     // core/exit.til: `loc` defaults to __LOC__, which resolves at the caller.
     // With no message parts it prints plain "TODO" -- formatting an empty

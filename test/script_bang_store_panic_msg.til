@@ -1,0 +1,19 @@
+mode script
+
+// A bang whose result is STORED (`r = v[9]`, i.e. `r = v.get(9)!`).
+// The panic check the bang lowers to was emitted AFTER the statement, so
+// the store ran first and dereferenced the NULL fallback return of the
+// `returns ref` callee: the program died with "panic: null deref"
+// instead of naming the uncaught throw. The call is now hoisted into a
+// ref temp, so the check runs before the store. Same shape as the `?`
+// form in test/errors.til, where the store moves under the
+// `if _err_kind == 0` guard instead.
+// Expected exit code is 1 (panic exits non-zero).
+
+mut v := Vec(I64).new()
+v.push(own 7)
+mut r : I64 = -1
+r = v[0]
+println(r.to_str())
+r = v[9]
+println(r.to_str())
