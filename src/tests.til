@@ -1652,25 +1652,31 @@ main := proc(args: ..Str) {
     // makes the callee's tail free an interior address. Both backends abort,
     // and only when the field's contents were heap-allocated, which is what
     // made it look intermittent.
+    // #390: free(own <managed field>) reached through a FIELD. Two kinds,
+    // two different wrongs: an inline field hands free an address inside the
+    // holder (abort interpreted, a raw gcc error compiled), an owned field
+    // frees its box and leaks what it owned. The needle counts both.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 229),
+        CountCheck(needle = "error:", expected_count = 231),
         CountCheck(needle = "no method 'to_str' for type 'NoCmp'", expected_count = 1),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
         CountCheck(needle = "the result is a view sharing", expected_count = 3),
         CountCheck(needle = "dyn_call cannot delete the local", expected_count = 1),
-        CountCheck(needle = "frees the middle of the holder", expected_count = 1))
+        CountCheck(needle = "frees the middle of the holder", expected_count = 1),
+        CountCheck(needle = "does not free managed type", expected_count = 2))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 229),
+        CountCheck(needle = "error:", expected_count = 231),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
         CountCheck(needle = "the result is a view sharing", expected_count = 3),
         CountCheck(needle = "dyn_call cannot delete the local", expected_count = 1),
-        CountCheck(needle = "frees the middle of the holder", expected_count = 1))
+        CountCheck(needle = "frees the middle of the holder", expected_count = 1),
+        CountCheck(needle = "does not free managed type", expected_count = 2))
     // One interpreter capture pins both the aggregate and each parity class.
     add_counts(tests, "fcall_arg_parity_total_interp", "typer",
         format(til_bin, " interpret test/fcall_arg_parity_error.til"),

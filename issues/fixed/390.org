@@ -1,0 +1,60 @@
+# priority: medium
+# category: bugs
+** FIXED #390 free(own <managed field>) is unchecked and corrupts
+
+*** Post-mortem
+
+~free~ takes a raw address. A managed FIELD is not one, and both kinds of
+field are wrong to hand it -- for different reasons, with different fixes.
+Neither was checked.
+
+INLINE field (the worse one). A non-~own~ field is stored by value, so
+~free(own self.name)~ hands ~free~ an address INSIDE the holder:
+
+    R := struct {
+        name := ""
+    namespace:
+        delete := func(own self: R, call_free: Bool = true) {
+            free(own self.name)            // an interior address
+            if call_free { free(own self) }
+        }
+    }
+
+Interpreted that aborted with "free(): double free detected in tcache 2"
+and NO diagnostic. Compiled it did not even build: raw gcc text reached the
+user -- "invalid type argument of '->' (have 'Str')" and "incompatible type
+for argument 1 of 'free'" -- where a til error belongs.
+
+OWN field. The box is real, so the free succeeds and then leaks whatever
+that field owned in turn. That is the same complaint
+~check_free_managed_local~ already makes for a LOCAL ("shallow-frees
+managed type"), and it went unmade here only because the check matched an
+~Ident~ argument and a field access walked straight past it.
+
+What changed. A ~FieldAccess~ arm on ~check_free_managed_local~, resolving
+the holder's struct def and the named field's declaration, then reporting
+with advice keyed to the field kind:
+
+  - inline -> ~T.delete(own <holder>.<field>, false)~, the #389 spelling:
+    release the contents, leave the holder's storage alone;
+  - own -> ~T.delete(own <holder>.<field>, true)~, because the box really
+    is the field's.
+
+A ~ref~ field returns early: it is a borrow the holder never owned, so
+freeing through it is a different mistake and not this rule's business. A
+field whose type has no ~delete~ returns early too, which is what keeps
+~Str.delete~'s own ~free(own self.c_str)~ legal -- ~I8~ is not a managed
+struct. Zero in-tree hits.
+
+Provenance. Found by checking the coverage of #389 rather than assuming it:
+the UFCS spelling ~own self.name.delete(true)~ turned out to be covered
+already (it desugars to the namespace form before the check runs), but
+~free(own self.name)~ was not, and it is the same underlying mistake --
+handing ~free~ an address it does not own -- reached by a third spelling.
+With this, all three are diagnosed.
+
+Regression tests. ~Terr390Inline~ and ~Terr390Owned~ in
+~test/typer_errors.til~, counted by the corpus total and by their shared
+needle, so the two kinds cannot silently trade places. Paired across both
+backends: the compiled half previously failed in the C compiler rather than
+the typer, which is exactly the failure mode this replaces.

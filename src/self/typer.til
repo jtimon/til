@@ -2464,6 +2464,63 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
             ), ctx)
         case:
         }
+    // Issue #390: the same shallow free reached through a FIELD. `free` takes
+    // a raw address, and a managed field is not one:
+    //
+    //   - an INLINE field is stored by value, so `free(own self.name)` hands
+    //     free an address INSIDE the holder. Interpreted that aborts with
+    //     "free(): double free detected in tcache 2" and no diagnostic at
+    //     all; compiled it does not even build, leaking raw gcc text
+    //     ("invalid type argument of '->'", "incompatible type for argument
+    //     1 of 'free'") where a til error belongs. The fix is the #389
+    //     spelling: `T.delete(own self.name, false)` -- release the
+    //     contents, leave the holder's storage alone.
+    //   - an `own` field IS a real box, so the free succeeds and then leaks
+    //     whatever that field owned in turn -- the same complaint the Ident
+    //     arm above makes, and the same fix, except `true` is right here
+    //     because the box is genuinely the field's.
+    //
+    // A `ref` field is a borrow the holder never owned; freeing through it is
+    // a different mistake and not this rule's business.
+    case .FieldAccess(ffa):
+        if e.children[1].children.len() < 1 { return }
+        ref fholder : Expr = e.children[1].children[0]
+        fholder_tn := til_type_name(fholder.til_type())
+        if fholder_tn.len() == 0 { return }
+        fhdef_o := scope.get_struct(fholder_tn, ctx.symbols)
+        if fhdef_o.is_none() { return }
+        ref fhdef : Expr = fhdef_o.unwrap()
+        switch fhdef.node_type {
+        case .StructDef(fhsd):
+            ref ffname : Str = ffa.field_access_name(ctx.symbols.names)
+            if fhsd.fields_index.has(ffname).not() { return }
+            mut ffidx : I32 = -1
+            ffidx = fhsd.fields_index[ffname].to_i32()
+            if ffidx < 0 { return }
+            if ffidx.to_usize() >= fhsd.fields.len() { return }
+            ref ffdecl : Declaration = fhsd.fields[ffidx.to_usize()]
+            if ffdecl.own_type.is(OwnType.Ref) { return }
+            fftn := til_type_name(ffdecl.til_type)
+            if fftn.len() == 0 { return }
+            ffsdef_o := scope.get_struct(fftn, ctx.symbols)
+            if ffsdef_o.is_none() { return }
+            ref ffsdef : Expr = ffsdef_o.unwrap()
+            if find_namespace_func(ffsdef, "delete", scope, ctx.symbols).is_none() { return }
+            mut call_free_advice := "false"
+            mut why := format("'", Str.clone(ffname), "' is an inline field of '", fholder_tn,
+                "', so this frees an address inside the holder")
+            if ffdecl.own_type.is(OwnType.Own) {
+                call_free_advice = "true"
+                why = format("'", Str.clone(ffname), "' is an owned field, so this releases its box and leaks the ",
+                    fftn, " fields inside it")
+            }
+            e.type_error(format(
+                "free(own ", fholder_tn, ".", Str.clone(ffname), ") does not free managed type '",
+                fftn, "': ", why, " -- call ", fftn, ".delete(own ", fholder_tn, ".",
+                Str.clone(ffname), ", ", call_free_advice, ")",
+            ), ctx)
+        case:
+        }
     case:
     }
 }

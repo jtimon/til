@@ -1428,3 +1428,34 @@ namespace:
         if call_free { free(own self) }
     }
 }
+
+// #390: `free(own <managed field>)` reached through a FIELD, the spelling
+// #389's rule did not cover. `free` takes a raw address and a managed field
+// is not one. Both kinds are wrong, for different reasons and with different
+// fixes, so both are pinned:
+//
+//   - INLINE: stored by value, so this hands free an address inside the
+//     holder. Interpreted it aborted with "free(): double free detected in
+//     tcache 2" and no diagnostic; compiled it did not build, leaking raw
+//     gcc text ("invalid type argument of '->'") where a til error belongs.
+//     Fix: T.delete(own <field>, false).
+//   - OWN: a real box, so the free succeeds and then leaks whatever the
+//     field owned in turn -- the same complaint the local form already
+//     makes. Fix: T.delete(own <field>, true).
+Terr390Inline := struct {
+    name := ""
+namespace:
+    delete := func(own self: Terr390Inline, call_free: Bool = true) {
+        free(own self.name)
+        if call_free { free(own self) }
+    }
+}
+
+Terr390Owned := struct {
+    own buf : Str = ""
+namespace:
+    delete := func(own self: Terr390Owned, call_free: Bool = true) {
+        free(own self.buf)
+        if call_free { free(own self) }
+    }
+}
