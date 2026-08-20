@@ -205,6 +205,11 @@ when the first sibling is inserted or compile directive removed. Moving an
 otherwise unchanged original vector back removed another 2,062 allocations and
 3.15 MiB; callgrind measured 2.50888B -> 2.50380B instructions (0.20%).
 
+Fixed-arity calls with exactly one positional argument per parameter already
+have canonical argument layout. Bypassing the named/default/variadic planner
+for that shape removed 5,646 rebuild allocations and 3.04 MiB; callgrind
+measured 2.50640B -> 2.49036B instructions (0.64%).
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
@@ -246,12 +251,12 @@ Top 32 by bytes allocated:
 
   | function                                      | allocs | alloc_kb | calls   |
   |-----------------------------------------------+--------+----------+---------|
-  | Vec__Expr_with_capacity                       | 15.2K  | 9990.0   | 15.9K   |
   | Vec__Expr_push                                | 39.4K  | 12122.9  | 43.2K   |
   | Vec__Expr_clone                               | 23.8K  | 6799.2   | 43.9K   |
+  | Vec__Expr_with_capacity                       | 9.60K  | 7038.4   | 10.2K   |
   | Str_clone                                     | 448K   | 4860.0   | 508K    |
   | Map__U32_TypeBinding_set                      | 7.72K  | 4362.9   | 22.7K   |
-  | Vec__Expr_push_take                           | 10.6K  | 4672.7   | 55.9K   |
+  | Vec__Expr_push_take                           | 10.6K  | 4672.7   | 40.2K   |
   | swap_bytes                                    | 99.3K  | 3824.9   | 99.3K   |
   | Vec__TypeBinding_with_capacity                | 3.99K  | 2561.6   | 6.33K   |
   | Vec__Expr_append                              | 1.15K  | 2118.8   | 10.4K   |
@@ -270,7 +275,7 @@ Top 32 by bytes allocated:
   | Vec__priv___src_self_garbager_til__GcCfgBlock_push | 3.37K | 456.3 | 5.16K |
   | Vec__I64_push                                 | 9.12K  | 347.5    | 18.3K   |
   | Vec__Declaration_clone                        | 1.42K  | 300.8    | 3.14K   |
-  | Vec__Expr_take                                | 15.6K  | 244.1    | 15.6K   |
+  | Vec__Expr_take                                | 9.98K  | 156.0    | 9.98K   |
   | TypeScope_find_name                           | 1.40K  | 251.0    | 1.46K   |
   | Map__Str_Str_set                              | 4.99K  | 218.5    | 3.60K   |
   | scope_free                                    | 2.72K  | 212.3    | 2.72K   |

@@ -51,6 +51,18 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     nparam := fdef_data.sig.params.len()
     vi := fdef_data.sig.variadic_index
     kwi := fdef_data.sig.kwargs_index
+    if (vi < 0).and(kwi < 0).and(e.children.len() == nparam + 1) {
+        mut already_aligned := true
+        for i in 1..e.children.len() {
+            if e.children[i].node_type.is(NodeType.NamedArg) {
+                already_aligned = false
+                break
+            }
+        }
+        // Callee + exactly one positional arg per fixed parameter is already
+        // the layout the planner below would rebuild byte-for-byte.
+        if already_aligned { return true }
+    }
     mut fixed_count : USize = nparam
     if vi >= 0 {
         fixed_count = vi.to_usize()
