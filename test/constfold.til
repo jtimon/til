@@ -403,6 +403,30 @@ cf_macro_vec := macro() returns Vec(I64) {
     return cf_make_vec()
 }
 
+// Issue #388: raw_to_expr's serialized aggregate results remain known inputs
+// when child-first folding reaches an enclosing pure call or macro.
+cf_count_values := macro(values: Vec(I64)) returns USize {
+    return values.len()
+}
+
+cf_sum_values := func(values: Vec(I64)) returns I64 {
+    return values[0].add(values[1])
+}
+
+cf_point_x := macro(point: CfVec2) returns I64 {
+    return point.x
+}
+
+cf_token_number := macro(token: Token) returns I64 {
+    switch token {
+    case Token.Num(value): return value
+    case: return -1
+    }
+}
+
+CF_COMPOSED_VALUES := cf_make_vec()
+CF_COMPOSED_COUNT := cf_count_values(CF_COMPOSED_VALUES)
+
 test_collection_return_fold := test() {
     values := cf_make_vec()
     assert_eq(USize, values.len(), 2)
@@ -440,6 +464,19 @@ test_collection_return_fold := test() {
     macro_values := cf_macro_vec()
     assert_eq(USize, macro_values.cap, 4)
     assert_eq(I64, macro_values[1], 22)
+}
+
+test_serialized_values_are_compositional := test() {
+    assert_eq(USize, cf_count_values(cf_make_vec()), 2)
+    assert_eq(I64, cf_sum_values(cf_make_vec()), 33)
+
+    values := cf_make_vec()
+    assert_eq(USize, cf_count_values(values), 2)
+    assert_eq(USize, cf_count_values(values), 2)
+    assert_eq(USize, CF_COMPOSED_COUNT, 2)
+
+    assert_eq(I64, cf_point_x(CfVec2.magic()), 42)
+    assert_eq(I64, cf_token_number(mk_tok(17)), 17)
 }
 
 test_static_global_initializers := test() {

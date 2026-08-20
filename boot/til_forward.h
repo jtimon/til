@@ -1497,6 +1497,7 @@ typedef struct Expr {
     Vec__Expr children;
     U32 line;
     U32 col;
+    Bool constfold_value;
 } Expr;
 
 

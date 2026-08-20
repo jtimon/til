@@ -1,6 +1,28 @@
 # priority: high
 # category: bugs
-** OPEN #388 Make folded aggregate values compositional at compile time
+** FIXED #388 Make folded aggregate values compositional at compile time
+
+*** Post-mortem
+
+  Child-first folding replaced an aggregate-producing call with its
+  target-neutral constructor, but the known-value gate recognized only scalar
+  literals and registered identifiers. Shape-based recognition was not safe:
+  reconstructed constructors are syntactically identical to source-written
+  constructors with different ownership and evaluation history.
+
+  ~Expr.constfold_value~ now records successful reconstruction provenance.
+  Marked aggregate arguments materialize in an owned child scope and enter the
+  interpreted call through an identifier, preserving the original transfer
+  bits and giving temporary storage one cleanup authority. Immutable marked
+  bindings register in the known scope; mutation targets are collected per
+  function body so a later mutating call cannot reuse a stale aggregate.
+  Niche enum payload cloning now dispatches through the resolved payload type,
+  which supports nested enum values as well as structs.
+
+  ~test_serialized_values_are_compositional~ covers direct Vec macro and func
+  composition, local/global binding reuse, repeated consumption, structs, and
+  payload enums. The generated C contains only the folded scalar results; the
+  two-pass suite covers interpreter, C, ASAN, and USize32/USize64 execution.
 
 Issue #70 made recursively serializable Vec, Array, and Map results fold into
 target-neutral ~PrecomputedSequence~ expressions. Those expressions work as

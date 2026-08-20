@@ -1019,6 +1019,9 @@ Expr := struct {
     children := Vec(Expr).new()
     line : U32 = 0
     col : U32 = 0
+    // Set only on target-neutral values reconstructed from successful
+    // compile-time evaluation. Source-written constructors remain false.
+    constfold_value : Bool = false
 
 namespace:
     /// Null-safe delete. The auto-generated version dereferences ~self~

@@ -508,7 +508,7 @@ priv enum_payload_deep_clone := func(enum_name: Str, mut data: Dynamic, ctx: Con
     if enum_name_is_niche(enum_name, ctx) {
         ref niche_src : Dynamic = deref(data)
         if niche_src.is_null() { return }
-        cloned_box : Dynamic = heap_clone(payload_type, niche_src, ctx)
+        cloned_box : Dynamic = heap_clone_by_type(resolved, niche_src, ctx)
         write_ptr(data, cloned_box)
         return
     }

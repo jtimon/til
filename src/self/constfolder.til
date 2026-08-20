@@ -47,22 +47,75 @@ priv known_bind_own_type := func(shallow t: Type, ctx: Context) returns OwnType 
     return OwnType.Own
 }
 
-// Collect every variable name that is the target of an assignment in the
-// subtree, into `names`. Such a variable is reassigned, so its value is
-// NOT a compile-time constant and must not be folded from the constfolder
-// interpreter scope (a mut loop counter would otherwise fold to its
-// initial value). Descends into nested FuncDef bodies too -- the set is a
-// conservative program-wide blocklist, which only ever suppresses an
-// optimisation (the scope-read fold), never macro folding via constfolder_known.
+// Assignment targets are a conservative program-wide blocklist. Mutation
+// through calls is collected separately per body: common local names such as
+// `a` must not suppress constants in unrelated functions.
+priv collect_target_idents := proc(e: Expr, mut names: Set(Str), symbols: Vec(Str)) {
+    switch e.node_type {
+    case .Ident(id): names.add(own id.ident_name(symbols).clone())
+    case:
+        for child : Expr in e.children { collect_target_idents(child, names, symbols) }
+    }
+}
+
+priv constfolder_type_is_aggregate := func(t: Type, ctx: Context) returns Bool {
+    mut resolved := t.clone()
+    name := til_type_name(t)
+    cname := til_type_name_c(t)
+    if name.eq("USize").or(name.eq("UPtr"))
+    .or(name.eq(ctx.target_usize_pname)).or(name.eq(ctx.target_uptr_pname))
+    .or(cname.eq(ctx.target_usize_pname)).or(cname.eq(ctx.target_uptr_pname)) { return false }
+    if name.len() > 0 {
+        ref resolved_name : Str = resolve_type_alias(ctx.scope, name, ctx.symbols)
+        resolved = type_from_name_init_name(resolved_name, ctx.scope, ctx.symbols)
+    }
+    switch resolved {
+    case .Struct, .Enum: return true
+    case: return false
+    }
+}
+
 priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
     switch e.node_type {
     case .Assign(ad):
         names.add(own ad.name.clone())
     case:
     }
-    for c : Expr in e.children {
-        collect_assign_targets(c, names)
+    for c : Expr in e.children { collect_assign_targets(c, names) }
+}
+
+priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut ctx: Context) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    if e.node_type.is(NodeType.FCall) {
+        if e.children.len() > 0 {
+            ref callee : Expr = e.children[0]
+            mut fdef_o := Option(ref Expr).None
+            switch callee.node_type {
+            case .Ident(id):
+                fdef_o = ctx.scope.lookup_func_name(id.ident_name(ctx.symbols.names), ctx.symbols)
+            case .FieldAccess(member):
+                sname := fa_recv_type_name(callee, ctx)
+                if sname.len() > 0 { fdef_o = ns_func_def(sname, member.field_access_name(ctx.symbols.names), ctx) }
+            case:
+            }
+            if fdef_o.is_some() {
+                ref fdef : Expr = fdef_o.unwrap()
+                switch fdef.node_type {
+                case .FuncDef(fd):
+                    for pi in 0..fd.sig.params.len() {
+                        mutates_arg := fd.sig.params[pi].is_mut.and(fd.sig.params[pi].own_type.is(OwnType.Ref))
+                        mut aggregate_arg := pi + 1 < e.children.len()
+                        if aggregate_arg { aggregate_arg = constfolder_type_is_aggregate(e.children[pi + 1].til_type(), ctx) }
+                        if mutates_arg.and(aggregate_arg) {
+                            collect_target_idents(e.children[pi + 1], names, ctx.symbols.names)
+                        }
+                    }
+                case:
+                }
+            }
+        }
     }
+    for c : Expr in e.children { collect_mut_targets(c, names, ctx) }
 }
 
 priv constfolder_has_macro := func(ctx: Context, name: Str) returns Bool {
@@ -450,6 +503,33 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
     }
 }
 
+priv expr_is_serialized_value := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .Literal(Literal.Num): return true
+    case .Literal(Literal.Str): return true
+    case .Literal(Literal.Bool): return true
+    case: return e.constfold_value
+    }
+}
+
+priv expr_is_serialized_aggregate := func(e: Expr) returns Bool {
+    return e.constfold_value.and(e.node_type.is(NodeType.Literal).not())
+}
+
+priv add_known_call_arg := func(mut scope: Scope, mut call: Expr, raw: Dynamic, shallow t: Type, src: Expr, idx: USize, mut ctx: Context) {
+    name := format("constfolder_serialized_arg_", idx.to_str())
+    scope_set_raw_owned(scope, name, raw, interp_intern_type(t, ctx), known_bind_own_type(t, ctx), ctx)
+    mut ident := Expr.new(ident_node(ctx.symbols.intern(name)), src.line, src.col)
+    ident.set_til_type(t)
+    call.add_child(own ident)
+}
+
+priv add_serialized_call_arg := proc(mut scope: Scope, mut call: Expr, e: Expr, idx: USize, mut ctx: Context) {
+    mut value := e.clone()
+    raw : Dynamic = eval_expr_raw(scope, value, ctx)
+    add_known_call_arg(scope, call, raw, e.til_type(), e, idx, ctx)
+}
+
 priv result_type_can_fold_to_expr_inner := func(t: Type, mut visiting: Set(Str), ctx: Context) returns Bool {
     switch t {
     case .Primitive, .Enum:
@@ -555,7 +635,7 @@ priv is_known_check := func(mut ctx: Context, e: Expr) returns Bool {
     case .Literal(Literal.Str):  return true
     case .Literal(Literal.Bool): return true
     case .Ident(id):   return constfolder_known_has(ctx, id.ident_name(ctx.symbols.names))
-    case:                      return false
+    case:                      return expr_is_serialized_value(e)
     }
 }
 
@@ -872,9 +952,14 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     ec.set_til_type(fcall.til_type())
     ec.add_child(own fcall.children[0].clone())
     mark_fcall_direct(ec)
+    mut eval_scope := scope_new(Option(ref Scope).Some(scope))
 
     for i in 0..nargs {
         ref arg : Expr = fcall.children[i + 1]
+        if expr_is_serialized_aggregate(arg) {
+            add_serialized_call_arg(eval_scope, ec, arg, i, ctx)
+            continue
+        }
         mut arg_raw : Dynamic = is_known(ctx, arg)
         arg_is_known := arg_raw.is_null().not()
         // Issue #191: also check interpreter scope for arg values. Skip
@@ -905,6 +990,10 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                             // A ref read is the BARE target address: load the
                             // word raw_to_expr's prim arm expects.
                             scoped_value_raw = scalar_word_load(hb_type(scoped_hb), scoped_raw, ctx)
+                        }
+                        if scoped_is_ref.not().and(raw_type_is_prim(hb_type(scoped_hb), ctx).not()) {
+                            add_known_call_arg(eval_scope, ec, scoped_raw, hb_type(scoped_hb), arg, i, ctx)
+                            continue
                         }
                         scoped_lit_o := raw_to_expr(scoped_value_raw, hb_type(scoped_hb), arg, ctx)
                         raw_result_drop(hb_type(scoped_hb), scoped_raw, scoped_is_ref, ctx)
@@ -953,13 +1042,21 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                 }
             }
             if require_known {
+                scope_drop_owned_bindings(eval_scope)
+                scope_free(own eval_scope)
                 panic(
                     __LOC__,
                     ctx.path, ":", arg.line.to_str(), ":", arg.col.to_str(),
                     ": error: macro argument must be known at compile time",
                 )
             }
+            scope_drop_owned_bindings(eval_scope)
+            scope_free(own eval_scope)
             return Option(Expr).None
+        }
+        if raw_type_is_prim(arg.til_type(), ctx).not() {
+            add_known_call_arg(eval_scope, ec, arg_raw, arg.til_type(), arg, i, ctx)
+            continue
         }
         // is_known's contract is an OWNED BLOCK even for prims (NULL is its
         // "not known" sentinel, so a bare word cannot carry it): load the
@@ -972,9 +1069,16 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
         if raw_type_is_prim(arg.til_type(), ctx) { EvalHeap.heap_free(own arg_raw) }
         else { raw_result_drop(arg.til_type(), arg_raw, false, ctx) }
         if arg_lit_o.is_none() {
+            scope_drop_owned_bindings(eval_scope)
+            scope_free(own eval_scope)
             return Option(Expr).None
         }
         ec.add_child(own Option(Expr).take(own arg_lit_o))
+    }
+    for i in 0..nargs {
+        arg_index := i + 1
+        if get_own_arg(fcall, arg_index) { set_own_arg(ec, arg_index) }
+        if get_keep_outer_arg(fcall, arg_index) { set_keep_outer_arg(ec, arg_index) }
     }
 
     // Evaluate the call using the interpreter. constfold_active makes a
@@ -982,7 +1086,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // set ctx.eval.eval_aborted and unwind instead of printing+exiting the
     // build -- til's analogue of rstil precomp inspecting a throw result.
     ctx.eval.constfold_active = true
-    mut result : Dynamic = eval_expr_raw(scope, ec, ctx)
+    mut result : Dynamic = eval_expr_raw(eval_scope, ec, ctx)
     ctx.eval.constfold_active = false
 
     // The eval reached a panic/abort with these comptime inputs. Don't bake a
@@ -992,6 +1096,8 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     if ctx.eval.eval_aborted {
         ctx.eval.eval_aborted = false
         raw_result_drop(fcall.til_type(), result, false, ctx)
+        scope_drop_owned_bindings(eval_scope)
+        scope_free(own eval_scope)
         if require_known {
             panic(
                 __LOC__,
@@ -1009,6 +1115,8 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     }
     if can_convert.not() {
         raw_result_drop(fcall.til_type(), result, false, ctx)
+        scope_drop_owned_bindings(eval_scope)
+        scope_free(own eval_scope)
         if require_known {
             panic(
                 __LOC__,
@@ -1021,6 +1129,8 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
 
     lit_local_o := raw_to_expr(result, fcall.til_type(), fcall, ctx)
     raw_result_drop(fcall.til_type(), result, false, ctx)
+    scope_drop_owned_bindings(eval_scope)
+    scope_free(own eval_scope)
     if lit_local_o.is_none() {
         return Option(Expr).None
     }
@@ -1028,11 +1138,16 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // Preserve aliases such as USize rather than replacing them with the
     // resolved primitive used to decode the raw bytes.
     lit_local.set_til_type(fcall.til_type())
+    lit_local.constfold_value = true
     return Option(Expr).Some(own lit_local)
 }
 
-priv track_literal := func(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Context) {
-    raw : Dynamic = is_known(ctx, rhs)
+priv track_literal := proc(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Context) {
+    mut raw : Dynamic = is_known(ctx, rhs)
+    if raw.is_null().and(expr_is_serialized_value(rhs)) {
+        mut value := rhs.clone()
+        raw = eval_expr_raw(scope, value, ctx)
+    }
     if raw.is_null().not() {
         bt_w : Dynamic = interp_intern_type(rhs.til_type(), ctx)
         scope_set_raw_owned(known_scope(ctx), name, raw, bt_w, known_bind_own_type(rhs.til_type(), ctx), ctx)
@@ -1048,8 +1163,12 @@ priv track_literal := func(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Cont
 // the entire compilation). Without this split, freeing known's payloads
 // during the FuncDef save/restore would dangle the shared scope binding
 // and corrupt the heap on the next interpreter lookup that touched it.
-priv track_literal_known_only := func(name: Str, rhs: Expr, mut ctx: Context) {
-    raw : Dynamic = is_known(ctx, rhs)
+priv track_literal_known_only := proc(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Context) {
+    mut raw : Dynamic = is_known(ctx, rhs)
+    if raw.is_null().and(expr_is_serialized_value(rhs)) {
+        mut value := rhs.clone()
+        raw = eval_expr_raw(scope, value, ctx)
+    }
     if raw.is_null().not() {
         scope_set_raw_owned(known_scope(ctx), name, raw, interp_intern_type(rhs.til_type(), ctx), known_bind_own_type(rhs.til_type(), ctx), ctx)
     }
@@ -1289,6 +1408,7 @@ priv fold_va_calls := proc(mut scope: Scope, mut e: Expr, va: Str, mut ctx: Cont
                 if lit_o.is_some() {
                     mut lit : Expr = Option(Expr).take(own lit_o)
                     lit.set_til_type(child.til_type())
+                    lit.constfold_value = true
                     e.children[i] = lit
                     // The variadic fold also replaces a Decl RHS after the
                     // garbager chose its storage; the post-fold
@@ -1455,6 +1575,12 @@ constfolder_normalize_stack_decls_in_body := func(mut body: Expr, symbols: Symbo
 // "-18446744073709551615" because a sibling's leaked `hoisted__U64_<n>`
 // matched its own.
 priv fold_body_scoped := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
+    mut assigned_snapshot := ctx.constfolder_assigned.clone()
+    if e.node_type.is(NodeType.FuncDef).and(e.children.len() > 0) {
+        collect_mut_targets(e.children[0], ctx.constfolder_assigned, ctx)
+    } else {
+        collect_mut_targets(e, ctx.constfolder_assigned, ctx)
+    }
     mut snapshot_fd := Option(Scope).None
     swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
     switch snapshot_fd {
@@ -1466,6 +1592,59 @@ priv fold_body_scoped := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     fold_subtree(scope, e, ctx)
     constfolder_clear_known(ctx)
     swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
+    swap(Set(Str), ctx.constfolder_assigned, assigned_snapshot)
+}
+
+// Folding a consumer can orphan its local value declaration. A recursively
+// serialized RHS has no effects once unused, so drop the whole declaration
+// rather than emitting an unused allocation or wrapper. At program scope only
+// typer-generated hoists are eligible; user globals are an exported surface.
+priv dce_orphan_serialized_values := func(mut body: Expr, program_scope: Bool, ctx: Context) {
+    if body.node_type.is(NodeType.Body).not() { return }
+    mut drop_names := Vec(Str).new()
+    for di in 0..body.children.len() {
+        ref dstmt : Expr = body.children[di]
+        switch dstmt.node_type {
+        case .Decl(dd):
+            if dstmt.children.len() > 0 {
+                ref drhs : Expr = dstmt.children[0]
+                generated_literal := dd.name.starts_with("hoisted__").and(drhs.node_type.is(NodeType.Literal))
+                folded_local := program_scope.not().and(drhs.constfold_value)
+                if generated_literal.or(folded_local) {
+                    mut used_elsewhere := false
+                    for ui in 0..body.children.len() {
+                        if ui == di { continue }
+                        if expr_uses_var_p(body.children[ui], dd.name, ctx)
+                        .and(is_delete_call_on(body.children[ui], dd.name, ctx.symbols).not()) {
+                            used_elsewhere = true
+                            break
+                        }
+                    }
+                    if used_elsewhere.not() { drop_names.push(own dd.name.clone()) }
+                }
+            }
+        case:
+        }
+    }
+    if drop_names.len() == 0 { return }
+    mut keep := Vec(Expr).new()
+    for si in 0..body.children.len() {
+        ref stmt : Expr = body.children[si]
+        mut drop := false
+        switch stmt.node_type {
+        case .Decl(dd):
+            drop = va_name_in(drop_names, dd.name)
+        case:
+            for name : Str in drop_names {
+                if is_delete_call_on(stmt, name, ctx.symbols) {
+                    drop = true
+                    break
+                }
+            }
+        }
+        if drop.not() { keep.push_take(body.children, si) }
+    }
+    body.children.move_from(own keep)
 }
 
 priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
@@ -1520,7 +1699,7 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
             .and(dd.own_type.is(OwnType.Ref).not())
             .and(ctx.constfolder_assigned.has(dd.name).not())
             .and(child.children.len().gt(0)) {
-                track_literal_known_only(dd.name, child.children[0], ctx)
+                track_literal_known_only(scope, dd.name, child.children[0], ctx)
             }
         case:
         }
@@ -1555,6 +1734,7 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     if va_done.len() > 0 {
         va_build_dce(e, va_done, ctx)
     }
+    dce_orphan_serialized_values(e, false, ctx)
 }
 
 // Namespace data has already been evaluated in sibling-dependency order by
@@ -1577,6 +1757,7 @@ priv fold_ns_data_value := func(owner: Str, def: Expr, idx: USize, mut nsd: Decl
     if folded_o.is_none() { return }
     mut folded : Expr = Option(Expr).take(own folded_o)
     folded.set_til_type(value_type)
+    folded.constfold_value = true
     nsd.default_value = Option(Expr).Some(own folded)
 }
 
@@ -1587,6 +1768,7 @@ process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_glob
     // top-level entry; the walk descends into all nested func bodies.
     if at_global {
         collect_assign_targets(body, ctx.constfolder_assigned)
+        collect_mut_targets(body, ctx.constfolder_assigned, ctx)
     }
     // Walk statement-by-statement so top-level non-mut Decls get bound
     // in the constfolder interpreter scope as soon as their RHS folds to a
@@ -1638,43 +1820,7 @@ process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_glob
         case:
         }
     }
-    // DCE: after folding, scan for `hoisted__`-prefixed Decls whose RHS is
-    // a pure literal (no side effects) and whose name no longer appears
-    // anywhere in the body. These are the typer's `own <literal>` hoists
-    // that got orphaned when constfolder folded away their only consumer
-    // (a pure func call like `fn_identity(own 100)` -> `100`). The asap
-    // pass already marked them own_transfer'd to the now-folded FCall,
-    // so insert_post_stmt_deletes skips them and the heap malloc leaks.
-    // Removing the Decl drops the entire allocation. Only literal RHS is
-    // safe (no side effects to preserve).
-    mut keep := Vec(Expr).new()
-    for di in 0..body.children.len() {
-        ref dstmt : Expr = body.children[di]
-        mut drop := false
-        switch dstmt.node_type {
-        case .Decl(dd):
-            if dd.name.starts_with("hoisted__") {
-                if dstmt.children.len() > 0 {
-                    ref drhs : Expr = dstmt.children[0]
-                    is_lit := drhs.node_type.is(NodeType.Literal)
-                    if is_lit {
-                        mut used_elsewhere := false
-                        for ui in 0..body.children.len() {
-                            if ui == di { continue }
-                            if expr_uses_var_p(body.children[ui], dd.name, ctx) {
-                                used_elsewhere = true
-                                break
-                            }
-                        }
-                        if used_elsewhere.not() { drop = true }
-                    }
-                }
-            }
-        case:
-        }
-        if drop.not() { keep.push_take(body.children, di) }
-    }
-    body.children.move_from(own keep)
+    dce_orphan_serialized_values(body, true, ctx)
 }
 
 priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
