@@ -158,7 +158,7 @@ priv jvm_find_funcsig_class := func(class_name: Str,
                 if stmt.children[0].node_type.is(NodeType.FuncDef) {
                     ref fexpr : Expr = stmt.children[0]
                     if jvm_funcsig_class(funcdef_of(fexpr)) == class_name {
-                        return Option(ref Expr).Some(fexpr)
+                        return safe_ref(fexpr)
                     }
                 }
             }
@@ -467,7 +467,7 @@ priv jvm_find_fdef := func(name: Str, lp: LoadedProgram) returns Option(ref Expr
             case .Decl(dd):
                 if stmt.children.len() > 0 {
                     if dd.name.eq(name).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
-                        return Option(ref Expr).Some(stmt.children[0])
+                        return safe_ref(stmt.children[0])
                     }
                     if stmt.children[0].node_type.is(NodeType.StructDef) {
                         ref sd : StructDef = structdef_of(stmt.children[0])
@@ -477,7 +477,7 @@ priv jvm_find_fdef := func(name: Str, lp: LoadedProgram) returns Option(ref Expr
                                 if member.default_value.is_some() {
                                     ref fexpr : Expr = member.default_expr()
                                     if fexpr.node_type.is(NodeType.FuncDef) {
-                                        return Option(ref Expr).Some(fexpr)
+                                        return safe_ref(fexpr)
                                     }
                                 }
                             }
@@ -490,7 +490,7 @@ priv jvm_find_fdef := func(name: Str, lp: LoadedProgram) returns Option(ref Expr
                                 if member.default_value.is_some() {
                                     ref fexpr : Expr = member.default_expr()
                                     if fexpr.node_type.is(NodeType.FuncDef) {
-                                        return Option(ref Expr).Some(fexpr)
+                                        return safe_ref(fexpr)
                                     }
                                 }
                             }
@@ -513,7 +513,7 @@ priv jvm_find_fdef := func(name: Str, lp: LoadedProgram) returns Option(ref Expr
                         ref member : Declaration = sd.member_at(mi)
                         if member.default_value.is_some() {
                             ref fexpr : Expr = member.default_expr()
-                            if fexpr.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(fexpr) }
+                            if fexpr.node_type.is(NodeType.FuncDef) { return safe_ref(fexpr) }
                         }
                     }
                 }
@@ -524,7 +524,7 @@ priv jvm_find_fdef := func(name: Str, lp: LoadedProgram) returns Option(ref Expr
                         ref member : Declaration = ed.member_at(mi)
                         if member.default_value.is_some() {
                             ref fexpr : Expr = member.default_expr()
-                            if fexpr.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(fexpr) }
+                            if fexpr.node_type.is(NodeType.FuncDef) { return safe_ref(fexpr) }
                         }
                     }
                 }
@@ -581,7 +581,7 @@ priv jvm_expr_funcsig := func(e: Expr, state: JvmEmitState,
                 ref direct : Expr = direct_o.unwrap()
                 if direct.children.len() > 0 { return direct_o }
             }
-        case .FuncDef: return Option(ref Expr).Some(e)
+        case .FuncDef: return safe_ref(e)
         case:
         }
         return Option(ref Expr).None
@@ -2326,7 +2326,7 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
                 if stmt.children.len() > 0 {
                     if stmt.children[0].node_type.is(NodeType.FuncDef) {
                         if dd.name == "main" {
-                            main_fexpr = Option(ref Expr).Some(stmt.children[0])
+                            main_fexpr = safe_ref(stmt.children[0])
                         }
                     }
                 }

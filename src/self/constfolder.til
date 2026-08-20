@@ -765,7 +765,7 @@ priv extract_trivial_literal_return := func(fdef: Expr, symbols: SymbolPool) ret
         if rv.node_type.is_literal_num()
         .or(rv.node_type.is_literal_str())
         .or(rv.node_type.is_literal_bool()) {
-            return Option(ref Expr).Some(rv)
+            return safe_ref(rv)
         }
         return Option(ref Expr).None
     }
@@ -785,7 +785,7 @@ priv extract_trivial_literal_return := func(fdef: Expr, symbols: SymbolPool) ret
                 if rhs.node_type.is_literal_num()
                 .or(rhs.node_type.is_literal_str())
                 .or(rhs.node_type.is_literal_bool()) {
-                    return Option(ref Expr).Some(rhs)
+                    return safe_ref(rhs)
                 }
             case:
                 return Option(ref Expr).None
@@ -952,7 +952,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     ec.set_til_type(fcall.til_type())
     ec.add_child(own fcall.children[0].clone())
     mark_fcall_direct(ec)
-    mut eval_scope := scope_new(Option(ref Scope).Some(scope))
+    mut eval_scope := scope_new(safe_ref(scope))
 
     for i in 0..nargs {
         ref arg : Expr = fcall.children[i + 1]
@@ -1585,7 +1585,7 @@ priv fold_body_scoped := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
     switch snapshot_fd {
     case .Some(real_known):
-        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).Some(real_known)))
+        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(safe_ref(real_known)))
     case .None:
         ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     }
@@ -1719,7 +1719,7 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
                 // temporary inputs to this fold, not globals. Keep them in a
                 // child scope so its cache-owned values can be reclaimed
                 // immediately after the consumer is folded.
-                mut va_scope := scope_new(Option(ref Scope).Some(scope))
+                mut va_scope := scope_new(safe_ref(scope))
                 if materialize_va(va_scope, e, m, vn, ctx) {
                     for mut vc : Expr in e.children {
                         fold_va_calls(va_scope, vc, vn, ctx)

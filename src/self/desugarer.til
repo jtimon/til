@@ -1344,7 +1344,7 @@ priv find_bang_callee_name := func(e: Expr, symbols: SymbolPool) returns Str {
 priv find_bang_fcall := func(e: Expr) returns Option(ref Expr) {
     switch e.node_type {
     case .FCall(fcd_f):
-        if fcd_f.is_bang { return Option(ref Expr).Some(e) }
+        if fcd_f.is_bang { return safe_ref(e) }
         return Option(ref Expr).None
     case .Decl, .Assign, .FieldAssign, .Return:
         if e.children.len() == 0 { return Option(ref Expr).None }
@@ -3514,7 +3514,7 @@ priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope, symbols: SymbolPoo
                     nd_o := def_ns_get(sdef_o.unwrap(), method_name.field_access_name(symbols.names))
                     if nd_o.is_some().and(nd_o.unwrap().default_value.is_some()) {
                         ref dv : Expr = nd_o.unwrap().default_expr()
-                        if dv.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(dv) }
+                        if dv.node_type.is(NodeType.FuncDef) { return safe_ref(dv) }
                     }
                 }
             case:

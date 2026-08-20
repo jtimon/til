@@ -342,7 +342,7 @@ lookup_interp_type_def := func(name: Str, ctx: Context) returns Option(ref Expr)
     ref slot : Dynamic = ctx.interp_type_defs.get(name)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
     ref td : Expr = deref(slot)
-    return Option(ref Expr).Some(td)
+    return safe_ref(td)
 }
 
 
@@ -413,7 +413,7 @@ priv enum_payload_type_ref := func(enum_name: Str, data: Dynamic, ctx: Context) 
         idx := enum_variant_index_for_tag_key(enum_name, enum_data_tag_key(data, edef), ctx)
         if idx < 0 { return Option(ref Str).None }
         ref vd : VariantDef = edd.variants[idx.to_usize()]
-        if vd.payload_type.len() > 0 { return Option(ref Str).Some(vd.payload_type) }
+        if vd.payload_type.len() > 0 { return safe_ref(vd.payload_type) }
     case:
     }
     return Option(ref Str).None
@@ -1340,7 +1340,7 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
             if ns_hb_o.is_some() {
                 ref ns_hb : HeapBinding = ns_hb_o.unwrap()
                 ref ns_stored : Dynamic = to_ptr(ns_hb.ptr)
-                return Option(ref Dynamic).Some(ns_stored)
+                return safe_ref(Dynamic, ns_stored)
             }
         }
         parent_o := field_access_base(scope, obj.children[0], ctx)
@@ -1353,20 +1353,20 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
         ref fdecl : Declaration = fdecl_o.unwrap()
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
         ref slot : Dynamic = ptr_add(parent, fl.offset)
-        if fdecl.own_type.is(OwnType.Shallow) { return Option(ref Dynamic).Some(slot) }
+        if fdecl.own_type.is(OwnType.Shallow) { return safe_ref(Dynamic, slot) }
         // REM: a non-shallow field yields the STORED pointer. A field
         // declared `ref x : T = NULL` still stores a real null here, and the
         // niche cannot spell Some(null) -- it reads back as None. Callers
         // already treat both as "no base" and error out, so nothing changes
         // today, and step 1's forbid removes the case entirely.
         ref stored : Dynamic = deref(slot)
-        return Option(ref Dynamic).Some(stored)
+        return safe_ref(Dynamic, stored)
     case .FCall:
         mut info := raw_result_info_new()
         raw_base : Dynamic = eval_expr_raw_info(scope, obj, ctx, info)
         if info.is_ref {
             ref call_base : Dynamic = to_ptr(raw_base)
-            return Option(ref Dynamic).Some(call_base)
+            return safe_ref(Dynamic, call_base)
         }
         panic("field access call base is not a reference")
     case: return Option(ref Dynamic).None
@@ -1816,7 +1816,7 @@ priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr, symbols
         case .Struct:
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name(symbols.names)) }
             ref base : Dynamic = to_ptr(hb.ptr)
-            return Option(ref Dynamic).Some(base)
+            return safe_ref(Dynamic, base)
         case: return Option(ref Dynamic).None
         }
     case:
@@ -1942,14 +1942,14 @@ priv eval_switch := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
             if matched { break }
         }
         if matched {
-        mut case_scope := scope_new(Option(ref Scope).Some(scope))
+        mut case_scope := scope_new(safe_ref(scope))
             eval_body(case_scope, cn.children[cn.children.len() - 1], ctx)
             scope_free(own case_scope)
             return
         }
     }
     if has_default {
-        mut def_scope := scope_new(Option(ref Scope).Some(scope))
+        mut def_scope := scope_new(safe_ref(scope))
         eval_body(def_scope, stmt.children[default_idx].children[0], ctx)
         scope_free(own def_scope)
     }
@@ -2258,11 +2258,11 @@ priv mark_deleted_receiver := func(mut scope: Scope, stmt: Expr, symbols: Symbol
 priv eval_if := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     cv := eval_bool_arg(scope, stmt.children[0], ctx)
     if cv {
-        mut then_scope := scope_new(Option(ref Scope).Some(scope))
+        mut then_scope := scope_new(safe_ref(scope))
         eval_body(then_scope, stmt.children[1], ctx)
         scope_free(own then_scope)
     } else if stmt.children.len() > 2 {
-        mut else_scope := scope_new(Option(ref Scope).Some(scope))
+        mut else_scope := scope_new(safe_ref(scope))
         eval_body(else_scope, stmt.children[2], ctx)
         scope_free(own else_scope)
     }
@@ -2277,7 +2277,7 @@ priv eval_while := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
         if c.eval.eval_aborted { break }
         cv := eval_bool_arg(scope, stmt.children[0], ctx)
         if cv.not() { break }
-        mut while_scope := scope_new(Option(ref Scope).Some(scope))
+        mut while_scope := scope_new(safe_ref(scope))
         eval_body(while_scope, stmt.children[1], ctx)
         scope_free(own while_scope)
         if c.eval.has_break { c.eval.has_break = false; break }
@@ -2398,7 +2398,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 mut sname_o := expr_type_name_ref(stmt.children[0])
                 if sname_o.is_none() {
                     switch stmt.children[0].node_type {
-                    case .Ident(oi): sname_o = Option(ref Str).Some(oi.ident_name(ctx.symbols.names))
+                    case .Ident(oi): sname_o = safe_ref(oi.ident_name(ctx.symbols.names))
                     case:
                     }
                 }
@@ -2504,14 +2504,14 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
         case .FCall(fcd):
             eval_fcall(scope, stmt, fcd, ctx)
         case .Body:
-            mut block_scope := scope_new(Option(ref Scope).Some(scope))
+            mut block_scope := scope_new(safe_ref(scope))
             eval_body(block_scope, stmt, ctx)
             scope_free(own block_scope)
         case .CaptureBlock:
             // Issue #54: a capture block runs its body inline -- the typer
             // already enforced the capture restriction, so at runtime it
             // behaves exactly like a bare `{ ... }` block.
-            mut cb_scope := scope_new(Option(ref Scope).Some(scope))
+            mut cb_scope := scope_new(safe_ref(scope))
             eval_body(cb_scope, stmt.children[0], ctx)
             scope_free(own cb_scope)
         case .If:
@@ -2642,7 +2642,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     }
     ref mut body : Expr = func_def.children[0]
 
-    mut call_scope := scope_new(Option(ref Scope).Some(parent_scope))
+    mut call_scope := scope_new(safe_ref(parent_scope))
     call_scope.is_call_scope = true
     dynamic_type_w : Dynamic = interp_intern_type(Type.Dynamic, ctx)
     ref fdef_params : FunctionDef = funcdef_of(func_def)
@@ -2874,7 +2874,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     switch func_def.node_type {
     case .FuncDef(ret_fd):
         callee_ret_is_ref = ret_fd.sig.return_own_type.is(OwnType.Ref)
-        c.eval.interp_ret_type = Option(ref Str).Some(ret_fd.sig.return_type)
+        c.eval.interp_ret_type = safe_ref(ret_fd.sig.return_type)
         c.eval.interp_ret_own_type = ret_fd.sig.return_own_type
         if ret_fd.sig.return_type.len() > 0 {
             ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.sig.return_type, ctx.symbols)
@@ -2939,7 +2939,7 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
     ref parent_scope : Scope = callable_raw_env(callable, caller_scope)
     switch func_def.node_type {
     case .BodyValue:
-        mut body_scope := scope_new(Option(ref Scope).Some(parent_scope))
+        mut body_scope := scope_new(safe_ref(parent_scope))
         eval_body(body_scope, func_def.children[0], ctx)
         scope_free(own body_scope)
         if destination.is_null().not() { return destination }
@@ -4120,7 +4120,7 @@ scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref He
             }
             continue
         }
-        return Option(ref HeapBinding).Some(b)
+        return safe_ref(b)
     }
     return Option(ref HeapBinding).None
 }
@@ -4156,9 +4156,9 @@ hb_func_def := func(hb: HeapBinding) returns Option(ref Expr) {
     if stored.is_null() { panic(__LOC__, "callable heap slot is empty") }
     if callable_box_is(stored) {
         ref box : InterpCallableBox = to_ptr(stored)
-        return Option(ref Expr).Some(to_ptr(box.func_def))
+        return safe_ref(Expr, to_ptr(box.func_def))
     }
-    return Option(ref Expr).Some(to_ptr(stored))
+    return safe_ref(Expr, to_ptr(stored))
 }
 
 // Immutable namespace FuncDefs need no runtime slot: their AST node is the
@@ -4169,7 +4169,7 @@ priv decl_static_ns_func_def := func(d: Declaration) returns Option(ref Expr) {
     ref value : Expr = d.default_expr()
     switch value.node_type {
     case .FuncDef(fd):
-        if fd.captures.len() == 0 { return Option(ref Expr).Some(value) }
+        if fd.captures.len() == 0 { return safe_ref(value) }
     case:
     }
     return Option(ref Expr).None
@@ -4714,7 +4714,7 @@ priv capture_raw_binding := func(mut env: Scope, mut source: Scope, cap: Declara
 }
 
 priv make_interp_closure := func(func_def: Expr, mut scope: Scope, ctx: Context) returns Dynamic {
-    mut env := scope_new_owned(Option(ref Scope).Some(scope_root_ref(scope)))
+    mut env := scope_new_owned(safe_ref(scope_root_ref(scope)))
     switch func_def.node_type {
     case .FuncDef(fd):
         for cap : Declaration in fd.captures {
@@ -4876,7 +4876,7 @@ priv interp_fa_namespace_def_for := func(obj_expr: Expr, e: Expr, sname: Str, sd
         is_namespace = interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fad.name, symbols)
     case:
     }
-    if is_namespace { return Option(ref Expr).Some(sdef) }
+    if is_namespace { return safe_ref(sdef) }
     return Option(ref Expr).None
 }
 
@@ -4964,7 +4964,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, mut program: Expr) {
             if sdef.node_type.is(NodeType.StructDef) {
                 if dd.name == "Str" { ctx.eval.cached_str_name = dd.name.clone() }
             }
-            set_namespace_func_identity(Option(ref Declaration).Some(dd), sdef)
+            set_namespace_func_identity(safe_ref(dd), sdef)
             mut tdv : UPtr = malloc(UPtr.size())
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
@@ -5064,7 +5064,7 @@ priv scope_lookup_ns_binding := func(mut s: Scope, sname: Str, fname: Str) retur
         at := qname_keys_index(cur.heap_bindings.keys, sname, ".", fname)
         if at >= 0 {
             ref b : HeapBinding = cur.heap_bindings.values.unsafe_get(at.to_usize())
-            return Option(ref HeapBinding).Some(b)
+            return safe_ref(b)
         }
         switch cur.parent {
         case .Some(p): cur = p
@@ -5083,7 +5083,7 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dyna
     if hb_o.is_none() { return Option(ref Dynamic).None }
     ref hb : HeapBinding = hb_o.unwrap()
     ref slot : Dynamic = to_ptr(hb.ptr)
-    return Option(ref Dynamic).Some(slot)
+    return safe_ref(Dynamic, slot)
 }
 
 
@@ -5360,7 +5360,7 @@ priv interpret_register_defs := func(mut global: Scope, mut prog: Expr, mut ctx:
                 switch stmt.node_type {
                 case .Decl(dd):
                     if decl_value.node_type.is(NodeType.StructDef).or(decl_value.node_type.is(NodeType.EnumDef)) {
-                        set_namespace_func_identity(Option(ref Declaration).Some(dd), decl_value)
+                        set_namespace_func_identity(safe_ref(dd), decl_value)
                     }
                     mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                     write_ptr(raw, stmt.children[0])
@@ -5751,7 +5751,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             switch stmt.node_type {
                             case .Decl(dd):
                                 test_count++
-                                mut test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
+                                mut test_scope := scope_new(safe_ref(session_global(session)))
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
                                 scope_free(own test_scope)
@@ -5781,7 +5781,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 case .FuncDef(nsfd):
                                     if nsfd.sig.func_type.is(FuncType.Test).not() { continue }
                                     test_count++
-                                    mut test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
+                                    mut test_scope := scope_new(safe_ref(session_global(session)))
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.children[0], lp.ctx)
                                     scope_free(own test_scope)
@@ -5831,7 +5831,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             nparam := fd.sig.params.len()
             vi := fd.sig.variadic_index
             ref mut body : Expr = func_def.children[0]
-            mut main_scope := scope_new(Option(ref Scope).Some(session_global(session)))
+            mut main_scope := scope_new(safe_ref(session_global(session)))
 
             if nparam > 0 {
                 mut fixed := nparam
@@ -5901,7 +5901,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             ref saved_ret_dest : Dynamic = mc.eval.interp_ret_dest
             saved_ret_type := mc.eval.interp_ret_type
             saved_ret_own_type := mc.eval.interp_ret_own_type
-            mc.eval.interp_ret_type = Option(ref Str).Some(fd.sig.return_type)
+            mc.eval.interp_ret_type = safe_ref(fd.sig.return_type)
             mc.eval.interp_ret_own_type = fd.sig.return_own_type
             mc.eval.interp_ret_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
             mc.eval.interp_ret_dest = 0
@@ -7217,31 +7217,31 @@ priv h_cfile_open := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Co
 // fallback they pick for an unknown type.
 priv known_ffi_type := func(type_name: Str, mut ctx: Context) returns Option(ref ffi_type) {
     switch type_name {
-    case "I64":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint64"))
-    case "U8":    return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8"))
-    case "I8":    return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint8"))
-    case "I16":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint16"))
-    case "U16":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint16"))
-    case "I32":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint32"))
-    case "U32":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint32"))
-    case "U64":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint64"))
-    case "USize": return Option(ref ffi_type).Some(usize_ffi_type(ctx))
-    case "UPtr":  return Option(ref ffi_type).Some(uptr_ffi_type(ctx))
-    case "F32":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_float"))
-    case "F64":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_double"))
-    case "Bool":  return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8"))
+    case "I64":   return safe_ref(ffi_type_ref("ffi_type_sint64"))
+    case "U8":    return safe_ref(ffi_type_ref("ffi_type_uint8"))
+    case "I8":    return safe_ref(ffi_type_ref("ffi_type_sint8"))
+    case "I16":   return safe_ref(ffi_type_ref("ffi_type_sint16"))
+    case "U16":   return safe_ref(ffi_type_ref("ffi_type_uint16"))
+    case "I32":   return safe_ref(ffi_type_ref("ffi_type_sint32"))
+    case "U32":   return safe_ref(ffi_type_ref("ffi_type_uint32"))
+    case "U64":   return safe_ref(ffi_type_ref("ffi_type_uint64"))
+    case "USize": return safe_ref(usize_ffi_type(ctx))
+    case "UPtr":  return safe_ref(uptr_ffi_type(ctx))
+    case "F32":   return safe_ref(ffi_type_ref("ffi_type_float"))
+    case "F64":   return safe_ref(ffi_type_ref("ffi_type_double"))
+    case "Bool":  return safe_ref(ffi_type_ref("ffi_type_uint8"))
     // Dynamic IS the opaque pointer type. Its reflection def in
     // src/core/dyn.til is a zero-field `Dynamic : StructDef = struct`,
     // which the struct probe below would turn into a size-0 by-value
     // struct ffi_type (FFI_BAD_TYPEDEF at prep); the first
     // `shallow Dynamic` ext signatures (#286's word helpers) hit that
     // and broke the arm CI hosts.
-    case "Dynamic": return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_pointer"))
+    case "Dynamic": return safe_ref(ffi_type_ref("ffi_type_pointer"))
     case:
     }
     if ctx.ffi.struct_defs.has(type_name) {
         ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
-        return Option(ref ffi_type).Some(build_struct_ffi_type(box.ptr, ctx))
+        return safe_ref(build_struct_ffi_type(box.ptr, ctx))
     }
     return Option(ref ffi_type).None
 }
@@ -8057,7 +8057,7 @@ priv ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns Option(
     ref fe_rt : Str = fe.return_type.unwrap()
     if ctx.ffi.struct_defs.has(fe_rt).not() { return Option(ref Expr).None }
     ref box : ExprPtrBox = ctx.ffi.struct_defs[fe_rt]
-    return Option(ref Expr).Some(box.ptr)
+    return safe_ref(box.ptr)
 }
 
 // ffi_type -> (type_name, size). Inverse mapping of shallow_ffi_type;
@@ -8704,7 +8704,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     // the failure path must free the locals while they are still the
     // owners, and constructing first would leave it holding moved names.
     mut ret_type_o := Option(ref Str).None
-    if fd.sig.return_type.len() > 0 { ret_type_o = Option(ref Str).Some(fd.sig.return_type) }
+    if fd.sig.return_type.len() > 0 { ret_type_o = safe_ref(fd.sig.return_type) }
     ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
     if ret_type_o.is_some() {
         if ret_shallow {

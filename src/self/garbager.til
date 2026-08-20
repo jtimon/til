@@ -389,7 +389,7 @@ priv GcCfgBlock := struct {
 priv cfg_new_block := func(mut blocks: Vec(GcCfgBlock), body: Expr, start: I32, is_root: Bool) returns I32 {
     id := blocks.len().to_i32()
     mut b := GcCfgBlock(start = start, end = start, is_root = is_root)
-    b.body = Option(ref Expr).Some(body)
+    b.body = safe_ref(body)
     blocks.push(own b)
     return id
 }
@@ -3438,7 +3438,7 @@ priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_n
     }
     mut type_scope := TypeScope(
         bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
-        parent = Option(ref TypeScope).Some(parent), current_type_name = type_name.clone())
+        parent = safe_ref(parent), current_type_name = type_name.clone())
     switch type_def.node_type {
     case .StructDef(sd):
         mut field_idx : USize = 0
@@ -3481,10 +3481,10 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         binding_capacity := fd.sig.params.len() + garbager_body_binding_count(func_body)
         mut func_scope := TypeScope(
             bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
-            parent = Option(ref TypeScope).Some(scope), is_func_root = true)
+            parent = safe_ref(scope), is_func_root = true)
         garbager_register_params(ctx, fd, func_scope, expr.line, expr.col)
         garbager_walk_body(ctx, func_body, func_scope, true,
-            Option(ref FunctionDef).Some(fd), Vec(Declaration).new(), insert)
+            safe_ref(fd), Vec(Declaration).new(), insert)
         return
     case .CaptureBlock(cbd):
         if expr.children.len() == 0 { return }
@@ -3495,7 +3495,7 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         }
         mut capture_scope := TypeScope(
             bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
-            parent = Option(ref TypeScope).Some(scope))
+            parent = safe_ref(scope))
         garbager_walk_body(ctx, capture_body, capture_scope, true,
             Option(ref FunctionDef).None, cbd.captures, insert)
         return
@@ -3504,14 +3504,14 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         ref mut value_body : Expr = expr.children[0]
         mut value_scope := TypeScope(
             bindings = Map(Sym, TypeBinding).with_capacity(garbager_body_binding_count(value_body)),
-            parent = Option(ref TypeScope).Some(scope))
+            parent = safe_ref(scope))
         garbager_walk_body(ctx, value_body, value_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
         return
     case .Body:
         mut body_scope := TypeScope(
             bindings = Map(Sym, TypeBinding).with_capacity(garbager_body_binding_count(expr)),
-            parent = Option(ref TypeScope).Some(scope))
+            parent = safe_ref(scope))
         garbager_walk_body(ctx, expr, body_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
         return

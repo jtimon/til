@@ -1,6 +1,25 @@
 # priority: low
 # category: features
-** WIP #382 Add concise construction of Some borrowed refs
+** FIXED #382 Add concise construction of Some borrowed refs
+
+*** Post-mortem
+
+Constructing a non-null borrowed Option repeated its complete destination type
+because generic return-only type materialization could not infer nested
+generated names such as ~Option__ref_T~, and borrow summaries did not preserve
+the source through omitted generic calls.
+
+~safe_ref(value)~ now infers ~Option(ref T)~, preserves the source borrow and
+lifetime, and rejects local borrow escapes through wrappers. The final migration
+replaces explicit construction expressions throughout source and tests while
+retaining constructor patterns, explanatory examples, and the direct-constructor
+diagnostic control.
+
+Regression: ~test_safe_ref_infers_borrowed_option~,
+~test_safe_ref_materializes_unannotated_option~,
+~test_safe_ref_extends_source_lifetime~, and ~test_safe_ref_forward_summary~
+cover inference, late materialization, lifetime extension, and forwarded borrow
+identity. ~make clean && make test~ passes 416/416.
 
 *** Progress
 
@@ -13,7 +32,7 @@
 - [x] Propagate borrow summaries through omitted generic calls, reject local
   borrow escapes through wrappers, and keep borrowed sources alive through
   ordinary borrow-carrying calls.
-- [ ] After this preparation lands in bootstrap, replace explicit
+- [x] After this preparation lands in bootstrap, replace explicit
   ~Option(ref T).Some(value)~ construction expressions throughout the
   codebase and close this issue.
 

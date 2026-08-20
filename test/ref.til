@@ -105,7 +105,7 @@ RefNode := struct {
 test_ref_struct_field := test() {
     mut a := RefNode(value = 10)
     b := RefNode(value = 20)
-    a.next = Option(ref RefNode).Some(b)
+    a.next = safe_ref(b)
     assert_eq(I64, a.value, 10)
     assert_eq(I64, a.next.unwrap().value, 20)
 
@@ -208,7 +208,7 @@ test_borrow_root_multi_root_return := test() {
 # the payload binding inherits the scrutinee's roots, so wrapping the
 # accessor result does not launder the write away from `o`.
 bp344_maybe_inner := func(o: Bp344Outer) returns Option(ref Bp344Inner) {
-    return Option(ref Bp344Inner).Some(o.other)
+    return safe_ref(o.other)
 }
 
 bp344_bump_payload := func(mut o: Bp344Outer) {

@@ -2947,7 +2947,7 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), mut symbol
     if s.node_type.is(NodeType.Return) {
         if s.children.len() == 0 { return Option(ref Expr).None }
         ref rv : Expr = s.children[0]
-        return Option(ref Expr).Some(rv)
+        return safe_ref(rv)
     }
     if s.node_type.is(NodeType.If).not() { return Option(ref Expr).None }
     if s.children.len() < 2 { return Option(ref Expr).None }
@@ -2995,7 +2995,7 @@ priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
 priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) returns Option(ref Expr) {
     if macros.has(name) {
         ref m : Expr = macros[name]
-        return Option(ref Expr).Some(m)
+        return safe_ref(m)
     }
     // A direct generic func (`func(T: Type, ...)`, e.g. core `assert_eq`) is
     // NOT a type-gen macro, and init_expand_generic_funcs DROPS (frees) its
@@ -3991,7 +3991,7 @@ priv generics_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns Option
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
     ref g : Expr = deref(slot)
-    return Option(ref Expr).Some(g)
+    return safe_ref(g)
 }
 
 // Issue #328: the two source resolvers behind one signature. Init reads
@@ -4003,7 +4003,7 @@ priv generic_resolve_source := func(gs: GenericSources, name: Str, scope: TypeSc
     if fd_o.is_none() { return Option(ref Expr).None }
     ref fd : Expr = fd_o.unwrap()
     if init_func_is_generic(fd).not() { return Option(ref Expr).None }
-    return Option(ref Expr).Some(fd)
+    return safe_ref(fd)
 }
 
 // The declaring path / privacy of a source `generic_resolve_source` just

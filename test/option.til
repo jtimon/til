@@ -141,7 +141,7 @@ OptNode := struct {
 
 test_option_self_referential_field := test() {
     mut tail := OptNode(val = 2)
-    head := OptNode(val = 1, next = Option(ref OptNode).Some(tail))
+    head := OptNode(val = 1, next = safe_ref(tail))
     mut got := -1
     switch head.next {
     case Option(ref OptNode).Some(n): got = n.val
@@ -219,7 +219,7 @@ OptStrHolder := struct {
 
 priv opt_str_pick := func(h: OptStrHolder) returns Option(ref Str) {
     for i in 0..h.keys.len() {
-        return Option(ref Str).Some(h.keys.unsafe_get(i))
+        return safe_ref(h.keys.unsafe_get(i))
     }
     return Option(ref Str).None
 }
@@ -268,7 +268,7 @@ OptCell := struct {
 }
 
 opt_cell_pick := func(c: OptCell) returns Option(ref OptCell) {
-    return Option(ref OptCell).Some(c)
+    return safe_ref(c)
 }
 
 opt_cell_pick_ref := func(c: OptCell) returns ref OptCell {

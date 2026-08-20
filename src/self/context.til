@@ -187,7 +187,7 @@ priv defs_lookup_one := func(filt: U64, fp: U64, m: Map(Sym, Dynamic), sym: Sym)
     ref slot : Dynamic = m.get(sym)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
     ref fd : Expr = deref(slot)
-    return Option(ref Expr).Some(fd)
+    return safe_ref(fd)
 }
 
 // #307 follow-up: leaf single-probe lookup for TypeScope.bindings, the
@@ -199,7 +199,7 @@ priv defs_lookup_one := func(filt: U64, fp: U64, m: Map(Sym, Dynamic), sym: Sym)
 priv bindings_lookup_one := func(m: Map(Sym, TypeBinding), sym: Sym) returns Option(ref TypeBinding) {
     ref b : TypeBinding = m.get(sym)?
     catch (e: KeyNotFound) { return Option(ref TypeBinding).None }
-    return Option(ref TypeBinding).Some(b)
+    return safe_ref(b)
 }
 
 TyperFuncState := struct {
@@ -305,7 +305,7 @@ namespace:
                 return Option(ref TypeBinding).None
             }
         }
-        return Option(ref TypeBinding).Some(b)
+        return safe_ref(b)
     }
     get_binding_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref TypeBinding) {
         sym_o := symbols.lookup(name)
@@ -407,7 +407,7 @@ namespace:
             }
         }
         ref sd : Expr = deref(slot)
-        return Option(ref Expr).Some(sd)
+        return safe_ref(sd)
     }
     // Issue #147: EXACT-BINDING struct def. Replaces direct
     // `binding.struct_def` field reads where the caller already holds a
@@ -1491,7 +1491,7 @@ generic_type_dep := func(ctx: Context, path: Str, name: Str) returns Option(ref 
     key := generic_type_dep_key(path, name)
     ref dep : Expr = ctx.generic_type_deps.get(key)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
-    return Option(ref Expr).Some(dep)
+    return safe_ref(dep)
 }
 
 // Issue #101: the trailing part of a synthesised temp name. Inside a
@@ -2281,7 +2281,7 @@ member_get := func(idx: Map(Str, USize), v: Vec(Declaration), name: Str) returns
     ref p : USize = idx.get(name)?
     catch (e: KeyNotFound) { return Option(ref Declaration).None }
     ref d : Declaration = v.unsafe_get(p)
-    return Option(ref Declaration).Some(d)
+    return safe_ref(d)
 }
 
 // #307: members are declaration-ordered Vecs with a name -> position
@@ -2634,7 +2634,7 @@ enum_ref_payload_ctor_arg := func(e: Expr, scope: TypeScope, symbols: SymbolPool
     idx := enum_variant_index(edef, vname)
     if idx < 0 { return Option(ref Expr).None }
     if enum_variant_payload_ref(edef, idx).not() { return Option(ref Expr).None }
-    return Option(ref Expr).Some(e.children[1])
+    return safe_ref(e.children[1])
 }
 
 // #321, stage 1 of the owned-payload niche: is this variant's payload stored
@@ -3056,7 +3056,7 @@ resolve_direct_fcall := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool)
         ref nd : Declaration = nd_o.unwrap()
         if nd.default_value.is_none() { return Option(ref Expr).None }
         ref dv : Expr = nd.default_expr()
-        if dv.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(dv) }
+        if dv.node_type.is(NodeType.FuncDef) { return safe_ref(dv) }
         switch dv.node_type {
         case .Ident(did): return scope.lookup_func_name(did.ident_name(symbols.names), symbols)
         case: return Option(ref Expr).None

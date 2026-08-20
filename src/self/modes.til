@@ -32,5 +32,5 @@ mode_resolve := func(ctx: Context, name: Str) returns Option(ref Mode) {
     ref mr : Map(Str, Mode) = ctx.mode_registry
     ref m : Mode = mr.get(name)?
     catch (e: KeyNotFound) { return Option(ref Mode).None }
-    return Option(ref Mode).Some(m)
+    return safe_ref(m)
 }

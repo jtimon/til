@@ -40,7 +40,7 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
         rsig := resolve_fn_sig(rhs, scope, ctx.symbols)
         if rsig.is_some() { return rsig }
     case .FuncDef(rhs_fd):
-        if rhs_fd.captures.len() > 0 { return Option(ref Expr).Some(rhs) }
+        if rhs_fd.captures.len() > 0 { return safe_ref(rhs) }
     case:
     }
     // Fall back to the declared FuncSig alias name. Issue #58 / #147
@@ -1111,7 +1111,7 @@ priv get_stack_local_ctype := func(name: Str, mut ctx: Context) returns Option(r
     ref m : Map(Sym, Str) = ctx.builder_func.stack_local_types
     if m.has(sym) {
         ref ct : Str = m[sym]
-        return Option(ref Str).Some(ct)
+        return safe_ref(ct)
     }
     return Option(ref Str).None
 }
@@ -3300,7 +3300,7 @@ priv static_enum_clone_arg := func(e: Expr, ctx: Context) returns Option(ref Exp
     case:
         return Option(ref Expr).None
     }
-    return Option(ref Expr).Some(e.children[1])
+    return safe_ref(e.children[1])
 }
 
 priv precomputed_sequence_symbol := func(data: PrecomputedSequenceData) returns Str {
@@ -4938,7 +4938,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // the pointer when `id`'s param was also named `w` (and compiled
         // fine when it was named anything else).
         saved_main_fdef := lp.ctx.builder_func.current_fdef
-        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(func_def)
+        lp.ctx.builder_func.current_fdef = safe_ref(func_def)
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.builder_func.current_fdef = saved_main_fdef
         lp.ctx.builder_func.in_main_func = false
@@ -4968,7 +4968,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             }
         }
         lp.ctx.builder_func.in_func_def = true
-        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(func_def)
+        lp.ctx.builder_func.current_fdef = safe_ref(func_def)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
         builder_collect_body_liveness(lp.ctx, body)
@@ -5078,7 +5078,7 @@ priv emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitte
         lp.ctx.closure_emit_captures = Set(Sym).new()
         for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own lp.ctx.symbols.intern(cap2.name)) }
         lp.ctx.builder_func.in_func_def = true
-        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(closure_expr)
+        lp.ctx.builder_func.current_fdef = safe_ref(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
         builder_collect_body_liveness(lp.ctx, closure_expr.children[0])
@@ -5141,7 +5141,7 @@ priv emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitte
         lp.ctx.closure_emit_captures = Set(Sym).new()
         for cap_b3 : Declaration in bd.captures { lp.ctx.closure_emit_captures.add(own lp.ctx.symbols.intern(cap_b3.name)) }
         lp.ctx.builder_func.in_func_def = true
-        lp.ctx.builder_func.current_fdef = Option(ref Expr).Some(closure_expr)
+        lp.ctx.builder_func.current_fdef = safe_ref(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
         builder_collect_body_liveness(lp.ctx, closure_expr.children[0])
@@ -9757,7 +9757,7 @@ priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns Option(ref Ex
     ref slot : Dynamic = ctx.builder_func.local_fn_sigs.get(name)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
     ref sig : Expr = deref(slot)
-    return Option(ref Expr).Some(sig)
+    return safe_ref(sig)
 }
 // #326: the root NAME of an argument the emitter can drop without losing
 // an evaluation -- a name, or a field path off one. "" for anything else: a
@@ -9767,7 +9767,7 @@ priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns Option(ref Ex
 priv builder_place_root := func(a: Expr, symbols: SymbolPool) returns Option(ref Str) {
     switch a.node_type {
     case .Ident(bpr_id):
-        return Option(ref Str).Some(bpr_id.ident_name(symbols.names))
+        return safe_ref(bpr_id.ident_name(symbols.names))
     case .FieldAccess:
         if a.children.len() == 0 { return Option(ref Str).None }
         return builder_place_root(a.children[0], symbols)
@@ -9782,10 +9782,10 @@ priv builder_place_root := func(a: Expr, symbols: SymbolPool) returns Option(ref
 // a method call, so the target is the field access's own child and the
 // literal moves up to children[1].
 priv builder_delete_target := func(e: Expr) returns Option(ref Expr) {
-    if e.children.len() >= 3 { return Option(ref Expr).Some(e.children[1]) }
+    if e.children.len() >= 3 { return safe_ref(e.children[1]) }
     if e.children.len() == 2 {
         ref bdt_fa : Expr = e.children[0]
-        if bdt_fa.children.len() > 0 { return Option(ref Expr).Some(bdt_fa.children[0]) }
+        if bdt_fa.children.len() > 0 { return safe_ref(bdt_fa.children[0]) }
     }
     return Option(ref Expr).None
 }

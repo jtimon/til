@@ -2800,10 +2800,10 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
 expr_type_name_ref := func(e: Expr) returns Option(ref Str) {
     ref t : Type = e.til_type()
     switch t {
-    case .Struct(s):     return Option(ref Str).Some(s)
-    case .Enum(s):       return Option(ref Str).Some(s)
-    case .Custom(s):     return Option(ref Str).Some(s)
-    case .FuncPtrSig(s): return Option(ref Str).Some(s)
+    case .Struct(s):     return safe_ref(s)
+    case .Enum(s):       return safe_ref(s)
+    case .Custom(s):     return safe_ref(s)
+    case .FuncPtrSig(s): return safe_ref(s)
     case: return Option(ref Str).None
     }
 }

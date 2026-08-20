@@ -1092,7 +1092,7 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
     if nsd_o.is_some() {
         ref nsd : Declaration = nsd_o.unwrap()
         if nsd.default_value.is_some() {
-            return Option(ref Expr).Some(nsd.default_expr())
+            return safe_ref(nsd.default_expr())
         }
     }
     return Option(ref Expr).None

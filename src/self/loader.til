@@ -2223,7 +2223,7 @@ priv lazy_recursive_body_match := func(body: Expr, vname: Str, symbols: SymbolPo
         if scrn.ident_name(symbols.names).eq(vname).not() { return Option(ref Expr).None }
     case: return Option(ref Expr).None
     }
-    return Option(ref Expr).Some(m)
+    return safe_ref(m)
 }
 
 // The Case child of `m` whose pattern is a ListPattern with `arity` children
@@ -2240,7 +2240,7 @@ priv lazy_recursive_arm := func(m: Expr, arity: USize) returns Option(ref Expr) 
         if pat.node_type.is(NodeType.ListPattern).and(pat.children.len().eq(arity)) {
             ref ab : Expr = cs.children[1]
             if ab.node_type.is(NodeType.Body).and(ab.children.len().eq(1)) {
-                return Option(ref Expr).Some(cs)
+                return safe_ref(cs)
             }
         }
     }
@@ -2275,7 +2275,7 @@ priv lazy_recursive_body_switch := func(body: Expr, vname: Str, symbols: SymbolP
         if scrn.ident_name(symbols.names).eq(vname).not() { return Option(ref Expr).None }
     case: return Option(ref Expr).None
     }
-    return Option(ref Expr).Some(sw)
+    return safe_ref(sw)
 }
 
 // The Case child of switch `sw` whose pattern is a ListPattern with `arity`
@@ -2289,7 +2289,7 @@ priv lazy_recursive_switch_arm := func(sw: Expr, arity: USize) returns Option(re
         if cs.children.len() != 2 { continue }
         ref pat : Expr = cs.children[0]
         if pat.node_type.is(NodeType.ListPattern).and(pat.children.len().eq(arity)) {
-            if cs.children[1].node_type.is(NodeType.Body) { return Option(ref Expr).Some(cs) }
+            if cs.children[1].node_type.is(NodeType.Body) { return safe_ref(cs) }
         }
     }
     return Option(ref Expr).None
@@ -2302,7 +2302,7 @@ priv lazy_recursive_switch_base_value := func(arm: Expr) returns Option(ref Expr
     ref ret : Expr = b.children[0]
     if ret.node_type.is(NodeType.Return).not().or(ret.children.len() != 1) { return Option(ref Expr).None }
     ref bv : Expr = ret.children[0]
-    return Option(ref Expr).Some(bv)
+    return safe_ref(bv)
 }
 
 // Shared head/tail + hygiene rules for both recursive forms: distinct
@@ -2708,8 +2708,8 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr), mut 
 // Decl RHS or a Return operand), else NULL.
 priv lazy_stmt_value_slot := func(s: Expr) returns Option(ref Expr) {
     switch s.node_type {
-    case .Decl:   if s.children.len() > 0 { ref d0 : Expr = s.children[0] return Option(ref Expr).Some(d0) }
-    case .Return: if s.children.len() > 0 { ref r0 : Expr = s.children[0] return Option(ref Expr).Some(r0) }
+    case .Decl:   if s.children.len() > 0 { ref d0 : Expr = s.children[0] return safe_ref(d0) }
+    case .Return: if s.children.len() > 0 { ref r0 : Expr = s.children[0] return safe_ref(r0) }
     case:
     }
     return Option(ref Expr).None

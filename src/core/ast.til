@@ -657,7 +657,7 @@ namespace:
 /// this is the first Option(ref Str) interpreted code calls.
 member_name_of := func(idx: Map(Str, USize), pos: USize) returns Option(ref Str) {
     for mi in 0..idx.len() {
-        if idx.values.unsafe_get(mi) == pos { return Option(ref Str).Some(idx.keys.unsafe_get(mi)) }
+        if idx.values.unsafe_get(mi) == pos { return safe_ref(idx.keys.unsafe_get(mi)) }
     }
     return Option(ref Str).None
 }
