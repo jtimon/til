@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-6b8af1922
+#+SUBTITLE: til 0.0.1-7a1b5fd9c
 #+OPTIONS: toc:t
 
 * Primitive
@@ -1333,7 +1333,7 @@ namespace:
 :group: Core
 :END:
 
-AST expression node with line/col, type, children, and node-specific payload.
+AST expression node with line/col, children, and node-specific payload.
 
 #+begin_src til
 struct Expr {

@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-6b8af1922
+#+SUBTITLE: til 0.0.1-7a1b5fd9c
 #+OPTIONS: toc:t
 
 * Core
@@ -6741,6 +6741,7 @@ struct Context {
     mut constfolder_foldables : Map__Str_FuncType
     mut constfolder_known : Option__Scope
     mut constfolder_assigned : Set__Str
+    mut precomputed_sequence_counter : USize
     mut eval : EvalState
     mut imported : Map__Str_ImportUnit
     mut import_cwd : Str
@@ -6757,6 +6758,7 @@ struct Context {
     mut type_gen_synths : Set__Str
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
+    mut generic_func_synth_names : Set__Str
     own mut generic_pending : Expr
     own mut func_gen_twins : Expr
     mut scope : TypeScope
@@ -13817,6 +13819,26 @@ func scope_set_raw_owned(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.eval_expr_raw][eval_expr_raw]]
 #+begin_src til
 proc eval_expr_raw(mut scope: Scope, mut e: Expr, mut ctx: Context, mut destination: Dynamic) returns Dynamic
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.container_elem_type][container_elem_type]]
+#+begin_src til
+func container_elem_type(struct_name: Str, ctx: Context) returns Str
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.container_elem_size][container_elem_size]]
+#+begin_src til
+func container_elem_size(elem_type: Str, ctx: Context) returns shallow USize
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.container_live_count][container_live_count]]
+#+begin_src til
+func container_live_count(struct_name: Str, data: Dynamic, ctx: Context) returns shallow USize
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.container_capacity][container_capacity]]
+#+begin_src til
+func container_capacity(struct_name: Str, data: Dynamic, ctx: Context) returns shallow USize
 #+end_src
 
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.scope_get][scope_get]]

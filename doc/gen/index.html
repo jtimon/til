@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-6b8af1922</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7a1b5fd9c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -5938,6 +5938,7 @@ namespace:
     mut constfolder_foldables : Map__Str_FuncType
     mut constfolder_known : Option__Scope
     mut constfolder_assigned : Set__Str
+    mut precomputed_sequence_counter : USize
     mut eval : EvalState
     mut imported : Map__Str_ImportUnit
     mut import_cwd : Str
@@ -5954,6 +5955,7 @@ namespace:
     mut type_gen_synths : Set__Str
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
+    mut generic_func_synth_names : Set__Str
     own mut generic_pending : Expr
     own mut func_gen_twins : Expr
     mut scope : TypeScope
@@ -11909,6 +11911,22 @@ namespace:
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a>
 <pre><code class="language-til">proc (mut scope: Scope, mut e: Expr, mut ctx: Context, mut destination: Dynamic) returns Dynamic
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.container_elem_type">container_elem_type</a>
+<pre><code class="language-til">func (struct_name: Str, ctx: Context) returns Str
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.container_elem_size">container_elem_size</a>
+<pre><code class="language-til">func (elem_type: Str, ctx: Context) returns shallow USize
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.container_live_count">container_live_count</a>
+<pre><code class="language-til">func (struct_name: Str, data: Dynamic, ctx: Context) returns shallow USize
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.container_capacity">container_capacity</a>
+<pre><code class="language-til">func (struct_name: Str, data: Dynamic, ctx: Context) returns shallow USize
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.scope_get">scope_get</a>

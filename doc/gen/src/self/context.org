@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-6b8af1922
+#+SUBTITLE: til 0.0.1-7a1b5fd9c
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -498,6 +498,7 @@ struct Context {
     mut constfolder_foldables : Map__Str_FuncType
     mut constfolder_known : Option__Scope
     mut constfolder_assigned : Set__Str
+    mut precomputed_sequence_counter : USize
     mut eval : EvalState
     mut imported : Map__Str_ImportUnit
     mut import_cwd : Str
@@ -514,6 +515,7 @@ struct Context {
     mut type_gen_synths : Set__Str
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
+    mut generic_func_synth_names : Set__Str
     own mut generic_pending : Expr
     own mut func_gen_twins : Expr
     mut scope : TypeScope

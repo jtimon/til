@@ -390,6 +390,7 @@
 *** constfolder_foldables := Map(Str, FuncType).new()
 *** constfolder_known := Option(Scope).None
 *** constfolder_assigned := Set(Str).new()
+*** precomputed_sequence_counter : USize = 0
 *** eval := EvalState()
 *** imported := Map(Str, ImportUnit).new()
 *** import_cwd := ""
@@ -403,8 +404,7 @@
 *** imports_typer_decls_done := Set(Str).new()
 *** imports_typer_bodies_done := Set(Str).new()
 *** infer_struct_fields_only := false
-*** type_gen_synths := Set(Str).new()
-*** ... (54 more)
+*** ... (56 more)
 * targets
 ** Lang: EnumDef
 *** C

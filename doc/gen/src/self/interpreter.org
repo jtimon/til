@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-6b8af1922
+#+SUBTITLE: til 0.0.1-7a1b5fd9c
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -216,6 +216,46 @@ func scope_set_raw_owned(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic
 
 #+begin_src til
 proc eval_expr_raw(mut scope: Scope, mut e: Expr, mut ctx: Context, mut destination: Dynamic) returns Dynamic
+#+end_src
+
+* container_elem_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.container_elem_type
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func container_elem_type(struct_name: Str, ctx: Context) returns Str
+#+end_src
+
+* container_elem_size
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.container_elem_size
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func container_elem_size(elem_type: Str, ctx: Context) returns shallow USize
+#+end_src
+
+* container_live_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.container_live_count
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func container_live_count(struct_name: Str, data: Dynamic, ctx: Context) returns shallow USize
+#+end_src
+
+* container_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.container_capacity
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func container_capacity(struct_name: Str, data: Dynamic, ctx: Context) returns shallow USize
 #+end_src
 
 * scope_get
