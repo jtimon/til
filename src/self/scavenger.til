@@ -1341,16 +1341,15 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     // builder_size_method_omitted drops the function there, where a future
     // backend can make its own call.)
     vec_push_str(worklist, "*.size")
-    // #326: the hand-written C runtime (src/c/ext.c) is linked into every
-    // program, so whatever IT needs from til is an unconditional root. That
-    // set is exactly three symbols -- `nm -u` on ext.o resolves everything
-    // else to libc or libffi: Str_clone (the cwd, env and blob helpers each
-    // return an owned empty Str that way) and the two capacity sentinels the
-    // Str writers stamp. The blanket lifecycle rooting and the blanket core
-    // value rooting used to supply them by accident.
-    push_qn(worklist, "Str", "clone")
-    vec_push_str(worklist, "CAP_LIT")
-    vec_push_str(worklist, "CAP_VIEW")
+    // #326: src/c/ext.c is linked only into C-family outputs. Its three til
+    // references are C-backend support roots, not language roots: alternative
+    // backends own separate native runtimes and must not inherit ext.c's
+    // reachability inventory.
+    if target_lang(lp.target).is(Lang.C) {
+        push_qn(worklist, "Str", "clone")
+        vec_push_str(worklist, "CAP_LIT")
+        vec_push_str(worklist, "CAP_VIEW")
+    }
     // The types named only by a reflection call, resolved through the
     // hoist that hid them from collect_refs (see scav_seed_reflect_roots).
     // Unconditional, like `*.size` above: whether the metadata is read by

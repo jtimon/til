@@ -652,7 +652,7 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos examples/hello_script.til '&&' cat gen/til/hello_script.HC"))
     add_single(tests, "holyc_fizzbuzz_translate", "build", 0, "test/fizzbuzz_templeos.expected",
         format(til_bin, " translate --target=templeos examples/fizzbuzz.til '&&' cat gen/til/fizzbuzz.HC"))
-    add_single(tests, "holyc_direct_calls_translate", "build", 0, "test/templeos_calls.expected",
+    add_single(tests, "holyc_imported_direct_calls_translate", "build", 0, "test/templeos_calls.expected",
         format(til_bin, " translate --target=templeos examples/templeos_calls.til '&&' cat gen/til/templeos_calls.HC"))
     add_single(tests, "holyc_scalar_semantics_translate", "build", 0, "test/templeos_scalars.expected",
         format(til_bin, " translate --target=templeos examples/templeos_scalars.til '&&' cat gen/til/templeos_scalars.HC"))

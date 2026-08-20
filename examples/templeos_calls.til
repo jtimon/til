@@ -1,9 +1,6 @@
 mode script
 
-twice := proc(n: I64) returns I64 {
-    println("Inside twice")
-    return n.mul(2)
-}
+calls := import("templeos_calls_helper")
 
-result := twice(21)
+result := calls.twice(21)
 println(result.to_str())

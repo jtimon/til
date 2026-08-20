@@ -1,0 +1,8 @@
+mode lib
+
+println("Imported calls helper")
+
+twice := proc(n: I64) returns I64 {
+    println("Inside twice")
+    return n.mul(2)
+}

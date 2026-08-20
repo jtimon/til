@@ -118,7 +118,7 @@
     ~continue~, F64, nested calls, and every other currently untested emitted
     form. Add TempleOS guest coverage for widths, overflow, div/mod by zero,
     Bool, and nested calls.
-  - [ ] Walk all user units and support direct calls across imports. Keep
+  - [X] Walk all user units and support direct calls across imports. Keep
     backend-specific support roots separate from the C ~ext.c~ roots and its
     C-only emit reachability inventory.
   - [X] Define and pin the HolyC ABI/runtime contract: UPtr/USize widths,
@@ -192,6 +192,18 @@
   null-free, counted output, slot dereference, panic, and null dereference;
   the generated scalar corpus also reported ~TILTEST:PASS~ with the runtime
   prelude and include in place.
+
+  The seventh slice emits all surviving functions and top-level initialization
+  from every user unit in deterministic dependency-first order. Namespace
+  imports are already lowered to direct identifiers by the frontend, so one
+  prototype pass across all units supports forward and cross-unit calls without
+  a backend-specific reachability graph. Retained import directives are skipped
+  as compile-time statements. C's three ~ext.c~-only scavenger roots are now
+  gated to C outputs; HolyC continues to own only its ~Ext.HC~ runtime boundary.
+  ~examples/templeos_calls.til~ now calls a function from
+  ~templeos_calls_helper.til~ after running that imported unit's top-level
+  initializer. TempleOS 5.03 compiled and ran the generated two-unit output
+  under QEMU TCG and reported ~TILTEST:PASS~.
 
 *** QEMU validation
 

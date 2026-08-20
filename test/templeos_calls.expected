@@ -26,8 +26,10 @@ I64 twice(I64 n)
 
 I64 TilMain()
 {
-    I64 hoisted__I64_g7 = 21;
-    I64 result = twice(hoisted__I64_g7);
+    "%s", "Imported calls helper";
+    "\n";
+    I64 hoisted__I64_g10 = 21;
+    I64 result = twice(hoisted__I64_g10);
     "%d", result;
     "\n";
     return 0;

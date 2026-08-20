@@ -190,8 +190,7 @@ priv holyc_field_owner_name := func(e: Expr, symbols: SymbolPool) returns Str {
     }
 }
 
-priv holyc_prepare_state := func(program: Expr) returns HolyCEmitState {
-    mut state := HolyCEmitState()
+priv holyc_prepare_state := func(program: Expr, mut state: HolyCEmitState) {
     for stmt : Expr in program.children {
         switch stmt.node_type {
         case .Decl(decl):
@@ -201,7 +200,6 @@ priv holyc_prepare_state := func(program: Expr) returns HolyCEmitState {
         case:
         }
     }
-    return state
 }
 
 priv holyc_function_signature := func(name: Str, func_expr: Expr, mut error: Str) returns Str {
@@ -445,6 +443,10 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
         }
 
         ref stmt : Expr = body.children[i]
+        if is_compile_directive(stmt, ctx.symbols) {
+            i++
+            continue
+        }
         prefix := holyc_indent(depth)
         switch stmt.node_type {
         case .Decl(decl):
@@ -531,11 +533,9 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
     return out
 }
 
-priv holyc_function_outputs := func(program: Expr, ctx: Context,
+priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
     mut state: HolyCEmitState, mut prototypes: Str, mut definitions: Str,
     mut error: Str) {
-    prototypes = ""
-    definitions = ""
     for stmt : Expr in program.children {
         switch stmt.node_type {
         case .Decl(decl):
@@ -554,7 +554,6 @@ priv holyc_function_outputs := func(program: Expr, ctx: Context,
         case:
         }
     }
-    if prototypes.len() > 0 { prototypes = format(prototypes, "\n") }
 }
 
 priv holyc_runtime_prelude := func() returns Str {
@@ -579,10 +578,6 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         println("error: HolyC codegen currently supports only mode script")
         return 1
     }
-    if lp.units.len() != 1 {
-        println("error: HolyC codegen does not support user imports yet")
-        return 1
-    }
     if lp.link_c_paths.len() > 0 {
         println("error: HolyC codegen does not support link_c yet")
         return 1
@@ -603,16 +598,27 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         return 1
     }
 
-    ref root : ProgramUnit = lp.units[lp.units.len() - 1]
-    ref program : Expr = lp.ctx.imported[root.path].ast
-    mut state := holyc_prepare_state(program)
+    mut state := HolyCEmitState()
+    for unit : ProgramUnit in lp.units {
+        ref program : Expr = lp.ctx.imported[unit.path].ast
+        holyc_prepare_state(program, state)
+    }
     mut validation_error := ""
     mut prototypes := ""
     mut definitions := ""
-    holyc_function_outputs(program, lp.ctx, state, prototypes, definitions, validation_error)
+    for unit : ProgramUnit in lp.units {
+        ref program : Expr = lp.ctx.imported[unit.path].ast
+        holyc_append_function_outputs(program, lp.ctx, state, prototypes, definitions, validation_error)
+        if validation_error.len() > 0 { break }
+    }
+    if prototypes.len() > 0 { prototypes = format(prototypes, "\n") }
     mut body := ""
     if validation_error.len() == 0 {
-        body = holyc_body(program, 1, true, lp.ctx, state, validation_error)
+        for unit : ProgramUnit in lp.units {
+            ref program : Expr = lp.ctx.imported[unit.path].ast
+            body = format(body, holyc_body(program, 1, true, lp.ctx, state, validation_error))
+            if validation_error.len() > 0 { break }
+        }
     }
     if validation_error.len() > 0 {
         println("error: HolyC codegen: ", validation_error)
