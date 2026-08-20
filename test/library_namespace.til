@@ -59,12 +59,17 @@ main := proc() {
     require_absent(py_a, "ctypes.POINTER(ctypes.c_void_p)")
     require_absent(py_a, "library_namespace_a_private_value")
 
-    Cmd.new("cc", "-Werror", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
+    // -fsigned-char: this consumer is the one C compile in the suite that
+    // the til driver does NOT run, so it must carry the flag itself --
+    // ext.h's signed-char guard #errors without it wherever plain char is
+    // unsigned (aarch64/arm linux; a no-op on x86), which kept the
+    // linux-arm64 (native) job red while every x86 job passed.
+    Cmd.new("cc", "-Werror", "-fsigned-char", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
         "gen/lib/liblibrary_namespace_a.a", "gen/lib/liblibrary_namespace_b.a",
         "-lm", "-o", "tmp/library_namespace_static").run_checked()
     Cmd.new("tmp/library_namespace_static").run_checked()
 
-    Cmd.new("cc", "-Werror", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
+    Cmd.new("cc", "-Werror", "-fsigned-char", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
         "-Lgen/lib", "-llibrary_namespace_a", "-llibrary_namespace_b",
         "-Wl,-rpath,gen/lib", "-lm", "-o", "tmp/library_namespace_shared").run_checked()
     Cmd.new("tmp/library_namespace_shared").run_checked()
