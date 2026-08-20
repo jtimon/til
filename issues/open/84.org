@@ -1,29 +1,95 @@
 # priority: low
 # category: experiments
-** OPEN #84 mode theme: cross-editor theme generation
+** WIP #84 mode theme: cross-editor theme generation
 
-One .til file defines a color theme. The compiler generates all
-  editor formats from it:
-  - .el (emacs)
-  - .vim / .lua (vim/neovim)
-  - .json (vscode)
-  - tiled native ([[./83.org][#83]])
+One .til file defines a color theme. The compiler generates editor-specific
+artifacts from it:
 
-  #+begin_src til
-  mode theme
-  til_dark := {
-      "background": Color(r=30, g=30, b=30),
-      "keyword": "#ff6600",
-      "string": "#33cc33",
-      "error": "#cc0000",
-  }
+- .el (Emacs)
+- .vim / .lua (Vim/Neovim)
+- .json (VS Code)
+- tiled native ([[./83.org][#83]])
+
+Theme designers edit til data, not Elisp, Lua, Vimscript, or JSON. The mode is
+the editor-independent source/artifact contract; each output format owns a
+serializer behind the builder boundary. It is not a general-purpose Elisp or
+Lua backend and does not add an editor platform target.
+
+*** Approved first slice: Emacs
+
+The first slice generates only Emacs Lisp and uses the existing
+~editor/themes/til-dark-theme.el~ as its byte-for-byte reference.
+
+- ~editor/themes/til-dark-theme.til~ is the authoritative human-edited theme.
+- ~src/modes/theme.til~ is the auto-imported typed schema for ~mode theme~.
+- A dedicated serializer under ~src/self/~ reads the prepared root theme value
+  and writes Elisp. Theme syntax and state do not enter the parser, typer,
+  generic ~Context~, C emitter, or the general Elisp backend in [[./385.org][#385]].
+- ~editor/themes/til-dark-theme.el~ remains committed so Emacs can load it
+  without til installed, but it is generated and must not be edited directly.
+- Regenerate it with:
+
+  #+begin_src sh
+  bin/til translate -o editor/themes/til-dark-theme.el editor/themes/til-dark-theme.til
   #+end_src
 
-  Existing: ~editor/emacs/til-dark.el~, ~til-light.el~ — current
-  taste in emacs format. These become the reference for generating
-  the til source, then the .el files are generated FROM til.
+This deliberately keeps generated Elisp beside the authoritative til source.
+The duplication is accepted because the checked-in artifact is directly usable
+by Emacs; exact generation and a byte comparison keep the two representations
+in sync.
 
-  Theme designers only need to learn til color map syntax. No elisp,
-  lua, vimscript, json, etc. Independent of tiled — works for any
-  editor, tiled is just one more output target.
+*** Architecture
 
+~mode theme~ is a pure library-like mode with an auto-imported schema. A file
+exports exactly one ~theme : Theme~ value. The schema gives metadata and every
+semantic palette role a fixed type; color values use one representation rather
+than a heterogeneous map.
+
+The serializer consumes the same typed, initialized, constant-folded, and
+scavenged AST as the C, HolyC, and JVM emitters. It validates the root
+declaration, static constructor shape, required fields, color spelling, and
+unsupported imports/link directives, then emits deterministic Elisp. Missing,
+duplicate, dynamic, or malformed theme data fails at translation with a source
+location rather than falling back to C.
+
+For this first mode-specific artifact, ~translate~ defaults to
+~gen/til/<name>.el~ and existing ~-o~ selects another output path. ~build~,
+~run~, ~test~, and ~install~ are unsupported until they receive explicit theme
+semantics. C-specific ~-c~, target, compiler, sanitizer, and profiler options
+are rejected rather than ignored.
+
+The Elisp serializer owns the canonical face table, ordering, quoting,
+whitespace, and boilerplate. Theme-specific colors, descriptions, attribution,
+and retained comments live in the til value. The regression generates to a
+disposable path and compares directly with the committed .el file; there is no
+second golden copy and no Emacs dependency in the default suite.
+
+*** Incremental plan
+
+- [X] Register ~mode theme~ and auto-import its ordinary til schema.
+- [X] Express til-dark metadata and semantic palette roles in
+  ~editor/themes/til-dark-theme.til~.
+- [X] Add the dedicated Elisp serializer and builder dispatch for theme
+  translation, with explicit diagnostics for unsupported commands and flags.
+- [X] Reproduce ~editor/themes/til-dark-theme.el~ byte-for-byte from the til
+  source and add the exact-output regression.
+- [X] Document generated-file ownership and the regeneration command here and
+  beside the authoritative til source. The generated artifact stays identical
+  to the pre-generation reference.
+- [ ] Later, add Vim/Neovim, VS Code, and tiled serializers over the same typed
+  theme value. Each new artifact path and tool integration needs separate
+  approval; none adds another theme source.
+
+The Emacs first slice completed on 2026-08-20. ~theme_elisp_exact~ and
+~theme_default_path~ compare generated output directly with the tracked
+artifact. Focused validation tests pin malformed colors and names, extra
+exports, unsupported commands, and target/C flag rejection. The normal suite
+remains Emacs-free.
+
+*** Acceptance for the first slice
+
+- The documented command regenerates the tracked Elisp file byte-for-byte.
+- The normal suite compares fresh generated output directly with that file and
+  remains independent of Emacs.
+- Invalid or dynamic theme declarations fail loudly before writing output.
+- Existing non-theme modes and C/HolyC/JVM translation behavior are unchanged.

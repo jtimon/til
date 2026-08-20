@@ -720,6 +720,32 @@ main := proc(args: ..Str) {
     add_single(tests, "jvm_target_width", "build", 0, "",
         format(til_bin, " interpret test/jvm_target.til"))
 
+    // #84: mode theme owns a domain serializer rather than falling through
+    // to C. The tracked Emacs artifact is the direct golden -- no second copy.
+    // Invalid typed data must fail before writing plausible-looking Elisp.
+    add_single(tests, "theme_elisp_exact", "build", 0, "",
+        format(til_bin, " translate -o gen/til/theme-exact.el editor/themes/til-dark-theme.til '&&' cmp gen/til/theme-exact.el editor/themes/til-dark-theme.el"))
+    add_single(tests, "theme_default_path", "build", 0, "",
+        format(til_bin, " translate editor/themes/til-dark-theme.til '&&' cmp gen/til/til-dark-theme.el editor/themes/til-dark-theme.el"))
+    add_count(tests, "theme_invalid_color", "build",
+        "theme color 'background' must be #RGB or #RRGGBB", 1,
+        format(til_bin, " translate -o gen/til/theme-invalid.el test/theme_invalid.til"))
+    add_count(tests, "theme_invalid_name", "build",
+        "theme name is not an Elisp symbol: '123'", 1,
+        format(til_bin, " translate -o gen/til/theme-numeric.el test/theme_numeric_name.til"))
+    add_count(tests, "theme_rejects_extra_export", "build",
+        "mode theme permits only one exported declaration, got 'extra'", 1,
+        format(til_bin, " translate -o gen/til/theme-extra.el test/theme_extra_export.til"))
+    add_count(tests, "theme_rejects_c_path", "build",
+        "error: -c is not supported with mode theme; use -o for the Elisp output", 1,
+        format(til_bin, " translate -c gen/til/theme-invalid.el editor/themes/til-dark-theme.til"))
+    add_count(tests, "theme_rejects_build", "build",
+        "error: mode theme does not support 'build'; use translate", 1,
+        format(til_bin, " build editor/themes/til-dark-theme.til"))
+    add_count(tests, "theme_rejects_target", "build",
+        "error: --target is not supported with mode theme", 1,
+        format(til_bin, " translate --target=jvm editor/themes/til-dark-theme.til"))
+
     // Issue #326: the generated C must be honest about liveness. The fixture
     // (test/dead_temps.til, run interpreted + compiled by the `both` entry
     // below) pins the BEHAVIOUR; these three pin the OUTPUT. A compiler temp

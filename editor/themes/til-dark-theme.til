@@ -1,0 +1,34 @@
+mode theme
+
+// Source of truth for til-dark-theme.el. Regenerate with:
+// bin/til translate -o editor/themes/til-dark-theme.el editor/themes/til-dark-theme.til
+theme := Theme(
+    name = "til-dark",
+    header = "A dark theme based on sanityinc-tomorrow-night",
+    description = "A dark theme designed to use all syntax highlighting capabilities of til-mode, based initially on sanityinc-tomorrow-night.",
+    source_theme = "sanityinc-tomorrow-night",
+    source_package = "color-theme-sanityinc-tomorrow package",
+    source_url = "https://github.com/purcell/color-theme-sanityinc-tomorrow",
+    source_license = "Used with permission under the original MIT License.",
+    palette_note = "Color palette initially based on sanityinc-tomorrow-night",
+    palette_footer = "Soft red-orange like #e78c45",
+    constant_face_note = "Changed to orange",
+    type_face_note = "Changed to teal",
+    background = ThemeColor(value = "#1d1f21"),
+    foreground = ThemeColor(value = "#c5c8c6"),
+    cursor = ThemeColor(value = "#aeafad"),
+    highlight = ThemeColor(value = "#2d3b44"),
+    hl_line = ThemeColor(value = "#2b2b2b"),
+    region = ThemeColor(value = "#3f494a"),
+    comment = ThemeColor(value = "#969896"),
+    string = ThemeColor(value = "#8abeb7", note = "aqua"),
+    keyword = ThemeColor(value = "#b5bd68", note = "green"),
+    constant = ThemeColor(value = "#f0c674", note = "yellow"),
+    type = ThemeColor(value = "#81a2be", note = "blue"),
+    function = ThemeColor(value = "#00994c", note = "dark-green instead of purple b294bb"),
+    variable = ThemeColor(value = "#d08770", note = "Soft orange"),
+    builtin = ThemeColor(value = "#b0c4de", note = "LightSteelBlue"),
+    preprocessor = ThemeColor(value = "#b294bb", note = "Muted magenta"),
+    warning = ThemeColor(value = "#de935f", note = "orange"),
+    error = ThemeColor(value = "#c66")
+)

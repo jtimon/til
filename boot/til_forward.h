@@ -354,6 +354,9 @@ typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___sr
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
+typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec priv___src_self_theme_codegen_til__ThemeColorSpec;
+typedef struct priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codegen_til__ThemeSpec;
+typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_theme_codegen_til__ThemeColorSpec;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
@@ -1176,6 +1179,20 @@ typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
 } priv___src_self_jvm_codegen_til__JvmEmitState;
 
 
+typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec {
+    Str name;
+    Str value;
+    Str note;
+} priv___src_self_theme_codegen_til__ThemeColorSpec;
+
+
+typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_theme_codegen_til__ThemeColorSpec;
+
+
 typedef struct priv___src_self_builder_til__BuildPaths {
     Str name;
     Str c_path;
@@ -1192,6 +1209,7 @@ typedef struct priv___src_self_builder_til__BuildPaths {
     Str jvm_args_path;
     Str jvm_package;
     Str jvm_entry_class;
+    Str theme_path;
     Bool do_lib;
 } priv___src_self_builder_til__BuildPaths;
 
@@ -1704,6 +1722,22 @@ typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {
     Vec__Str keys;
     Vec__priv___src_self_scavenger_til__DeclRef values;
 } Map__Str_priv___src_self_scavenger_til__DeclRef;
+
+
+typedef struct priv___src_self_theme_codegen_til__ThemeSpec {
+    Str name;
+    Str header;
+    Str description;
+    Str source_theme;
+    Str source_package;
+    Str source_url;
+    Str source_license;
+    Str palette_note;
+    Str palette_footer;
+    Str constant_face_note;
+    Str type_face_note;
+    Vec__priv___src_self_theme_codegen_til__ThemeColorSpec colors;
+} priv___src_self_theme_codegen_til__ThemeSpec;
 
 
 typedef struct DocCatalog {

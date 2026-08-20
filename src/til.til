@@ -968,6 +968,39 @@ priv validate_target_flags := proc(cli: CliArgs, target: Target) {
     }
 }
 
+priv validate_theme_cli := proc(cli: CliArgs, lp: LoadedProgram) {
+    if lp.mode_str != "theme" { return }
+    if cli.custom_c_set {
+        println("error: -c is not supported with mode theme; use -o for the Elisp output")
+        exit(1)
+    }
+    if cli.target_str.len() > 0 {
+        println("error: --target is not supported with mode theme")
+        exit(1)
+    }
+    if cli.cc_set {
+        println("error: --cc is not supported with mode theme")
+        exit(1)
+    }
+    if cli.asan {
+        println("error: --asan is not supported with mode theme")
+        exit(1)
+    }
+    if cli.prof {
+        println("error: --prof is not supported with mode theme")
+        exit(1)
+    }
+    if cli.usize_bits != 0 {
+        println("error: --usize is not supported with mode theme")
+        exit(1)
+    }
+    if cli.command.eq("ast").or(cli.command.eq("doc")) { return }
+    if cli.command != "translate" {
+        println(format("error: mode theme does not support '", cli.command, "'; use translate"))
+        exit(1)
+    }
+}
+
 // Split trailing args (after the source path) into -l flags (appended to
 // lp.link_flags) and user argv (returned).
 collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: USize) returns Vec(Str) {
@@ -1028,6 +1061,7 @@ main := proc(args: ..Str) {
     // It reports and returns now (so the REPL can drop the turn); a file
     // compile still stops here, with the message resolve_imports printed.
     if lp.load_errors > 0 { exit(1) }
+    validate_theme_cli(cli, lp)
     lp.target = target
     // #309: --usize override must be set before prepare_program stamps the
     // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).
@@ -1075,7 +1109,7 @@ main := proc(args: ..Str) {
             result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
         }
     case "translate":
-        result = cmd_translate(lp, cli.custom_c, target)
+        result = cmd_translate(lp, cli.custom_bin, cli.custom_c, target)
     case "build":
         result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
     case "install":

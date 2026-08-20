@@ -1,0 +1,362 @@
+mode lib
+import("context")
+
+import("loader")
+import("../std/file")
+
+
+priv ThemeColorSpec := struct {
+    name := ""
+    value := ""
+    note := ""
+}
+
+priv ThemeSpec := struct {
+    name := ""
+    header := ""
+    description := ""
+    source_theme := ""
+    source_package := ""
+    source_url := ""
+    source_license := ""
+    palette_note := ""
+    palette_footer := ""
+    constant_face_note := ""
+    type_face_note := ""
+    colors := Vec(ThemeColorSpec).new()
+}
+
+priv theme_error_at := func(path: Str, e: Expr, message: Str) returns Str {
+    return format(path, ":", e.line.to_str(), ":", e.col.to_str(), ": ", message)
+}
+
+priv theme_static_expr := func(e: Expr, program: Expr, ctx: Context) returns Option(ref Expr) {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        for stmt : Expr in program.children {
+            switch stmt.node_type {
+            case .Decl(dd):
+                if dd.name.eq(name).and(stmt.children.len().eq(1)) {
+                    return theme_static_expr(stmt.children[0], program, ctx)
+                }
+            case:
+            }
+        }
+        return Option(ref Expr).None
+    case:
+        return Option(ref Expr).Some(e)
+    }
+}
+
+priv theme_call_is := func(e: Expr, name: Str, ctx: Context) returns Bool {
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len().eq(0)) { return false }
+    switch e.children[0].node_type {
+    case .Ident(id): return id.ident_name(ctx.symbols.names).eq(name)
+    case: return false
+    }
+}
+
+priv theme_string_arg := func(call: Expr, index: USize, field: Str,
+    program: Expr, path: Str, ctx: Context, mut error: Str) returns Str {
+        if index >= call.children.len() {
+            error = theme_error_at(path, call, format("theme is missing field '", field, "'"))
+            return ""
+        }
+        resolved_o := theme_static_expr(call.children[index], program, ctx)
+        if resolved_o.is_none() {
+            error = theme_error_at(path, call.children[index], format("theme field '", field, "' is not static"))
+            return ""
+        }
+        ref resolved : Expr = resolved_o.unwrap()
+        switch resolved.node_type {
+        case .Literal(Literal.Str(value)): return value.clone()
+        case:
+            error = theme_error_at(path, resolved, format("theme field '", field, "' must be a string literal"))
+            return ""
+        }
+    }
+
+priv theme_is_hex_digit := func(ch: I8) returns Bool {
+    return ch.gte('0').and(ch.lte('9'))
+        .or(ch.gte('a').and(ch.lte('f')))
+        .or(ch.gte('A').and(ch.lte('F')))
+}
+
+priv theme_valid_color := func(value: Str) returns Bool {
+    if value.len().neq(4).and(value.len().neq(7)) { return false }
+    if value.unsafe_get(0) != '#' { return false }
+    for i in 1..value.len() {
+        if theme_is_hex_digit(value.unsafe_get(i)).not() { return false }
+    }
+    return true
+}
+
+priv theme_comment_is_single_line := func(value: Str) returns Bool {
+    return value.contains("\n").not().and(value.contains("\r").not())
+}
+
+priv theme_add_color := func(call: Expr, index: USize, name: Str,
+    program: Expr, path: Str, ctx: Context, mut spec: ThemeSpec, mut error: Str) {
+        if error.len() > 0 { return }
+        if index >= call.children.len() {
+            error = theme_error_at(path, call, format("theme is missing color '", name, "'"))
+            return
+        }
+        resolved_o := theme_static_expr(call.children[index], program, ctx)
+        if resolved_o.is_none() {
+            error = theme_error_at(path, call.children[index], format("theme color '", name, "' is not static"))
+            return
+        }
+        ref color_call : Expr = resolved_o.unwrap()
+        if theme_call_is(color_call, "ThemeColor", ctx).not().or(color_call.children.len().neq(3)) {
+            error = theme_error_at(path, call, format("theme color '", name, "' must be ThemeColor(value = ..., note = ...)"))
+            return
+        }
+        value := theme_string_arg(color_call, 1, format(name, ".value"), program, path, ctx, error)
+        if error.len() > 0 { return }
+        note := theme_string_arg(color_call, 2, format(name, ".note"), program, path, ctx, error)
+        if error.len() > 0 { return }
+        if theme_valid_color(value).not() {
+            error = theme_error_at(path, call, format("theme color '", name, "' must be #RGB or #RRGGBB, got '", value, "'"))
+            return
+        }
+        if theme_comment_is_single_line(note).not() {
+            error = theme_error_at(path, call, format("theme color note '", name, "' must fit on one line"))
+            return
+        }
+        spec.colors.push(own ThemeColorSpec(name = name.clone(), value = value, note = note))
+    }
+
+priv theme_symbol_is_valid := func(name: Str) returns Bool {
+    if name.len() == 0 { return false }
+    ref first : I8 = name.unsafe_get(0)
+    first_is_letter := first.gte('a').and(first.lte('z'))
+        .or(first.gte('A').and(first.lte('Z')))
+    if first_is_letter.not() { return false }
+    for i in 0..name.len() {
+        ref ch : I8 = name.unsafe_get(i)
+        valid := is_alnum(ch).or(ch.eq('-'))
+        if valid.not() { return false }
+    }
+    return true
+}
+
+priv theme_validate_comment := func(value: Str, field: Str, root: Expr,
+    path: Str, mut error: Str) {
+        if error.len().gt(0) { return }
+        if theme_comment_is_single_line(value).not() {
+            error = theme_error_at(path, root, format("theme field '", field, "' must fit on one line"))
+        }
+    }
+
+priv theme_parse := func(root: Expr, program: Expr, path: Str, ctx: Context,
+    mut error: Str) returns ThemeSpec {
+        mut spec := ThemeSpec()
+        if theme_call_is(root, "Theme", ctx).not().or(root.children.len().neq(29)) {
+            error = theme_error_at(path, root, "exported 'theme' must be one static Theme(...) value")
+            return spec
+        }
+
+        spec.name = theme_string_arg(root, 1, "name", program, path, ctx, error)
+        spec.header = theme_string_arg(root, 2, "header", program, path, ctx, error)
+        spec.description = theme_string_arg(root, 3, "description", program, path, ctx, error)
+        spec.source_theme = theme_string_arg(root, 4, "source_theme", program, path, ctx, error)
+        spec.source_package = theme_string_arg(root, 5, "source_package", program, path, ctx, error)
+        spec.source_url = theme_string_arg(root, 6, "source_url", program, path, ctx, error)
+        spec.source_license = theme_string_arg(root, 7, "source_license", program, path, ctx, error)
+        spec.palette_note = theme_string_arg(root, 8, "palette_note", program, path, ctx, error)
+        spec.palette_footer = theme_string_arg(root, 9, "palette_footer", program, path, ctx, error)
+        spec.constant_face_note = theme_string_arg(root, 10, "constant_face_note", program, path, ctx, error)
+        spec.type_face_note = theme_string_arg(root, 11, "type_face_note", program, path, ctx, error)
+        if error.len() > 0 { return spec }
+
+        if theme_symbol_is_valid(spec.name).not() {
+            error = theme_error_at(path, root, format("theme name is not an Elisp symbol: '", spec.name, "'"))
+            return spec
+        }
+        theme_validate_comment(spec.header, "header", root, path, error)
+        theme_validate_comment(spec.source_theme, "source_theme", root, path, error)
+        theme_validate_comment(spec.source_package, "source_package", root, path, error)
+        theme_validate_comment(spec.source_url, "source_url", root, path, error)
+        theme_validate_comment(spec.source_license, "source_license", root, path, error)
+        theme_validate_comment(spec.palette_note, "palette_note", root, path, error)
+        theme_validate_comment(spec.palette_footer, "palette_footer", root, path, error)
+        theme_validate_comment(spec.constant_face_note, "constant_face_note", root, path, error)
+        theme_validate_comment(spec.type_face_note, "type_face_note", root, path, error)
+        if error.len() > 0 { return spec }
+
+        theme_add_color(root, 12, "background", program, path, ctx, spec, error)
+        theme_add_color(root, 13, "foreground", program, path, ctx, spec, error)
+        theme_add_color(root, 14, "cursor", program, path, ctx, spec, error)
+        theme_add_color(root, 15, "highlight", program, path, ctx, spec, error)
+        theme_add_color(root, 16, "hl-line", program, path, ctx, spec, error)
+        theme_add_color(root, 17, "region", program, path, ctx, spec, error)
+        theme_add_color(root, 18, "comment", program, path, ctx, spec, error)
+        theme_add_color(root, 19, "string", program, path, ctx, spec, error)
+        theme_add_color(root, 20, "keyword", program, path, ctx, spec, error)
+        theme_add_color(root, 21, "constant", program, path, ctx, spec, error)
+        theme_add_color(root, 22, "type", program, path, ctx, spec, error)
+        theme_add_color(root, 23, "function", program, path, ctx, spec, error)
+        theme_add_color(root, 24, "variable", program, path, ctx, spec, error)
+        theme_add_color(root, 25, "builtin", program, path, ctx, spec, error)
+        theme_add_color(root, 26, "preprocessor", program, path, ctx, spec, error)
+        theme_add_color(root, 27, "warning", program, path, ctx, spec, error)
+        theme_add_color(root, 28, "error", program, path, ctx, spec, error)
+        return spec
+    }
+
+priv theme_elisp_escape := func(value: Str) returns Str {
+    mut out := value.replace("\\", "\\\\")
+    out = out.replace("\"", "\\\"")
+    out = out.replace("\n", "\\n")
+    out = out.replace("\r", "\\r")
+    out = out.replace("\t", "\\t")
+    return out
+}
+
+priv theme_spaces := func(count: USize) returns Str {
+    mut out := Str.with_capacity(count)
+    for _ in 0..count { out.push_str(" ") }
+    return out
+}
+
+priv theme_palette_line := func(color: ThemeColorSpec) returns Str {
+    base := format("      (", color.name, " \"", color.value, "\")")
+    if color.note.len() == 0 { return format(base, "\n") }
+    mut padding : USize = 1
+    palette_column : USize = 28
+    if base.len() < palette_column { padding = palette_column - base.len() }
+    return format(base, theme_spaces(padding), "; ", color.note, "\n")
+}
+
+priv theme_render_elisp := func(spec: ThemeSpec) returns Str {
+    escaped_description := theme_elisp_escape(spec.description)
+    mut out := format(
+        ";;; ", spec.name, "-theme.el --- ", spec.header, " -*- lexical-binding: t -*-\n\n",
+        ";; The colors are initially taken from ", spec.source_theme, ", from the\n",
+        ";; ", spec.source_package, ", Original source:\n",
+        ";; ", spec.source_url, "\n",
+        ";; ", spec.source_license, "\n\n",
+        "(deftheme ", spec.name, "\n",
+        "  \"", escaped_description, "\")\n\n",
+        "(let ((class '((class color) (min-colors 89)))\n",
+        "      ;; ", spec.palette_note, "\n")
+    for color : ThemeColorSpec in spec.colors {
+        out = format(out, theme_palette_line(color))
+    }
+    palette := out.strip_suffix("\n").clone()
+    out = format(palette, ")\n")
+    out = format(out,
+        "\n  ;; ", spec.palette_footer, "\n\n",
+        "  (custom-theme-set-faces\n",
+        "   '", spec.name, "\n",
+        "   `(default ((,class (:background ,background :foreground ,foreground))))\n",
+        "   `(cursor ((,class (:background ,cursor))))\n",
+        "   `(highlight ((,class (:background ,highlight))))\n",
+        "   `(hl-line ((,class (:background ,hl-line))))\n",
+        "   `(region ((,class (:background ,region))))\n",
+        "   `(font-lock-comment-face ((,class (:foreground ,comment))))\n",
+        "   `(font-lock-comment-delimiter-face ((,class (:foreground ,comment))))\n",
+        "   `(font-lock-string-face ((,class (:foreground ,string))))\n",
+        "   `(font-lock-keyword-face ((,class (:foreground ,keyword))))\n",
+        "   `(font-lock-constant-face ((,class (:foreground ,constant))))  ; ", spec.constant_face_note, "\n",
+        "   `(font-lock-type-face ((,class (:foreground ,type))))         ; ", spec.type_face_note, "\n",
+        "   `(font-lock-function-name-face ((,class (:foreground ,function))))\n",
+        "   `(font-lock-variable-name-face ((,class (:foreground ,variable))))\n",
+        "   `(font-lock-builtin-face ((,class (:foreground ,builtin))))\n",
+        "   `(font-lock-preprocessor-face ((,class (:foreground ,preprocessor))))\n",
+        "   `(font-lock-warning-face ((,class (:foreground ,warning))))\n",
+        "   `(error ((,class (:foreground ,error))))\n",
+        "   `(fringe ((,class (:background ,background :foreground ,foreground))))\n",
+        "   `(vertical-border ((,class (:foreground ,comment))))\n",
+        "   `(minibuffer-prompt ((,class (:foreground ,keyword))))\n",
+        "   `(mode-line ((,class (:background ,highlight :foreground ,foreground))))\n",
+        "   `(mode-line-inactive ((,class (:background ,background :foreground ,comment))))\n",
+        "   `(link ((,class (:foreground ,keyword :underline t))))\n",
+        "   `(link-visited ((,class (:foreground ,function :underline t))))\n",
+        "   `(button ((,class (:foreground ,keyword :underline t))))\n",
+        "   `(header-line ((,class (:background ,highlight :foreground ,foreground))))\n",
+        "   `(show-paren-match ((,class (:background ,highlight :foreground ,keyword))))\n",
+        "   `(show-paren-mismatch ((,class (:background ,error :foreground ,foreground))))\n",
+        "   `(isearch ((,class (:background ,keyword :foreground ,background))))\n",
+        "   `(lazy-highlight ((,class (:background ,function :foreground ,background))))\n",
+        "   `(trailing-whitespace ((,class (:background ,warning))))\n",
+        "   `(escape-glyph ((,class (:foreground ,constant))))\n",
+        "   `(nobreak-space ((,class (:foreground ,constant))))\n",
+        "   `(compilation-error ((,class (:foreground ,error))))\n",
+        "   `(compilation-warning ((,class (:foreground ,warning))))\n",
+        "   `(compilation-info ((,class (:foreground ,type))))\n",
+        "   `(dired-directory ((,class (:foreground ,keyword))))\n",
+        "   `(dired-ignored ((,class (:foreground ,comment))))\n",
+        "   `(dired-mark ((,class (:foreground ,function))))\n",
+        "   `(dired-symlink ((,class (:foreground ,type)))))\n\n",
+        "  (custom-theme-set-variables\n",
+        "   '", spec.name, "\n",
+        "   `(ansi-color-names-vector [,background ,error ,string ,type ,keyword ,variable ,function ,comment])))\n\n",
+        "(when (and (boundp 'custom-theme-load-path) load-file-name)\n",
+        "  (add-to-list 'custom-theme-load-path\n",
+        "               (file-name-as-directory (file-name-directory load-file-name))))\n\n",
+        "(provide-theme '", spec.name, ")\n")
+    return out
+}
+
+theme_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32 {
+    if lp.mode_str != "theme" {
+        println("error: theme codegen requires mode theme")
+        return 1
+    }
+    if lp.units.len().neq(2).or(lp.units[0].path.ends_with("/src/modes/theme.til").not()) {
+        println("error: theme codegen does not support user imports")
+        return 1
+    }
+    if lp.link_c_paths.len().gt(0).or(lp.link_flags.len().gt(0)).or(lp.include_flags.len().gt(0)) {
+        println("error: theme codegen does not support link, link_c, or include directives")
+        return 1
+    }
+
+    ref root_unit : ProgramUnit = lp.units[lp.units.len() - 1]
+    ref program : Expr = lp.ctx.imported[root_unit.path].ast
+    mut root_o := Option(ref Expr).None
+    for stmt : Expr in program.children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if dd.is_priv.not().and(dd.name != "theme") {
+                println("error: ", theme_error_at(root_unit.path, stmt,
+                    format("mode theme permits only one exported declaration, got '", dd.name, "'")))
+                return 1
+            }
+            if dd.name == "theme" {
+                if root_o.is_some() {
+                    println("error: ", theme_error_at(root_unit.path, stmt, "mode theme requires exactly one exported 'theme' declaration"))
+                    return 1
+                }
+                if stmt.children.len() != 1 {
+                    println("error: ", theme_error_at(root_unit.path, stmt, "theme declaration has no value"))
+                    return 1
+                }
+                root_o = Option(ref Expr).Some(stmt.children[0])
+            }
+        case:
+        }
+    }
+    if root_o.is_none() {
+        println("error: ", root_unit.path, ": mode theme requires one exported 'theme : Theme' declaration")
+        return 1
+    }
+
+    mut error := ""
+    root_resolved_o := theme_static_expr(root_o.unwrap(), program, lp.ctx)
+    if root_resolved_o.is_none() {
+        println("error: ", theme_error_at(root_unit.path, root_o.unwrap(), "exported 'theme' is not static"))
+        return 1
+    }
+    spec := theme_parse(root_resolved_o.unwrap(), program, root_unit.path, lp.ctx, error)
+    if error.len() > 0 {
+        println("error: ", error)
+        return 1
+    }
+
+    File.writefile(output_path, theme_render_elisp(spec))
+    return 0
+}

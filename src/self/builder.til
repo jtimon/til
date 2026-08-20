@@ -5,6 +5,7 @@ import("loader")
 import("c_codegen")
 import("holyc_codegen")
 import("jvm_codegen")
+import("theme_codegen")
 import("targets")
 import("../std/sys")
 import("../std/file")
@@ -467,6 +468,7 @@ priv BuildPaths := struct {
     jvm_args_path := ""
     jvm_package := ""
     jvm_entry_class := ""
+    theme_path := ""
     do_lib := false
 }
 
@@ -485,6 +487,13 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     }
     name := basename.substr(0, name_len)
     paths.name = name.clone()
+
+    if lp.mode_str == "theme" {
+        paths.theme_path = format("gen/til/", name, ".el")
+        if custom_bin.len() > 0 { paths.theme_path = custom_bin.clone() }
+        paths.do_lib = true
+        return paths
+    }
 
     if target.is(Target.Jvm) {
         segment := jvm_package_segment(name)
@@ -523,6 +532,13 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
 }
 
 priv make_build_dirs := proc(paths: BuildPaths, target: Target) {
+    if paths.theme_path.len() > 0 {
+        theme_slash := paths.theme_path.rfind("/")
+        mut theme_dir := "gen/til"
+        if theme_slash > 0 { theme_dir = paths.theme_path.substr(0, theme_slash.to_usize()) }
+        if mkdir_p(theme_dir) != 0 { panic("failed to create theme output dir") }
+        return
+    }
     if target.is(Target.Jvm) {
         if mkdir_p(paths.jvm_root) != 0 { panic("failed to create JVM output dir") }
         if mkdir_p(paths.jvm_classes_dir) != 0 { panic("failed to create JVM classes output dir") }
@@ -564,6 +580,9 @@ priv make_build_dirs := proc(paths: BuildPaths, target: Target) {
 }
 
 priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target) returns I32 {
+    if lp.mode_str == "theme" {
+        return theme_codegen_translate(lp, paths.theme_path)
+    }
     lang := target_lang(target)
     if lang.is(Lang.Java) {
         return jvm_codegen_translate(lp, paths.jvm_source_dir,
@@ -578,6 +597,10 @@ priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Tar
 }
 
 priv print_translate_success := proc(paths: BuildPaths, target: Target) {
+    if paths.theme_path.len() > 0 {
+        println(format("Generated: ", paths.theme_path))
+        return
+    }
     if target.is(Target.Jvm) {
         println(format("Generated: ", paths.jvm_source_path))
         println(format("Generated: ", paths.jvm_args_path))
@@ -593,6 +616,10 @@ priv print_translate_success := proc(paths: BuildPaths, target: Target) {
 }
 
 priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+    if lp.mode_str == "theme" {
+        println("error: mode theme supports translation only")
+        return 1
+    }
     lang := target_lang(target)
     if lang.is(Lang.Java) {
         return compile_jvm(paths.jvm_root, paths.jvm_args_path,
@@ -612,8 +639,14 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize64)
 }
 
-cmd_translate := proc(mut lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {
-    paths := derive_build_paths(lp, "", custom_c, target)
+cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target) returns I32 {
+    if lp.mode_str.eq("theme").and(custom_c.len().gt(0)) {
+        println("error: -c is not supported with mode theme; use -o for the Elisp output")
+        return 1
+    }
+    mut theme_output := ""
+    if lp.mode_str == "theme" { theme_output = custom_output.clone() }
+    paths := derive_build_paths(lp, theme_output, custom_c, target)
     make_build_dirs(paths, target)
     result := translate_ast(lp, paths, target)
     if result == 0 { print_translate_success(paths, target) }

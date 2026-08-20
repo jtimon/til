@@ -1,0 +1,37 @@
+mode lib
+
+ThemeColor := struct {
+    value := ""
+    note := ""
+}
+
+Theme := struct {
+    name := ""
+    header := ""
+    description := ""
+    source_theme := ""
+    source_package := ""
+    source_url := ""
+    source_license := ""
+    palette_note := ""
+    palette_footer := ""
+    constant_face_note := ""
+    type_face_note := ""
+    background := ThemeColor()
+    foreground := ThemeColor()
+    cursor := ThemeColor()
+    highlight := ThemeColor()
+    hl_line := ThemeColor()
+    region := ThemeColor()
+    comment := ThemeColor()
+    string := ThemeColor()
+    keyword := ThemeColor()
+    constant := ThemeColor()
+    type := ThemeColor()
+    function := ThemeColor()
+    variable := ThemeColor()
+    builtin := ThemeColor()
+    preprocessor := ThemeColor()
+    warning := ThemeColor()
+    error := ThemeColor()
+}

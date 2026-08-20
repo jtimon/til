@@ -1,0 +1,4 @@
+mode theme
+
+extra := "not part of the theme"
+theme := Theme(name = "invalid-theme")
