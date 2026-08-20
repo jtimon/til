@@ -7591,9 +7591,9 @@ static Str hoisted__Str_scavenge_filter_6 = (Str){.c_str = (void *)"./src/self/s
 static Str hoisted__Str_scavenge_filter_73 = (Str){.c_str = (void *)"./src/self/scavenger.til:649:17", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scavenge_filter_79 = (Str){.c_str = (void *)"./src/self/scavenger.til:656:13", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scavenge_filter_85 = (Str){.c_str = (void *)"./src/self/scavenger.til:648:35", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scavenge_imported_19 = (Str){.c_str = (void *)"./src/self/scavenger.til:1576:40", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scavenge_imported_39 = (Str){.c_str = (void *)"./src/self/scavenger.til:1612:43", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scavenge_imported_6 = (Str){.c_str = (void *)"./src/self/scavenger.til:1572:44", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scavenge_imported_19 = (Str){.c_str = (void *)"./src/self/scavenger.til:1590:40", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scavenge_imported_39 = (Str){.c_str = (void *)"./src/self/scavenger.til:1626:43", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scavenge_imported_6 = (Str){.c_str = (void *)"./src/self/scavenger.til:1586:44", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scope_read_bound_raw_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4416:25", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scope_set_heap_owned_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:4556:89", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scope_set_raw_owned_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:963:29", .count = 33ULL, .cap = TIL_CAP_LIT};
@@ -11603,7 +11603,7 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-6126d2963", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-217ae6171", .count = 15ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -145076,8 +145076,8 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
     Map__Str_priv___src_self_scavenger_til__DeclRef core_top = {0};
     core_top.keys = Vec__Str_clone(&_til_precomputed_sequence_403);
     core_top.values = Vec__priv___src_self_scavenger_til__DeclRef_clone(&_til_precomputed_sequence_404);
-    Bool hoisted__Bool_342 = ((Bool)(!(lp->skip_core)));
-    if (hoisted__Bool_342) {
+    Bool hoisted__Bool_346 = ((Bool)(!(lp->skip_core)));
+    if (hoisted__Bool_346) {
         {
             Vec__ProgramUnit *_fc_Vec__ProgramUnit_2 = lp->core_units;
             USize _fi_USize_2 = 0;
@@ -145220,8 +145220,8 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
     }
     Vec__Str worklist = Vec__Str_clone(&_til_precomputed_sequence_407);
     vec_push_str(&worklist, &_til_str_lits.h00000b88235e);
-    static Str hoisted__Str_self_scavenger_scavenge_visited_imported_344 = (Str){.c_str = (void *)"*.size", .count = 6ULL, .cap = TIL_CAP_LIT};
-    vec_push_str(&worklist, &hoisted__Str_self_scavenger_scavenge_visited_imported_344);
+    static Str hoisted__Str_self_scavenger_scavenge_visited_imported_348 = (Str){.c_str = (void *)"*.size", .count = 6ULL, .cap = TIL_CAP_LIT};
+    vec_push_str(&worklist, &hoisted__Str_self_scavenger_scavenge_visited_imported_348);
     push_qn(&worklist, &_til_str_lits.h00000b88235e, &_til_str_lits.h00310f3b99b6);
     vec_push_str(&worklist, &_til_str_lits.hd0a7c6b9e221);
     vec_push_str(&worklist, &_til_str_lits.he5a09dfba073);
@@ -145258,8 +145258,8 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
             priv___src_self_scavenger_til__scav_collect_hoisted_strs(_bang_ret_0->ast, &hoisted_strs);
         }
     }
-    Bool hoisted__Bool_349 = ((Bool)(!(lp->skip_core)));
-    if (hoisted__Bool_349) {
+    Bool hoisted__Bool_353 = ((Bool)(!(lp->skip_core)));
+    if (hoisted__Bool_353) {
         {
             Vec__ProgramUnit *_fc_Vec__ProgramUnit_58 = lp->core_units;
             USize _fi_USize_58 = 0;
@@ -145321,8 +145321,8 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
             priv___src_self_scavenger_til__scav_seed_reflect_roots(_bang_ret_2->ast, &hoisted_strs, &worklist, &lp->ctx.symbols);
         }
     }
-    Bool hoisted__Bool_350 = ((Bool)(!(lp->skip_core)));
-    if (hoisted__Bool_350) {
+    Bool hoisted__Bool_354 = ((Bool)(!(lp->skip_core)));
+    if (hoisted__Bool_354) {
         {
             Vec__ProgramUnit *_fc_Vec__ProgramUnit_82 = lp->core_units;
             USize _fi_USize_82 = 0;
@@ -145439,8 +145439,8 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
             Str_delete(&alias_target2, (Bool){0});
         }
     }
-    Bool hoisted__Bool_351 = ((Bool)(!(lp->skip_core)));
-    if (hoisted__Bool_351) {
+    Bool hoisted__Bool_355 = ((Bool)(!(lp->skip_core)));
+    if (hoisted__Bool_355) {
         {
             Vec__ProgramUnit *_fc_Vec__ProgramUnit_117 = lp->core_units;
             USize _fi_USize_117 = 0;
@@ -145495,16 +145495,16 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
     Set__Str visited = Set__Str_new();
     USize cursor = 0;
     while (1) {
-        U32 hoisted__U32_326 = (worklist.count);
-        Bool _wcond_Bool_135 = ((Bool)(cursor < hoisted__U32_326));
+        U32 hoisted__U32_330 = (worklist.count);
+        Bool _wcond_Bool_135 = ((Bool)(cursor < hoisted__U32_330));
         if (_wcond_Bool_135) {
         } else {
             break;
         }
         Str *_bang_ret_5 = (((Bool)(cursor < worklist.count)) ? (Str *)((Str *)((void *)((U8 *)(worklist.data) + (((U32)(cursor * 16)))))) : (_err_kind = 1, (Str *)NULL));
-        I64 hoisted__I64_327 = 1;
-        Bool hoisted__Bool_328 = ((Bool)(_err_kind == hoisted__I64_327));
-        if (hoisted__Bool_328) {
+        I64 hoisted__I64_331 = 1;
+        Bool hoisted__Bool_332 = ((Bool)(_err_kind == hoisted__I64_331));
+        if (hoisted__Bool_332) {
             I64 hoisted__I64_136 = 0;
             _err_kind = hoisted__I64_136;
             U32 hoisted__U32_137 = 1;
@@ -145516,15 +145516,15 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
         }
         Str name = Str_clone(_bang_ret_5);
         (++cursor);
-        Bool hoisted__Bool_329 = Set__Str_has(&visited, &name);
-        if (hoisted__Bool_329) {
+        Bool hoisted__Bool_333 = Set__Str_has(&visited, &name);
+        if (hoisted__Bool_333) {
             Str_delete(&name, (Bool){0});
             continue;
         }
-        Str hoisted__Str_self_scavenger_scavenge_visited_imported_330 = Str_clone(&name);
-        Set__Str_add(&visited, &hoisted__Str_self_scavenger_scavenge_visited_imported_330);
-        Bool hoisted__Bool_332 = Str_starts_with(&name, &_til_str_lits.h000000596fdd);
-        if (hoisted__Bool_332) {
+        Str hoisted__Str_self_scavenger_scavenge_visited_imported_334 = Str_clone(&name);
+        Set__Str_add(&visited, &hoisted__Str_self_scavenger_scavenge_visited_imported_334);
+        Bool hoisted__Bool_336 = Str_starts_with(&name, &_til_str_lits.h000000596fdd);
+        if (hoisted__Bool_336) {
             U32 hoisted__U32_151 = (name.count);
             U32 hoisted__U32_152 = 2;
             U32 hoisted__U32_153 = 2;
@@ -145568,13 +145568,13 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
             Str_delete(&name, (Bool){0});
             continue;
         }
-        Bool hoisted__Bool_334 = Str_eq(&name, &_til_str_lits.h00017c9504f0);
-        if (hoisted__Bool_334) {
+        Bool hoisted__Bool_338 = Str_eq(&name, &_til_str_lits.h00017c9504f0);
+        if (hoisted__Bool_338) {
             Str_delete(&name, (Bool){0});
             continue;
         }
-        Bool hoisted__Bool_335 = Map__Str_priv___src_self_scavenger_til__DeclRef_has(&top, &name);
-        if (hoisted__Bool_335) {
+        Bool hoisted__Bool_339 = Map__Str_priv___src_self_scavenger_til__DeclRef_has(&top, &name);
+        if (hoisted__Bool_339) {
             priv___src_self_scavenger_til__DeclRef *dr = Map__Str_priv___src_self_scavenger_til__DeclRef_get(&top, &name, &_err_kind);
             I64 hoisted__I64_226 = 4;
             Bool hoisted__Bool_227 = ((Bool)(_err_kind == hoisted__I64_226));
@@ -145752,8 +145752,8 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
                 }
             }
         }
-        Bool hoisted__Bool_336 = Map__Str_priv___src_self_scavenger_til__DeclRef_has(&core_top, &name);
-        if (hoisted__Bool_336) {
+        Bool hoisted__Bool_340 = Map__Str_priv___src_self_scavenger_til__DeclRef_has(&core_top, &name);
+        if (hoisted__Bool_340) {
             priv___src_self_scavenger_til__DeclRef *dr = Map__Str_priv___src_self_scavenger_til__DeclRef_get(&core_top, &name, &_err_kind);
             I64 hoisted__I64_304 = 4;
             Bool hoisted__Bool_305 = ((Bool)(_err_kind == hoisted__I64_304));
@@ -145932,9 +145932,9 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
             }
         }
         I64 alias_dot = Str_find(&name, &_til_str_lits.h00000002b5d3);
-        I64 hoisted__I64_338 = 0;
-        Bool hoisted__Bool_339 = ((Bool)(alias_dot >= hoisted__I64_338));
-        if (hoisted__Bool_339) {
+        I64 hoisted__I64_342 = 0;
+        Bool hoisted__Bool_343 = ((Bool)(alias_dot >= hoisted__I64_342));
+        if (hoisted__Bool_343) {
             U32 alias_dot_u = I64_to_usize(alias_dot);
             U32 hoisted__U32_311 = 0;
             Str alias_base = Str_substr(&name, hoisted__U32_311, alias_dot_u);
@@ -145959,22 +145959,30 @@ static Set__Str priv___src_self_scavenger_til__scavenge_visited_imported(LoadedP
             if (hoisted__Bool_323) {
                 push_qn(&worklist, &core_alias_to, &alias_member);
             }
+            Bool hoisted__Bool_325 = Str_eq(&alias_base, &_til_str_lits.h00310e307535);
+            if (hoisted__Bool_325) {
+                push_qn(&worklist, &lp->ctx.target_usize_pname, &alias_member);
+            }
+            Bool hoisted__Bool_327 = Str_eq(&alias_base, &_til_str_lits.h00017c8d0f70);
+            if (hoisted__Bool_327) {
+                push_qn(&worklist, &lp->ctx.target_uptr_pname, &alias_member);
+            }
             Str_delete(&alias_base, (Bool){0});
             Str_delete(&alias_member, (Bool){0});
             Str_delete(&core_alias_to, (Bool){0});
             Str_delete(&user_alias_to, (Bool){0});
         }
         Option__ref_Expr ns_fdef_o = priv___src_self_scavenger_til__find_ns_decl_fdef_imported(&lp->ctx, &top, &name);
-        Bool hoisted__Bool_340 = Option__ref_Expr_is_some(ns_fdef_o);
-        if (hoisted__Bool_340) {
-            Expr *hoisted__Expr_324 = Option__ref_Expr_unwrap(&ns_fdef_o);
-            collect_refs(hoisted__Expr_324, &worklist, &lp->ctx.symbols);
+        Bool hoisted__Bool_344 = Option__ref_Expr_is_some(ns_fdef_o);
+        if (hoisted__Bool_344) {
+            Expr *hoisted__Expr_328 = Option__ref_Expr_unwrap(&ns_fdef_o);
+            collect_refs(hoisted__Expr_328, &worklist, &lp->ctx.symbols);
         }
         Option__ref_Expr core_ns_fdef_o = priv___src_self_scavenger_til__find_ns_decl_fdef_imported(&lp->ctx, &core_top, &name);
-        Bool hoisted__Bool_341 = Option__ref_Expr_is_some(core_ns_fdef_o);
-        if (hoisted__Bool_341) {
-            Expr *hoisted__Expr_325 = Option__ref_Expr_unwrap(&core_ns_fdef_o);
-            collect_refs(hoisted__Expr_325, &worklist, &lp->ctx.symbols);
+        Bool hoisted__Bool_345 = Option__ref_Expr_is_some(core_ns_fdef_o);
+        if (hoisted__Bool_345) {
+            Expr *hoisted__Expr_329 = Option__ref_Expr_unwrap(&core_ns_fdef_o);
+            collect_refs(hoisted__Expr_329, &worklist, &lp->ctx.symbols);
         }
         Str_delete(&name, (Bool){0});
     }

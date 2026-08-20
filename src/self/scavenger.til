@@ -1549,6 +1549,20 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
             if user_alias_to.len() > 0 { push_qn(worklist, user_alias_to, alias_member) }
             core_alias_to := alias_target_imported(lp.ctx, core_top, alias_base)
             if core_alias_to.len() > 0 { push_qn(worklist, core_alias_to, alias_member) }
+            // #309: both readers above take the target from the alias
+            // DECLARATION, and `--usize=64` never rewrites that -- core's
+            // source still says `USize := U32` while retarget_alias_binding
+            // has pointed the binding at U64. The emitter resolves through
+            // the binding, so `USize.cmp` rooted U32.cmp while the C called
+            // U64_cmp: the method the program actually calls was swept, and
+            // the unresolved call fell back to the legacy boxed ABI --
+            // pointers handed to a value-taking prototype, which gcc
+            // rejects (-Werror=int-conversion) on the --usize=64
+            // self-build. The resolved width is what the emitter uses, so
+            // root that too, on the same "one extra method beats a link
+            // error" reasoning as the pair above.
+            if alias_base == "USize" { push_qn(worklist, lp.ctx.target_usize_pname, alias_member) }
+            if alias_base == "UPtr" { push_qn(worklist, lp.ctx.target_uptr_pname, alias_member) }
         }
 
         ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)
