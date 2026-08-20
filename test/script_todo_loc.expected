@@ -1,0 +1,2 @@
+before
+test/script_todo_loc.til:10:1: panic: TODO

@@ -6,6 +6,12 @@ import("std/file")
 NL := "\n"
 TIL := "bin/til"
 RUNNER := "bin/test_runner"
+// `bin/tests --regen` (issue #172) rewrites every expected-output golden
+// from what the tests actually print, instead of comparing against it. Set
+// once in main and spliced by add_single into the runner invocations that
+// have a golden; a global because the ~100 add_single call sites would
+// otherwise all have to carry a flag none of them decides.
+mut REGEN := ""
 PLOT := "bin/plot"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
@@ -470,7 +476,7 @@ add_single := func(mut tests: Vec(Test), label: Str, category: Str,
     expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
         mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
         if expected_out.len() > 0 {
-            runner_cmd = format(runner_cmd, " ", expected_out)
+            runner_cmd = format(runner_cmd, " ", expected_out, REGEN)
         }
         runner_cmd = format(runner_cmd, " -- ", cmd_suffix)
         tests.push(own Test(
@@ -675,6 +681,7 @@ main := proc(args: ..Str) {
             til_bin = val.clone()
         }
         if arg == "--asan" { asan = 1 }
+        if arg == "--regen" { REGEN = " --regen" }
         i++
     }
 
@@ -688,7 +695,7 @@ main := proc(args: ..Str) {
     mut fail := 0
 
     // Create output directories
-    run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected tmp")
+    run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single tmp")
     check_handwritten_doc_links()
 
     mut tests := Vec(Test).new()
@@ -1762,14 +1769,12 @@ main := proc(args: ..Str) {
     }
 
     // === 2 FFI tests ===
-    ffi_exp := "gen/out/expected/ffi.out"
-    File.writefile(ffi_exp, format("hello world", NL, "hello universe", NL))
+    ffi_exp := "test/ffi.expected"
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
         format(til_bin, " interpret examples/ffi/ext_module.til"))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
         format(til_bin, " run", asan_flag, " examples/ffi/ext_module.til"))
-    ffi_scavenge_exp := "gen/out/expected/ffi_scavenge.out"
-    File.writefile(ffi_scavenge_exp, "ok")
+    ffi_scavenge_exp := "test/ffi_scavenge.expected"
     // The compiler under test is passed IN: the program spawns a translate,
     // and it used to spawn the hardcoded bin/til even when the suite was
     // running bin/til_asan -- see the file's own comment.
@@ -2213,82 +2218,58 @@ main := proc(args: ..Str) {
         format(til_bin, " build", asan_flag, " test/empty_funcsig_body_error.til"))
 
     // === CLI tests ===
-    exp := "gen/out/expected/"
+    // Expected outputs are reviewed goldens under test/*.expected, the same
+    // artifacts the HolyC and JVM checks already use. They used to be
+    // hardcoded strings this file wrote into gen/out/expected/ on every run
+    // (issue #171), which put the expectation and the reimplementation of it
+    // -- fizzbuzz's 100 lines were GENERATED here by a second fizzbuzz -- in
+    // the test harness rather than under review. `bin/tests --regen` rewrites
+    // them; the diff is the record of what a change did.
+    exp := "test/"
 
-    File.writefile(format(exp, "cli_args_hello.out"), format("hello", NL, "world", NL))
     add_cli_pair(tests, "cli_args_hello", "examples/cli_args.til",
-        "hello world", 0, format(exp, "cli_args_hello.out"), til_bin, asan_flag)
-    add_single(tests, "cli_args_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
+        "hello world", 0, format(exp, "cli_args_hello.expected"), til_bin, asan_flag)
+    add_single(tests, "cli_args_default_args", "cli", 0, format(exp, "cli_args_hello.expected"),
         format(til_bin, " examples/cli_args.til hello world"))
-    add_single(tests, "cli_args_dd_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
+    add_single(tests, "cli_args_dd_default_args", "cli", 0, format(exp, "cli_args_hello.expected"),
         format(til_bin, " -- examples/cli_args.til hello world"))
 
-    File.writefile(format(exp, "cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
-        "", 0, format(exp, "cli_args_empty.out"), til_bin, asan_flag)
+        "", 0, format(exp, "cli_args_empty.expected"), til_bin, asan_flag)
 
-    mut fb_out := ""
-    mut fbi := 1
-    while fbi <= 100 {
-        mut fb_line := ""
-        if fbi % 15 == 0 {
-            fb_line = "FizzBuzz"
-        } else {
-            if fbi % 3 == 0 {
-                fb_line = "Fizz"
-            } else {
-                if fbi % 5 == 0 {
-                    fb_line = "Buzz"
-                } else {
-                    fb_line = fbi.to_str()
-                }
-            }
-        }
-        fb_out = format(fb_out, fb_line, NL)
-        fbi++
-    }
-    File.writefile(format(exp, "fizzbuzz.out"), fb_out)
     add_cli_pair(tests, "fizzbuzz", "examples/fizzbuzz.til",
-        "", 0, format(exp, "fizzbuzz.out"), til_bin, asan_flag)
+        "", 0, format(exp, "fizzbuzz.expected"), til_bin, asan_flag)
 
     // Issue #220: script-mode map/set literals must compile under -Werror.
-    File.writefile(format(exp, "script_map_lit.out"),
-        format("1", NL, "true", NL, "a", NL, "b", NL, "c", NL, "true", NL,
-            "1", NL, "len=3 set=3", NL, "1", NL, "1", NL, "3", NL, "1", NL))
     add_cli_pair(tests, "script_map_lit", "test/script_map_lit.til",
-        "", 0, format(exp, "script_map_lit.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_map_lit.expected"), til_bin, asan_flag)
 
     // A program-scope raw-allocator decl must give the global POINTER
     // storage like the function-local form; as a value global the
     // memset/ptr_add writes ran past a one-byte object (ASAN:
     // global-buffer-overflow).
-    File.writefile(format(exp, "script_raw_alloc.out"), format("65", NL, "66", NL))
     add_cli_pair(tests, "script_raw_alloc", "test/script_raw_alloc.til",
-        "", 0, format(exp, "script_raw_alloc.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_raw_alloc.expected"), til_bin, asan_flag)
 
     // An owned Dynamic declared from an erased-dynamic source (a deref()
     // result bound by ref) must copy the pointer word; the interpreter's
     // clone path deref'd the raw allocation itself and later freed a
     // garbage word (interpreter-only segfault; compiled mode was correct).
-    File.writefile(format(exp, "script_dynamic_free.out"), format("ok", NL, "ok2", NL))
     add_cli_pair(tests, "script_dynamic_free", "test/script_dynamic_free.til",
-        "", 0, format(exp, "script_dynamic_free.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_dynamic_free.expected"), til_bin, asan_flag)
 
     // Shared Str semantics used by the HolyC backend: literals, owned clones,
     // views, mutation, integer conversion, counted output, and explicit delete.
-    File.writefile(format(exp, "script_str_runtime.out"),
-        format("ab1234", NL, "1234", NL, "6", NL))
     add_cli_pair(tests, "script_str_runtime", "test/script_str_runtime.til",
-        "", 0, format(exp, "script_str_runtime.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_str_runtime.expected"), til_bin, asan_flag)
 
     // #357 family at script scope: a Dynamic GLOBAL taking a pointer keeps
     // the address. The declaration used to gain a second star (`void **x`)
     // and, once that was fixed, the init declared a shadowing local instead
     // of assigning the global. Compiled-only; the interpreter always read it
     // right, so both backends must agree here.
-    File.writefile(format(exp, "script_dynamic_global_ptr.out"), format("66", NL, "65", NL, "68", NL))
     add_cli_pair(tests, "script_dynamic_global_ptr", "test/script_dynamic_global_ptr.til",
-        "", 0, format(exp, "script_dynamic_global_ptr.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_dynamic_global_ptr.expected"), til_bin, asan_flag)
 
     // #275: a script-scope binding the program deletes is not dropped a
     // second time by session teardown. Interpreter-only: the AST's
@@ -2300,20 +2281,15 @@ main := proc(args: ..Str) {
     // case is the one a moved-out mark alone cannot express -- contents
     // released, box still ours -- so it is what separates the
     // payload_released fix from a transfer-marking one.
-    File.writefile(format(exp, "script_own_delete_global.out"),
-        format("2", NL, "1", NL, "1", NL, "3", NL, "1", NL, "ok", NL))
     add_cli_pair(tests, "script_own_delete_global", "test/script_own_delete_global.til",
-        "", 0, format(exp, "script_own_delete_global.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_own_delete_global.expected"), til_bin, asan_flag)
 
     // The bang's synthesized panic prints the source location ONCE (via
     // panic's `loc` param) and a readable message; it used to pass the
     // location as a message part too, printing it twice and jamming it
     // against the type name. Exit code 1: panic exits non-zero.
-    File.writefile(format(exp, "script_bang_panic_msg.out"),
-        format("7", NL,
-            "test/script_bang_panic_msg.til:14:10: panic: uncaught throw 'OutOfBounds'", NL))
     add_cli_pair(tests, "script_bang_panic_msg", "test/script_bang_panic_msg.til",
-        "", 1, format(exp, "script_bang_panic_msg.out"), til_bin, asan_flag)
+        "", 1, format(exp, "script_bang_panic_msg.expected"), til_bin, asan_flag)
 
     // Same panic, reached through a STORE (`r = v[9]`). The check used to
     // be emitted after the assignment, so the store dereferenced the
@@ -2330,90 +2306,68 @@ main := proc(args: ..Str) {
     // With no message parts it prints plain "TODO" -- formatting an empty
     // parts list used to leave a dangling "TODO: ". This is the only place we
     // call TODO with no message; real markers should say what is missing.
-    File.writefile(format(exp, "script_todo_loc.out"),
-        format("before", NL,
-            "test/script_todo_loc.til:10:1: panic: TODO", NL))
     add_cli_pair(tests, "script_todo_loc", "test/script_todo_loc.til",
-        "", 1, format(exp, "script_todo_loc.out"), til_bin, asan_flag)
+        "", 1, format(exp, "script_todo_loc.expected"), til_bin, asan_flag)
 
     // Top-level statements get the same throw/catch/bang lowering as a
     // function body: a subscript (`v[0]` -> `get(...)!`), an explicit bang
     // and a `?`/catch all work at the root of a `mode script` unit.
-    File.writefile(format(exp, "script_toplevel_throws.out"),
-        format("7", NL, "8", NL, "caught", NL, "42", NL, "8", NL))
     add_cli_pair(tests, "script_toplevel_throws", "test/script_toplevel_throws.til",
-        "", 0, format(exp, "script_toplevel_throws.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_toplevel_throws.expected"), til_bin, asan_flag)
 
     // Issue #312: a top-level numeric for-in loop in a `mode script` unit must
     // type-check (both interpreted and compiled) instead of panicking
     // OutOfBounds in infer_body_unit.
-    File.writefile(format(exp, "bug312.out"),
-        format("0", NL, "1", NL, "2", NL, "after", NL, "3", NL, "2", NL, "1", NL))
     add_cli_pair(tests, "bug312", "test/bug312.til",
-        "", 0, format(exp, "bug312.out"), til_bin, asan_flag)
+        "", 0, format(exp, "bug312.expected"), til_bin, asan_flag)
 
-    File.writefile(format(exp, "cli_typed_alice42.out"), format("alice 42", NL))
     add_cli_pair(tests, "cli_typed_alice42", "examples/cli_typed.til",
-        "alice 42", 0, format(exp, "cli_typed_alice42.out"), til_bin, asan_flag)
+        "alice 42", 0, format(exp, "cli_typed_alice42.expected"), til_bin, asan_flag)
 
-    File.writefile(format(exp, "hello_cli.out"), format("Hello World!", NL))
     add_cli_pair(tests, "hello_cli", "examples/hello_cli.til",
-        "", 0, format(exp, "hello_cli.out"), til_bin, asan_flag)
-    add_single(tests, "hello_cli_dd_default", "cli", 0, format(exp, "hello_cli.out"),
+        "", 0, format(exp, "hello_cli.expected"), til_bin, asan_flag)
+    add_single(tests, "hello_cli_dd_default", "cli", 0, format(exp, "hello_cli.expected"),
         format(til_bin, " -- examples/hello_cli.til"))
-    add_single(tests, "hello_cli_dd_i", "cli", 0, format(exp, "hello_cli.out"),
+    add_single(tests, "hello_cli_dd_i", "cli", 0, format(exp, "hello_cli.expected"),
         format(til_bin, " interpret -- examples/hello_cli.til"))
-    add_single(tests, "hello_cli_dd_r", "cli", 0, format(exp, "hello_cli.out"),
+    add_single(tests, "hello_cli_dd_r", "cli", 0, format(exp, "hello_cli.expected"),
         format(til_bin, " run", asan_flag, " -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"))
 
-    File.writefile(format(exp, "variadic_add.out"), format("60", NL))
     add_cli_pair(tests, "variadic_add", "examples/cli_variadic_i64.til",
-        "add 10 20 30", 0, format(exp, "variadic_add.out"), til_bin, asan_flag)
+        "add 10 20 30", 0, format(exp, "variadic_add.expected"), til_bin, asan_flag)
 
-    File.writefile(format(exp, "variadic_mul.out"), format("24", NL))
     add_cli_pair(tests, "variadic_mul", "examples/cli_variadic_i64.til",
-        "mul 2 3 4", 0, format(exp, "variadic_mul.out"), til_bin, asan_flag)
+        "mul 2 3 4", 0, format(exp, "variadic_mul.expected"), til_bin, asan_flag)
 
-    File.writefile(format(exp, "variadic_add0.out"), format("0", NL))
     add_cli_pair(tests, "variadic_add0", "examples/cli_variadic_i64.til",
-        "add", 0, format(exp, "variadic_add0.out"), til_bin, asan_flag)
+        "add", 0, format(exp, "variadic_add0.expected"), til_bin, asan_flag)
 
-    File.writefile(format(exp, "variadic_bool_f.out"), format("false", NL))
     add_cli_pair(tests, "variadic_bool_f", "examples/cli_variadic_bool.til",
-        "true true false", 0, format(exp, "variadic_bool_f.out"), til_bin, asan_flag)
+        "true true false", 0, format(exp, "variadic_bool_f.expected"), til_bin, asan_flag)
 
-    File.writefile(format(exp, "variadic_bool_t.out"), format("true", NL))
     add_cli_pair(tests, "variadic_bool_t", "examples/cli_variadic_bool.til",
-        "true true", 0, format(exp, "variadic_bool_t.out"), til_bin, asan_flag)
+        "true true", 0, format(exp, "variadic_bool_t.expected"), til_bin, asan_flag)
 
     // Every scalar CLI arg type (I8/U8/I16/U16/I32/U32/U64/USize/UPtr/F32),
     // both backends. Locks in the builder's cli_box_expr and the interpreter's
     // parse_cli_arg staying in lockstep.
-    File.writefile(format(exp, "cli_scalars.out"),
-        format("-8 200 -300 600 -70000 90000 12345678901 42 99 3.5 1e+150", NL))
     add_cli_pair(tests, "cli_scalars", "examples/cli_scalars.til",
         "-8 200 -300 600 -70000 90000 12345678901 42 99 3.5 1e150", 0,
-        format(exp, "cli_scalars.out"), til_bin, asan_flag)
+        format(exp, "cli_scalars.expected"), til_bin, asan_flag)
     // #333: the F64 primitive (64-bit float), full surface. Literals (1e100
     // proves real double width -- an F32 path prints inf), the numbers.til
     // method set (operators, cmp, clone via param-return, conversions,
     // 17-digit repr round-trip), Str.to_f64, an F64 CLI main arg, identical
     // in both backends.
-    File.writefile(format(exp, "f64.out"),
-        format("1.5", NL, "1e+100", NL, "0.125", NL, "2.75", NL, "3.25", NL,
-               "6.5", NL, "true", NL, "1", NL, "2.5", NL, "1.5", NL, "1", NL,
-               "7", NL, "true", NL))
     add_cli_pair(tests, "f64", "test/f64.til",
         "0.125 2.75", 0,
-        format(exp, "f64.out"), til_bin, asan_flag)
+        format(exp, "f64.expected"), til_bin, asan_flag)
     // ..F64 variadic main args: elem_size_for_type under interpret panicked
     // on F64 (hand-listed switch missed the new primitive; the loud panic
     // caught it) while compiled worked -- lock both backends.
-    File.writefile(format(exp, "f64_variadic.out"),
-        format("1.5", NL, "2.5e+10", NL))
     add_cli_pair(tests, "f64_variadic", "test/f64_variadic.til",
         "1.5 2.5e10", 0,
-        format(exp, "f64_variadic.out"), til_bin, asan_flag)
+        format(exp, "f64_variadic.expected"), til_bin, asan_flag)
 
     // Error cases (exit=1, no output check)
     add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin, asan_flag)
@@ -2421,6 +2375,34 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli_err", "examples/hello_cli.til", "extra", 1, "", til_bin, asan_flag)
     // Bad Bool value: both backends print the diagnostic and exit(1).
     add_cli_pair(tests, "cli_bool_err", "examples/cli_variadic_bool.til", "true maybe", 1, "", til_bin, asan_flag)
+
+    // === Golden-file harness (#171, #172) ===
+    // The goldens above are only worth their weight if the harness cannot
+    // drift them silently, so the three behaviours that guarantee that are
+    // themselves tested. Run test_runner directly: what is under test is
+    // the runner's own reporting, not the program it runs.
+    //
+    // A MISSING golden is a failure, never an expectation written from
+    // whatever the program happened to print. This is the whole difference
+    // between a reviewed artifact and a cache, and it is one deleted
+    // `if File.exists` away from silently coming back.
+    add_count(tests, "golden_missing_fails", "test",
+        "missing expected output file", 1,
+        format(RUNNER, " single golden_absent_probe 0 tmp/golden_absent_probe.expected -- ",
+            til_bin, " interpret examples/hello_cli.til"))
+    // A mismatch reports which lines moved, not two blobs to eyeball.
+    // hello_cli against the variadic_add golden: "Hello World!" vs "60".
+    add_counts(tests, "golden_mismatch_diffs", "test",
+        format(RUNNER, " single golden_wrong_probe 0 test/variadic_add.expected -- ",
+            til_bin, " interpret examples/hello_cli.til"),
+        CountCheck(needle = "output mismatch", expected_count = 1),
+        CountCheck(needle = "end diff -u expected actual", expected_count = 1))
+    // --regen writes the golden instead of comparing. The suite never
+    // passes it; only `make test_regen` does.
+    add_count(tests, "golden_regen_writes", "test",
+        "REGEN: golden_regen_probe", 1,
+        format(RUNNER, " single golden_regen_probe 0 tmp/golden_regen_probe.expected --regen -- ",
+            til_bin, " interpret examples/hello_cli.til"))
 
     // === Run all tests in parallel ===
     mut suite_end_ms := 0

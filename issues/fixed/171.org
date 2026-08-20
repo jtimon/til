@@ -1,0 +1,71 @@
+# priority: high
+# category: cleanups
+** FIXED #171 Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
+
+Post-mortem:
+
+   Root cause: the expected output of a test was a STRING LITERAL in the
+   harness, so the harness both stated the expectation and re-derived it.
+   ~fizzbuzz~ is the sharp end of that: ~src/tests.til~ carried a second
+   fizzbuzz implementation whose 100 lines were written to
+   ~gen/out/expected/fizzbuzz.out~ on every run and then compared against
+   ~examples/fizzbuzz.til~ -- two implementations agreeing proves less
+   than one implementation matching a reviewed file, and a bug shared by
+   both would have passed. The rest were shorter but had the same shape:
+   the expectation lived in a generated file under ~gen/~, which nothing
+   reviews and ~make clean~ deletes, instead of under git.
+
+   What changed:
+
+   - The 25 hardcoded fixtures became committed goldens under
+     ~test/*.expected~ -- the same reviewed-artifact convention the
+     HolyC, JVM and ~gc_audit~ checks already used (20 files), and the
+     same idea as ~test/constfold.c~, which ~make.til~ refreshes from
+     the constfolder's own emitted C. ~src/tests.til~ names them and
+     writes nothing; the ~gen/out/expected/~ directory is gone.
+   - ~test_runner single~ prints ~diff -u expected actual~ on a
+     mismatch instead of dumping the whole capture. Both sides are real
+     files, so the printed command is one a reader can rerun by hand.
+     ~print_captured_err~ became a thin wrapper over a general
+     ~echo_file(what, path)~ so the diff block gets its own header.
+   - A MISSING golden is now a test failure naming ~make test_regen~,
+     not a silently-written one.
+
+   The open question -- disposable cache under ~gen/out/~, or reviewed
+   artifact -- is answered "reviewed artifact". Cache semantics mean a
+   brand-new output-checked test passes on its first run no matter what
+   it printed, which is the classic golden-file footgun and exactly the
+   "silent fallback" this repo rejects. Reviewed goldens make a change
+   in behaviour show up where changes are supposed to show up: in the
+   diff.
+
+   Regression test: the 25 ~test/*.expected~ files themselves, driven by
+   the existing ~cli~/~ffi~ entries in ~src/tests.til~ (~fizzbuzz~,
+   ~cli_scalars~, ~f64~, ~script_*~, ~ffi_interp~/~ffi_run~, ...). The
+   suite comparing 429/430 against them unchanged is the proof the
+   conversion was byte-for-byte.
+
+Symptom:
+
+   ~src/tests.til~ writes a few expected output files by hardcoding
+   strings into ~gen/out/expected/*.out~ on every run (e.g. "hello world",
+   CLI example outputs). This is ad-hoc and makes it harder to scale
+   output-checked tests.
+
+   Additionally, ~bin/test_runner~ reports "output mismatch" without a
+   unified diff, which makes failures slower to debug.
+
+   Target behavior:
+
+   - Expected outputs live as deterministic files (goldens or cached
+     fixtures).
+   - On mismatch, the harness writes an "actual" output file and prints
+     a unified diff (~diff -u expected actual~).
+   - Remove the hardcoded ~File.writefile(...)~ fixture generation from
+     ~src/tests.til~.
+
+   Open question:
+
+   - Should expected output files be treated as disposable cache under
+     ~gen/out/~ (auto-generate when missing), or as reviewed artifacts
+     (missing expected is a failure unless ~regen~ is invoked)?

@@ -1,0 +1,74 @@
+# priority: high
+# category: cleanups
+** FIXED #172 Add test_runner regen mode for expected outputs
+
+Post-mortem:
+
+   Root cause: nothing could refresh an expected output, because the
+   expectations were string literals in ~src/tests.til~ (#171) --
+   "regen" meant editing til source and rebuilding the harness. That
+   cost is why output-checked tests stayed rare: adding one meant
+   transcribing a program's output into a format() call by hand.
+
+   What changed:
+
+   - ~test_runner single ... --regen -- <cmd>~ writes the command's own
+     output to the golden instead of comparing against it. The flag is
+     parsed from the window between ~<expected_exit>~ and ~--~, where
+     the first non-flag word is still the golden path, so the existing
+     positional form is untouched.
+   - ~bin/tests --regen~ sets the ~REGEN~ global that ~add_single~
+     splices into every runner invocation that has a golden. A global
+     rather than a parameter because the ~100 ~add_single~ call sites
+     do not decide it -- threading it would have been ~100 lines of
+     noise carrying one bit.
+   - ~make test_regen~ runs the whole suite that way. Deliberately NOT
+     under ASAN: a leak report appended to a program's output would be
+     frozen into the expectation.
+
+   Two guards keep regen from laundering a bug into an expectation.
+   It runs only after the exit code matched -- a command that died the
+   wrong way printed a failure message, and freezing THAT would make
+   the test pass forever on the broken behaviour. And it is never
+   reached by a normal suite run, so an expectation cannot drift
+   without someone typing the command and reading the git diff.
+
+   The open question -- auto-generate a missing golden (cache), or fail
+   until ~regen~ is invoked (reviewed golden) -- is answered in #171:
+   reviewed golden. A missing golden fails and names ~make test_regen~.
+
+   Regression test: verified directly against ~examples/hello_cli.til~
+   -- ~--regen~ wrote the golden, the same command without it passed,
+   a corrupted golden produced the ~diff -u~ block, and a deleted one
+   produced ~missing expected output file~ with exit 1. The 25 goldens
+   #171 converted were written by hand from the old literals first, so
+   the suite passing unchanged (429/430) proves regen and the literals
+   it replaced agree.
+
+Symptom:
+
+   There is no dedicated workflow to refresh expected output fixtures
+   when behavior changes intentionally. Today, some expected outputs are
+   hardcoded and written by ~src/tests.til~ every run, and the rest of
+   the test suite relies on other invariants (e.g. interp vs run output
+   match).
+
+   Target behavior:
+
+   - Add a ~regen~ mode for the test harness that overwrites expected
+     output fixtures for selected tests (or for all tests).
+   - Make the update explicit ("regen" is opt-in), so expected outputs
+     don't silently drift during normal test runs.
+
+   Open question:
+
+   - Should missing expected output files auto-generate during normal
+     test runs (cache semantics), or should they fail unless ~regen~ is
+     used (reviewed-golden semantics)?
+
+   Sketch:
+
+   Mirror the approach in ~../rstil/src/test_runner.til~:
+
+   - ~test_runner test ...~: compare against expected output
+   - ~test_runner regen ...~: write expected output

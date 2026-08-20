@@ -7,8 +7,13 @@ import("std/file")
 //
 // Usage:
 //   test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>]
-//   test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>
+//   test_runner single <label> <expected_exit> [<expected_out_file>] [--regen] -- <cmd...>
 //   test_runner count <label> <needle> <expected_count> [<needle> <expected_count> ...] -- <cmd...>
+//
+// Expected-output files are reviewed goldens committed under test/, not a
+// cache: `single` fails when one is missing instead of writing it. --regen
+// (issue #172) overwrites the golden from the command's own output, so an
+// intentional behaviour change is one explicit run plus a reviewed diff.
 
 TIL := "bin/til"
 
@@ -46,11 +51,10 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     return count
 }
 
-// Echo a failing phase's captured output so the reason for the failure
-// (til panic, ASAN report, cc error, ...) lands in the suite log instead
-// of dying with the redirect. Tail-truncated so one pathological test
-// cannot bury the rest of the log.
-print_captured_err := proc(path: Str) {
+// Echo a file into the suite log, tail-truncated so one pathological test
+// cannot bury the rest of it. `what` names the kind of content so a reader
+// scanning the log knows whether the block is a raw capture or a diff.
+echo_file := proc(what: Str, path: Str) {
     content := File.readfile(path)
     // An EMPTY capture is a finding, not a reason to stay quiet: a failing
     // command that wrote nothing at all did not get far enough to report
@@ -59,18 +63,34 @@ print_captured_err := proc(path: Str) {
     // never took. Staying silent here left a CI-only `FAIL: <label>
     // exit=1 expected=124` with no second line to reason from.
     if content.len() == 0 {
-        println("--- captured output (", path, "): EMPTY (the command produced no stdout/stderr)")
+        println("--- ", what, " (", path, "): EMPTY (nothing was written)")
         return
     }
     max_len : USize = 8192
     if content.len() > max_len {
-        println("--- captured output (last ", max_len.to_str(), " bytes of ", path, "):")
+        println("--- ", what, " (last ", max_len.to_str(), " bytes of ", path, "):")
         println(content.substr(content.len() - max_len, max_len))
     } else {
-        println("--- captured output (", path, "):")
+        println("--- ", what, " (", path, "):")
         println(content)
     }
-    println("--- end captured output")
+    println("--- end ", what)
+}
+
+// Echo a failing phase's captured output so the reason for the failure
+// (til panic, ASAN report, cc error, ...) lands in the suite log instead
+// of dying with the redirect.
+print_captured_err := proc(path: Str) {
+    echo_file("captured output", path)
+}
+
+// An output mismatch reported as two blobs makes the reader eyeball them;
+// `diff -u` says which lines moved. Both sides are real files on disk, so
+// the reader can rerun the same diff by hand from the printed command.
+print_output_diff := proc(label: Str, expected_path: Str, actual_path: Str) {
+    diff_path := format("gen/out/single/", label, ".diff")
+    system_cmd(format("diff -u '", expected_path, "' '", actual_path, "' > ", diff_path, " 2>&1"))
+    echo_file("diff -u expected actual", diff_path)
 }
 
 PhaseResult := struct {
@@ -232,7 +252,7 @@ main := proc(args: ..Str) {
     // single subcommand
     if subcmd == "single" {
         if args.len() < 4 {
-            println("Usage: test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>")
+            println("Usage: test_runner single <label> <expected_exit> [<expected_out_file>] [--regen] -- <cmd...>")
             exit(1)
         }
 
@@ -248,13 +268,22 @@ main := proc(args: ..Str) {
             dd++
         }
 
-        // If there's an arg between expected_exit and "--", it's the expected output file
+        // Between expected_exit and "--" live the optional expected-output
+        // file and the optional flags; the first word that is not a flag is
+        // the expected file.
         mut expected_out_file := ""
         mut has_expected := 0
-        if dd > 3 {
-            ref eof : Str = args[3]
-            expected_out_file = eof.clone()
-            has_expected = 1
+        mut regen := 0
+        for oi in 3..dd {
+            ref oa : Str = args[oi]
+            if oa == "--regen" {
+                regen = 1
+            } else {
+                if has_expected == 0 {
+                    expected_out_file = oa.clone()
+                    has_expected = 1
+                }
+            }
         }
 
         // Join args after "--" as command
@@ -282,12 +311,33 @@ main := proc(args: ..Str) {
         }
 
         if ok.eq(1).and(has_expected.eq(1)) {
-            actual := File.readfile(outfile)
-            expected := File.readfile(expected_out_file)
-            if actual != expected {
-                println("FAIL: ", label, " output mismatch")
-                print_captured_err(outfile)
-                ok = 0
+            if regen == 1 {
+                // Regen rewrites the golden from what the command just
+                // printed. It runs only once the exit code matched: a
+                // command that died the wrong way printed a failure
+                // message, and freezing THAT as the expectation would
+                // make the test pass forever on the broken behaviour.
+                actual := File.readfile(outfile)
+                File.writefile(expected_out_file, actual)
+                println("REGEN: ", label, " -> ", expected_out_file)
+            } else {
+                // Goldens are reviewed artifacts under git, not a cache:
+                // a missing one is a failure, never a silent first-run
+                // "expectation" written from whatever the program did.
+                if File.exists(expected_out_file).not() {
+                    println("FAIL: ", label, " missing expected output file ",
+                            expected_out_file, " (create it with `make test_regen`)")
+                    print_captured_err(outfile)
+                    ok = 0
+                } else {
+                    actual := File.readfile(outfile)
+                    expected := File.readfile(expected_out_file)
+                    if actual != expected {
+                        println("FAIL: ", label, " output mismatch")
+                        print_output_diff(label, expected_out_file, outfile)
+                        ok = 0
+                    }
+                }
             }
         }
 

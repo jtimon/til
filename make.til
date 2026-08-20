@@ -707,6 +707,23 @@ run_test_fast := proc(mut b: Build) {
     refresh_constfold()
 }
 
+/// Rewrite every expected-output golden (test/*.expected) from what the
+/// tests actually print -- issue #172. Deliberately NOT part of any suite
+/// run: the goldens are reviewed artifacts, so refreshing them is an
+/// explicit act whose result is read as a git diff. Without ASAN, because
+/// a leak report appended to a program's output would be frozen into the
+/// expectation.
+run_test_regen := proc(mut b: Build) {
+    if b.begin("test_regen").not() { return }
+    build_til(b)
+    build_test_runner(b)
+    build_plot(b)
+    build_tests(b)
+    c := suite_cmd(b, "--regen")
+    c.run_checked()
+    refresh_constfold()
+}
+
 /// The suite without the GUI tests, for hosts with no window server.
 run_test_nogui := proc(mut b: Build) {
     if b.begin("test_nogui").not() { return }
@@ -1516,6 +1533,8 @@ commands := func() returns Vec(Command) {
         about = "Build + run the suite without ASAN"))
     out.push(own Command(name = "test_nogui", go = run_test_nogui,
         about = "Build + run the suite without the GUI tests"))
+    out.push(own Command(name = "test_regen", go = run_test_regen,
+        about = "Rewrite the test/*.expected goldens from actual output"))
     out.push(own Command(name = "test_two_pass", go = run_test_two_pass,
         about = "two_pass + the full suite (for 'Two-pass: ' commits)"))
     out.push(own Command(name = "test_repl_help", go = run_test_repl_help,

@@ -1,0 +1,2 @@
+7
+test/script_bang_panic_msg.til:14:10: panic: uncaught throw 'OutOfBounds'

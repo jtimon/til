@@ -299,6 +299,11 @@
   - ~make test_two_pass~ ~two_pass~ + run the full test suite.
   - ~make test_asan~ builds + runs tests with ASAN leak detection (~--til-bin bin/til_asan~).
   - ~make test_nogui~ skips GUI build tests (no xvfb needed).
+  - ~make test_regen~ rewrites the ~test/*.expected~ goldens from what the
+    tests actually print. They are reviewed artifacts, not a cache: a
+    missing golden is a test FAILURE, never a silent first-run
+    expectation. Run this only for an INTENDED output change, then read
+    the git diff -- that diff is the review.
   - ~make bin/til_asan~ ASAN build for memory debugging.
   - ~make bin/til_debug~ debug build for gdb.
   - ~make clean && make test~ always works.
