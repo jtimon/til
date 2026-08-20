@@ -3428,6 +3428,12 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
     // storage; the flush re-registers everything after the single move.
     for k in pend_start..ctx.generic_pending.children.len() {
         if ctx.generic_pending.children[k].children.len() > 0 {
+            ref queued_rhs : Expr = ctx.generic_pending.children[k].children[0]
+            if queued_rhs.node_type.is(NodeType.StructDef).or(queued_rhs.node_type.is(NodeType.EnumDef)) {
+                type_errors := register_type_def_for_stmt(ctx, ctx.generic_pending.children[k], ctx.scope)
+                if type_errors != 0 { panic(ctx.path, ": failed to register late generic type dependency") }
+                continue
+            }
             generic_normalize_concrete_sig(scope, ctx.generic_pending.children[k].children[0], ctx)
         }
         // Against ctx.scope, NEVER the caller's nested body scope: the
@@ -3436,6 +3442,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
         // signature and records the wrong storage for the call result).
         register_function_def_for_stmt(ctx, ctx.generic_pending.children[k], ctx.scope)
     }
+    compute_ref_return_summaries(ctx.generic_pending, ctx.scope, ctx)
     if explicit {
         generic_rewrite_call_in_place(e, mono, arg_pos, ctx.symbols)
     } else {
@@ -5135,7 +5142,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // ORed into), so a late answer can add roots but never retract
             // one, and callees typed before their callers -- imports, and
             // ordinary source order -- get the better answer in time.
-            update_ref_return_summary(expr, ctx.scope, func_scope.active_type_name(), ctx.symbols)
+            update_ref_return_summary(expr, ctx.scope, func_scope.active_type_name(), ctx)
             check_ref_function_returns(func_scope, expr, ctx)
             check_returned_borrowed_closure_captures(func_scope, expr, ctx)
             check_param_stored_globally(expr, func_scope, ctx)
@@ -5654,7 +5661,7 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
                 .and(fcall_has_injected_err_arg(ret_val, ctx.symbols).or(is_aggregate(stmt.til_type()))) {
                 stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
             }
-            check_enum_borrow_of_local_return(scope, stmt, ctx)
+            check_carried_borrow_of_local_return(scope, stmt, ctx)
             check_str_view_of_local_return(scope, stmt, ctx)
             switch stmt.children[0].node_type {
             case .Ident(rn):
@@ -7360,10 +7367,9 @@ priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, mut ctx
     // have just changed (Option(ref T) arriving mid-unit).
     carries_borrow_memo_clear()
 
-    // Nested struct/enum/func definitions inside a substituted body are
-    // lifted to the top level exactly as init_declarations_unit does for
-    // an ordinary function. Task 6 refuses to infer a source whose
-    // closure declares a struct or enum, so only FuncDefs reach here.
+    // Nested definitions inside a substituted function body are lifted as
+    // before. #382 also allows a top-level concrete type dependency in the
+    // queue; it is already expanded and is not walked as a function.
     mut nested := Vec(Expr).new()
     for mut pstmt : Expr in ctx.generic_pending.children {
         if pstmt.children.len() == 0 { continue }
@@ -7395,14 +7401,19 @@ priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, mut ctx
     start := body.children.len()
     body.take_children(ctx.generic_pending)
 
+    init_refresh_seeded_scope_defs(body, scope, ctx.symbols)
+    init_refresh_interp_type_defs_from(body, start, ctx)
+    type_methods_from(body, start, ctx)
+    type_repl_delta_fields_from(body, start, ctx)
+    type_repl_delta_decls_from(body, start, ctx)
     for k in start..body.children.len() {
         register_function_def_for_stmt(ctx, body.children[k], scope)
     }
-    init_refresh_seeded_scope_defs(body, scope, ctx.symbols)
     for k2 in start..body.children.len() {
         switch body.children[k2].node_type {
         case .Decl(kdd):
             if body.children[k2].children.len() == 0 { continue }
+            if body.children[k2].children[0].node_type.is(NodeType.FuncDef).not() { continue }
             kf_o := scope.lookup_func_name(kdd.name, ctx.symbols)
             if kf_o.is_none() {
                 panic(ctx.path, ": late generic '", kdd.name, "' is not registered after append")
@@ -7549,7 +7560,7 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     // typed -- a summary computed afterwards would come too late. Runs
     // after extend_throwing_func_sigs so the parameter indices it records
     // are the post-extension ones the call sites will use.
-    compute_ref_return_summaries(program, scope, ctx.symbols)
+    compute_ref_return_summaries(program, scope, ctx)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     // #328: every batch the body loop queued has been flushed onto this
@@ -8790,7 +8801,7 @@ priv str_method_returns_view := func(name: Str) returns Bool {
 // extends a base's life WITHIN a body, which cannot reach past the body's
 // own return.
 //
-// This is the Str-view sibling of check_enum_borrow_of_local_return above
+// This is the Str-view sibling of check_carried_borrow_of_local_return above
 // and follows its rule exactly -- only an OWNED local is certain to dangle:
 //
 //   - a param receiver is caller-owned storage, so the view outlives the
@@ -8960,38 +8971,142 @@ priv check_dyn_call_delete_of_local := proc(scope: TypeScope, e: Expr, mut ctx: 
     }
 }
 
-priv check_enum_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ctx: Context) {
-    ref ret_val : Expr = stmt.children[0]
-    if is_enum_variant_ctor_with_payload(ret_val, scope, ctx.symbols).not() { return }
-    ref ebl_callee : Expr = ret_val.children[0]
-    mut variant := ""
-    switch ebl_callee.node_type {
-    case .FieldAccess(fad): variant = Str.clone(fad.field_access_name(ctx.symbols.names))
-    case: return
+priv ReturnEscapeRoots := struct {
+    direct := Vec(BorrowRoot).new()
+    indirect := Vec(BorrowRoot).new()
+}
+
+priv return_source_root_binding := func(scope: TypeScope, source: Expr) returns Option(ref TypeBinding) {
+    switch source.node_type {
+    case .Ident(id): return scope.get_binding_sym(id.ident_sym())
+    case .FieldAccess:
+        if source.children.len() > 0 { return return_source_root_binding(scope, source.children[0]) }
+    case:
     }
-    ref ebl_base : Expr = ebl_callee.children[0]
-    mut tn := ""
-    switch ebl_base.node_type {
-    case .Ident(idd): tn = Str.clone(idd.ident_name(ctx.symbols.names))
-    case: return
+    return Option(ref TypeBinding).None
+}
+
+priv collect_direct_return_borrow_source := func(scope: TypeScope, source: Expr, symbols: SymbolPool, mut out: ReturnEscapeRoots) {
+    if source.node_type.is(NodeType.FCall) {
+        nested := return_escape_roots(scope, source, symbols)
+        for r : BorrowRoot in nested.direct { push_root_unique(out.direct, r) }
+        for r : BorrowRoot in nested.indirect { push_root_unique(out.indirect, r) }
+        return
     }
-    // is_enum_variant_ctor_with_payload resolved this def a moment ago.
-    ref sdef : Expr = scope.get_struct(tn, ctx.symbols).unwrap()
-    vt_idx := enum_variant_index(sdef, variant)
-    if vt_idx < 0 { return }
-    if enum_variant_payload_ref(sdef, vt_idx).not() { return }
-    switch ret_val.children[1].node_type {
-    case .Ident(an):
-        sf := scope.find_sym(an.ident_sym())
-        switch sf {
-        case .Found(b):
-            if and(b.own_type.is(OwnType.Ref).not(), b.is_param.not(), b.is_alias.not(), b.is_builtin.not()) {
-                stmt.type_error(format("cannot return a borrow of local '", an.ident_name(ctx.symbols.names), "' inside '", tn, "': the local dies with this call; borrow a param instead, or make the payload owned"), ctx)
+    b_o := return_source_root_binding(scope, source)
+    if b_o.is_some() {
+        ref b : TypeBinding = b_o.unwrap()
+        if b.own_type.is(OwnType.Ref) {
+            for r : BorrowRoot in b.borrow_roots {
+                mut cr := r.clone()
+                cr.carried = true
+                push_root_unique(out.indirect, cr)
+            }
+            return
+        }
+    }
+    roots := lvalue_write_roots(scope, source, symbols)
+    for r : BorrowRoot in roots {
+        mut cr := r.clone()
+        cr.carried = true
+        push_root_unique(out.direct, cr)
+    }
+}
+
+priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) returns ReturnEscapeRoots {
+    mut out := ReturnEscapeRoots()
+    switch e.node_type {
+    case .Ident(id):
+        b_o := scope.get_binding_sym(id.ident_sym())
+        if b_o.is_none() { return out }
+        for r : BorrowRoot in b_o.unwrap().borrow_roots {
+            mut cr := r.clone()
+            cr.carried = true
+            push_root_unique(out.indirect, cr)
+        }
+    case .FCall:
+        enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
+        if enum_arg_o.is_some() {
+            collect_direct_return_borrow_source(scope, enum_arg_o.unwrap(), symbols, out)
+            return out
+        }
+        fd_o := fcall_callee_fdef(e, scope, symbols)
+        if fd_o.is_none() { return out }
+        switch fd_o.unwrap().node_type {
+        case .FuncDef(fd):
+            for pi in 0..fd.sig.params.len() {
+                bit := summary_param_bit(pi)
+                arg_o := fcall_arg_for_param(e, pi, scope, symbols)
+                if arg_o.is_none() { continue }
+                if fd.ref_return_into_params.band(bit) != 0 {
+                    collect_direct_return_borrow_source(scope, arg_o.unwrap(), symbols, out)
+                }
+                if fd.ref_return_carried_params.band(bit) != 0 {
+                    roots := carried_roots_of(scope, expr_borrow_roots(scope, arg_o.unwrap(), symbols), "", symbols)
+                    for r : BorrowRoot in roots {
+                        mut cr := r.clone()
+                        cr.carried = true
+                        push_root_unique(out.indirect, cr)
+                    }
+                }
+                if fd.ref_return_params.band(bit) != 0 {
+                    ref p : Declaration = fd.sig.params[pi]
+                    if type_carries_borrow(scope, p.type_name(), symbols) {
+                        roots := carried_roots_of(scope, expr_borrow_roots(scope, arg_o.unwrap(), symbols), "", symbols)
+                        for r : BorrowRoot in roots {
+                            mut cr := r.clone()
+                            cr.carried = true
+                            push_root_unique(out.indirect, cr)
+                        }
+                    } else {
+                        collect_direct_return_borrow_source(scope, arg_o.unwrap(), symbols, out)
+                    }
+                }
             }
         case:
         }
     case:
     }
+    return out
+}
+
+priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, roots: Vec(BorrowRoot), skip_carriers: Bool, mut reported: Set(Str), mut ctx: Context) {
+    for r : BorrowRoot in roots {
+        if reported.has(r.name) { continue }
+        b_o := lookup_binding_at(scope, r, ctx.symbols)
+        if b_o.is_none() { continue }
+        ref b : TypeBinding = b_o.unwrap()
+        if b.own_type.is(OwnType.Ref).or(b.is_param).or(b.is_alias).or(b.is_builtin) { continue }
+        if b.type.is(Type.Dynamic) { continue }
+        ref root_scope : TypeScope = scope_root_ref(scope)
+        global_o := root_scope.local_binding_name(r.name, ctx.symbols)
+        if global_o.is_some() {
+            ref global_b : TypeBinding = global_o.unwrap()
+            if global_b.path.eq(r.path).and(global_b.line.eq(r.line)).and(global_b.col == r.col) { continue }
+        }
+        if skip_carriers {
+            b_type_name := til_type_name(b.type)
+            b_def_o := scope.get_struct(b_type_name, ctx.symbols)
+            if b_def_o.is_some() {
+                if b_def_o.unwrap().node_type.is(NodeType.EnumDef).and(enum_has_ref_payload(b_def_o.unwrap())) { continue }
+            }
+            if type_carries_borrow(scope, b_type_name, ctx.symbols) { continue }
+        }
+        stmt.type_error(format("cannot return a borrow of local '", r.name, "' inside '", tn,
+            "': the local dies with this call; borrow a param instead, or make the payload owned"), ctx)
+        reported.add(own r.name.clone())
+    }
+}
+
+priv check_carried_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ctx: Context) {
+    ref ret_val : Expr = stmt.children[0]
+    mut tn := ""
+    tn_o := expr_type_name_ref(ret_val)
+    if tn_o.is_some() { tn = tn_o.unwrap().clone() }
+    roots := return_escape_roots(scope, ret_val, ctx.symbols)
+    mut reported := Set(Str).new()
+    report_local_return_roots(scope, stmt, tn, roots.direct, false, reported, ctx)
+    report_local_return_roots(scope, stmt, tn, roots.indirect, true, reported, ctx)
 }
 
 // The binding an argument expression ADDRESSES, or NULL. Sees through
@@ -9619,7 +9734,7 @@ priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope, symbols: SymbolP
 // Bit `i` of a ref_return_params summary. A function with more than 64
 // parameters gets no bit -- 0 is the conservative answer, and the bitmap
 // keeps the same indexing as FCallData's own_args / ref_args.
-priv summary_param_bit := func(i: USize) returns U64 {
+summary_param_bit := func(i: USize) returns U64 {
     if i >= 64 { return 0 }
     one : U64 = 1
     return one.shl(i.to_u64())
@@ -9630,7 +9745,7 @@ priv summary_param_bit := func(i: USize) returns U64 {
 // namespace-qualified `Type.method`, and a not-yet-rewritten UFCS
 // `recv.method` -- but hands back the def, so its summary and parameter
 // list are readable too.
-priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+fcall_callee_fdef := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
     if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
     if fcall.children.len() == 0 { return Option(ref Expr).None }
     ref callee : Expr = fcall.children[0]
@@ -9686,7 +9801,7 @@ fcall_returns_dynamic_storage := func(fcall: Expr, scope: TypeScope, symbols: Sy
 // also what the UFCS rewrite produces) parameter i sits at children[i+1];
 // before the rewrite, `recv.method(a)` keeps its receiver inside the
 // callee node and it fills parameter 0.
-priv fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
     if fcall.children.len() == 0 { return Option(ref Expr).None }
     ref callee : Expr = fcall.children[0]
     if callee.node_type.is(NodeType.FieldAccess).and(fa_is_ns(callee, scope, symbols).not()) {
@@ -9697,6 +9812,24 @@ priv fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope, symbo
     }
     if pi + 1 < fcall.children.len() { return Option(ref Expr).Some(fcall.children[pi + 1]) }
     return Option(ref Expr).None
+}
+
+priv summary_fcall_arg_for_param := func(fcall: Expr, cfd: FunctionDef, pi: USize, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+    mut has_type_param := false
+    for p : Declaration in cfd.sig.params {
+        if p.type_name() == "Type" { has_type_param = true }
+    }
+    if has_type_param.not().or(generic_call_is_explicit(scope, fcall, cfd, symbols)) {
+        return fcall_arg_for_param(fcall, pi, scope, symbols)
+    }
+    if pi >= cfd.sig.params.len() { return Option(ref Expr).None }
+    if cfd.sig.params[pi].type_name() == "Type" { return Option(ref Expr).None }
+    mut value_pos : USize = 0
+    for before in 0..pi {
+        if cfd.sig.params[before].type_name() != "Type" { value_pos++ }
+    }
+    if value_pos + 1 >= fcall.children.len() { return Option(ref Expr).None }
+    return Option(ref Expr).Some(fcall.children[value_pos + 1])
 }
 
 // Does this binding denote STORAGE a write could land in? Type names,
@@ -9742,7 +9875,7 @@ priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Se
 priv mut carries_borrow_yes := Set(Str).new()
 priv mut carries_borrow_no := Set(Str).new()
 
-priv type_carries_borrow := func(scope: TypeScope, tname: Str, symbols: SymbolPool) returns Bool {
+type_carries_borrow := func(scope: TypeScope, tname: Str, symbols: SymbolPool) returns Bool {
     if tname.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, tname, symbols)
     if carries_borrow_yes.has(resolved) { return true }
@@ -9923,6 +10056,16 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) r
     case .FCall:
         rso := raw_borrow_source(e, symbols)
         if rso.is_some() { return expr_borrow_roots(scope, rso.unwrap(), symbols) }
+        enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
+        if enum_arg_o.is_some() {
+            sub := expr_borrow_roots(scope, enum_arg_o.unwrap(), symbols)
+            for r : BorrowRoot in sub {
+                mut cr := r.clone()
+                cr.carried = true
+                push_root_unique(out, cr)
+            }
+            return out
+        }
         fd_o := fcall_callee_fdef(e, scope, symbols)
         if fd_o.is_none() {
             // #351: a struct constructor whose argument populates a ref
@@ -10294,7 +10437,32 @@ priv carried_roots_of := func(scope: TypeScope, roots: Vec(BorrowRoot), fname: S
     return out
 }
 
-priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, RootBits), symbols: SymbolPool) {
+priv summary_case_payload_ref := func(pat: Expr, scope: TypeScope, self_type: Str, symbols: SymbolPool) returns Bool {
+    if pat.node_type.is(NodeType.FCall).not() { return false }
+    if pat.children.len() != 2 { return false }
+    ref callee : Expr = pat.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut ename := self_type.clone()
+    mut vname := ""
+    switch callee.node_type {
+    case .FieldAccess(fa): vname = Str.clone(fa.field_access_name(symbols.names))
+    case: return false
+    }
+    if callee.children.len() > 0 {
+        switch callee.children[0].node_type {
+        case .Ident(eid): ename = Str.clone(eid.ident_name(symbols.names))
+        case:
+        }
+    }
+    if ename.len() == 0 { return false }
+    edef_o := scope.get_struct(ename, symbols)
+    if edef_o.is_none() { return false }
+    idx := enum_variant_index(edef_o.unwrap(), vname)
+    if idx < 0 { return false }
+    return enum_variant_payload_ref(edef_o.unwrap(), idx)
+}
+
+priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool) {
     if cn.node_type.is(NodeType.Case).not() { return }
     npat := case_pattern_count(cn)
     for pi in 0..npat {
@@ -10310,8 +10478,13 @@ priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, Roo
             // storage; a carried-bit stays carried; an alias-bit is the
             // conservative pass-through (the payload lives inside the
             // parameter's own storage and its target is unknown).
-            roots.set(bid.ident_name(symbols.names), own RootBits(
-                alias = subj.alias.bor(subj.into), carried = subj.carried))
+            if summary_case_payload_ref(pat, scope, self_type, symbols) {
+                roots.set(bid.ident_name(symbols.names), own RootBits(
+                    alias = subj.into, carried = subj.alias.bor(subj.carried)))
+            } else {
+                roots.set(bid.ident_name(symbols.names), own RootBits(
+                    alias = subj.alias.bor(subj.into), carried = subj.carried))
+            }
         case:
         }
     }
@@ -10392,7 +10565,52 @@ priv summary_ctor_wrap := func(arg_bits: RootBits) returns RootBits {
     return RootBits(into = arg_bits.alias.bor(arg_bits.into), carried = arg_bits.carried)
 }
 
-priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool) returns RootBits {
+priv summary_generic_dep_def := func(ctx: Context, name: Str) returns Option(ref Expr) {
+    dep_o := generic_type_dep(ctx, ctx.path, name)
+    if dep_o.is_none() { return Option(ref Expr).None }
+    ref dep : Expr = dep_o.unwrap()
+    if dep.node_type.is(NodeType.Decl).not() { return Option(ref Expr).None }
+    if dep.children.len() == 0 { return Option(ref Expr).None }
+    return Option(ref Expr).Some(dep.children[0])
+}
+
+priv summary_generic_ref_ctor_arg := func(e: Expr, ctx: Context) returns Option(ref Expr) {
+    if e.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if e.children.len() != 2 { return Option(ref Expr).None }
+    ref callee : Expr = e.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return Option(ref Expr).None }
+    if callee.children.len() == 0 { return Option(ref Expr).None }
+    mut ename := ""
+    mut vname := ""
+    switch callee.node_type {
+    case .FieldAccess(fa): vname = Str.clone(fa.field_access_name(ctx.symbols.names))
+    case: return Option(ref Expr).None
+    }
+    switch callee.children[0].node_type {
+    case .Ident(eid): ename = Str.clone(eid.ident_name(ctx.symbols.names))
+    case: return Option(ref Expr).None
+    }
+    edef_o := summary_generic_dep_def(ctx, ename)
+    if edef_o.is_none() { return Option(ref Expr).None }
+    ref edef : Expr = edef_o.unwrap()
+    if edef.node_type.is(NodeType.EnumDef).not() { return Option(ref Expr).None }
+    idx := enum_variant_index(edef, vname)
+    if idx < 0 { return Option(ref Expr).None }
+    if enum_variant_payload_ref(edef, idx).not() { return Option(ref Expr).None }
+    return Option(ref Expr).Some(e.children[1])
+}
+
+priv summary_fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, ctx: Context) returns Bool {
+    if fdef_return_carries_borrow(fdef, scope, ctx.symbols) { return true }
+    if fdef.sig.return_type.len() == 0 { return false }
+    dep_o := summary_generic_dep_def(ctx, fdef.sig.return_type)
+    if dep_o.is_none() { return false }
+    ref dep : Expr = dep_o.unwrap()
+    if dep.node_type.is(NodeType.EnumDef).and(enum_has_ref_payload(dep)) { return true }
+    return false
+}
+
+priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool, ctx: Context) returns RootBits {
     switch e.node_type {
     case .Ident(id):
         if roots.has(id.ident_name(symbols.names)) {
@@ -10403,7 +10621,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
     case .FieldAccess:
         if e.children.len() == 0 { return RootBits() }
         if fa_is_ns(e, scope, symbols) { return RootBits() }
-        base := summary_expr_bits(e.children[0], roots, scope, self_type, symbols)
+        base := summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
         // #354: crossing a REF field steps out of the base's storage into
         // what it carries -- resolvable pre-typing only for self-rooted
         // chains; anywhere else the alias pass-through is the
@@ -10433,7 +10651,12 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
         return base
     case .FCall:
         rso := raw_borrow_source(e, symbols)
-        if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, symbols) }
+        if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, symbols, ctx) }
+        mut enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
+        if enum_arg_o.is_none() { enum_arg_o = summary_generic_ref_ctor_arg(e, ctx) }
+        if enum_arg_o.is_some() {
+            return summary_ctor_wrap(summary_expr_bits(enum_arg_o.unwrap(), roots, scope, self_type, symbols, ctx))
+        }
         mut fd_o := fcall_callee_fdef(e, scope, symbols)
         if fd_o.is_none() { fd_o = summary_self_method(e, scope, self_type, symbols) }
         if fd_o.is_none() {
@@ -10453,9 +10676,9 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                     if crosses.not() { continue }
                     switch arg.node_type {
                     case .NamedArg:
-                        if arg.children.len() > 0 { cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(arg.children[0], roots, scope, self_type, symbols))) }
+                        if arg.children.len() > 0 { cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(arg.children[0], roots, scope, self_type, symbols, ctx))) }
                     case:
-                        cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type, symbols)))
+                        cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type, symbols, ctx)))
                     }
                 }
             }
@@ -10472,7 +10695,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                 if edef_o.is_none() { return RootBits() }
                 if enum_has_ref_payload(edef_o.unwrap()).not() { return RootBits() }
                 for ai in 1..e.children.len() {
-                    bits = bits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type, symbols)))
+                    bits = bits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type, symbols, ctx)))
                 }
                 return bits
             }
@@ -10482,9 +10705,9 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                 relevant = relevant.bor(cfd.ref_return_into_params.band(pb))
                 relevant = relevant.bor(cfd.ref_return_carried_params.band(pb))
                 if relevant == 0 { continue }
-                arg_o := fcall_arg_for_param(e, pi, scope, symbols)
+                arg_o := summary_fcall_arg_for_param(e, cfd, pi, scope, symbols)
                 if arg_o.is_none() { continue }
-                ab := summary_expr_bits(arg_o.unwrap(), roots, scope, self_type, symbols)
+                ab := summary_expr_bits(arg_o.unwrap(), roots, scope, self_type, symbols, ctx)
                 if cfd.ref_return_params.band(pb) != 0 { bits = bits.bor(ab) }
                 if cfd.ref_return_into_params.band(pb) != 0 {
                     // The callee's return carries a pointer into the
@@ -10511,13 +10734,13 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
 
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
-priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool) returns RootBits {
+priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool, ctx: Context) returns RootBits {
     switch e.node_type {
     case .FuncDef:
         return RootBits()
     case .Return:
         if e.children.len() == 0 { return RootBits() }
-        return summary_expr_bits(e.children[0], roots, scope, self_type, symbols)
+        return summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
     case .Decl(d):
         // A BORROW forwards its roots whole: the binding IS a window onto
         // them. #357: an OWNED local of a borrow-carrying type built by a
@@ -10527,10 +10750,10 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeSco
         // no longer drops the provenance on the floor.
         if e.children.len() > 0 {
             if d.own_type.is(OwnType.Ref) {
-                db := summary_expr_bits(e.children[0], roots, scope, self_type, symbols)
+                db := summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
                 if db.is_zero().not() { roots.set(d.name, own db.clone()) }
             } else if e.children[0].node_type.is(NodeType.FCall) {
-                db := summary_expr_bits(e.children[0], roots, scope, self_type, symbols)
+                db := summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
                 if db.is_zero().not() {
                     // Typer-emitted temps are left alone. A hoist holds
                     // the very value the expression produced, and the
@@ -10547,16 +10770,16 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeSco
         return RootBits()
     case .Switch, .Match:
         if e.children.len() > 0 {
-            subj := summary_expr_bits(e.children[0], roots, scope, self_type, symbols)
+            subj := summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
             if subj.is_zero().not() {
-                for ci in 1..e.children.len() { summary_bind_case(e.children[ci], subj, roots, symbols) }
+                for ci in 1..e.children.len() { summary_bind_case(e.children[ci], subj, roots, scope, self_type, symbols) }
             }
         }
     case:
     }
     mut bits := RootBits()
     for c : Expr in e.children {
-        bits = bits.bor(summary_walk(c, roots, scope, self_type, symbols))
+        bits = bits.bor(summary_walk(c, roots, scope, self_type, symbols, ctx))
     }
     return bits
 }
@@ -10564,7 +10787,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeSco
 // OR this function's freshly computed summary into the recorded one.
 // Monotone by construction, so the fixed point below terminates; the
 // return value is its progress signal.
-priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self_type: Str, symbols: SymbolPool) returns Bool {
+priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self_type: Str, ctx: Context) returns Bool {
     if fd_expr.children.len() == 0 { return false }
     switch fd_expr.node_type {
     case .FuncDef(fd):
@@ -10573,14 +10796,14 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         // #351/#357: summaries cover every shape that can hand a borrow
         // back, which is now exactly what fdef_return_carries_borrow
         // answers -- including a returned VALUE carrying a ref field.
-        if fdef_return_carries_borrow(fd, scope, symbols).not() { return false }
+        if summary_fdef_return_carries_borrow(fd, scope, ctx).not() { return false }
         mut roots := Map(Str, RootBits).new()
         for pi in 0..fd.sig.params.len() {
             ref p : Declaration = fd.sig.params[pi]
             if p.name.len() == 0 { continue }
             roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
-        rb := summary_walk(fd_expr.children[0], roots, scope, self_type, symbols)
+        rb := summary_walk(fd_expr.children[0], roots, scope, self_type, ctx.symbols, ctx)
         merged_a := fd.ref_return_params.bor(rb.alias)
         merged_i := fd.ref_return_into_params.bor(rb.into)
         merged_c := fd.ref_return_carried_params.bor(rb.carried)
@@ -10599,34 +10822,34 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
 // they need their own descent; a FuncDef is never descended into, because
 // init_declarations_unit hoists nested definitions to file scope and
 // typer_lift_lambdas has already lifted the anonymous ones.
-priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, symbols: SymbolPool) returns Bool {
+priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, ctx: Context) returns Bool {
     mut changed := false
     switch e.node_type {
     case .FuncDef:
-        return update_ref_return_summary(e, scope, self_type, symbols)
+        return update_ref_return_summary(e, scope, self_type, ctx)
     case .Decl(dd):
         // A type definition names the `self` its namespace methods take;
         // the name lives on the Decl, not on the def node.
         if e.children.len() > 0 {
             ref mut drhs : Expr = e.children[0]
             if drhs.node_type.is(NodeType.StructDef).or(drhs.node_type.is(NodeType.EnumDef)) {
-                return summarize_unit_walk(drhs, scope, dd.name, symbols)
+                return summarize_unit_walk(drhs, scope, dd.name, ctx)
             }
         }
     case .StructDef(sd):
         for mut nd : Declaration in sd.ns_decls {
             if nd.default_value.is_none() { continue }
-            if summarize_unit_walk(nd.default_expr(), scope, self_type, symbols) { changed = true }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type, ctx) { changed = true }
         }
     case .EnumDef(ed):
         for mut nd : Declaration in ed.ns_decls {
             if nd.default_value.is_none() { continue }
-            if summarize_unit_walk(nd.default_expr(), scope, self_type, symbols) { changed = true }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type, ctx) { changed = true }
         }
     case:
     }
     for mut c : Expr in e.children {
-        if summarize_unit_walk(c, scope, self_type, symbols) { changed = true }
+        if summarize_unit_walk(c, scope, self_type, ctx) { changed = true }
     }
     return changed
 }
@@ -10643,10 +10866,10 @@ priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, 
 // that can never be unset -- `changed` is the termination proof.
 // Instantiated generics need no separate pass -- their FunctionDef is
 // cloned from the template, summary included.
-priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope, symbols: SymbolPool) {
+priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope, ctx: Context) {
     mut changed := true
     while changed {
-        changed = summarize_unit_walk(program, scope, "", symbols)
+        changed = summarize_unit_walk(program, scope, "", ctx)
     }
 }
 

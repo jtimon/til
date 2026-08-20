@@ -57,6 +57,49 @@ test_safe_ref_infers_borrowed_option := test() {
     assert_eq(I64, o.unwrap().n, 8)
 }
 
+SafeRefFresh := struct {
+    n := 0
+}
+
+test_safe_ref_materializes_unannotated_option := test() {
+    mut first := SafeRefFresh(n = 1)
+    second := SafeRefFresh(n = 2)
+    first_o := safe_ref(first)
+    second_o := safe_ref(second)
+    first.n = 7
+    assert_eq(I64, first_o.unwrap().n, 7)
+    assert_eq(I64, second_o.unwrap().n, 2)
+}
+
+SafeRefHeap := struct {
+    text := ""
+}
+
+test_safe_ref_extends_source_lifetime := test() {
+    source := SafeRefHeap(text = Str.clone("alive"))
+    option := safe_ref(source)
+    assert_eq(Str, option.unwrap().text, "alive")
+}
+
+SafeRefForward := struct {
+    n := 0
+}
+
+safe_ref_forward_write := func(mut value: SafeRefForward) {
+    ref mut borrowed : SafeRefForward = safe_ref_forward(value).unwrap()
+    borrowed.n = 12
+}
+
+safe_ref_forward := func(value: SafeRefForward) returns Option(ref SafeRefForward) {
+    return safe_ref(value)
+}
+
+test_safe_ref_forward_summary := test() {
+    mut value := SafeRefForward(n = 1)
+    safe_ref_forward_write(value)
+    assert_eq(I64, value.n, 12)
+}
+
 test_option_ref_unwrap_or := test() {
     mut src := OptSrc(n = 3)
     fallback := OptSrc(n = 0)

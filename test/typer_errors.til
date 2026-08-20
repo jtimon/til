@@ -989,6 +989,11 @@ borrow_esc_bad := func() returns Option(ref BorrowEscCell) {
     return Option(ref BorrowEscCell).Some(borrow_esc_local)
 }
 
+borrow_esc_safe_ref_bad := func() returns Option(ref BorrowEscCell) {
+    borrow_esc_safe_ref_local := BorrowEscCell(besc_n = 8)
+    return safe_ref(borrow_esc_safe_ref_local)
+}
+
 // #324: a `ref` FIELD names storage its holder does not own, so passing
 // it to an `own` parameter transfers an ownership the field never had --
 // the callee (or a drain) would free through a borrow. The Ident arm has

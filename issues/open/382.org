@@ -8,7 +8,12 @@
   coverage.
 - [x] Teach late generic substitution to rewrite nested generated type names
   such as ~Option__ref_T~ in function bodies.
-- [ ] After the substitution support lands in bootstrap, replace explicit
+- [x] Retain dependent type-generator templates so an unannotated
+  ~safe_ref(value)~ materializes ~Option(ref T)~ during late inference.
+- [x] Propagate borrow summaries through omitted generic calls, reject local
+  borrow escapes through wrappers, and keep borrowed sources alive through
+  ordinary borrow-carrying calls.
+- [ ] After this preparation lands in bootstrap, replace explicit
   ~Option(ref T).Some(value)~ construction expressions throughout the
   codebase and close this issue.
 

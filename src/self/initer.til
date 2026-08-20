@@ -1306,6 +1306,17 @@ priv register_enum_def_for_stmt := proc(mut ctx: Context, stmt: Expr, mut scope:
     return register_enum_definition(ctx, stmt, scope)
 }
 
+register_type_def_for_stmt := proc(mut ctx: Context, stmt: Expr, mut scope: TypeScope) returns I32 {
+    if stmt.children.len() == 0 { return 0 }
+    if stmt.children[0].node_type.is(NodeType.StructDef) {
+        return register_struct_def_for_stmt(ctx, stmt, scope)
+    }
+    if stmt.children[0].node_type.is(NodeType.EnumDef) {
+        return register_enum_def_for_stmt(ctx, stmt, scope)
+    }
+    return 0
+}
+
 gen_enum_nonclone_methods_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children[0].node_type.is(NodeType.EnumDef).not() { return }
@@ -3599,6 +3610,62 @@ priv init_decl_owns_scope_ast := func(stmt: Expr, scope: TypeScope, symbols: Sym
     return false
 }
 
+priv init_expr_mentions_type_name := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .Ident(id):
+        if id.ident_name(symbols.names) == name { return true }
+    case .Decl(dd):
+        if dd.type_name() == name { return true }
+    case .StructDef(sd):
+        for fd : Declaration in sd.fields {
+            if fd.type_name() == name { return true }
+            if fd.default_value.is_some().and(init_expr_mentions_type_name(fd.default_expr(), name, symbols)) { return true }
+        }
+        for nd : Declaration in sd.ns_decls {
+            if nd.type_name() == name { return true }
+            if nd.default_value.is_some().and(init_expr_mentions_type_name(nd.default_expr(), name, symbols)) { return true }
+        }
+    case .EnumDef(ed):
+        for vd : VariantDef in ed.variants {
+            if vd.payload_type == name { return true }
+        }
+        for nd2 : Declaration in ed.ns_decls {
+            if nd2.type_name() == name { return true }
+            if nd2.default_value.is_some().and(init_expr_mentions_type_name(nd2.default_expr(), name, symbols)) { return true }
+        }
+    case .FuncDef(fd2):
+        if fd2.sig.return_type == name { return true }
+        for p : Declaration in fd2.sig.params {
+            if p.type_name() == name { return true }
+            if p.default_value.is_some().and(init_expr_mentions_type_name(p.default_expr(), name, symbols)) { return true }
+        }
+        for t : Str in fd2.sig.throw_types { if t == name { return true } }
+    case:
+    }
+    for c : Expr in e.children {
+        if init_expr_mentions_type_name(c, name, symbols) { return true }
+    }
+    return false
+}
+
+priv init_generic_source_mentions_type_name := func(program: Expr, name: Str, symbols: SymbolPool) returns Bool {
+    for stmt : Expr in program.children {
+        if init_stmt_is_generic_source(stmt).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        if init_expr_mentions_type_name(stmt.children[0], name, symbols).not() { continue }
+        switch stmt.children[0].node_type {
+        case .FuncDef(fd):
+            for p : Declaration in fd.sig.params {
+                if p.type_name().eq("Type").and(type_name_mentions_param(name, p.name)) {
+                    return true
+                }
+            }
+        case:
+        }
+    }
+    return false
+}
+
 // Parser-synthesized type-position instantiations are emitted as direct
 // deterministic decls (`Name__Arg := Name(Arg)`). Keep only the first one
 // across all initialized units, but leave user aliases (`Alias := Name(Arg)`)
@@ -3634,6 +3701,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
             case .Decl(dd):
                 if dd.name == genname {
                     mut drop_placeholder := false
+                    generic_dependency := init_generic_source_mentions_type_name(program, genname, ctx.symbols)
                     switch rhs.children[0].node_type {
                     case .Ident(cn):
                         mf_o := init_lookup_type_gen_macro(cn.ident_name(ctx.symbols.names), macros, scope, ctx)
@@ -3641,6 +3709,26 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
                             drop_placeholder = true
                         }
                     case:
+                    }
+                    if generic_dependency { drop_placeholder = true }
+                    if generic_dependency {
+                        dep_key := generic_type_dep_key(ctx.path, genname)
+                        if ctx.generic_type_deps.has(dep_key).not() {
+                            mut dep := stmt.clone()
+                            ref dep_rhs : Expr = dep.children[0]
+                            mut dep_callee_name := ""
+                            switch dep_rhs.children[0].node_type {
+                            case .Ident(dep_callee): dep_callee_name = Str.clone(dep_callee.ident_name(ctx.symbols.names))
+                            case:
+                            }
+                            dep_macro_o := init_lookup_type_gen_macro(dep_callee_name, macros, scope, ctx)
+                            if dep_macro_o.is_none() { panic(ctx.path, ": missing type generator for generic dependency '", genname, "'") }
+                            mut dep_nested := Vec(Expr).new()
+                            if init_expand_type_gen_decl(dep, dep_macro_o.unwrap(), macros, scope, ctx, false, dep_nested).not() {
+                                panic(ctx.path, ": failed to retain generic type dependency '", genname, "'")
+                            }
+                            ctx.generic_type_deps.set(dep_key, own dep)
+                        }
                     }
                     mut is_last_local := true
                     if last_direct.has(genname) {
@@ -3705,6 +3793,25 @@ init_refresh_seeded_scope_defs := func(program: Expr, mut scope: TypeScope, symb
         } else if rhs.node_type.is(NodeType.FuncDef) {
             scope.set_func_def_name(name, rhs, symbols)
         }
+    }
+}
+
+// A late type declaration is first registered in stable pending storage and
+// then moved onto its unit. Refresh the interpreter's pointer cell alongside
+// TypeScope after that move.
+init_refresh_interp_type_defs_from := func(program: Expr, start_idx: USize, mut ctx: Context) {
+    for i in start_idx..program.children.len() {
+        ref stmt : Expr = program.children[i]
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        ref rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.StructDef).not().and(rhs.node_type.is(NodeType.EnumDef).not()) { continue }
+        ref dd : Declaration = decl_of(stmt)
+        if ctx.interp_type_defs.has(dd.name).not() {
+            panic(ctx.path, ": late type '", dd.name, "' has no interpreter registry cell")
+        }
+        ref mut slot : Dynamic = ctx.interp_type_defs[dd.name]
+        write_ptr(slot, rhs)
     }
 }
 
@@ -3927,6 +4034,47 @@ priv generic_subs_type_name := func(subs: Map(Str, Expr), pname: Str, symbols: S
     return ""
 }
 
+priv generic_summary_bit := func(i: USize) returns U64 {
+    if i >= 64 { return 0 }
+    one : U64 = 1
+    return one.shl(i.to_u64())
+}
+
+priv generic_remap_summary_bits := func(bits: U64, arg_pos: Vec(I64)) returns U64 {
+    mut out : U64 = 0
+    for old_idx in 0..arg_pos.len() {
+        if bits.band(generic_summary_bit(old_idx)) == 0 { continue }
+        ref new_idx : I64 = arg_pos[old_idx]
+        if new_idx < 0 { continue }
+        out = out.bor(generic_summary_bit(new_idx.to_usize()))
+    }
+    return out
+}
+
+priv generic_materialize_type_deps := func(src: GenericFuncSource, concrete_func: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut destination: Expr, scope: TypeScope, mut ctx: Context) {
+    prefix := format(src.path, "#")
+    for dep_key, dep_template in ctx.generic_type_deps {
+        if dep_key.starts_with(prefix).not() { continue }
+        placeholder := dep_key.substr(prefix.len(), dep_key.len() - prefix.len())
+        concrete_name := init_subst_ident_name(subs, ref_params, placeholder, ctx.symbols)
+        if concrete_name.len() == 0 { continue }
+        if init_expr_mentions_type_name(concrete_func, concrete_name, ctx.symbols).not() { continue }
+        if scope.get_struct(concrete_name, ctx.symbols).is_some() { continue }
+        if ctx.type_gen_synths.has(concrete_name) { continue }
+
+        mut concrete_dep := dep_template.clone()
+        switch concrete_dep.node_type {
+        case .Decl(dep_decl): dep_decl.name = concrete_name.clone()
+        case: panic(ctx.path, ": generic type dependency is not a declaration")
+        }
+        if concrete_dep.children.len() == 0 { panic(ctx.path, ": generic type dependency has no definition") }
+        init_substitute_type_params(concrete_dep.children[0], subs, ref_params, ctx.symbols)
+        destination.add_child(own concrete_dep)
+        ctx.type_gen_synths.add(own concrete_name.clone())
+
+    }
+}
+
 // Issue #328: THE concrete-instantiation path. Both init-time explicit
 // expansion and typer-time inferred expansion build their declaration
 // here, so `assert_eq(I32, a, b)` and `assert_eq(a, b)` cannot land on two
@@ -4013,9 +4161,13 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
                     }
                     cfd.sig.variadic_index = vidx
                     cfd.sig.kwargs_index = kidx
+                    cfd.ref_return_params = generic_remap_summary_bits(cfd.ref_return_params, arg_pos)
+                    cfd.ref_return_into_params = generic_remap_summary_bits(cfd.ref_return_into_params, arg_pos)
+                    cfd.ref_return_carried_params = generic_remap_summary_bits(cfd.ref_return_carried_params, arg_pos)
                 case:
                 }
                 init_substitute_type_params(cloned, subs, ref_params, ctx.symbols)
+                generic_materialize_type_deps(src, cloned, subs, ref_params, destination, scope, ctx)
                 // Composition: the freshly-substituted body may now contain
                 // calls to OTHER generic funcs (or to this one with different
                 // type-args). Walk it with the same sources/seen/destination,
@@ -4389,6 +4541,51 @@ init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope, sym
     return drop_idxs.len() > 0
 }
 
+priv init_expand_type_gen_decl := func(mut stmt: Expr, macro_fdef: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested_synthesized: Vec(Expr)) returns Bool {
+    ref rhs : Expr = stmt.children[0]
+    if macro_fdef.children.len() == 0 { return false }
+    ref body : Expr = macro_fdef.children[0]
+    if body.node_type.is(NodeType.Body).not() { return false }
+
+    mut subs := Map(Str, Expr).new()
+    mut ref_params := Set(Str).new()
+    switch macro_fdef.node_type {
+    case .FuncDef(mfd):
+        for j in 0..mfd.sig.params.len() {
+            if j + 1 >= rhs.children.len() { break }
+            ref param : Declaration = mfd.sig.params[j]
+            ref arg : Expr = rhs.children[j + 1]
+            if param.type_name().eq("Type").and(arg.node_type.is(NodeType.Ident)) {
+                if get_ref_arg(rhs, j + 1) { ref_params.add(own param.name.clone()) }
+                switch arg.node_type {
+                case .Ident(an):
+                    type_arg_name := init_type_arg_name(scope, an.ident_name(ctx.symbols.names), ctx.symbols)
+                    mut type_arg := Expr.new(ident_node(ctx.symbols.intern(type_arg_name)), arg.line, arg.col)
+                    subs.set(param.name, own type_arg)
+                case:
+                }
+            } else {
+                subs.set(param.name, own arg.clone())
+            }
+        }
+    case:
+    }
+
+    ret_val_o := init_macro_pick_return(body, subs, ctx.symbols)
+    if ret_val_o.is_none() { return false }
+    ref ret_val : Expr = ret_val_o.unwrap()
+    ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
+        .or(ret_val.node_type.is(NodeType.EnumDef))
+        .or(ret_val.node_type.is(NodeType.FuncDef))
+    if ret_val_ok.not() { return false }
+
+    mut cloned := ret_val.clone()
+    init_substitute_type_params(cloned, subs, ref_params, ctx.symbols)
+    init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, mark_ctx)
+    stmt.children[0] = cloned
+    return true
+}
+
 priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope, mut ctx: Context) {
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
@@ -4467,64 +4664,8 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
             // same rule has to gate it -- otherwise the VALUE is substituted
             // for the type parameter and names a type that never existed.
             if init_macro_call_is_type_application(rhs, macro_fdef, macros, scope, ctx).not() { continue }
-            if macro_fdef.children.len() == 0 { continue }
-            ref body : Expr = macro_fdef.children[0]
-            if body.node_type.is(NodeType.Body).not() { continue }
-
-            // Build param-name -> arg-expression substitution. Type-param args
-            // are Idents (e.g. `I64`) and value-param args are arbitrary
-            // expressions (literals, idents, fcalls); store the whole Expr so
-            // init_substitute_idents can replace `Ident(N)` with the cloned
-            // arg expression for value params, while
-            // init_subst_ident_name still extracts the receiving type name for
-            // explicit-type strings when the substitution is Ident-shaped.
-            mut subs := Map(Str, Expr).new()
-            // #320: type params whose arg carried the `ref` qualifier
-            // (`make_opt(ref X)`); their substitution marks enum payloads /
-            // struct fields borrowed and keeps the `ref_` mangle segment in
-            // self-references.
-            mut ref_params := Set(Str).new()
-            switch macro_fdef.node_type {
-            case .FuncDef(mfd):
-                for j in 0..mfd.sig.params.len() {
-                    if j + 1 >= rhs.children.len() { break }
-                    ref param : Declaration = mfd.sig.params[j]
-                    ref arg : Expr = rhs.children[j + 1]
-                    if param.type_name().eq("Type").and(arg.node_type.is(NodeType.Ident)) {
-                        if get_ref_arg(rhs, j + 1) { ref_params.add(own param.name.clone()) }
-                        switch arg.node_type {
-                        case .Ident(an):
-                            type_arg_name := init_type_arg_name(scope, an.ident_name(ctx.symbols.names), ctx.symbols)
-                            mut type_arg := Expr.new(ident_node(ctx.symbols.intern(type_arg_name)), arg.line, arg.col)
-                            subs.set(param.name, own type_arg)
-                        case:
-                        }
-                    } else {
-                        subs.set(param.name, own arg.clone())
-                    }
-                }
-            case:
-            }
-
-            // Pick the return literal -- a direct `return <literal>` or an
-            // if-chain whose recognised condition evaluates to a definite
-            // arm under `subs` (issue #58).
-            ret_val_o := init_macro_pick_return(body, subs, ctx.symbols)
-            if ret_val_o.is_none() { continue }
-            ref ret_val : Expr = ret_val_o.unwrap()
-            ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
-                .or(ret_val.node_type.is(NodeType.EnumDef))
-                .or(ret_val.node_type.is(NodeType.FuncDef))
-            if ret_val_ok.not() { continue }
-
-            // Clone the return literal, substitute, then hoist any explicit
-            // `Name(T)` self-references that became concrete value-position
-            // instantiations after substitution (`Name(I64)(...)`).
-            mut cloned := ret_val.clone()
-            init_substitute_type_params(cloned, subs, ref_params, ctx.symbols)
             mut nested_synthesized := Vec(Expr).new()
-            init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, true)
-            stmt.children[0] = cloned
+            if init_expand_type_gen_decl(stmt, macro_fdef, macros, scope, ctx, true, nested_synthesized).not() { continue }
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
             }

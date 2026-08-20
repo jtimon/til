@@ -316,6 +316,7 @@ enum {
 };
 typedef struct Target Target;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
+typedef struct priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__ReturnEscapeRoots;
 typedef struct FactIndex FactIndex;
 typedef struct RootBits RootBits;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
@@ -931,6 +932,12 @@ struct Target {
 struct priv___src_self_typer_til__CtorArg {
     Expr *data;
 };
+
+typedef struct priv___src_self_typer_til__ReturnEscapeRoots {
+    Vec__BorrowRoot direct;
+    Vec__BorrowRoot indirect;
+} priv___src_self_typer_til__ReturnEscapeRoots;
+
 
 typedef struct RootBits {
     U64 alias;
@@ -1785,6 +1792,7 @@ typedef struct Context {
     Map__Str_Expr generic_funcs;
     Set__Str generic_func_synths;
     Set__Str generic_func_synth_names;
+    Map__Str_Expr generic_type_deps;
     Expr *generic_pending;
     Expr *func_gen_twins;
     TypeScope scope;

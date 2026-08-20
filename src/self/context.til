@@ -1173,6 +1173,12 @@ Context := struct {
     // dedup registry. Binding generation needs to distinguish these internal
     // declarations from source API functions without parsing the dedup key.
     generic_func_synth_names := Set(Str).new()
+    // #382: abstract type-generator declarations referenced by retained
+    // direct generics. Init moves each discarded placeholder here under
+    // `<declaring path>#<generated name>`; late inference substitutes the
+    // concrete type arguments and queues the resulting type declaration
+    // before the concrete function that uses it.
+    generic_type_deps := Map(Str, Expr).new()
     // Issue #328: per-unit holder for the concrete declarations that late
     // (typer-time) generic inference synthesizes. A Decl OWNS its FuncDef
     // child, so the child address is only stable while it sits in this
@@ -1469,6 +1475,17 @@ Context := struct {
     // Kept last so every Context-owned AST/registry using symbols is deleted
     // before the canonical name table that gives those symbols meaning.
     symbols := SymbolPool()
+}
+
+generic_type_dep_key := func(path: Str, name: Str) returns Str {
+    return format(path, "#", name)
+}
+
+generic_type_dep := func(ctx: Context, path: Str, name: Str) returns Option(ref Expr) {
+    key := generic_type_dep_key(path, name)
+    ref dep : Expr = ctx.generic_type_deps.get(key)?
+    catch (e: KeyNotFound) { return Option(ref Expr).None }
+    return Option(ref Expr).Some(dep)
 }
 
 // Issue #101: the trailing part of a synthesised temp name. Inside a
@@ -2575,6 +2592,43 @@ enum_variant_payload_ref := func(enum_def: Expr, idx: I32) returns Bool {
         return vd.payload_ref
     }
     return false
+}
+
+// The payload expression of a syntactic enum constructor whose selected
+// variant borrows its payload. Works before generated variant methods exist
+// and after their calls have been flattened.
+enum_ref_payload_ctor_arg := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+    if e.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if e.children.len() != 2 { return Option(ref Expr).None }
+    ref callee : Expr = e.children[0]
+    mut ename := ""
+    mut vname := ""
+    switch callee.node_type {
+    case .FieldAccess(fa):
+        if callee.children.len() == 0 { return Option(ref Expr).None }
+        switch callee.children[0].node_type {
+        case .Ident(eid): ename = Str.clone(eid.ident_name(symbols.names))
+        case: return Option(ref Expr).None
+        }
+        vname = Str.clone(fa.field_access_name(symbols.names))
+    case .Ident(cid):
+        ename_o := expr_type_name_ref(e)
+        if ename_o.is_none() { return Option(ref Expr).None }
+        ename = ename_o.unwrap().clone()
+        prefix := format(ename, "_")
+        ref cname : Str = cid.ident_name(symbols.names)
+        if cname.starts_with(prefix).not() { return Option(ref Expr).None }
+        vname = cname.substr(prefix.len(), cname.len() - prefix.len())
+    case: return Option(ref Expr).None
+    }
+    edef_o := scope.get_struct(ename, symbols)
+    if edef_o.is_none() { return Option(ref Expr).None }
+    ref edef : Expr = edef_o.unwrap()
+    if edef.node_type.is(NodeType.EnumDef).not() { return Option(ref Expr).None }
+    idx := enum_variant_index(edef, vname)
+    if idx < 0 { return Option(ref Expr).None }
+    if enum_variant_payload_ref(edef, idx).not() { return Option(ref Expr).None }
+    return Option(ref Expr).Some(e.children[1])
 }
 
 // #321, stage 1 of the owned-payload niche: is this variant's payload stored

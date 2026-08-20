@@ -1,5 +1,6 @@
 mode lib
 import("context")
+import("typer")
 import("../std/sys")
 
 // Asap destruction phase. See doc/pipeline.org step 5 and issue #204.
@@ -1813,6 +1814,43 @@ priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: 
     }
 }
 
+// An ordinary call can carry a borrow through its return just as an enum
+// constructor does. Its settled #344 summary identifies the actual arguments
+// whose roots must survive the returned value.
+priv collect_call_ref_return_edges := func(e: Expr, body_last: I32, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
+    if e.node_type.is(NodeType.FCall) {
+        fd_o := fcall_callee_fdef(e, scope, symbols)
+        if fd_o.is_some() {
+            switch fd_o.unwrap().node_type {
+            case .FuncDef(fd):
+                if fd.is_enum_variant_ctor.not() {
+                    for pi in 0..fd.sig.params.len() {
+                        bit := summary_param_bit(pi)
+                        mut relevant := fd.ref_return_params.band(bit)
+                        relevant = relevant.bor(fd.ref_return_into_params.band(bit))
+                        relevant = relevant.bor(fd.ref_return_carried_params.band(bit))
+                        if relevant == 0 { continue }
+                        arg_o := fcall_arg_for_param(e, pi, scope, symbols)
+                        if arg_o.is_none() { continue }
+                        mut transferred := false
+                        for arg_idx in 1..e.children.len() {
+                            if arg_o.unwrap().ptr_eq(e.children[arg_idx]).not() { continue }
+                            if get_own_arg(e, arg_idx).and(get_keep_outer_arg(e, arg_idx).not()) { transferred = true }
+                        }
+                        if transferred { continue }
+                        src_name := expr_root_ident_name(arg_o.unwrap(), symbols)
+                        if src_name.len() > 0 { gc_add_borrow_edge(edges, src_name, "", body_last) }
+                    }
+                }
+            case:
+            }
+        }
+    }
+    for c : Expr in e.children {
+        collect_call_ref_return_edges(c, body_last, edges, scope, symbols)
+    }
+}
+
 priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
     body_last := body.children.len().sub(1).to_i32()
@@ -1820,6 +1858,15 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
     // anywhere in the statement subtree.
     for stmt : Expr in body.children {
         collect_enum_ref_payload_edges(stmt, body_last, edges, scope, symbols)
+        switch stmt.node_type {
+        case .Decl(dd):
+            if stmt.children.len() > 0 {
+                if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow(scope, dd.type_name(), symbols)) {
+                    collect_call_ref_return_edges(stmt.children[0], body_last, edges, scope, symbols)
+                }
+            }
+        case:
+        }
         if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
         if stmt.fa_own_type(scope, symbols).is(OwnType.Ref).not() { continue }
         if stmt.children.len() < 2 { continue }

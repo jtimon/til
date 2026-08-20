@@ -1027,7 +1027,7 @@ main := proc(args: ..Str) {
     // ...and the bodies that DO need it keep it: test/option.til's
     // Option arms return from every branch of an exhaustive switch, which
     // is exactly the CFG GCC stops following under -finstrument-functions.
-    add_count(tests, "option_keeps_needed_unreachable", "build", "__builtin_unreachable", 12,
+    add_count(tests, "option_keeps_needed_unreachable", "build", "__builtin_unreachable", 15,
         format(til_bin, " translate -c gen/c/opt_ur.c test/option.til '&&' cat gen/c/opt_ur.c"))
     // dladdr sees exported symbols only. The profiler's Linux ELF fallback
     // must recover translation-unit-local generated functions such as
@@ -1658,7 +1658,7 @@ main := proc(args: ..Str) {
     // frees its box and leaks what it owned. The needle counts both.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 231),
+        CountCheck(needle = "error:", expected_count = 232),
         CountCheck(needle = "no method 'to_str' for type 'NoCmp'", expected_count = 1),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
@@ -1666,17 +1666,19 @@ main := proc(args: ..Str) {
         CountCheck(needle = "the result is a view sharing", expected_count = 3),
         CountCheck(needle = "dyn_call cannot delete the local", expected_count = 1),
         CountCheck(needle = "frees the middle of the holder", expected_count = 1),
-        CountCheck(needle = "does not free managed type", expected_count = 2))
+        CountCheck(needle = "does not free managed type", expected_count = 2),
+        CountCheck(needle = "cannot return a borrow of local", expected_count = 2))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 231),
+        CountCheck(needle = "error:", expected_count = 232),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
         CountCheck(needle = "the result is a view sharing", expected_count = 3),
         CountCheck(needle = "dyn_call cannot delete the local", expected_count = 1),
         CountCheck(needle = "frees the middle of the holder", expected_count = 1),
-        CountCheck(needle = "does not free managed type", expected_count = 2))
+        CountCheck(needle = "does not free managed type", expected_count = 2),
+        CountCheck(needle = "cannot return a borrow of local", expected_count = 2))
     // One interpreter capture pins both the aggregate and each parity class.
     add_counts(tests, "fcall_arg_parity_total_interp", "typer",
         format(til_bin, " interpret test/fcall_arg_parity_error.til"),
