@@ -48,9 +48,9 @@ priv slot_default_index := func(code: I32) returns USize {
 // on an error path the call keeps its original children intact for the
 // passes that keep walking after a type error.
 desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: FunctionDef, implicit_arg_count: USize, mut ctx: Context) returns Bool {
-    nparam := fdef_data.params.len()
-    vi := fdef_data.variadic_index
-    kwi := fdef_data.kwargs_index
+    nparam := fdef_data.sig.params.len()
+    vi := fdef_data.sig.variadic_index
+    kwi := fdef_data.sig.kwargs_index
     mut fixed_count : USize = nparam
     if vi >= 0 {
         fixed_count = vi.to_usize()
@@ -74,7 +74,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             for j in 0..nparam {
                 if j.to_i32() == vi { continue }
                 if j.to_i32() == kwi { continue }
-                ref param : Declaration = fdef_data.params[j]
+                ref param : Declaration = fdef_data.sig.params[j]
                 if param.name == aname {
                     slot = j.to_i32()
                     break
@@ -118,7 +118,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
         if i.to_i32() == vi { continue }
         if i.to_i32() == kwi { continue }
         if slots[i] == SLOT_EMPTY {
-            ref param : Declaration = fdef_data.params[i]
+            ref param : Declaration = fdef_data.sig.params[i]
             if param.default_value.is_some() {
                 slots[i] = slot_default_code(defaults.len())
                 defaults.push(own resolve_default_value(param.default_expr(), e, ctx))
@@ -241,14 +241,14 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
         if lift_fd_check.captures.len().gt(0).and(lift_fd_check.closure_name.len().eq(0)) {
             lift_fd_check.closure_name = format("closure_", synth_symbol_suffix(ctx))
         }
-        if lift_fd_check.func_type.is(FuncType.Macro) {
-            mtg_ret_lift := lift_fd_check.return_type.eq("StructDef")
-                .or(lift_fd_check.return_type.eq("EnumDef"))
-                .or(lift_fd_check.return_type.eq("FuncDef"))
-                .or(lift_fd_check.return_type.eq("FunctionDef"))
+        if lift_fd_check.sig.func_type.is(FuncType.Macro) {
+            mtg_ret_lift := lift_fd_check.sig.return_type.eq("StructDef")
+                .or(lift_fd_check.sig.return_type.eq("EnumDef"))
+                .or(lift_fd_check.sig.return_type.eq("FuncDef"))
+                .or(lift_fd_check.sig.return_type.eq("FunctionDef"))
             mut is_template_lift := mtg_ret_lift
             if is_template_lift.not() {
-                for tmp_param_lift : Declaration in lift_fd_check.params {
+                for tmp_param_lift : Declaration in lift_fd_check.sig.params {
                     if tmp_param_lift.type_name() == "Type" {
                         is_template_lift = true
                     }
@@ -266,7 +266,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
     // so just recurse into it without lifting the outer FuncDef.
     switch e.node_type {
     case .FuncDef(fd):
-        for mut pd : Declaration in fd.params {
+        for mut pd : Declaration in fd.sig.params {
             typer_lift_one_default_value(pd, top_level, ctx)
         }
     case .StructDef(sdd):
@@ -565,7 +565,7 @@ priv seed_local_type_from_stmt := func(mut scope: TypeScope, ctx: Context, stmt:
                             fdef_expr_o := ctx.scope.lookup_func_by_sym(rhsn.ident_sym(), ctx.symbols)
                             if fdef_expr_o.is_some() {
                                 switch fdef_expr_o.unwrap().node_type {
-                                case .FuncDef(fd): tn = fd.return_type.clone()
+                                case .FuncDef(fd): tn = fd.sig.return_type.clone()
                                 case:
                                 }
                             }
@@ -581,7 +581,7 @@ priv seed_local_type_from_stmt := func(mut scope: TypeScope, ctx: Context, stmt:
                                     if mdefo.is_some() {
                                         ref mdef : Expr = mdefo.unwrap()
                                         switch mdef.node_type {
-                                        case .FuncDef(fd): tn = fd.return_type.clone()
+                                        case .FuncDef(fd): tn = fd.sig.return_type.clone()
                                         case:
                                         }
                                     }
@@ -677,7 +677,7 @@ priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) re
             fdef_expr_o := ctx.scope.lookup_func_by_sym(name.ident_sym(), ctx.symbols)
             if fdef_expr_o.is_some() {
                 switch fdef_expr_o.unwrap().node_type {
-                case .FuncDef(fd): return fd.return_type.clone()
+                case .FuncDef(fd): return fd.sig.return_type.clone()
                 case:
                 }
             }
@@ -1135,17 +1135,17 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
         case .Decl(gsd):
             switch e.children[0].node_type {
             case .FuncDef(gsfd):
-                register_func_throws(ctx, gsd.name, gsfd.throw_types)
-                for gstn : Str in gsfd.throw_types {
+                register_func_throws(ctx, gsd.name, gsfd.sig.throw_types)
+                for gstn : Str in gsfd.sig.throw_types {
                     register_throw_type(ctx, gstn)
                 }
-                if gsfd.throw_types.len() > 0 {
+                if gsfd.sig.throw_types.len() > 0 {
                     mut gs_already := false
-                    for gsp : Declaration in gsfd.params {
+                    for gsp : Declaration in gsfd.sig.params {
                         if gsp.name == "_err_kind" { gs_already = true }
                     }
                     if gs_already.not() {
-                        append_err_out_params(gsfd.params, gsfd.throw_types, ctx)
+                        append_err_out_params(gsfd.sig.params, gsfd.sig.throw_types, ctx)
                     }
                 }
             case:
@@ -1165,7 +1165,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                 if rhs.node_type.is(NodeType.FuncDef) {
                     switch rhs.node_type {
                     case .FuncDef(rfd):
-                        register_func_throws(ctx, dn.name, rfd.throw_types)
+                        register_func_throws(ctx, dn.name, rfd.sig.throw_types)
                     case:
                     }
                 }
@@ -1184,7 +1184,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
                             case .FuncDef(mfd):
-                                register_func_throws(ctx, format(dn.name, ".", rn_name), mfd.throw_types)
+                                register_func_throws(ctx, format(dn.name, ".", rn_name), mfd.sig.throw_types)
                             case:
                             }
                         }
@@ -1199,7 +1199,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
                             case .FuncDef(mfd):
-                                register_func_throws(ctx, format(dn.name, ".", rn_name2), mfd.throw_types)
+                                register_func_throws(ctx, format(dn.name, ".", rn_name2), mfd.sig.throw_types)
                             case:
                             }
                         }
@@ -1214,16 +1214,16 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
         switch e.node_type {
         case .FuncDef(efd):
             // Register all declared throw types in the global registry.
-            for tn : Str in efd.throw_types {
+            for tn : Str in efd.sig.throw_types {
                 register_throw_type(ctx, tn)
             }
-            if efd.throw_types.len() > 0 {
+            if efd.sig.throw_types.len() > 0 {
                 mut already := false
-                for p : Declaration in efd.params {
+                for p : Declaration in efd.sig.params {
                     if p.name == "_err_kind" { already = true }
                 }
                 if already.not() {
-                    append_err_out_params(efd.params, efd.throw_types, ctx)
+                    append_err_out_params(efd.sig.params, efd.sig.throw_types, ctx)
                 }
             }
         case:
@@ -1448,8 +1448,8 @@ priv resolve_value_type := func(mut scope: TypeScope, ctx: Context, e: Expr, bod
             if fb_fd_o.is_some() {
                 switch fb_fd_o.unwrap().node_type {
                 case .FuncDef(fdef):
-                    if fdef.return_type.len() > 0 {
-                        return normalize_ctor_type(fdef.return_type)
+                    if fdef.sig.return_type.len() > 0 {
+                        return normalize_ctor_type(fdef.sig.return_type)
                     }
                 case:
                 }
@@ -1509,12 +1509,12 @@ priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, met
     ref mdef : Expr = mdefo.unwrap()
     switch mdef.node_type {
     case .FuncDef(fd):
-        if fd.throw_types.len() > 0 {
-            register_func_throws(ctx, key, fd.throw_types)
+        if fd.sig.throw_types.len() > 0 {
+            register_func_throws(ctx, key, fd.sig.throw_types)
             return key
         }
         mut derived := Vec(Str).new()
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             if p.name.starts_with("_err_").and(p.name.eq("_err_kind").not()) {
                 if p.til_type.is(Type.Unknown).not() { derived.push(own p.type_name()) }
             }
@@ -3524,7 +3524,7 @@ priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope, symbols: SymbolPoo
 
 priv fdef_is_variadic := func(fdef: Expr) returns Bool {
     switch fdef.node_type {
-    case .FuncDef(fd): return fd.variadic_index >= 0
+    case .FuncDef(fd): return fd.sig.variadic_index >= 0
     case: return false
     }
 }
@@ -3605,7 +3605,7 @@ priv map_literal_type_name := func(key_type: Str, val_type: Str) returns Str {
 // Set `call.own_args` to match the callee's params.own_type, for a
 // namespace call built by make_ns_call (FCall whose head is
 // FieldAccess(method) over Ident(type_name)). Walks the resolved
-// ns_func.params and ORs bit (i+1) for each Own param -- the +1 skips
+// ns_func.sig.params and ORs bit (i+1) for each Own param -- the +1 skips
 // the callee child at index 0. Caller is responsible for having pushed
 // the receiver and the actual arg Exprs in the same order as the
 // callee's params before calling this.
@@ -3646,8 +3646,8 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope, symbols
     ref ns_func : Expr = nfo.unwrap()
     switch ns_func.node_type {
     case .FuncDef(fd):
-        for i in 0..fd.params.len() {
-            ref p : Declaration = fd.params[i]
+        for i in 0..fd.sig.params.len() {
+            ref p : Declaration = fd.sig.params[i]
             if p.own_type.is(OwnType.Own) {
                 set_own_arg(call, i + 1)
             }
@@ -3848,7 +3848,7 @@ priv build_variadic_array_set := func(fcall: Expr, mut scope: TypeScope, elem_ty
         ref set_def : Expr = set_defo.unwrap()
         switch set_def.node_type {
         case .FuncDef(set_fd):
-            for sp : Declaration in set_fd.params {
+            for sp : Declaration in set_fd.sig.params {
                 if sp.default_value.is_some() {
                     set_call.add_child(own resolve_default_value(sp.default_expr(), fcall, ctx))
                 }
@@ -4245,9 +4245,9 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     }
     if skip { return }
     ref fd : FunctionDef = funcdef_of(fdef)
-    vi := fd.variadic_index + 1
-    vc := fcall_variadic_count(e, fd.params.len(), fd.kwargs_index >= 0)
-    elem_type := fd.params[fd.variadic_index.to_usize()].type_name()
+    vi := fd.sig.variadic_index + 1
+    vc := fcall_variadic_count(e, fd.sig.params.len(), fd.sig.kwargs_index >= 0)
+    elem_type := fd.sig.params[fd.sig.variadic_index.to_usize()].type_name()
     array_type := variadic_array_type_name(scope, elem_type, ctx.symbols)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc, ctx.symbols) { return }
     if desugar_mixed_splat_variadic_call(ctx, e, new_ch, scope, elem_type, array_type, vi, vc) { return }
@@ -4261,7 +4261,7 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
         mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi.to_usize().add(j), j, ctx)
         new_ch.push(own setter)
     }
-    variadic_own := fd.params[fd.variadic_index.to_usize()].own_type.is(OwnType.Own)
+    variadic_own := fd.sig.params[fd.sig.variadic_index.to_usize()].own_type.is(OwnType.Own)
     rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc, variadic_own, ctx.symbols)
 }
 
@@ -4672,8 +4672,8 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: USize, scope: TypeScop
     case .FuncDef(vfd):
         if vfd.is_enum_variant_ctor.not() { return false }
         pidx := i - 1
-        if pidx >= vfd.params.len() { return false }
-        ref vp : Declaration = vfd.params[pidx]
+        if pidx >= vfd.sig.params.len() { return false }
+        ref vp : Declaration = vfd.sig.params[pidx]
         return vp.own_type.is(OwnType.Own)
     case: return false
     }
@@ -5100,8 +5100,8 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
 // pre-variadic-rewrite "position would be different" is irrelevant
 // there.
 priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) returns I32 {
-    if fdef_data.kwargs_index < 0 { return -1 }
-    return fdef_data.params.len().to_i32()
+    if fdef_data.sig.kwargs_index < 0 { return -1 }
+    return fdef_data.sig.params.len().to_i32()
 }
 
 // Returns true if it rewrote fcall in place. Caller is responsible for

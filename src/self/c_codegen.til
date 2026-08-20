@@ -71,7 +71,7 @@ priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
     case .Some(cf):
         switch cf.node_type {
         case .FuncDef(fd):
-            for p : Declaration in fd.params {
+            for p : Declaration in fd.sig.params {
                 if p.name == name { return true }
             }
             return false
@@ -190,8 +190,8 @@ priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) retu
         ref fdef : Expr = fdef_o.unwrap()
         switch fdef.node_type {
         case .FuncDef(fd):
-            if fd.return_type.len() > 0 {
-                return til_type_name_c(type_from_name_init_name(fd.return_type, ctx.scope, ctx.symbols))
+            if fd.sig.return_type.len() > 0 {
+                return til_type_name_c(type_from_name_init_name(fd.sig.return_type, ctx.scope, ctx.symbols))
             }
         case:
         }
@@ -298,10 +298,10 @@ priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, mut 
         }
     }
     ref mut ret : Expr = bodyc.children[n.sub(1)]
-    inline_subst(ret, fd.params, e, ctx.symbols)
+    inline_subst(ret, fd.sig.params, e, ctx.symbols)
     ref rv : Expr = ret.children[0]
     f.write("(")
-    if fd.return_own_type.is(OwnType.Ref) {
+    if fd.sig.return_own_type.is(OwnType.Ref) {
         // The spliced expression is ptr_add's (void *) lowering; cast it
         // back to the accessor's real C return type so the inline is a
         // drop-in for the out-of-line call. Without the cast, a chained
@@ -324,7 +324,7 @@ priv builder_callee_is_core := func(name: Str, ctx: Context) returns Bool {
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        return fd.func_type.is_core()
+        return fd.sig.func_type.is_core()
     case:
         return false
     }
@@ -452,8 +452,8 @@ priv is_value_param := func(name: Str, mut ctx: Context) returns Bool {
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
-        for i in 0..fd.params.len() {
-            if fd.params[i].name == name {
+        for i in 0..fd.sig.params.len() {
+            if fd.sig.params[i].name == name {
                 return func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             }
         }
@@ -474,8 +474,8 @@ priv is_stack_outer_param := func(name: Str, mut ctx: Context) returns Bool {
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
-        for i in 0..fd.params.len() {
-            if fd.params[i].name == name {
+        for i in 0..fd.sig.params.len() {
+            if fd.sig.params[i].name == name {
                 return func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             }
         }
@@ -495,8 +495,8 @@ priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
-        for i in 0..fd.params.len() {
-            ref p : Declaration = fd.params[i]
+        for i in 0..fd.sig.params.len() {
+            ref p : Declaration = fd.sig.params[i]
             if p.name == name {
                 return p.own_type.is(OwnType.Own)
                     .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).not())
@@ -524,7 +524,7 @@ priv callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns Bool
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        return fd.return_type == "Dynamic"
+        return fd.sig.return_type == "Dynamic"
     case:
         return false
     }
@@ -544,8 +544,8 @@ priv delete_call_free_lit := func(type_name: Str, set_free: Bool, ctx: Context) 
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.params.len() > 1 {
-            ref p : Declaration = fd.params[1]
+        if fd.sig.params.len() > 1 {
+            ref p : Declaration = fd.sig.params[1]
             if p.own_type.is(OwnType.Shallow).not() { return format("&", lit) }
         }
         return lit
@@ -560,8 +560,8 @@ priv callee_param_passes_c_value := func(callee_name: Str, arg_index: USize, ctx
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if arg_index >= fd.params.len() { return false }
-        if fd.params.len() == 0 { return false }
+        if arg_index >= fd.sig.params.len() { return false }
+        if fd.sig.params.len() == 0 { return false }
         return func_param_passes_c_value(fd, arg_index, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
     case:
         return false
@@ -594,8 +594,8 @@ priv delete_call_has_stack_outer := func(e: Expr, callee_name: Str, mut ctx: Con
     if fdef_o.is_none() { return false }
     switch fdef_o.unwrap().node_type {
     case .FuncDef(fd):
-        if fd.params.len() < 2 { return false }
-        if fd.params[1].name != "call_free" { return false }
+        if fd.sig.params.len() < 2 { return false }
+        if fd.sig.params[1].name != "call_free" { return false }
     case: return false
     }
     switch e.children[1].node_type {
@@ -613,8 +613,8 @@ priv callee_param_is_usize := func(callee_name: Str, arg_index: USize, ctx: Cont
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if arg_index >= fd.params.len() { return false }
-        return fd.params[arg_index].type_name() == "USize"
+        if arg_index >= fd.sig.params.len() { return false }
+        return fd.sig.params[arg_index].type_name() == "USize"
     case:
         return false
     }
@@ -626,8 +626,8 @@ priv callee_param_is_uptr := func(callee_name: Str, arg_index: USize, ctx: Conte
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if arg_index >= fd.params.len() { return false }
-        return fd.params[arg_index].type_name() == "UPtr"
+        if arg_index >= fd.sig.params.len() { return false }
+        return fd.sig.params[arg_index].type_name() == "UPtr"
     case:
         return false
     }
@@ -639,8 +639,8 @@ priv callee_param_is_own := func(callee_name: Str, arg_index: USize, ctx: Contex
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if arg_index >= fd.params.len() { return false }
-        return fd.params[arg_index].own_type.is(OwnType.Own)
+        if arg_index >= fd.sig.params.len() { return false }
+        return fd.sig.params[arg_index].own_type.is(OwnType.Own)
     case:
         return false
     }
@@ -660,8 +660,8 @@ priv callee_param_writes_back := func(callee_name: Str, arg_index: USize, ctx: C
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if arg_index >= fd.params.len() { return false }
-        ref p : Declaration = fd.params[arg_index]
+        if arg_index >= fd.sig.params.len() { return false }
+        ref p : Declaration = fd.sig.params[arg_index]
         return p.is_mut.or(p.own_type.is(OwnType.Ref))
     case:
         return false
@@ -674,8 +674,8 @@ priv callee_param_type_name := func(callee_name: Str, arg_index: USize, ctx: Con
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if arg_index >= fd.params.len() { return "" }
-        ref p : Declaration = fd.params[arg_index]
+        if arg_index >= fd.sig.params.len() { return "" }
+        ref p : Declaration = fd.sig.params[arg_index]
         return p.type_name()
     case:
         return ""
@@ -693,9 +693,9 @@ priv ext_c_string_param := func(callee_name: Str, arg_index: USize, ctx: Context
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.func_type.is_ext().not() { return false }
-        if arg_index >= fd.params.len() { return false }
-        ref p : Declaration = fd.params[arg_index]
+        if fd.sig.func_type.is_ext().not() { return false }
+        if arg_index >= fd.sig.params.len() { return false }
+        ref p : Declaration = fd.sig.params[arg_index]
         if p.type_name().eq("I8").not() { return false }
         return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
     case:
@@ -884,10 +884,10 @@ priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
     if fdef.node_type.is(NodeType.FuncDef).not() { return false }
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.func_type.is(FuncType.Macro).not() { return false }
-        return fd.return_type.eq("StructDef")
-            .or(fd.return_type.eq("EnumDef"))
-            .or(fd.return_type.eq("FuncDef"))
+        if fd.sig.func_type.is(FuncType.Macro).not() { return false }
+        return fd.sig.return_type.eq("StructDef")
+            .or(fd.sig.return_type.eq("EnumDef"))
+            .or(fd.sig.return_type.eq("FuncDef"))
     case:
     }
     return false
@@ -1013,14 +1013,14 @@ priv emit_til_default := proc(f: File, shallow t: Type) {
     }
 }
 
-// Resolve the C parameter type for fd.params[i]. Avoids the
+// Resolve the C parameter type for fd.sig.params[i]. Avoids the
 // `mut ptype := ""` pre-init pattern in emit_param_list, whose empty
 // Str leaked once per parameter on each call.
 priv param_ctype := func(fd: FunctionDef, i: USize, mut ctx: Context) returns Str {
     ii := i.to_i32()
-    ref p : Declaration = fd.params[i]
-    if ii == fd.variadic_index { return builder_variadic_array_ctype(ctx, p.type_name()) }
-    if ii == fd.kwargs_index { return type_name_to_c(p.type_name(), ctx) }
+    ref p : Declaration = fd.sig.params[i]
+    if ii == fd.sig.variadic_index { return builder_variadic_array_ctype(ctx, p.type_name()) }
+    if ii == fd.sig.kwargs_index { return type_name_to_c(p.type_name(), ctx) }
     if func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols) {
         return type_name_to_c_value(p.type_name(), ctx)
     }
@@ -1029,10 +1029,10 @@ priv param_ctype := func(fd: FunctionDef, i: USize, mut ctx: Context) returns St
 
 priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl: Bool, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
-    if fd.params.len() == 0 {
+    if fd.sig.params.len() == 0 {
         f.write("void")
     } else {
-        for i in 0..fd.params.len() {
+        for i in 0..fd.sig.params.len() {
             if i > 0 { f.write(", ") }
             ii := i.to_i32()
             // Issue #176 bullet 1: emit `const` for non-mut Ref pointer
@@ -1041,8 +1041,8 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
             // shallow / own params are excluded (const adds nothing or is
             // wrong). `mut` stays as the escape hatch.
             mut const_prefix := false
-            if for_ext_decl.and(ii.neq(fd.variadic_index)).and(ii.neq(fd.kwargs_index)) {
-                ref pp : Declaration = fd.params[i]
+            if for_ext_decl.and(ii.neq(fd.sig.variadic_index)).and(ii.neq(fd.sig.kwargs_index)) {
+                ref pp : Declaration = fd.sig.params[i]
                 if pp.own_type.is(OwnType.Ref).and(pp.is_mut.not()) {
                     const_prefix = true
                 }
@@ -1052,7 +1052,7 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
                 if const_prefix { f.write("const ") }
                 f.write(ptype)
                 f.write(" ")
-                f.write(fd.params[i].name)
+                f.write(fd.sig.params[i].name)
             } else {
                 if const_prefix { f.write("const ") }
                 f.write(ptype)
@@ -1157,8 +1157,8 @@ priv fcall_return_ctype := func(fcall: Expr, mut ctx: Context) returns Str {
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.return_type.len() == 0 { return "" }
-        return type_name_to_c_value(fd.return_type, ctx)
+        if fd.sig.return_type.len() == 0 { return "" }
+        return type_name_to_c_value(fd.sig.return_type, ctx)
     case:
         return ""
     }
@@ -1206,7 +1206,7 @@ priv fcall_returns_ref := func(fcall: Expr, ctx: Context) returns Bool {
         fdef_o := find_callee_fdef(callee, ctx)
         if fdef_o.is_some() {
             switch fdef_o.unwrap().node_type {
-            case .FuncDef(fd): return fd.return_own_type.is(OwnType.Ref)
+            case .FuncDef(fd): return fd.sig.return_own_type.is(OwnType.Ref)
             case:
             }
         }
@@ -1214,7 +1214,7 @@ priv fcall_returns_ref := func(fcall: Expr, ctx: Context) returns Bool {
     sig_o := fcall_fn_sig(fcall, ctx)
     if sig_o.is_some() {
         switch sig_o.unwrap().node_type {
-        case .FuncDef(sfd): return sfd.return_own_type.is(OwnType.Ref)
+        case .FuncDef(sfd): return sfd.sig.return_own_type.is(OwnType.Ref)
         case:
         }
     }
@@ -1410,11 +1410,11 @@ priv check_fcall_mut_args := proc(mut ctx: Context, e: Expr) {
         if fdef_o.is_some() {
             switch fdef_o.unwrap().node_type {
             case .FuncDef(fd):
-                if fd.params.len() > 0 {
+                if fd.sig.params.len() > 0 {
                     for a in 1..e.children.len() {
                         pi := a - 1
-                        if pi < fd.params.len() {
-                            if fd.params[pi].is_mut {
+                        if pi < fd.sig.params.len() {
+                            if fd.sig.params[pi].is_mut {
                                 switch e.children[a].node_type {
                                 case .Ident(arg_name):
                                     ctx.builder_func.unsafe_to_hoist.add(own arg_name.ident_sym())
@@ -1451,7 +1451,7 @@ priv collect_unsafe_to_hoist := proc(mut ctx: Context, body: Expr) {
                             ref fdef : Expr = fdef_o.unwrap()
                             switch fdef.node_type {
                             case .FuncDef(fd):
-                                if fd.return_own_type.is(OwnType.Ref) {
+                                if fd.sig.return_own_type.is(OwnType.Ref) {
                                     for a in 1..rhs.children.len() {
                                         switch rhs.children[a].node_type {
                                         case .Ident(arg_name):
@@ -1729,9 +1729,9 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                 }
             case .FuncDef(fd):
                 if rhs.children.len().eq(0).and(builder_needs_reflect("func_sig_", ctx)) {
-                    for p : Declaration in fd.params { builder_register_str_lit(ctx, p.type_name()) }
-                    if fd.return_type.len().gt(0) { builder_register_str_lit(ctx, fd.return_type) }
-                    for tt : Str in fd.throw_types { builder_register_str_lit(ctx, tt) }
+                    for p : Declaration in fd.sig.params { builder_register_str_lit(ctx, p.type_name()) }
+                    if fd.sig.return_type.len().gt(0) { builder_register_str_lit(ctx, fd.sig.return_type) }
+                    for tt : Str in fd.sig.throw_types { builder_register_str_lit(ctx, tt) }
                 }
             case:
             }
@@ -2284,7 +2284,7 @@ priv emit_return_ctype := func(rv: Expr, mut ctx: Context) returns Str {
     case .Some(cf):
         switch cf.node_type {
         case .FuncDef(fd):
-            if fd.return_type.len() > 0 { return type_name_to_c_value(fd.return_type, ctx) }
+            if fd.sig.return_type.len() > 0 { return type_name_to_c_value(fd.sig.return_type, ctx) }
         case:
         }
     case .None:
@@ -2306,12 +2306,12 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref rv : Expr = e.children[0]
     ref cf : Expr = ctx.builder_func.current_fdef.unwrap()
     ref fd : FunctionDef = funcdef_of(cf)
-    if fd.return_own_type.is(OwnType.Ref) {
+    if fd.sig.return_own_type.is(OwnType.Ref) {
         f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
         return
     }
     ctype := emit_return_ctype(rv, ctx)
-    if fd.return_type == "Dynamic" {
+    if fd.sig.return_type == "Dynamic" {
         f.write("return ")
         emit_expr(f, rv, depth, ctx)
         f.write(";\n")
@@ -2921,7 +2921,7 @@ priv funcptr_call_ret_ctype := func(e: Expr, sig: Expr) returns Str {
     switch sig.node_type {
     case .FuncDef(sfd):
         ret_value := func_returns_c_value(sfd)
-        if sfd.return_type.len() == 0 { return "void" }
+        if sfd.sig.return_type.len() == 0 { return "void" }
         if e.til_type().is(Type.None).or(e.til_type().is(Type.Unknown)).or(e.til_type().is(Type.Dynamic)) {
             return "void *"
         }
@@ -2949,7 +2949,7 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, mut ctx: Conte
     f.write("void *")
     for i in 1..e.children.len() {
         f.write(", ")
-        if i - 1 < sfd.params.len() {
+        if i - 1 < sfd.sig.params.len() {
             f.write(param_ctype(sfd, i - 1, ctx))
         } else {
             f.write("void *")
@@ -3048,8 +3048,8 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
         mut arg_value := false
         mut arg_own := false
         mut arg_stack_outer := false
-        if i - 1 < sfd.params.len() {
-            ref p : Declaration = sfd.params[i - 1]
+        if i - 1 < sfd.sig.params.len() {
+            ref p : Declaration = sfd.sig.params[i - 1]
             arg_value = func_param_passes_c_value(sfd, i - 1, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             arg_own = p.own_type.is(OwnType.Own)
             arg_stack_outer = func_param_has_stack_outer(sfd, i - 1, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
@@ -4829,8 +4829,8 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
     if mode.needs_main { is_main = name == "main" }
 
     if is_main {
-        nparam := fd.params.len()
-        vi := fd.variadic_index
+        nparam := fd.sig.params.len()
+        vi := fd.sig.variadic_index
         if nparam == 0 {
             // #326: a no-argument main still needs argc for the arity check,
             // but never touches argv. Name the slot `_argv` -- til's
@@ -4854,7 +4854,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         if nparam > 0 {
             mut argi : I32 = 1
             for i in 0..nparam {
-                ref p : Declaration = fd.params[i]
+                ref p : Declaration = fd.sig.params[i]
                 ii := i.to_i32()
                 if ii == vi {
                     // Variadic array. The ELEMENT operations below -- the
@@ -4951,7 +4951,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // signature. Leave that case to -Werror=unused-parameter.
         mut body_refs := Set(Str).new()
         collect_ident_refs(body, body_refs, lp.ctx.symbols)
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             if body_refs.has(p.name).not().and(p.name.starts_with("_")) {
                 f.write("    (void)").write(p.name).write(";\n")
             }
@@ -5050,7 +5050,7 @@ priv emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitte
         }
         f.write("static ").write(ret).write(" ").write(fd.closure_name).write("(void *")
         if env_read { f.write("til_env_raw") } else { f.write("_til_env_raw") }
-        if fd.params.len() > 0 {
+        if fd.sig.params.len() > 0 {
             f.write(", ")
             emit_param_list(f, closure_expr, true, false, lp.ctx)
         }
@@ -5156,7 +5156,7 @@ priv emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(
     emit_capturing_closure_func(f, e, emitted, lp)
     switch e.node_type {
     case .FuncDef(fd):
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             if p.default_value.is_some() { emit_capturing_closures_in_expr(f, p.default_expr(), emitted, lp) }
         }
     case .StructDef(sdd):
@@ -5276,7 +5276,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
 // test/ffi_module caught the first version of this.
 priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
     ref bnmli_fd : FunctionDef = funcdef_of(fdef)
-    return bnmli_fd.func_type.is_core()
+    return bnmli_fd.sig.func_type.is_core()
 }
 
 // #326: a payload-less enum's clone/delete follow the same rule as the
@@ -5292,7 +5292,7 @@ priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, mut lp: LoadedProgram) {
     mut is_auto_size := false
     ref fd : FunctionDef = funcdef_of(fdef)
-    if fd.func_type.is_bodyless() { return }
+    if fd.sig.func_type.is_bodyless() { return }
     is_auto_size = dd_name.eq("size").and(fd.auto_generated)
     // A bodyless namespace signature (interface method, issue #251) is a
     // FuncSig type, not an implementation -- it emits no C function.
@@ -5703,9 +5703,9 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
 // in emit_func_forward_decl / emit_funcsig_typedef whose default
 // "void" Str_lit leaked when reassigned.
 priv func_return_ctype := func(fd: FunctionDef, mut ctx: Context) returns Str {
-    if fd.return_type.len() == 0 { return "void" }
-    if func_returns_c_value(fd) { return type_name_to_c_value(fd.return_type, ctx) }
-    return type_name_to_c(fd.return_type, ctx)
+    if fd.sig.return_type.len() == 0 { return "void" }
+    if func_returns_c_value(fd) { return type_name_to_c_value(fd.sig.return_type, ctx) }
+    return type_name_to_c(fd.sig.return_type, ctx)
 }
 
 // #326: a CORE top-level function whose every call site sits inside a
@@ -5811,7 +5811,7 @@ priv c_lib_collect_ast_names := func(lp: LoadedProgram, mut names: Vec(Str), mut
                 // symbol. Runtime definitions owned by ext.c are recovered
                 // from ext.h below; libc and user link() dependencies stay
                 // deliberately unprefixed.
-                if fd.func_type.is_bodyless().not() {
+                if fd.sig.func_type.is_bodyless().not() {
                     c_lib_add_name(func_to_c(dd.name), names, seen)
                 } else if rhs.children.len() == 0 {
                     // A FuncSig is a C typedef, not an external function.
@@ -6000,7 +6000,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
     // in ext.c / ext.h. Namespace ext_func methods still need their
     // forward decl from this path (top_level=false) -- nothing else
     // covers them.
-    if top_level.and(fd.func_type.is_bodyless()) { return }
+    if top_level.and(fd.sig.func_type.is_bodyless()) { return }
     if name == "main" { return }
     // #326: a HEADER (builder_static_ok false) for a CLOSED WORLD declares
     // only what another translation unit can actually call. Everything
@@ -6024,7 +6024,7 @@ priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, mut ctx: 
     call_name := closure_call_name(name)
     value_name := closure_value_name(name)
     f.write("static ").write(ret).write(" ").write(call_name).write("(void *_til_env")
-    if fd.params.len() > 0 {
+    if fd.sig.params.len() > 0 {
         f.write(", ")
         emit_param_list(f, fdef, true, false, ctx)
     }
@@ -6038,7 +6038,7 @@ priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, mut ctx: C
     call_name := closure_call_name(name)
     value_name := closure_value_name(name)
     f.write("static ").write(ret).write(" ").write(call_name).write("(void *_til_env")
-    if fd.params.len() > 0 {
+    if fd.sig.params.len() > 0 {
         f.write(", ")
         emit_param_list(f, fdef, true, false, ctx)
     }
@@ -6046,12 +6046,12 @@ priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, mut ctx: C
     // #326: the wrapper adapts a plain func to the closure ABI, so the
     // env slot exists only to satisfy that ABI and is never read.
     f.write("    (void)_til_env;\n")
-    if fd.return_type.len() > 0 { f.write("    return ") }
+    if fd.sig.return_type.len() > 0 { f.write("    return ") }
     else { f.write("    ") }
     f.write(func_to_c(name)).write("(")
-    for i in 0..fd.params.len() {
+    for i in 0..fd.sig.params.len() {
         if i > 0 { f.write(", ") }
-        f.write(fd.params[i].name)
+        f.write(fd.sig.params[i].name)
     }
     f.write(");\n")
     f.write("}\n")
@@ -6244,8 +6244,8 @@ priv builder_ns_func_param_shallow := func(def: Expr, method: Str) returns Bool 
     if nsd.default_value.is_none() { return false }
     switch nsd.default_expr().node_type {
     case .FuncDef(fd):
-        if fd.params.len() == 0 { return false }
-        ref p0 : Declaration = fd.params[0]
+        if fd.sig.params.len() == 0 { return false }
+        ref p0 : Declaration = fd.sig.params[0]
         return p0.own_type.is(OwnType.Shallow)
     case:
     }
@@ -6291,7 +6291,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
                         switch fdd.default_expr().node_type {
                         case .FuncDef(fd):
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi))
-                            if fd.func_type.is_bodyless() { continue }
+                            if fd.sig.func_type.is_bodyless() { continue }
                             if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi), lp.ctx) { continue }
                             emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                         case:
@@ -6302,7 +6302,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
                     case .FuncDef(fd):
                         if builder_is_type_gen_macro_def(rhs) { continue }
                         if rhs.children.len() == 0 { continue }
-                        if fd.func_type.is_bodyless() { continue }
+                        if fd.sig.func_type.is_bodyless() { continue }
                         fc := func_to_c(dd.name)
                         if fc == "main" { continue }
                         emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
@@ -6466,70 +6466,70 @@ priv binding_decl_name := func(name: Str, ctx: Context, lib_name: Str) returns S
 
 priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
     mut kw := "ext_func"
-    if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "ext_proc" }
+    if fd.sig.func_type.is(FuncType.Proc).or(fd.sig.func_type.is(FuncType.Test)) { kw = "ext_proc" }
     f.write(indent).write(name).write(" := ").write(kw).write("(")
-    for p in 0..fd.params.len() {
+    for p in 0..fd.sig.params.len() {
         if p > 0 { f.write(", ") }
-        ref param : Declaration = fd.params[p]
+        ref param : Declaration = fd.sig.params[p]
         if param.is_mut { f.write("mut ") }
         if param.own_type.is(OwnType.Own) { f.write("own ") }
         if param.own_type.is(OwnType.Shallow) { f.write("shallow ") }
         pi := p.to_i32()
-        if pi == fd.variadic_index { f.write("..") }
-        if pi == fd.kwargs_index {
+        if pi == fd.sig.variadic_index { f.write("..") }
+        if pi == fd.sig.kwargs_index {
             f.write(param.name).write(": ...")
         } else {
             f.write(param.name).write(": ").write(binding_type_name(param.type_name(), ctx, lib_name))
         }
     }
     f.write(")")
-    if fd.return_type.len() > 0 {
+    if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
-        if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
+        if fd.sig.return_own_type.is(OwnType.Ref) { f.write("ref ") }
         if func_returns_c_value(fd) { f.write("shallow ") }
-        f.write(binding_type_name(fd.return_type, ctx, lib_name))
+        f.write(binding_type_name(fd.sig.return_type, ctx, lib_name))
     }
     f.write(" {}\n")
 }
 
 priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
     mut kw := "func"
-    if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "proc" }
+    if fd.sig.func_type.is(FuncType.Proc).or(fd.sig.func_type.is(FuncType.Test)) { kw = "proc" }
     f.write(indent)
     f.write(name).write(" := ").write(kw).write("(")
-    for p in 0..fd.params.len() {
+    for p in 0..fd.sig.params.len() {
         if p > 0 { f.write(", ") }
-        ref param : Declaration = fd.params[p]
+        ref param : Declaration = fd.sig.params[p]
         if param.is_mut { f.write("mut ") }
         if param.own_type.is(OwnType.Own) { f.write("own ") }
         pi := p.to_i32()
-        if pi == fd.variadic_index { f.write("..") }
-        if pi == fd.kwargs_index {
+        if pi == fd.sig.variadic_index { f.write("..") }
+        if pi == fd.sig.kwargs_index {
             f.write(param.name).write(": ...")
         } else {
             f.write(param.name).write(": ").write(binding_type_name(param.type_name(), ctx, lib_name))
         }
     }
     f.write(")")
-    if fd.return_type.len() > 0 {
+    if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
-        if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
+        if fd.sig.return_own_type.is(OwnType.Ref) { f.write("ref ") }
         // `shallow` is part of an ext declaration's ABI but redundant (and
         // rejected) on an ordinary wrapper returning a primitive by value.
-        if fd.return_own_type.is(OwnType.Shallow).and(is_scalar_type_name(fd.return_type).not()) {
+        if fd.sig.return_own_type.is(OwnType.Shallow).and(is_scalar_type_name(fd.sig.return_type).not()) {
             f.write("shallow ")
         }
-        f.write(binding_type_name(fd.return_type, ctx, lib_name))
+        f.write(binding_type_name(fd.sig.return_type, ctx, lib_name))
     }
     f.write(" { ")
-    if fd.return_type.len() > 0 { f.write("return ") }
+    if fd.sig.return_type.len() > 0 { f.write("return ") }
     f.write(actual).write("(")
-    for a in 0..fd.params.len() {
+    for a in 0..fd.sig.params.len() {
         if a > 0 { f.write(", ") }
-        ref arg : Declaration = fd.params[a]
+        ref arg : Declaration = fd.sig.params[a]
         if arg.own_type.is(OwnType.Own) { f.write("own ") }
         ai := a.to_i32()
-        if ai.eq(fd.variadic_index).or(ai.eq(fd.kwargs_index)) { f.write("..") }
+        if ai.eq(fd.sig.variadic_index).or(ai.eq(fd.sig.kwargs_index)) { f.write("..") }
         f.write(arg.name)
     }
     f.write(") }\n")
@@ -6544,7 +6544,7 @@ priv emit_binding_ns_actuals := proc(f: File, owner: Str, def: Expr, ctx: Contex
         if nsd.default_value.is_none() { continue }
         switch nsd.default_expr().node_type {
         case .FuncDef(fd):
-            if fd.func_type.is_bodyless() { continue }
+            if fd.sig.func_type.is_bodyless() { continue }
             ref method : Str = def_ns_name_at(def, cur)
             source_name := owner.concat3("_", method)
             actual := c_lib_symbol(lib_name, source_name)
@@ -6565,7 +6565,7 @@ priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Contex
         if nsd.default_value.is_none() { continue }
         switch nsd.default_expr().node_type {
         case .FuncDef(fd):
-            if fd.func_type.is_bodyless() { continue }
+            if fd.sig.func_type.is_bodyless() { continue }
             if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
             ref method : Str = def_ns_name_at(def, cur_ebi)
             source_name := owner.concat3("_", method)
@@ -6626,8 +6626,8 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 emit_binding_ns_methods(f, dd.name, rhs, lp.ctx, lib_name)
                 f.write("}\n\n")
             case .FuncDef(fd):
-                if fd.func_type.is_bodyless() { continue }
-                if fd.func_type.is(FuncType.Test) { continue }
+                if fd.sig.func_type.is_bodyless() { continue }
+                if fd.sig.func_type.is(FuncType.Test) { continue }
                 actual_name := c_lib_symbol(lib_name, dd.name)
                 binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
                 emit_binding_func_decl(f, "", actual_name, fd, lp.ctx, lib_name)
@@ -6836,22 +6836,22 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     if nsd.default_value.is_none() { continue }
                     switch nsd.default_expr().node_type {
                     case .FuncDef(fd):
-                    if fd.func_type.is_bodyless() { continue }
+                    if fd.sig.func_type.is_bodyless() { continue }
                     py_ns_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_pybi))
                     emit_python_lib_symbol(f, lib_name, py_ns_name)
                     f.write(".argtypes = [")
-                    for p in 0..fd.params.len() {
+                    for p in 0..fd.sig.params.len() {
                         if p > 0 { f.write(", ") }
-                        ref param : Declaration = fd.params[p]
+                        ref param : Declaration = fd.sig.params[p]
                         ps := param.own_type.is(OwnType.Shallow)
                         f.write(type_name_to_ctypes_param(param.type_name(), ps, lp.ctx))
                     }
                     f.write("]\n")
-                    if fd.return_type.len() > 0 {
+                    if fd.sig.return_type.len() > 0 {
                         rs := func_returns_c_value(fd)
                         emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = ")
-                        f.write(type_name_to_ctypes_return(fd.return_type, rs, lp.ctx)).write("\n")
+                        f.write(type_name_to_ctypes_return(fd.sig.return_type, rs, lp.ctx)).write("\n")
                     } else {
                         emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = None\n")
@@ -6864,19 +6864,19 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             } else {
                 switch rhs.node_type {
                 case .FuncDef(fd):
-                    if fd.func_type.is_bodyless() { continue }
-                    if fd.func_type.is(FuncType.Test) { continue }
+                    if fd.sig.func_type.is_bodyless() { continue }
+                    if fd.sig.func_type.is(FuncType.Test) { continue }
 
                     c_name := func_to_c(dd.name)
 
                     // argtypes
                     emit_python_lib_symbol(f, lib_name, c_name)
                     f.write(".argtypes = [")
-                    for p in 0..fd.params.len() {
+                    for p in 0..fd.sig.params.len() {
                         if p > 0 { f.write(", ") }
-                        ref param : Declaration = fd.params[p]
+                        ref param : Declaration = fd.sig.params[p]
                         pi := p.to_i32()
-                        if pi == fd.variadic_index {
+                        if pi == fd.sig.variadic_index {
                             f.write("ctypes.POINTER(Array)")
                         } else {
                             ps := param.own_type.is(OwnType.Shallow)
@@ -6886,11 +6886,11 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     f.write("]\n")
 
                     // restype
-                    if fd.return_type.len() > 0 {
+                    if fd.sig.return_type.len() > 0 {
                         rs := func_returns_c_value(fd)
                         emit_python_lib_symbol(f, lib_name, c_name)
                         f.write(".restype = ")
-                        f.write(type_name_to_ctypes_return(fd.return_type, rs, lp.ctx)).write("\n")
+                        f.write(type_name_to_ctypes_return(fd.sig.return_type, rs, lp.ctx)).write("\n")
                     } else {
                         emit_python_lib_symbol(f, lib_name, c_name)
                         f.write(".restype = None\n")
@@ -7037,8 +7037,8 @@ priv register_body_func_symbols := func(body: Expr, mut ctx: Context) {
         ref fdef : Expr = nested.children[0]
         switch fdef.node_type {
         case .FuncDef(fd):
-            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))
-                .or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) {
+            if fd.sig.func_type.is(FuncType.ExtFunc).or(fd.sig.func_type.is(FuncType.ExtProc))
+                .or(fd.sig.func_type.is(FuncType.CoreFunc)).or(fd.sig.func_type.is(FuncType.CoreProc)) {
                 ctx.scope.set_func_symbol_name(nd.name, fdef, ctx.symbols)
             }
         case:
@@ -7093,7 +7093,7 @@ priv collect_closure_value_names := proc(e: Expr, mut names: Set(Sym), mut ctx: 
             if find_callee_fdef(ident.ident_name(ctx.symbols.names), ctx).is_some() { names.add(own ident.ident_sym()) }
         }
     case .FuncDef(fd):
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             if p.default_value.is_some() { collect_closure_value_names(p.default_expr(), names, ctx) }
         }
     case .StructDef(sdd):
@@ -7151,7 +7151,7 @@ priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mo
             if dd.name == "main" { return }
         }
         fc := func_to_c(dd.name)
-        if fd.func_type.is_bodyless() { return }
+        if fd.sig.func_type.is_bodyless() { return }
         if lp.ctx.builder_omitted_core_funcs.has(dd.name) { return }
         emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
         if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
@@ -7211,7 +7211,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
                         if fdd.default_value.is_none() { continue }
                         switch fdd.default_expr().node_type {
                         case .FuncDef(fd):
-                            if fd.func_type.is_bodyless() { continue }
+                            if fd.sig.func_type.is_bodyless() { continue }
                             if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af1i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af1i))
                             emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
@@ -7261,7 +7261,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
                     // that is not a genuine external.
                     switch fdd.default_expr().node_type {
                     case .FuncDef(af2_fd):
-                        if af2_fd.func_type.is_ext().and(def_is_interface(rhs)) { continue }
+                        if af2_fd.sig.func_type.is_ext().and(def_is_interface(rhs)) { continue }
                     case:
                     }
                     if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
@@ -7489,9 +7489,9 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
 }
 
 priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: FunctionDef, mut ctx: Context) {
-    np := fd.params.len()
+    np := fd.sig.params.len()
     ret_value_c := func_returns_c_value(fd)
-    has_return := fd.return_type.len() > 0
+    has_return := fd.sig.return_type.len() > 0
     // The dyn_fn funcptr aliases (CloneFn/DeleteFn/CmpFn, ...) use a uniform
     // dyn ABI. The wrapper bridges that ABI to the concrete method ABI:
     //   - return: clone uniquely produces an owned element stored as an opaque
@@ -7511,7 +7511,7 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     // generated definition -- and -Wunused-function audits it.
     if ctx.builder_static_ok { f.write("static ") }
     if has_return {
-        if ret_value { f.write(type_name_to_c_value(fd.return_type, ctx)).write(" ") }
+        if ret_value { f.write(type_name_to_c_value(fd.sig.return_type, ctx)).write(" ") }
         else { f.write("void *") }
     } else {
         f.write("void ")
@@ -7520,7 +7520,7 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     if np > 0 { f.write(", ") }
     for p in 0..np {
         if p > 0 { f.write(", ") }
-        ref pp : Declaration = fd.params[p]
+        ref pp : Declaration = fd.sig.params[p]
         is_call_free := method_name.eq("delete").and(p.gt(0))
         if pp.own_type.is(OwnType.Shallow).and(is_call_free) {
             f.write(type_name_to_c_value(pp.type_name(), ctx)).write(" _a"); emit_i32(f, p.to_i32())
@@ -7533,7 +7533,7 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     // slot is required by that ABI and never read.
     f.write("    (void)_til_env;\n")
     if box_ret {
-        rc := type_name_to_c_value(fd.return_type, ctx)
+        rc := type_name_to_c_value(fd.sig.return_type, ctx)
         f.write("    ").write(rc).write(" *_r = malloc(TIL_BOX(").write(rc).write(")); *_r = ")
     } else {
         f.write("    ")
@@ -7545,7 +7545,7 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     f.write(type_name).write("_").write(method_name).write("(")
     for p in 0..np {
         if p > 0 { f.write(", ") }
-        ref pp : Declaration = fd.params[p]
+        ref pp : Declaration = fd.sig.params[p]
         is_call_free := method_name.eq("delete").and(p.gt(0))
         if func_param_passes_c_value(fd, p, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).and(is_call_free.not()) {
             f.write("*(").write(type_name_to_c_value(pp.type_name(), ctx)).write(" *)_a"); emit_i32(f, p.to_i32())
@@ -7605,7 +7605,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                         // #269: no wrapper for abstract interface
                         // methods -- there is no C function behind them.
                         // ext_funcs on non-interface types are C-backed.
-                        if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
+                        if fd.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
                             emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw0i), fd, lp.ctx)
                             emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw0i), "_dyn")
                         }
@@ -7632,7 +7632,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                     // #269: no wrapper for abstract interface methods --
                     // there is no C function behind them. ext_funcs on
                     // non-interface types are C-backed.
-                    if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
+                    if fd.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
                         emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw1i), fd, lp.ctx)
                         emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw1i), "_dyn")
                     }
@@ -7661,7 +7661,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                         // #269: abstract interface methods have no
                         // _dyn wrapper closure to point at. ext_funcs
                         // on non-interface types are C-backed.
-                        if dfn_fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
+                        if dfn_fd.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
                             tlen := dd.name.len()
                             mlen := nsd_name.len()
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd_name).write("_dyn__til_closure;\n")
@@ -7689,7 +7689,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                     // #269: abstract interface methods have no _dyn
                     // wrapper closure to point at. ext_funcs on
                     // non-interface types are C-backed.
-                    if dfn_fd2.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
+                    if dfn_fd2.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
                         tlen := dd.name.len()
                         mlen := nsd2_name.len()
                         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd2_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd2_name).write("_dyn__til_closure;\n")
@@ -7992,27 +7992,27 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
         tlen := fname.len()
         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(fname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
         if kind == 0 {
-            f.write("        return "); emit_usize(f, fd.params.len()); f.write("LL;\n")
+            f.write("        return "); emit_usize(f, fd.sig.params.len()); f.write("LL;\n")
         } else if kind == 2 {
-            if fd.return_type.len() > 0 { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
+            if fd.sig.return_type.len() > 0 { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
         } else if kind == 4 {
-            f.write("        return "); emit_usize(f, fd.throw_types.len()); f.write("LL;\n")
+            f.write("        return "); emit_usize(f, fd.sig.throw_types.len()); f.write("LL;\n")
         } else if kind == 1 {
-            for i in 0..fd.params.len() {
+            for i in 0..fd.sig.params.len() {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
-                emit_str_lit_expr(f, fd.params[i].type_name(), ctx)
+                emit_str_lit_expr(f, fd.sig.params[i].type_name(), ctx)
                 f.write(";\n")
             }
         } else if kind == 3 {
-            if fd.return_type.len() > 0 {
+            if fd.sig.return_type.len() > 0 {
                 f.write("        if (*index == 0LL) return ")
-                emit_str_lit_expr(f, fd.return_type, ctx)
+                emit_str_lit_expr(f, fd.sig.return_type, ctx)
                 f.write(";\n")
             }
         } else {
-            for i in 0..fd.throw_types.len() {
+            for i in 0..fd.sig.throw_types.len() {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
-                emit_str_lit_expr(f, fd.throw_types[i], ctx)
+                emit_str_lit_expr(f, fd.sig.throw_types[i], ctx)
                 f.write(";\n")
             }
         }
@@ -8204,7 +8204,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                     mut dyn_skip_abstract := false
                     switch method_fdef.node_type {
                     case .FuncDef(abs_mfd):
-                        if abs_mfd.func_type.is_ext() {
+                        if abs_mfd.sig.func_type.is_ext() {
                             dyn_skip_abstract = true
                         }
                     case:
@@ -8215,14 +8215,14 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                     switch method_fdef.node_type {
                     case .FuncDef(mfd):
                     mut arg1 := "val"
-                    if mfd.params.len() > 0 {
-                        ref p0 : Declaration = mfd.params[0]
+                    if mfd.sig.params.len() > 0 {
+                        ref p0 : Declaration = mfd.sig.params[0]
                         if p0.own_type.is(OwnType.Shallow) { arg1 = format("*(", dd.name, " *)val") }
                     }
                     mut arg2_s := "arg2"
                     if info.nargs == 2 {
-                        if mfd.params.len() > 1 {
-                            ref p1 : Declaration = mfd.params[1]
+                        if mfd.sig.params.len() > 1 {
+                            ref p1 : Declaration = mfd.sig.params[1]
                             // Issue #223 step 1: the second param is not
                             // always the dispatched type (e.g. delete's
                             // call_free: Bool). Cast arg2 to the param's
@@ -8234,7 +8234,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                     mut ret_ct := ""
                     if info.has_return {
                         if ret_sh {
-                            if mfd.return_type.len() > 0 { ret_ct = type_name_to_c_value(mfd.return_type, lp.ctx) }
+                            if mfd.sig.return_type.len() > 0 { ret_ct = type_name_to_c_value(mfd.sig.return_type, lp.ctx) }
                         }
                     }
                     tlen := dd.name.len()
@@ -8284,7 +8284,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                 mut dyn_skip_abstract2 := false
                 switch method_fdef.node_type {
                 case .FuncDef(abs_mfd2):
-                    if abs_mfd2.func_type.is_ext() {
+                    if abs_mfd2.sig.func_type.is_ext() {
                         dyn_skip_abstract2 = true
                     }
                 case:
@@ -8295,13 +8295,13 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                 switch method_fdef.node_type {
                 case .FuncDef(mfd):
                 mut arg1 := "val"
-                if mfd.params.len() > 0 {
-                    if mfd.params[0].own_type.is(OwnType.Shallow) { arg1 = format("*(", dd.name, " *)val") }
+                if mfd.sig.params.len() > 0 {
+                    if mfd.sig.params[0].own_type.is(OwnType.Shallow) { arg1 = format("*(", dd.name, " *)val") }
                 }
                 mut arg2_s := "arg2"
                 if info.nargs == 2 {
-                    if mfd.params.len() > 1 {
-                        ref p1 : Declaration = mfd.params[1]
+                    if mfd.sig.params.len() > 1 {
+                        ref p1 : Declaration = mfd.sig.params[1]
                         // Issue #223 step 1: cast arg2 to the param's own
                         // value type (e.g. delete's call_free: Bool), not
                         // the dispatched type dd.name.
@@ -8312,7 +8312,7 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                 mut ret_ct := ""
                 if info.has_return {
                     if ret_sh {
-                        if mfd.return_type.len() > 0 { ret_ct = type_name_to_c_value(mfd.return_type, lp.ctx) }
+                        if mfd.sig.return_type.len() > 0 { ret_ct = type_name_to_c_value(mfd.sig.return_type, lp.ctx) }
                     }
                 }
                 tlen := dd.name.len()
@@ -8581,7 +8581,7 @@ priv emit_test_main := proc(f: File, mut lp: LoadedProgram) {
             ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is(NodeType.FuncDef) {
                 ref fd : FunctionDef = funcdef_of(rhs)
-                if fd.func_type.is(FuncType.Test).not() { continue }
+                if fd.sig.func_type.is(FuncType.Test).not() { continue }
                 f.write("    ").write(dd.name).write("();\n")
                 f.write("    fprintf(stderr, \"  pass: %s\\n\", \"").write(dd.name).write("\");\n")
                 test_count++
@@ -8597,7 +8597,7 @@ priv emit_test_main := proc(f: File, mut lp: LoadedProgram) {
                     ref nsfdef : Expr = nsd.default_expr()
                     switch nsfdef.node_type {
                     case .FuncDef(nsfd):
-                        if nsfd.func_type.is(FuncType.Test).not() { continue }
+                        if nsfd.sig.func_type.is(FuncType.Test).not() { continue }
                         ref bt_name : Str = def_ns_name_at(rhs, cur_bti)
                         full_name := dd.name.concat3("_", bt_name)
                         qual_name := dd.name.format(".", bt_name)
@@ -8683,7 +8683,7 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
         f.write("\n")
     case .FuncDef(fd):
         if builder_is_type_gen_macro_def(rhs) { return }
-        if fd.func_type.is_bodyless() { return }
+        if fd.sig.func_type.is_bodyless() { return }
         if rhs.children.len() == 0 { return }
         if lp.ctx.builder_omitted_core_funcs.has(dd.name) { return }
         emit_func_def(f, dd.name, rhs, mode, false, lp)
@@ -8711,7 +8711,7 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, mut ctx: Context
         if is_func_decl(stmt).not() { continue }
         ref fdef : Expr = stmt.children[0]
         ref fd : FunctionDef = funcdef_of(fdef)
-        if fd.func_type.is_ext().not() { continue }
+        if fd.sig.func_type.is_ext().not() { continue }
         ref dd : Declaration = decl_of(stmt)
         if dd.name.eq("print_single").or(dd.name.eq("print_flush")) { continue }
         // Issue #176: builder.til (and similar units) use the
@@ -8727,17 +8727,17 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, mut ctx: Context
         if shadow_fdef_o.is_some() {
             switch shadow_fdef_o.unwrap().node_type {
             case .FuncDef(sfd):
-                if sfd.func_type.is_ext().not() {
+                if sfd.sig.func_type.is_ext().not() {
                     shadowed_by_func = true
                 }
             case:
             }
         }
         if shadowed_by_func { continue }
-        if fd.return_type.len() > 0 {
+        if fd.sig.return_type.len() > 0 {
             mut rt := ""
-            if func_returns_c_value(fd) { rt = type_name_to_c_value(fd.return_type, ctx) }
-            else { rt = type_name_to_c(fd.return_type, ctx) }
+            if func_returns_c_value(fd) { rt = type_name_to_c_value(fd.sig.return_type, ctx) }
+            else { rt = type_name_to_c(fd.sig.return_type, ctx) }
             f.write(rt).write(" "); fc := func_to_c(dd.name); f.write(fc).write("(")
         } else {
             f.write("void "); fc := func_to_c(dd.name); f.write(fc).write("(")
@@ -8828,7 +8828,7 @@ priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str), mut c
             if builder_name_is_closure_rt(uct_dn, ctx) { ctx.builder_closure_rt_used = true }
         }
     case .FuncDef(uct_fd):
-        for uct_p : Declaration in uct_fd.params {
+        for uct_p : Declaration in uct_fd.sig.params {
             if uct_p.til_type.is(Type.Unknown).not() {
                 uct_pn := uct_p.type_name()
                 builder_used_ctype_add(uct_pn, used)
@@ -8837,9 +8837,9 @@ priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str), mut c
             builder_used_ctype_add(til_type_name(uct_p.til_type), used)
             if builder_type_is_closure_rt(uct_p.til_type) { ctx.builder_closure_rt_used = true }
         }
-        if uct_fd.return_type.len() > 0 {
-            builder_used_ctype_add(uct_fd.return_type, used)
-            if builder_name_is_closure_rt(uct_fd.return_type, ctx) { ctx.builder_closure_rt_used = true }
+        if uct_fd.sig.return_type.len() > 0 {
+            builder_used_ctype_add(uct_fd.sig.return_type, used)
+            if builder_name_is_closure_rt(uct_fd.sig.return_type, ctx) { ctx.builder_closure_rt_used = true }
         }
         if uct_fd.captures.len() > 0 { ctx.builder_closure_rt_used = true }
     case:
@@ -8881,7 +8881,7 @@ priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
                     ref uct_mname : Str = def_ns_name_at(rhs, cur_uct_mi)
                     switch uct_nsd.default_expr().node_type {
                     case .FuncDef(uct_mfd):
-                        if uct_mfd.func_type.is_ext().and(def_is_interface(rhs)) { continue }
+                        if uct_mfd.sig.func_type.is_ext().and(def_is_interface(rhs)) { continue }
                         if builder_ns_method_lowered_inline(uct_nsd.default_expr()) { continue }
                         if builder_ns_method_omitted(dd.name, uct_mname, lp.ctx) { continue }
                         // The auto-size body is `return sizeof(Owner);` --
@@ -9287,7 +9287,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
         case .Some(cf1):
             switch cf1.node_type {
             case .FuncDef(cur_fd):
-                for p : Declaration in cur_fd.params {
+                for p : Declaration in cur_fd.sig.params {
                     if p.name.eq(name.ident_name(ctx.symbols.names)).not() { continue }
                     if p.til_type.is(Type.FuncPtrSig).not() { return Option(ref Expr).None }
                     sig_name := til_type_name(p.til_type)
@@ -9340,7 +9340,7 @@ priv builder_fcall_returns_own := func(fcall: Expr, ctx: Context) returns Bool {
     sig_o := fcall_fn_sig(fcall, ctx)
     if sig_o.is_none() { return false }
     switch sig_o.unwrap().node_type {
-    case .FuncDef(fd): return fd.return_own_type.is(OwnType.Own)
+    case .FuncDef(fd): return fd.sig.return_own_type.is(OwnType.Own)
     case: return false
     }
 }
@@ -9444,10 +9444,10 @@ priv builder_is_inline_checked_get := func(flat: Str, ctx: Context) returns Bool
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.func_type.is(FuncType.Func).not() { return false }
+        if fd.sig.func_type.is(FuncType.Func).not() { return false }
         // One payload-less throw type, so the only out-arg is _err_kind
         // and the call's argument list matches the parameter list 1:1.
-        if fd.throw_types.len() != 1 { return false }
+        if fd.sig.throw_types.len() != 1 { return false }
         if fdef.children.len() == 0 { return false }
         return builder_checked_get_body_ok(fdef.children[0])
     case:
@@ -9476,7 +9476,7 @@ priv builder_splice_hoisted_temps := proc(mut body: Expr, symbols: SymbolPool) {
 priv emit_inline_checked_get := proc(f: File, e: Expr, fdef: Expr, depth: I32, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     mut bodyc := fdef.children[0].clone()
-    inline_subst(bodyc, fd.params, e, ctx.symbols)
+    inline_subst(bodyc, fd.sig.params, e, ctx.symbols)
     builder_splice_hoisted_temps(bodyc, ctx.symbols)
     n := bodyc.children.len()
     ref setk : Expr = bodyc.children[n.sub(2)]
@@ -9492,7 +9492,7 @@ priv emit_inline_checked_get := proc(f: File, e: Expr, fdef: Expr, depth: I32, m
     f.write("(")
     emit_deref(f, if_stmt.children[0], depth, ctx)
     f.write(" ? (").write(rctype).write(")")
-    if fd.return_own_type.is(OwnType.Ref) {
+    if fd.sig.return_own_type.is(OwnType.Ref) {
         emit_as_ptr(f, ret_stmt.children[0], depth, false, ctx)
     } else {
         emit_expr(f, ret_stmt.children[0], depth, ctx)
@@ -9522,7 +9522,7 @@ priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) ret
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.func_type.is(FuncType.Func).not() { return false }
+        if fd.sig.func_type.is(FuncType.Func).not() { return false }
         if fdef.children.len() == 0 { return false }
         ref body : Expr = fdef.children[0]
         n := body.children.len()

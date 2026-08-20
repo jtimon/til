@@ -218,9 +218,9 @@ test_func_def := test() {
     assert_eq(Str, node_name(fdef.node_type), "func_def")
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        assert_eq(Str, func_type_name(fd.func_type), "func")
-        assert_eq(Str, fd.return_type, "I64")
-        assert_eq(USize, fd.params.len(), 1)
+        assert_eq(Str, func_type_name(fd.sig.func_type), "func")
+        assert_eq(Str, fd.sig.return_type, "I64")
+        assert_eq(USize, fd.sig.params.len(), 1)
     case:
         UNREACHABLE()
     }

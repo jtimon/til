@@ -70,7 +70,7 @@
 
    Task 5's approval gate turned out not to be needed: the name-forming
    spelling of a call result is already preserved on
-   ~FunctionDef.return_type~, because ~infer_func_def_expr~ leaves
+   ~FunctionDef.sig.return_type~, because ~infer_func_def_expr~ leaves
    USize/UPtr alone when the two widths differ and a user alias
    canonicalizes to the same primitive ~resolve_type_alias_for_name~
    would pick. No new public AST field was added; ~TypeBinding~ gained
@@ -780,7 +780,7 @@
    3. Copy ~source_return_type~ anywhere a FuncSig signature is applied to a
       concrete function, especially ~register_function_def_for_stmt~ in
       ~src/self/initer.til~ and ~infer_decl_stmt~ in ~src/self/typer.til~.
-   4. Search every compiler-side assignment to ~FunctionDef.return_type~ and
+   4. Search every compiler-side assignment to ~FunctionDef.sig.return_type~ and
       set ~source_return_type~ with it when a declared spelling exists. Include
       synthesized lazy helpers in ~src/self/loader.til~; parser-only
       initialization is insufficient for inferred call-result provenance.

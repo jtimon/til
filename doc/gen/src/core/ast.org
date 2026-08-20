@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-7a1b5fd9c
+#+SUBTITLE: til 0.0.1-5393cf454
 #+OPTIONS: toc:t
 
 * Primitive
@@ -342,16 +342,16 @@ the definition). Prefer a switch when the None arm does real work.
 func Declaration.default_expr(self: Declaration) returns ref Expr
 #+end_src
 
-* FunctionDef
+* FuncSig
 :PROPERTIES:
-:CUSTOM_ID: til.src.core.ast.FunctionDef
+:CUSTOM_ID: til.src.core.ast.FuncSig
 :group: Core
 :END:
 
-Function signature metadata: params, return type, variadic info.
+Callable contract shared by function signatures and definitions.
 
 #+begin_src til
-struct FunctionDef {
+struct FuncSig {
     mut func_type : FuncType
     mut params : Vec__Declaration
     mut return_type : Str
@@ -360,6 +360,27 @@ struct FunctionDef {
     mut kwargs_index : I32
     mut return_own_type : OwnType
     mut return_shallow_explicit : Bool
+namespace:
+    func eq(a: FuncSig, b: FuncSig) returns shallow Bool
+    func to_str(self: FuncSig) returns Str
+    func size() returns shallow USize
+    func clone(self: FuncSig) returns FuncSig
+    func delete(own self: FuncSig, shallow call_free: Bool)
+    func hash(self: FuncSig, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* FunctionDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.FunctionDef
+:group: Core
+:END:
+
+Function-definition metadata layered over its callable signature.
+
+#+begin_src til
+struct FunctionDef {
+    mut sig : FuncSig
     mut auto_generated : Bool
     mut is_enum_variant_ctor : Bool
     mut captures : Vec__Declaration
@@ -395,7 +416,7 @@ markers in fcall.children:
     (derive_fcall_kwargs_index).
   - variadic_count : children layout + nparam + has-kwargs
     (fcall_variadic_count).
-  - variadic_index : implicit at ~1 + fdef_data.variadic_index~
+  - variadic_index : implicit at ~1 + fdef_data.sig.variadic_index~
     post-desugar. Step 7 of #147 closes here: the trailing typer
     resolution artifact is gone.
 

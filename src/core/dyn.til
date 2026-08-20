@@ -178,13 +178,13 @@ enum_def_of := func(type_name: Str) returns EnumDef {
     return def
 }
 
-// Issue #58: assemble a FunctionDef (signature) value for a registered
+// Issue #58: assemble a FuncSig value for a registered
 // FuncSig type via the func_sig_* primitives above. Parameter Declarations
 // carry only their type (signatures have no parameter names); a single
 // return type and the throw-type list are filled when present. Mirrors
 // rstil's func_sig_of.
-func_sig_of := func(type_name: Str) returns FunctionDef {
-    mut sig := FunctionDef()
+func_sig_of := func(type_name: Str) returns FuncSig {
+    mut sig := FuncSig()
     pn := func_sig_param_count(type_name)
     for i in 0..pn {
         mut decl := Declaration()

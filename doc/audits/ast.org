@@ -50,16 +50,16 @@ is the call's inferred result type. Variadic/keyword positions and counts,
 callee signatures, method classification, and noreturn status are derived
 from the resolved callee and call children rather than copied into the AST.
 
-~FunctionDef~ is the payload of a function-definition node. Its signature,
-capture, return-alias, and generated-function metadata are consumed across
-typing, ownership analysis, and emission. ~namespace_decl~ is the sole AST
+~FunctionDef~ is the payload of a function-definition node. Its
+~sig : FuncSig~ stores the callable contract; capture, return-alias, and
+generated-function metadata remain definition-only. These records are consumed
+across typing, ownership analysis, and emission. ~namespace_decl~ is the sole AST
 borrow remaining in these audited records: it points to the owning top-level
 namespace declaration, is stable for the AST lifetime, and avoids storing
 duplicate aggregate/member names on every definition.
 
-Splitting a ~FuncSig~ from ~FunctionDef~ or moving every resolved-call fact to
-a separate side table would be a new compiler data-model design. Neither is
-required to remove duplicated or dangling AST state.
+The ~FuncSig~ / ~FunctionDef~ split keeps signature re-inference separate from
+definition-only state without moving resolved-call facts to a side table.
 
 ** Definitions And Bindings
 

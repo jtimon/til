@@ -346,13 +346,13 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         // cost. `macro(T: Type)` is the generic-type-constructor shape, so
         // this is also what stops every generic container from rooting the
         // Type enum and its Primitive payload.
-        cr_is_macro := fdef.func_type.is(FuncType.Macro)
-        for p : Declaration in fdef.params {
+        cr_is_macro := fdef.sig.func_type.is(FuncType.Macro)
+        for p : Declaration in fdef.sig.params {
             if p.til_type.is(Type.Unknown).not().and(cr_is_macro.not()) {
                 vec_push_str(refs, p.type_name())
             }
         }
-        if fdef.variadic_index >= 0 {
+        if fdef.sig.variadic_index >= 0 {
             vec_push_str(refs, "Array")
             push_qn(refs, "Array", "new")
             push_qn(refs, "Array", "set")
@@ -372,8 +372,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         // close the cycle over every ast.til type. Reflection that really
         // does build a StructDef at runtime roots it honestly, through
         // struct_def_of's return type.
-        if fdef.return_type.len().gt(0).and(cr_is_macro.not()) {
-            vec_push_str(refs, fdef.return_type)
+        if fdef.sig.return_type.len().gt(0).and(cr_is_macro.not()) {
+            vec_push_str(refs, fdef.sig.return_type)
         }
     case .FieldAccess(field_name):
         if scav_fa_is_ns(e, symbols) {
@@ -1148,9 +1148,9 @@ priv seed_cli_main_arg_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) 
             switch stmt.children[0].node_type {
             case .FuncDef(fdef):
                 mut pi : I32 = 0
-                for p : Declaration in fdef.params {
+                for p : Declaration in fdef.sig.params {
                     seed_cli_arg_helpers(p.type_name(), worklist)
-                    if pi == fdef.variadic_index { push_qn(worklist, p.type_name(), "delete") }
+                    if pi == fdef.sig.variadic_index { push_qn(worklist, p.type_name(), "delete") }
                     pi++
                 }
             case:
@@ -1219,7 +1219,7 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
             if stmt.children.len() == 0 { continue }
             switch stmt.children[0].node_type {
             case .FuncDef(fdef):
-                if fdef.func_type.is(FuncType.Test) {
+                if fdef.sig.func_type.is(FuncType.Test) {
                     switch stmt.node_type {
                     case .Decl(d):
                         vec_push_str(worklist, d.name)
@@ -1242,7 +1242,7 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
                 ref nsfdef : Expr = nsd.default_expr()
                 if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
                 ref nsfd : FunctionDef = funcdef_of(nsfdef)
-                if nsfd.func_type.is(FuncType.Test) {
+                if nsfd.sig.func_type.is(FuncType.Test) {
                     push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
                 }
             }
@@ -1279,11 +1279,11 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
 priv scav_is_type_gen_template := func(fdef: Expr) returns Bool {
     switch fdef.node_type {
     case .FuncDef(tg_fd):
-        if tg_fd.func_type.is(FuncType.Macro).not() { return false }
-        return tg_fd.return_type.eq("StructDef")
-            .or(tg_fd.return_type.eq("EnumDef"))
-            .or(tg_fd.return_type.eq("FuncDef"))
-            .or(tg_fd.return_type.eq("FunctionDef"))
+        if tg_fd.sig.func_type.is(FuncType.Macro).not() { return false }
+        return tg_fd.sig.return_type.eq("StructDef")
+            .or(tg_fd.sig.return_type.eq("EnumDef"))
+            .or(tg_fd.sig.return_type.eq("FuncDef"))
+            .or(tg_fd.sig.return_type.eq("FunctionDef"))
     case:
     }
     return false

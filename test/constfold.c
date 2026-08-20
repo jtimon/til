@@ -382,25 +382,25 @@ static Str hoisted__Str_test_variadic_direct_fold_31 = (Str){.c_str = (void *)"t
 static Str hoisted__Str_test_variadic_fold_3 = (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_variadic_fold_8 = (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 
-static I64 _til_precomputed_sequence_23_data[4] = {11, 22};
-static Vec__I64 _til_precomputed_sequence_23 = {.data = (U8 *)_til_precomputed_sequence_23_data, .count = 2ULL, .cap = 4ULL};
-static Vec__I64 _til_precomputed_sequence_24 = {.data = NULL, .count = 0ULL, .cap = 0ULL};
-static I64 _til_precomputed_sequence_25_data[3] = {3, 5, 8};
-static Array__I64 _til_precomputed_sequence_25 = {.data = (U8 *)_til_precomputed_sequence_25_data, .cap = 3ULL};
-static Str _til_precomputed_sequence_26_data[4] = {{.c_str = (I8 *)"a", .count = 1ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"b", .count = 1ULL, .cap = TIL_CAP_LIT}};
-static Vec__Str _til_precomputed_sequence_26 = {.data = (U8 *)_til_precomputed_sequence_26_data, .count = 2ULL, .cap = 4ULL};
-static I64 _til_precomputed_sequence_27_data[4] = {10, 20};
-static Vec__I64 _til_precomputed_sequence_27 = {.data = (U8 *)_til_precomputed_sequence_27_data, .count = 2ULL, .cap = 4ULL};
-static I64 _til_precomputed_sequence_28_data[2] = {1, 2};
-static I64 _til_precomputed_sequence_29_data[1] = {3};
-static CfNestedValues _til_precomputed_sequence_30_data[2] = {{.values = {.data = (U8 *)_til_precomputed_sequence_28_data, .count = 2ULL, .cap = 2ULL}}, {.values = {.data = (U8 *)_til_precomputed_sequence_29_data, .count = 1ULL, .cap = 1ULL}}};
-static Vec__CfNestedValues _til_precomputed_sequence_30 = {.data = (U8 *)_til_precomputed_sequence_30_data, .count = 2ULL, .cap = 2ULL};
+static I64 _til_precomputed_sequence_22_data[4] = {11, 22};
+static Vec__I64 _til_precomputed_sequence_22 = {.data = (U8 *)_til_precomputed_sequence_22_data, .count = 2ULL, .cap = 4ULL};
+static Vec__I64 _til_precomputed_sequence_23 = {.data = NULL, .count = 0ULL, .cap = 0ULL};
+static I64 _til_precomputed_sequence_24_data[3] = {3, 5, 8};
+static Array__I64 _til_precomputed_sequence_24 = {.data = (U8 *)_til_precomputed_sequence_24_data, .cap = 3ULL};
+static Str _til_precomputed_sequence_25_data[4] = {{.c_str = (I8 *)"a", .count = 1ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"b", .count = 1ULL, .cap = TIL_CAP_LIT}};
+static Vec__Str _til_precomputed_sequence_25 = {.data = (U8 *)_til_precomputed_sequence_25_data, .count = 2ULL, .cap = 4ULL};
+static I64 _til_precomputed_sequence_26_data[4] = {10, 20};
+static Vec__I64 _til_precomputed_sequence_26 = {.data = (U8 *)_til_precomputed_sequence_26_data, .count = 2ULL, .cap = 4ULL};
+static I64 _til_precomputed_sequence_27_data[2] = {1, 2};
+static I64 _til_precomputed_sequence_28_data[1] = {3};
+static CfNestedValues _til_precomputed_sequence_29_data[2] = {{.values = {.data = (U8 *)_til_precomputed_sequence_27_data, .count = 2ULL, .cap = 2ULL}}, {.values = {.data = (U8 *)_til_precomputed_sequence_28_data, .count = 1ULL, .cap = 1ULL}}};
+static Vec__CfNestedValues _til_precomputed_sequence_29 = {.data = (U8 *)_til_precomputed_sequence_29_data, .count = 2ULL, .cap = 2ULL};
+static Str _til_precomputed_sequence_30_data[2] = {{.c_str = (I8 *)"alpha", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"beta", .count = 4ULL, .cap = TIL_CAP_LIT}};
+static Vec__Str _til_precomputed_sequence_30 = {.data = (U8 *)_til_precomputed_sequence_30_data, .count = 2ULL, .cap = 2ULL};
 static Str _til_precomputed_sequence_31_data[2] = {{.c_str = (I8 *)"alpha", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"beta", .count = 4ULL, .cap = TIL_CAP_LIT}};
 static Vec__Str _til_precomputed_sequence_31 = {.data = (U8 *)_til_precomputed_sequence_31_data, .count = 2ULL, .cap = 2ULL};
-static Str _til_precomputed_sequence_32_data[2] = {{.c_str = (I8 *)"alpha", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"beta", .count = 4ULL, .cap = TIL_CAP_LIT}};
-static Vec__Str _til_precomputed_sequence_32 = {.data = (U8 *)_til_precomputed_sequence_32_data, .count = 2ULL, .cap = 2ULL};
-static I64 _til_precomputed_sequence_33_data[4] = {11, 22};
-static Vec__I64 _til_precomputed_sequence_33 = {.data = (U8 *)_til_precomputed_sequence_33_data, .count = 2ULL, .cap = 4ULL};
+static I64 _til_precomputed_sequence_32_data[4] = {11, 22};
+static Vec__I64 _til_precomputed_sequence_32 = {.data = (U8 *)_til_precomputed_sequence_32_data, .count = 2ULL, .cap = 4ULL};
 
 USize CAP_LIT = 4294967295;
 USize CAP_VIEW = 4294967294;
@@ -1347,7 +1347,7 @@ static void CfNestedValues_delete(CfNestedValues * self, Bool call_free) {
 
 static void test_collection_return_fold(void) {
     I64 _err_kind = 0;
-    Vec__I64 values = Vec__I64_clone(&_til_precomputed_sequence_23);
+    Vec__I64 values = Vec__I64_clone(&_til_precomputed_sequence_22);
     U32 hoisted__U32_70 = (values.count);
     U32 hoisted__U32_71 = 2;
     assert_eq__USize(hoisted__U32_70, hoisted__U32_71, &hoisted__Str_test_collection_return_fold_72);
@@ -1386,14 +1386,14 @@ static void test_collection_return_fold(void) {
     I64 hoisted__I64_83 = 22;
     assert_eq__I64(DEREF(_bang_ret_1), hoisted__I64_83, &hoisted__Str_test_collection_return_fold_84);
     Vec__I64_delete(&values, (Bool){0});
-    Vec__I64 empty = Vec__I64_clone(&_til_precomputed_sequence_24);
+    Vec__I64 empty = Vec__I64_clone(&_til_precomputed_sequence_23);
     U32 hoisted__U32_85 = (empty.count);
     U32 hoisted__U32_86 = 0;
     assert_eq__USize(hoisted__U32_85, hoisted__U32_86, &hoisted__Str_test_collection_return_fold_87);
     U32 hoisted__U32_88 = 0;
     assert_eq__USize(empty.cap, hoisted__U32_88, &hoisted__Str_test_collection_return_fold_89);
     Vec__I64_delete(&empty, (Bool){0});
-    Array__I64 fixed = Array__I64_clone(&_til_precomputed_sequence_25);
+    Array__I64 fixed = Array__I64_clone(&_til_precomputed_sequence_24);
     U32 hoisted__U32_90 = (fixed.cap);
     U32 hoisted__U32_91 = 3;
     assert_eq__USize(hoisted__U32_90, hoisted__U32_91, &hoisted__Str_test_collection_return_fold_92);
@@ -1431,8 +1431,8 @@ static void test_collection_return_fold(void) {
     assert_eq__I64(DEREF(_bang_ret_3), hoisted__I64_101, &hoisted__Str_test_collection_return_fold_102);
     Array__I64_delete(&fixed, (Bool){0});
     Map__Str_I64 table = {0};
-    table.keys = Vec__Str_clone(&_til_precomputed_sequence_26);
-    table.values = Vec__I64_clone(&_til_precomputed_sequence_27);
+    table.keys = Vec__Str_clone(&_til_precomputed_sequence_25);
+    table.values = Vec__I64_clone(&_til_precomputed_sequence_26);
     U32 hoisted__U32_103 = (table.keys.count);
     U32 hoisted__U32_104 = 2;
     assert_eq__USize(hoisted__U32_103, hoisted__U32_104, &hoisted__Str_test_collection_return_fold_105);
@@ -1467,7 +1467,7 @@ static void test_collection_return_fold(void) {
     I64 hoisted__I64_114 = 20;
     assert_eq__I64(DEREF(_bang_ret_5), hoisted__I64_114, &hoisted__Str_test_collection_return_fold_115);
     Map__Str_I64_delete(&table, (Bool){0});
-    Vec__CfNestedValues nested = Vec__CfNestedValues_clone(&_til_precomputed_sequence_30);
+    Vec__CfNestedValues nested = Vec__CfNestedValues_clone(&_til_precomputed_sequence_29);
     U32 hoisted__U32_116 = (nested.count);
     U32 hoisted__U32_117 = 2;
     assert_eq__USize(hoisted__U32_116, hoisted__U32_117, &hoisted__Str_test_collection_return_fold_118);
@@ -1531,8 +1531,8 @@ static void test_collection_return_fold(void) {
     }
     I64 hoisted__I64_133 = 3;
     assert_eq__I64(DEREF(_bang_ret_7), hoisted__I64_133, &hoisted__Str_test_collection_return_fold_134);
-    Vec__Str left = Vec__Str_clone(&_til_precomputed_sequence_31);
-    Vec__Str right = Vec__Str_clone(&_til_precomputed_sequence_32);
+    Vec__Str left = Vec__Str_clone(&_til_precomputed_sequence_30);
+    Vec__Str right = Vec__Str_clone(&_til_precomputed_sequence_31);
     U32 hoisted__U32_135 = 0;
     Vec__Str_set(&left, hoisted__U32_135, &_til_str_lits.hd0b1c236fb8f, &_err_kind);
     I64 hoisted__I64_137 = 1;
@@ -1579,7 +1579,7 @@ static void test_collection_return_fold(void) {
     }
     assert_eq__Str(_bang_ret_9, &_til_str_lits.h00310f176c2b, &hoisted__Str_test_collection_return_fold_148);
     Vec__Str_delete(&right, (Bool){0});
-    Vec__I64 macro_values = Vec__I64_clone(&_til_precomputed_sequence_33);
+    Vec__I64 macro_values = Vec__I64_clone(&_til_precomputed_sequence_32);
     U32 hoisted__U32_149 = 4;
     assert_eq__USize(macro_values.cap, hoisted__U32_149, &hoisted__Str_test_collection_return_fold_150);
     U32 hoisted__U32_151 = 1;

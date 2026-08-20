@@ -57,7 +57,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    - Step 1 -- ~FieldDef~ removed; ~StructDefData.fields~ became
      ~Vec<Declaration>~ with ~default_value~ on Declaration.
    - Step 2 -- ~Param~ unified with ~Declaration~ (commit ~54bc3eb~).
-     ~FunctionDef.params~ is ~Vec<Declaration>~; ~param_defaults~ map
+     ~FunctionDef.sig.params~ is ~Vec<Declaration>~; ~param_defaults~ map
      gone; ~NodeType.NoDefaultArg~ marks args without a default;
      ~FunctionDef.nparam~ removed (~b6db2b5~).
    - Step 6 -- ~Declaration.is_namespace~ removed; ~StructDef.ns_decls~

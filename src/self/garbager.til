@@ -3291,7 +3291,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) { return }
             switch rhs.node_type {
             case .FuncDef(fd):
-                if fd.func_type.is_bodyless() { return }
+                if fd.sig.func_type.is_bodyless() { return }
                 if dtype.is_funcptr().not().and(dtype.is(Type.Body).not()) { return }
             case:
             }
@@ -3325,15 +3325,15 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
 }
 
 priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut scope: TypeScope, line: U32, col: U32) {
-    for i in 0..fd.params.len() {
-        ref param : Declaration = fd.params[i]
-        if i.to_i32() == fd.variadic_index {
+    for i in 0..fd.sig.params.len() {
+        ref param : Declaration = fd.sig.params[i]
+        if i.to_i32() == fd.sig.variadic_index {
             va_type := Type.Struct(variadic_array_type_name(scope, param.type_name(), ctx.symbols))
             scope.set(param.name, va_type, param.is_mut, ctx.path, line, col,
                 true, param.own_type, ctx.symbols)
             continue
         }
-        if i.to_i32() == fd.kwargs_index {
+        if i.to_i32() == fd.sig.kwargs_index {
             scope.set(param.name, Type.Struct("KwargsMap"), param.is_mut, ctx.path, line, col,
                 true, param.own_type, ctx.symbols)
             continue
@@ -3428,10 +3428,10 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
             }
         }
     case .FuncDef(fd):
-        if fd.func_type.is_bodyless() { return }
+        if fd.sig.func_type.is_bodyless() { return }
         if expr.children.len() == 0 { return }
         ref mut func_body : Expr = expr.children[0]
-        binding_capacity := fd.params.len() + garbager_body_binding_count(func_body)
+        binding_capacity := fd.sig.params.len() + garbager_body_binding_count(func_body)
         mut func_scope := TypeScope(
             bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
             parent = Option(ref TypeScope).Some(scope), is_func_root = true)
@@ -3495,8 +3495,8 @@ priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: Typ
     mut stack_own_params := Set(Str).new()
     switch fdef_o {
     case .Some(fd):
-        for i in 0..fd.params.len() {
-            ref param : Declaration = fd.params[i]
+        for i in 0..fd.sig.params.len() {
+            ref param : Declaration = fd.sig.params[i]
             if param.own_type.is(OwnType.Own)
             .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols)
                 .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols))) {

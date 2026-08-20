@@ -93,7 +93,7 @@
 *** default_value := Option__Expr.None
 *** orig_name := ""
 *** gc_storage := GcStorage.Unset
-** FunctionDef: StructDef
+** FuncSig: StructDef
 *** func_type := FuncType.Func
 *** params := Vec(Declaration).new()
 *** return_type := ""
@@ -102,6 +102,8 @@
 *** kwargs_index : I32 = -1
 *** return_own_type := OwnType.Own
 *** return_shallow_explicit := false
+** FunctionDef: StructDef
+*** sig := FuncSig()
 *** auto_generated := false
 *** is_enum_variant_ctor := false
 *** captures := Vec(Declaration).new()
@@ -636,6 +638,10 @@
 ** JvmEmitState: StructDef
 *** path := ""
 *** errors : I32 = 0
+*** cells := Set(Str).new()
+*** cell_types := Map(Str, Str).new()
+*** raw_refs := Set(Str).new()
+*** return_cell := false
 * repl_editor
 ** EditAction: EnumDef
 *** Continue

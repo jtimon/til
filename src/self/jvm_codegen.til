@@ -500,7 +500,7 @@ priv jvm_collect_reachable := proc(e: Expr, mut names: Vec(Str),
                     if fdef_o.is_some() {
                         ref fexpr : Expr = fdef_o.unwrap()
                         ref fd : FunctionDef = funcdef_of(fexpr)
-                        if fd.func_type.is_bodyless().not() {
+                        if fd.sig.func_type.is_bodyless().not() {
                             for child : Expr in fexpr.children {
                                 jvm_collect_reachable(child, names, seen, lp)
                             }
@@ -540,7 +540,7 @@ priv jvm_call_graph_has := func(e: Expr, wanted: Str,
             if fdef_o.is_some() {
                 ref fexpr : Expr = fdef_o.unwrap()
                 ref fd : FunctionDef = funcdef_of(fexpr)
-                if fd.func_type.is_bodyless().not() {
+                if fd.sig.func_type.is_bodyless().not() {
                     for child : Expr in fexpr.children {
                         if jvm_call_graph_has(child, wanted, lp, depth - 1) { return true }
                     }
@@ -560,8 +560,8 @@ priv jvm_param_bit := func(i: USize) returns U64 {
 }
 
 priv jvm_param_needs_cell := func(fd: FunctionDef, i: USize) returns Bool {
-    if i >= fd.params.len() { return false }
-    ref param : Declaration = fd.params[i]
+    if i >= fd.sig.params.len() { return false }
+    ref param : Declaration = fd.sig.params[i]
     if is_primitive(param.til_type).not() { return false }
     if param.own_type.is(OwnType.Shallow).not().or(param.is_mut) { return true }
     bit := jvm_param_bit(i)
@@ -583,7 +583,7 @@ priv jvm_collect_cells := proc(e: Expr, mut cells: Set(Str),
                 if init_fdef_o.is_some() {
                     ref init_fexpr : Expr = init_fdef_o.unwrap()
                     ref init_fd : FunctionDef = funcdef_of(init_fexpr)
-                    raw_init = raw_init.or(init_fd.return_own_type.is(OwnType.Ref)
+                    raw_init = raw_init.or(init_fd.sig.return_own_type.is(OwnType.Ref)
                         .and(jvm_call_graph_has(init_fexpr, "ptr_add", lp)))
                 }
             }
@@ -636,7 +636,7 @@ priv jvm_collect_cells := proc(e: Expr, mut cells: Set(Str),
             fdef_o := jvm_find_fdef(name, lp)
             if fdef_o.is_some() {
                 ref fd : FunctionDef = funcdef_of(fdef_o.unwrap())
-                if fd.func_type.is_bodyless().not() {
+                if fd.sig.func_type.is_bodyless().not() {
                     for i in 1..e.children.len() {
                         pi := i - 1
                         if jvm_param_needs_cell(fd, pi) {
@@ -697,9 +697,9 @@ priv jvm_fcall_returns_cell := func(e: Expr, lp: LoadedProgram) returns Bool {
     if fdef_o.is_none() { return false }
     ref fd : FunctionDef = funcdef_of(fdef_o.unwrap())
     if jvm_call_graph_has(fdef_o.unwrap(), "ptr_add", lp) { return false }
-    if fd.return_own_type.is(OwnType.Shallow) { return false }
-    if fd.return_type.len() == 0 { return false }
-    rt := type_from_name_init_name(fd.return_type, lp.ctx.scope, lp.ctx.symbols)
+    if fd.sig.return_own_type.is(OwnType.Shallow) { return false }
+    if fd.sig.return_type.len() == 0 { return false }
+    rt := type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols)
     return is_primitive(rt)
 }
 
@@ -709,7 +709,7 @@ priv jvm_fcall_returns_raw_ref := func(e: Expr, lp: LoadedProgram) returns Bool 
     fdef_o := jvm_find_fdef(name, lp)
     if fdef_o.is_none() { return false }
     ref fd : FunctionDef = funcdef_of(fdef_o.unwrap())
-    return fd.return_own_type.is(OwnType.Ref)
+    return fd.sig.return_own_type.is(OwnType.Ref)
         .and(jvm_call_graph_has(fdef_o.unwrap(), "ptr_add", lp))
 }
 
@@ -1278,23 +1278,23 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
         ref fdef_expr : Expr = fdef_o.unwrap()
         ref fd : FunctionDef = funcdef_of(fdef_expr)
         if fd.is_enum_variant_ctor {
-            def_o := lp.ctx.scope.get_struct(fd.return_type, lp.ctx.symbols)
+            def_o := lp.ctx.scope.get_struct(fd.sig.return_type, lp.ctx.symbols)
             if def_o.is_some() {
                 ref def_expr : Expr = def_o.unwrap()
                 ref ed : EnumDef = enumdef_of(def_expr)
                 for variant : VariantDef in ed.variants {
-                    if name == format(fd.return_type, "_", variant.name) {
+                    if name == format(fd.sig.return_type, "_", variant.name) {
                         mut payload := "null"
                         if variant.payload_type.len() > 0 {
                             payload = jvm_emit_expr(e.children[1], state, lp)
                         }
-                        return format("new ", jvm_enum_class(fd.return_type), "(",
+                        return format("new ", jvm_enum_class(fd.sig.return_type), "(",
                             variant.tag_value.to_str(), "L, ", payload, ")")
                     }
                 }
             }
         }
-        if fd.func_type.is_core().or(fd.func_type.is_ext()) {
+        if fd.sig.func_type.is_core().or(fd.sig.func_type.is_ext()) {
             return jvm_fail_expr(e, format("runtime function '", name, "'"), state, lp.ctx.symbols.names)
         }
         cls := jvm_function_class(name, lp)
@@ -1345,10 +1345,10 @@ priv jvm_emit_namespace_call := proc(e: Expr, callee: Expr,
         if fdef_o.is_some() {
             ref fdef_expr : Expr = fdef_o.unwrap()
             ref fd : FunctionDef = funcdef_of(fdef_expr)
-            if fd.func_type.is_core().and(jvm_is_scalar_name(scalar)) {
+            if fd.sig.func_type.is_core().and(jvm_is_scalar_name(scalar)) {
                 return jvm_emit_scalar_core(e, scalar, method, state, lp)
             }
-            if fd.func_type.is_ext() {
+            if fd.sig.func_type.is_ext() {
                 return jvm_fail_expr(e, format("runtime function '", flat, "'"), state, lp.ctx.symbols.names)
             }
         }
@@ -1420,7 +1420,7 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
             if jvm_fcall_returns_cell(e, lp) {
                 fdef_o := jvm_find_fdef(jvm_fcall_name(e, lp), lp)
                 ref fd : FunctionDef = funcdef_of(fdef_o.unwrap())
-                return jvm_cell_read_name(fd.return_type, call)
+                return jvm_cell_read_name(fd.sig.return_type, call)
             }
             return call
         case:
@@ -1599,8 +1599,8 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
         ref dd : Declaration = decl_of(decl)
         ref fexpr : Expr = decl.children[0]
         ref fd : FunctionDef = funcdef_of(fexpr)
-        if fd.func_type.is_bodyless().or(jvm_runtime_bound_function(dd.name)) { return "" }
-        if fd.func_type.is(FuncType.Macro) { return "" }
+        if fd.sig.func_type.is_bodyless().or(jvm_runtime_bound_function(dd.name)) { return "" }
+        if fd.sig.func_type.is(FuncType.Macro) { return "" }
         if dd.name == "main" { return "" }
         if fexpr.children.len() != 1 {
             return jvm_fail_expr(fexpr, format("function body shape for '", dd.name, "'"), state, lp.ctx.symbols.names)
@@ -1614,25 +1614,25 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
         state.raw_refs = Set(Str).new()
         state.return_cell = false
         mut ret := "void"
-        if fd.return_type.len() > 0 {
-            rt := type_from_name_init_name(fd.return_type, lp.ctx.scope, lp.ctx.symbols)
-            is_raw_return := fd.return_own_type.is(OwnType.Ref)
+        if fd.sig.return_type.len() > 0 {
+            rt := type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols)
+            is_raw_return := fd.sig.return_own_type.is(OwnType.Ref)
                 .and(jvm_call_graph_has(fexpr, "ptr_add", lp))
-            state.return_cell = fd.return_own_type.is(OwnType.Shallow).not()
+            state.return_cell = fd.sig.return_own_type.is(OwnType.Shallow).not()
                 .and(is_primitive(rt))
                 .and(is_raw_return.not())
             if is_raw_return { ret = "TilRuntime.Ptr" }
             else if state.return_cell { ret = jvm_cell_type(rt) }
-            else if fd.return_own_type.is(OwnType.Ref)
+            else if fd.sig.return_own_type.is(OwnType.Ref)
                 .and(rt.is(Type.Struct).or(rt.is(Type.Enum))) { ret = "TilRuntime.Ptr" }
             else { ret = jvm_decl_type(fexpr, rt, state, lp.ctx.symbols.names) }
         }
         mut params := ""
-        for i in 0..fd.params.len() {
-            ref param : Declaration = fd.params[i]
+        for i in 0..fd.sig.params.len() {
+            ref param : Declaration = fd.sig.params[i]
             if i > 0 { params = format(params, ", ") }
             mut param_type := param.til_type.clone()
-            if fd.variadic_index == i.to_i32() {
+            if fd.sig.variadic_index == i.to_i32() {
                 param_type = Type.Struct(format("Array__", param.type_name()))
             }
             mut pt := jvm_type(param_type)
@@ -1914,7 +1914,7 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
         if main_fexpr.is_some() {
             ref fexpr : Expr = main_fexpr.unwrap()
             ref fd : FunctionDef = funcdef_of(fexpr)
-            if fd.params.len().gt(0).or(fd.return_type.len().gt(0)) {
+            if fd.sig.params.len().gt(0).or(fd.sig.return_type.len().gt(0)) {
                 jvm_fail_expr(fexpr, "main parameters/return value in Stage D", state, lp.ctx.symbols.names)
             }
             jvm_collect_cells(fexpr.children[0], state.cells, state.raw_refs, lp)
@@ -2054,7 +2054,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                 if fdef_o.is_some() {
                     ref fexpr : Expr = fdef_o.unwrap()
                     ref fd : FunctionDef = funcdef_of(fexpr)
-                    if fd.func_type.is_bodyless().not()
+                    if fd.sig.func_type.is_bodyless().not()
                         .and(jvm_runtime_bound_function(name).not()) {
                         mut synthetic := Expr.new(NodeType.Decl(Declaration(name = name.clone())),
                             fexpr.line, fexpr.col)

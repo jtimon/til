@@ -207,11 +207,11 @@ priv holyc_prepare_state := func(program: Expr) returns HolyCEmitState {
 priv holyc_function_signature := func(name: Str, func_expr: Expr, mut error: Str) returns Str {
     switch func_expr.node_type {
     case .FuncDef(fdef):
-        if fdef.func_type.is_plain().not() {
-            error = format("unsupported function kind '", func_type_name(fdef.func_type), "'")
+        if fdef.sig.func_type.is_plain().not() {
+            error = format("unsupported function kind '", func_type_name(fdef.sig.func_type), "'")
             return ""
         }
-        if fdef.variadic_index.gte(0).or(fdef.kwargs_index.gte(0)) {
+        if fdef.sig.variadic_index.gte(0).or(fdef.sig.kwargs_index.gte(0)) {
             error = "variadic and keyword parameters are not supported yet"
             return ""
         }
@@ -219,22 +219,22 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr, mut error: Str
             error = "capturing functions are not supported yet"
             return ""
         }
-        if fdef.throw_types.len().gt(0) {
+        if fdef.sig.throw_types.len().gt(0) {
             error = "throwing functions are not supported yet"
             return ""
         }
         mut return_type := "U0"
-        if fdef.return_type.len() > 0 {
-            if holyc_scalar_type_name(fdef.return_type).not()
-                .or(fdef.return_own_type.is(OwnType.Shallow).not()) {
-                error = format("unsupported function return type '", fdef.return_type, "'")
+        if fdef.sig.return_type.len() > 0 {
+            if holyc_scalar_type_name(fdef.sig.return_type).not()
+                .or(fdef.sig.return_own_type.is(OwnType.Shallow).not()) {
+                error = format("unsupported function return type '", fdef.sig.return_type, "'")
                 return ""
             }
-            return_type = fdef.return_type.clone()
+            return_type = fdef.sig.return_type.clone()
         }
         mut params := ""
-        for i in 0..fdef.params.len() {
-            ref param : Declaration = fdef.params[i]
+        for i in 0..fdef.sig.params.len() {
+            ref param : Declaration = fdef.sig.params[i]
             param_type := param.type_name()
             if holyc_scalar_type_name(param_type).not().or(param.is_mut)
                 .or(param.own_type.is(OwnType.Shallow).not()) {

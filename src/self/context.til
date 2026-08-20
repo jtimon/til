@@ -696,7 +696,7 @@ type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding, symbols: Sy
 init_func_is_generic := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd):
-        gok := fd.func_type.is_plain()
+        gok := fd.sig.func_type.is_plain()
         if gok.not() { return false }
         // A `P: Type` param is a generic TYPE-PARAMETER only if its name
         // is actually USED as a type elsewhere in the signature -- as
@@ -704,7 +704,7 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
         // `func(t: Type) returns Str` (where `t` is a runtime Type VALUE
         // never used to type anything, e.g. til_type_name_c) is NOT a
         // generic and must be left untouched.
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             if p.type_name().eq("Type").not() { continue }
             tname := p.name
             // Directly (`v: T`, `returns T`), or as a SEGMENT of a
@@ -714,8 +714,8 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
             // concrete argument. Recognising it here is what makes such a
             // function a template at all -- without it `Vec__T` was just
             // an undefined type and `T` an unused parameter.
-            if type_name_mentions_param(fd.return_type, tname) { return true }
-            for q : Declaration in fd.params {
+            if type_name_mentions_param(fd.sig.return_type, tname) { return true }
+            for q : Declaration in fd.sig.params {
                 if type_name_mentions_param(q.type_name(), tname) { return true }
             }
         }
@@ -760,9 +760,9 @@ type_name_mentions_param := func(name: Str, pname: Str) returns Bool {
 generic_source_throws_depend_on_type := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd):
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             if p.type_name().eq("Type").not() { continue }
-            for t : Str in fd.throw_types {
+            for t : Str in fd.sig.throw_types {
                 if type_name_mentions_param(t, p.name) { return true }
             }
         }
@@ -805,7 +805,7 @@ namespace:
 func_def_type := func(fdef: Expr) returns shallow FuncType {
     switch fdef.node_type {
     case .FuncDef(fd):
-        return fd.func_type
+        return fd.sig.func_type
     case:
     }
     return FuncType.Func
@@ -1761,11 +1761,11 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 // target so a constant-arg call reaches the runtime
                 // dyn_size_of() (sizeof, target width) instead of folding to a
                 // host-width literal.
-            } else if fd.func_type.is(FuncType.Macro) {
+            } else if fd.sig.func_type.is(FuncType.Macro) {
                 ctx.constfolder_foldables.set(dd.name, own FuncType.Macro)
-            } else if fd.func_type.is(FuncType.Func)
-                .or(fd.func_type.is(FuncType.ExtFunc)).or(fd.func_type.is(FuncType.CoreFunc)) {
-                ctx.constfolder_foldables.set(dd.name, own fd.func_type.clone())
+            } else if fd.sig.func_type.is(FuncType.Func)
+                .or(fd.sig.func_type.is(FuncType.ExtFunc)).or(fd.sig.func_type.is(FuncType.CoreFunc)) {
+                ctx.constfolder_foldables.set(dd.name, own fd.sig.func_type.clone())
             }
         case:
         }
@@ -1785,11 +1785,11 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                         // returns sizeof(ctype) (target width).
                     } else {
                         qname := sdd.name.concat3("_", mname)
-                        if ffd.func_type.is(FuncType.Macro) {
+                        if ffd.sig.func_type.is(FuncType.Macro) {
                             ctx.constfolder_foldables.set(qname, own FuncType.Macro)
-                        } else if ffd.func_type.is(FuncType.Func)
-                            .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
-                            ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
+                        } else if ffd.sig.func_type.is(FuncType.Func)
+                            .or(ffd.sig.func_type.is(FuncType.ExtFunc)).or(ffd.sig.func_type.is(FuncType.CoreFunc)) {
+                            ctx.constfolder_foldables.set(qname, own ffd.sig.func_type.clone())
                         }
                     }
                 case:
@@ -1812,11 +1812,11 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                         // a width-mismatched target (emitted X_size() -> sizeof).
                     } else {
                         qname := sdd.name.concat3("_", mname)
-                        if ffd.func_type.is(FuncType.Macro) {
+                        if ffd.sig.func_type.is(FuncType.Macro) {
                             ctx.constfolder_foldables.set(qname, own FuncType.Macro)
-                        } else if ffd.func_type.is(FuncType.Func)
-                            .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
-                            ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
+                        } else if ffd.sig.func_type.is(FuncType.Func)
+                            .or(ffd.sig.func_type.is(FuncType.ExtFunc)).or(ffd.sig.func_type.is(FuncType.CoreFunc)) {
+                            ctx.constfolder_foldables.set(qname, own ffd.sig.func_type.clone())
                         }
                     }
                 case:
@@ -1984,16 +1984,16 @@ type_is_callable_storage := func(t: Type) returns Bool {
 // ext/core declarations keep their established C ABI: shallow results are
 // values and owned/ref results are pointers.
 func_returns_c_value := func(fd: FunctionDef) returns Bool {
-    if fd.return_type.len() == 0 { return false }
-    if fd.return_own_type.is(OwnType.Ref) { return false }
+    if fd.sig.return_type.len() == 0 { return false }
+    if fd.sig.return_own_type.is(OwnType.Ref) { return false }
     if fd.is_enum_variant_ctor { return true }
-    if fd.func_type.is_bodyless() {
-        return fd.return_own_type.is(OwnType.Shallow)
+    if fd.sig.func_type.is_bodyless() {
+        return fd.sig.return_own_type.is(OwnType.Shallow)
     }
     // Dynamic is already a pointer-shaped erased value. A call narrowed to a
     // concrete type must copy from that storage rather than treat the pointer
     // word as the concrete C value.
-    if fd.return_type == "Dynamic" { return false }
+    if fd.sig.return_type == "Dynamic" { return false }
     return true
 }
 
@@ -2003,18 +2003,18 @@ func_returns_c_value := func(fd: FunctionDef) returns Bool {
 // over caller stack storage. External boundaries and generated lifecycle
 // helpers retain their established ABI.
 func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if i >= fd.params.len() { return false }
-    if i.to_i32() == fd.variadic_index { return false }
-    if i.to_i32() == fd.kwargs_index { return false }
-    ref p : Declaration = fd.params[i]
+    if i >= fd.sig.params.len() { return false }
+    if i.to_i32() == fd.sig.variadic_index { return false }
+    if i.to_i32() == fd.sig.kwargs_index { return false }
+    ref p : Declaration = fd.sig.params[i]
     if p.own_type.is(OwnType.Shallow) { return true }
     if value_abi_ok.not() { return false }
     if p.own_type.is(OwnType.Own).not().or(p.is_mut) { return false }
-    if fd.func_type.is_bodyless() { return false }
+    if fd.sig.func_type.is_bodyless() { return false }
     // delete(self, call_free) owns a pointer specifically so call_free can
     // release that outer storage; generated cleanup sites pass its address.
-    if fd.params.len() > 1 {
-        if fd.params[1].name == "call_free" { return false }
+    if fd.sig.params.len() > 1 {
+        if fd.sig.params[1].name == "call_free" { return false }
     }
     pt := declaration_resolved_type(p, scope, symbols)
     return pt.is(Type.Primitive)
@@ -2026,29 +2026,29 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
 // payload inline without freeing the argument pointer. Public and other
 // bodyless boundaries retain the established heap-outer convention.
 func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if stack_abi_ok.not().or(i >= fd.params.len()) { return false }
-    ref p : Declaration = fd.params[i]
+    if stack_abi_ok.not().or(i >= fd.sig.params.len()) { return false }
+    ref p : Declaration = fd.sig.params[i]
     if p.own_type.is(OwnType.Own).not().or(p.is_mut) { return false }
     if fd.is_enum_variant_ctor {
         // The initer marks niche constructors shallow-returning because the
         // returned enum is the payload pointer itself; that pointer escapes.
         // Small tagged enums can also become shallow through auto-shallow, so
         // confirm the representation from the enum definition in that case.
-        if fd.return_own_type.is(OwnType.Shallow).not() { return true }
-        enum_def_o := scope.get_struct(fd.return_type, symbols)
-        if enum_def_o.is_none() { panic(__LOC__, "missing enum definition for constructor ", fd.return_type) }
+        if fd.sig.return_own_type.is(OwnType.Shallow).not() { return true }
+        enum_def_o := scope.get_struct(fd.sig.return_type, symbols)
+        if enum_def_o.is_none() { panic(__LOC__, "missing enum definition for constructor ", fd.sig.return_type) }
         return enum_is_niche(enum_def_o.unwrap()).not()
     }
-    if fd.func_type.is_bodyless() { return false }
-    if i.to_i32() == fd.variadic_index {
+    if fd.sig.func_type.is_bodyless() { return false }
+    if i.to_i32() == fd.sig.variadic_index {
         arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name(), symbols))
         return scope.get_struct(arr_name, symbols).is_some()
     }
-    if i.to_i32() == fd.kwargs_index { return scope.get_struct("KwargsMap", symbols).is_some() }
+    if i.to_i32() == fd.sig.kwargs_index { return scope.get_struct("KwargsMap", symbols).is_some() }
     // delete(self, call_free) can receive either stack or heap outer storage;
     // call_free selects which one the individual call owns.
-    if fd.params.len() > 1 {
-        if fd.params[1].name == "call_free" { return false }
+    if fd.sig.params.len() > 1 {
+        if fd.sig.params[1].name == "call_free" { return false }
     }
     pt := declaration_resolved_type(p, scope, symbols)
     return pt.is(Type.Struct).or(pt.is(Type.Enum))
@@ -3051,7 +3051,7 @@ ast_print := proc(e: Expr, indent: U32, symbols: SymbolPool) {
         print(" ", decl.name)
     case .Assign(a):     print(" ", a.name)
     case .NamedArg(s):   print(" ", s)
-    case .FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
+    case .FuncDef(fdef): print(" ", func_type_name(fdef.sig.func_type))
     case: // nothing
     }
     if e.children.len() > 0 {

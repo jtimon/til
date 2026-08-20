@@ -332,8 +332,9 @@ All qualifier contexts (args, returns, locals, fields) use the same
 | Locals  | ~Shallow~ | owned stack value        | (forbidden, = default)  | borrowed pointer      |
 | Fields  | ~Shallow~ | inline value in struct   | owned heap pointer      | borrowed pointer      |
 
-For ~Param~ and ~FunctionDef~, the enum is used directly (~own_type~,
-~return_own_type~).  For ~Declaration~ (locals and fields), the same
+For parameter declarations and ~FunctionDef.sig~ returns, the enum is used
+directly (~Declaration.own_type~, ~FuncSig.return_own_type~).  For
+~Declaration~ (locals and fields), the same
 ~own_type~ field replaces the former ~is_own~ / ~is_ref~ booleans.
 ~Shallow~ is the natural default for declarations: inline for fields,
 stack-owned for locals.

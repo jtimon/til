@@ -64,7 +64,7 @@
    Original plan history (kept for reference):
 
    1. Step 1 -- parse ~throws T1, T2, ...~ clause on func/proc/etc
-      signatures. Stored as ~Vec[Str] FunctionDef.throw_types~. No
+       signatures. Stored as ~Vec[Str] FunctionDef.sig.throw_types~. No
       validation yet.
    2. Step 2 -- add ~NodeType.Throw~ and ~NodeType.Catch~ enum
       variants (plus node_head_str / node_name entries). Pure enum

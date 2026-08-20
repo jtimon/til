@@ -463,7 +463,7 @@ priv seed_noreturn_chain := func(mut ast: Expr, symbols: SymbolPool) {
             ref mut rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case .FuncDef(fd):
-                if fd.func_type.is(FuncType.ExtFunc) {
+                if fd.sig.func_type.is(FuncType.ExtFunc) {
                     fd.noreturn = true
                     noreturn_names.add(own dd.name.clone())
                 }
@@ -485,7 +485,7 @@ priv seed_noreturn_chain := func(mut ast: Expr, symbols: SymbolPool) {
                 ref mut rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case .FuncDef(fd):
-                    if fd.func_type.is_plain().not() { continue }
+                    if fd.sig.func_type.is_plain().not() { continue }
                     if noreturn_names.has(dd.name) { continue }
                     if rhs.children.len() == 0 { continue }
                     ref body : Expr = rhs.children[0]
@@ -594,7 +594,7 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
             switch stmt.children[0].node_type {
             case .FuncDef(fdef):
                 found_main_proc = true
-                for p : Declaration in fdef.params {
+                for p : Declaration in fdef.sig.params {
                     ptype := p.type_name()
                     if or(ptype.eq("Str"),
                           ptype.eq("I64"),
@@ -1113,10 +1113,10 @@ priv append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: 
 // Append "(p1: T1, name: ..TN)" plus optional " returns [shallow|ref ]T".
 priv append_fn_signature := func(mut out: Str, fd: FunctionDef) {
     out.push_str("(")
-    var_idx_i64 : I64 = fd.variadic_index.cast(I64)
-    for i in 0..fd.params.len() {
+    var_idx_i64 : I64 = fd.sig.variadic_index.cast(I64)
+    for i in 0..fd.sig.params.len() {
         if i > 0 { out.push_str(", ") }
-        ref p : Declaration = fd.params[i]
+        ref p : Declaration = fd.sig.params[i]
         is_variadic := i.to_i64() == var_idx_i64
         if is_variadic.not() { append_qualifier_prefix(out, p, OwnType.Ref) }
         out.push_str(p.name)
@@ -1127,14 +1127,14 @@ priv append_fn_signature := func(mut out: Str, fd: FunctionDef) {
         }
     }
     out.push_str(")")
-    if fd.return_type.len() > 0 {
+    if fd.sig.return_type.len() > 0 {
         out.push_str(" returns ")
-        switch fd.return_own_type {
+        switch fd.sig.return_own_type {
         case .Shallow: out.push_str("shallow ")
         case .Ref:     out.push_str("ref ")
         case .Own:
         }
-        out.push_str(fd.return_type)
+        out.push_str(fd.sig.return_type)
     }
 }
 
@@ -1236,7 +1236,7 @@ priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration)
     if d.default_value.is_some() {
         switch d.default_expr().node_type {
         case .FuncDef(fd):
-            out.push_str(func_kind(fd.func_type))
+            out.push_str(func_kind(fd.sig.func_type))
             out.push_str(" ")
             out.push_str(dname)
             append_fn_signature(out, fd)
@@ -1267,12 +1267,12 @@ priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope, symbo
 }
 
 priv format_func_info := func(name: Str, fd: FunctionDef) returns Str {
-    mut cap : USize = name.len().add(fd.return_type.len()) + 64
-    for p : Declaration in fd.params {
+    mut cap : USize = name.len().add(fd.sig.return_type.len()) + 64
+    for p : Declaration in fd.sig.params {
         cap = cap.add(p.name.len()).add(p.type_name().len()) + 48
     }
     mut out := Str.with_capacity(cap)
-    out.push_str(func_kind(fd.func_type))
+    out.push_str(func_kind(fd.sig.func_type))
     out.push_str(" ")
     out.push_str(name)
     append_fn_signature(out, fd)
@@ -1286,8 +1286,8 @@ priv add_ns_method_capacity := func(d: Declaration, mut cap: USize) {
     if d.default_value.is_none() { return }
     switch d.default_expr().node_type {
     case .FuncDef(fd):
-        cap = cap.add(fd.return_type.len()) + 48
-        for p : Declaration in fd.params {
+        cap = cap.add(fd.sig.return_type.len()) + 48
+        for p : Declaration in fd.sig.params {
             cap = cap.add(p.name.len()).add(p.type_name().len()) + 48
         }
     case:
@@ -1396,7 +1396,7 @@ format_member_info := func(type_name: Str, dname: Str, d: Declaration) returns S
     if d.default_value.is_some() {
         switch d.default_expr().node_type {
         case .FuncDef(fd):
-            out.push_str(func_kind(fd.func_type))
+            out.push_str(func_kind(fd.sig.func_type))
             out.push_str(" ")
             out.push_str(qual)
             append_fn_signature(out, fd)
@@ -1724,13 +1724,13 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
         }
         return
     case .FuncDef(fdd):
-        for mut pd : Declaration in fdd.params {
+        for mut pd : Declaration in fdd.sig.params {
             if pd.default_value.is_some() {
                 rewrite_ns_alias_uses(pd.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         mut fn_shadow := shadowed.clone()
-        for pd2 : Declaration in fdd.params {
+        for pd2 : Declaration in fdd.sig.params {
             fn_shadow.add(own pd2.name.clone())
         }
         for cap : Declaration in fdd.captures {
@@ -1998,12 +1998,12 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr, sym
     }
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.variadic_index < 0 {
+        if fd.sig.variadic_index < 0 {
             mut nargs := call.children.len() - 1
             if is_method_call { nargs = call.children.len() }
-            if nargs == fd.params.len() {
-                for j in 0..fd.params.len() {
-                    ref param : Declaration = fd.params[j]
+            if nargs == fd.sig.params.len() {
+                for j in 0..fd.sig.params.len() {
+                    ref param : Declaration = fd.sig.params[j]
                     if is_method_call.and(j.eq(0)) {
                         subs.set(param.name, own call_callee.children[0].clone())
                     } else {
@@ -2062,7 +2062,7 @@ priv lazy_variadic_subs := func(call: Expr, is_method: Bool, fdef: Expr,
     switch fdef.node_type {
     case .FuncDef(fd):
         for j in 0..nfixed {
-            ref param : Declaration = fd.params[j]
+            ref param : Declaration = fd.sig.params[j]
             subs.set(param.name, own lazy_eff_arg_clone(call, is_method, j))
         }
     case:
@@ -2095,10 +2095,10 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
     mut vname := ""
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.kwargs_index >= 0 { return false }
-        vidx = fd.variadic_index
-        nparams = fd.params.len()
-        if vidx >= 0 { vname = fd.params[vidx.to_usize()].name.clone() }
+        if fd.sig.kwargs_index >= 0 { return false }
+        vidx = fd.sig.variadic_index
+        nparams = fd.sig.params.len()
+        if vidx >= 0 { vname = fd.sig.params[vidx.to_usize()].name.clone() }
     case:
         return false
     }
@@ -2350,12 +2350,12 @@ lazy_recursive_variadic_def := func(fdef: Expr, symbols: SymbolPool) returns Boo
     mut fixed_names := Vec(Str).new()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.func_type.is_lazy().not() { return false }
-        if fd.kwargs_index >= 0 { return false }
-        if fd.variadic_index < 0 { return false }
-        if fd.variadic_index.to_usize() != fd.params.len() - 1 { return false }
-        vname = fd.params[fd.variadic_index.to_usize()].name.clone()
-        for j in 0..fd.params.len() - 1 { fixed_names.push(own fd.params[j].name.clone()) }
+        if fd.sig.func_type.is_lazy().not() { return false }
+        if fd.sig.kwargs_index >= 0 { return false }
+        if fd.sig.variadic_index < 0 { return false }
+        if fd.sig.variadic_index.to_usize() != fd.sig.params.len() - 1 { return false }
+        vname = fd.sig.params[fd.sig.variadic_index.to_usize()].name.clone()
+        for j in 0..fd.sig.params.len() - 1 { fixed_names.push(own fd.sig.params[j].name.clone()) }
     case: return false
     }
     m_o := lazy_recursive_body_match(fdef.children[0], vname, symbols)
@@ -2482,8 +2482,8 @@ priv inline_recursive_variadic_lazy_call := func(mut parent: Expr, call_idx: USi
     mut nfixed : USize = 0
     switch fdef.node_type {
     case .FuncDef(fd):
-        vname = fd.params[fd.variadic_index.to_usize()].name.clone()
-        nfixed = fd.params.len() - 1
+        vname = fd.sig.params[fd.sig.variadic_index.to_usize()].name.clone()
+        nfixed = fd.sig.params.len() - 1
     case: return false
     }
     mut is_method := false
@@ -2582,10 +2582,10 @@ priv lazy_call_arity_ok := func(call: Expr, fdef: Expr) returns Bool {
     }
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.variadic_index >= 0 { return false }
+        if fd.sig.variadic_index >= 0 { return false }
         mut nargs := call.children.len().sub(1)
         if is_method { nargs = call.children.len() }
-        return nargs == fd.params.len()
+        return nargs == fd.sig.params.len()
     case: return false
     }
 }
@@ -2600,8 +2600,8 @@ priv lazy_build_subs := func(call: Expr, fdef: Expr) returns Map(Str, Expr) {
     }
     switch fdef.node_type {
     case .FuncDef(fd):
-        for j in 0..fd.params.len() {
-            ref param : Declaration = fd.params[j]
+        for j in 0..fd.sig.params.len() {
+            ref param : Declaration = fd.sig.params[j]
             if is_method.and(j.eq(0)) {
                 subs.set(param.name, own callee.children[0].clone())
             } else {
@@ -2671,7 +2671,7 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr), mut 
     sp : USize = split.to_usize()
     mut ret_type := ""
     switch fdef.node_type {
-    case .FuncDef(fd): ret_type = fd.return_type.clone()
+    case .FuncDef(fd): ret_type = fd.sig.return_type.clone()
     case:
     }
     if ret_type.len() == 0 { return Option(Expr).None }
@@ -3065,11 +3065,11 @@ priv lazy_register_fn_ret_alias := func(lp: LoadedProgram,
     if lp.ctx.scope.get_binding_name(name, lp.ctx.symbols).is_some() { return }
 
     mut fd := FunctionDef()
-    fd.func_type = FuncType.Func
-    fd.return_type = ret_type.clone()
-    fd.return_own_type = OwnType.Own
-    fd.variadic_index = -1
-    fd.kwargs_index = -1
+    fd.sig.func_type = FuncType.Func
+    fd.sig.return_type = ret_type.clone()
+    fd.sig.return_own_type = OwnType.Own
+    fd.sig.variadic_index = -1
+    fd.sig.kwargs_index = -1
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
     mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone(), is_priv = true)), line, col)
     decl.add_child(own sig)
@@ -3158,13 +3158,13 @@ priv lazy_count_live_body := func(body: Expr, pnames: Set(Str), outer_shadowed: 
 priv lazy_has_multiuse_param := func(fdef: Expr, body: Expr, symbols: SymbolPool) returns Bool {
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.variadic_index >= 0 { return false }
+        if fd.sig.variadic_index >= 0 { return false }
         mut pnames := Set(Str).new()
-        for p : Declaration in fd.params { pnames.add(own p.name.clone()) }
+        for p : Declaration in fd.sig.params { pnames.add(own p.name.clone()) }
         mut counts := Map(Str, I64).new()
         no_shadow := Set(Str).new()
         lazy_count_live_body(body, pnames, no_shadow, counts, 0, symbols)
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             if counts.has(p.name) {
                 if counts.get(p.name)! >= 2 { return true }
             }
@@ -3182,14 +3182,14 @@ priv lazy_has_multiuse_param := func(fdef: Expr, body: Expr, symbols: SymbolPool
 priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
     fn_ret := format("_Fn_ret_", ret_type)
     mut fd := FunctionDef()
-    fd.func_type = FuncType.Func
-    fd.return_type = ret_type.clone()
-    fd.return_own_type = OwnType.Own
-    fd.variadic_index = -1
-    fd.kwargs_index = -1
-    fd.params.push(own decl_typed(name = "done", type_name = "Bool", own_type = OwnType.Ref, is_mut = true))
-    fd.params.push(own decl_typed(name = "cache", type_name = ret_type, own_type = OwnType.Ref, is_mut = true))
-    fd.params.push(own Declaration(name = "th", til_type = Type.FuncPtrSig(fn_ret), own_type = OwnType.Ref))
+    fd.sig.func_type = FuncType.Func
+    fd.sig.return_type = ret_type.clone()
+    fd.sig.return_own_type = OwnType.Own
+    fd.sig.variadic_index = -1
+    fd.sig.kwargs_index = -1
+    fd.sig.params.push(own decl_typed(name = "done", type_name = "Bool", own_type = OwnType.Ref, is_mut = true))
+    fd.sig.params.push(own decl_typed(name = "cache", type_name = ret_type, own_type = OwnType.Ref, is_mut = true))
+    fd.sig.params.push(own Declaration(name = "th", til_type = Type.FuncPtrSig(fn_ret), own_type = OwnType.Ref))
 
     // then: cache = th() ; done = true
     mut th_call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -3296,8 +3296,8 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
     mut pnames := Set(Str).new()
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.variadic_index >= 0 { return }   // variadic: out of scope
-        for p : Declaration in fd.params { pnames.add(own p.name.clone()) }
+        if fd.sig.variadic_index >= 0 { return }   // variadic: out of scope
+        for p : Declaration in fd.sig.params { pnames.add(own p.name.clone()) }
     case:
         return
     }
@@ -3315,7 +3315,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
     lazy_count_live_body(body, pnames, Set(Str).new(), use_counts, 0, lp.ctx.symbols)
     switch fdef.node_type {
     case .FuncDef(fd):
-        for p : Declaration in fd.params {
+        for p : Declaration in fd.sig.params {
             mut cnt : I64 = 0
             if use_counts.has(p.name) { cnt = use_counts.get(p.name)! }
             if cnt >= 2 {
@@ -3332,9 +3332,9 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
 
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
-        else { fd.func_type = FuncType.Proc }
-        for mut param : Declaration in fd.params {
+        if fd.sig.func_type.is(FuncType.LazyFunc) { fd.sig.func_type = FuncType.Func }
+        else { fd.sig.func_type = FuncType.Proc }
+        for mut param : Declaration in fd.sig.params {
             ret_type := param.type_name()
             lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
             param.til_type = Type.FuncPtrSig(format("_Fn_ret_", ret_type))
@@ -3368,11 +3368,11 @@ priv lazy_lower_funcsig := func(mut lp: LoadedProgram,
         name: Str, mut fdef: Expr, mut lazy_sigs: Set(Str), mut seen: Set(Str), mut pending: Vec(Expr)) {
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.variadic_index >= 0 { return }   // variadic funcsig: out of scope
-        if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
-        else if fd.func_type.is(FuncType.LazyProc) { fd.func_type = FuncType.Proc }
+        if fd.sig.variadic_index >= 0 { return }   // variadic funcsig: out of scope
+        if fd.sig.func_type.is(FuncType.LazyFunc) { fd.sig.func_type = FuncType.Func }
+        else if fd.sig.func_type.is(FuncType.LazyProc) { fd.sig.func_type = FuncType.Proc }
         else { return }
-        for mut param : Declaration in fd.params {
+        for mut param : Declaration in fd.sig.params {
             ret_type := param.type_name()
             lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
             param.til_type = Type.FuncPtrSig(format("_Fn_ret_", ret_type))
@@ -3402,7 +3402,7 @@ priv lazy_call_returns_sig := func(call: Expr, scope: TypeScope, lazy_sigs: Set(
     if cfd_o.is_none() { return "" }
     switch cfd_o.unwrap().node_type {
     case .FuncDef(fd):
-        if lazy_sigs.has(fd.return_type) { return fd.return_type.clone() }
+        if lazy_sigs.has(fd.sig.return_type) { return fd.sig.return_type.clone() }
     case:
     }
     return ""
@@ -3428,7 +3428,7 @@ priv lazy_call_struct_type := func(call: Expr, scope: TypeScope, symbols: Symbol
     if cfd_o.is_none() { return "" }
     switch cfd_o.unwrap().node_type {
     case .FuncDef(fd):
-        if scope.get_struct(fd.return_type, symbols).is_some() { return fd.return_type.clone() }
+        if scope.get_struct(fd.sig.return_type, symbols).is_some() { return fd.sig.return_type.clone() }
     case:
     }
     return ""
@@ -3503,10 +3503,10 @@ priv lazy_make_thunk := func(own eff: Expr, ret_type: Str, scope: TypeScope, sym
     mut bound := Set(Str).new()
     lazy_thunk_collect_captures(eff, scope, bound, caps, symbols)
     mut cfd := FunctionDef()
-    cfd.func_type = FuncType.Func
-    cfd.return_type = ret_type.clone()
-    cfd.variadic_index = -1
-    cfd.kwargs_index = -1
+    cfd.sig.func_type = FuncType.Func
+    cfd.sig.return_type = ret_type.clone()
+    cfd.sig.variadic_index = -1
+    cfd.sig.kwargs_index = -1
     cfd.captures = caps
     mut ret := Expr.new(NodeType.Return, line, col)
     ret.add_child(own eff)
@@ -3530,8 +3530,8 @@ priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method:
     nc.add_child(own Expr.new(ident_node(symbols.intern(name)), line, col))
     switch fdef.node_type {
     case .FuncDef(fd):
-        for j in 0..fd.params.len() {
-            ref param : Declaration = fd.params[j]
+        for j in 0..fd.sig.params.len() {
+            ref param : Declaration = fd.sig.params[j]
             param_type := param.type_name()
             ret_type := param_type.strip_prefix("_Fn_ret_")
             nc.add_child(own lazy_make_thunk(own lazy_eff_arg_clone(call, is_method, j), ret_type, scope, symbols))
@@ -3553,8 +3553,8 @@ priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: Type
     nc.add_child(own call.children[0].clone())
     switch sig_fdef.node_type {
     case .FuncDef(fd):
-        for j in 0..fd.params.len() {
-            ref param : Declaration = fd.params[j]
+        for j in 0..fd.sig.params.len() {
+            ref param : Declaration = fd.sig.params[j]
             param_type := param.type_name()
             ret_type := param_type.strip_prefix("_Fn_ret_")
             nc.add_child(own lazy_make_thunk(own call.children[j + 1].clone(), ret_type, scope, symbols))
@@ -3711,7 +3711,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
     // are per-subtree clones from the parent, so this does not leak out.
     switch e.node_type {
     case .FuncDef(efd):
-        for p : Declaration in efd.params {
+        for p : Declaration in efd.sig.params {
             if p.til_type.is(Type.Unknown) { continue }
             pname := p.type_name()
             if lazy_sigs.has(pname) {
@@ -3757,7 +3757,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                     ref sfd : Expr = sfd_o.unwrap()
                     mut fnparams : USize = 0
                     switch sfd.node_type {
-                    case .FuncDef(fd): fnparams = fd.params.len()
+                    case .FuncDef(fd): fnparams = fd.sig.params.len()
                     case:
                     }
                     if c.children.len().sub(1).eq(fnparams) {
@@ -3788,7 +3788,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                             ref fdef : Expr = fdef_o.unwrap()
                             mut nparams : USize = 0
                             switch fdef.node_type {
-                            case .FuncDef(fd): nparams = fd.params.len()
+                            case .FuncDef(fd): nparams = fd.sig.params.len()
                             case:
                             }
                             // Effective args: bare `f(a, b)` has children.len()-1 args;

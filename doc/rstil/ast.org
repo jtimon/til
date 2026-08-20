@@ -104,6 +104,11 @@ The signature/definition split:
   Vec<Expr>=, and =source_path= (the file it was defined in -- used so
   errors point at the right file after AST merging).
 
+til now has the same contract/definition boundary: =FuncSig= owns callable
+metadata and =FunctionDef.sig= embeds it. Unlike rstil, til's signature
+=Declaration=s retain parameter names for definitions, so no parallel
+=arg_names= vector is needed.
+
 ** StructDef / NamespaceDef (ast.rs:117 / 148)
 =StructDef= = =members: Vec<Declaration>= + =default_values= + =ns:
 NamespaceDef=. =NamespaceDef= holds the namespace-level (associated)

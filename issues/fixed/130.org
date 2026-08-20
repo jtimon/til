@@ -40,8 +40,8 @@ shape. This closing commit adds the source-verified representation audit at
 - ~FCallData.fn_sig~, ~Declaration.field_struct_def~,
   ~TypeBinding.func_def~, and ~TypeBinding.struct_def~ are gone.
 
-The proposed ~FuncSig~ split and universal resolved-call side table are not
-unfinished field cleanup. Current ~FunctionDef~ signature, capture,
-return-alias, and generated-function facts have cross-phase readers. A future
-split would be a separate data-model design with bootstrap and ownership
-implications.
+A later data-model follow-up implemented the proposed ~FuncSig~ split:
+~FunctionDef.sig~ now owns the callable contract while capture, return-alias,
+and generated-function facts remain on the definition. A universal
+resolved-call side table remains a separate design, not unfinished field
+cleanup.

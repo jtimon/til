@@ -522,14 +522,14 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
 
     // Build synthetic func_def (bodyless -- same as named FuncSig types)
     mut fd := FunctionDef()
-    if return_type.len() > 0 { fd.func_type = FuncType.Func }
-    else { fd.func_type = FuncType.Proc }
-    fd.return_type = return_type
-    fd.return_own_type = OwnType.Own
-    fd.variadic_index = -1
-    fd.kwargs_index = -1
+    if return_type.len() > 0 { fd.sig.func_type = FuncType.Func }
+    else { fd.sig.func_type = FuncType.Proc }
+    fd.sig.return_type = return_type
+    fd.sig.return_own_type = OwnType.Own
+    fd.sig.variadic_index = -1
+    fd.sig.kwargs_index = -1
     for i in 0..ptypes.len() {
-        fd.params.push(own decl_typed(type_name = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref))
+        fd.sig.params.push(own decl_typed(type_name = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref))
     }
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
 
@@ -684,7 +684,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     // analogue of `TemplVec(I64).new()` reading as `TemplVec__I64.new()`.
     // Shared `<...>` grammar with struct<T>/enum<T> via parse_generic_params.
     mut fd := FunctionDef()
-    fd.func_type = ft
+    fd.sig.func_type = ft
     mut gparams := Vec(Declaration).new()
     if check(p, TokenType.Lt) {
         gparams = parse_generic_params(p)
@@ -722,10 +722,10 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 if own_type.is(OwnType.Ref).not().or(is_mut) {
                     parse_fail(p, peek_line(p), peek_col(p), "kwargs parameter cannot be own/mut/shallow")
                 }
-                if fd.kwargs_index != -1 {
+                if fd.sig.kwargs_index != -1 {
                     parse_fail(p, peek_line(p), peek_col(p), "only one kwargs parameter is allowed")
                 }
-                fd.kwargs_index = fd.params.len().to_i32()
+                fd.sig.kwargs_index = fd.sig.params.len().to_i32()
                 is_kwargs = true
                 // For regular til funcs the codegen auto-inserts a
                 // KwargsMap.delete at the callee's scope exit, so the caller
@@ -746,8 +746,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 if own_type.is(OwnType.Own) { parse_fail(p, peek_line(p), peek_col(p), "variadic param cannot be 'own'") }
                 if is_mut { parse_fail(p, peek_line(p), peek_col(p), "variadic param cannot be 'mut'") }
                 if own_type.is(OwnType.Shallow) { parse_fail(p, peek_line(p), peek_col(p), "variadic param cannot be 'shallow'") }
-                if fd.variadic_index != -1 { parse_fail(p, peek_line(p), peek_col(p), "only one variadic param allowed") }
-                fd.variadic_index = fd.params.len().to_i32()
+                if fd.sig.variadic_index != -1 { parse_fail(p, peek_line(p), peek_col(p), "only one variadic param allowed") }
+                fd.sig.variadic_index = fd.sig.params.len().to_i32()
                 is_variadic = true
                 // Same as kwargs above: regular til funcs get auto-cleanup
                 // via Array.delete at scope exit; ext_func/ext_proc bodies
@@ -783,17 +783,17 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, param_decl.type_name()))
             has_default = true
         }
-        if fd.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
+        if fd.sig.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
             parse_fail(p, peek_line(p), peek_col(p), "positional param not allowed after variadic")
         }
         // Variadic and kwargs may coexist (Python-style *args + **kwargs);
         // when both are present, kwargs must come last so positional vs
         // named-arg slots don't get tangled at the call site.
-        if fd.kwargs_index.neq(-1).and(is_kwargs.not()) {
+        if fd.sig.kwargs_index.neq(-1).and(is_kwargs.not()) {
             parse_fail(p, peek_line(p), peek_col(p), "no parameter allowed after kwargs")
         }
 
-        fd.params.push(own param_decl)
+        fd.sig.params.push(own param_decl)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
@@ -803,28 +803,28 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         advance(p)
         if check(p, TokenType.KwRef) {
             advance(p)
-            fd.return_own_type = OwnType.Ref
+            fd.sig.return_own_type = OwnType.Ref
         } else if check(p, TokenType.KwOwn) {
             parse_fail(p, peek_line(p), peek_col(p), "no need for 'own' in return type; returns are owned by default")
         } else if check(p, TokenType.KwShallow) {
             advance(p)
-            fd.return_own_type = OwnType.Shallow
-            fd.return_shallow_explicit = true
+            fd.sig.return_own_type = OwnType.Shallow
+            fd.sig.return_shallow_explicit = true
         }
-        fd.return_type = parse_type_ref(p)
+        fd.sig.return_type = parse_type_ref(p)
     }
 
     // Issue #198: optional 'throws T1, T2, ...' clause after returns.
-    // Stored as a list of type-name strings on FunctionDef. Validation
+    // Stored as a list of type-name strings on FunctionDef.sig. Validation
     // and lowering live in the typer; the parser only collects names.
     if check(p, TokenType.KwThrows) {
         advance(p)
         tname := expect_text(p, TokenType.Ident)
-        fd.throw_types.push(own tname.clone())
+        fd.sig.throw_types.push(own tname.clone())
         while check(p, TokenType.Comma) {
             advance(p)
             next_tname := expect_text(p, TokenType.Ident)
-            fd.throw_types.push(own next_tname.clone())
+            fd.sig.throw_types.push(own next_tname.clone())
         }
     }
 
@@ -843,7 +843,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LBrace)
         mut body := parse_block(p)
         if body.children.len().eq(0)
-            .and(funcdef_of(def).return_type.len().gt(0))
+            .and(funcdef_of(def).sig.return_type.len().gt(0))
             .and(ft.is_plain().or(ft.is_lazy())) {
                 parse_fail(p, body_line, body_col,
                     "empty function body with declared return type; did you mean a FuncSig (omit '{}') or a function (add a return)?")
@@ -863,17 +863,17 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut pi : USize = 0
         while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
             pn := expect_text(p, TokenType.Ident)
-            if pi >= sfd.params.len() {
-                parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
+            if pi >= sfd.sig.params.len() {
+                parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.sig.params.len().to_str(), ")")
             }
-            ref mut pp : Declaration = sfd.params[pi]
+            ref mut pp : Declaration = sfd.sig.params[pi]
             pp.name = pn.clone()
             pi++
             if check(p, TokenType.Comma) { advance(p) }
         }
         expect_token(p, TokenType.RParen)
-        if pi < sfd.params.len() {
-            parse_fail(p, peek_line(p), peek_col(p), "FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
+        if pi < sfd.sig.params.len() {
+            parse_fail(p, peek_line(p), peek_col(p), "FuncSig form expects ", sfd.sig.params.len().to_str(), " param names, got ", pi.to_str())
         }
         // Issue #54: optional capture list (FuncSig form), after the
         // param names and before the body: `= (a) [scale] { ... }`.
@@ -946,10 +946,10 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
 // treats it identically to a hand-written type-gen macro.
 priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec(Declaration), line: U32, col: U32) returns Expr {
     mut fd := FunctionDef()
-    fd.func_type = FuncType.Macro
-    fd.return_type = "StructDef"
+    fd.sig.func_type = FuncType.Macro
+    fd.sig.return_type = "StructDef"
     for gp : Declaration in gparams {
-        fd.params.push(own gp.clone())
+        fd.sig.params.push(own gp.clone())
     }
     mut def := Expr.new(NodeType.FuncDef(fd), line, col)
     mut body := Expr.new(NodeType.Body, line, col)
@@ -970,10 +970,10 @@ priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec(Declaration),
 // `TemplVec(I64).new()`.
 priv wrap_func_def_in_macro := func(own fdef: Expr, gparams: Vec(Declaration), line: U32, col: U32) returns Expr {
     mut fd := FunctionDef()
-    fd.func_type = FuncType.Macro
-    fd.return_type = "FuncDef"
+    fd.sig.func_type = FuncType.Macro
+    fd.sig.return_type = "FuncDef"
     for gp : Declaration in gparams {
-        fd.params.push(own gp.clone())
+        fd.sig.params.push(own gp.clone())
     }
     mut def := Expr.new(NodeType.FuncDef(fd), line, col)
     mut body := Expr.new(NodeType.Body, line, col)
@@ -2232,11 +2232,11 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 mut body := parse_block(p)
                 // Build incomplete FuncDef (types filled by initer)
                 mut ffd := FunctionDef()
-                ffd.func_type = FuncType.Func // placeholder
-                ffd.variadic_index = -1
-                ffd.kwargs_index = -1
+                ffd.sig.func_type = FuncType.Func // placeholder
+                ffd.sig.variadic_index = -1
+                ffd.sig.kwargs_index = -1
                 for pn : Str in pnames {
-                    ffd.params.push(own Declaration(name = pn.clone(), own_type = OwnType.Ref))
+                    ffd.sig.params.push(own Declaration(name = pn.clone(), own_type = OwnType.Ref))
                 }
                 ffd.captures.move_from(own captures)
                 mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col)

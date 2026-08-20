@@ -23,6 +23,9 @@
      call via FuncSig-typed ref bindings, plus inline
      ~cast(slot, BinaryOp)(args)~.
    - ~func_sig_of~ / ~struct_def_of~ / ~enum_def_of~ introspection.
+     ~func_sig_of~ returns the callable contract as a ~FuncSig~ metadata
+     struct; ~FunctionDef.sig~ embeds the same representation for concrete
+     definitions.
    - Type-parameter macros (~Phase now~): ~macro(T: Type) returns
      StructDef|EnumDef|FuncDef~ with inline instantiation hoisted into
      deduped monomorphizations; namespace methods that name ~T~ and
@@ -391,4 +394,3 @@
    - [ ] First-class ~Body~ values (Issue #181 cross-references).
    - [ ] Generic-arg inference for macros / value-level deduction (an
      analog of Rust/Haskell type-inference).
-

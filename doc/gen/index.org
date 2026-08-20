@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-7a1b5fd9c
+#+SUBTITLE: til 0.0.1-5393cf454
 #+OPTIONS: toc:t
 
 * Core
@@ -893,7 +893,7 @@ func enum_def_of(type_name: Str) returns EnumDef
 
 ** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_of][func_sig_of]]
 #+begin_src til
-func func_sig_of(type_name: Str) returns FunctionDef
+func func_sig_of(type_name: Str) returns FuncSig
 #+end_src
 
 ** [[file:src/core/dyn.org::#til.src.core.dyn.CloneFn][CloneFn]]
@@ -2148,9 +2148,9 @@ namespace:
 func Declaration.default_expr(self: Declaration) returns ref Expr
 #+end_src
 
-** [[file:src/core/ast.org::#til.src.core.ast.FunctionDef][FunctionDef]]
+** [[file:src/core/ast.org::#til.src.core.ast.FuncSig][FuncSig]]
 #+begin_src til
-struct FunctionDef {
+struct FuncSig {
     mut func_type : FuncType
     mut params : Vec__Declaration
     mut return_type : Str
@@ -2159,6 +2159,20 @@ struct FunctionDef {
     mut kwargs_index : I32
     mut return_own_type : OwnType
     mut return_shallow_explicit : Bool
+namespace:
+    func eq(a: FuncSig, b: FuncSig) returns shallow Bool
+    func to_str(self: FuncSig) returns Str
+    func size() returns shallow USize
+    func clone(self: FuncSig) returns FuncSig
+    func delete(own self: FuncSig, shallow call_free: Bool)
+    func hash(self: FuncSig, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/ast.org::#til.src.core.ast.FunctionDef][FunctionDef]]
+#+begin_src til
+struct FunctionDef {
+    mut sig : FuncSig
     mut auto_generated : Bool
     mut is_enum_variant_ctor : Bool
     mut captures : Vec__Declaration

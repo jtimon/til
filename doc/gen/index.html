@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7a1b5fd9c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-5393cf454</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -834,7 +834,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_of">func_sig_of</a>
-<pre><code class="language-til">func (type_name: Str) returns FunctionDef
+<pre><code class="language-til">func (type_name: Str) returns FuncSig
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.CloneFn">CloneFn</a>
@@ -1958,7 +1958,7 @@ namespace:
 <pre><code class="language-til">func (self: Declaration) returns ref Expr
 </code></pre>
 </li>
-<li><a href="src/core/ast.html#til.src.core.ast.FunctionDef">FunctionDef</a>
+<li><a href="src/core/ast.html#til.src.core.ast.FuncSig">FuncSig</a>
 <pre><code class="language-til">struct {
     mut func_type : FuncType
     mut params : Vec__Declaration
@@ -1968,6 +1968,19 @@ namespace:
     mut kwargs_index : I32
     mut return_own_type : OwnType
     mut return_shallow_explicit : Bool
+namespace:
+    func eq(a: FuncSig, b: FuncSig) returns shallow Bool
+    func to_str(self: FuncSig) returns Str
+    func size() returns shallow USize
+    func clone(self: FuncSig) returns FuncSig
+    func delete(own self: FuncSig, shallow call_free: Bool)
+    func hash(self: FuncSig, hasher: HashFn) returns shallow U64
+}
+</code></pre>
+</li>
+<li><a href="src/core/ast.html#til.src.core.ast.FunctionDef">FunctionDef</a>
+<pre><code class="language-til">struct {
+    mut sig : FuncSig
     mut auto_generated : Bool
     mut is_enum_variant_ctor : Bool
     mut captures : Vec__Declaration

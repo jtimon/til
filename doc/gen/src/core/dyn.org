@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-7a1b5fd9c
+#+SUBTITLE: til 0.0.1-5393cf454
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -358,7 +358,7 @@ func enum_def_of(type_name: Str) returns EnumDef
 :END:
 
 #+begin_src til
-func func_sig_of(type_name: Str) returns FunctionDef
+func func_sig_of(type_name: Str) returns FuncSig
 #+end_src
 
 * CloneFn

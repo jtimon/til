@@ -322,7 +322,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope, symbols: SymbolPool) re
             ref ns_func : Expr = nfo.unwrap()
             switch ns_func.node_type {
             case .FuncDef(nfd):
-                cb_ft = nfd.func_type
+                cb_ft = nfd.sig.func_type
             case:
                 return false
             }
@@ -389,8 +389,8 @@ priv try_ufcs_rewrite := func(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
             ref top_fd : Expr = top_fd_o.unwrap()
             switch top_fd.node_type {
             case .FuncDef(top_fdef):
-                if top_fdef.params.len() > 0 {
-                    first_param := top_fdef.params[0].type_name()
+                if top_fdef.sig.params.len() > 0 {
+                    first_param := top_fdef.sig.params[0].type_name()
                     if first_param.len() > 0 {
                         // Only a genuine free-function *declaration* is
                         // UFCS-callable; a func-pointer value bound to the
@@ -483,8 +483,8 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) retur
         }
         switch cb_fd.node_type {
         case .FuncDef(cb_fdef):
-            if cb_fdef.return_type.len() == 0 { return Option(ref Expr).None }
-            rsb_o := scope.get_binding_name(cb_fdef.return_type, symbols)
+            if cb_fdef.sig.return_type.len() == 0 { return Option(ref Expr).None }
+            rsb_o := scope.get_binding_name(cb_fdef.sig.return_type, symbols)
             if rsb_o.is_none() { return Option(ref Expr).None }
             ref rsb : TypeBinding = rsb_o.unwrap()
             rsb_fd_o := scope.lookup_func_name(rsb.name, symbols)
@@ -533,7 +533,7 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) retur
 // struct). Only a `returns ref T` callee yields a borrowable pointer, so the
 // predicate is "return_own_type is not Ref". A struct/enum constructor always
 // produces a fresh owned value. Recognised callee shapes:
-//   - Ident("foo")     -> scope binding's func_def.return_own_type
+//   - Ident("foo")     -> scope binding's func_def.sig.return_own_type
 //   - Type.method(...) -> namespace lookup on the type's def
 //   - obj.method(...)  -> namespace lookup on the receiver's type def
 // A callee whose return is a fresh by-value result a `ref` cannot borrow:
@@ -542,9 +542,9 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) retur
 // left out: `ref x : I64 = f()` predates auto-shallow and other code relies
 // on the existing classification; only the struct case is newly value-typed.
 priv fdef_returns_unborrowable := func(fd: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if fd.return_own_type.is(OwnType.Own) { return true }
-    if fd.return_own_type.is(OwnType.Shallow) {
-        rt := type_from_name_init_name(fd.return_type, scope, symbols)
+    if fd.sig.return_own_type.is(OwnType.Own) { return true }
+    if fd.sig.return_own_type.is(OwnType.Shallow) {
+        rt := type_from_name_init_name(fd.sig.return_type, scope, symbols)
         if rt.is(Type.Struct).or(rt.is(Type.Enum)) { return is_primitive(rt).not() }
     }
     return false
@@ -730,17 +730,17 @@ priv infer_func_ptr_field_call := proc(mut scope: TypeScope, mut e: Expr, mut fa
             mut nargs : USize = e.children.len()
             nargs--
             ref sig_fdef : FunctionDef = funcdef_of(sig)
-            if nargs != sig_fdef.params.len() {
-                e.type_error(format("function pointer field '", method, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
+            if nargs != sig_fdef.sig.params.len() {
+                e.type_error(format("function pointer field '", method, "' expects ", sig_fdef.sig.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
             }
             mut ai : USize = 0
             while ai < nargs {
-                if ai >= sig_fdef.params.len() { break }
+                if ai >= sig_fdef.sig.params.len() { break }
                 infer_expr(scope, e.children[ai + 1], in_func, ctx)
                 ai++
             }
-            if sig_fdef.return_type.len() > 0 {
-                e.set_til_type(type_from_name(sig_fdef.return_type, scope, ctx))
+            if sig_fdef.sig.return_type.len() > 0 {
+                e.set_til_type(type_from_name(sig_fdef.sig.return_type, scope, ctx))
             } else {
                 e.set_til_type(Type.None)
             }
@@ -766,11 +766,11 @@ is_clone_fcall := func(e: Expr, symbols: SymbolPool) returns Bool {
 }
 
 priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fdef_data: FunctionDef, mut ctx: Context) {
-        fvi := fdef_data.variadic_index
-        fkwi := fdef_data.kwargs_index
+        fvi := fdef_data.sig.variadic_index
+        fkwi := fdef_data.sig.kwargs_index
         mut fvc : USize = 0
         if fvi >= 0 {
-            fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi >= 0)
+            fvc = fcall_variadic_count(e, fdef_data.sig.params.len(), fkwi >= 0)
         }
         mut fkc : USize = 0
         if fkwi >= 0 {
@@ -778,7 +778,7 @@ priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fde
         }
         mut ci : USize = 1
         mut pi : USize = 0
-        while pi < fdef_data.params.len() {
+        while pi < fdef_data.sig.params.len() {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
                 if pi.to_i32() == fvi {
@@ -794,7 +794,7 @@ priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fde
                     continue
                 }
             }
-            ref pp2 : Declaration = fdef_data.params[pi]
+            ref pp2 : Declaration = fdef_data.sig.params[pi]
             pown := pp2.own_type.is(OwnType.Own)
             ref arg : Expr = e.children[ci]
             // A `.clone()` passed to an immutable ref (borrow) parameter
@@ -891,11 +891,11 @@ priv validate_fcall_own_args := proc(mut scope: TypeScope, e: Expr, fdef_o: Opti
 }
 
 priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionDef) {
-    fvi := fdef_data.variadic_index
-    fkwi := fdef_data.kwargs_index
+    fvi := fdef_data.sig.variadic_index
+    fkwi := fdef_data.sig.kwargs_index
     mut fvc : USize = 0
     if fvi >= 0 {
-        fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi >= 0)
+        fvc = fcall_variadic_count(e, fdef_data.sig.params.len(), fkwi >= 0)
     }
     mut fkc : USize = 0
     if fkwi >= 0 {
@@ -903,7 +903,7 @@ priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionD
     }
     mut ci : USize = 1
     mut pi : USize = 0
-    while pi < fdef_data.params.len() {
+    while pi < fdef_data.sig.params.len() {
         if ci >= e.children.len() { break }
         if fvi >= 0 {
             if pi.to_i32() == fvi {
@@ -919,7 +919,7 @@ priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionD
                 continue
             }
         }
-        if fdef_data.params[pi].own_type.is(OwnType.Own) { set_own_arg(e, ci) }
+        if fdef_data.sig.params[pi].own_type.is(OwnType.Own) { set_own_arg(e, ci) }
         ci++
         pi++
     }
@@ -1350,11 +1350,11 @@ priv arg_is_scalar_value_binding := func(arg: Expr, scope: TypeScope) returns Bo
 }
 
 priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e: Expr, fdef_data: FunctionDef, in_func: I32, mut ctx: Context) {
-        fvi := fdef_data.variadic_index
-        fkwi := fdef_data.kwargs_index
+        fvi := fdef_data.sig.variadic_index
+        fkwi := fdef_data.sig.kwargs_index
         mut fvc : USize = 0
         if fvi >= 0 {
-            fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi >= 0)
+            fvc = fcall_variadic_count(e, fdef_data.sig.params.len(), fkwi >= 0)
         }
         mut fkc : USize = 0
         if fkwi >= 0 {
@@ -1362,11 +1362,11 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
         }
         mut ci : USize = 1
         mut pi : USize = 0
-        while pi < fdef_data.params.len() {
+        while pi < fdef_data.sig.params.len() {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
                 if pi.to_i32() == fvi {
-                    ref vparam : Declaration = fdef_data.params[pi]
+                    ref vparam : Declaration = fdef_data.sig.params[pi]
                     vptype := declaration_resolved_type(vparam, scope, ctx.symbols)
                     for vk in 0..fvc {
                         rewrite_til_type_arg(scope, e, ci + vk, vptype, in_func, ctx)
@@ -1384,7 +1384,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                     continue
                 }
             }
-            ref param1 : Declaration = fdef_data.params[pi]
+            ref param1 : Declaration = fdef_data.sig.params[pi]
             ptype_t := declaration_resolved_type(param1, scope, ctx.symbols)
             rewrite_til_type_arg(scope, e, ci, ptype_t, in_func, ctx)
             narrow_dynamic(e.children[ci], ptype_t)
@@ -1409,11 +1409,11 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
         }
         ci = 1
         pi = 0
-        while pi < fdef_data.params.len() {
+        while pi < fdef_data.sig.params.len() {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
                 if pi.to_i32() == fvi {
-                    ref vparam : Declaration = fdef_data.params[pi]
+                    ref vparam : Declaration = fdef_data.sig.params[pi]
                     vptype_name := vparam.type_name()
                     // #342: a splat sharing the variadic block with other
                     // args used to be refused here -- which argument carried
@@ -1483,7 +1483,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                     continue
                 }
             }
-            ref param2 : Declaration = fdef_data.params[pi]
+            ref param2 : Declaration = fdef_data.sig.params[pi]
             ptype_name := param2.type_name()
             if ptype_name.len() == 0 {
                 ci++
@@ -1571,9 +1571,9 @@ priv infer_and_validate_fcall_args := proc(mut scope: TypeScope, mut e: Expr, ca
     mut qparam_types := Vec(Str).new()
     if fdef_o.is_some() {
         ref qfd : FunctionDef = funcdef_of(fdef_o.unwrap())
-        if qfd.variadic_index.lt(0).and(qfd.kwargs_index.lt(0))
-            .and(qfd.params.len().eq(e.children.len() - 1)) {
-            for qp : Declaration in qfd.params {
+        if qfd.sig.variadic_index.lt(0).and(qfd.sig.kwargs_index.lt(0))
+            .and(qfd.sig.params.len().eq(e.children.len() - 1)) {
+            for qp : Declaration in qfd.sig.params {
                 qparam_types.push(own qp.type_name())
             }
         }
@@ -1638,8 +1638,8 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                 e.children[0].set_til_type(fn_type)
                 if fdef_o.is_some() {
                     ref cb_fdef : FunctionDef = funcdef_of(fdef_o.unwrap())
-                    if cb_fdef.return_type.len() > 0 {
-                        ref resolved_return_type : Str = resolve_type_alias(scope, cb_fdef.return_type, ctx.symbols)
+                    if cb_fdef.sig.return_type.len() > 0 {
+                        ref resolved_return_type : Str = resolve_type_alias(scope, cb_fdef.sig.return_type, ctx.symbols)
                         rt := type_from_name(resolved_return_type, scope, ctx)
                         e.set_til_type(rt)
                     } else {
@@ -1653,14 +1653,14 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                     ref sig_fdef : FunctionDef = funcdef_of(sig)
                     mut nargs : USize = e.children.len()
                     nargs--
-                    if nargs != sig_fdef.params.len() {
-                        e.type_error(format("function pointer '", name, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
+                    if nargs != sig_fdef.sig.params.len() {
+                        e.type_error(format("function pointer '", name, "' expects ", sig_fdef.sig.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
                     }
                     mut ai : USize = 0
                     while ai < nargs {
-                        if ai >= sig_fdef.params.len() { break }
+                        if ai >= sig_fdef.sig.params.len() { break }
                         ref arg : Expr = e.children[ai + 1]
-                        expected_name := sig_fdef.params[ai].type_name()
+                        expected_name := sig_fdef.sig.params[ai].type_name()
                         if expected_name.len() == 0 {
                             ai++
                             continue
@@ -2099,10 +2099,10 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         mut abs_ret_type := ""
         switch ns_func2.node_type {
         case .FuncDef(abs_fd):
-            if abs_fd.func_type.is_ext() {
+            if abs_fd.sig.func_type.is_ext() {
                 abs_method = true
-                abs_returns = abs_fd.return_type.len() > 0
-                abs_ret_type = abs_fd.return_type.clone()
+                abs_returns = abs_fd.sig.return_type.len() > 0
+                abs_ret_type = abs_fd.sig.return_type.clone()
             }
         case:
         }
@@ -2158,7 +2158,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     if func_state.proc_def_depth.gt(0).or(in_func.neq(0)) {
         switch ns_func2.node_type {
         case .FuncDef(ns_fdef0):
-            if ns_fdef0.func_type.is_proc() {
+            if ns_fdef0.sig.func_type.is_proc() {
                 func_state.proc_calls_count = func_state.proc_calls_count + 1
             }
         case:
@@ -2243,8 +2243,8 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         }
         validate_fcall_own_args_for_fdef(scope, e, ns_fdef, ctx)
         mut rt := Type.None
-        if ns_fdef.return_type.len() > 0 {
-            rt = type_from_name(ns_fdef.return_type, scope, ctx)
+        if ns_fdef.sig.return_type.len() > 0 {
+            rt = type_from_name(ns_fdef.sig.return_type, scope, ctx)
         }
         // #262 follow-up: narrow a DynVec element read from Dynamic to the
         // vec's recorded element type (`v := DynVec.new(T)` set dynvec_elem
@@ -2270,7 +2270,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         }
         e.set_til_type(rt)
         // Issue #191: namespace macro calls require all arguments to be comptime-known.
-        if ns_fdef.func_type.is(FuncType.Macro) {
+        if ns_fdef.sig.func_type.is(FuncType.Macro) {
             for ai in 1..e.children.len() {
                 if e.children[ai].expr_is_comptime(scope, ctx.symbols).not() {
                     e.children[ai].type_error("macro argument must be known at compile time", ctx)
@@ -2618,8 +2618,8 @@ priv fcall_callee_declared_return_type := func(scope: TypeScope, callee: Expr, s
         cf_o := scope.lookup_func_by_sym(cn.ident_sym(), symbols)
         if cf_o.is_none() { return "" }
         ref cfd : FunctionDef = funcdef_of(cf_o.unwrap())
-        if cfd.return_type.len() == 0 { return "" }
-        return resolve_type_alias(scope, cfd.return_type, symbols).clone()
+        if cfd.sig.return_type.len() == 0 { return "" }
+        return resolve_type_alias(scope, cfd.sig.return_type, symbols).clone()
     case:
     }
     return ""
@@ -2696,7 +2696,7 @@ priv infer_funcptr_call_via_cast := proc(mut scope: TypeScope, mut e: Expr, in_f
     switch sig_def_o.unwrap().node_type {
     case .FuncDef(sfd):
         nargs := e.children.len() - 1
-        nparam := sfd.params.len()
+        nparam := sfd.sig.params.len()
         if nargs != nparam {
             type_error(e, format(
                 "function pointer of type '", sig_name, "' expects ",
@@ -2708,8 +2708,8 @@ priv infer_funcptr_call_via_cast := proc(mut scope: TypeScope, mut e: Expr, in_f
         for ai in 1..e.children.len() {
             infer_expr(scope, e.children[ai], in_func, ctx)
         }
-        if sfd.return_type.len() > 0 {
-            e.set_til_type(type_from_name(sfd.return_type, scope, ctx))
+        if sfd.sig.return_type.len() > 0 {
+            e.set_til_type(type_from_name(sfd.sig.return_type, scope, ctx))
         } else {
             e.set_til_type(Type.None)
         }
@@ -2818,7 +2818,7 @@ priv generic_call_declared_return := func(scope: TypeScope, e: Expr, symbols: Sy
         fd_o := scope.lookup_func_by_sym(cn.ident_sym(), symbols)
         if fd_o.is_none() { return "" }
         switch fd_o.unwrap().node_type {
-        case .FuncDef(cfd): return cfd.return_type.clone()
+        case .FuncDef(cfd): return cfd.sig.return_type.clone()
         case:
         }
     case:
@@ -2885,7 +2885,7 @@ priv generic_closure_walk_calls := func(scope: TypeScope, e: Expr, mut seen: Set
 
 // Is `pname` one of this source's type-parameter names?
 priv generic_is_type_param := func(gfd: FunctionDef, pname: Str) returns Bool {
-    for p : Declaration in gfd.params {
+    for p : Declaration in gfd.sig.params {
         if p.type_name().eq("Type").and(p.name.eq(pname)) { return true }
     }
     return false
@@ -2941,21 +2941,21 @@ priv generic_decompose_nested := func(gfd: FunctionDef, formal: Str, actual: Str
 // (positional / named / defaults / variadic / call-site __LOC__) instead
 // of writing a second one.
 priv generic_value_only_fdef := func(gfd: FunctionDef) returns FunctionDef {
-    mut out := FunctionDef(func_type = gfd.func_type, return_type = gfd.return_type.clone())
-    mut vidx : I32 = gfd.variadic_index
-    mut kidx : I32 = gfd.kwargs_index
-    for i in 0..gfd.params.len() {
-        ref p : Declaration = gfd.params[i]
+    mut out := FunctionDef(sig = FuncSig(func_type = gfd.sig.func_type, return_type = gfd.sig.return_type.clone()))
+    mut vidx : I32 = gfd.sig.variadic_index
+    mut kidx : I32 = gfd.sig.kwargs_index
+    for i in 0..gfd.sig.params.len() {
+        ref p : Declaration = gfd.sig.params[i]
         if p.type_name() == "Type" {
             cpos : I32 = i.to_i64().to_i32()
             if vidx > cpos { vidx = vidx - 1 }
             if kidx > cpos { kidx = kidx - 1 }
             continue
         }
-        out.params.push(own p.clone())
+        out.sig.params.push(own p.clone())
     }
-    out.variadic_index = vidx
-    out.kwargs_index = kidx
+    out.sig.variadic_index = vidx
+    out.sig.kwargs_index = kidx
     return out
 }
 
@@ -2963,8 +2963,8 @@ priv generic_value_only_fdef := func(gfd: FunctionDef) returns FunctionDef {
 // decides, exactly as in init: a real type token there means explicit
 // application, anything else means the caller omitted them.
 priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDef, symbols: SymbolPool) returns Bool {
-    for i in 0..gfd.params.len() {
-        ref p : Declaration = gfd.params[i]
+    for i in 0..gfd.sig.params.len() {
+        ref p : Declaration = gfd.sig.params[i]
         if p.type_name().eq("Type").not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() { return false }
@@ -2984,8 +2984,8 @@ priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDe
 
 // Explicit late application: read the type tokens straight off the call.
 priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Set(Str), display_name: Str, mut ctx: Context) returns Bool {
-    for i in 0..gfd.params.len() {
-        ref p : Declaration = gfd.params[i]
+    for i in 0..gfd.sig.params.len() {
+        ref p : Declaration = gfd.sig.params[i]
         if p.type_name().eq("Type").not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() {
@@ -3038,32 +3038,32 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
     // (`Vec__T`) is deduced by lining the two spellings up below; the flag
     // records that this is where its evidence has to come from, so a
     // shape that does not line up says exactly that.
-    for np : Declaration in vo.params {
+    for np : Declaration in vo.sig.params {
         np_type := np.type_name()
-        for tp : Declaration in gfd.params {
+        for tp : Declaration in gfd.sig.params {
             if tp.type_name().eq("Type").not() { continue }
             if np_type.eq(tp.name) { continue }
             if type_name_mentions_param(np_type, tp.name) { nested_only.add(own tp.name.clone()) }
         }
     }
-    fvi := vo.variadic_index
-    fkwi := vo.kwargs_index
+    fvi := vo.sig.variadic_index
+    fkwi := vo.sig.kwargs_index
     mut fvc : USize = 0
-    if fvi >= 0 { fvc = fcall_variadic_count(e, vo.params.len(), fkwi >= 0) }
+    if fvi >= 0 { fvc = fcall_variadic_count(e, vo.sig.params.len(), fkwi >= 0) }
     mut fkc : USize = 0
     if fkwi >= 0 { fkc = fcall_kwargs_count(e) }
     mut ci : USize = 1
     mut pi : USize = 0
-    while pi < vo.params.len() {
+    while pi < vo.sig.params.len() {
         mut run : USize = 1
         if pi.to_i32() == fvi { run = fvc }
         if pi.to_i32() == fkwi { run = fkc }
-        ref p : Declaration = vo.params[pi]
+        ref p : Declaration = vo.sig.params[pi]
         ptype_name := p.type_name()
         // Nested: the formal is a generated instance name mentioning one
         // or more type parameters. Every operand in the run must agree.
         if generic_is_type_param(gfd, ptype_name).not() {
-            for ntp : Declaration in gfd.params {
+            for ntp : Declaration in gfd.sig.params {
                 if ntp.type_name().eq("Type").not() { continue }
                 if type_name_mentions_param(ptype_name, ntp.name).not() { continue }
                 for nk in 0..run {
@@ -3159,7 +3159,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         ci = ci + run
         pi++
     }
-    for tp : Declaration in gfd.params {
+    for tp : Declaration in gfd.sig.params {
         if tp.type_name().eq("Type").not() { continue }
         mut chosen := ""
         if ev_spell.has(tp.name) {
@@ -3187,8 +3187,8 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         // has long finished by the time a call is typed. Init does
         // synthesize it for an explicit application, so that is the
         // instruction -- not a silent fallback to an untyped variadic.
-        if vo.variadic_index >= 0 {
-            ref vp : Declaration = vo.params[vo.variadic_index.to_usize()]
+        if vo.sig.variadic_index >= 0 {
+            ref vp : Declaration = vo.sig.params[vo.sig.variadic_index.to_usize()]
             if vp.type_name().eq(tp.name) {
                 va_name := variadic_array_type_name(scope, chosen, ctx.symbols)
                 if scope.get_struct(va_name, ctx.symbols).is_none() {
@@ -3258,16 +3258,16 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
 priv generic_normalize_concrete_sig := func(mut scope: TypeScope, mut fdef_expr: Expr, mut ctx: Context) {
     switch fdef_expr.node_type {
     case .FuncDef(fdef):
-        auto_ok := fdef.func_type.is_plain().or(fdef.func_type.is_lazy())
+        auto_ok := fdef.sig.func_type.is_plain().or(fdef.sig.func_type.is_lazy())
         if auto_ok.not() { return }
         widths_differ := resolve_type_alias(scope, "USize", ctx.symbols).eq(resolve_type_alias(scope, "UPtr", ctx.symbols)).not()
-        if fdef.return_type.len() > 0 {
-            rname := fdef.return_type.clone()
+        if fdef.sig.return_type.len() > 0 {
+            rname := fdef.sig.return_type.clone()
             ref resolved_r : Str = resolve_type_alias(scope, rname, ctx.symbols)
-            if is_usize_name(rname).or(is_uptr_name(rname)).and(widths_differ).not() { fdef.return_type = resolved_r }
-            if fdef.return_own_type.is(OwnType.Own) {
-                rt := type_from_name(fdef.return_type, scope, ctx)
-                if is_auto_shallow_type(rt, fdef.return_type, scope, ctx) { fdef.return_own_type = OwnType.Shallow }
+            if is_usize_name(rname).or(is_uptr_name(rname)).and(widths_differ).not() { fdef.sig.return_type = resolved_r }
+            if fdef.sig.return_own_type.is(OwnType.Own) {
+                rt := type_from_name(fdef.sig.return_type, scope, ctx)
+                if is_auto_shallow_type(rt, fdef.sig.return_type, scope, ctx) { fdef.sig.return_own_type = OwnType.Shallow }
             }
         }
         // Params are NOT pre-normalized: infer_func_def_expr rejects a
@@ -3360,12 +3360,12 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
 priv func_gen_macro_template := func(fd: Expr) returns Option(ref Expr) {
     switch fd.node_type {
     case .FuncDef(mfd):
-        if mfd.func_type.is(FuncType.Macro).not() { return Option(ref Expr).None }
-        if mfd.return_type.eq("FuncDef").or(mfd.return_type.eq("FunctionDef")).not() {
+        if mfd.sig.func_type.is(FuncType.Macro).not() { return Option(ref Expr).None }
+        if mfd.sig.return_type.eq("FuncDef").or(mfd.sig.return_type.eq("FunctionDef")).not() {
             return Option(ref Expr).None
         }
-        if mfd.params.len() == 0 { return Option(ref Expr).None }
-        for p : Declaration in mfd.params {
+        if mfd.sig.params.len() == 0 { return Option(ref Expr).None }
+        for p : Declaration in mfd.sig.params {
             if p.type_name().eq("Type").not() { return Option(ref Expr).None }
         }
     case:
@@ -3395,25 +3395,25 @@ priv make_direct_generic_twin := func(macro_fd: Expr, tmpl: Expr) returns Expr {
     mut twin := FunctionDef()
     switch tmpl.node_type {
     case .FuncDef(tfd):
-        twin.func_type = tfd.func_type
-        twin.return_type = tfd.return_type.clone()
-        twin.return_own_type = tfd.return_own_type
+        twin.sig.func_type = tfd.sig.func_type
+        twin.sig.return_type = tfd.sig.return_type.clone()
+        twin.sig.return_own_type = tfd.sig.return_own_type
         twin.noreturn = tfd.noreturn
-        for t : Str in tfd.throw_types { twin.throw_types.push(own t.clone()) }
+        for t : Str in tfd.sig.throw_types { twin.sig.throw_types.push(own t.clone()) }
         switch macro_fd.node_type {
         case .FuncDef(mfd):
-            for gp : Declaration in mfd.params { twin.params.push(own gp.clone()) }
+            for gp : Declaration in mfd.sig.params { twin.sig.params.push(own gp.clone()) }
         case:
         }
-        ntype := twin.params.len().to_i32()
-        for vp : Declaration in tfd.params { twin.params.push(own vp.clone()) }
+        ntype := twin.sig.params.len().to_i32()
+        for vp : Declaration in tfd.sig.params { twin.sig.params.push(own vp.clone()) }
         // The variadic/kwargs markers index the PARAMETER LIST, so they
         // shift by however many type params were prepended. -1 means
         // "none" and must stay -1.
-        twin.variadic_index = tfd.variadic_index
-        if twin.variadic_index >= 0 { twin.variadic_index = twin.variadic_index + ntype }
-        twin.kwargs_index = tfd.kwargs_index
-        if twin.kwargs_index >= 0 { twin.kwargs_index = twin.kwargs_index + ntype }
+        twin.sig.variadic_index = tfd.sig.variadic_index
+        if twin.sig.variadic_index >= 0 { twin.sig.variadic_index = twin.sig.variadic_index + ntype }
+        twin.sig.kwargs_index = tfd.sig.kwargs_index
+        if twin.sig.kwargs_index >= 0 { twin.sig.kwargs_index = twin.sig.kwargs_index + ntype }
     case:
     }
     mut def := Expr.new(NodeType.FuncDef(twin), tmpl.line, tmpl.col)
@@ -3671,8 +3671,8 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
                         if dyn_md.default_value.is_some() {
                             switch dyn_md.default_expr().node_type {
                             case .FuncDef(dyn_mfd):
-                                if dyn_mfd.func_type.is_core() {
-                                    e.type_error(format("'", dyn_type_nm, ".", dyn_meth, "' is a ", func_type_name(dyn_mfd.func_type), " (an inline-only primitive intrinsic with no symbol) and cannot be indirected via dyn_fn"), ctx)
+                                if dyn_mfd.sig.func_type.is_core() {
+                                    e.type_error(format("'", dyn_type_nm, ".", dyn_meth, "' is a ", func_type_name(dyn_mfd.sig.func_type), " (an inline-only primitive intrinsic with no symbol) and cannot be indirected via dyn_fn"), ctx)
                                 }
                             case:
                             }
@@ -3905,7 +3905,7 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, mu
         switch cdnd.default_expr().node_type {
         case .FuncDef(cdfd):
             if cdfd.auto_generated { return }
-            if cdfd.func_type.is_bodyless() { return }
+            if cdfd.sig.func_type.is_bodyless() { return }
             if cdnd.default_expr().children.len() == 0 { return }
             ref cdbody : Expr = cdnd.default_expr().children[0]
             if expr_transfers_own(cdbody, "self", ctx.scope, ctx) { return }
@@ -3949,15 +3949,15 @@ priv interface_method_conforms := func(iface_name: Str, impl_name: Str, iface_fd
     case .FuncDef(ifd):
         switch impl_fd.node_type {
         case .FuncDef(mfd):
-            if ifd.params.len() != mfd.params.len() { return false }
-            for i in 0..ifd.params.len() {
-                mut it := ifd.params[i].type_name()
+            if ifd.sig.params.len() != mfd.sig.params.len() { return false }
+            for i in 0..ifd.sig.params.len() {
+                mut it := ifd.sig.params[i].type_name()
                 if it == iface_name { it = impl_name.clone() }
-                if it.eq(mfd.params[i].type_name()).not() { return false }
+                if it.eq(mfd.sig.params[i].type_name()).not() { return false }
             }
-            mut ir := ifd.return_type.clone()
+            mut ir := ifd.sig.return_type.clone()
             if ir == iface_name { ir = impl_name.clone() }
-            return ir == mfd.return_type
+            return ir == mfd.sig.return_type
         case:
             return false
         }
@@ -4124,7 +4124,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
                     // auto-generates for the (empty) interface struct --
                     // only user-written members carry the contract.
                     if if_fd.auto_generated { continue }
-                    ift := if_fd.func_type
+                    ift := if_fd.sig.func_type
                     ok_kind := ift.is_plain().or(ift.is_ext())
                     if ok_kind.not() {
                         if_nd.default_expr().type_error(format("interface member '", if_name, "' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
@@ -4177,7 +4177,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
                     if am_fd.auto_generated { continue }
                     // Only abstract (ext_func/ext_proc) methods must be
                     // provided; func/proc defaults are inherited.
-                    if am_fd.func_type.is_ext().not() { continue }
+                    if am_fd.sig.func_type.is_ext().not() { continue }
                     switch find_ns_decl(expr, am_name) {
                     case .None:
                         expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am_name, "' required by interface '", impl_iface_name, "'"), ctx)
@@ -4213,15 +4213,15 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
         switch tc_nd.default_expr().node_type {
         case .FuncDef(tc_fd):
             mut tc_rt := Type.None
-            if tc_fd.return_type.len() > 0 {
-                tc_rt = type_from_name(tc_fd.return_type, inner, ctx)
+            if tc_fd.sig.return_type.len() > 0 {
+                tc_rt = type_from_name(tc_fd.sig.return_type, inner, ctx)
             }
             tc_nd.til_type =tc_rt.clone()
             inner.set(tc_name, tc_rt, false, ctx.path, 0, 0, false, OwnType.Shallow, ctx.symbols)
             inner.set_func_def_name(tc_name, tc_nd.default_expr(), ctx.symbols)
             ref mut tc_fb : TypeBinding = inner.get_binding_name(tc_name, ctx.symbols).unwrap()
             tc_fb.is_func_decl = true
-            if tc_fd.func_type.is_bodyless() {
+            if tc_fd.sig.func_type.is_bodyless() {
                 tc_fb.is_builtin = true
             }
         case:
@@ -4362,27 +4362,27 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, symbols: Symb
     // auto-shallow ABI of the ordinary func/proc it will hold, so
     // normalize primitive params/returns to Shallow here too. Otherwise
     // the call-through codegen would deref a value return as a pointer.
-    sig_auto_shallow := fdef.func_type.is_plain()
-    if fdef.return_type.len() > 0 {
-        return_type_name := fdef.return_type.clone()
+    sig_auto_shallow := fdef.sig.func_type.is_plain()
+    if fdef.sig.return_type.len() > 0 {
+        return_type_name := fdef.sig.return_type.clone()
         ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name, symbols)
-        if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize", symbols).eq(resolve_type_alias(scope, "UPtr", symbols)).not()).not() { fdef.return_type = resolved_return_type }
+        if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize", symbols).eq(resolve_type_alias(scope, "UPtr", symbols)).not()).not() { fdef.sig.return_type = resolved_return_type }
         // Issue #223 step 2: forbid redundant 'shallow' on a primitive
         // funcptr return. COMMENTED OUT during rollout (see infer_func_def_expr).
         // NOTE: infer_func_sig_expr is a func with no ctx, so enabling this
         // needs the diagnostic raised from a proc context.
-        // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Shallow)) {
+        // if sig_auto_shallow.and(fdef.sig.return_own_type.is(OwnType.Shallow)) {
         //     if is_primitive(declaration_type_from_name(resolved_return_type)) {
         //         <raise: redundant 'shallow' on primitive return type ... drop it>
         //     }
         // }
-        if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Own)) {
+        if sig_auto_shallow.and(fdef.sig.return_own_type.is(OwnType.Own)) {
             if is_primitive(declaration_type_from_name(resolved_return_type)) {
-                fdef.return_own_type = OwnType.Shallow
+                fdef.sig.return_own_type = OwnType.Shallow
             }
         }
     }
-    for mut param : Declaration in fdef.params {
+    for mut param : Declaration in fdef.sig.params {
         ptype_name := param.type_name()
         ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name, symbols)
         // Keep USize/UPtr as their alias name ONLY when the two widths
@@ -4408,7 +4408,7 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, symbols: Symb
         }
         // Issue #223 step 2: forbid redundant 'shallow' on a primitive
         // funcptr parameter. COMMENTED OUT during rollout (see infer_func_def_expr).
-        // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Shallow)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
+        // if sig_auto_shallow.and(fdef.sig.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Shallow)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
         //     <raise: redundant 'shallow' on primitive parameter ... drop it>
         // }
         if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope, symbols).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(type_from_declaration_name(resolved_ptype, scope, symbols))) {
@@ -4456,9 +4456,9 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, symbols: Symb
 // compiled while reaching the caller's own storage interpreted -- the
 // #344 divergence, one indirection removed.
 priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if fdef.return_own_type.is(OwnType.Ref) { return true }
-    if fdef.return_type.len() == 0 { return false }
-    ref resolved : Str = resolve_type_alias(scope, fdef.return_type, symbols)
+    if fdef.sig.return_own_type.is(OwnType.Ref) { return true }
+    if fdef.sig.return_type.len() == 0 { return false }
+    ref resolved : Str = resolve_type_alias(scope, fdef.sig.return_type, symbols)
     rdef_o := scope.get_struct(resolved, symbols)
     if rdef_o.is_none() { return false }
     if enum_has_ref_payload(rdef_o.unwrap()) { return true }
@@ -4468,8 +4468,8 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, sym
 priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, mut ctx: Context) {
     mut throws_count : USize = 0
     ref fdef : FunctionDef = funcdef_of(expr)
-    if fdef.return_own_type.is(OwnType.Ref).not() { return }
-    throws_count = fdef.throw_types.len()
+    if fdef.sig.return_own_type.is(OwnType.Ref).not() { return }
+    throws_count = fdef.sig.throw_types.len()
     for stmt : Expr in expr.children[0].children {
         if stmt.node_type.is(NodeType.Return).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -4584,10 +4584,10 @@ priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, de
 priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, mut ctx: Context) {
     if fdef.children.len() == 0 { return }
     ref pfd : FunctionDef = funcdef_of(fdef)
-    if pfd.variadic_index >= 0 { return }
+    if pfd.sig.variadic_index >= 0 { return }
     ref pbody : Expr = fdef.children[0]
     ref proot : TypeScope = scope_root_ref(func_scope)
-    for pp : Declaration in pfd.params {
+    for pp : Declaration in pfd.sig.params {
         if pp.own_type.is(OwnType.Ref).not() { continue }
         if pp.name.len() == 0 { continue }
         if body_stores_param_globally(pbody, pp.name, proot, 0, ctx.symbols).not() { continue }
@@ -4680,14 +4680,14 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // proc calls" diagnostic. All lazy calls are inlined before this
         // pass runs, so these defs are dead -- they only need to type and
         // emit as ordinary functions.
-        is_func := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.LazyFunc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
-        is_macro := fdef.func_type.is(FuncType.Macro)
+        is_func := fdef.sig.func_type.is(FuncType.Func).or(fdef.sig.func_type.is(FuncType.LazyFunc)).or(fdef.sig.func_type.is(FuncType.CoreLazyFunc))
+        is_macro := fdef.sig.func_type.is(FuncType.Macro)
         // #303 seed: core exit is the one noreturn primitive that cannot
         // be inferred -- an ext_func with no til body, bound to libc exit,
         // which never returns. It is the only ext_func in core/exit.til;
         // everything else (panic, TODO, UNREACHABLE, user wrappers) is
         // inferred bottom-up from bodies at the end of this function.
-        if fdef.func_type.is(FuncType.ExtFunc).and(ctx.path.ends_with("core/exit.til")) {
+        if fdef.sig.func_type.is(FuncType.ExtFunc).and(ctx.path.ends_with("core/exit.til")) {
             fdef.noreturn = true
         }
         // Issue #262: a lazy callable's body must be handled by the loader's
@@ -4697,7 +4697,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // tail, e.g. `x := f(a); return x.and(b)`). Reject anything else
         // loudly (loops, early returns, first-class) -- those need the thunk
         // fallback and would otherwise silently degrade to an eager call.
-        if fdef.func_type.is_lazy() {
+        if fdef.sig.func_type.is_lazy() {
             if expr.children.len() > 0 {
                 // Issue #262: the RECURSIVE variadic form (vand/vor) is fully
                 // consumed by the loader's recursion-unroll -- every call is
@@ -4716,8 +4716,8 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                     // over its known operands (inline_variadic_lazy_call),
                     // so the def itself is dead like any inlinable lazy def.
                     mut lazy_var_unrollable := false
-                    if fdef.variadic_index >= 0 {
-                        ref vparam : Declaration = fdef.params[fdef.variadic_index.to_usize()]
+                    if fdef.sig.variadic_index >= 0 {
+                        ref vparam : Declaration = fdef.sig.params[fdef.sig.variadic_index.to_usize()]
                         lazy_var_unrollable = lazy_variadic_body_unrollable(lbody, vparam.name, ctx.symbols)
                     }
                     if lazy_var_unrollable.not() {
@@ -4734,13 +4734,13 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // be resolved until expansion. Mirrors rstil typer.rs:1090-1097.
         mut macro_is_template := false
         if is_macro {
-            mtg_ret := fdef.return_type.eq("StructDef")
-                .or(fdef.return_type.eq("EnumDef"))
-                .or(fdef.return_type.eq("FuncDef"))
-                .or(fdef.return_type.eq("FunctionDef"))
+            mtg_ret := fdef.sig.return_type.eq("StructDef")
+                .or(fdef.sig.return_type.eq("EnumDef"))
+                .or(fdef.sig.return_type.eq("FuncDef"))
+                .or(fdef.sig.return_type.eq("FunctionDef"))
             if mtg_ret { macro_is_template = true }
             if macro_is_template.not() {
-                for tmp_param : Declaration in fdef.params {
+                for tmp_param : Declaration in fdef.sig.params {
                     if tmp_param.type_name() == "Type" {
                         macro_is_template = true
                     }
@@ -4751,27 +4751,27 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // func/proc definitions only. ext_func/ext_proc qualifiers map
         // directly to a hand-written C signature (e.g. U64_clone takes a
         // 'const U64 *'), so their shallow-ness must be preserved exactly.
-        auto_shallow_ok := fdef.func_type.is_plain().or(fdef.func_type.is_lazy())
-        if fdef.func_type.is(FuncType.Test) {
+        auto_shallow_ok := fdef.sig.func_type.is_plain().or(fdef.sig.func_type.is_lazy())
+        if fdef.sig.func_type.is(FuncType.Test) {
             // Allowed at root scope, or at the immediate namespace
             // level of a struct/enum (issue #51).  Tests in arbitrary
             // nested function bodies are still rejected.
             if scope.parent.is_some().and(ifd_in_ns.not()) {
                 expr.type_error("test functions can only be declared at root scope or in a struct/enum namespace", ctx)
             }
-            if fdef.return_type.len() > 0 {
+            if fdef.sig.return_type.len() > 0 {
                 expr.type_error("test functions cannot have a return type", ctx)
             }
-            if fdef.params.len() > 0 {
+            if fdef.sig.params.len() > 0 {
                 expr.type_error("test functions cannot have parameters", ctx)
             }
         }
         if ctx.mode.is_pure {
-            if fdef.func_type.is(FuncType.Proc) {
+            if fdef.sig.func_type.is(FuncType.Proc) {
                 expr.type_error("proc not allowed in pure mode", ctx)
             }
         }
-        mut binding_capacity := fdef.params.len()
+        mut binding_capacity := fdef.sig.params.len()
         if expr.children.len() > 0 {
             binding_capacity = binding_capacity + typer_body_binding_count(expr.children[0])
         }
@@ -4781,14 +4781,14 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         func_scope.typer_func.current_top_func_name = top_func_name.clone()
         func_scope.typer_func.proc_def_depth = parent_func_state.proc_def_depth
         func_scope.typer_func.auto_gen_depth = parent_func_state.auto_gen_depth
-        if fdef.func_type.is(FuncType.Proc) { func_scope.typer_func.proc_def_depth = func_scope.typer_func.proc_def_depth + 1 }
+        if fdef.sig.func_type.is(FuncType.Proc) { func_scope.typer_func.proc_def_depth = func_scope.typer_func.proc_def_depth + 1 }
         if fdef.auto_generated { func_scope.typer_func.auto_gen_depth = func_scope.typer_func.auto_gen_depth + 1 }
-        if is_func { func_scope.typer_func.typer_return_type_name = fdef.return_type.clone() }
-        else if fdef.return_type == "Dynamic" { func_scope.typer_func.typer_return_type_name = fdef.return_type.clone() }
-        if fdef.return_type.len() > 0 {
-            return_type_name := fdef.return_type.clone()
+        if is_func { func_scope.typer_func.typer_return_type_name = fdef.sig.return_type.clone() }
+        else if fdef.sig.return_type == "Dynamic" { func_scope.typer_func.typer_return_type_name = fdef.sig.return_type.clone() }
+        if fdef.sig.return_type.len() > 0 {
+            return_type_name := fdef.sig.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name, ctx.symbols)
-            if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize", ctx.symbols).eq(resolve_type_alias(scope, "UPtr", ctx.symbols)).not()).not() { fdef.return_type = resolved_return_type }
+            if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize", ctx.symbols).eq(resolve_type_alias(scope, "UPtr", ctx.symbols)).not()).not() { fdef.sig.return_type = resolved_return_type }
             check_priv_type_name(expr, resolved_return_type, scope, func_scope, ctx)
             // Issue #223 step 2: an explicit 'shallow' on a primitive return is
             // redundant (auto-shallow handles it). Reject it. Test the parser's
@@ -4797,7 +4797,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // checking return_own_type would misfire on any RE-inference of the
             // def (e.g. a capturing closure re-typed as a UFCS-receiver-call
             // arg, which the auto-shallow pass had already normalized).
-            if auto_shallow_ok.and(fdef.return_shallow_explicit) {
+            if auto_shallow_ok.and(fdef.sig.return_shallow_explicit) {
                 if is_primitive(type_from_name_at(resolved_return_type, scope, func_scope, expr, ctx)) {
                     expr.type_error("redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
                 }
@@ -4807,9 +4807,9 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // qualifier. Normalize the default (Own) to Shallow for those types
             // so every downstream stage treats them as value types. Explicit
             // 'ref' returns are left alone (a borrowed pointer is intentional).
-            if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Own)) {
+            if auto_shallow_ok.and(fdef.sig.return_own_type.is(OwnType.Own)) {
                 rt := type_from_name_at(resolved_return_type, scope, func_scope, expr, ctx)
-                if is_auto_shallow_type(rt, resolved_return_type, scope, ctx) { fdef.return_own_type = OwnType.Shallow }
+                if is_auto_shallow_type(rt, resolved_return_type, scope, ctx) { fdef.sig.return_own_type = OwnType.Shallow }
             }
         }
         // #302: main is never called from til code -- the builder's argv
@@ -4821,8 +4821,8 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // distance. Shallow params (scalars, auto or explicit) stay: they
         // parse straight into C stack values, no heap box.
         in_main_def := top_func_name.eq("main").and(scope.parent.is_none())
-        for i in 0..fdef.params.len() {
-            ref mut param : Declaration = fdef.params[i]
+        for i in 0..fdef.sig.params.len() {
+            ref mut param : Declaration = fdef.sig.params[i]
             // #321: a `p: Dynamic = 0` param default is the null spelling;
             // the fill clones the rewritten node into call sites.
             if param.default_value.is_some().and(param.til_type.is(Type.Dynamic)) {
@@ -4870,7 +4870,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                     expr.type_error(format("redundant 'shallow' on primitive parameter '", param.name, "': primitives are passed by value automatically (issue #223); drop it"), ctx)
                 }
             }
-            if i.to_i32() == fdef.variadic_index {
+            if i.to_i32() == fdef.sig.variadic_index {
                 // Regular til funcs get a callee-side auto-cleanup
                 // (Array.delete at scope exit) so the caller can transfer
                 // ownership cleanly. ext_func/ext_proc bodies are
@@ -4878,13 +4878,13 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 // ownership leaks the synthesized Array. Keep the parser's
                 // Ref setting for ext bindings; force Own elsewhere.
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
-                is_ext_va := fdef.func_type.is_bodyless()
+                is_ext_va := fdef.sig.func_type.is_bodyless()
                 if is_ext_va.not() { param.own_type = OwnType.Own }
                 va_type := variadic_array_type_name(scope, param.type_name(), ctx.symbols)
                 func_scope.set(param.name, Type.Struct(va_type), false, ctx.path, expr.line, expr.col, true, param.own_type, ctx.symbols)
-            } else if i.to_i32() == fdef.kwargs_index {
+            } else if i.to_i32() == fdef.sig.kwargs_index {
                 // Same rationale as variadic above.
-                is_ext_kw := fdef.func_type.is_bodyless()
+                is_ext_kw := fdef.sig.func_type.is_bodyless()
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
                 func_scope.set(param.name, Type.Struct("KwargsMap"), false, ctx.path, expr.line, expr.col, true, param.own_type, ctx.symbols)
             } else {
@@ -4930,8 +4930,8 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         mut in_func_val : I32 = 0
         if is_func { in_func_val = 1 }
         mut returns_ref_val : I32 = 0
-        if fdef.return_own_type.is(OwnType.Ref) { returns_ref_val = 1 }
-        is_proc := fdef.func_type.is(FuncType.Proc)
+        if fdef.sig.return_own_type.is(OwnType.Ref) { returns_ref_val = 1 }
+        is_proc := fdef.sig.func_type.is(FuncType.Proc)
         // #321: a PROC declaring `returns Dynamic` also carries that return
         // name in its function-root state so `return 0` becomes null.
         // Issue #198: lower throw/catch BEFORE infer_body so the
@@ -4952,11 +4952,11 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // Seed the receiver-type map so the walk's type-qualified
             // throws lookup can resolve `param.method(...)` receivers.
             func_scope.typer_func.lowering_param_types = Map(Str, Str).new()
-            for lpi in 0..fdef.params.len() {
-                ref lpp : Declaration = fdef.params[lpi]
+            for lpi in 0..fdef.sig.params.len() {
+                ref lpp : Declaration = fdef.sig.params[lpi]
                 mut lptn := lpp.type_name()
-                if lpi.to_i32() == fdef.variadic_index { lptn = variadic_array_type_name(scope, lpp.type_name(), ctx.symbols) }
-                if lpi.to_i32() == fdef.kwargs_index { lptn = "KwargsMap" }
+                if lpi.to_i32() == fdef.sig.variadic_index { lptn = variadic_array_type_name(scope, lpp.type_name(), ctx.symbols) }
+                if lpi.to_i32() == fdef.sig.kwargs_index { lptn = "KwargsMap" }
                 if lptn.len() == 0 { continue }
                 func_scope.typer_func.lowering_param_types.set(lpp.name, own lptn)
             }
@@ -4966,7 +4966,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // by make_switch_case_condition), so the throw/catch walk
             // cannot see their declaration type via the body-Decl scan.
             collect_switch_case_bindings(func_scope, ctx, expr.children[0], expr.children[0])
-            process_throw_catch_in_func_body(func_scope, ctx, expr.children[0], fdef.throw_types, fdef.return_type, fdef.return_own_type)
+            process_throw_catch_in_func_body(func_scope, ctx, expr.children[0], fdef.sig.throw_types, fdef.sig.return_type, fdef.sig.return_own_type)
         }
         if macro_is_template.not() {
             mut capture_source_muts := Vec(Bool).new()
@@ -4996,7 +4996,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 }
             }
         }
-        if is_macro.and(fdef.return_type.len().eq(0)) {
+        if is_macro.and(fdef.sig.return_type.len().eq(0)) {
             expr.type_error("macro must declare a return type", ctx)
         }
         if macro_is_template.not() {
@@ -5023,7 +5023,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // so direct calls can resolve callees typed earlier (imports and
         // earlier decls in the file: exit -> panic -> TODO/UNREACHABLE chain
         // in core/exit.til).
-        if fdef.func_type.is_plain() {
+        if fdef.sig.func_type.is_plain() {
             if fn_never_returns(expr.children[0], ctx.scope, ctx.symbols) { fdef.noreturn = true }
         }
     case:
@@ -5046,17 +5046,17 @@ priv check_all_paths_return := proc(expr: Expr, mut ctx: Context) {
         // every path. A void function (no return type) may fall off the end;
         // ext/core have no til body; macros return AST; Test and auto-generated
         // functions are the compiler's own concern, not user-facing.
-        if fdef.return_type.len() == 0 { return }
+        if fdef.sig.return_type.len() == 0 { return }
         if fdef.auto_generated { return }
-        if or(fdef.func_type.is(FuncType.ExtFunc),
-              fdef.func_type.is(FuncType.ExtProc),
-              fdef.func_type.is(FuncType.CoreFunc),
-              fdef.func_type.is(FuncType.CoreProc),
-              fdef.func_type.is(FuncType.CoreLazyFunc),
-              fdef.func_type.is(FuncType.Macro),
-              fdef.func_type.is(FuncType.Test)) { return }
+        if or(fdef.sig.func_type.is(FuncType.ExtFunc),
+              fdef.sig.func_type.is(FuncType.ExtProc),
+              fdef.sig.func_type.is(FuncType.CoreFunc),
+              fdef.sig.func_type.is(FuncType.CoreProc),
+              fdef.sig.func_type.is(FuncType.CoreLazyFunc),
+              fdef.sig.func_type.is(FuncType.Macro),
+              fdef.sig.func_type.is(FuncType.Test)) { return }
         if stmt_always_diverges(expr.children[0], ctx.scope, ctx.symbols).not() {
-            expr.type_error(format("non-void function can reach its end without returning; every path must return a value (declared 'returns ", fdef.return_type, "')"), ctx)
+            expr.type_error(format("non-void function can reach its end without returning; every path must return a value (declared 'returns ", fdef.sig.return_type, "')"), ctx)
         }
     case:
     }
@@ -5064,12 +5064,12 @@ priv check_all_paths_return := proc(expr: Expr, mut ctx: Context) {
 
 priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, mut ctx: Context) {
     ref fdef : FunctionDef = funcdef_of(expr)
-    if fdef.func_type.is(FuncType.ExtFunc) { return }
-    if fdef.func_type.is(FuncType.ExtProc) { return }
-    if fdef.func_type.is(FuncType.CoreFunc) { return }
-    if fdef.func_type.is(FuncType.CoreProc) { return }
-    if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
-    for param : Declaration in fdef.params {
+    if fdef.sig.func_type.is(FuncType.ExtFunc) { return }
+    if fdef.sig.func_type.is(FuncType.ExtProc) { return }
+    if fdef.sig.func_type.is(FuncType.CoreFunc) { return }
+    if fdef.sig.func_type.is(FuncType.CoreProc) { return }
+    if fdef.sig.func_type.is(FuncType.CoreLazyFunc) { return }
+    for param : Declaration in fdef.sig.params {
         if param.name.len() == 0 { continue }
         if param.name.starts_with("_") { continue }
         pb_o := func_scope.get_binding_name(param.name, ctx.symbols)
@@ -5090,16 +5090,16 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, mut ctx: Con
 // the func_scope only, not on the if/while/block inner scopes.
 priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: Str, mut ctx: Context) {
     ref fdef : FunctionDef = funcdef_of(expr)
-    if fdef.func_type.is(FuncType.ExtFunc) { return }
-    if fdef.func_type.is(FuncType.ExtProc) { return }
-    if fdef.func_type.is(FuncType.CoreFunc) { return }
-    if fdef.func_type.is(FuncType.CoreProc) { return }
-    if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
+    if fdef.sig.func_type.is(FuncType.ExtFunc) { return }
+    if fdef.sig.func_type.is(FuncType.ExtProc) { return }
+    if fdef.sig.func_type.is(FuncType.CoreFunc) { return }
+    if fdef.sig.func_type.is(FuncType.CoreProc) { return }
+    if fdef.sig.func_type.is(FuncType.CoreLazyFunc) { return }
     // Auto-generated bodies (clone/delete/size/enum eq/to_str/...) are
     // typer-emitted; the user cannot edit their signatures, so a
     // redundant `mut` there is not actionable.
     if fdef.auto_generated { return }
-    for param : Declaration in fdef.params {
+    for param : Declaration in fdef.sig.params {
         if param.is_mut.not() { continue }
         if param.name.len() == 0 { continue }
         if param.name.starts_with("_") { continue }
@@ -6008,8 +6008,8 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
         }
         ref fdef : FunctionDef = funcdef_of(stmt.children[0])
         mut rt := Type.None
-        if fdef.return_type.len() > 0 {
-            ref resolved_return_type : Str = resolve_type_alias(scope, fdef.return_type, ctx.symbols)
+        if fdef.sig.return_type.len() > 0 {
+            ref resolved_return_type : Str = resolve_type_alias(scope, fdef.sig.return_type, ctx.symbols)
             rt = type_from_name(resolved_return_type, scope, ctx)
         }
         stmt.set_til_type(rt)
@@ -6029,7 +6029,7 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
         fb.is_func_decl = true
         fb.is_priv = sdecl.is_priv
         fb.orig_name = sdecl.orig_name.clone()
-        if fdef.func_type.is_bodyless() {
+        if fdef.sig.func_type.is_bodyless() {
             fb.is_builtin = true
         }
         return true
@@ -6612,23 +6612,23 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
                 switch stmt.children[0].node_type {
                 case .FuncDef(rhs_fd):
                     mut needs_sig_fill := false
-                    if rhs_fd.params.len() > 0 {
-                        needs_sig_fill = rhs_fd.params[0].til_type.is(Type.Unknown)
+                    if rhs_fd.sig.params.len() > 0 {
+                        needs_sig_fill = rhs_fd.sig.params[0].til_type.is(Type.Unknown)
                     }
                     if needs_sig_fill {
                         sig_expr_o := scope.lookup_func_name(sdecl.type_name(), ctx.symbols)
                         if sig_expr_o.is_some() {
                             switch sig_expr_o.unwrap().node_type {
                             case .FuncDef(sig_fd):
-                                if sig_fd.params.len() == rhs_fd.params.len() {
-                                    for sig_i in 0..rhs_fd.params.len() {
-                                        ref mut dst_p : Declaration = rhs_fd.params[sig_i]
-                                        ref src_p : Declaration = sig_fd.params[sig_i]
+                                if sig_fd.sig.params.len() == rhs_fd.sig.params.len() {
+                                    for sig_i in 0..rhs_fd.sig.params.len() {
+                                        ref mut dst_p : Declaration = rhs_fd.sig.params[sig_i]
+                                        ref src_p : Declaration = sig_fd.sig.params[sig_i]
                                         dst_p.til_type = src_p.til_type.clone()
                                         if src_p.own_type.is(OwnType.Shallow).not() { dst_p.own_type = src_p.own_type }
                                     }
-                                    rhs_fd.return_type = sig_fd.return_type.clone()
-                                    if sig_fd.return_own_type.is(OwnType.Shallow).not() { rhs_fd.return_own_type = sig_fd.return_own_type }
+                                    rhs_fd.sig.return_type = sig_fd.sig.return_type.clone()
+                                    if sig_fd.sig.return_own_type.is(OwnType.Shallow).not() { rhs_fd.sig.return_own_type = sig_fd.sig.return_own_type }
                                 }
                             case:
                             }
@@ -8204,7 +8204,7 @@ expr_contains_decl := func(e: Expr, name: Str) returns Bool {
 expr_used_in_nested_func := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FuncDef(fdef):
-        for p : Declaration in fdef.params {
+        for p : Declaration in fdef.sig.params {
             if p.name == name { return false }
         }
         if e.children.len() > 0 {
@@ -8898,10 +8898,10 @@ arg_addressed_ident := func(arg: Expr, symbols: SymbolPool) returns Option(ref S
 priv check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str, symbols: SymbolPool) returns Bool {
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.params.len() == 0 { return false }
-        for i in 0..fd.params.len() {
+        if fd.sig.params.len() == 0 { return false }
+        for i in 0..fd.sig.params.len() {
             if i + 1 >= fcall.children.len() { return false }
-            ref p : Declaration = fd.params[i]
+            ref p : Declaration = fd.sig.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
                 an_o := arg_addressed_ident(arg, symbols)
@@ -9203,10 +9203,10 @@ expr_collect_ptr_escapes := func(e: Expr, fi: FactIndex, base: USize, mut out: V
 priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, fi: FactIndex, base: USize, mut out: Vec(U64), symbols: SymbolPool) {
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.params.len() == 0 { return }
-        for i in 0..fd.params.len() {
+        if fd.sig.params.len() == 0 { return }
+        for i in 0..fd.sig.params.len() {
             if i + 1 >= fcall.children.len() { return }
-            ref p : Declaration = fd.params[i]
+            ref p : Declaration = fd.sig.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
                 an_o := arg_addressed_ident(arg, symbols)
@@ -9351,7 +9351,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
             }
         }
         if e.children.len() > 0 {
-            expr_collect_uses_excluding(e.children[0], fdef.params, fdef.captures, fi, base, nested, symbols)
+            expr_collect_uses_excluding(e.children[0], fdef.sig.params, fdef.captures, fi, base, nested, symbols)
         }
         for fd_c : Expr in e.children { expr_collect_ptr_escapes(fd_c, fi, base, escapes, symbols) }
         return
@@ -9549,7 +9549,7 @@ fcall_returns_dynamic_storage := func(fcall: Expr, scope: TypeScope, symbols: Sy
     if fd_o.is_none() { return false }
     switch fd_o.unwrap().node_type {
     case .FuncDef(fd):
-        return fd.return_type.eq("Dynamic").and(fd.return_own_type.is(OwnType.Own))
+        return fd.sig.return_type.eq("Dynamic").and(fd.sig.return_own_type.is(OwnType.Own))
     case: return false
     }
 }
@@ -9853,7 +9853,7 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) r
         }
         switch fd_o.unwrap().node_type {
         case .FuncDef(cfd):
-            for pi in 0..cfd.params.len() {
+            for pi in 0..cfd.sig.params.len() {
                 pb := summary_param_bit(pi)
                 mut relevant := cfd.ref_return_params.band(pb)
                 relevant = relevant.bor(cfd.ref_return_into_params.band(pb))
@@ -10341,7 +10341,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
             // (`Option(ref T).Some(x)`) hands the borrow straight through;
             // its auto-generated body has nothing to summarise.
             if cfd.is_enum_variant_ctor {
-                edef_o := scope.get_struct(cfd.return_type, symbols)
+                edef_o := scope.get_struct(cfd.sig.return_type, symbols)
                 if edef_o.is_none() { return RootBits() }
                 if enum_has_ref_payload(edef_o.unwrap()).not() { return RootBits() }
                 for ai in 1..e.children.len() {
@@ -10349,7 +10349,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                 }
                 return bits
             }
-            for pi in 0..cfd.params.len() {
+            for pi in 0..cfd.sig.params.len() {
                 pb := summary_param_bit(pi)
                 mut relevant := cfd.ref_return_params.band(pb)
                 relevant = relevant.bor(cfd.ref_return_into_params.band(pb))
@@ -10442,14 +10442,14 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
     switch fd_expr.node_type {
     case .FuncDef(fd):
         // A bodyless raw / core / FFI ref has no typed root to hand back.
-        if fd.func_type.is_bodyless() { return false }
+        if fd.sig.func_type.is_bodyless() { return false }
         // #351/#357: summaries cover every shape that can hand a borrow
         // back, which is now exactly what fdef_return_carries_borrow
         // answers -- including a returned VALUE carrying a ref field.
         if fdef_return_carries_borrow(fd, scope, symbols).not() { return false }
         mut roots := Map(Str, RootBits).new()
-        for pi in 0..fd.params.len() {
-            ref p : Declaration = fd.params[pi]
+        for pi in 0..fd.sig.params.len() {
+            ref p : Declaration = fd.sig.params[pi]
             if p.name.len() == 0 { continue }
             roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
@@ -10593,7 +10593,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
         if cb_fd_o.is_none() { return 0 }
         switch cb_fd_o.unwrap().node_type {
         case .FuncDef(cfd):
-            return cfd.return_own_type.is(OwnType.Ref)
+            return cfd.sig.return_own_type.is(OwnType.Ref)
         case:
             return 0
         }
@@ -10610,7 +10610,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
                     if fd.default_value.is_some() {
                         switch fd.default_expr().node_type {
                         case .FuncDef(ffd):
-                            return ffd.return_own_type.is(OwnType.Ref)
+                            return ffd.sig.return_own_type.is(OwnType.Ref)
                         case:
                         }
                     }
@@ -10630,7 +10630,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
                     ref method : Expr = mo3.unwrap()
                     switch method.node_type {
                     case .FuncDef(ffd2):
-                        return ffd2.return_own_type.is(OwnType.Ref)
+                        return ffd2.sig.return_own_type.is(OwnType.Ref)
                     case:
                     }
                 }
@@ -12252,11 +12252,11 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     ref len_func : Expr = len_funco.unwrap()
     mut idx_type := ""
     ref len_def : FunctionDef = funcdef_of(len_func)
-    if len_def.params.len().neq(1).or(len_def.return_type.len().eq(0)) {
+    if len_def.sig.params.len().neq(1).or(len_def.sig.return_type.len().eq(0)) {
         stmt.type_error(format("type '", type_name, "' len() must take 1 param and return a scalar for for-in"), ctx)
         return false
     }
-    idx_type = len_def.return_type.clone()
+    idx_type = len_def.sig.return_type.clone()
 
     if get_funco.is_none() {
         stmt.type_error(format("type '", type_name, "' has no 'get' method (required for for-in)"), ctx)
@@ -12284,26 +12284,26 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     // -- the original 2-param form is what user code wrote, and
     // any subsequent for-in over the same type sees the extended
     // shape because we mutated its FuncDef.
-    if get_def.params.len() < 2 {
+    if get_def.sig.params.len() < 2 {
         stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
         return false
     }
-    ref get_idx_param : Declaration = get_def.params[1]
+    ref get_idx_param : Declaration = get_def.sig.params[1]
     if get_idx_param.til_type.is(Type.Unknown).or(get_idx_param.type_name().eq(idx_type).not()) {
         stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
         return false
     }
     if elem_type.len() == 0 {
-        if get_def.return_type.len().eq(0).or(get_def.return_type.eq("Dynamic")) {
+        if get_def.sig.return_type.len().eq(0).or(get_def.sig.return_type.eq("Dynamic")) {
             stmt.type_error(format("cannot infer element type for '", type_name, "', use explicit type: for x : Type in ..."), ctx)
             return false
         }
-        elem_type = get_def.return_type.clone()
+        elem_type = get_def.sig.return_type.clone()
     }
-    get_returns_ref = get_def.return_own_type.is(OwnType.Ref)
-    get_throws = get_def.throw_types.len() > 0
+    get_returns_ref = get_def.sig.return_own_type.is(OwnType.Ref)
+    get_throws = get_def.sig.throw_types.len() > 0
     if get_throws {
-        for gtn : Str in get_def.throw_types {
+        for gtn : Str in get_def.sig.throw_types {
             get_throw_types.push(own gtn.clone())
         }
         // Extend the get FuncDef in place with the synthetic
@@ -12311,11 +12311,11 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         // below matches the
         // callee's arity. Idempotent: only extends once.
         mut already_extended := false
-        for p : Declaration in get_def.params {
+        for p : Declaration in get_def.sig.params {
             if p.name == "_err_kind" { already_extended = true }
         }
         if already_extended.not() {
-            append_err_out_params(get_def.params, get_def.throw_types, ctx)
+            append_err_out_params(get_def.sig.params, get_def.sig.throw_types, ctx)
         }
     }
     // Issue #281: capture any params beyond self + idx (+ the err out-args
@@ -12329,8 +12329,8 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
             if throw_type_has_payload(ctx, gtn) { forin_filled++ }
         }
     }
-    for tp_i in forin_filled.add(1)..get_def.params.len() {
-        get_trailing_defaults.push(own get_def.params[tp_i].default_expr().clone())
+    for tp_i in forin_filled.add(1)..get_def.sig.params.len() {
+        get_trailing_defaults.push(own get_def.sig.params[tp_i].default_expr().clone())
     }
 
     mut var_name := ""
@@ -12515,7 +12515,7 @@ priv collection_elem_type_of := func(scope: TypeScope, col_type_name: Str, symbo
     ref get_func : Expr = gfo.unwrap()
     switch get_func.node_type {
     case .FuncDef(get_def):
-        return get_def.return_type.clone()
+        return get_def.sig.return_type.clone()
     case:
         return ""
     }

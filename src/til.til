@@ -191,7 +191,7 @@ repl_ast_has_loader_directive := func(e: Expr, symbols: SymbolPool) returns Bool
 repl_ast_has_lazy_def := func(e: Expr) returns Bool {
     switch e.node_type {
     case .FuncDef(fd):
-        if fd.func_type.is_lazy() { return true }
+        if fd.sig.func_type.is_lazy() { return true }
     case:
     }
     for child : Expr in e.children {

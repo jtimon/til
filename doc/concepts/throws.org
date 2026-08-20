@@ -113,7 +113,7 @@ lives, and step-by-step recipes for adding more throwing methods.
    *** Parser ([[file:../../src/self/parser.til][src/self/parser.til]])
    - Lexes ~throws~, ~throw~, ~catch~, ~?~, ~!~ as their own tokens.
    - Func/proc signature parser stores the ~throws~ list as
-     ~FunctionDef.throw_types : Vec[Str]~.
+     ~FunctionDef.sig.throw_types : Vec[Str]~.
    - ~NodeType.Throw~ (1 child = thrown expr) and ~NodeType.Catch~
      (3 children: Ident var, Ident type, Body).
    - FCall postfix: ~?~ sets ~FCallData.does_throw~; ~!~ sets
@@ -288,7 +288,7 @@ lives, and step-by-step recipes for adding more throwing methods.
    - ~mut x := some_func(args)~ locals. ~guess_local_type~ on its
      own returns the callee's Ident name (~"some_func"~), which
      isn't a struct. ~resolve_value_type~ now falls back to
-     ~scope.get_binding(name)~ and reads ~FunctionDef.return_type~
+     ~scope.get_binding(name)~ and reads ~FunctionDef.sig.return_type~
      when the name resolves to a function binding.
 
    When you add a new shape that introduces a local of an inferable

@@ -72,6 +72,7 @@ enum {
 typedef struct GcStorage GcStorage;
 typedef struct Option__Expr Option__Expr;
 typedef struct Declaration Declaration;
+typedef struct FuncSig FuncSig;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
 typedef struct LiteralNumData LiteralNumData;
@@ -1410,7 +1411,7 @@ typedef struct Mode {
 } Mode;
 
 
-typedef struct FunctionDef {
+typedef struct FuncSig {
     FuncType func_type;
     Vec__Declaration params;
     Str return_type;
@@ -1419,6 +1420,11 @@ typedef struct FunctionDef {
     I32 kwargs_index;
     OwnType return_own_type;
     Bool return_shallow_explicit;
+} FuncSig;
+
+
+typedef struct FunctionDef {
+    FuncSig sig;
     Bool auto_generated;
     Bool is_enum_variant_ctor;
     Vec__Declaration captures;

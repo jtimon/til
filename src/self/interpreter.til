@@ -627,14 +627,14 @@ priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns Dynamic
 // An ext callee hands back a C-owned Str buffer
 // only when it declares one. `returns ref Dynamic` is pointer laundering.
 priv ext_fdef_copies_str := func(fd: FunctionDef) returns Bool {
-    if fd.func_type.is_ext().not() { return false }
-    return fd.return_type == "Str"
+    if fd.sig.func_type.is_ext().not() { return false }
+    return fd.sig.return_type == "Str"
 }
 
 priv resolved_call_result_is_ref := func(shallow result_type: Type, fn_def: Expr) returns Bool {
     switch fn_def.node_type {
     case .FuncDef(fd):
-        if fd.return_own_type.is(OwnType.Ref).not() { return false }
+        if fd.sig.return_own_type.is(OwnType.Ref).not() { return false }
         switch result_type {
         case .Struct(name):
             if (name == "Str").and(ext_fdef_copies_str(fd)) { return false }
@@ -2646,8 +2646,8 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     call_scope.is_call_scope = true
     dynamic_type_w : Dynamic = interp_intern_type(Type.Dynamic, ctx)
     ref fdef_params : FunctionDef = funcdef_of(func_def)
-    for pi in 0..fdef_params.params.len() {
-        ref param : Declaration = fdef_params.params[pi]
+    for pi in 0..fdef_params.sig.params.len() {
+        ref param : Declaration = fdef_params.sig.params[pi]
         ref mut arg_expr : Expr = e.children[pi + 1]
         // The call-site OWN BIT decides the transfer here, deliberately, and
         // NOT the callee's `own` parameter -- the two answer different
@@ -2674,7 +2674,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         // rests on HeapBinding.payload_released instead, which records that
         // an interpreted delete already ran (#275 item 0b).
         arg_transfers := get_own_arg(e, pi + 1).and(get_keep_outer_arg(e, pi + 1).not())
-        is_variadic_param := fdef_params.variadic_index == pi.to_i32()
+        is_variadic_param := fdef_params.sig.variadic_index == pi.to_i32()
         switch arg_expr.node_type {
         case .Ident(arg_ident):
             mut source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name(ctx.symbols.names))
@@ -2873,15 +2873,15 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     mut use_return_destination := true
     switch func_def.node_type {
     case .FuncDef(ret_fd):
-        callee_ret_is_ref = ret_fd.return_own_type.is(OwnType.Ref)
-        c.eval.interp_ret_type = Option(ref Str).Some(ret_fd.return_type)
-        c.eval.interp_ret_own_type = ret_fd.return_own_type
-        if ret_fd.return_type.len() > 0 {
-            ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.return_type, ctx.symbols)
+        callee_ret_is_ref = ret_fd.sig.return_own_type.is(OwnType.Ref)
+        c.eval.interp_ret_type = Option(ref Str).Some(ret_fd.sig.return_type)
+        c.eval.interp_ret_own_type = ret_fd.sig.return_own_type
+        if ret_fd.sig.return_type.len() > 0 {
+            ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.sig.return_type, ctx.symbols)
             if declared_return_name != til_type_name_c(e.til_type()) { use_return_destination = false }
         }
-        if e.til_type().is(Type.Unknown).and(ret_fd.return_type.len() > 0) {
-            e.set_til_type(type_from_name_init_name(ret_fd.return_type, ctx.scope, ctx.symbols))
+        if e.til_type().is(Type.Unknown).and(ret_fd.sig.return_type.len() > 0) {
+            e.set_til_type(type_from_name_init_name(ret_fd.sig.return_type, ctx.scope, ctx.symbols))
         }
     case:
     }
@@ -2902,8 +2902,8 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     }
     switch func_def.node_type {
     case .FuncDef(result_fd):
-        if result_fd.return_type.len() > 0 {
-            source_result_type := type_from_name_init_name(result_fd.return_type, ctx.scope, ctx.symbols)
+        if result_fd.sig.return_type.len() > 0 {
+            source_result_type := type_from_name_init_name(result_fd.sig.return_type, ctx.scope, ctx.symbols)
             if callee_ret_is_ref.not() {
                 if source_result_type.is(Type.Dynamic).and(raw_type_is_prim(e.til_type(), ctx)) {
                     // A Dynamic-declared result re-stamped primitive either
@@ -2915,7 +2915,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         result = unbox_pointed
                     } else {
                         unboxed_w : Dynamic = scalar_word_load(e.til_type(), unbox_pointed, ctx)
-                        if result_fd.return_own_type.is(OwnType.Own) {
+                        if result_fd.sig.return_own_type.is(OwnType.Own) {
                             mut owned_pointed : Dynamic = unbox_pointed
                             EvalHeap.heap_free(own owned_pointed)
                         }
@@ -2923,7 +2923,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         result = unboxed_w
                     }
                 } else {
-                    result = raw_coerce_value(result, source_result_type, e.til_type(), ctx, result_fd.return_own_type)
+                    result = raw_coerce_value(result, source_result_type, e.til_type(), ctx, result_fd.sig.return_own_type)
                 }
             }
         }
@@ -3006,15 +3006,15 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             if callee_expr.til_type().is_funcptr() {
                 mut fp_func_type := FuncType.Func
                 ref fp_fdef : FunctionDef = funcdef_of(func_def)
-                fp_func_type = fp_fdef.func_type
+                fp_func_type = fp_fdef.sig.func_type
                 if fp_func_type.is_ext() {
                     qn := namespace_func_qname(func_def, "", ctx)
                     if qn.len() > 0 {
                         fp_flat := qn.replace(".", "_")
                         orig_result_type := call_type.clone()
                         mut concrete_result_type := Type.None
-                        concrete_return_own_type := fp_fdef.return_own_type
-                        if fp_fdef.return_type.len() > 0 { concrete_result_type = type_from_name_init_name(fp_fdef.return_type, ctx.scope, ctx.symbols) }
+                        concrete_return_own_type := fp_fdef.sig.return_own_type
+                        if fp_fdef.sig.return_type.len() > 0 { concrete_result_type = type_from_name_init_name(fp_fdef.sig.return_type, ctx.scope, ctx.symbols) }
                         // Swapped in, not cloned: the dispatch only needs the
                         // callee slot to hold a flat Ident for this call.
                         mut flat_ident := Expr.new(ident_node(ctx.symbols.intern(fp_flat)), callee_expr.line, callee_expr.col)
@@ -3040,9 +3040,9 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             mut direct_result_type := Type.None
             mut direct_return_own_type := OwnType.Shallow
             ref fdef_ns : FunctionDef = funcdef_of(func_def)
-            fdef_func_type = fdef_ns.func_type
-            direct_return_own_type = fdef_ns.return_own_type
-            if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init_name(fdef_ns.return_type, ctx.scope, ctx.symbols) }
+            fdef_func_type = fdef_ns.sig.func_type
+            direct_return_own_type = fdef_ns.sig.return_own_type
+            if fdef_ns.sig.return_type.len() > 0 { direct_result_type = type_from_name_init_name(fdef_ns.sig.return_type, ctx.scope, ctx.symbols) }
             if fdef_func_type.is_bodyless() {
                 ref fn_name : FieldAccessData = fieldaccess_of(callee_expr)
                 enum_dispatch_shape2 := call_type.is(Type.Enum).or(fn_name.field_access_name(ctx.symbols.names) == "is")
@@ -3154,10 +3154,10 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             set_resolved_call_result_info(call_type, ext_def, destination, info, ctx)
             switch ext_def.node_type {
             case .FuncDef(ext_fd):
-                if ext_fd.return_type.len() == 0 { ext_result_type = Type.None }
-                else { ext_result_type = type_from_name_init_name(ext_fd.return_type, ctx.scope, ctx.symbols) }
-                ext_return_own_type = ext_fd.return_own_type
-                ext_variadic_index = ext_fd.variadic_index
+                if ext_fd.sig.return_type.len() == 0 { ext_result_type = Type.None }
+                else { ext_result_type = type_from_name_init_name(ext_fd.sig.return_type, ctx.scope, ctx.symbols) }
+                ext_return_own_type = ext_fd.sig.return_own_type
+                ext_variadic_index = ext_fd.sig.variadic_index
             case .BodyValue:
                 ext_result_type = Type.None
             case .StructDef:
@@ -3261,7 +3261,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 // `InitWindow(...)` "succeeded" and simply opened no window,
                 // and `GetRandomValue(5, 5)` returned 0 instead of 5. A
                 // missing symbol has to say so.
-                if ext_fd.func_type.is_ext() {
+                if ext_fd.sig.func_type.is_ext() {
                     if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                     if ctx.eval.constfold_active.not() {
                         panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name(ctx.symbols.names))
@@ -5747,7 +5747,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 if is_func_decl(stmt) {
                     switch stmt.children[0].node_type {
                     case .FuncDef(fd):
-                        if fd.func_type.is(FuncType.Test) {
+                        if fd.sig.func_type.is(FuncType.Test) {
                             switch stmt.node_type {
                             case .Decl(dd):
                                 test_count++
@@ -5779,7 +5779,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 ref mut nsfdef : Expr = nsd.default_expr()
                                 switch nsfdef.node_type {
                                 case .FuncDef(nsfd):
-                                    if nsfd.func_type.is(FuncType.Test).not() { continue }
+                                    if nsfd.sig.func_type.is(FuncType.Test).not() { continue }
                                     test_count++
                                     mut test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
                                     context_enter_file(lp.ctx, u.path)
@@ -5828,8 +5828,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
         }
         ref mut func_def : Expr = main_def_o.unwrap()
             ref fd : FunctionDef = funcdef_of(func_def)
-            nparam := fd.params.len()
-            vi := fd.variadic_index
+            nparam := fd.sig.params.len()
+            vi := fd.sig.variadic_index
             ref mut body : Expr = func_def.children[0]
             mut main_scope := scope_new(Option(ref Scope).Some(session_global(session)))
 
@@ -5857,7 +5857,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 }
                 mut argi : I32 = 0
                 for pi in 0..nparam {
-                    ref param : Declaration = fd.params[pi]
+                    ref param : Declaration = fd.sig.params[pi]
                     if pi.to_i64() == vi.cast(I64) {
                         va_count := session.user_argc - fixed
                         // Instance names keep width aliases
@@ -5867,7 +5867,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         // stride and CLI parsing resolve the width
                         // themselves (elem_size_for_type/parse_cli_arg
                         // both handle USize/UPtr).
-                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].type_name(), lp.ctx.symbols).clone()
+                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.sig.params[vi.to_usize()].type_name(), lp.ctx.symbols).clone()
                         arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
                         va_array_binding_o := lp.ctx.scope.get_binding_name(format("Array__", va_elem), lp.ctx.symbols)
                         if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
@@ -5901,9 +5901,9 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             ref saved_ret_dest : Dynamic = mc.eval.interp_ret_dest
             saved_ret_type := mc.eval.interp_ret_type
             saved_ret_own_type := mc.eval.interp_ret_own_type
-            mc.eval.interp_ret_type = Option(ref Str).Some(fd.return_type)
-            mc.eval.interp_ret_own_type = fd.return_own_type
-            mc.eval.interp_ret_is_ref = fd.return_own_type.is(OwnType.Ref)
+            mc.eval.interp_ret_type = Option(ref Str).Some(fd.sig.return_type)
+            mc.eval.interp_ret_own_type = fd.sig.return_own_type
+            mc.eval.interp_ret_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
             mc.eval.interp_ret_dest = 0
 
             eval_body(main_scope, body, lp.ctx)
@@ -5915,8 +5915,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             mut main_status : I32 = 0
             if mc.eval.has_return {
                 mut ret_raw : Dynamic = context_return_take(mc)
-                if fd.return_type.len() > 0 {
-                    ret_type := type_from_name_init_name(fd.return_type, lp.ctx.scope, lp.ctx.symbols)
+                if fd.sig.return_type.len() > 0 {
+                    ret_type := type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols)
                     main_status = raw_to_i64(ret_type, ret_raw, lp.ctx).to_i32()
                     // raw_result_drop, not heap_free: a non-ref prim
                     // return IS the inline word, never a block, so
@@ -6890,7 +6890,7 @@ priv h_func_sig_param_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    write_i64(r, fd.params.len().to_i64())
+    write_i64(r, fd.sig.params.len().to_i64())
     return true
 }
 
@@ -6899,11 +6899,11 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    if idx >= fd.params.len() {
+    if idx >= fd.sig.params.len() {
         interp_error(e, "func_sig_param_type: index out of bounds", ctx)
         exit(1)
     }
-    ref pd : Declaration = fd.params[idx]
+    ref pd : Declaration = fd.sig.params[idx]
     str_copy_into(r, pd.type_name(), ctx)
     return true
 }
@@ -6912,7 +6912,7 @@ priv h_func_sig_return_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    if fd.return_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
+    if fd.sig.return_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -6921,11 +6921,11 @@ priv h_func_sig_return_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    if idx.neq(0).or(fd.return_type.len().eq(0)) {
+    if idx.neq(0).or(fd.sig.return_type.len().eq(0)) {
         interp_error(e, "func_sig_return_type: index out of bounds", ctx)
         exit(1)
     }
-    str_copy_into(r, fd.return_type, ctx)
+    str_copy_into(r, fd.sig.return_type, ctx)
     return true
 }
 
@@ -6933,7 +6933,7 @@ priv h_func_sig_throw_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    write_i64(r, fd.throw_types.len().to_i64())
+    write_i64(r, fd.sig.throw_types.len().to_i64())
     return true
 }
 
@@ -6942,11 +6942,11 @@ priv h_func_sig_throw_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    if idx >= fd.throw_types.len() {
+    if idx >= fd.sig.throw_types.len() {
         interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
         exit(1)
     }
-    ref tt : Str = fd.throw_types[idx]
+    ref tt : Str = fd.sig.throw_types[idx]
     str_copy_into(r, tt, ctx)
     return true
 }
@@ -8045,8 +8045,8 @@ priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: U
     ref ext_def : Expr = callable_raw_func_def(ext_slot)
     switch ext_def.node_type {
     case .FuncDef(fd):
-        if arg_index >= fd.params.len() { return false }
-        ref p : Declaration = fd.params[arg_index]
+        if arg_index >= fd.sig.params.len() { return false }
+        ref p : Declaration = fd.sig.params[arg_index]
         if p.type_name().eq("I8").not() { return false }
         return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
     case:
@@ -8587,7 +8587,7 @@ priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut
 }
 priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
-    np := fd.params.len()
+    np := fd.sig.params.len()
     mut alloc_np := np
     if alloc_np == 0 { alloc_np = 1 }
     // Build ffi_type* array (each element is a pointer = 8 bytes)
@@ -8596,7 +8596,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     mut pshallows : Dynamic = 0
     mut has_shallow := false
     for k in 0..np {
-        ref pk : Declaration = fd.params[k]
+        ref pk : Declaration = fd.sig.params[k]
         ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
         dynamic_slot = declaration_resolved_type(pk, ctx.scope, ctx.symbols).is(Type.Dynamic)
         if pk.own_type.is(OwnType.Shallow) {
@@ -8609,12 +8609,12 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     if has_shallow {
         pshallows = malloc(np)
         for k in 0..np {
-            ref pk : Declaration = fd.params[k]
+            ref pk : Declaration = fd.sig.params[k]
             ref mut slot : Bool = ptr_add(pshallows, k)
             slot = pk.own_type.is(OwnType.Shallow)
         }
     }
-    ret_shallow := fd.return_own_type.is(OwnType.Shallow)
+    ret_shallow := fd.sig.return_own_type.is(OwnType.Shallow)
     mut cif : Dynamic = ffi_alloc_cif()
 
     // #324: resolve the return ffi_type and PREP before any of the four
@@ -8622,7 +8622,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     // the failure path must free the locals while they are still the
     // owners, and constructing first would leave it holding moved names.
     mut ret_type_o := Option(ref Str).None
-    if fd.return_type.len() > 0 { ret_type_o = Option(ref Str).Some(fd.return_type) }
+    if fd.sig.return_type.len() > 0 { ret_type_o = Option(ref Str).Some(fd.sig.return_type) }
     ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
     if ret_type_o.is_some() {
         if ret_shallow {
@@ -8665,7 +8665,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     entry.return_type = ret_type_o
     entry.nparam = np
     entry.return_is_shallow = ret_shallow
-    entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
+    entry.return_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
 
     // Store in ctx.ffi.entries. Map.set borrows the key and deep-clones it
     // internally (ELEM_BOXED), so `name` can be passed directly; the
@@ -8709,7 +8709,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
                 ref fdef : Expr = stmt.children[0]
                 switch fdef.node_type {
                 case .FuncDef(fd):
-                    if fd.func_type.is_ext() {
+                    if fd.sig.func_type.is_ext() {
                         switch stmt.node_type {
                         case .Decl(dname):
                             ref fn_ptr : U8 = ffi_dlsym(dname.name)
@@ -8735,7 +8735,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
                     mut fd_func_type := FuncType.Func
                     switch fdef.node_type {
                     case .FuncDef(fd):
-                        fd_func_type = fd.func_type
+                        fd_func_type = fd.sig.func_type
                     case:
                         continue
                     }
@@ -8756,7 +8756,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
                                 ref idef : Expr = inner.children[0]
                                 switch idef.node_type {
                                 case .FuncDef(ifd):
-                                    if ifd.func_type.is_ext() {
+                                    if ifd.sig.func_type.is_ext() {
                                         ref iname : Declaration = decl_of(inner)
                                         ref ifn : U8 = ffi_dlsym(iname.name)
                                         if ifn.is_null().not() {

@@ -230,8 +230,8 @@ priv rebuilt_ctor_payload_is_own := func(ename: Str, vname: Str, ctx: Context) r
     if fd.default_value.is_none() { return false }
     switch fd.default_expr().node_type {
     case .FuncDef(vfd):
-        if vfd.params.len() == 0 { return false }
-        return vfd.params[0].own_type.is(OwnType.Own)
+        if vfd.sig.params.len() == 0 { return false }
+        return vfd.sig.params[0].own_type.is(OwnType.Own)
     case: return false
     }
 }
@@ -539,8 +539,8 @@ priv is_known := func(mut ctx: Context, e: Expr) returns Dynamic {
 priv func_sig_has_dynamic := func(fdef: Expr) returns Bool {
     switch fdef.node_type {
     case .FuncDef(fd):
-        if fd.return_type == "Dynamic" { return true }
-        for p : Declaration in fd.params {
+        if fd.sig.return_type == "Dynamic" { return true }
+        for p : Declaration in fd.sig.params {
             if p.til_type.is(Type.Dynamic) { return true }
         }
     case:
@@ -604,7 +604,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, mut constfolder_
         // static blocker either.
         switch func_def.node_type {
         case .FuncDef(fd):
-            for p : Declaration in fd.params {
+            for p : Declaration in fd.sig.params {
                 if p.name == name.ident_name(ctx.symbols.names) { return false }
             }
         case:
@@ -842,7 +842,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
         ref fdef : Expr = fdef_o.unwrap()
         switch fdef.node_type {
         case .FuncDef(fd):
-            if fd.return_own_type.is(OwnType.Ref) { return Option(Expr).None }
+            if fd.sig.return_own_type.is(OwnType.Ref) { return Option(Expr).None }
             // A raw-memory primitive (Dynamic in its signature) is pure but
             // unsound to fold -- the interpreter can't model the pointer
             // target. See func_sig_has_dynamic.

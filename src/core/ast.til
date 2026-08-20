@@ -289,9 +289,9 @@ namespace:
     }
 }
 
-// --- FunctionDef struct ---
-/// Function signature metadata: params, return type, variadic info.
-FunctionDef := struct {
+// --- FuncSig / FunctionDef structs ---
+/// Callable contract shared by function signatures and definitions.
+FuncSig := struct {
     func_type := FuncType.Func
     params := Vec(Declaration).new()
     return_type := ""
@@ -311,6 +311,14 @@ FunctionDef := struct {
     // closure re-typed as a UFCS-receiver-call arg). This flag preserves the
     // user's original intent across re-inference so the check stays idempotent.
     return_shallow_explicit := false
+namespace:
+    eq := func(a: FuncSig, b: FuncSig) returns Bool { return a.return_type == b.return_type }
+    to_str := func(self: FuncSig) returns Str { return self.return_type }
+}
+
+/// Function-definition metadata layered over its callable signature.
+FunctionDef := struct {
+    sig := FuncSig()
     // #187 step 2: set true on FuncDefs emitted by initer's auto-gen
     // helpers (clone/delete/size/eq/to_str/variant constructors).
     // The unused-priv-member check skips field/ns reads inside these
@@ -363,8 +371,8 @@ FunctionDef := struct {
     // lifetime and avoids storing two name pointers on every FunctionDef.
     namespace_decl := Option(ref Declaration).None
 namespace:
-    eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type == b.return_type }
-    to_str := func(self: FunctionDef) returns Str { return self.return_type }
+    eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.sig == b.sig }
+    to_str := func(self: FunctionDef) returns Str { return self.sig.to_str() }
 }
 
 // --- FCall payload struct ---
@@ -378,7 +386,7 @@ namespace:
 ///     (derive_fcall_kwargs_index).
 ///   - variadic_count : children layout + nparam + has-kwargs
 ///     (fcall_variadic_count).
-///   - variadic_index : implicit at ~1 + fdef_data.variadic_index~
+///   - variadic_index : implicit at ~1 + fdef_data.sig.variadic_index~
 ///     post-desugar. Step 7 of #147 closes here: the trailing typer
 ///     resolution artifact is gone.
 FCallData := struct {
@@ -965,7 +973,7 @@ namespace:
             return format("Decl ", d.name)
         case .Assign(a):      return format("Assign ", a.name)
         case .FCall:          return "FCall"
-        case .FuncDef(f):     return format("FuncDef ", f.func_type.variant_name())
+        case .FuncDef(f):     return format("FuncDef ", f.sig.func_type.variant_name())
         case .StructDef:      return "StructDef"
         case .EnumDef:        return "EnumDef"
         case .FieldAccess(s): return format("FieldAccess ", s.field_access_name(names))
