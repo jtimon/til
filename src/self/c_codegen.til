@@ -8035,6 +8035,39 @@ priv emit_dyn_storage_kind_body := proc(f: File, mut lp: LoadedProgram) {
     f.write("}\n\n")
 }
 
+// --- The two tails every index-taking reflection dispatcher ends with ---
+//
+// One tail used to serve both misses, and it blamed the index: a type the
+// chain has no arm for produced "type 'Point' index 0 out of range", which
+// says the index is wrong about a type the program does not have. The arms
+// mark that the TYPE matched, so falling out of a marked arm is a real
+// out-of-range and falling off the end is a missing type -- the same split
+// the interpreter already made, now worded the same on both sides.
+priv REFLECT_FOUND_DECL : Str = "    Bool _found = 0;\n"
+
+priv emit_reflect_found_mark := proc(f: File) {
+    f.write("        _found = 1;\n")
+}
+
+priv emit_reflect_index_tails := proc(f: File, who: Str) {
+    f.write("    if (_found) {\n")
+    f.write("        fprintf(stderr, \"").write(who).write(": type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n")
+    f.write("        exit(1);\n")
+    f.write("    }\n")
+    emit_reflect_not_found_tail(f, who)
+}
+
+// The missing-type tail, shared with the count-shaped dispatchers (which
+// always return from a matched arm and so need no _found mark). The note
+// matches interp_reflect_type_not_found's, because the surprise it explains
+// is the same one: the type was swept, and nothing in the program text says
+// so.
+priv emit_reflect_not_found_tail := proc(f: File, who: Str) {
+    f.write("    fprintf(stderr, \"").write(who).write(": type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
+    f.write("    fprintf(stderr, \"  note: unknown type, or dropped as unused -- reflection keeps a type when its name is a literal here, or the type is used elsewhere\\n\");\n")
+    f.write("    exit(1);\n}\n\n")
+}
+
 // Issue #56/#58: emit one struct's branch for a struct_field_* function.
 // kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type.
 priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
@@ -8053,6 +8086,7 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
         if kind == 0 {
             f.write("        return "); emit_usize(f, sd.fields.len()); f.write("LL;\n")
         } else {
+            emit_reflect_found_mark(f)
             mut i : USize = 0
             for fd : Declaration in sd.fields {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
@@ -8090,22 +8124,22 @@ priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     if builder_needs_reflect("struct_field_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_count(Str *type_name) {\n")
         emit_struct_field_branches(f, 0, lp)
-        f.write("    fprintf(stderr, \"struct_field_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "struct_field_count")
     }
     if builder_needs_reflect("struct_field_name", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_name(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_name(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_struct_field_branches(f, 1, lp)
-        f.write("    fprintf(stderr, \"struct_field_name: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "struct_field_name")
     }
     if builder_needs_reflect("struct_field_is_mut", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_is_mut(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_is_mut(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_struct_field_branches(f, 2, lp)
-        f.write("    fprintf(stderr, \"struct_field_is_mut: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "struct_field_is_mut")
     }
     if builder_needs_reflect("struct_field_type", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_struct_field_branches(f, 3, lp)
-        f.write("    fprintf(stderr, \"struct_field_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "struct_field_type")
     }
 }
 
@@ -8128,6 +8162,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
         if kind == 0 {
             f.write("        return "); emit_usize(f, ed.variants.len()); f.write("LL;\n")
         } else {
+            emit_reflect_found_mark(f)
             for i in 0..ed.variants.len() {
                 ref vd : VariantDef = ed.variants[i]
                 has_pl := vd.payload_type.len() > 0
@@ -8168,37 +8203,37 @@ priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     if builder_needs_reflect("enum_variant_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_count(Str *type_name) {\n")
         emit_enum_variant_branches(f, 0, lp)
-        f.write("    fprintf(stderr, \"enum_variant_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "enum_variant_count")
     }
     if builder_needs_reflect("enum_variant_name", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_name(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_name(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_enum_variant_branches(f, 1, lp)
-        f.write("    fprintf(stderr, \"enum_variant_name: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "enum_variant_name")
     }
     if builder_needs_reflect("enum_variant_has_payload", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_has_payload(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_has_payload(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_enum_variant_branches(f, 2, lp)
-        f.write("    fprintf(stderr, \"enum_variant_has_payload: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "enum_variant_has_payload")
     }
     if builder_needs_reflect("enum_variant_payload_type", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_payload_type(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *enum_variant_payload_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_enum_variant_branches(f, 3, lp)
-        f.write("    fprintf(stderr, \"enum_variant_payload_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "enum_variant_payload_type")
     }
     if builder_needs_reflect("enum_variant_tag_value", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_tag_value(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_tag_value(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_enum_variant_branches(f, 4, lp)
-        f.write("    fprintf(stderr, \"enum_variant_tag_value: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "enum_variant_tag_value")
     }
     if builder_needs_reflect("enum_variant_payload_is_const", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_enum_variant_branches(f, 5, lp)
-        f.write("    fprintf(stderr, \"enum_variant_payload_is_const: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "enum_variant_payload_is_const")
     }
     if builder_needs_reflect("enum_variant_payload_is_ref", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_enum_variant_branches(f, 6, lp)
-        f.write("    fprintf(stderr, \"enum_variant_payload_is_ref: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "enum_variant_payload_is_ref")
     }
 }
 
@@ -8246,12 +8281,14 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
         } else if kind == 12 {
             if fd.sig.return_shallow_explicit { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
         } else if kind == 1 {
+            emit_reflect_found_mark(f)
             for i in 0..funcsig_reflect_param_count(fd) {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 emit_str_lit_expr(f, fd.sig.params[i].type_name(), ctx)
                 f.write(";\n")
             }
         } else if kind.eq(7).or(kind.eq(8)) {
+            emit_reflect_found_mark(f)
             for i in 0..funcsig_reflect_param_count(fd) {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind == 7 {
@@ -8263,12 +8300,14 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
                 }
             }
         } else if kind == 3 {
+            emit_reflect_found_mark(f)
             if fd.sig.return_type.len() > 0 {
                 f.write("        if (*index == 0LL) return ")
                 emit_str_lit_expr(f, fd.sig.return_type, ctx)
                 f.write(";\n")
             }
         } else if kind == 5 {
+            emit_reflect_found_mark(f)
             for i in 0..fd.sig.throw_types.len() {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 emit_str_lit_expr(f, fd.sig.throw_types[i], ctx)
@@ -8297,47 +8336,47 @@ priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     if builder_needs_reflect("func_sig_func_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_func_type(Str *type_name) {\n")
         emit_funcsig_branches(f, 6, lp)
-        f.write("    fprintf(stderr, \"func_sig_func_type: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "func_sig_func_type")
     }
     if builder_needs_reflect("func_sig_param_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_count(Str *type_name) {\n")
         emit_funcsig_branches(f, 0, lp)
-        f.write("    fprintf(stderr, \"func_sig_param_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "func_sig_param_count")
     }
     if builder_needs_reflect("func_sig_param_type", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_param_type(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_param_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_funcsig_branches(f, 1, lp)
-        f.write("    fprintf(stderr, \"func_sig_param_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "func_sig_param_type")
     }
     if builder_needs_reflect("func_sig_param_own_type", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_own_type(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_own_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_funcsig_branches(f, 7, lp)
-        f.write("    fprintf(stderr, \"func_sig_param_own_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "func_sig_param_own_type")
     }
     if builder_needs_reflect("func_sig_param_is_mut", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_is_mut(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_is_mut(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_funcsig_branches(f, 8, lp)
-        f.write("    fprintf(stderr, \"func_sig_param_is_mut: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "func_sig_param_is_mut")
     }
     if builder_needs_reflect("func_sig_return_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_count(Str *type_name) {\n")
         emit_funcsig_branches(f, 2, lp)
-        f.write("    fprintf(stderr, \"func_sig_return_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "func_sig_return_count")
     }
     if builder_needs_reflect("func_sig_return_type", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_return_type(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_return_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_funcsig_branches(f, 3, lp)
-        f.write("    fprintf(stderr, \"func_sig_return_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "func_sig_return_type")
     }
     if builder_needs_reflect("func_sig_variadic_index", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_variadic_index(Str *type_name) {\n")
         emit_funcsig_branches(f, 9, lp)
-        f.write("    fprintf(stderr, \"func_sig_variadic_index: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "func_sig_variadic_index")
     }
     if builder_needs_reflect("func_sig_kwargs_index", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_kwargs_index(Str *type_name) {\n")
         emit_funcsig_branches(f, 10, lp)
-        f.write("    fprintf(stderr, \"func_sig_kwargs_index: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "func_sig_kwargs_index")
     }
     if builder_needs_reflect("func_sig_return_own_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_own_type(Str *type_name) {\n")
@@ -8352,12 +8391,12 @@ priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     if builder_needs_reflect("func_sig_throw_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name) {\n")
         emit_funcsig_branches(f, 4, lp)
-        f.write("    fprintf(stderr, \"func_sig_throw_count: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        emit_reflect_not_found_tail(f, "func_sig_throw_count")
     }
     if builder_needs_reflect("func_sig_throw_type", lp.ctx) {
-        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_throw_type(Str *type_name, I64 *index) {\n")
+        f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_throw_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_funcsig_branches(f, 5, lp)
-        f.write("    fprintf(stderr, \"func_sig_throw_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+        emit_reflect_index_tails(f, "func_sig_throw_type")
     }
 }
 

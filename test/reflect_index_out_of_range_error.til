@@ -1,0 +1,20 @@
+mode cli
+
+import("../src/core/io")
+import("../src/core/str")
+
+// The other half of the split: the type IS here and the index is not. This
+// is what "index out of range" was always meant to say, and the reason the
+// missing-type case had to stop borrowing it -- one message cannot answer
+// two questions. Both backends word it the same, type and index named.
+Point := struct { x : I64 = 0 }
+
+main := proc(seed: Str) {
+    p := Point(x = 1)
+    if p.x < 0 { print("") }
+    // Runtime index: a constant one is answered by the constfolder, which
+    // never reaches the dispatcher this pins.
+    ix := seed.len().to_i64().add(90)
+    print(struct_field_name("Point", ix))
+    print("\n")
+}

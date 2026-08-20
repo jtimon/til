@@ -6723,6 +6723,24 @@ priv eval_str_owned := proc(mut s: Scope, mut arg: Expr, mut ctx: Context) retur
 // Look up a registered struct type's AST node by name, erroring out if
 // the name is unknown or not a struct. Shared by the struct_field_*
 // introspection handlers (issue #56/#58).
+// "That type is not here" is the answer to two different questions, and a
+// reflection caller cannot tell them apart from the name alone: the name may
+// be nobody's type, or it may be a real type the sweep took because nothing
+// kept it. The second is the one that surprises, and it is invisible -- the
+// program mentions the type, just not in a way rooting can see (the literal
+// is what roots it; a name computed at runtime cannot be). Both backends say
+// the same two lines.
+priv interp_reflect_type_not_found := proc(e: Expr, who: Str, type_name: Str, ctx: Context) {
+    interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
+    println("  note: unknown type, or dropped as unused -- reflection keeps a type when its name is a literal here, or the type is used elsewhere")
+}
+
+// The out-of-range twin, worded exactly as the emitted dispatcher words it
+// (type and index both named) so the two backends read the same.
+priv interp_reflect_index_out_of_range := proc(e: Expr, who: Str, type_name: Str, idx: USize, ctx: Context) {
+    interp_error(e, format(who, ": type '", type_name, "' index ", idx.to_str(), " out of range"), ctx)
+}
+
 priv interp_lookup_struct := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     // A miss means `who` asked to introspect a type name with no registered
     // def -- a not-found error. The name is a RUNTIME string, so it can also
@@ -6731,7 +6749,7 @@ priv interp_lookup_struct := proc(mut s: Scope, e: Expr, type_name: Str, who: St
     // rather than being read as one.
     hb_o := scope_lookup_heap_binding(s, type_name)
     if hb_o.is_none() {
-        interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
+        interp_reflect_type_not_found(e, who, type_name, ctx)
         exit(1)
     }
     node_o := hb_func_def(hb_o.unwrap())
@@ -6766,7 +6784,7 @@ priv h_struct_field_name := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     ref sd : StructDef = structdef_of(node)
     if idx >= sd.fields.len() {
-        interp_error(e, "struct_field_name: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "struct_field_name", type_name, idx, ctx)
         exit(1)
     }
     str_copy_into(r, sd.field_name_at(idx), ctx)
@@ -6779,7 +6797,7 @@ priv h_struct_field_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     ref sd : StructDef = structdef_of(node)
     if idx >= sd.fields.len() {
-        interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "struct_field_is_mut", type_name, idx, ctx)
         exit(1)
     }
     ref fd : Declaration = sd.field_at(idx)
@@ -6793,7 +6811,7 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     ref sd : StructDef = structdef_of(node)
     if idx >= sd.fields.len() {
-        interp_error(e, "struct_field_type: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "struct_field_type", type_name, idx, ctx)
         exit(1)
     }
     ref fd : Declaration = sd.field_at(idx)
@@ -6809,7 +6827,7 @@ priv interp_lookup_enum := proc(mut s: Scope, e: Expr, type_name: Str, who: Str,
     // bound to a value carries no def, and is reported as "not an enum".
     hb_o := scope_lookup_heap_binding(s, type_name)
     if hb_o.is_none() {
-        interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
+        interp_reflect_type_not_found(e, who, type_name, ctx)
         exit(1)
     }
     node_o := hb_func_def(hb_o.unwrap())
@@ -6836,7 +6854,7 @@ priv h_enum_variant_name := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
-        interp_error(e, "enum_variant_name: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "enum_variant_name", type_name, idx, ctx)
         exit(1)
     }
     ref vd : VariantDef = ed.variants[idx]
@@ -6850,7 +6868,7 @@ priv h_enum_variant_has_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynami
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
-        interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "enum_variant_has_payload", type_name, idx, ctx)
         exit(1)
     }
     ref vd : VariantDef = ed.variants[idx]
@@ -6864,7 +6882,7 @@ priv h_enum_variant_payload_type := proc(mut s: Scope, mut e: Expr, mut r: Dynam
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
-        interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "enum_variant_payload_type", type_name, idx, ctx)
         exit(1)
     }
     ref vd : VariantDef = ed.variants[idx]
@@ -6878,7 +6896,7 @@ priv h_enum_variant_tag_value := proc(mut s: Scope, mut e: Expr, mut r: Dynamic,
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_tag_value", ctx)
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
-        interp_error(e, "enum_variant_tag_value: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "enum_variant_tag_value", type_name, idx, ctx)
         exit(1)
     }
     ref vd : VariantDef = ed.variants[idx]
@@ -6892,7 +6910,7 @@ priv h_enum_variant_payload_is_const := proc(mut s: Scope, mut e: Expr, mut r: D
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_const", ctx)
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
-        interp_error(e, "enum_variant_payload_is_const: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "enum_variant_payload_is_const", type_name, idx, ctx)
         exit(1)
     }
     ref vd : VariantDef = ed.variants[idx]
@@ -6906,7 +6924,7 @@ priv h_enum_variant_payload_is_ref := proc(mut s: Scope, mut e: Expr, mut r: Dyn
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_ref", ctx)
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
-        interp_error(e, "enum_variant_payload_is_ref: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "enum_variant_payload_is_ref", type_name, idx, ctx)
         exit(1)
     }
     ref vd : VariantDef = ed.variants[idx]
@@ -6923,7 +6941,7 @@ priv interp_lookup_funcsig := proc(mut s: Scope, e: Expr, type_name: Str, who: S
     // signature".
     hb_o := scope_lookup_heap_binding(s, type_name)
     if hb_o.is_none() {
-        interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
+        interp_reflect_type_not_found(e, who, type_name, ctx)
         exit(1)
     }
     node_o := hb_func_def(hb_o.unwrap())
@@ -6967,7 +6985,7 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= interp_funcsig_param_count(fd) {
-        interp_error(e, "func_sig_param_type: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "func_sig_param_type", type_name, idx, ctx)
         exit(1)
     }
     ref pd : Declaration = fd.sig.params[idx]
@@ -6981,7 +6999,7 @@ priv h_func_sig_param_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_own_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= interp_funcsig_param_count(fd) {
-        interp_error(e, "func_sig_param_own_type: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "func_sig_param_own_type", type_name, idx, ctx)
         exit(1)
     }
     write_i64(r, own_type_to_i64(fd.sig.params[idx].own_type))
@@ -6994,7 +7012,7 @@ priv h_func_sig_param_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_is_mut", ctx)
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= interp_funcsig_param_count(fd) {
-        interp_error(e, "func_sig_param_is_mut: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "func_sig_param_is_mut", type_name, idx, ctx)
         exit(1)
     }
     if fd.sig.params[idx].is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
@@ -7015,7 +7033,7 @@ priv h_func_sig_return_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
     if idx.neq(0).or(fd.sig.return_type.len().eq(0)) {
-        interp_error(e, "func_sig_return_type: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "func_sig_return_type", type_name, idx, ctx)
         exit(1)
     }
     str_copy_into(r, fd.sig.return_type, ctx)
@@ -7068,7 +7086,7 @@ priv h_func_sig_throw_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= fd.sig.throw_types.len() {
-        interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
+        interp_reflect_index_out_of_range(e, "func_sig_throw_type", type_name, idx, ctx)
         exit(1)
     }
     ref tt : Str = fd.sig.throw_types[idx]

@@ -1,0 +1,26 @@
+mode cli
+
+import("../src/core/io")
+import("../src/core/str")
+
+// Reflection over a type name computed at RUNTIME. Nothing can root the
+// type from a name that does not exist until the program runs, so Point is
+// swept and neither backend has anything to answer with.
+//
+// What each one said about that used to be wrong in its own way: the
+// interpreter reported "type 'Point' not found", which is true but reads
+// like a typo when the type is right there in the source; the emitted
+// dispatcher fell off the end of its strcmp chain into the shared tail and
+// blamed the INDEX -- "type 'Point' index 0 out of range" -- for a type it
+// had no arm for at all. Both now report the miss as a missing type and
+// name the cause that is invisible from the source.
+Point := struct { x : I64 = 0 }
+
+main := proc(seed: Str) {
+    // format() keeps the name out of reach of the constfolder and of the
+    // scavenger's literal rooting alike.
+    nm := format("Poi", seed)
+    ix := seed.len().to_i64().sub(1)
+    print(struct_field_name(nm, ix))
+    print("\n")
+}

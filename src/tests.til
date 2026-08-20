@@ -2043,6 +2043,42 @@ main := proc(args: ..Str) {
     add_count(tests, "introspect_value_name_error_build", "interp",
         "is not a struct", 1,
         format(til_bin, " build -o bin/c/introspect_value_name_error test/introspect_value_name_error.til"))
+    // A reflection miss says WHICH miss it is, the same way on both sides:
+    // a type that is not here (with the swept-type note, since that cause is
+    // invisible in the source) versus an index that is not. The compiled
+    // half is `run`: the dispatcher raises these at runtime, and a constant
+    // argument would have been answered by the constfolder instead.
+    //
+    // Every compiled row spells its own -c. `-c` defaults to
+    // gen/til/<basename>.c, so two rows built from ONE .til file share that
+    // path -- and the runner runs rows in parallel, which had the two rows
+    // below writing the same generated C while one of them compiled it. The
+    // failure reads as a broken compiler, not a broken test: a function cut
+    // in half mid-definition and every symbol after it "declared but never
+    // defined". The interpret rows need no such care (they generate no C),
+    // which is why the older pairs in this file get away with one command
+    // per backend.
+    add_count(tests, "reflect_missing_type_interp", "interp",
+        "not found", 1,
+        format(til_bin, " interpret test/reflect_missing_type_error.til nt"))
+    add_count(tests, "reflect_missing_type_run", "interp",
+        "not found", 1,
+        format(til_bin, " run", asan_flag, " -o bin/c/reflect_missing_type",
+            " -c gen/c/reflect_missing_type.c test/reflect_missing_type_error.til nt"))
+    add_count(tests, "reflect_missing_type_note_interp", "interp",
+        "dropped as unused", 1,
+        format(til_bin, " interpret test/reflect_missing_type_error.til nt"))
+    add_count(tests, "reflect_missing_type_note_run", "interp",
+        "dropped as unused", 1,
+        format(til_bin, " run", asan_flag, " -o bin/c/reflect_missing_type_note",
+            " -c gen/c/reflect_missing_type_note.c test/reflect_missing_type_error.til nt"))
+    add_count(tests, "reflect_index_out_of_range_interp", "interp",
+        "index 92 out of range", 1,
+        format(til_bin, " interpret test/reflect_index_out_of_range_error.til nt"))
+    add_count(tests, "reflect_index_out_of_range_run", "interp",
+        "index 92 out of range", 1,
+        format(til_bin, " run", asan_flag, " -o bin/c/reflect_index_oor",
+            " -c gen/c/reflect_index_oor.c test/reflect_index_out_of_range_error.til nt"))
     // Issue #54: function closures run under both backends.
     add_single(tests, "closures_interp", "closures", 0, "",
         format(til_bin, " interpret test/closures_interp.til"))
