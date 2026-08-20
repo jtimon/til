@@ -23,9 +23,11 @@
      call via FuncSig-typed ref bindings, plus inline
      ~cast(slot, BinaryOp)(args)~.
    - ~func_sig_of~ / ~struct_def_of~ / ~enum_def_of~ introspection.
-     ~func_sig_of~ returns the callable contract as a ~FuncSig~ metadata
-     struct; ~FunctionDef.sig~ embeds the same representation for concrete
-     definitions.
+      ~func_sig_of~ returns callable kind, parameter types/ownership/
+      mutability, variadic/keyword positions, return type/ownership and
+      explicit-shallow provenance, plus ordered throws, as a ~FuncSig~
+      metadata struct; ~FunctionDef.sig~ embeds the same representation for
+      concrete definitions.
    - Type-parameter macros (~Phase now~): ~macro(T: Type) returns
      StructDef|EnumDef|FuncDef~ with inline instantiation hoisted into
      deduped monomorphizations; namespace methods that name ~T~ and
@@ -84,16 +86,19 @@
    | ~FuncSig~   | Calling convention (types)   | ~BinaryOp := func(I64, I64) ret I64~ |
    | ~FuncDef~   | Concrete function (sig+body) | ~add : BinaryOp = (a, b) { ... }~   |
 
-   ~FuncSig~ is a pure type — parameter types, return type, func/proc
-   kind. Parameter *names* are NOT part of the signature, only types.
+   ~FuncSig~ is a pure type: func/proc kind; ordered parameter types,
+   ownership, and mutability; variadic/keyword positions; return type and
+   ownership; and ordered throws. Parameter *names* and parser provenance
+   are NOT part of signature identity.
 
    ~FuncDef~ is a concrete function definition — it has a ~FuncSig~ (its
    type) plus argument names, modifiers, and a body. A FuncDef is to its
    FuncSig what a struct instance is to its StructDef: the signature is
    the type, the definition is the value.
 
-   Function types are *structural*: two signatures with the same parameter
-   types, return type, and throws are the same type regardless of name.
+   Function types are *structural*: two signatures with the same callable
+   kind, parameter contracts, variadic/keyword positions, return contract,
+   and ordered throws are the same type regardless of parameter names.
 
 *** Explicit type annotations (~: Type =~ syntax)
 
@@ -207,8 +212,9 @@
 
    #+begin_src til
    sig := func_sig_of("BinaryOp")
-   sig.args.len()             // 2
-   sig.return_types.len()     // 1
+   sig.params.len()           // 2
+   sig.params[0].own_type     // Ref
+   sig.return_type            // "I64"
    sig.throw_types.len()      // 0
    #+end_src
 
@@ -288,8 +294,10 @@
      gets the real pointer value instead of a NULL written by the
      missing variant in ~ext_dispatch_ffi~.
    - [X] Introspection helpers ~func_sig_of~, ~struct_def_of~,
-     ~enum_def_of~ assemble FuncSig / StructDef / EnumDef values from
-     the loaded program.
+      ~enum_def_of~ assemble FuncSig / StructDef / EnumDef values from
+      the loaded program. ~func_sig_of~ reconstructs the full scalar callable
+      contract and return qualifier provenance; parameter names/default ASTs
+      are deliberately not exposed.
    - [X] Type-parameter macros (~Phase now~): ~func(T: Type)~ and
      ~macro(T: Type)~. Macros taking ~Type~ get a comptime-arg gate
      extension for the ~Type.<Variant>(...)~ constructor form; the

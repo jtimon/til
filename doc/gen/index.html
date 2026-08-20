@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-5393cf454</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1b5c7faf9</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -801,6 +801,10 @@ namespace:
 <pre><code class="language-til">ext_func (type_name: Str, shallow index: I64) returns shallow I64
 </code></pre>
 </li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_func_type">func_sig_func_type</a>
+<pre><code class="language-til">ext_func (type_name: Str) returns shallow I64
+</code></pre>
+</li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_param_count">func_sig_param_count</a>
 <pre><code class="language-til">ext_func (type_name: Str) returns shallow I64
 </code></pre>
@@ -809,12 +813,36 @@ namespace:
 <pre><code class="language-til">ext_func (type_name: Str, shallow index: I64) returns Str
 </code></pre>
 </li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_param_own_type">func_sig_param_own_type</a>
+<pre><code class="language-til">ext_func (type_name: Str, shallow index: I64) returns shallow I64
+</code></pre>
+</li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_param_is_mut">func_sig_param_is_mut</a>
+<pre><code class="language-til">ext_func (type_name: Str, shallow index: I64) returns shallow I64
+</code></pre>
+</li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_return_count">func_sig_return_count</a>
 <pre><code class="language-til">ext_func (type_name: Str) returns shallow I64
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_return_type">func_sig_return_type</a>
 <pre><code class="language-til">ext_func (type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_variadic_index">func_sig_variadic_index</a>
+<pre><code class="language-til">ext_func (type_name: Str) returns shallow I64
+</code></pre>
+</li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_kwargs_index">func_sig_kwargs_index</a>
+<pre><code class="language-til">ext_func (type_name: Str) returns shallow I64
+</code></pre>
+</li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_return_own_type">func_sig_return_own_type</a>
+<pre><code class="language-til">ext_func (type_name: Str) returns shallow I64
+</code></pre>
+</li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_return_shallow_explicit">func_sig_return_shallow_explicit</a>
+<pre><code class="language-til">ext_func (type_name: Str) returns shallow I64
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.func_sig_throw_count">func_sig_throw_count</a>
@@ -1848,6 +1876,14 @@ namespace:
 }
 </code></pre>
 </li>
+<li><a href="src/core/ast.html#til.src.core.ast.func_type_to_i64">func_type_to_i64</a>
+<pre><code class="language-til">func (ft: FuncType) returns shallow I64
+</code></pre>
+</li>
+<li><a href="src/core/ast.html#til.src.core.ast.func_type_from_i64">func_type_from_i64</a>
+<pre><code class="language-til">func (shallow tag: I64) returns FuncType
+</code></pre>
+</li>
 <li><a href="src/core/ast.html#til.src.core.ast.OwnType">OwnType</a>
 <pre><code class="language-til">enum {
     Own
@@ -1870,6 +1906,14 @@ namespace:
     func lte(a: OwnType, b: OwnType) returns shallow Bool
     func gte(a: OwnType, b: OwnType) returns shallow Bool
 }
+</code></pre>
+</li>
+<li><a href="src/core/ast.html#til.src.core.ast.own_type_to_i64">own_type_to_i64</a>
+<pre><code class="language-til">func (own_type: OwnType) returns shallow I64
+</code></pre>
+</li>
+<li><a href="src/core/ast.html#til.src.core.ast.own_type_from_i64">own_type_from_i64</a>
+<pre><code class="language-til">func (shallow tag: I64) returns OwnType
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.GcStorage">GcStorage</a>

@@ -641,6 +641,7 @@
 *** cells := Set(Str).new()
 *** cell_types := Map(Str, Str).new()
 *** raw_refs := Set(Str).new()
+*** callable_defs := Map(Str, Str).new()
 *** return_cell := false
 * repl_editor
 ** EditAction: EnumDef

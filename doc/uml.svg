@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="7104" height="5008" viewBox="0 0 7104 5008">
+<svg xmlns="http://www.w3.org/2000/svg" width="7128" height="5008" viewBox="0 0 7128 5008">
   <defs>
     <style>
       .bg { fill: #f7f5ef; }
@@ -9,7 +9,7 @@
       .line { font: 13px 'Courier New', monospace; fill: #1f2937; }
     </style>
   </defs>
-  <rect class="bg" x="0" y="0" width="7104" height="5008"/>
+  <rect class="bg" x="0" y="0" width="7128" height="5008"/>
   <rect x="24" y="24" width="284" height="786" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
   <rect x="44" y="88" width="172" height="550" rx="10" ry="10" class="box"/>
@@ -743,44 +743,45 @@
   <text x="6090" y="144" class="line">user_functions := Set(Str).new()</text>
   <text x="6090" y="162" class="line">needs_i64_div := false</text>
   <text x="6090" y="180" class="line">needs_i64_mod := false</text>
-  <rect x="6414" y="24" width="332" height="236" rx="14" ry="14" class="panel"/>
+  <rect x="6414" y="24" width="356" height="254" rx="14" ry="14" class="panel"/>
   <text x="6434" y="62" class="panel-label">jvm_codegen</text>
-  <rect x="6434" y="88" width="292" height="154" rx="10" ry="10" class="box"/>
+  <rect x="6434" y="88" width="316" height="172" rx="10" ry="10" class="box"/>
   <text x="6448" y="126" class="title">JvmEmitState: StructDef</text>
   <text x="6448" y="144" class="line">path := &quot;&quot;</text>
   <text x="6448" y="162" class="line">errors : I32 = 0</text>
   <text x="6448" y="180" class="line">cells := Set(Str).new()</text>
   <text x="6448" y="198" class="line">cell_types := Map(Str, Str).new()</text>
   <text x="6448" y="216" class="line">raw_refs := Set(Str).new()</text>
-  <text x="6448" y="234" class="line">return_cell := false</text>
-  <rect x="6780" y="24" width="300" height="652" rx="14" ry="14" class="panel"/>
-  <text x="6800" y="62" class="panel-label">repl_editor</text>
-  <rect x="6800" y="88" width="180" height="136" rx="10" ry="10" class="box"/>
-  <text x="6814" y="126" class="title">EditAction: EnumDef</text>
-  <text x="6814" y="144" class="line">Continue</text>
-  <text x="6814" y="162" class="line">Submit</text>
-  <text x="6814" y="180" class="line">Eof</text>
-  <text x="6814" y="198" class="line">Bell</text>
-  <text x="6814" y="216" class="line">ClearScreen }</text>
-  <rect x="6800" y="242" width="260" height="316" rx="10" ry="10" class="box"/>
-  <text x="6814" y="280" class="title">ReplEditor: StructDef</text>
-  <text x="6814" y="298" class="line">interactive := false</text>
-  <text x="6814" y="316" class="line">hist_path := &quot;&quot;</text>
-  <text x="6814" y="334" class="line">persist := false</text>
-  <text x="6814" y="352" class="line">own history := Vec(Str).new()</text>
-  <text x="6814" y="370" class="line">prompt := &quot;&quot;</text>
-  <text x="6814" y="388" class="line">line := &quot;&quot;</text>
-  <text x="6814" y="406" class="line">cursor : USize = 0</text>
-  <text x="6814" y="424" class="line">view_start : USize = 0</text>
-  <text x="6814" y="442" class="line">hist_idx : USize = 0</text>
-  <text x="6814" y="460" class="line">draft := &quot;&quot;</text>
-  <text x="6814" y="478" class="line">searching := false</text>
-  <text x="6814" y="496" class="line">search_query := &quot;&quot;</text>
-  <text x="6814" y="514" class="line">search_idx : I64 = -1</text>
-  <text x="6814" y="532" class="line">saved_line := &quot;&quot;</text>
-  <text x="6814" y="550" class="line">saved_cursor : USize = 0</text>
-  <rect x="6800" y="576" width="204" height="82" rx="10" ry="10" class="box"/>
-  <text x="6814" y="614" class="title">AnsiDecoder: StructDef</text>
-  <text x="6814" y="632" class="line">state : I64 = 0</text>
-  <text x="6814" y="650" class="line">params := &quot;&quot;</text>
+  <text x="6448" y="234" class="line">callable_defs := Map(Str, Str).new()</text>
+  <text x="6448" y="252" class="line">return_cell := false</text>
+  <rect x="6804" y="24" width="300" height="652" rx="14" ry="14" class="panel"/>
+  <text x="6824" y="62" class="panel-label">repl_editor</text>
+  <rect x="6824" y="88" width="180" height="136" rx="10" ry="10" class="box"/>
+  <text x="6838" y="126" class="title">EditAction: EnumDef</text>
+  <text x="6838" y="144" class="line">Continue</text>
+  <text x="6838" y="162" class="line">Submit</text>
+  <text x="6838" y="180" class="line">Eof</text>
+  <text x="6838" y="198" class="line">Bell</text>
+  <text x="6838" y="216" class="line">ClearScreen }</text>
+  <rect x="6824" y="242" width="260" height="316" rx="10" ry="10" class="box"/>
+  <text x="6838" y="280" class="title">ReplEditor: StructDef</text>
+  <text x="6838" y="298" class="line">interactive := false</text>
+  <text x="6838" y="316" class="line">hist_path := &quot;&quot;</text>
+  <text x="6838" y="334" class="line">persist := false</text>
+  <text x="6838" y="352" class="line">own history := Vec(Str).new()</text>
+  <text x="6838" y="370" class="line">prompt := &quot;&quot;</text>
+  <text x="6838" y="388" class="line">line := &quot;&quot;</text>
+  <text x="6838" y="406" class="line">cursor : USize = 0</text>
+  <text x="6838" y="424" class="line">view_start : USize = 0</text>
+  <text x="6838" y="442" class="line">hist_idx : USize = 0</text>
+  <text x="6838" y="460" class="line">draft := &quot;&quot;</text>
+  <text x="6838" y="478" class="line">searching := false</text>
+  <text x="6838" y="496" class="line">search_query := &quot;&quot;</text>
+  <text x="6838" y="514" class="line">search_idx : I64 = -1</text>
+  <text x="6838" y="532" class="line">saved_line := &quot;&quot;</text>
+  <text x="6838" y="550" class="line">saved_cursor : USize = 0</text>
+  <rect x="6824" y="576" width="204" height="82" rx="10" ry="10" class="box"/>
+  <text x="6838" y="614" class="title">AnsiDecoder: StructDef</text>
+  <text x="6838" y="632" class="line">state : I64 = 0</text>
+  <text x="6838" y="650" class="line">params := &quot;&quot;</text>
 </svg>

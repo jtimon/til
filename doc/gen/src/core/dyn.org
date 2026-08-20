@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-5393cf454
+#+SUBTITLE: til 0.0.1-1b5c7faf9
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -271,6 +271,16 @@ ext_func enum_variant_payload_is_const(type_name: Str, shallow index: I64) retur
 ext_func enum_variant_payload_is_ref(type_name: Str, shallow index: I64) returns shallow I64
 #+end_src
 
+* func_sig_func_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_func_type
+:group: Core
+:END:
+
+#+begin_src til
+ext_func func_sig_func_type(type_name: Str) returns shallow I64
+#+end_src
+
 * func_sig_param_count
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.dyn.func_sig_param_count
@@ -291,6 +301,26 @@ ext_func func_sig_param_count(type_name: Str) returns shallow I64
 ext_func func_sig_param_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
+* func_sig_param_own_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_param_own_type
+:group: Core
+:END:
+
+#+begin_src til
+ext_func func_sig_param_own_type(type_name: Str, shallow index: I64) returns shallow I64
+#+end_src
+
+* func_sig_param_is_mut
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_param_is_mut
+:group: Core
+:END:
+
+#+begin_src til
+ext_func func_sig_param_is_mut(type_name: Str, shallow index: I64) returns shallow I64
+#+end_src
+
 * func_sig_return_count
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.dyn.func_sig_return_count
@@ -309,6 +339,46 @@ ext_func func_sig_return_count(type_name: Str) returns shallow I64
 
 #+begin_src til
 ext_func func_sig_return_type(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+* func_sig_variadic_index
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_variadic_index
+:group: Core
+:END:
+
+#+begin_src til
+ext_func func_sig_variadic_index(type_name: Str) returns shallow I64
+#+end_src
+
+* func_sig_kwargs_index
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_kwargs_index
+:group: Core
+:END:
+
+#+begin_src til
+ext_func func_sig_kwargs_index(type_name: Str) returns shallow I64
+#+end_src
+
+* func_sig_return_own_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_return_own_type
+:group: Core
+:END:
+
+#+begin_src til
+ext_func func_sig_return_own_type(type_name: Str) returns shallow I64
+#+end_src
+
+* func_sig_return_shallow_explicit
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_return_shallow_explicit
+:group: Core
+:END:
+
+#+begin_src til
+ext_func func_sig_return_shallow_explicit(type_name: Str) returns shallow I64
 #+end_src
 
 * func_sig_throw_count

@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-5393cf454
+#+SUBTITLE: til 0.0.1-1b5c7faf9
 #+OPTIONS: toc:t
 
 * Core
@@ -851,6 +851,11 @@ ext_func enum_variant_payload_is_const(type_name: Str, shallow index: I64) retur
 ext_func enum_variant_payload_is_ref(type_name: Str, shallow index: I64) returns shallow I64
 #+end_src
 
+** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_func_type][func_sig_func_type]]
+#+begin_src til
+ext_func func_sig_func_type(type_name: Str) returns shallow I64
+#+end_src
+
 ** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_param_count][func_sig_param_count]]
 #+begin_src til
 ext_func func_sig_param_count(type_name: Str) returns shallow I64
@@ -861,6 +866,16 @@ ext_func func_sig_param_count(type_name: Str) returns shallow I64
 ext_func func_sig_param_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
+** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_param_own_type][func_sig_param_own_type]]
+#+begin_src til
+ext_func func_sig_param_own_type(type_name: Str, shallow index: I64) returns shallow I64
+#+end_src
+
+** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_param_is_mut][func_sig_param_is_mut]]
+#+begin_src til
+ext_func func_sig_param_is_mut(type_name: Str, shallow index: I64) returns shallow I64
+#+end_src
+
 ** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_return_count][func_sig_return_count]]
 #+begin_src til
 ext_func func_sig_return_count(type_name: Str) returns shallow I64
@@ -869,6 +884,26 @@ ext_func func_sig_return_count(type_name: Str) returns shallow I64
 ** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_return_type][func_sig_return_type]]
 #+begin_src til
 ext_func func_sig_return_type(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_variadic_index][func_sig_variadic_index]]
+#+begin_src til
+ext_func func_sig_variadic_index(type_name: Str) returns shallow I64
+#+end_src
+
+** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_kwargs_index][func_sig_kwargs_index]]
+#+begin_src til
+ext_func func_sig_kwargs_index(type_name: Str) returns shallow I64
+#+end_src
+
+** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_return_own_type][func_sig_return_own_type]]
+#+begin_src til
+ext_func func_sig_return_own_type(type_name: Str) returns shallow I64
+#+end_src
+
+** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_return_shallow_explicit][func_sig_return_shallow_explicit]]
+#+begin_src til
+ext_func func_sig_return_shallow_explicit(type_name: Str) returns shallow I64
 #+end_src
 
 ** [[file:src/core/dyn.org::#til.src.core.dyn.func_sig_throw_count][func_sig_throw_count]]
@@ -2030,6 +2065,16 @@ namespace:
 }
 #+end_src
 
+** [[file:src/core/ast.org::#til.src.core.ast.func_type_to_i64][func_type_to_i64]]
+#+begin_src til
+func func_type_to_i64(ft: FuncType) returns shallow I64
+#+end_src
+
+** [[file:src/core/ast.org::#til.src.core.ast.func_type_from_i64][func_type_from_i64]]
+#+begin_src til
+func func_type_from_i64(shallow tag: I64) returns FuncType
+#+end_src
+
 ** [[file:src/core/ast.org::#til.src.core.ast.OwnType][OwnType]]
 #+begin_src til
 enum OwnType {
@@ -2053,6 +2098,16 @@ namespace:
     func lte(a: OwnType, b: OwnType) returns shallow Bool
     func gte(a: OwnType, b: OwnType) returns shallow Bool
 }
+#+end_src
+
+** [[file:src/core/ast.org::#til.src.core.ast.own_type_to_i64][own_type_to_i64]]
+#+begin_src til
+func own_type_to_i64(own_type: OwnType) returns shallow I64
+#+end_src
+
+** [[file:src/core/ast.org::#til.src.core.ast.own_type_from_i64][own_type_from_i64]]
+#+begin_src til
+func own_type_from_i64(shallow tag: I64) returns OwnType
 #+end_src
 
 ** [[file:src/core/ast.org::#til.src.core.ast.GcStorage][GcStorage]]

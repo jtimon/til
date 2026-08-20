@@ -107,7 +107,11 @@ The signature/definition split:
 til now has the same contract/definition boundary: =FuncSig= owns callable
 metadata and =FunctionDef.sig= embeds it. Unlike rstil, til's signature
 =Declaration=s retain parameter names for definitions, so no parallel
-=arg_names= vector is needed.
+=arg_names= vector is needed. til's structural signature identity compares
+callable kind, ordered parameter types/ownership/mutability, return type/
+ownership, variadic and keyword positions, and ordered throws. It ignores
+parameter names and =return_shallow_explicit=; the latter is parser provenance
+used by diagnostics rather than callable identity.
 
 ** StructDef / NamespaceDef (ast.rs:117 / 148)
 =StructDef= = =members: Vec<Declaration>= + =default_values= + =ns:

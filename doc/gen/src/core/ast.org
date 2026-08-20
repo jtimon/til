@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-5393cf454
+#+SUBTITLE: til 0.0.1-1b5c7faf9
 #+OPTIONS: toc:t
 
 * Primitive
@@ -159,6 +159,26 @@ namespace:
 }
 #+end_src
 
+* func_type_to_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.func_type_to_i64
+:group: Core
+:END:
+
+#+begin_src til
+func func_type_to_i64(ft: FuncType) returns shallow I64
+#+end_src
+
+* func_type_from_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.func_type_from_i64
+:group: Core
+:END:
+
+#+begin_src til
+func func_type_from_i64(shallow tag: I64) returns FuncType
+#+end_src
+
 * OwnType
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.ast.OwnType
@@ -189,6 +209,26 @@ namespace:
     func lte(a: OwnType, b: OwnType) returns shallow Bool
     func gte(a: OwnType, b: OwnType) returns shallow Bool
 }
+#+end_src
+
+* own_type_to_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.own_type_to_i64
+:group: Core
+:END:
+
+#+begin_src til
+func own_type_to_i64(own_type: OwnType) returns shallow I64
+#+end_src
+
+* own_type_from_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.own_type_from_i64
+:group: Core
+:END:
+
+#+begin_src til
+func own_type_from_i64(shallow tag: I64) returns OwnType
 #+end_src
 
 * GcStorage

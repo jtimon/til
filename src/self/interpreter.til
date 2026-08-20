@@ -6886,11 +6886,28 @@ priv interp_lookup_funcsig := proc(mut s: Scope, e: Expr, type_name: Str, who: S
     return node_o.unwrap()
 }
 
+// Throw lowering appends ABI-only `_err_kind` / payload parameters. Reflection
+// exposes the source callable contract, not that synthetic tail.
+priv interp_funcsig_param_count := func(fd: FunctionDef) returns USize {
+    for i in 0..fd.sig.params.len() {
+        if fd.sig.params[i].name == "_err_kind" { return i }
+    }
+    return fd.sig.params.len()
+}
+
+priv h_func_sig_func_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_func_type", ctx)
+    ref fd : FunctionDef = funcdef_of(node)
+    write_i64(r, func_type_to_i64(fd.sig.func_type))
+    return true
+}
+
 priv h_func_sig_param_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    write_i64(r, fd.sig.params.len().to_i64())
+    write_i64(r, interp_funcsig_param_count(fd).to_i64())
     return true
 }
 
@@ -6899,12 +6916,38 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     ref fd : FunctionDef = funcdef_of(node)
-    if idx >= fd.sig.params.len() {
+    if idx >= interp_funcsig_param_count(fd) {
         interp_error(e, "func_sig_param_type: index out of bounds", ctx)
         exit(1)
     }
     ref pd : Declaration = fd.sig.params[idx]
     str_copy_into(r, pd.type_name(), ctx)
+    return true
+}
+
+priv h_func_sig_param_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    idx := eval_index_arg(s, e, ctx)
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_own_type", ctx)
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx >= interp_funcsig_param_count(fd) {
+        interp_error(e, "func_sig_param_own_type: index out of bounds", ctx)
+        exit(1)
+    }
+    write_i64(r, own_type_to_i64(fd.sig.params[idx].own_type))
+    return true
+}
+
+priv h_func_sig_param_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    idx := eval_index_arg(s, e, ctx)
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_is_mut", ctx)
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx >= interp_funcsig_param_count(fd) {
+        interp_error(e, "func_sig_param_is_mut: index out of bounds", ctx)
+        exit(1)
+    }
+    if fd.sig.params[idx].is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -6926,6 +6969,38 @@ priv h_func_sig_return_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
         exit(1)
     }
     str_copy_into(r, fd.sig.return_type, ctx)
+    return true
+}
+
+priv h_func_sig_variadic_index := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_variadic_index", ctx)
+    ref fd : FunctionDef = funcdef_of(node)
+    write_i64(r, fd.sig.variadic_index.cast(I64))
+    return true
+}
+
+priv h_func_sig_kwargs_index := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_kwargs_index", ctx)
+    ref fd : FunctionDef = funcdef_of(node)
+    write_i64(r, fd.sig.kwargs_index.cast(I64))
+    return true
+}
+
+priv h_func_sig_return_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_own_type", ctx)
+    ref fd : FunctionDef = funcdef_of(node)
+    write_i64(r, own_type_to_i64(fd.sig.return_own_type))
+    return true
+}
+
+priv h_func_sig_return_shallow_explicit := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_shallow_explicit", ctx)
+    ref fd : FunctionDef = funcdef_of(node)
+    if fd.sig.return_shallow_explicit { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -7725,10 +7800,17 @@ priv dispatch_init := func(mut ctx: Context) {
     reg_dispatch("enum_variant_tag_value", h_enum_variant_tag_value, ctx)
     reg_dispatch("enum_variant_payload_is_const", h_enum_variant_payload_is_const, ctx)
     reg_dispatch("enum_variant_payload_is_ref", h_enum_variant_payload_is_ref, ctx)
+    reg_dispatch("func_sig_func_type", h_func_sig_func_type, ctx)
     reg_dispatch("func_sig_param_count", h_func_sig_param_count, ctx)
     reg_dispatch("func_sig_param_type", h_func_sig_param_type, ctx)
+    reg_dispatch("func_sig_param_own_type", h_func_sig_param_own_type, ctx)
+    reg_dispatch("func_sig_param_is_mut", h_func_sig_param_is_mut, ctx)
     reg_dispatch("func_sig_return_count", h_func_sig_return_count, ctx)
     reg_dispatch("func_sig_return_type", h_func_sig_return_type, ctx)
+    reg_dispatch("func_sig_variadic_index", h_func_sig_variadic_index, ctx)
+    reg_dispatch("func_sig_kwargs_index", h_func_sig_kwargs_index, ctx)
+    reg_dispatch("func_sig_return_own_type", h_func_sig_return_own_type, ctx)
+    reg_dispatch("func_sig_return_shallow_explicit", h_func_sig_return_shallow_explicit, ctx)
     reg_dispatch("func_sig_throw_count", h_func_sig_throw_count, ctx)
     reg_dispatch("func_sig_throw_type", h_func_sig_throw_type, ctx)
     reg_dispatch("dyn_type_to_str", h_dyn_type_to_str, ctx)

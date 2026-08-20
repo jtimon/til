@@ -3913,12 +3913,23 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             f.write(", ")
             emit_as_ptr(f, e.children[2], depth, false, ctx)
             f.write(")")
-        } else if name.ident_name(ctx.symbols.names).eq("func_sig_param_count").or(name.ident_name(ctx.symbols.names).eq("func_sig_return_count")).or(name.ident_name(ctx.symbols.names).eq("func_sig_throw_count")) {
+        } else if or(name.ident_name(ctx.symbols.names).eq("func_sig_func_type"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_param_count"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_return_count"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_variadic_index"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_kwargs_index"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_return_own_type"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_return_shallow_explicit"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_throw_count")) {
             f.write(name.ident_name(ctx.symbols.names))
             f.write("(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(")")
-        } else if name.ident_name(ctx.symbols.names).eq("func_sig_param_type").or(name.ident_name(ctx.symbols.names).eq("func_sig_return_type")).or(name.ident_name(ctx.symbols.names).eq("func_sig_throw_type")) {
+        } else if or(name.ident_name(ctx.symbols.names).eq("func_sig_param_type"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_param_own_type"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_param_is_mut"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_return_type"),
+                     name.ident_name(ctx.symbols.names).eq("func_sig_throw_type")) {
             f.write(name.ident_name(ctx.symbols.names))
             f.write("(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
@@ -7407,7 +7418,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
         f.write(builder_static_prefix(lp.ctx)).write("USize dyn_storage_kind(Str *type_name);\n")
     }
     // Per NAME, not per family. The family key keeps the metadata alive
-    // (the literals the bodies return), but emitting all four/seven/six
+    // (the literals the bodies return), but emitting all four/seven/thirteen
     // members because one was mentioned defines statics nothing calls, and
     // -Werror=unused-function then refuses to build the program: a file
     // whose only reflect call was `struct_field_name(runtime_name, i)`
@@ -7447,17 +7458,38 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     if builder_needs_reflect("enum_variant_payload_is_ref", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index);\n")
     }
+    if builder_needs_reflect("func_sig_func_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_func_type(Str *type_name);\n")
+    }
     if builder_needs_reflect("func_sig_param_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_count(Str *type_name);\n")
     }
     if builder_needs_reflect("func_sig_param_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_param_type(Str *type_name, I64 *index);\n")
     }
+    if builder_needs_reflect("func_sig_param_own_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_own_type(Str *type_name, I64 *index);\n")
+    }
+    if builder_needs_reflect("func_sig_param_is_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_is_mut(Str *type_name, I64 *index);\n")
+    }
     if builder_needs_reflect("func_sig_return_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_count(Str *type_name);\n")
     }
     if builder_needs_reflect("func_sig_return_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_return_type(Str *type_name, I64 *index);\n")
+    }
+    if builder_needs_reflect("func_sig_variadic_index", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_variadic_index(Str *type_name);\n")
+    }
+    if builder_needs_reflect("func_sig_kwargs_index", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_kwargs_index(Str *type_name);\n")
+    }
+    if builder_needs_reflect("func_sig_return_own_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_own_type(Str *type_name);\n")
+    }
+    if builder_needs_reflect("func_sig_return_shallow_explicit", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_shallow_explicit(Str *type_name);\n")
     }
     if builder_needs_reflect("func_sig_throw_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name);\n")
@@ -8003,7 +8035,16 @@ priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
 // Issue #58: emit one FuncSig's branch for a func_sig_* function. A
 // FuncSig is a bodyless func/proc decl. kind 0 = param_count,
 // 1 = param_type, 2 = return_count, 3 = return_type, 4 = throw_count,
-// 5 = throw_type.
+// 5 = throw_type, 6 = func_type, 7 = param_own_type, 8 = param_is_mut,
+// 9 = variadic_index, 10 = kwargs_index, 11 = return_own_type,
+// 12 = return_shallow_explicit.
+priv funcsig_reflect_param_count := func(fd: FunctionDef) returns USize {
+    for i in 0..fd.sig.params.len() {
+        if fd.sig.params[i].name == "_err_kind" { return i }
+    }
+    return fd.sig.params.len()
+}
+
 priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
@@ -8019,16 +8060,37 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
         tlen := fname.len()
         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(fname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
         if kind == 0 {
-            f.write("        return "); emit_usize(f, fd.sig.params.len()); f.write("LL;\n")
+            f.write("        return "); emit_usize(f, funcsig_reflect_param_count(fd)); f.write("LL;\n")
         } else if kind == 2 {
             if fd.sig.return_type.len() > 0 { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
         } else if kind == 4 {
             f.write("        return "); emit_usize(f, fd.sig.throw_types.len()); f.write("LL;\n")
+        } else if kind == 6 {
+            f.write("        return ").write(func_type_to_i64(fd.sig.func_type).to_str()).write("LL;\n")
+        } else if kind == 9 {
+            f.write("        return "); emit_i32(f, fd.sig.variadic_index); f.write("LL;\n")
+        } else if kind == 10 {
+            f.write("        return "); emit_i32(f, fd.sig.kwargs_index); f.write("LL;\n")
+        } else if kind == 11 {
+            f.write("        return ").write(own_type_to_i64(fd.sig.return_own_type).to_str()).write("LL;\n")
+        } else if kind == 12 {
+            if fd.sig.return_shallow_explicit { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
         } else if kind == 1 {
-            for i in 0..fd.sig.params.len() {
+            for i in 0..funcsig_reflect_param_count(fd) {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 emit_str_lit_expr(f, fd.sig.params[i].type_name(), ctx)
                 f.write(";\n")
+            }
+        } else if kind.eq(7).or(kind.eq(8)) {
+            for i in 0..funcsig_reflect_param_count(fd) {
+                f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
+                if kind == 7 {
+                    f.write(own_type_to_i64(fd.sig.params[i].own_type).to_str()).write("LL;\n")
+                } else if fd.sig.params[i].is_mut {
+                    f.write("1LL;\n")
+                } else {
+                    f.write("0LL;\n")
+                }
             }
         } else if kind == 3 {
             if fd.sig.return_type.len() > 0 {
@@ -8036,12 +8098,14 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
                 emit_str_lit_expr(f, fd.sig.return_type, ctx)
                 f.write(";\n")
             }
-        } else {
+        } else if kind == 5 {
             for i in 0..fd.sig.throw_types.len() {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 emit_str_lit_expr(f, fd.sig.throw_types[i], ctx)
                 f.write(";\n")
             }
+        } else {
+            UNREACHABLE("unknown func_sig reflection kind")
         }
         f.write("    }\n")
     case:
@@ -8060,6 +8124,11 @@ priv emit_funcsig_branches := proc(f: File, kind: I32, mut lp: LoadedProgram) {
 // Issue #58: emit the C bodies for the func_sig_* introspection
 // primitives. Each is a strcmp chain over every loaded FuncSig type.
 priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
+    if builder_needs_reflect("func_sig_func_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_func_type(Str *type_name) {\n")
+        emit_funcsig_branches(f, 6, lp)
+        f.write("    fprintf(stderr, \"func_sig_func_type: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+    }
     if builder_needs_reflect("func_sig_param_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_count(Str *type_name) {\n")
         emit_funcsig_branches(f, 0, lp)
@@ -8070,6 +8139,16 @@ priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
         emit_funcsig_branches(f, 1, lp)
         f.write("    fprintf(stderr, \"func_sig_param_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
     }
+    if builder_needs_reflect("func_sig_param_own_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_own_type(Str *type_name, I64 *index) {\n")
+        emit_funcsig_branches(f, 7, lp)
+        f.write("    fprintf(stderr, \"func_sig_param_own_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+    }
+    if builder_needs_reflect("func_sig_param_is_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_param_is_mut(Str *type_name, I64 *index) {\n")
+        emit_funcsig_branches(f, 8, lp)
+        f.write("    fprintf(stderr, \"func_sig_param_is_mut: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+    }
     if builder_needs_reflect("func_sig_return_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_count(Str *type_name) {\n")
         emit_funcsig_branches(f, 2, lp)
@@ -8079,6 +8158,26 @@ priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_return_type(Str *type_name, I64 *index) {\n")
         emit_funcsig_branches(f, 3, lp)
         f.write("    fprintf(stderr, \"func_sig_return_type: type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n    exit(1);\n}\n\n")
+    }
+    if builder_needs_reflect("func_sig_variadic_index", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_variadic_index(Str *type_name) {\n")
+        emit_funcsig_branches(f, 9, lp)
+        f.write("    fprintf(stderr, \"func_sig_variadic_index: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+    }
+    if builder_needs_reflect("func_sig_kwargs_index", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_kwargs_index(Str *type_name) {\n")
+        emit_funcsig_branches(f, 10, lp)
+        f.write("    fprintf(stderr, \"func_sig_kwargs_index: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+    }
+    if builder_needs_reflect("func_sig_return_own_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_own_type(Str *type_name) {\n")
+        emit_funcsig_branches(f, 11, lp)
+        f.write("    fprintf(stderr, \"func_sig_return_own_type: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+    }
+    if builder_needs_reflect("func_sig_return_shallow_explicit", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_shallow_explicit(Str *type_name) {\n")
+        emit_funcsig_branches(f, 12, lp)
+        f.write("    fprintf(stderr, \"func_sig_return_shallow_explicit: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
     }
     if builder_needs_reflect("func_sig_throw_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name) {\n")
@@ -10036,8 +10135,12 @@ priv builder_is_reflect_builtin_name := func(n: Str) returns Bool {
          "enum_variant_payload_type", "enum_variant_tag_value",
          "enum_variant_payload_is_const", "enum_variant_payload_is_ref":
         return true
-    case "func_sig_param_count", "func_sig_param_type", "func_sig_return_count",
-         "func_sig_return_type", "func_sig_throw_count", "func_sig_throw_type":
+    case "func_sig_func_type", "func_sig_param_count", "func_sig_param_type",
+         "func_sig_param_own_type", "func_sig_param_is_mut",
+         "func_sig_return_count", "func_sig_return_type",
+         "func_sig_variadic_index", "func_sig_kwargs_index",
+         "func_sig_return_own_type", "func_sig_return_shallow_explicit",
+         "func_sig_throw_count", "func_sig_throw_type":
         return true
     case:
     }
@@ -10045,7 +10148,7 @@ priv builder_is_reflect_builtin_name := func(n: Str) returns Bool {
 }
 priv builder_record_reflect_name := func(n: Str, mut inv: Set(Str)) {
     if inv.has(n).not() { inv.add(own Str.clone(n)) }
-    // The four struct_* / seven enum_* / six func_sig_* primitives share
+    // The four struct_* / seven enum_* / thirteen func_sig_* primitives share
     // one emitted body group, so record the family key too: one mention
     // keeps the whole group.
     if n.starts_with("struct_field_") {

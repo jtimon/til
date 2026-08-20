@@ -162,9 +162,61 @@ namespace:
     }
 }
 
+// Stable reflection encoding. Keep this explicit: enum declaration order is
+// bootstrap ABI, but runtime metadata must not depend on an implicit cast.
+func_type_to_i64 := func(ft: FuncType) returns I64 {
+    switch ft {
+    case .Func: return 0
+    case .Proc: return 1
+    case .Test: return 2
+    case .Macro: return 3
+    case .ExtFunc: return 4
+    case .ExtProc: return 5
+    case .LazyFunc: return 6
+    case .LazyProc: return 7
+    case .CoreFunc: return 8
+    case .CoreProc: return 9
+    case .CoreLazyFunc: return 10
+    }
+}
+
+func_type_from_i64 := func(tag: I64) returns FuncType {
+    switch tag {
+    case 0: return FuncType.Func
+    case 1: return FuncType.Proc
+    case 2: return FuncType.Test
+    case 3: return FuncType.Macro
+    case 4: return FuncType.ExtFunc
+    case 5: return FuncType.ExtProc
+    case 6: return FuncType.LazyFunc
+    case 7: return FuncType.LazyProc
+    case 8: return FuncType.CoreFunc
+    case 9: return FuncType.CoreProc
+    case 10: return FuncType.CoreLazyFunc
+    case: panic(__LOC__, "invalid FuncType reflection tag: ", tag.to_str())
+    }
+}
+
 /// Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
 OwnType := enum {
     Own, Ref, Shallow,
+}
+
+own_type_to_i64 := func(own_type: OwnType) returns I64 {
+    switch own_type {
+    case .Own: return 0
+    case .Ref: return 1
+    case .Shallow: return 2
+    }
+}
+
+own_type_from_i64 := func(tag: I64) returns OwnType {
+    switch tag {
+    case 0: return OwnType.Own
+    case 1: return OwnType.Ref
+    case 2: return OwnType.Shallow
+    case: panic(__LOC__, "invalid OwnType reflection tag: ", tag.to_str())
+    }
 }
 
 // --- Declaration struct ---
@@ -312,7 +364,26 @@ FuncSig := struct {
     // user's original intent across re-inference so the check stays idempotent.
     return_shallow_explicit := false
 namespace:
-    eq := func(a: FuncSig, b: FuncSig) returns Bool { return a.return_type == b.return_type }
+    eq := func(a: FuncSig, b: FuncSig) returns Bool {
+        if a.func_type != b.func_type { return false }
+        if a.params.len() != b.params.len() { return false }
+        for i in 0..a.params.len() {
+            ref ap : Declaration = a.params[i]
+            ref bp : Declaration = b.params[i]
+            if ap.til_type != bp.til_type { return false }
+            if ap.own_type != bp.own_type { return false }
+            if ap.is_mut != bp.is_mut { return false }
+        }
+        if a.return_type != b.return_type { return false }
+        if a.return_own_type != b.return_own_type { return false }
+        if a.variadic_index != b.variadic_index { return false }
+        if a.kwargs_index != b.kwargs_index { return false }
+        if a.throw_types.len() != b.throw_types.len() { return false }
+        for i in 0..a.throw_types.len() {
+            if a.throw_types[i] != b.throw_types[i] { return false }
+        }
+        return true
+    }
     to_str := func(self: FuncSig) returns Str { return self.return_type }
 }
 

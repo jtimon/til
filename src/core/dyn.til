@@ -130,14 +130,22 @@ enum_variant_payload_is_ref := ext_func(type_name: Str, shallow index: I64) retu
 
 // FuncSig introspection primitives (issue #58). Query a registered
 // FuncSig type (a bodyless func/proc, e.g. `BinaryOp := func(I64, I64)
-// returns I64`) for its parameter types, return type, and declared
-// throw types by name. til funcs have at most one return type, so
-// func_sig_return_count is 0 (procs) or 1. Parameter names are not part
-// of a signature, so only types are exposed.
+// returns I64`) for its callable contract and return qualifier provenance.
+// til funcs have at most one return type, so func_sig_return_count is 0
+// (procs) or 1. Parameter names and default ASTs are deliberately absent:
+// names are not signature identity and runtime reflection cannot reconstruct
+// arbitrary default expressions.
+func_sig_func_type := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_param_count := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_param_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
+func_sig_param_own_type := ext_func(type_name: Str, shallow index: I64) returns shallow I64 {}
+func_sig_param_is_mut := ext_func(type_name: Str, shallow index: I64) returns shallow I64 {}
 func_sig_return_count := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_return_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
+func_sig_variadic_index := ext_func(type_name: Str) returns shallow I64 {}
+func_sig_kwargs_index := ext_func(type_name: Str) returns shallow I64 {}
+func_sig_return_own_type := ext_func(type_name: Str) returns shallow I64 {}
+func_sig_return_shallow_explicit := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_throw_count := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_throw_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
 
@@ -178,19 +186,26 @@ enum_def_of := func(type_name: Str) returns EnumDef {
     return def
 }
 
-// Issue #58: assemble a FuncSig value for a registered
-// FuncSig type via the func_sig_* primitives above. Parameter Declarations
-// carry only their type (signatures have no parameter names); a single
-// return type and the throw-type list are filled when present. Mirrors
-// rstil's func_sig_of.
+// Issue #58: assemble a FuncSig value for a registered FuncSig type via the
+// func_sig_* primitives above. Parameter names/defaults remain absent, while
+// the complete scalar contract and return qualifier provenance are restored.
+// Mirrors rstil's func_sig_of.
 func_sig_of := func(type_name: Str) returns FuncSig {
     mut sig := FuncSig()
+    sig.func_type = func_type_from_i64(func_sig_func_type(type_name))
     pn := func_sig_param_count(type_name)
     for i in 0..pn {
-        mut decl := Declaration()
-        decl.til_type = declaration_type_from_name(func_sig_param_type(type_name, i))
+        reflected_type := declaration_type_from_name(func_sig_param_type(type_name, i))
+        reflected_own_type := own_type_from_i64(func_sig_param_own_type(type_name, i))
+        mut decl := Declaration(til_type = reflected_type,
+            own_type = reflected_own_type,
+            is_mut = func_sig_param_is_mut(type_name, i) == 1)
         sig.params.push(own decl)
     }
+    sig.variadic_index = func_sig_variadic_index(type_name).to_i32()
+    sig.kwargs_index = func_sig_kwargs_index(type_name).to_i32()
+    sig.return_own_type = own_type_from_i64(func_sig_return_own_type(type_name))
+    sig.return_shallow_explicit = func_sig_return_shallow_explicit(type_name) == 1
     if func_sig_return_count(type_name) == 1 {
         sig.return_type = func_sig_return_type(type_name, 0)
     }

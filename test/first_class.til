@@ -1292,12 +1292,78 @@ test_enum_def_of_lossless := test() {
     assert_eq(Str, "I64", d1.payload_type)
 }
 
-// --- FuncSig introspection primitives (issue #58) ---
-// func_sig_* query a registered FuncSig (a bodyless func/proc) for its
-// parameter types, return type, and throw types by name. The FuncSig
-// must be live (kept so by the real calls below). til funcs have at most
-// one return type, so func_sig_return_count is 0 or 1; parameter names
-// are not part of a signature, only types.
+// --- FuncSig equality and introspection (issue #58) ---
+// FuncSig equality is structural over the callable contract. Reflection
+// restores that contract plus explicit-shallow return provenance, but omits
+// parameter names and default ASTs.
+
+FuncSigPayload58 := struct { value := "" }
+FuncSigError58 := struct {}
+ReflectContract58 := func(own taken: Str, borrowed: Str, mut changed: Str,
+    rest: ..I64, opts: ...) returns shallow FuncSigPayload58 throws FuncSigError58
+ReflectRefReturn58 := func(value: FuncSigPayload58) returns ref FuncSigPayload58
+ReflectProc58 := proc(mut value: Str)
+
+test_func_sig_structural_eq := test() {
+    mut base := FuncSig(func_type = FuncType.Func, return_type = "I64",
+        return_own_type = OwnType.Own, variadic_index = -1, kwargs_index = -1)
+    base.params.push(own Declaration(name = "left", til_type = Type.Primitive(Primitive.I64),
+        own_type = OwnType.Ref))
+    base.throw_types.push(own Str.clone("FuncSigError58"))
+
+    mut changed_type := base.clone()
+    ref mut changed_param : Declaration = changed_type.params[0]
+    changed_param.til_type = Type.Primitive(Primitive.Bool)
+    expect((base == changed_type).not(), "parameter type is signature identity")
+
+    mut changed_own := base.clone()
+    ref mut owned_param : Declaration = changed_own.params[0]
+    owned_param.own_type = OwnType.Own
+    expect((base == changed_own).not(), "parameter ownership is signature identity")
+
+    mut changed_mut := base.clone()
+    ref mut mutable_param : Declaration = changed_mut.params[0]
+    mutable_param.is_mut = true
+    expect((base == changed_mut).not(), "parameter mutability is signature identity")
+
+    mut changed_kind := base.clone()
+    changed_kind.func_type = FuncType.Proc
+    expect((base == changed_kind).not(), "callable kind is signature identity")
+
+    mut changed_variadic := base.clone()
+    changed_variadic.variadic_index = 0
+    expect((base == changed_variadic).not(), "variadic index is signature identity")
+
+    mut changed_kwargs := base.clone()
+    changed_kwargs.kwargs_index = 0
+    expect((base == changed_kwargs).not(), "kwargs index is signature identity")
+
+    mut changed_return := base.clone()
+    changed_return.return_type = "Bool"
+    expect((base == changed_return).not(), "return type is signature identity")
+
+    mut changed_return_own := base.clone()
+    changed_return_own.return_own_type = OwnType.Ref
+    expect((base == changed_return_own).not(), "return ownership is signature identity")
+
+    mut changed_throws := base.clone()
+    changed_throws.throw_types.clear()
+    changed_throws.throw_types.push(own Str.clone("OtherError"))
+    expect((base == changed_throws).not(), "ordered throws are signature identity")
+
+    mut changed_count := base.clone()
+    changed_count.params.push(own Declaration(til_type = Type.Primitive(Primitive.I64)))
+    expect((base == changed_count).not(), "parameter count is signature identity")
+
+    mut changed_name := base.clone()
+    ref mut renamed_param : Declaration = changed_name.params[0]
+    renamed_param.name = "right"
+    expect(base == changed_name, "parameter names are not signature identity")
+
+    mut changed_explicit := base.clone()
+    changed_explicit.return_shallow_explicit = true
+    expect(base == changed_explicit, "explicit-shallow provenance is not signature identity")
+}
 
 apply_bin58 := func(op: BinaryOp, a: I64, b: I64) returns I64 { return op(a, b) }
 add58 := func(a: I64, b: I64) returns I64 { return a.add(b) }
@@ -1313,7 +1379,7 @@ test_func_sig_primitives := test() {
 }
 
 // --- func_sig_of assembler (issue #58) ---
-// Builds a FuncSig value from the func_sig_* primitives.
+// Builds a FuncSig value from the complete func_sig_* scalar contract.
 
 test_func_sig_of := test() {
     assert_eq(I64, apply_bin58(add58, 1, 1), 2)  // keep BinaryOp live
@@ -1326,6 +1392,49 @@ test_func_sig_of := test() {
     assert_eq(Str, "I64", sig.params[1].type_name())
     assert_eq(Str, "I64", sig.return_type)
     assert_eq(USize, sig.throw_types.len(), 0)
+}
+
+test_func_sig_of_complete_contract := test() {
+    assert_eq(I64, func_sig_func_type("ReflectContract58"), func_type_to_i64(FuncType.Func))
+    assert_eq(I64, func_sig_param_own_type("ReflectContract58", 0), own_type_to_i64(OwnType.Own))
+    assert_eq(I64, func_sig_param_own_type("ReflectContract58", 1), own_type_to_i64(OwnType.Ref))
+    assert_eq(I64, func_sig_param_is_mut("ReflectContract58", 2), 1)
+    assert_eq(I64, func_sig_variadic_index("ReflectContract58"), 3)
+    assert_eq(I64, func_sig_kwargs_index("ReflectContract58"), 4)
+    assert_eq(I64, func_sig_return_own_type("ReflectContract58"), own_type_to_i64(OwnType.Shallow))
+    assert_eq(I64, func_sig_return_shallow_explicit("ReflectContract58"), 1)
+
+    sig := func_sig_of("ReflectContract58")
+    expect(sig.func_type.is(FuncType.Func), "function kind reflected")
+    assert_eq(USize, sig.params.len(), 5)
+    expect(sig.params[0].own_type.is(OwnType.Own), "own param reflected")
+    expect(sig.params[0].is_mut.not(), "own param mutability reflected")
+    expect(sig.params[1].own_type.is(OwnType.Ref), "ref param reflected")
+    expect(sig.params[1].is_mut.not(), "ref param mutability reflected")
+    expect(sig.params[2].own_type.is(OwnType.Ref), "mut param ownership reflected")
+    expect(sig.params[2].is_mut, "mut param reflected")
+    expect(sig.params[3].own_type.is(OwnType.Own), "variadic storage ownership reflected")
+    expect(sig.params[3].is_mut.not(), "variadic mutability reflected")
+    expect(sig.params[4].own_type.is(OwnType.Own), "kwargs storage ownership reflected")
+    expect(sig.params[4].is_mut.not(), "kwargs mutability reflected")
+    assert_eq(I32, sig.variadic_index, 3)
+    assert_eq(I32, sig.kwargs_index, 4)
+    assert_eq(Str, sig.return_type, "FuncSigPayload58")
+    expect(sig.return_own_type.is(OwnType.Shallow), "shallow return reflected")
+    expect(sig.return_shallow_explicit, "explicit-shallow provenance reflected")
+    assert_eq(USize, sig.throw_types.len(), 1)
+    assert_eq(Str, sig.throw_types[0], "FuncSigError58")
+
+    ref_sig := func_sig_of("ReflectRefReturn58")
+    expect(ref_sig.func_type.is(FuncType.Func), "ref-return function kind reflected")
+    expect(ref_sig.return_own_type.is(OwnType.Ref), "ref return reflected")
+    expect(ref_sig.return_shallow_explicit.not(), "implicit return provenance reflected")
+    assert_eq(I32, ref_sig.variadic_index, -1)
+    assert_eq(I32, ref_sig.kwargs_index, -1)
+
+    proc_sig := func_sig_of("ReflectProc58")
+    expect(proc_sig.func_type.is(FuncType.Proc), "proc kind reflected")
+    assert_eq(Str, proc_sig.return_type, "")
 }
 
 // --- Direct generic functions: func(T: Type, ...) (issue #58 "Phase now") ---

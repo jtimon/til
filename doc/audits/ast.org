@@ -60,6 +60,11 @@ duplicate aggregate/member names on every definition.
 
 The ~FuncSig~ / ~FunctionDef~ split keeps signature re-inference separate from
 definition-only state without moving resolved-call facts to a side table.
+~FuncSig.eq~ is structural over callable kind, ordered parameter types/
+ownership/mutability, return type/ownership, variadic and keyword positions,
+and ordered throws. Parameter names, docs, defaults, analysis flags, and
+~return_shallow_explicit~ are not semantic identity; the last field records
+parser provenance for diagnostics.
 
 ** Definitions And Bindings
 
