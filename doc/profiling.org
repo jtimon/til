@@ -200,6 +200,11 @@ body has no direct exit. Avoiding an unread flow table and unchanged parent
 ~Vec(Expr)~ rebuild removed 1,872 allocations and 1.84 MiB, while callgrind
 measured 2.50127B -> 2.49534B instructions (0.24%).
 
+Its root-body delete insertion likewise allocates an output ~Vec(Expr)~ only
+when the first sibling is inserted or compile directive removed. Moving an
+otherwise unchanged original vector back removed another 2,062 allocations and
+3.15 MiB; callgrind measured 2.50888B -> 2.50380B instructions (0.20%).
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
@@ -241,15 +246,15 @@ Top 32 by bytes allocated:
 
   | function                                      | allocs | alloc_kb | calls   |
   |-----------------------------------------------+--------+----------+---------|
-  | Vec__Expr_with_capacity                       | 17.3K  | 13135.7  | 17.9K   |
+  | Vec__Expr_with_capacity                       | 15.2K  | 9990.0   | 15.9K   |
   | Vec__Expr_push                                | 39.4K  | 12122.9  | 43.2K   |
   | Vec__Expr_clone                               | 23.8K  | 6799.2   | 43.9K   |
   | Str_clone                                     | 448K   | 4860.0   | 508K    |
   | Map__U32_TypeBinding_set                      | 7.72K  | 4362.9   | 22.7K   |
-  | Vec__Expr_push_take                           | 10.6K  | 4667.4   | 66.1K   |
+  | Vec__Expr_push_take                           | 10.6K  | 4672.7   | 55.9K   |
   | swap_bytes                                    | 99.3K  | 3824.9   | 99.3K   |
   | Vec__TypeBinding_with_capacity                | 3.99K  | 2561.6   | 6.33K   |
-  | Vec__Expr_append                              | 1.14K  | 1921.9   | 22.3K   |
+  | Vec__Expr_append                              | 1.15K  | 2118.8   | 10.4K   |
   | Vec__priv___src_self_garbager_til__LocalInfo_push | 7.72K | 1804.4 | 12.7K |
   | cfile_read_all                                | 63     | 1532.3   | 21      |
   | Vec__Token_push                               | 217    | 1407.1   | 27.7K   |

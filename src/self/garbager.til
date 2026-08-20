@@ -3333,21 +3333,54 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     ref taint_facts : BodyFacts = facts
 
     mut old := body.children.take()
-
-    mut new_ch := Vec(Expr).with_capacity(old.len() + locals_vec.len())
+    mut new_ch := Vec(Expr).new()
+    mut rebuilding := false
     for i in 0..old.len() {
         ref mut stmt : Expr = old[i]
-        if is_compile_directive(stmt, ctx.symbols) { continue }
-        insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch, ctx.symbols)
+        if is_compile_directive(stmt, ctx.symbols) {
+            if rebuilding.not() {
+                new_ch = Vec(Expr).with_capacity(old.len() + locals_vec.len())
+                for j in 0..i { new_ch.push_take(old, j) }
+                rebuilding = true
+            }
+            continue
+        }
+
+        if rebuilding {
+            insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch, ctx.symbols)
+            insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
+            insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, ctx.symbols)
+            mut post_deletes := Vec(Expr).new()
+            insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
+            new_ch.push_take(old, i)
+            new_ch.append(own post_deletes)
+            continue
+        }
+
+        // Delay the replacement allocation until this body actually emits a
+        // sibling. Nested-body edits mutate stmt in place and need no parent
+        // rebuild.
+        mut pre_deletes := Vec(Expr).new()
+        insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, pre_deletes, ctx.symbols)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-        insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, ctx.symbols)
+        insert_assign_delete(stmt, locals_vec, pre_deletes, taint_facts, fidx, i, ctx.symbols)
         mut post_deletes := Vec(Expr).new()
-        insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
+        insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, pre_deletes)
+        if pre_deletes.len().eq(0).and(post_deletes.len().eq(0)) { continue }
+
+        new_ch = Vec(Expr).with_capacity(old.len() + locals_vec.len())
+        for j in 0..i { new_ch.push_take(old, j) }
+        rebuilding = true
+        new_ch.append(own pre_deletes)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)
     }
 
-    body.children.move_from(own new_ch)
+    if rebuilding {
+        body.children.move_from(own new_ch)
+    } else {
+        body.children.move_from(own old)
+    }
     if audit { gc_audit_dump(ctx, body, locals_vec) }
     return true
 }
