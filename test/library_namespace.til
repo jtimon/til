@@ -14,8 +14,9 @@ require_absent := func(text: Str, unexpected: Str) returns Bool {
 }
 
 main := proc() {
-    build_a := Cmd.new("bin/til", "build", "test/library_namespace_a.til")
-    build_b := Cmd.new("bin/til", "build", "test/library_namespace_b.til")
+    til_bin := "bin/til"
+    build_a := Cmd.new(til_bin, "build", "test/library_namespace_a.til")
+    build_b := Cmd.new(til_bin, "build", "test/library_namespace_b.til")
     println(build_a.render())
     println(build_b.render())
     build_a.start()
@@ -38,9 +39,19 @@ main := proc() {
     require_contains(til_a, "shallow point: BindingPoint")
     require_contains(til_a, "returns Array(I64)")
     require_contains(til_a, "value: I64 = 31")
+    require_contains(til_a, "library_namespace_a_count := ext_global(I64, \"til_library_x5fnamespace_x5fa__library_namespace_a_count\")")
+    require_contains(til_a, "mut library_namespace_a_state := ext_global(I64, \"til_library_x5fnamespace_x5fa__library_namespace_a_state\")")
+    require_contains(til_a, "library_namespace_a_origin := ext_global(BindingPoint, \"til_library_x5fnamespace_x5fa__library_namespace_a_origin\")")
+    require_contains(til_a, "mut library_namespace_a_point_state := ext_global(BindingPoint, \"til_library_x5fnamespace_x5fa__library_namespace_a_point_state\")")
+    require_contains(til_a, "COUNT := ext_global(I64, \"til_library_x5fnamespace_x5fa__BindingPoint_COUNT\")")
+    require_contains(til_a, "mut STATE := ext_global(I64, \"til_library_x5fnamespace_x5fa__BindingPoint_STATE\")")
+    require_contains(til_a, "value: I64 = BindingPoint.COUNT")
+    require_contains(til_a, "value: Str = \"a\\\"b\\\\c\"")
     require_contains(til_a, "throws BindingError")
     require_absent(til_a, "library_namespace_a_private_value")
     require_absent(til_a, "hidden :=")
+    require_absent(til_a, "library_namespace_a_private_state")
+    require_absent(til_a, "HIDDEN_STATE")
     require_absent(til_a, "binding__Array__I64")
 
     require_contains(py_a, "('scalar', ctypes.c_longlong)")
@@ -56,8 +67,15 @@ main := proc() {
     require_contains(py_a, "('data', ctypes.POINTER(ctypes.c_longlong))")
     require_contains(py_a, "LibraryNamespaceACallback = ctypes.c_void_p")
     require_contains(py_a, "library_namespace_a_value_alias = library_namespace_a_value")
+    require_contains(py_a, "library_namespace_a_count = ctypes.c_longlong.in_dll")
+    require_contains(py_a, "BindingPoint_STATE = ctypes.c_longlong.in_dll")
     require_absent(py_a, "ctypes.POINTER(ctypes.c_void_p)")
     require_absent(py_a, "library_namespace_a_private_value")
+    require_absent(py_a, "library_namespace_a_private_state")
+    require_absent(py_a, "BindingPoint_HIDDEN_STATE")
+
+    py_check := "import sys; sys.path.insert(0, 'gen/til'); import library_namespace_a as a; assert a.library_namespace_a_count.value == 17; assert a.library_namespace_a_state.value == 23; assert a.BindingPoint_COUNT.value == 5; assert a.BindingPoint_STATE.value == 6; assert a.library_namespace_a_origin.scalar == 19; assert a.library_namespace_a_point_state.scalar == 20; assert not hasattr(a, 'library_namespace_a_private_state'); assert not hasattr(a, 'BindingPoint_HIDDEN_STATE'); assert a.BindingTag_TAG_Empty == 3; assert a.BindingTag_TAG_Number == 7; tag = a.BindingTag(); tag.tag = a.BindingTag_TAG_Empty; assert tag.tag == 3; assert a.library_namespace_a_global_sum() == 51; a.library_namespace_a_state.value = 30; a.BindingPoint_STATE.value = 8; a.library_namespace_a_point_state.scalar = 24; assert a.library_namespace_a_global_sum() == 60; assert a.library_namespace_a_point_state.scalar == 24"
+    Cmd.new("python3", "-c", py_check).run_checked()
 
     // -fsigned-char: this consumer is the one C compile in the suite that
     // the til driver does NOT run, so it must carry the flag itself --
@@ -92,4 +110,10 @@ main := proc() {
     require_absent(consumer_c, "_BindingPoint_size(void);")
     // ...while the binding call the consumer DOES reach keeps its prototype.
     require_contains(consumer_c, "_BindingPoint_delete(BindingPoint *, Bool);")
+
+    interpreted := Cmd.new(til_bin, "interpret", "test/library_namespace_consumer.til")
+    interpreted.env("LIBRARY_PATH", "gen/lib")
+    interpreted.env("LD_LIBRARY_PATH", "gen/lib")
+    interpreted.env("DYLD_LIBRARY_PATH", "gen/lib")
+    interpreted.run_checked()
 }

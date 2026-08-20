@@ -1858,6 +1858,7 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, mut ctx: 
         .or(rhs.node_type.is(NodeType.EnumDef))
         switch stmt.node_type {
         case .Decl(dd):
+            if dd.external_symbol.len() > 0 { continue }
             if is_def {
                 mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                 write_ptr(raw, rhs)

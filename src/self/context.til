@@ -146,6 +146,10 @@ TypeBinding := struct {
     // whose only write goes through an accessor is no longer "redundant".
     // Appended at the END so the committed boot's layout stays stable.
     borrow_roots := Vec(BorrowRoot).new()
+    // The binding names stable storage owned by an external C object.
+    // Reads and writes are ordinary lvalue operations; borrows may take its
+    // address, but scope teardown never owns it.
+    is_external_global := false
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name
@@ -1477,6 +1481,10 @@ Context := struct {
     // Array(T), Vec(T), Map(K, V), Set(T), and Option(T) instead of leaking
     // their library-private physical struct names.
     type_gen_binding_sources := Map(Str, Expr).new()
+
+    // Source-level external-global name -> exact C symbol. Built immediately
+    // before C emission from Declaration.external_symbol; not persistent.
+    builder_external_globals := Map(Str, Str).new()
 
     // Kept last so every Context-owned AST/registry using symbols is deleted
     // before the canonical name table that gives those symbols meaning.

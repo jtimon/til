@@ -784,6 +784,11 @@ priv extern_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, declared_na
     return c_type_name(t, til_type_name(rhs_t), ctx)
 }
 
+priv external_global_ctype := func(d: Declaration, mut ctx: Context) returns Str {
+    resolved := declaration_resolved_type(d, ctx.scope, ctx.symbols)
+    return extern_decl_ctype(resolved, resolved, d.type_name(), ctx)
+}
+
 // Resolve the C type name for a Decl whose declared type may be unknown.
 // Skips the heap-allocated empty-Str dance from til_type_name when t isn't
 // Struct/Enum/FuncPtr (where the name actually matters) -- saves the Str_lit("")
@@ -990,26 +995,6 @@ priv collect_ident_refs := proc(e: Expr, mut refs: Set(Str), symbols: SymbolPool
     }
     for c : Expr in e.children {
         collect_ident_refs(c, refs, symbols)
-    }
-}
-
-priv emit_til_default := proc(f: File, shallow t: Type) {
-    if type_is_primitive(t, Primitive.Bool) {
-        f.write("false")
-    } else if is_primitive(t) {
-        f.write("0")
-    } else if t.is(Type.Struct).or(t.is(Type.Enum)) {
-        name := til_type_name(t)
-        if name == "Str" {
-            f.write("\"\"")
-        } else if name.len() > 0 {
-            f.write(name)
-            f.write("()")
-        } else {
-            f.write("0")
-        }
-    } else {
-        f.write("0")
     }
 }
 
@@ -1637,6 +1622,7 @@ priv builder_register_str_lit_ident := func(mut ctx: Context, name: Str, s: Str)
 
 priv builder_resolve_c_ident_name := func(name: Str, ctx: Context) returns Str {
     if ctx.builder_str_lit_ident_symbols.has(name) { return ctx.builder_str_lit_ident_symbols[name].clone() }
+    if ctx.builder_external_globals.has(name) { return ctx.builder_external_globals[name].clone() }
     return name.clone()
 }
 
@@ -2067,6 +2053,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     if e.children.len() == 0 { return }
     switch e.node_type {
     case .Decl(dd):
+    if dd.external_symbol.len() > 0 { return }
     ref rhs : Expr = e.children[0]
     if dd.gc_storage.is(GcStorage.HeapBox) {
         ctx.builder_func.heap_locals.add(own ctx.symbols.intern(dd.name))
@@ -2540,6 +2527,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         emit_stmt_decl(f, e, depth, ctx)
     case .Assign(ad):
         aname := ad.name
+        acname := builder_resolve_c_ident_name(aname, ctx)
         ref mut rhs : Expr = e.children[0]
         mut e_sname := ""
         e_sname_o := expr_type_name_ref(e)
@@ -2637,8 +2625,8 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 // so no heap wrapper is needed for this ordering temporary.
                 f.write("{ ").write(ctype).write(" _new = ")
                 emit_deref(f, rhs, depth, ctx)
-                f.write("; ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
-                f.write(aname).write(" = _new; }\n")
+                f.write("; ").write(ctype).write("_delete(&").write(acname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
+                f.write(acname).write(" = _new; }\n")
             } else {
                 lit_owns_box := assign_str_lit_needs_own_box(aname, ctype, rhs, ctx)
                 f.write("{ ").write(ctype).write(" *_old = ").write(aname).write("; ").write(aname).write(" = ")
@@ -2658,7 +2646,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         }
         is_hoisted := is_stack_local(aname, ctx).or(is_value_global(aname, ctx))
         if e.til_type().is(Type.Dynamic) {
-            f.write(aname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n"); return
+            f.write(acname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n"); return
         }
         if ad.is_payload_alias {
             mut is_compound := false
@@ -2688,7 +2676,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             return
         }
         if is_hoisted {
-            f.write(aname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
+            f.write(acname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
         } else {
             if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
             .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.til_type().is(Type.Enum))) {
@@ -2742,8 +2730,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             }
             if builder_fa_is_ns(e, ctx) {
                 obj_sname_o := expr_type_name_ref(obj)
-                if obj_sname_o.is_some() { f.write(obj_sname_o.unwrap()) }
-                f.write("_").write(fname)
+                mut flat_old := format("_", fname)
+                if obj_sname_o.is_some() { flat_old = obj_sname_o.unwrap().concat3("_", fname) }
+                f.write(builder_resolve_c_ident_name(flat_old, ctx))
             } else {
                 emit_expr(f, obj, depth, ctx)
                 if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
@@ -2755,11 +2744,12 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
 
         if builder_fa_is_ns(e, ctx) {
             obj_sname_o := expr_type_name_ref(obj)
+            mut flat_target := format("_", fname)
             if obj_sname_o.is_some() {
                 ref obj_sname : Str = obj_sname_o.unwrap()
-                f.write(obj_sname)
+                flat_target = obj_sname.concat3("_", fname)
             }
-            f.write("_").write(fname).write(" = ")
+            f.write(builder_resolve_c_ident_name(flat_target, ctx)).write(" = ")
         } else {
             emit_expr(f, obj, depth, ctx)
             if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
@@ -4188,9 +4178,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                     f.write("}")
                 }
             } else {
-                f.write(obj_sname)
-                f.write("_")
-                f.write(fname.field_access_name(ctx.symbols.names))
+                flat_name := obj_sname.concat3("_", fname.field_access_name(ctx.symbols.names))
+                f.write(builder_resolve_c_ident_name(flat_name, ctx))
             }
         } else {
             // Issue #36: a field access whose receiver is the typer-internal
@@ -4389,6 +4378,7 @@ priv emit_ns_inits_for_stmt := proc(f: File, depth: I32, stmt: Expr, mut lp: Loa
         idx := pos.to_usize()
         if ns_member_is_data(def, idx).not() { continue }
         ref dd : Declaration = ns.unsafe_get(idx)
+        if dd.external_symbol.len() > 0 { continue }
         if expr_has_c_static_initializer(dd.default_expr(), lp.ctx) { continue }
         emit_indent(f, depth)
         f.write(owner.name).write("_").write(def_ns_name_at(def, idx)).write(" = ")
@@ -6428,7 +6418,9 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
                 ref dd : Declaration = decl_of(stmt)
                 if lp_header_hides(dd.name, lp.ctx).not() {
                     ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), lp.ctx)
-                    if dd.own_type.is(OwnType.Ref) {
+                    if dd.external_symbol.len() > 0 {
+                        f.write("extern ").write(external_global_ctype(dd, lp.ctx)).write(" ").write(dd.external_symbol).write(";\n")
+                    } else if dd.own_type.is(OwnType.Ref) {
                         f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
                     } else {
                         f.write("extern ").write(ctype).write(" ").write(dd.name).write(";\n")
@@ -6444,7 +6436,11 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
                     ref member : Declaration = ns.unsafe_get(i)
                     flat := owner.name.concat3("_", def_ns_name_at(def, i))
                     if lp_header_hides(flat, lp.ctx) { continue }
-                    f.write("extern ").write(ns_data_ctype(member, lp.ctx)).write(" ").write(flat).write(";\n")
+                    mut symbol := flat
+                    if member.external_symbol.len() > 0 { symbol = member.external_symbol.clone() }
+                    mut member_ctype := ns_data_ctype(member, lp.ctx)
+                    if member.external_symbol.len() > 0 { member_ctype = external_global_ctype(member, lp.ctx) }
+                    f.write("extern ").write(member_ctype).write(" ").write(symbol).write(";\n")
                 }
             }
         }
@@ -6533,17 +6529,42 @@ priv binding_param_is_throw_abi := func(param: Declaration, fd: FunctionDef) ret
     return false
 }
 
-priv emit_binding_literal := func(f: File, e: Expr) returns Bool {
+priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context) {
     switch e.node_type {
-    case .Literal(Literal.Str(s)): f.write("\"").write(s).write("\""); return true
-    case .Literal(Literal.Num(n)): f.write(n.literal_num_text()); return true
+    case .Literal(Literal.Str(s)): f.write("\"").write(s).write("\"")
+    case .Literal(Literal.Num(n)): f.write(n.literal_num_text())
     case .Literal(Literal.Bool(b)):
         if b { f.write("true") } else { f.write("false") }
-        return true
-    case .Literal(Literal.Null): f.write("0"); return true
+    case .Literal(Literal.Null): f.write("0")
+    case .Ident(id): f.write(id.ident_name(ctx.symbols.names))
+    case .FieldAccess(fa):
+        if e.children.len() != 1 { panic("generated binding default has malformed field access") }
+        emit_binding_expr(f, e.children[0], ctx)
+        f.write(".").write(fa.field_access_name(ctx.symbols.names))
+    case .FCall(call_data):
+        if e.children.len() == 0 { panic("generated binding default has a call without a callee") }
+        emit_binding_expr(f, e.children[0], ctx)
+        f.write("(")
+        for i in 1..e.children.len() {
+            if i > 1 { f.write(", ") }
+            ref arg : Expr = e.children[i]
+            switch arg.node_type {
+            case .NamedArg(name):
+                if arg.children.len() != 1 { panic("generated binding default has malformed named argument") }
+                f.write(name).write("=")
+                emit_binding_expr(f, arg.children[0], ctx)
+            case:
+                if get_own_arg(e, i) { f.write("own ") }
+                if get_ref_arg(e, i) { f.write("ref ") }
+                if get_splat_arg(e, i) { f.write("..") }
+                emit_binding_expr(f, arg, ctx)
+            }
+        }
+        f.write(")")
+        if call_data.does_throw { f.write("?") }
     case:
+        panic("unsupported generated binding default expression: ", e.node_type.head_str(ctx.symbols.names))
     }
-    return false
 }
 
 priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, index: USize, wrapper: Bool, ctx: Context) {
@@ -6565,9 +6586,7 @@ priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, in
     }
     if param.default_value.is_some() {
         f.write(" = ")
-        if emit_binding_literal(f, param.default_expr()).not() {
-            emit_til_default(f, param.til_type)
-        }
+        emit_binding_expr(f, param.default_expr(), ctx)
     }
 }
 
@@ -6660,6 +6679,26 @@ priv emit_binding_funcsig := proc(f: File, name: Str, fd: FunctionDef, ctx: Cont
     f.write("\n\n")
 }
 
+priv binding_global_representable := func(d: Declaration, value_type: Type) returns Bool {
+    if d.own_type.is(OwnType.Shallow).not() { return false }
+    return is_primitive(value_type).or(value_type.is(Type.Struct)).or(value_type.is(Type.Enum))
+}
+
+priv binding_global_symbol := func(d: Declaration, lib_name: Str, source_name: Str) returns Str {
+    if d.external_symbol.len() > 0 { return d.external_symbol.clone() }
+    return c_lib_symbol(lib_name, source_name)
+}
+
+priv emit_binding_global := proc(f: File, indent: Str, api_name: Str,
+        source_name: Str, d: Declaration, value_type: Type, ctx: Context, lib_name: Str) {
+    if binding_global_representable(d, value_type).not() { return }
+    f.write(indent)
+    if d.is_mut { f.write("mut ") }
+    f.write(api_name).write(" := ext_global(")
+    f.write(binding_type_name(d.type_name(), ctx)).write(", \"")
+    f.write(binding_global_symbol(d, lib_name, source_name)).write("\")\n")
+}
+
 priv emit_binding_ns_actuals := proc(f: File, owner: Str, def: Expr, ctx: Context, lib_name: Str) {
     ref ns : Vec(Declaration) = def_ns_decls(def)
     mut i : USize = 0
@@ -6699,6 +6738,13 @@ priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Contex
             actual := c_lib_symbol(lib_name, source_name)
             emit_binding_wrapper(f, "    ", method, actual, fd, ctx)
         case:
+            if binding_global_representable(nsd, nsd.default_expr().til_type()) {
+                if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
+                ref data_name : Str = def_ns_name_at(def, cur_ebi)
+                source_name := owner.concat3("_", data_name)
+                emit_binding_global(f, "    ", data_name, source_name, nsd,
+                    nsd.default_expr().til_type(), ctx, lib_name)
+            }
         }
     }
 }
@@ -6716,6 +6762,11 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
             case .Decl(dd):
             if dd.is_priv.or(lp.ctx.type_gen_synths.has(dd.name)).or(lp.ctx.generic_func_synth_names.has(dd.name)) { continue }
             ref rhs : Expr = stmt.children[0]
+            if is_exported_top_level_global(stmt) {
+                emit_binding_global(f, "", dd.name, dd.name, dd, rhs.til_type(), lp.ctx, lib_name)
+                f.write("\n")
+                continue
+            }
             switch rhs.node_type {
             case .StructDef(btb_sdd):
                 emit_binding_ns_actuals(f, dd.name, rhs, lp.ctx, lib_name)
@@ -6736,7 +6787,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                     }
                     if fdd.default_value.is_some() {
                         f.write(" := ")
-                        if emit_binding_literal(f, fdd.default_expr()).not() { emit_til_default(f, fdd.til_type) }
+                        emit_binding_expr(f, fdd.default_expr(), lp.ctx)
                     }
                     f.write("\n")
                 }
@@ -6868,6 +6919,13 @@ priv emit_python_lib_symbol := proc(f: File, lib_name: Str, name: Str) {
     f.write("_lib.").write(c_lib_symbol(lib_name, name))
 }
 
+priv emit_python_global := proc(f: File, api_name: Str, source_name: Str,
+        d: Declaration, value_type: Type, ctx: Context, lib_name: Str) {
+    if binding_global_representable(d, value_type).not() { return }
+    f.write(api_name).write(" = ").write(type_name_to_ctypes_value(d.type_name(), ctx))
+    f.write(".in_dll(_lib, \"").write(binding_global_symbol(d, lib_name, source_name)).write("\")\n")
+}
+
 priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns I32 {
     f := File.new(py_path, true)
     shared_ext := shared_lib_extension(lp.target)
@@ -6978,6 +7036,36 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             }
             case:
                 UNREACHABLE("expected Decl, got ", stmt.node_type.head_str(lp.ctx.symbols.names))
+            }
+        }
+    }
+    f.write("\n")
+
+    // Public value storage. ctypes objects returned by in_dll are live views
+    // of the library symbol, so reads and .value/field writes share storage
+    // with C and generated Til bindings.
+    for gu : ProgramUnit in lp.units {
+        ref giu : ImportUnit = lp.ctx.imported[gu.path]
+        for gstmt : Expr in giu.ast.children {
+            if gstmt.node_type.is(NodeType.Decl).not().or(gstmt.children.len().eq(0)) { continue }
+            ref gd : Declaration = decl_of(gstmt)
+            if gd.is_priv { continue }
+            if is_exported_top_level_global(gstmt) {
+                emit_python_global(f, gd.name, gd.name, gd, gstmt.children[0].til_type(), lp.ctx, lib_name)
+                continue
+            }
+            if is_struct_or_enum(gstmt).not() { continue }
+            ref gdef : Expr = gstmt.children[0]
+            ref gns : Vec(Declaration) = def_ns_decls(gdef)
+            for gi in 0..gns.len() {
+                if ns_member_is_data(gdef, gi).not() { continue }
+                ref gmember : Declaration = gns.unsafe_get(gi)
+                if gmember.is_priv { continue }
+                ref gmname : Str = def_ns_name_at(gdef, gi)
+                source_name := gd.name.concat3("_", gmname)
+                api_name := gd.name.concat3("_", gmname)
+                emit_python_global(f, api_name, source_name, gmember,
+                    gmember.default_expr().til_type(), lp.ctx, lib_name)
             }
         }
     }
@@ -7114,6 +7202,7 @@ priv register_funcsig_prog := func(prog: Expr, mut ctx: Context) {
 priv emit_global_inits_prog := proc(f: File, prog: Expr, mut ctx: Context) {
     for gs : Expr in prog.children {
         if gs.node_type.is(NodeType.Decl) {
+            if decl_of(gs).external_symbol.len() > 0 { continue }
             if global_decl_has_c_static_initializer(gs, ctx) { continue }
             ref rhs : Expr = gs.children[0]
             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef))
@@ -8759,6 +8848,12 @@ priv emit_global_declaration := proc(f: File, stmt: Expr, mentioned: Set(Sym), m
     if builder_global_folded_away(stmt, mentioned, ctx) { return }
     ref dd : Declaration = decl_of(stmt)
     ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), ctx)
+    if dd.external_symbol.len() > 0 {
+        ctx.builder_external_globals.set(dd.name, own dd.external_symbol.clone())
+        f.write("extern ").write(external_global_ctype(dd, ctx)).write(" ").write(dd.external_symbol).write(";\n")
+        ctx.script_globals.add(own ctx.symbols.intern(dd.name))
+        return
+    }
     f.write(builder_global_static_prefix(dd.name, ctx)).write(ctype).write(" ")
     if global_is_pointer_storage(stmt, dd, ctx.symbols) {
         f.write("*").write(dd.name).write(";\n")
@@ -8777,6 +8872,7 @@ priv emit_global_declaration := proc(f: File, stmt: Expr, mentioned: Set(Sym), m
 priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
     lp.ctx.script_globals = Set(Sym).new()
     lp.ctx.ref_globals = Set(Sym).new()
+    lp.ctx.builder_external_globals = Map(Str, Str).new()
     // One whole-program mention set for the folded-away gate above: a
     // global's OWN Decl stores its name in Declaration.name, not as an
     // Ident child, so declaring never counts as mentioning.
@@ -8816,6 +8912,11 @@ priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr, mut ctx: Context) 
             if ns_member_is_data(edef, ngi).not() { continue }
             ref dd : Declaration = ngi_ns.unsafe_get(ngi)
             flat := sdecl.name.concat3("_", def_ns_name_at(edef, ngi))
+            if dd.external_symbol.len() > 0 {
+                ctx.builder_external_globals.set(flat, own dd.external_symbol.clone())
+                f.write("extern ").write(external_global_ctype(dd, ctx)).write(" ").write(dd.external_symbol).write(";\n")
+                continue
+            }
             f.write(ns_data_ctype(dd, ctx)).write(" ").write(flat)
             if expr_has_c_static_initializer(dd.default_expr(), ctx) {
                 f.write(" = ")

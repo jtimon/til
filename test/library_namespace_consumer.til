@@ -17,5 +17,26 @@ main := proc() returns I64 {
     if point.scalar != 7 { return 9 }
     if library_namespace_a_default() != 31 { return 10 }
     if library_namespace_a_throwing(12)! != 12 { return 11 }
+    if library_namespace_a_count != 17 { return 12 }
+    if library_namespace_a_state != 23 { return 13 }
+    if BindingPoint.COUNT != 5 { return 14 }
+    if BindingPoint.STATE != 6 { return 15 }
+    if library_namespace_a_global_sum() != 51 { return 16 }
+    library_namespace_a_state = 30
+    BindingPoint.STATE = 8
+    if library_namespace_a_global_sum() != 60 { return 17 }
+    ref mut state_ref : I64 = library_namespace_a_state
+    state_ref = 31
+    if library_namespace_a_global_sum() != 61 { return 18 }
+    ref count_ref : I64 = library_namespace_a_count
+    if count_ref != 17 { return 19 }
+    if library_namespace_a_nonliteral_default() != 5 { return 20 }
+    if library_namespace_a_string_default() != 5 { return 21 }
+    if library_namespace_a_origin.scalar != 19 { return 22 }
+    ref origin_ref : BindingPoint = library_namespace_a_origin
+    if origin_ref.size != 29 { return 23 }
+    if library_namespace_a_point_state.scalar != 20 { return 24 }
+    library_namespace_a_point_state.scalar = 24
+    if library_namespace_a_point_state.scalar != 24 { return 25 }
     return 0
 }

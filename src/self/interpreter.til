@@ -1959,6 +1959,18 @@ priv eval_switch := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
 
 priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration, mut ctx: Context) {
     ref mut rhs : Expr = stmt.children[0]
+    if dd.external_symbol.len() > 0 {
+        // Compile-time folding has no loaded user library. The declaration is
+        // deliberately absent from the known-value scope, which prevents any
+        // function reading it from being folded as a constant.
+        if ctx.ffi.loaded.not() { return }
+        ref address : U8 = ffi_dlsym(dd.external_symbol)
+        if address.is_null() { panic("external global symbol not found: ", dd.external_symbol) }
+        external_type := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
+        scope_set_heap_owned(scope, dd.name, address, interp_intern_type(external_type, ctx),
+            OwnType.Shallow, ctx, false, true)
+        return
+    }
     if stmt.til_type().is(Type.None) {
         if rhs.node_type.is(NodeType.Ident) { return }
     }
@@ -5022,6 +5034,17 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
             for nci_pos : I64 in const_order {
                 cur_nci := nci_pos.to_usize()
                 ref mut nsd : Declaration = reg_ns.unsafe_get(cur_nci)
+                if nsd.external_symbol.len() > 0 {
+                    if ctx.ffi.loaded.not() { continue }
+                    ref address : U8 = ffi_dlsym(nsd.external_symbol)
+                    if address.is_null() { panic("external global symbol not found: ", nsd.external_symbol) }
+                    qname := ns_qname(dd.name, def_ns_name_at(sdef, cur_nci))
+                    external_type := declaration_resolved_type(nsd, ctx.scope, ctx.symbols)
+                    scope_set_heap_owned(ns_scope(ctx), qname, address,
+                        interp_intern_type(external_type, ctx), OwnType.Shallow,
+                        ctx, false, true)
+                    continue
+                }
                 mut info := raw_result_info_new()
                 mut raw : Dynamic = eval_expr_raw_info(global, nsd.default_expr(), ctx, info)
                 if info.is_ref {
@@ -5092,10 +5115,23 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dyna
 priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type: Type, mut ctx: Context) {
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
-    hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
+    mut incoming : Dynamic = raw
+    mut hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
     // An existing binding's type is already canonical; a fresh one interns
     // the supplied type. scope_set_raw_owned panics on Unknown either way.
     if hb_o.is_some() {
+        ref mut hb : HeapBinding = hb_o.unwrap()
+        if hb.is_borrowed {
+            ref mut target : Dynamic = to_ptr(hb.ptr)
+            if raw_type_is_prim(hb_type(hb), ctx) {
+                word : Dynamic = scalar_word_load(hb_type(hb), incoming, ctx)
+                scalar_word_store(hb_type(hb), target, word, ctx)
+                raw_block_free(incoming)
+            } else {
+                _ := heap_move_ptr_into_slot(hb_type(hb), target, incoming, hb.ctx, true)
+            }
+            return
+        }
         scope_set_raw_owned(ns_scope(c), qn, raw, hb_o.unwrap().til_type_p, OwnType.Own, ctx)
         return
     }

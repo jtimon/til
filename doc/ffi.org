@@ -137,6 +137,28 @@ ABI shape), use ~shallow~ on the arg and ~returns shallow T~ on
 the return -- those map to plain ~T arg~ / ~T return~ in the
 generated C.
 
+** External globals
+
+An ~ext_global~ declaration binds a Til name directly to storage exported by
+a C library:
+
+#+begin_src til
+COUNT := ext_global(I64, "library_count")
+mut STATE := ext_global(State, "library_state")
+#+end_src
+
+The first argument is the Til object type; the second is the exact C symbol.
+The declaration is an lvalue, not a function call: reads and writes access the
+same storage from compiled and interpreted code. Only top-level and type
+namespace declarations are allowed. Primitive, struct, and enum object types
+are supported; pointer-like or source-only types fail at the declaration.
+
+Generated library bindings use ~ext_global~ for public top-level globals and
+namespace data, spelling the library-prefixed C symbol. Python bindings expose
+the same storage through ~ctypes.in_dll~, so mutation is shared across C, Til,
+and Python consumers. A non-~mut~ declaration is read-only to Til even when the
+underlying C object itself is writable.
+
 ** Passing a Str to a C string parameter
 
 A til ~Str~ is ~{c_str, count, cap}~ -- length-counted, like a Go

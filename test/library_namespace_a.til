@@ -14,7 +14,12 @@ BindingPoint := struct {
     size : USize = 11
     ptr : UPtr = 13
 namespace:
-    priv hidden := func(value: I64) returns I64 { return value }
+    COUNT : I64 = 5
+    mut STATE : I64 = 6
+    priv HIDDEN_STATE : I64 = 99
+    priv hidden := func(value: I64) returns I64 {
+        return value + BindingPoint.HIDDEN_STATE - BindingPoint.HIDDEN_STATE
+    }
     identity := func(shallow value: BindingPoint) returns shallow BindingPoint {
         return BindingPoint(
             scalar=BindingPoint.hidden(value.scalar),
@@ -40,6 +45,18 @@ BindingNiche := enum {
 BindingError := struct {}
 
 priv library_namespace_a_private_value := func() returns I64 { return 21 }
+
+library_namespace_a_count : I64 = 17
+mut library_namespace_a_state : I64 = 23
+library_namespace_a_origin : BindingPoint = BindingPoint(scalar=19, size=29, ptr=39)
+mut library_namespace_a_point_state : BindingPoint = BindingPoint(scalar=20, size=30, ptr=40)
+priv library_namespace_a_private_state : I64 = 101
+
+library_namespace_a_global_sum := func() returns I64 {
+    return library_namespace_a_count + library_namespace_a_state
+        + BindingPoint.COUNT + BindingPoint.STATE
+        + library_namespace_a_private_state - 101
+}
 
 library_namespace_a_value := func() returns I64 {
     return library_namespace_a_private_value()
@@ -69,6 +86,14 @@ library_namespace_a_dynamic := func(value: Dynamic) returns Dynamic {
 
 library_namespace_a_default := func(value: I64 = 31) returns I64 {
     return value
+}
+
+library_namespace_a_nonliteral_default := func(value: I64 = BindingPoint.COUNT) returns I64 {
+    return value
+}
+
+library_namespace_a_string_default := func(value: Str = "a\"b\\c") returns I64 {
+    return value.len().to_i64()
 }
 
 library_namespace_a_throwing := func(value: I64) returns I64 throws BindingError {

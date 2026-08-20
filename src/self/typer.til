@@ -4364,6 +4364,18 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
     tc_const_order := ns_const_eval_order(inner.active_type_name(), expr, ctx.symbols)
     for tc_ci_pos : I64 in tc_const_order {
         ref mut tc_cd : Declaration = tc_ns.unsafe_get(tc_ci_pos.to_usize())
+        if tc_cd.external_symbol.len() > 0 {
+            external_type := type_from_name(tc_cd.type_name(), inner, ctx)
+            tc_cd.default_expr().set_til_type(external_type.clone())
+            bind_ext_global_decl(inner, tc_cd, external_type, ctx.path,
+                tc_cd.default_expr().line, tc_cd.default_expr().col, ctx)
+            continue
+        }
+        if infer_ext_global_decl(inner, tc_cd, tc_cd.default_expr(), tc_cd.default_expr(), ctx) {
+            bind_ext_global_decl(inner, tc_cd, tc_cd.default_expr().til_type(), ctx.path,
+                tc_cd.default_expr().line, tc_cd.default_expr().col, ctx)
+            continue
+        }
         // A non-func namespace member is a constant (e.g. `MAX : F32 =
         // 3.4..e38`). Coerce its numeric literals to the declared type
         // before inference, exactly like top-level / local / field decls
@@ -6187,6 +6199,108 @@ priv infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr,
     return false
 }
 
+priv ext_global_symbol_is_c_ident := func(symbol: Str) returns Bool {
+    if symbol.len() == 0 { return false }
+    ref first : I8 = symbol.unsafe_get(0)
+    first_alpha := first.gte('a').and(first.lte('z'))
+        .or(first.gte('A').and(first.lte('Z')))
+    if first_alpha.not().and(first.neq('_')) { return false }
+    for i in 1..symbol.len() {
+        ref c : I8 = symbol.unsafe_get(i)
+        alpha := c.gte('a').and(c.lte('z')).or(c.gte('A').and(c.lte('Z')))
+        digit := c.gte('0').and(c.lte('9'))
+        if alpha.not().and(digit.not()).and(c.neq('_')) { return false }
+    }
+    return true
+}
+
+// ext_global(Type, "c_symbol") is a declaration form, not a callable. Settle
+// it before ordinary FCall inference and retain only the external-storage
+// metadata on the declaration.
+priv infer_ext_global_decl := proc(mut scope: TypeScope, mut decl: Declaration,
+        mut rhs: Expr, at: Expr, mut ctx: Context) returns Bool {
+    if rhs.node_type.is(NodeType.FCall).not().or(rhs.children.len().eq(0)) { return false }
+    switch rhs.children[0].node_type {
+    case .Ident(callee):
+        if callee.ident_name(ctx.symbols.names) != "ext_global" { return false }
+    case:
+        return false
+    }
+
+    mut valid := true
+    mut type_name := ""
+    mut symbol := ""
+    if rhs.children.len() != 3 {
+        at.type_error("ext_global expects exactly a Type and a C symbol string", ctx)
+        valid = false
+    } else {
+        switch rhs.children[1].node_type {
+        case .Ident(type_id): type_name = Str.clone(type_id.ident_name(ctx.symbols.names))
+        case:
+            rhs.children[1].type_error("ext_global first argument must be a Type name", ctx)
+            valid = false
+        }
+        switch rhs.children[2].node_type {
+        case .Literal(Literal.Str(symbol_lit)): symbol = symbol_lit.clone()
+        case:
+            rhs.children[2].type_error("ext_global second argument must be a compile-time C symbol string", ctx)
+            valid = false
+        }
+    }
+
+    mut external_type := Type.Unknown
+    if type_name.len() > 0 {
+        external_type = type_from_name(type_name, scope, ctx)
+        if external_type.is(Type.Unknown) {
+            at.type_error(format("ext_global has undefined type '", type_name, "'"), ctx)
+            valid = false
+        } else if is_primitive(external_type).not()
+            .and(external_type.is(Type.Struct).not())
+            .and(external_type.is(Type.Enum).not()) {
+            at.type_error(format("ext_global does not support type '", type_name,
+                "'; expected a primitive, struct, or enum C object type"), ctx)
+            valid = false
+        }
+    }
+    if symbol.len() == 0 {
+        at.type_error("ext_global C symbol string cannot be empty", ctx)
+        valid = false
+    } else if ext_global_symbol_is_c_ident(symbol).not() {
+        at.type_error(format("ext_global C symbol is not an identifier: '", symbol, "'"), ctx)
+        valid = false
+    }
+
+    if valid {
+        if decl.til_type.is(Type.Unknown).not() {
+            declared := type_from_name(decl.type_name(), scope, ctx)
+            if declared.eq(external_type).not() {
+                at.type_error(format("ext_global type ", type_name,
+                    " does not match declaration type ", decl.type_name()), ctx)
+            }
+        }
+        decl.til_type = declaration_type_from_name(type_name)
+        decl.external_symbol = symbol
+    }
+    // Consume malformed forms too, so one precise declaration error does not
+    // cascade into ordinary undefined-call diagnostics.
+    rhs.node_type = NodeType.Literal(Literal.Null)
+    rhs.children.clear()
+    rhs.set_til_type(external_type)
+    return true
+}
+
+priv bind_ext_global_decl := func(mut scope: TypeScope, decl: Declaration,
+        external_type: Type, path: Str, line: U32, col: U32, mut ctx: Context) {
+    scope.set(decl.name, external_type, decl.is_mut, path, line, col, false,
+        OwnType.Shallow, ctx.symbols)
+    ref mut binding : TypeBinding = scope.get_binding_name(decl.name, ctx.symbols).unwrap()
+    binding.mut_explicit = decl.is_mut
+    binding.is_priv = decl.is_priv
+    binding.orig_name = decl.orig_name.clone()
+    binding.used = decl.used
+    binding.is_external_global = true
+}
+
 priv declared_type_for_decl := func(mut scope: TypeScope, stmt: Expr, mut ctx: Context) returns Type {
     ref sdecl : Declaration = decl_of(stmt)
     mut declared := stmt.til_type().clone()
@@ -6725,6 +6839,24 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
     // so late inference can clone a fully prepared body from it;
     // init_retire_generic_sources drops it once every body is typed.
     if init_stmt_is_generic_source(stmt) { return }
+    ref mut ext_decl : Declaration = decl_of(stmt)
+    if ext_decl.external_symbol.len() > 0 {
+        external_type := type_from_name(ext_decl.type_name(), scope, ctx)
+        stmt.children[0].set_til_type(external_type.clone())
+        stmt.set_til_type(external_type.clone())
+        bind_ext_global_decl(scope, ext_decl, external_type, ctx.path,
+            stmt.line, stmt.col, ctx)
+        return
+    }
+    if infer_ext_global_decl(scope, ext_decl, stmt.children[0], stmt, ctx) {
+        if scope.in_function() {
+            stmt.type_error("ext_global declarations are only allowed at top level or in a type namespace", ctx)
+        }
+        stmt.set_til_type(stmt.children[0].til_type().clone())
+        bind_ext_global_decl(scope, ext_decl, stmt.til_type(), ctx.path,
+            stmt.line, stmt.col, ctx)
+        return
+    }
     had_declared_type := decl_of(stmt).til_type.is(Type.Unknown).not()
     mut dv_elem := ""
     ref first_child : Expr = stmt.children[0]
@@ -9675,7 +9807,7 @@ priv expr_is_borrow_source := func(e: Expr, scope: TypeScope, symbols: SymbolPoo
         sf := scope.find_sym(id.ident_sym())
         switch sf {
         case .Found(b):
-            if b.own_type.is(OwnType.Ref).or(b.is_param) { return true }
+            if b.own_type.is(OwnType.Ref).or(b.is_param).or(b.is_external_global) { return true }
             // Owned compound locals are pointers in C -- valid borrow source
             if is_aggregate(b.type) { return true }
         case:
@@ -9714,7 +9846,26 @@ priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope, symbols: Symbo
 priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if expr_is_borrow_source(e, scope, symbols) { return true }
     if e.node_type.is(NodeType.FieldAccess) {
-        if fa_is_ns(e, scope, symbols) { return false }
+        if fa_is_ns(e, scope, symbols) {
+            mut owner_name := ""
+            owner_o := expr_type_name_ref(e.children[0])
+            if owner_o.is_some() { owner_name = owner_o.unwrap().clone() }
+            if owner_name.len() == 0 {
+                switch e.children[0].node_type {
+                case .Ident(owner_id): owner_name = Str.clone(owner_id.ident_name(symbols.names))
+                case:
+                }
+            }
+            owner_def_o := scope.get_struct(owner_name, symbols)
+            if owner_def_o.is_none() { return false }
+            switch e.node_type {
+            case .FieldAccess(member):
+                member_o := find_ns_decl(owner_def_o.unwrap(), member.field_access_name(symbols.names))
+                if member_o.is_some() { return member_o.unwrap().external_symbol.len() > 0 }
+            case:
+            }
+            return false
+        }
         return expr_is_stable_field_base(e.children[0], scope, symbols)
     }
     return false

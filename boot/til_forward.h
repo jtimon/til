@@ -481,6 +481,7 @@ typedef struct Declaration {
     Option__Expr default_value;
     Str orig_name;
     GcStorage gc_storage;
+    Str external_symbol;
 } Declaration;
 
 
@@ -1590,6 +1591,7 @@ typedef struct TypeBinding {
     Str dynvec_elem;
     Str declared_type_name;
     Vec__BorrowRoot borrow_roots;
+    Bool is_external_global;
 } TypeBinding;
 
 
@@ -1887,6 +1889,7 @@ typedef struct Context {
     InternedTypes interned_types;
     FfiState ffi;
     Map__Str_Expr type_gen_binding_sources;
+    Map__Str_Str builder_external_globals;
     SymbolPool symbols;
 } Context;
 

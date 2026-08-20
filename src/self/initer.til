@@ -1478,11 +1478,54 @@ priv register_type_alias_for_stmt := func(mut ctx: Context, stmt: Expr, mut scop
     }
 }
 
-priv register_top_level_value_for_stmt := func(mut ctx: Context, stmt: Expr, mut scope: TypeScope) {
+priv register_top_level_value_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
-    ref rhs : Expr = stmt.children[0]
+    ref mut rhs : Expr = stmt.children[0]
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
         return
+    }
+    // ext_global's first argument is its declaration type. Seed it here so a
+    // later-importing unit sees the real type rather than the generic FCall
+    // fallback (Dynamic) before the imported unit's body sweep runs.
+    if rhs.node_type.is(NodeType.FCall).and(rhs.children.len().eq(3)) {
+        mut is_ext_global := false
+        switch rhs.children[0].node_type {
+        case .Ident(ext_name): is_ext_global = ext_name.ident_name(ctx.symbols.names) == "ext_global"
+        case:
+        }
+        if is_ext_global {
+            mut type_name := ""
+            mut symbol := ""
+            switch rhs.children[1].node_type {
+            case .Ident(type_id): type_name = Str.clone(type_id.ident_name(ctx.symbols.names))
+            case:
+            }
+            switch rhs.children[2].node_type {
+            case .Literal(Literal.Str(symbol_lit)): symbol = symbol_lit.clone()
+            case:
+            }
+            if type_name.len().gt(0).and(symbol.len().gt(0)) {
+                external_type := type_from_name_init_name(type_name, scope, ctx.symbols)
+                supported := is_primitive(external_type)
+                    .or(external_type.is(Type.Struct))
+                    .or(external_type.is(Type.Enum))
+                if supported {
+                    ref mut ext_decl : Declaration = decl_of(stmt)
+                    ext_decl.til_type = declaration_type_from_name(type_name)
+                    ext_decl.external_symbol = symbol
+                    rhs.node_type = NodeType.Literal(Literal.Null)
+                    rhs.children.clear()
+                    rhs.set_til_type(external_type.clone())
+                    scope.set(ext_decl.name, external_type, ext_decl.is_mut, ctx.path,
+                        stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
+                    ref mut ext_binding : TypeBinding = scope.get_binding_name(ext_decl.name, ctx.symbols).unwrap()
+                    ext_binding.is_priv = ext_decl.is_priv
+                    ext_binding.orig_name = ext_decl.orig_name.clone()
+                    ext_binding.is_external_global = true
+                    return
+                }
+            }
+        }
     }
     if rhs.node_type.is(NodeType.Ident) {
         switch stmt.node_type {

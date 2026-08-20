@@ -297,6 +297,10 @@ Declaration := struct {
     // after promotion; see GcStorage above. Appended at the END so the
     // committed boot's Declaration layout stays stable.
     gc_storage := GcStorage.Unset
+    // C symbol backing an ext_global declaration. Empty for ordinary
+    // declarations. The declaration remains the source-level binding while
+    // compiled and interpreted reads/writes use this external storage.
+    external_symbol := ""
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }
