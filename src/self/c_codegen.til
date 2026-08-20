@@ -5906,6 +5906,25 @@ priv c_lib_collect_c_source_names := func(content: Str, mut names: Vec(Str), mut
         ref first : I8 = raw.get(0)
         if first.eq(' ').or(first.eq('\t')) { continue }
         if line.starts_with("static ").or(line.starts_with("#")).or(line.starts_with("//")) { continue }
+        // A non-static file-scope variable belongs to this library too. Skip
+        // declarations and type definitions; they do not define linker symbols.
+        if line.ends_with(";").and(line.starts_with("extern ").not())
+            .and(line.starts_with("typedef ").not()).and(line.starts_with("struct ").not())
+            .and(line.starts_with("union ").not()).and(line.starts_with("enum ").not()) {
+            mut global_end := line.len() - 1
+            eq := line.find("=")
+            if eq >= 0 { global_end = eq.to_usize() }
+            bracket := line.find("[")
+            if bracket >= 0 {
+                bracket_u := bracket.to_usize()
+                if bracket_u < global_end { global_end = bracket_u }
+            }
+            global_name := c_header_ident_before(line, global_end)
+            if global_name.len() > 0 {
+                c_lib_add_name(global_name, names, seen)
+                continue
+            }
+        }
         if line.find("(") < 0 { continue }
         if line.find("{") < 0 {
             if line.ends_with(";").not() { pending = line.clone() }
@@ -5946,6 +5965,12 @@ priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_n
     ext_h_path := format(lp.ext_c_path.strip_suffix(".c"), ".h")
     c_lib_collect_header_names(File.readfile(ext_h_path), names, seen)
     c_lib_collect_c_source_names(File.readfile(lp.ext_c_path), names, seen)
+    for link_c_path : Str in lp.link_c_paths.split(" ") {
+        if link_c_path.len() > 0 {
+            c_lib_collect_c_source_names(File.readfile(link_c_path), names, seen)
+        }
+    }
+    if lp.ctx.builder_closure_rt_used { c_lib_add_name("TilClosure", names, seen) }
     // These two bodies are emitted by c_codegen for core ext_proc declarations
     // rather than defined in ext.c, so neither declaration parser sees them.
     c_lib_add_name("print_single", names, seen)
@@ -6626,6 +6651,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 emit_binding_ns_methods(f, dd.name, rhs, lp.ctx, lib_name)
                 f.write("}\n\n")
             case .FuncDef(fd):
+                if rhs.children.len() == 0 { continue }
                 if fd.sig.func_type.is_bodyless() { continue }
                 if fd.sig.func_type.is(FuncType.Test) { continue }
                 actual_name := c_lib_symbol(lib_name, dd.name)
@@ -6864,6 +6890,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             } else {
                 switch rhs.node_type {
                 case .FuncDef(fd):
+                    if rhs.children.len() == 0 { continue }
                     if fd.sig.func_type.is_bodyless() { continue }
                     if fd.sig.func_type.is(FuncType.Test) { continue }
 

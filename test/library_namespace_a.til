@@ -1,5 +1,11 @@
 mode lib
 
+link_c("library_namespace_a_link.c")
+
+LibraryNamespaceACallback := func(I64) returns I64
+
+library_link_helper := ext_func(shallow value: I64) returns shallow I64 {}
+
 library_namespace_a_value := func() returns I64 {
     values := array(I64, 10, 11)
     return values[0].clone() + values[1].clone()
@@ -7,4 +13,8 @@ library_namespace_a_value := func() returns I64 {
 
 library_namespace_a_values := func() returns Array(I64) {
     return array(I64, 10, 11)
+}
+
+library_namespace_a_link_value := func() returns I64 {
+    return library_link_helper(11)
 }

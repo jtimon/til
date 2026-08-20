@@ -9,5 +9,7 @@ main := proc() returns I64 {
     values := library_namespace_a_values()
     if values.len() != 2 { return 3 }
     if values.unsafe_get(0).eq(10).not() { return 4 }
+    if library_namespace_a_link_value() != 21 { return 5 }
+    if library_namespace_b_link_value() != 42 { return 6 }
     return 0
 }
