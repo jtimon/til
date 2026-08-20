@@ -99,3 +99,50 @@ This intentionally changes the generated C ABI. Existing C consumers must
 rebuild against the newly generated header; generated til/Python consumers
 keep their source-level names. No compatibility aliases should be emitted,
 because unprefixed aliases recreate the conflict this issue removes.
+
+*** Follow-up: parallel build intermediates (2026-08-20)
+
+The namespace fix made each library's bundled runtime implementation distinct,
+but ~compile_lib~ still writes every build's runtime and declared ~link_c~
+objects to the shared ~gen/lib/ext.o~ and ~gen/lib/user.o~ paths. A full-suite
+run exposed the race when parallel ~pure_build~ and ~pura_build~ jobs produced:
+
+#+begin_example
+ar: gen/lib/ext.o: No such file or directory
+error: static library creation failed
+#+end_example
+
+The collision is not merely temporary-file churn. Each ~ext.o~ is compiled
+through that library's generated forward header, whose namespace map gives the
+runtime different symbols. ~user.o~ also uses that header and can additionally
+differ by declared C source and include flags. Target, ASAN, and USize settings
+affect all three library objects. One build can therefore link or archive a
+different library's complete but incompatible object, not just observe a
+missing or partially written file.
+
+The practical concurrency boundary is the library artifact name. Builds of
+different names already have distinct generated C, primary objects, bindings,
+and final libraries and should be safe in parallel. Concurrent builds of the
+same name target the same canonical outputs throughout translation and remain
+unsupported unless the entire build gains private staging and atomic
+publication.
+
+For the different-library guarantee, key every intermediate object by the
+existing library name: ~gen/lib/<name>.o~, ~gen/lib/<name>_ext.o~, and optional
+~gen/lib/<name>_user.o~. ~compile_lib~ writes and consumes them; they stay under
+the existing ignored ~gen/~ tree, ~make clean~ removes them, and install still
+copies only the canonical public artifacts. Recreate the static archive at a
+fresh temporary path before publishing it: ~ar rcs~ updates an existing archive
+and otherwise retains stale members, including the old generic object names or
+an optional user object removed by a later source change.
+
+The existing ~test/library_namespace.til~ fixture is the focused regression:
+start its two library builds together with ~Cmd.start~, wait for both, then keep
+the current static, shared, and Til consumers. Their distinct namespaces make
+cross-contaminated objects fail loudly without adding another fixture.
+
+Process-private staging under ~gen/lib~ is the stronger alternative. To support
+same-name builds correctly it must cover generated C, forward/public headers,
+bindings, all objects, both final libraries, and install copying, followed by a
+coherent per-name publication step. Staging only ~ext.o~ and ~user.o~ would add
+complexity without establishing that stronger contract.
