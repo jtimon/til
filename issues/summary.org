@@ -1,6 +1,5 @@
 * Cleanups
 ** High
-*** [[./open/124.org][#124]] Remove remaining manual frees for typed raw-buffer locals
 *** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run
 *** [[./open/171.org][#171]] Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
 *** [[./open/172.org][#172]] Add test_runner regen mode for expected outputs

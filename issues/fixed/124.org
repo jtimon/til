@@ -1,0 +1,85 @@
+# priority: high
+# category: cleanups
+** FIXED #124 Remove remaining manual frees for typed raw-buffer locals
+
+Status update (2026-07-18): the original premise is obsolete. ~Dynamic~ never
+owns; it is for type erasure and raw borrows. Issue #302 established the
+replacement model, and #319 rejects user-facing allocator results bound to
+~Dynamic~ or ~ref~ locals.
+
+Allocator-rooted concrete locals such as:
+
+#+begin_src til
+buf : U8 = malloc(n)
+#+end_src
+
+are ordinary owned locals. Raw-allocation provenance makes them pointer-form
+heap blocks, and the garbager inserts their plain ~free~ at last use and exit
+edges. Source-level ~own~ is redundant on locals, so this issue does not
+propose an owned-Dynamic rule, a new raw-buffer type, or an ~own U8~ local
+spelling.
+
+The remaining cleanup is narrower:
+
+- Remove handwritten ~free(own buf)~ calls where ~buf~ is a concrete
+  allocator-rooted local and automatic cleanup or an existing ownership
+  transfer already handles it.
+- Keep explicit frees that are real behavior: custom/manual delete
+  implementations, foreign ownership, custom allocators, and buffers that
+  intentionally do not use plain ~free~.
+- Keep compiler-internal ~src/self~ erased ABI slots until #286 gives their
+  ~write_ptr~ / interpreter heap transfers typed ownership. Those slots are
+  not evidence that ordinary ~Dynamic~ values may own memory.
+- Update ~doc/concepts/qualifiers.org~ and ~doc/c2til.org~ so they describe concrete typed raw
+  locals and remove the old manual-free contract.
+
+Issue #302 remains the ownership-pass source of truth. This issue is the
+focused explicit-call and documentation cleanup after that machinery lands.
+
+*** Post-mortem (2026-08-19)
+
+The census is the finding: there was almost nothing left to remove. Of
+269 handwritten ~free(own ...)~ calls in the tree, 28 name an
+allocator-rooted local, and exactly ONE was redundant.
+
+  - REMOVED: ~cloned_key : U8 = malloc(...)~ in ~DynMap.set~
+    (src/std/dyn_map.til) -- a scratch buffer copied into the map's
+    storage and then freed by hand. The garbager already inserts that
+    free by raw_alloc provenance; verified by removing it and running
+    test/dyn_maps.til under ASAN (4/4, no leak, no double free).
+  - KEPT as real behaviour: ~buf : U8 = malloc(...)~ in
+    src/modes/gui.til, which crosses into raylib as
+    ~Wave(data = to_ptr(buf))~ and must outlive ~LoadSoundFromWave~.
+    That is the "foreign ownership" survivor this issue anticipated.
+  - KEPT by this issue's own rule: the 9 in ~src/self~ (the FFI
+    marshalling slots -- ~raw~, ~atypes~, ~pdynamics~, ~cif~, ~args~,
+    ~arg_ptrs~, ~arg_raws~, ~boxed_flags~), erased-ABI storage deferred
+    to #286.
+  - KEPT: the test-corpus frees, where the free IS the behaviour under
+    test (script_dynamic_free.til, script_dynamic_global_ptr.til,
+    aliases.til, and the deliberately-rejected cases in
+    typer_errors.til).
+
+The other acceptance criteria were already met before this commit, which
+is worth recording so nobody re-does the search:
+
+  - No owned-~Dynamic~ allocation convention survives in ordinary code:
+    zero matches across src/core, src/std, src/modes and examples. The
+    only hit in the tree is ~bad_raw_alloc_dynamic~ in
+    test/typer_errors.til, where it is a REJECTED case.
+  - The docs already describe the current contract:
+    doc/concepts/qualifiers.org says a typed raw local's free is inserted
+    by the garbager and "No hand-written free is needed", and
+    doc/c2til.org's low-level memory section shows the same. Neither
+    still carries the old manual-free contract, so neither needed an
+    edit.
+
+426/426 including the ASAN suite.
+
+Acceptance:
+
+- Census remaining handwritten frees of allocator-rooted locals and classify
+  every survivor as required behavior or remove it.
+- Ordinary user code contains no owned ~Dynamic~ allocation convention.
+- Typed raw locals need no handwritten cleanup on normal or early-exit paths.
+- The full ASAN suite passes after the removals.
