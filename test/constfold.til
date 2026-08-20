@@ -347,6 +347,101 @@ test_nested_enum_payload_return_fold := test() {
     }
 }
 
+// Issue #70: collection-valued pure calls reconstruct typed, target-neutral
+// sequence nodes. C clones immutable templates; the interpreter materializes
+// fresh backing buffers directly.
+cf_make_vec := func() returns Vec(I64) {
+    mut out := Vec(I64).with_capacity(4)
+    out.push(own 11)
+    out.push(own 22)
+    return out
+}
+
+cf_make_empty_vec := func() returns Vec(I64) {
+    return Vec(I64).new()
+}
+
+cf_make_array := func() returns Array(I64) {
+    mut out := Array(I64).new(3)
+    out[0] = 3
+    out[1] = 5
+    out[2] = 8
+    return out
+}
+
+cf_make_map := func() returns Map(Str, I64) {
+    mut out := Map(Str, I64).with_capacity(4)
+    out.set("b", own 20)
+    out.set("a", own 10)
+    return out
+}
+
+CfNestedValues := struct {
+    values := Vec(I64).new()
+}
+
+cf_make_nested_vec := func() returns Vec(CfNestedValues) {
+    mut first := Vec(I64).with_capacity(2)
+    first.push(own 1)
+    first.push(own 2)
+    mut second := Vec(I64).with_capacity(1)
+    second.push(own 3)
+    mut out := Vec(CfNestedValues).with_capacity(2)
+    out.push(own CfNestedValues(values = first))
+    out.push(own CfNestedValues(values = second))
+    return out
+}
+
+cf_make_strings := func() returns Vec(Str) {
+    mut out := Vec(Str).with_capacity(2)
+    out.push(own "alpha")
+    out.push(own "beta")
+    return out
+}
+
+cf_macro_vec := macro() returns Vec(I64) {
+    return cf_make_vec()
+}
+
+test_collection_return_fold := test() {
+    values := cf_make_vec()
+    assert_eq(USize, values.len(), 2)
+    assert_eq(USize, values.cap, 4)
+    assert_eq(I64, values[0], 11)
+    assert_eq(I64, values[1], 22)
+
+    empty := cf_make_empty_vec()
+    assert_eq(USize, empty.len(), 0)
+    assert_eq(USize, empty.cap, 0)
+
+    fixed := cf_make_array()
+    assert_eq(USize, fixed.len(), 3)
+    assert_eq(I64, fixed[0], 3)
+    assert_eq(I64, fixed[2], 8)
+
+    table := cf_make_map()
+    assert_eq(USize, table.len(), 2)
+    assert_eq(I64, table["a"], 10)
+    assert_eq(I64, table["b"], 20)
+
+    nested := cf_make_nested_vec()
+    assert_eq(USize, nested.len(), 2)
+    ref first_nested : CfNestedValues = nested[0]
+    ref second_nested : CfNestedValues = nested[1]
+    assert_eq(I64, first_nested.values[1], 2)
+    assert_eq(I64, second_nested.values[0], 3)
+
+    mut left := cf_make_strings()
+    right := cf_make_strings()
+    left[0] = "changed"
+    assert_eq(Str, left[0], "changed")
+    assert_eq(Str, right[0], "alpha")
+
+    macro_values := cf_macro_vec()
+    assert_eq(USize, macro_values.cap, 4)
+    assert_eq(I64, macro_values[1], 22)
+}
+
 test_static_global_initializers := test() {
     assert_eq(I64, STATIC_SCALAR, 42)
     assert_eq(Str, STATIC_STR, "static-folded")

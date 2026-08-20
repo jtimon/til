@@ -1106,6 +1106,9 @@ Context := struct {
     // (parented at the moved-out real one) in the field meanwhile.
     constfolder_known := Option(Scope).None
     constfolder_assigned := Set(Str).new()
+    // Issue #70: deterministic file-scope template identity for recursively
+    // reconstructed Array/Vec values. Reset with the rest of constfolder.
+    precomputed_sequence_counter : USize = 0
     // Interpreter call/control/namespace state, grouped so Context no longer
     // exposes each evaluation-local flag, slot, and cache separately.
     eval := EvalState()

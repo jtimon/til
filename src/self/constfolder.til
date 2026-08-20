@@ -20,6 +20,7 @@ constfolder_reset_state := func(mut ctx: Context) {
     ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     ctx.constfolder_foldables = Map(Str, FuncType).new()
     ctx.constfolder_assigned = Set(Str).new()
+    ctx.precomputed_sequence_counter = 0
 }
 
 // The known scope, borrowed. PANICS on None: every caller runs between
@@ -339,6 +340,37 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             return Option(Expr).None
         }
     case .Struct(sname):
+        is_sequence := sname.starts_with("Vec__").or(sname.starts_with("Array__"))
+        if is_sequence {
+            elem_name := container_elem_type(sname, ctx)
+            if elem_name.len() == 0 { panic("precomputed sequence has no element type: ", sname) }
+            elem_type := type_from_name_init_name(elem_name, ctx.scope, ctx.symbols)
+            count := container_live_count(sname, raw, ctx)
+            capacity := container_capacity(sname, raw, ctx)
+            if count > capacity { panic("precomputed sequence count exceeds capacity: ", sname) }
+            ref data_fl : FieldLayout = ctx_field_layout(sname, "data", ctx)
+            ref stored_data : Dynamic = deref(ptr_add(raw, data_fl.offset))
+            if count.gt(0).and(stored_data.is_null()) { panic("precomputed sequence has null live storage: ", sname) }
+            elem_size := container_elem_size(elem_name, ctx)
+            mut elements := Vec(Expr).new()
+            for i in 0..count {
+                ref elem_addr : Dynamic = ptr_add(stored_data, i.mul(elem_size))
+                mut elem_raw : Dynamic = elem_addr
+                if raw_type_is_prim(elem_type, ctx) { elem_raw = scalar_word_load(elem_type, elem_addr, ctx) }
+                elem_o := raw_to_expr(elem_raw, elem_type, src, ctx)
+                if elem_o.is_none() { return Option(Expr).None }
+                mut elem : Expr = Option(Expr).take(own elem_o)
+                elem.set_til_type(elem_type)
+                elements.push(own elem)
+            }
+            ordinal := ctx.precomputed_sequence_counter
+            ctx.precomputed_sequence_counter = ctx.precomputed_sequence_counter + 1
+            mut seq := Expr.new(NodeType.PrecomputedSequence(PrecomputedSequenceData(
+                til_type = t.clone(), element_type = elem_type,
+                capacity = capacity, ordinal = ordinal)), src.line, src.col)
+            seq.children.move_from(own elements)
+            return Option(Expr).Some(own seq)
+        }
         if sname == "Str" {
             ref s : Str = to_ptr(raw)
             count := str_count_at(raw, ctx)
@@ -418,34 +450,57 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
     }
 }
 
-priv result_type_can_fold_to_expr := func(t: Type, ctx: Context) returns Bool {
+priv result_type_can_fold_to_expr_inner := func(t: Type, mut visiting: Set(Str), ctx: Context) returns Bool {
     switch t {
     case .Primitive, .Enum:
         return true
     case .Struct(sname):
-        return struct_result_can_fold_to_expr(sname, ctx)
+        return struct_result_can_fold_to_expr_inner(sname, visiting, ctx)
     case .Custom(sname):
-        return struct_result_can_fold_to_expr(sname, ctx)
+        return result_type_can_fold_to_expr_inner(type_from_name_init_name(sname, ctx.scope, ctx.symbols), visiting, ctx)
     case:
         return false
     }
 }
 
-priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bool {
+priv struct_result_can_fold_to_expr_inner := func(sname: Str, mut visiting: Set(Str), ctx: Context) returns Bool {
     if sname.eq("Str") { return true }
-    sdef_o := lookup_interp_type_def(sname, ctx)
-    if sdef_o.is_none() { return false }
-    ref sdef : Expr = sdef_o.unwrap()
-    switch sdef.node_type {
-    case .StructDef(sfd):
-        for fd : Declaration in sfd.fields {
-            if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
-            if result_type_can_fold_to_expr(fd.til_type, ctx).not() { return false }
+    if visiting.has(sname) { return false }
+    visiting.add(own sname.clone())
+    mut result := false
+    if sname.starts_with("Vec__").or(sname.starts_with("Array__")) {
+        elem_name := container_elem_type(sname, ctx)
+        if elem_name.len() > 0 {
+            result = result_type_can_fold_to_expr_inner(type_from_name_init_name(elem_name, ctx.scope, ctx.symbols), visiting, ctx)
         }
-        return true
-    case:
-        return false
+    } else {
+        sdef_o := lookup_interp_type_def(sname, ctx)
+        if sdef_o.is_some() {
+            ref sdef : Expr = sdef_o.unwrap()
+            switch sdef.node_type {
+            case .StructDef(sfd):
+                result = true
+                for fd : Declaration in sfd.fields {
+                    if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) {
+                        result = false
+                        break
+                    }
+                    if result_type_can_fold_to_expr_inner(fd.til_type, visiting, ctx).not() {
+                        result = false
+                        break
+                    }
+                }
+            case:
+            }
+        }
     }
+    visiting.remove(sname)
+    return result
+}
+
+priv result_type_can_fold_to_expr := func(t: Type, ctx: Context) returns Bool {
+    mut visiting := Set(Str).new()
+    return result_type_can_fold_to_expr_inner(t, visiting, ctx)
 }
 
 priv is_known := func(mut ctx: Context, e: Expr) returns Dynamic {
@@ -808,26 +863,6 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                 }
             }
         case:
-        }
-    }
-
-    // #286: a call whose return type is a container (Vec/Array/Map) can never
-    // be folded -- raw_to_expr always bails on the container's `own data`
-    // field and returns NULL, so the call already stays at runtime. Evaluating
-    // it anyway runs the whole call (allocating the container plus its element
-    // buffers) only to discard the result, leaking every block the eval cloned.
-    // The outcome
-    // (NULL -> call left for runtime) is identical without the wasted eval, so
-    // skip it for non-macro folds. Macros (require_known) may run compile-time
-    // effects and must still evaluate.
-    if require_known.not() {
-        ret_tname_o := expr_type_name_ref(fcall)
-        if ret_tname_o.is_some() {
-            ref ret_tname : Str = ret_tname_o.unwrap()
-            is_container := ret_tname.starts_with("Vec__")
-            .or(ret_tname.starts_with("Array__"))
-            .or(ret_tname.starts_with("Map__"))
-            if is_container { return Option(Expr).None }
         }
     }
 

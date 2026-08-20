@@ -3461,14 +3461,17 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
     }
 }
 
-priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, mut emitted: Set(USize), mut ctx: Context) {
+priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, in_sequence_initializer: Bool, mut emitted: Set(USize), mut ctx: Context) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref ns : Vec(Declaration) = def_ns_decls(e)
         for d : Declaration in ns {
-            if d.default_value.is_some() { emit_precomputed_sequence_templates_expr(f, d.default_expr(), emitted, ctx) }
+            if d.default_value.is_some() { emit_precomputed_sequence_templates_expr(f, d.default_expr(), in_sequence_initializer, emitted, ctx) }
         }
     }
-    for child : Expr in e.children { emit_precomputed_sequence_templates_expr(f, child, emitted, ctx) }
+    child_in_sequence_initializer := in_sequence_initializer.or(e.node_type.is(NodeType.PrecomputedSequence))
+    for child : Expr in e.children {
+        emit_precomputed_sequence_templates_expr(f, child, child_in_sequence_initializer, emitted, ctx)
+    }
     switch e.node_type {
     case .PrecomputedSequence(data):
         if emitted.has(data.ordinal) { return }
@@ -3487,10 +3490,12 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, mut emit
             }
             f.write("};\n")
         }
-        seq_c := c_type_name(data.til_type, til_type_name(data.til_type), ctx)
-        f.write("static ").write(seq_c).write(" ").write(symbol).write(" = ")
-        emit_c_static_initializer(f, e, ctx)
-        f.write(";\n")
+        if in_sequence_initializer.not() {
+            seq_c := c_type_name(data.til_type, til_type_name(data.til_type), ctx)
+            f.write("static ").write(seq_c).write(" ").write(symbol).write(" = ")
+            emit_c_static_initializer(f, e, ctx)
+            f.write(";\n")
+        }
     case:
     }
 }
@@ -3499,7 +3504,7 @@ priv emit_precomputed_sequence_templates := proc(f: File, mut lp: LoadedProgram)
     mut emitted := Set(USize).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
-        emit_precomputed_sequence_templates_expr(f, iu.ast, emitted, lp.ctx)
+        emit_precomputed_sequence_templates_expr(f, iu.ast, false, emitted, lp.ctx)
     }
     if emitted.len() > 0 { f.write("\n") }
 }
@@ -9762,6 +9767,13 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
                 sites.add(own bvs_dtn2.concat3(".", "delete"))
             }
         }
+    case .PrecomputedSequence(bvs_seq):
+        // The emitted value is Sequence.clone(&static_template), with no
+        // FCall child. Keep the generated clone body in the same inventory
+        // that gates its declaration and definition.
+        bvs_seq_name := til_type_name(bvs_seq.til_type)
+        if bvs_seq_name.len() == 0 { panic("precomputed sequence has unnamed type") }
+        sites.add(own bvs_seq_name.concat3(".", "clone"))
     case:
     }
 

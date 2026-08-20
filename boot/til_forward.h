@@ -1756,6 +1756,7 @@ typedef struct Context {
     Map__Str_FuncType constfolder_foldables;
     Option__Scope constfolder_known;
     Set__Str constfolder_assigned;
+    USize precomputed_sequence_counter;
     EvalState eval;
     Map__Str_ImportUnit imported;
     Str import_cwd;

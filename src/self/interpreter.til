@@ -1562,7 +1562,7 @@ priv eval_precomputed_sequence := proc(mut scope: Scope, mut e: Expr, data: Prec
     if e.children.len() > data.capacity { panic("precomputed sequence count exceeds capacity") }
     if is_array.and(e.children.len() != data.capacity) { panic("precomputed Array count differs from capacity") }
 
-    elem_name := til_type_name(data.element_type)
+    elem_name := container_elem_type(seq_name, ctx)
     if elem_name.len() == 0 { panic("precomputed sequence has unnamed element type") }
     elem_size := container_elem_size(elem_name, ctx)
     mut result : Dynamic = destination
@@ -3503,7 +3503,7 @@ priv DynPtrBox := struct {
 
 // Element type of a monomorphized container ("Array__Str" -> "Str",
 // "Vec__I64" -> "I64"); "" for a non-container struct name.
-priv container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
+container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
     array_prefix := "Array__"
     if struct_name.starts_with(array_prefix) {
         return struct_name.substr(array_prefix.count, struct_name.count - array_prefix.count)
@@ -3534,7 +3534,7 @@ priv container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
     return ""
 }
 
-priv container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
+container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
     resolved := type_from_name_init_name(elem_type, ctx.scope, ctx.symbols)
     if type_is_callable_storage(resolved) { return 8 }
     switch resolved {
@@ -3563,18 +3563,16 @@ priv type_name_is_callable_storage := func(type_name: Str, ctx: Context) returns
     return false
 }
 
-priv container_live_count := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
+container_live_count := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
     mut count_field := "count"
     if struct_name.starts_with("Array__") { count_field = "cap" }
     ref fl : FieldLayout = ctx_field_layout(struct_name, count_field, ctx)
-    ref n : USize = ptr_add(data, fl.offset)
-    return n.clone()
+    return str_usize_field_at(data, fl.offset, str_usize_read_width(fl.size, ctx))
 }
 
-priv container_capacity := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
+container_capacity := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
     ref fl : FieldLayout = ctx_field_layout(struct_name, "cap", ctx)
-    ref n : USize = ptr_add(data, fl.offset)
-    return n.clone()
+    return str_usize_field_at(data, fl.offset, str_usize_read_width(fl.size, ctx))
 }
 
 priv container_elem_deep_free := func(elem_type: Str, mut slot: Dynamic, ctx: Context) {

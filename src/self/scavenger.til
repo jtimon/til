@@ -206,7 +206,9 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         if seq_name.len() == 0 { panic("precomputed sequence has unnamed type") }
         vec_push_str(refs, seq_name)
         push_qn(refs, seq_name, "clone")
-        elem_name := til_type_name(data.element_type)
+        mut elem_name := ""
+        if seq_name.starts_with("Vec__") { elem_name = seq_name.substr(5, seq_name.len() - 5) }
+        else if seq_name.starts_with("Array__") { elem_name = seq_name.substr(7, seq_name.len() - 7) }
         if elem_name.len() == 0 { panic("precomputed sequence has unnamed element type") }
         vec_push_str(refs, elem_name)
     case .Assign(adata):

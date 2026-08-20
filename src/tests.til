@@ -789,7 +789,7 @@ main := proc(args: ..Str) {
         "r.data.FCall = *val;\n    return r;", 1,
         "cat boot/til.c")
     add_count(tests, "niche_enum_ctor_keeps_heap_payload", "build",
-        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 74,
+        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 75,
         "cat boot/til.c")
     add_count(tests, "stack_delete_no_outer_box", "build",
         "Expr_delete(({ Expr *_oa = malloc(TIL_BOX(Expr))", 0,
@@ -1002,11 +1002,11 @@ main := proc(args: ..Str) {
     // READ, which is the Str_size mis-cast from the post-mortem all over
     // again. The exits already read type_name; the index-taking ones now
     // report the offending index too, so every parameter is genuinely
-    // read and no cast survives. first_class.til emits the widest stub
-    // set (struct_field_*, enum_variant_*, func_sig_*).
+    // read and no cast survives. first_class.til retains the struct_field_*
+    // and enum_variant_* stubs; its func_sig_* Vec results fold statically.
     add_count(tests, "first_class_no_stub_param_casts", "build", "(void)type_name", 0,
         format(til_bin, " translate -c gen/c/fc_vc.c test/first_class.til '&&' cat gen/c/fc_vc.c"))
-    add_count(tests, "first_class_index_in_range_error", "build", "index %lld out of range", 12,
+    add_count(tests, "first_class_index_in_range_error", "build", "index %lld out of range", 9,
         format(til_bin, " translate -c gen/c/fc_ir.c test/first_class.til '&&' cat gen/c/fc_ir.c"))
     // An interface's ABSTRACT method has no definition anywhere --
     // implementers copy the defaults and supply their own bodies, and

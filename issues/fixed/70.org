@@ -1,6 +1,21 @@
 # priority: low
 # category: cleanups
-** WIP #70 Constfolder: emit recursively serializable compile-time values
+** FIXED #70 Constfolder: emit recursively serializable compile-time values
+
+*** Post-mortem
+
+  The constfolder could evaluate pure collection-valued calls but discarded
+  their results because raw interpreter storage contains host-layout pointers
+  and the AST had no target-neutral sequence value. The preparation stage
+  added ~PrecomputedSequence~ lifecycle and consumer support. The final stage
+  reconstructs Vec/Array storage recursively, keeps capacity and target USize
+  width, represents Map through its key/value Vec fields, and emits typed
+  static backing storage cloned at each value site. Recursive type graphs are
+  rejected while nested acyclic collections are serialized inner-first.
+
+  ~test_collection_return_fold~ and ~test/usize64_comptime.til~ cover
+  empty/non-empty Vec, Array, Map, nested values, independent ownership,
+  macros, generated C, and USize32/USize64 execution.
 
   The original issue predates value-backed globals, typed raw interpreter
   storage, namespace data globals, configurable enum tags, and the current
@@ -80,6 +95,6 @@
     materializes fresh backing storage, while C emits post-ordered typed
     templates and clones them at each value site. ~test_precomputed_sequence_payload~
     covers payload/child cloning and deletion through both test backends.
-  - [ ] After that preparation lands, make constfolder produce the sequence,
+  - [X] After that preparation lands, make constfolder produce the sequence,
     remove the Vec/Array/Map gates, and test empty/non-empty/nested
     collections, ownership, generated C, ASAN, and USize32/USize64 targets.

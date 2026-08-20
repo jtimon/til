@@ -29,8 +29,25 @@ comptime_label := macro() returns shallow Str {
 
 LABEL := comptime_label()
 
+wide_values := func() returns Vec(USize) {
+    mut out := Vec(USize).with_capacity(3)
+    out.push(own 4294967297)
+    out.push(own 4294967298)
+    return out
+}
+
+WIDE_VALUES := wide_values()
+
 if LABEL.eq("va-b-c-").not() {
     println(format("FAIL: comptime fold = ", LABEL, ", want va-b-c-"))
+    exit(1)
+}
+if WIDE_VALUES.cap != 3 {
+    println("FAIL: folded Vec(USize) capacity")
+    exit(1)
+}
+if WIDE_VALUES[0] != 4294967297 {
+    println("FAIL: folded Vec(USize) element width")
     exit(1)
 }
 println("usize64 comptime OK")
