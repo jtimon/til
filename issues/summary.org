@@ -43,6 +43,7 @@
 *** [[./open/374.org][#374]] BEAM backend alongside the C backend
 *** [[./open/375.org][#375]] JVM backend alongside the C backend
 *** [[./open/382.org][#382]] Add concise construction of Some borrowed refs
+*** [[./open/384.org][#384]] Allow explicit inc/dec step arguments
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation

@@ -1,0 +1,32 @@
+# priority: low
+# category: features
+** OPEN #384 Allow explicit inc/dec step arguments
+
+The numeric ~inc~ and ~dec~ methods currently take only ~mut self~. Give them
+an optional step argument so direct calls can mutate by an arbitrary amount:
+
+#+begin_src til
+count.inc(TYPER_SYNTH_BINDING_SLACK)
+count.dec(step)
+#+end_src
+
+Omitting the argument should retain unit-step behavior. The generic source of
+that unit is the type's ~unity()~ method, not a numeric literal: derived
+~inc~ / ~dec~ methods are currently generated from ~add~ / ~sub~ as
+~self.add(self.unity())~ and ~self.sub(self.unity())~ in
+~gen_unity_derived_for_stmt~.
+
+Keep the two concepts distinct:
+
+- explicit ~inc(step)~ / ~dec(step)~ may use any step;
+- explicit ~inc()~ / ~dec()~ use the unity default;
+- ~++~ / ~--~ always mean one unity step and must continue to require the
+  generic ~unity~ interface; and
+- generic range-loop lowering likewise advances by unity, even though it
+  currently emits zero-argument ~inc~ / ~dec~ calls directly.
+
+The implementation must update numeric core methods and their C, interpreter,
+JVM, and HolyC handling, derived method generation, operator lowering, and
+range-loop lowering. Add focused coverage for an explicit non-unity step,
+the omitted default, generic ~++~ / ~--~, and ascending/descending generic
+range iteration.
