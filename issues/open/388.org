@@ -1,0 +1,76 @@
+# priority: high
+# category: bugs
+** OPEN #388 Make folded aggregate values compositional at compile time
+
+Issue #70 made recursively serializable Vec, Array, and Map results fold into
+target-neutral ~PrecomputedSequence~ expressions. Those expressions work as
+terminal runtime values, but the constfolder does not recognize them as known
+inputs to another compile-time evaluation.
+
+This valid program reaches a constfolder panic:
+
+#+begin_src til
+make_values := func() returns Vec(I64) {
+    mut values := Vec(I64).new()
+    values.push(own 1)
+    values.push(own 2)
+    return values
+}
+
+count_values := macro(values: Vec(I64)) returns USize {
+    return values.len()
+}
+
+COUNT := count_values(make_values())
+#+end_src
+
+The diagnostic is:
+
+#+begin_example
+error: macro argument must be known at compile time
+#+end_example
+
+Binding the folded result first fails the same way:
+
+#+begin_src til
+VALUES := make_values()
+COUNT := count_values(VALUES)
+#+end_src
+
+*** Root cause
+
+Constfolder walks children before parents, so ~make_values()~ becomes a
+~PrecomputedSequence~ before ~count_values(...)~ is evaluated. ~is_known~ and
+~is_known_check~ accept literals and selected identifiers only; they do not
+accept ~PrecomputedSequence~ or the struct/enum constructor expressions that
+~raw_to_expr~ reconstructs. The macro was already accepted by the typer, but
+~try_eval_call~ consequently rejects its argument as unknown.
+
+This is a general recursively serializable-value gap, not a sequence-only
+special case. Fixing only ~PrecomputedSequence~ would leave folded structs and
+enums non-compositional.
+
+*** Required behavior
+
+- Recognize recursively serialized AST values as compile-time-known inputs.
+- Support both direct nested calls and immutable local/global bindings.
+- Preserve the existing ownership contract for interpreter raw storage; do
+  not leak, alias mutable owned values, or double-free temporary storage.
+- Keep Dynamic, function pointers, borrowed references, cyclic type graphs,
+  and pointer-identity-dependent values outside the serializable contract.
+- Leave ordinary pure calls at runtime when an input genuinely is not known;
+  macros must retain the hard diagnostic for genuinely unknown arguments.
+
+*** Regression coverage
+
+- A collection-valued pure call passed directly to a macro and another pure
+  call.
+- The same folded collection reused through an immutable binding.
+- Reconstructed nested struct and enum values used as compile-time inputs.
+- Independent ownership when a serialized value is consumed more than once.
+- Negative cases for unsupported Dynamic, function-pointer, and ref values.
+- Interpreter, generated C, ASAN, and USize32/USize64 execution.
+
+Issue #70 remains fixed for its terminal-value scope. JVM-specific
+precomputed-sequence parity remains part of [[./375.org][#375]], and Set
+folding is a separate optional extension.

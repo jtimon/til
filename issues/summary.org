@@ -1,3 +1,6 @@
+* Bugs
+** High
+*** [[./open/388.org][#388]] Make folded aggregate values compositional at compile time
 * Cleanups
 ** High
 *** [[./open/124.org][#124]] Remove remaining manual frees for typed raw-buffer locals
