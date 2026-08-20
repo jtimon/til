@@ -147,3 +147,37 @@ same-name builds correctly it must cover generated C, forward/public headers,
 bindings, all objects, both final libraries, and install copying, followed by a
 coherent per-name publication step. Staging only ~ext.o~ and ~user.o~ would add
 complexity without establishing that stronger contract.
+
+*** Further follow-up assessment (2026-08-20)
+
+The subsequent ~link_c~ namespace regression gives both concurrent fixture
+libraries distinct declared C sources and consumes their exported helpers from
+static, shared, and generated Til clients. It therefore covers the optional
+~<name>_user.o~ path as well as ~<name>_ext.o~; no additional #90 regression is
+missing there.
+
+Supporting concurrent builds of the SAME artifact name is a separate contract,
+not a remainder of the different-name fix. A correct implementation needs an
+OS-released per-name lock held before translation touches any canonical path,
+plus process-private staging for generated C, the forward/public headers, Til
+and Python bindings, every object, and both libraries. Install needs a second
+per-name lock under the destination prefix and must publish from that private
+stage rather than reread the mutable build tree. Individual renames cannot make
+this file set atomically visible to lock-free external C/Python readers; that
+stronger guarantee would require an immutable-generation layout and one atomic
+~current~ pointer, changing every consumer path.
+
+A shared core remains incompatible with #90's chosen invariant. Nothing in the
+current generated library can move unchanged: inline core operations have no
+artifact, while ~ext.c~, generated lifecycle/generic/reflection/closure helpers,
+runtime globals, and public layouts are library- or compiler-version-specific.
+A reusable subset would first need a versioned ABI identity covering the exact
+runtime/emitter revision, target, calling convention, pointer and USize widths,
+ASAN, ownership/aggregate/enum/closure/error conventions, and toolchain. It
+would also add versioned headers and static/shared artifacts, transitive dynamic
+loading, installed dependency metadata, and extra static-link inputs. Bundling
+those members back into each archive would preserve self-contained libraries
+but would not reduce artifact duplication.
+
+These are substantial new concurrency and distribution features. They should
+not be implemented as implicit follow-ups to the completed #90 collision fix.
