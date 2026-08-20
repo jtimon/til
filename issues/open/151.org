@@ -84,7 +84,7 @@
     ~holyc_codegen.til~ without changing output. Add ~HolyCEmitState~ and
     replace helper-name searches with explicit feature recording. Split out
     only the target-neutral preparation analyses HolyC actually consumes.
-  - [ ] Make the scalar subset honest before broadening it: either implement
+  - [X] Make the scalar subset honest before broadening it: either implement
     or explicitly reject narrow-integer truncation/sign behavior, shifts,
     ~continue~, F64, nested calls, and every other currently untested emitted
     form. Add TempleOS guest coverage for widths, overflow, div/mod by zero,
@@ -143,6 +143,15 @@
   byte-identical. The current subset consumes no C-only preparation analysis,
   so none was extracted prematurely; shared analyses will move only when a
   HolyC feature needs them.
+
+  The fifth slice makes the scalar subset match TempleOS register semantics.
+  Narrow arithmetic explicitly wraps and sign-extends instead of relying on
+  HolyC local declarations to truncate; C-style prototypes become HolyC
+  ~extern~ declarations; unsupported ~continue~ and F64 fail explicitly.
+  ~examples/templeos_scalars.til~ covers every integer width, signed and
+  unsigned overflow, shifts, Bool, div/mod by zero and nonzero divisors,
+  comparisons, bitwise operations, and nested calls. TempleOS 5.03 compiled
+  and ran the generated file under QEMU TCG and reported ~TILTEST:PASS~.
 
 *** QEMU validation
 

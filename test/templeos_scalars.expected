@@ -1,0 +1,269 @@
+I64 TilI64Div(I64 a, I64 b)
+{
+    if (!b)
+        return 0;
+    return a / b;
+}
+
+I64 TilI64Mod(I64 a, I64 b)
+{
+    if (!b)
+        return 0;
+    return a % b;
+}
+
+extern I64 twice(I64 n);
+
+I64 twice(I64 n)
+{
+    "%s", "Inside nested twice";
+    "\n";
+    I64 hoisted__I64_3 = 2;
+    I64 hoisted__I64_4 = (n * hoisted__I64_3);
+    return hoisted__I64_4;
+}
+
+I64 TilMain()
+{
+    U8 u8_value = 255;
+    (u8_value = ((u8_value + 1) & 255));
+    U8 hoisted__U8_g7 = 0;
+    Bool hoisted__Bool_g8 = (u8_value != hoisted__U8_g7);
+    if (hoisted__Bool_g8) {
+        while (TRUE) {
+        }
+    }
+    U16 u16_value = 65535;
+    (u16_value = ((u16_value + 1) & 65535));
+    U16 hoisted__U16_g9 = 0;
+    Bool hoisted__Bool_g10 = (u16_value != hoisted__U16_g9);
+    if (hoisted__Bool_g10) {
+        while (TRUE) {
+        }
+    }
+    U32 u32_value = 4294967295;
+    (u32_value = ((u32_value + 1) & 4294967295));
+    U32 hoisted__U32_g11 = 0;
+    Bool hoisted__Bool_g12 = (u32_value != hoisted__U32_g11);
+    if (hoisted__Bool_g12) {
+        while (TRUE) {
+        }
+    }
+    U64 u64_value = 4294967296;
+    (++u64_value);
+    U64 hoisted__U64_g13 = 4294967297;
+    Bool hoisted__Bool_g14 = (u64_value != hoisted__U64_g13);
+    if (hoisted__Bool_g14) {
+        while (TRUE) {
+        }
+    }
+    I8 i8_value = 127;
+    (i8_value = ((((i8_value + 1) & 255) ^ 128) - 128));
+    I8 hoisted__I8_g15 = -128;
+    Bool hoisted__Bool_g16 = (i8_value != hoisted__I8_g15);
+    if (hoisted__Bool_g16) {
+        while (TRUE) {
+        }
+    }
+    I16 i16_value = 32767;
+    (i16_value = ((((i16_value + 1) & 65535) ^ 32768) - 32768));
+    I16 hoisted__I16_g17 = -32768;
+    Bool hoisted__Bool_g18 = (i16_value != hoisted__I16_g17);
+    if (hoisted__Bool_g18) {
+        while (TRUE) {
+        }
+    }
+    I32 i32_value = 2147483647;
+    (i32_value = ((((i32_value + 1) & 4294967295) ^ 2147483648) - 2147483648));
+    I32 hoisted__I32_g19 = -2147483648;
+    Bool hoisted__Bool_g20 = (i32_value != hoisted__I32_g19);
+    if (hoisted__Bool_g20) {
+        while (TRUE) {
+        }
+    }
+    I64 i64_value = -5000000001;
+    (++i64_value);
+    I64 hoisted__I64_g21 = -5000000000;
+    Bool hoisted__Bool_g22 = (i64_value != hoisted__I64_g21);
+    if (hoisted__Bool_g22) {
+        while (TRUE) {
+        }
+    }
+    U8 shift_base = 0;
+    (shift_base = ((shift_base + 1) & 255));
+    U8 hoisted__U8_g23 = 7;
+    U8 shifted_left = (((shift_base << hoisted__U8_g23)) & 255);
+    U8 hoisted__U8_g24 = 128;
+    Bool hoisted__Bool_g25 = (shifted_left != hoisted__U8_g24);
+    if (hoisted__Bool_g25) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g26 = 7;
+    U8 shifted_right = (shifted_left >> hoisted__U8_g26);
+    U8 hoisted__U8_g27 = 1;
+    Bool hoisted__Bool_g28 = (shifted_right != hoisted__U8_g27);
+    if (hoisted__Bool_g28) {
+        while (TRUE) {
+        }
+    }
+    Bool flag = FALSE;
+    Bool hoisted__Bool_g29 = FALSE;
+    Bool hoisted__Bool_g30 = (flag == hoisted__Bool_g29);
+    flag = hoisted__Bool_g30;
+    Bool hoisted__Bool_g31 = FALSE;
+    Bool hoisted__Bool_g32 = (flag == hoisted__Bool_g31);
+    if (hoisted__Bool_g32) {
+        while (TRUE) {
+        }
+    }
+    I64 dividend = 6;
+    (++dividend);
+    I64 zero = 0;
+    I64 quotient = TilI64Div(dividend, zero);
+    I64 remainder = TilI64Mod(dividend, zero);
+    I64 hoisted__I64_g33 = 0;
+    Bool hoisted__Bool_g34 = (quotient != hoisted__I64_g33);
+    if (hoisted__Bool_g34) {
+        while (TRUE) {
+        }
+    }
+    I64 hoisted__I64_g35 = 0;
+    Bool hoisted__Bool_g36 = (remainder != hoisted__I64_g35);
+    if (hoisted__Bool_g36) {
+        while (TRUE) {
+        }
+    }
+    I64 hoisted__I64_g37 = 3;
+    I64 hoisted__I64_g38 = twice(hoisted__I64_g37);
+    I64 nested = twice(hoisted__I64_g38);
+    I64 hoisted__I64_g39 = 12;
+    Bool hoisted__Bool_g40 = (nested != hoisted__I64_g39);
+    if (hoisted__Bool_g40) {
+        while (TRUE) {
+        }
+    }
+    U8 ops = 255;
+    (ops = ((ops + 1) & 255));
+    (ops = ((ops + 1) & 255));
+    U8 hoisted__U8_g41 = 3;
+    U8 sum = (((ops + hoisted__U8_g41)) & 255);
+    U8 hoisted__U8_g42 = 4;
+    Bool hoisted__Bool_g43 = (sum != hoisted__U8_g42);
+    if (hoisted__Bool_g43) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g44 = 2;
+    U8 difference = (((sum - hoisted__U8_g44)) & 255);
+    U8 hoisted__U8_g45 = 2;
+    Bool hoisted__Bool_g46 = (difference != hoisted__U8_g45);
+    if (hoisted__Bool_g46) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g47 = 129;
+    U8 product = (((difference * hoisted__U8_g47)) & 255);
+    U8 hoisted__U8_g48 = 2;
+    Bool hoisted__Bool_g49 = (product != hoisted__U8_g48);
+    if (hoisted__Bool_g49) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g50 = 15;
+    U8 and_value = (product & hoisted__U8_g50);
+    U8 hoisted__U8_g51 = 2;
+    Bool hoisted__Bool_g52 = (and_value != hoisted__U8_g51);
+    if (hoisted__Bool_g52) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g53 = 8;
+    U8 or_value = (and_value | hoisted__U8_g53);
+    U8 hoisted__U8_g54 = 10;
+    Bool hoisted__Bool_g55 = (or_value != hoisted__U8_g54);
+    if (hoisted__Bool_g55) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g56 = 3;
+    U8 xor_value = (or_value ^ hoisted__U8_g56);
+    U8 hoisted__U8_g57 = 9;
+    Bool hoisted__Bool_g58 = (xor_value != hoisted__U8_g57);
+    if (hoisted__Bool_g58) {
+        while (TRUE) {
+        }
+    }
+    U8 bnot_value = 5;
+    U8 inverted = ((~bnot_value) & 255);
+    U8 hoisted__U8_g59 = 250;
+    Bool hoisted__Bool_g60 = (inverted != hoisted__U8_g59);
+    if (hoisted__Bool_g60) {
+        while (TRUE) {
+        }
+    }
+    U8 decremented = 0;
+    (decremented = ((decremented - 1) & 255));
+    U8 hoisted__U8_g61 = 255;
+    Bool hoisted__Bool_g62 = (decremented != hoisted__U8_g61);
+    if (hoisted__Bool_g62) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g63 = 0;
+    Bool hoisted__Bool_g64 = (ops == hoisted__U8_g63);
+    if (hoisted__Bool_g64) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g65 = 1;
+    Bool hoisted__Bool_g66 = (ops != hoisted__U8_g65);
+    if (hoisted__Bool_g66) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g67 = 1;
+    Bool hoisted__Bool_g68 = (ops < hoisted__U8_g67);
+    if (hoisted__Bool_g68) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g69 = 1;
+    Bool hoisted__Bool_g70 = (ops > hoisted__U8_g69);
+    if (hoisted__Bool_g70) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g71 = 0;
+    Bool hoisted__Bool_g72 = (ops <= hoisted__U8_g71);
+    if (hoisted__Bool_g72) {
+        while (TRUE) {
+        }
+    }
+    U8 hoisted__U8_g73 = 2;
+    Bool hoisted__Bool_g74 = (ops >= hoisted__U8_g73);
+    if (hoisted__Bool_g74) {
+        while (TRUE) {
+        }
+    }
+    I64 two = 2;
+    I64 nonzero_quotient = TilI64Div(dividend, two);
+    I64 nonzero_remainder = TilI64Mod(dividend, two);
+    I64 hoisted__I64_g75 = 3;
+    Bool hoisted__Bool_g76 = (nonzero_quotient != hoisted__I64_g75);
+    if (hoisted__Bool_g76) {
+        while (TRUE) {
+        }
+    }
+    I64 hoisted__I64_g77 = 1;
+    Bool hoisted__Bool_g78 = (nonzero_remainder != hoisted__I64_g77);
+    if (hoisted__Bool_g78) {
+        while (TRUE) {
+        }
+    }
+    "%s", "Scalar checks passed";
+    "\n";
+    return 0;
+}
+
+TilMain;

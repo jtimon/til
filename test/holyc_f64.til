@@ -1,0 +1,5 @@
+mode script
+
+mut value : F64 = 1.5
+value = value.add(1.0)
+if value.eq(2.5) { println("unreachable") }

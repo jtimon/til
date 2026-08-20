@@ -1,0 +1,97 @@
+mode script
+
+mut u8_value : U8 = 255
+u8_value.inc()
+if u8_value.neq(0) { while true {} }
+
+mut u16_value : U16 = 65535
+u16_value.inc()
+if u16_value.neq(0) { while true {} }
+
+mut u32_value : U32 = 4294967295
+u32_value.inc()
+if u32_value.neq(0) { while true {} }
+
+mut u64_value : U64 = 4294967296
+u64_value.inc()
+if u64_value.neq(4294967297) { while true {} }
+
+mut i8_value : I8 = 127
+i8_value.inc()
+if i8_value.neq(-128) { while true {} }
+
+mut i16_value : I16 = 32767
+i16_value.inc()
+if i16_value.neq(-32768) { while true {} }
+
+mut i32_value : I32 = 2147483647
+i32_value.inc()
+if i32_value.neq(-2147483648) { while true {} }
+
+mut i64_value : I64 = -5000000001
+i64_value.inc()
+if i64_value.neq(-5000000000) { while true {} }
+
+mut shift_base : U8 = 0
+shift_base.inc()
+shifted_left := shift_base.shl(7)
+if shifted_left.neq(128) { while true {} }
+shifted_right := shifted_left.shr(7)
+if shifted_right.neq(1) { while true {} }
+
+mut flag := false
+flag = flag.eq(false)
+if flag.eq(false) { while true {} }
+
+mut dividend : I64 = 6
+dividend.inc()
+zero : I64 = 0
+quotient := dividend.div(zero)
+remainder := dividend.mod(zero)
+if quotient.neq(0) { while true {} }
+if remainder.neq(0) { while true {} }
+
+twice := proc(n: I64) returns I64 {
+    println("Inside nested twice")
+    return n.mul(2)
+}
+
+nested := twice(twice(3))
+if nested.neq(12) { while true {} }
+
+mut ops : U8 = 255
+ops.inc()
+ops.inc()
+sum := ops.add(3)
+if sum.neq(4) { while true {} }
+difference := sum.sub(2)
+if difference.neq(2) { while true {} }
+product := difference.mul(129)
+if product.neq(2) { while true {} }
+and_value := product.band(15)
+if and_value.neq(2) { while true {} }
+or_value := and_value.bor(8)
+if or_value.neq(10) { while true {} }
+xor_value := or_value.bxor(3)
+if xor_value.neq(9) { while true {} }
+mut bnot_value : U8 = 5
+inverted := bnot_value.bnot()
+if inverted.neq(250) { while true {} }
+
+mut decremented : U8 = 0
+decremented.dec()
+if decremented.neq(255) { while true {} }
+
+if ops.eq(0) { while true {} }
+if ops.neq(1) { while true {} }
+if ops.lt(1) { while true {} }
+if ops.gt(1) { while true {} }
+if ops.lte(0) { while true {} }
+if ops.gte(2) { while true {} }
+
+two : I64 = 2
+nonzero_quotient := dividend.div(two)
+nonzero_remainder := dividend.mod(two)
+if nonzero_quotient.neq(3) { while true {} }
+if nonzero_remainder.neq(1) { while true {} }
+println("Scalar checks passed")

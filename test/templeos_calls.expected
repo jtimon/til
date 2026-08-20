@@ -1,4 +1,4 @@
-I64 twice(I64 n);
+extern I64 twice(I64 n);
 
 I64 twice(I64 n)
 {

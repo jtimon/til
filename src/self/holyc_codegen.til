@@ -136,10 +136,22 @@ priv holyc_field_call_name := func(e: Expr, ctx: Context) returns Str {
 
 priv holyc_scalar_type_name := func(name: Str) returns Bool {
     switch name {
-    case "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Bool", "F64":
+    case "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Bool":
         return true
     case:
         return false
+    }
+}
+
+priv holyc_narrow_wrap := func(value: Str, owner: Str) returns Str {
+    switch owner {
+    case "U8":  return format("((", value, ") & 255)")
+    case "U16": return format("((", value, ") & 65535)")
+    case "U32": return format("((", value, ") & 4294967295)")
+    case "I8":  return format("((((", value, ") & 255) ^ 128) - 128)")
+    case "I16": return format("((((", value, ") & 65535) ^ 32768) - 32768)")
+    case "I32": return format("((((", value, ") & 4294967295) ^ 2147483648) - 2147483648)")
+    case: return value
     }
 }
 
@@ -268,16 +280,24 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                     error = format("invalid core call '", method, "'")
                     return ""
                 }
-                mut op := "++"
-                if method == "dec" { op = "--" }
-                return format("(", op, holyc_expr(e.children[1], ctx, state, error), ")")
+                value := holyc_expr(e.children[1], ctx, state, error)
+                if owner.eq("I64").or(owner.eq("U64")) {
+                    mut op := "++"
+                    if method == "dec" { op = "--" }
+                    return format("(", op, value, ")")
+                }
+                mut op := " + 1"
+                if method == "dec" { op = " - 1" }
+                wrapped := holyc_narrow_wrap(format(value, op), owner)
+                return format("(", value, " = ", wrapped, ")")
             }
             if method == "bnot" {
                 if e.children.len() != 2 {
                     error = "invalid core call 'bnot'"
                     return ""
                 }
-                return format("(~", holyc_expr(e.children[1], ctx, state, error), ")")
+                value := holyc_expr(e.children[1], ctx, state, error)
+                return holyc_narrow_wrap(format("~", value), owner)
             }
             if e.children.len() != 3 {
                 error = format("invalid binary core call '", method, "'")
@@ -302,7 +322,11 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 error = format("unsupported core call '", owner, ".", method, "'")
                 return ""
             }
-            return format("(", left, " ", op, " ", right, ")")
+            value := format("(", left, " ", op, " ", right, ")")
+            if method.eq("add").or(method.eq("sub")).or(method.eq("mul")).or(method.eq("shl")) {
+                return holyc_narrow_wrap(value, owner)
+            }
+            return value
         case .Ident(id):
             ref name : Str = id.ident_name(ctx.symbols.names)
             if state.user_functions.has(name).not() {
@@ -485,7 +509,8 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
         case .Break:
             out = format(out, prefix, "break;\n")
         case .Continue:
-            out = format(out, prefix, "continue;\n")
+            error = "continue is not supported by TempleOS HolyC"
+            return ""
         case .Return:
             if stmt.children.len() == 0 {
                 out = format(out, prefix, "return;\n")
@@ -524,7 +549,7 @@ priv holyc_function_outputs := func(program: Expr, ctx: Context,
             }
             body := holyc_body(func_expr.children[0], 1, false, ctx, state, error)
             if error.len() > 0 { return }
-            prototypes = format(prototypes, signature, ";\n")
+            prototypes = format(prototypes, "extern ", signature, ";\n")
             definitions = format(definitions, signature, "\n{\n", body, "}\n\n")
         case:
         }

@@ -633,6 +633,12 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos examples/fizzbuzz.til '&&' cat gen/til/fizzbuzz.HC"))
     add_single(tests, "holyc_direct_calls_translate", "build", 0, "test/templeos_calls.expected",
         format(til_bin, " translate --target=templeos examples/templeos_calls.til '&&' cat gen/til/templeos_calls.HC"))
+    add_single(tests, "holyc_scalar_semantics_translate", "build", 0, "test/templeos_scalars.expected",
+        format(til_bin, " translate --target=templeos examples/templeos_scalars.til '&&' cat gen/til/templeos_scalars.HC"))
+    add_single(tests, "holyc_rejects_continue", "build", 1, "test/holyc_continue.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_continue.HC test/holyc_continue.til"))
+    add_single(tests, "holyc_rejects_f64", "build", 1, "test/holyc_f64.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_f64.HC test/holyc_f64.til"))
     add_single(tests, "holyc_percent_is_data", "build", 0, "test/holyc_percent.expected",
         format(til_bin, " translate --target=templeos -c gen/c/holyc_percent.HC test/holyc_percent.til '&&' cat gen/c/holyc_percent.HC"))
     add_single(tests, "holyc_rejects_unsupported_mode", "build", 1, "test/holyc_mode.expected",
