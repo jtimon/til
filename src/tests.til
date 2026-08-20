@@ -309,6 +309,22 @@ add_count := func(mut tests: Vec(Test), label: Str, category: Str,
         ))
     }
 
+add_count_pair := func(mut tests: Vec(Test), label: Str, category: Str,
+    needle_a: Str, expected_a: I64, needle_b: Str, expected_b: I64, cmd_suffix: Str) {
+        quoted_a := needle_a.replace("'", "'\\''")
+        quoted_b := needle_b.replace("'", "'\\''")
+        runner_cmd := format(RUNNER, " count ", label,
+            " '", quoted_a, "' ", expected_a.to_str(),
+            " '", quoted_b, "' ", expected_b.to_str(), " -- ", cmd_suffix)
+        tests.push(own Test(
+            label = label.clone(),
+            cmd = runner_cmd,
+            outfile = format("gen/out/results/", label, ".txt"),
+            category = category.clone(),
+            kind = TestKind.Count
+        ))
+    }
+
 add_cli_pair := func(mut tests: Vec(Test), name: Str, file: Str,
     cli_args: Str, expected_exit: I64, expected_out: Str,
     til: Str, asan_flag: Str) {
@@ -1581,15 +1597,14 @@ main := proc(args: ..Str) {
     // moved backends shows up in the total, and re-running one command
     // seven times to re-read seven substrings of the same output would
     // not add to that.
-    add_count(tests, "typer_errors_interp", "typer", "error:", 228,
+    // #381: strict body-sweep lookup reports the ineligible generated method
+    // exactly once; provisional field inference must not duplicate it. Count
+    // both properties from the same interpreter output.
+    add_count_pair(tests, "typer_errors_interp", "typer", "error:", 228,
+        "no method 'to_str' for type 'NoCmp'", 1,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "typer_errors_build", "typer", "error:", 228,
         format(til_bin, " build", asan_flag, " test/typer_errors.til"))
-    // #381: strict body-sweep lookup reports the ineligible generated method
-    // exactly once; provisional field inference must not duplicate it.
-    add_count(tests, "generated_default_method_error", "typer",
-        "no method 'to_str' for type 'NoCmp'", 1,
-        format(til_bin, " interpret test/typer_errors.til"))
     // #358: array()/vec() plain elements are checked at the offending element;
     // the third case pins that array(Str, 1) is rejected rather than coerced.
     add_count(tests, "literal_elem_type_interp", "typer", "literal element", 3,

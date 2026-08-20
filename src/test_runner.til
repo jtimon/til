@@ -8,7 +8,7 @@ import("std/file")
 // Usage:
 //   test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>]
 //   test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>
-//   test_runner count <label> <needle> <expected_count> -- <cmd...>
+//   test_runner count <label> <needle> <expected_count> [<needle> <expected_count> ...] -- <cmd...>
 
 TIL := "bin/til"
 
@@ -298,21 +298,22 @@ main := proc(args: ..Str) {
     // count subcommand
     if subcmd == "count" {
         if args.len() < 5 {
-            println("Usage: test_runner count <label> <needle> <expected_count> -- <cmd...>")
+            println("Usage: test_runner count <label> <needle> <expected_count> [<needle> <expected_count> ...] -- <cmd...>")
             exit(1)
         }
 
         ref label : Str = args[1]
-        ref needle : Str = args[2]
-        ref count_str : Str = args[3]
-        expected_count := count_str.to_i64()
 
-        // Find "--" starting from index 4
-        mut dd : USize = 4
+        // Find "--" after the needle/count pairs.
+        mut dd : USize = 2
         while dd < args.len() {
             ref a : Str = args[dd]
             if a == "--" { break }
             dd++
+        }
+        if dd.eq(args.len()).or(dd.lt(4)).or(dd.sub(2).mod(2).neq(0)) {
+            println("Usage: test_runner count <label> <needle> <expected_count> [<needle> <expected_count> ...] -- <cmd...>")
+            exit(1)
         }
 
         // Join args after "--" as command
@@ -333,14 +334,22 @@ main := proc(args: ..Str) {
 
         phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
         actual_out := File.readfile(outfile)
-        actual_count := count_matches(actual_out, needle)
 
         mut ok := 1
-        if actual_count != expected_count {
-            println("FAIL: ", label, " count=", actual_count.to_str(), " expected=", expected_count.to_str())
-            print_captured_err(outfile)
-            ok = 0
+        mut actual_count := 0
+        mut check : USize = 2
+        while check < dd {
+            ref needle : Str = args[check]
+            ref count_str : Str = args[check.add(1)]
+            expected_count := count_str.to_i64()
+            actual_count = count_matches(actual_out, needle)
+            if actual_count != expected_count {
+                println("FAIL: ", label, " needle=", needle, " count=", actual_count.to_str(), " expected=", expected_count.to_str())
+                ok = 0
+            }
+            check = check.add(2)
         }
+        if ok == 0 { print_captured_err(outfile) }
 
         println("RESULT ms=", phase.ms.to_str(), " mem=", phase.mem.to_str(), " ok=", ok.to_str(), " count=", actual_count.to_str())
         if ok == 1 { exit(0) } else { exit(1) }
