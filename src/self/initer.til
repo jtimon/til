@@ -2051,7 +2051,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                                 ref mut nested_def : Expr = nested_def_o.unwrap()
                                 if nested_def.node_type.is(NodeType.EnumDef) {
                                     fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
-                                    if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
+                                    falign = ctx.struct_layouts[ftype].align
                                     field_struct_name = ftype.clone()
                                     field_is_enum = true
                                 } else {
@@ -2147,7 +2147,7 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, mut scope: TypeScope, mut
     // Set sentinel before recursing to break self-referential cycles.
     ctx.struct_layouts.set(name, own StructLayout(total_size = 4, align = 4))
     ref edd : EnumDef = enumdef_of(enum_def)
-    // #264: the tag width is chosen by `enum(Type)`; default U32 (4).
+    // #264: the tag width is chosen by `enum(Type)`; default U8 (1).
     tag_size := enum_tag_size(enum_def)
     mut max_payload_size : USize = 0
     mut max_payload_align : USize = tag_size

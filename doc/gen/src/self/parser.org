@@ -1,5 +1,5 @@
 #+TITLE: src/self/parser.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * SymbolPool
@@ -14,7 +14,6 @@ struct SymbolPool {
     mut buckets : Vec__U32
     mut next : U32
 namespace:
-    func hash_name(name: Str) returns shallow U64
     func rebuild(mut self: SymbolPool, shallow count: USize)
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32

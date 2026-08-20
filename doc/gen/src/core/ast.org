@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * Primitive
@@ -1402,6 +1402,7 @@ struct Expr {
     mut children : Vec__Expr
     mut line : U32
     mut col : U32
+    mut constfold_value : Bool
 namespace:
     func delete(own self: Expr, shallow call_free: Bool)
     proc error(self: Expr, path: Str, msg: Str)

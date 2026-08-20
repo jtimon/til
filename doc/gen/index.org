@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * Core
@@ -2865,6 +2865,7 @@ struct Expr {
     mut children : Vec__Expr
     mut line : U32
     mut col : U32
+    mut constfold_value : Bool
 namespace:
     func delete(own self: Expr, shallow call_free: Bool)
     proc error(self: Expr, path: Str, msg: Str)
@@ -5009,14 +5010,14 @@ func hash_i64(shallow x: I64) returns shallow U64
 func hash_u64(shallow x: U64) returns shallow U64
 #+end_src
 
-** [[file:src/std/hash.org::#til.src.std.hash.hash_str][hash_str]]
-#+begin_src til
-func hash_str(s: Str) returns shallow U64
-#+end_src
-
 ** [[file:src/std/hash.org::#til.src.std.hash.fnv1a][fnv1a]]
 #+begin_src til
 func fnv1a(data: Dynamic, shallow n: USize) returns shallow U64
+#+end_src
+
+** [[file:src/std/hash.org::#til.src.std.hash.hash_str][hash_str]]
+#+begin_src til
+func hash_str(s: Str) returns shallow U64
 #+end_src
 
 ** [[file:src/std/hash.org::#til.src.std.hash.djb2][djb2]]
@@ -5884,7 +5885,6 @@ struct SymbolPool {
     mut buckets : Vec__U32
     mut next : U32
 namespace:
-    func hash_name(name: Str) returns shallow U64
     func rebuild(mut self: SymbolPool, shallow count: USize)
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32
@@ -6828,6 +6828,7 @@ struct Context {
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
     mut generic_func_synth_names : Set__Str
+    mut generic_type_deps : Map__Str_Expr
     own mut generic_pending : Expr
     own mut func_gen_twins : Expr
     mut scope : TypeScope
@@ -6885,6 +6886,16 @@ namespace:
     func clone(self: Context) returns Context
     func delete(own self: Context, shallow call_free: Bool)
 }
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.generic_type_dep_key][generic_type_dep_key]]
+#+begin_src til
+func generic_type_dep_key(path: Str, name: Str) returns Str
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.generic_type_dep][generic_type_dep]]
+#+begin_src til
+func generic_type_dep(ctx: Context, path: Str, name: Str) returns shallow Option__ref_Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.synth_suffix][synth_suffix]]
@@ -7220,6 +7231,11 @@ func enum_niche_some_index(enum_def: Expr) returns shallow I32
 ** [[file:src/self/context.org::#til.src.self.context.enum_variant_payload_ref][enum_variant_payload_ref]]
 #+begin_src til
 func enum_variant_payload_ref(enum_def: Expr, shallow idx: I32) returns shallow Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.enum_ref_payload_ctor_arg][enum_ref_payload_ctor_arg]]
+#+begin_src til
+func enum_ref_payload_ctor_arg(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.enum_payload_is_pointer_slot][enum_payload_is_pointer_slot]]
@@ -9875,6 +9891,11 @@ func gen_struct_clone_delete_for_stmt(mut stmt: Expr, scope: TypeScope, mut ctx:
 func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut variant_types: Vec__Str, mut has_payloads: Bool)
 #+end_src
 
+** [[file:src/self/initer.org::#til.src.self.initer.register_type_def_for_stmt][register_type_def_for_stmt]]
+#+begin_src til
+proc register_type_def_for_stmt(mut ctx: Context, stmt: Expr, mut scope: TypeScope) returns shallow I32
+#+end_src
+
 ** [[file:src/self/initer.org::#til.src.self.initer.gen_enum_nonclone_methods_for_stmt][gen_enum_nonclone_methods_for_stmt]]
 #+begin_src til
 func gen_enum_nonclone_methods_for_stmt(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool)
@@ -9948,6 +9969,11 @@ proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__E
 ** [[file:src/self/initer.org::#til.src.self.initer.init_refresh_seeded_scope_defs][init_refresh_seeded_scope_defs]]
 #+begin_src til
 func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope, symbols: SymbolPool)
+#+end_src
+
+** [[file:src/self/initer.org::#til.src.self.initer.init_refresh_interp_type_defs_from][init_refresh_interp_type_defs_from]]
+#+begin_src til
+func init_refresh_interp_type_defs_from(program: Expr, shallow start_idx: USize, mut ctx: Context)
 #+end_src
 
 ** [[file:src/self/initer.org::#til.src.self.initer.GenericSources][GenericSources]]
@@ -10560,9 +10586,29 @@ func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut o
 func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 #+end_src
 
+** [[file:src/self/typer.org::#til.src.self.typer.summary_param_bit][summary_param_bit]]
+#+begin_src til
+func summary_param_bit(shallow i: USize) returns shallow U64
+#+end_src
+
+** [[file:src/self/typer.org::#til.src.self.typer.fcall_callee_fdef][fcall_callee_fdef]]
+#+begin_src til
+func fcall_callee_fdef(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
+#+end_src
+
 ** [[file:src/self/typer.org::#til.src.self.typer.fcall_returns_dynamic_storage][fcall_returns_dynamic_storage]]
 #+begin_src til
 func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
+** [[file:src/self/typer.org::#til.src.self.typer.fcall_arg_for_param][fcall_arg_for_param]]
+#+begin_src til
+func fcall_arg_for_param(fcall: Expr, pi: USize, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
+#+end_src
+
+** [[file:src/self/typer.org::#til.src.self.typer.type_carries_borrow][type_carries_borrow]]
+#+begin_src til
+func type_carries_borrow(scope: TypeScope, tname: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/typer.org::#til.src.self.typer.RootBits][RootBits]]
@@ -12836,6 +12882,11 @@ func Option__ref_Scope.take(own self: Option__ref_Scope) returns ref Scope
 ** [[file:src/self/constfolder.org::#til.src.self.constfolder.swap__Option__Scope][swap__Option__Scope]]
 #+begin_src til
 func swap__Option__Scope(mut a: Option__Scope, mut b: Option__Scope)
+#+end_src
+
+** [[file:src/self/constfolder.org::#til.src.self.constfolder.swap__Set__Str][swap__Set__Str]]
+#+begin_src til
+func swap__Set__Str(mut a: Set__Str, mut b: Set__Str)
 #+end_src
 
 ** [[file:src/self/scavenger.org::#til.src.self.scavenger.vec_push_str][vec_push_str]]

@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * gen_struct_clone_delete_for_stmt
@@ -20,6 +20,16 @@ func gen_struct_clone_delete_for_stmt(mut stmt: Expr, scope: TypeScope, mut ctx:
 
 #+begin_src til
 func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut variant_types: Vec__Str, mut has_payloads: Bool)
+#+end_src
+
+* register_type_def_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.register_type_def_for_stmt
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc register_type_def_for_stmt(mut ctx: Context, stmt: Expr, mut scope: TypeScope) returns shallow I32
 #+end_src
 
 * gen_enum_nonclone_methods_for_stmt
@@ -170,6 +180,16 @@ proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__E
 
 #+begin_src til
 func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope, symbols: SymbolPool)
+#+end_src
+
+* init_refresh_interp_type_defs_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_refresh_interp_type_defs_from
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func init_refresh_interp_type_defs_from(program: Expr, shallow start_idx: USize, mut ctx: Context)
 #+end_src
 
 * GenericSources

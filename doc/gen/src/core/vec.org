@@ -1,5 +1,5 @@
 #+TITLE: src/core/vec.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * vec

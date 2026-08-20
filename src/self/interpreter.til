@@ -1237,13 +1237,15 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
         } else if dd.own_type.is(OwnType.Ref) {
             write_ptr(dst, raw)
         } else {
-            enum_size := dispatch_enum_size(name, ctx)
+            // dispatch_enum_size is the interpreter carrier capacity (at
+            // least one word), not the inline C field width. Compact tag-only
+            // enums may occupy only 1/2/4 bytes in a struct.
             if raw_is_ref.or(raw_is_place) {
-                copied : Dynamic = heap_clone_enum(name, raw, enum_size, ctx)
-                memcpy(dst, copied, enum_size)
+                copied : Dynamic = heap_clone_enum(name, raw, field_size, ctx)
+                memcpy(dst, copied, field_size)
                 raw_block_free(copied)
             } else {
-                memcpy(dst, raw, enum_size)
+                memcpy(dst, raw, field_size)
                 raw_block_free(raw)
             }
         }
@@ -5306,7 +5308,10 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             write_ptr(dst, source)
         } else {
             if drop_old { heap_drop_enum(name, dst, ctx) }
-            memcpy(dst, source, dispatch_enum_size(name, ctx))
+            // Raw enum results use a word-sized carrier even when their
+            // inline host representation is a 1/2/4-byte tag. Copy only the
+            // destination field width or the carrier overwrites its neighbour.
+            memcpy(dst, source, field_size)
             enum_payload_deep_clone(name, dst, ctx)
         }
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)

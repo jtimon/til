@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -710,6 +710,26 @@ func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, shallow base: USize, mut o
 func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 #+end_src
 
+* summary_param_bit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.summary_param_bit
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func summary_param_bit(shallow i: USize) returns shallow U64
+#+end_src
+
+* fcall_callee_fdef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fcall_callee_fdef
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_callee_fdef(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
+#+end_src
+
 * fcall_returns_dynamic_storage
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.typer.fcall_returns_dynamic_storage
@@ -718,6 +738,26 @@ func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: 
 
 #+begin_src til
 func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
+* fcall_arg_for_param
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fcall_arg_for_param
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_arg_for_param(fcall: Expr, pi: USize, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
+#+end_src
+
+* type_carries_borrow
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_carries_borrow
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func type_carries_borrow(scope: TypeScope, tname: Str, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * RootBits

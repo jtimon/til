@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1b5c7faf9</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -2616,6 +2616,7 @@ namespace:
     mut children : Vec__Expr
     mut line : U32
     mut col : U32
+    mut constfold_value : Bool
 namespace:
     func delete(own self: Expr, shallow call_free: Bool)
     proc error(self: Expr, path: Str, msg: Str)
@@ -4413,12 +4414,12 @@ namespace:
 <pre><code class="language-til">func (shallow x: U64) returns shallow U64
 </code></pre>
 </li>
-<li><a href="src/std/hash.html#til.src.std.hash.hash_str">hash_str</a>
-<pre><code class="language-til">func (s: Str) returns shallow U64
-</code></pre>
-</li>
 <li><a href="src/std/hash.html#til.src.std.hash.fnv1a">fnv1a</a>
 <pre><code class="language-til">func (data: Dynamic, shallow n: USize) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/std/hash.html#til.src.std.hash.hash_str">hash_str</a>
+<pre><code class="language-til">func (s: Str) returns shallow U64
 </code></pre>
 </li>
 <li><a href="src/std/hash.html#til.src.std.hash.djb2">djb2</a>
@@ -5181,7 +5182,6 @@ namespace:
     mut buckets : Vec__U32
     mut next : U32
 namespace:
-    func hash_name(name: Str) returns shallow U64
     func rebuild(mut self: SymbolPool, shallow count: USize)
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32
@@ -6013,6 +6013,7 @@ namespace:
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
     mut generic_func_synth_names : Set__Str
+    mut generic_type_deps : Map__Str_Expr
     own mut generic_pending : Expr
     own mut func_gen_twins : Expr
     mut scope : TypeScope
@@ -6070,6 +6071,14 @@ namespace:
     func clone(self: Context) returns Context
     func delete(own self: Context, shallow call_free: Bool)
 }
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.generic_type_dep_key">generic_type_dep_key</a>
+<pre><code class="language-til">func (path: Str, name: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.generic_type_dep">generic_type_dep</a>
+<pre><code class="language-til">func (ctx: Context, path: Str, name: Str) returns shallow Option__ref_Expr
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.synth_suffix">synth_suffix</a>
@@ -6338,6 +6347,10 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.enum_variant_payload_ref">enum_variant_payload_ref</a>
 <pre><code class="language-til">func (enum_def: Expr, shallow idx: I32) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.enum_ref_payload_ctor_arg">enum_ref_payload_ctor_arg</a>
+<pre><code class="language-til">func (e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.enum_payload_is_pointer_slot">enum_payload_is_pointer_slot</a>
@@ -8590,6 +8603,10 @@ namespace:
 <pre><code class="language-til">func (enum_def: Expr, mut variant_names: Vec__Str, mut variant_types: Vec__Str, mut has_payloads: Bool)
 </code></pre>
 </li>
+<li><a href="src/self/initer.html#til.src.self.initer.register_type_def_for_stmt">register_type_def_for_stmt</a>
+<pre><code class="language-til">proc (mut ctx: Context, stmt: Expr, mut scope: TypeScope) returns shallow I32
+</code></pre>
+</li>
 <li><a href="src/self/initer.html#til.src.self.initer.gen_enum_nonclone_methods_for_stmt">gen_enum_nonclone_methods_for_stmt</a>
 <pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool)
 </code></pre>
@@ -8648,6 +8665,10 @@ namespace:
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.init_refresh_seeded_scope_defs">init_refresh_seeded_scope_defs</a>
 <pre><code class="language-til">func (program: Expr, mut scope: TypeScope, symbols: SymbolPool)
+</code></pre>
+</li>
+<li><a href="src/self/initer.html#til.src.self.initer.init_refresh_interp_type_defs_from">init_refresh_interp_type_defs_from</a>
+<pre><code class="language-til">func (program: Expr, shallow start_idx: USize, mut ctx: Context)
 </code></pre>
 </li>
 <li><a href="src/self/initer.html#til.src.self.initer.GenericSources">GenericSources</a>
@@ -9150,8 +9171,24 @@ namespace:
 <pre><code class="language-til">func (e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, fi: FactIndex, shallow base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 </code></pre>
 </li>
+<li><a href="src/self/typer.html#til.src.self.typer.summary_param_bit">summary_param_bit</a>
+<pre><code class="language-til">func (shallow i: USize) returns shallow U64
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.fcall_callee_fdef">fcall_callee_fdef</a>
+<pre><code class="language-til">func (fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
+</code></pre>
+</li>
 <li><a href="src/self/typer.html#til.src.self.typer.fcall_returns_dynamic_storage">fcall_returns_dynamic_storage</a>
 <pre><code class="language-til">func (fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.fcall_arg_for_param">fcall_arg_for_param</a>
+<pre><code class="language-til">func (fcall: Expr, pi: USize, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.type_carries_borrow">type_carries_borrow</a>
+<pre><code class="language-til">func (scope: TypeScope, tname: Str, symbols: SymbolPool) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.RootBits">RootBits</a>
@@ -11074,6 +11111,10 @@ namespace:
 </li>
 <li><a href="src/self/constfolder.html#til.src.self.constfolder.swap__Option__Scope">swap__Option__Scope</a>
 <pre><code class="language-til">func (mut a: Option__Scope, mut b: Option__Scope)
+</code></pre>
+</li>
+<li><a href="src/self/constfolder.html#til.src.self.constfolder.swap__Set__Str">swap__Set__Str</a>
+<pre><code class="language-til">func (mut a: Set__Str, mut b: Set__Str)
 </code></pre>
 </li>
 <li><a href="src/self/scavenger.html#til.src.self.scavenger.vec_push_str">vec_push_str</a>

@@ -238,6 +238,7 @@
 *** children := Vec(Expr).new()
 *** line : U32 = 0
 *** col : U32 = 0
+*** constfold_value : Bool = false
 * parser
 ** SymbolPool: StructDef
 *** names := Vec(Str).new()
@@ -406,7 +407,7 @@
 *** imports_typer_decls_done := Set(Str).new()
 *** imports_typer_bodies_done := Set(Str).new()
 *** infer_struct_fields_only := false
-*** ... (56 more)
+*** ... (57 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -469,6 +470,9 @@
 ** CtorArg: EnumDef
 *** Unfilled
 *** Filled:Expr
+** ReturnEscapeRoots: StructDef
+*** direct := Vec(BorrowRoot).new()
+*** indirect := Vec(BorrowRoot).new()
 ** FactIndex: StructDef
 *** filt : U64 = 0
 *** idx := Map(Str, USize).new()

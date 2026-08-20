@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -516,6 +516,7 @@ struct Context {
     mut generic_funcs : Map__Str_Expr
     mut generic_func_synths : Set__Str
     mut generic_func_synth_names : Set__Str
+    mut generic_type_deps : Map__Str_Expr
     own mut generic_pending : Expr
     own mut func_gen_twins : Expr
     mut scope : TypeScope
@@ -573,6 +574,26 @@ namespace:
     func clone(self: Context) returns Context
     func delete(own self: Context, shallow call_free: Bool)
 }
+#+end_src
+
+* generic_type_dep_key
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.generic_type_dep_key
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func generic_type_dep_key(path: Str, name: Str) returns Str
+#+end_src
+
+* generic_type_dep
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.generic_type_dep
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func generic_type_dep(ctx: Context, path: Str, name: Str) returns shallow Option__ref_Expr
 #+end_src
 
 * synth_suffix
@@ -1243,6 +1264,16 @@ func enum_niche_some_index(enum_def: Expr) returns shallow I32
 
 #+begin_src til
 func enum_variant_payload_ref(enum_def: Expr, shallow idx: I32) returns shallow Bool
+#+end_src
+
+* enum_ref_payload_ctor_arg
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_ref_payload_ctor_arg
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func enum_ref_payload_ctor_arg(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Option__ref_Expr
 #+end_src
 
 * enum_payload_is_pointer_slot

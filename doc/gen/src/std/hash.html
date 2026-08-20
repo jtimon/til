@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1b5c7faf9</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -43,7 +43,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
-<li><a class="current" href="../../src/std/hash.html">src/std/hash.til</a><ul><li><a href="#til.src.std.hash.KNUTH_MULT">KNUTH_MULT</a></li><li><a href="#til.src.std.hash.FNV_OFFSET">FNV_OFFSET</a></li><li><a href="#til.src.std.hash.FNV_PRIME">FNV_PRIME</a></li><li><a href="#til.src.std.hash.hash_i64">hash_i64</a></li><li><a href="#til.src.std.hash.hash_u64">hash_u64</a></li><li><a href="#til.src.std.hash.hash_str">hash_str</a></li><li><a href="#til.src.std.hash.fnv1a">fnv1a</a></li><li><a href="#til.src.std.hash.djb2">djb2</a></li><li><a href="#til.src.std.hash.knuth_bytes">knuth_bytes</a></li><li><a href="#til.src.std.hash.bucket">bucket</a></li></ul></li>
+<li><a class="current" href="../../src/std/hash.html">src/std/hash.til</a><ul><li><a href="#til.src.std.hash.KNUTH_MULT">KNUTH_MULT</a></li><li><a href="#til.src.std.hash.FNV_OFFSET">FNV_OFFSET</a></li><li><a href="#til.src.std.hash.FNV_PRIME">FNV_PRIME</a></li><li><a href="#til.src.std.hash.hash_i64">hash_i64</a></li><li><a href="#til.src.std.hash.hash_u64">hash_u64</a></li><li><a href="#til.src.std.hash.fnv1a">fnv1a</a></li><li><a href="#til.src.std.hash.hash_str">hash_str</a></li><li><a href="#til.src.std.hash.djb2">djb2</a></li><li><a href="#til.src.std.hash.knuth_bytes">knuth_bytes</a></li><li><a href="#til.src.std.hash.bucket">bucket</a></li></ul></li>
 <li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
@@ -118,16 +118,16 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">func (shallow x: U64) returns shallow U64
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.std.hash.hash_str">
-<h2>hash_str</h2>
-<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
-<pre><code class="language-til">func (s: Str) returns shallow U64
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.std.hash.fnv1a">
 <h2>fnv1a</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <pre><code class="language-til">func (data: Dynamic, shallow n: USize) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.hash.hash_str">
+<h2>hash_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<pre><code class="language-til">func (s: Str) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.hash.djb2">

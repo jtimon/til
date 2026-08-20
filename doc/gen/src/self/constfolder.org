@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * constfolder_clear_known
@@ -141,4 +141,14 @@ func Option__ref_Scope.take(own self: Option__ref_Scope) returns ref Scope
 
 #+begin_src til
 func swap__Option__Scope(mut a: Option__Scope, mut b: Option__Scope)
+#+end_src
+
+* swap__Set__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.swap__Set__Str
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func swap__Set__Str(mut a: Set__Str, mut b: Set__Str)
 #+end_src

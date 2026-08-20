@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="7128" height="5008" viewBox="0 0 7128 5008">
+<svg xmlns="http://www.w3.org/2000/svg" width="7128" height="5026" viewBox="0 0 7128 5026">
   <defs>
     <style>
       .bg { fill: #f7f5ef; }
@@ -9,7 +9,7 @@
       .line { font: 13px 'Courier New', monospace; fill: #1f2937; }
     </style>
   </defs>
-  <rect class="bg" x="0" y="0" width="7128" height="5008"/>
+  <rect class="bg" x="0" y="0" width="7128" height="5026"/>
   <rect x="24" y="24" width="284" height="786" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
   <rect x="44" y="88" width="172" height="550" rx="10" ry="10" class="box"/>
@@ -49,7 +49,7 @@
   <text x="58" y="748" class="line">const len : USize = 0</text>
   <text x="58" y="766" class="line">const line : U32 = 0</text>
   <text x="58" y="784" class="line">const col : U32 = 0</text>
-  <rect x="342" y="24" width="532" height="4960" rx="14" ry="14" class="panel"/>
+  <rect x="342" y="24" width="532" height="4978" rx="14" ry="14" class="panel"/>
   <text x="362" y="62" class="panel-label">ast</text>
   <rect x="362" y="88" width="172" height="244" rx="10" ry="10" class="box"/>
   <text x="376" y="126" class="title">Primitive: EnumDef</text>
@@ -275,12 +275,13 @@
   <text x="376" y="4786" class="line">CaptureBlock:CaptureBlockData</text>
   <text x="376" y="4804" class="line">Loc</text>
   <text x="376" y="4822" class="line">... (3 more)</text>
-  <rect x="362" y="4848" width="244" height="118" rx="10" ry="10" class="box"/>
+  <rect x="362" y="4848" width="268" height="136" rx="10" ry="10" class="box"/>
   <text x="376" y="4886" class="title">Expr: StructDef</text>
   <text x="376" y="4904" class="line">node_type := NodeType.Body</text>
   <text x="376" y="4922" class="line">children := Vec(Expr).new()</text>
   <text x="376" y="4940" class="line">line : U32 = 0</text>
   <text x="376" y="4958" class="line">col : U32 = 0</text>
+  <text x="376" y="4976" class="line">constfold_value : Bool = false</text>
   <rect x="908" y="24" width="356" height="516" rx="14" ry="14" class="panel"/>
   <text x="928" y="62" class="panel-label">parser</text>
   <rect x="928" y="88" width="228" height="100" rx="10" ry="10" class="box"/>
@@ -465,7 +466,7 @@
   <text x="1332" y="3206" class="line">imports_typer_decls_done := Set(Str).new()</text>
   <text x="1332" y="3224" class="line">imports_typer_bodies_done := Set(Str).new()</text>
   <text x="1332" y="3242" class="line">infer_struct_fields_only := false</text>
-  <text x="1332" y="3260" class="line">... (56 more)</text>
+  <text x="1332" y="3260" class="line">... (57 more)</text>
   <rect x="1792" y="24" width="188" height="498" rx="14" ry="14" class="panel"/>
   <text x="1812" y="62" class="panel-label">targets</text>
   <rect x="1812" y="88" width="132" height="118" rx="10" ry="10" class="box"/>
@@ -534,26 +535,30 @@
   <text x="2686" y="144" class="line">defs := Map(Str, Dynamic).new()</text>
   <text x="2686" y="162" class="line">sources := Map(Str, GenericFuncSource).new()</text>
   <text x="2686" y="180" class="line">late := false</text>
-  <rect x="3106" y="24" width="356" height="500" rx="14" ry="14" class="panel"/>
+  <rect x="3106" y="24" width="356" height="600" rx="14" ry="14" class="panel"/>
   <text x="3126" y="62" class="panel-label">typer</text>
   <rect x="3126" y="88" width="156" height="82" rx="10" ry="10" class="box"/>
   <text x="3140" y="126" class="title">CtorArg: EnumDef</text>
   <text x="3140" y="144" class="line">Unfilled</text>
   <text x="3140" y="162" class="line">Filled:Expr</text>
-  <rect x="3126" y="188" width="252" height="82" rx="10" ry="10" class="box"/>
-  <text x="3140" y="226" class="title">FactIndex: StructDef</text>
-  <text x="3140" y="244" class="line">filt : U64 = 0</text>
-  <text x="3140" y="262" class="line">idx := Map(Str, USize).new()</text>
-  <rect x="3126" y="288" width="180" height="100" rx="10" ry="10" class="box"/>
-  <text x="3140" y="326" class="title">RootBits: StructDef</text>
-  <text x="3140" y="344" class="line">alias : U64 = 0</text>
-  <text x="3140" y="362" class="line">into : U64 = 0</text>
-  <text x="3140" y="380" class="line">carried : U64 = 0</text>
-  <rect x="3126" y="406" width="316" height="100" rx="10" ry="10" class="box"/>
-  <text x="3140" y="444" class="title">CoverageNode: StructDef</text>
-  <text x="3140" y="462" class="line">fully_covered := false</text>
-  <text x="3140" y="480" class="line">sub_names := Vec(Str).new()</text>
-  <text x="3140" y="498" class="line">sub_nodes := Vec(CoverageNode).new()</text>
+  <rect x="3126" y="188" width="292" height="82" rx="10" ry="10" class="box"/>
+  <text x="3140" y="226" class="title">ReturnEscapeRoots: StructDef</text>
+  <text x="3140" y="244" class="line">direct := Vec(BorrowRoot).new()</text>
+  <text x="3140" y="262" class="line">indirect := Vec(BorrowRoot).new()</text>
+  <rect x="3126" y="288" width="252" height="82" rx="10" ry="10" class="box"/>
+  <text x="3140" y="326" class="title">FactIndex: StructDef</text>
+  <text x="3140" y="344" class="line">filt : U64 = 0</text>
+  <text x="3140" y="362" class="line">idx := Map(Str, USize).new()</text>
+  <rect x="3126" y="388" width="180" height="100" rx="10" ry="10" class="box"/>
+  <text x="3140" y="426" class="title">RootBits: StructDef</text>
+  <text x="3140" y="444" class="line">alias : U64 = 0</text>
+  <text x="3140" y="462" class="line">into : U64 = 0</text>
+  <text x="3140" y="480" class="line">carried : U64 = 0</text>
+  <rect x="3126" y="506" width="316" height="100" rx="10" ry="10" class="box"/>
+  <text x="3140" y="544" class="title">CoverageNode: StructDef</text>
+  <text x="3140" y="562" class="line">fully_covered := false</text>
+  <text x="3140" y="580" class="line">sub_names := Vec(Str).new()</text>
+  <text x="3140" y="598" class="line">sub_nodes := Vec(CoverageNode).new()</text>
   <rect x="3496" y="24" width="308" height="842" rx="14" ry="14" class="panel"/>
   <text x="3516" y="62" class="panel-label">garbager</text>
   <rect x="3516" y="88" width="268" height="244" rx="10" ry="10" class="box"/>

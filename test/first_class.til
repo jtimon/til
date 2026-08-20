@@ -1304,6 +1304,30 @@ ReflectContract58 := func(own taken: Str, borrowed: Str, mut changed: Str,
 ReflectRefReturn58 := func(value: FuncSigPayload58) returns ref FuncSigPayload58
 ReflectProc58 := proc(mut value: Str)
 
+CompactFieldTag58 := enum { A, B }
+CompactFieldTail58 := struct { tag := CompactFieldTag58.A }
+CompactFieldLayout58 := struct {
+    before : U8 = 0
+    tag := CompactFieldTag58.A
+    after : U8 = 0
+}
+
+test_compact_enum_field_write_width := test() {
+    mut decl := Declaration()
+    decl.til_type = Type.Primitive(Primitive.I64)
+    reflected := own_type_from_i64(own_type_to_i64(OwnType.Ref))
+    decl.own_type = reflected
+    expect(decl.own_type.is(OwnType.Ref), "enum result assigned to field")
+    switch decl.til_type {
+    case .Primitive(p): expect(p.is(Primitive.I64), "enum field write preserves adjacent type")
+    case: UNREACHABLE("enum field write corrupted adjacent type")
+    }
+
+    tail := CompactFieldTail58(tag = CompactFieldTag58.B)
+    expect(tail.tag.is(CompactFieldTag58.B), "terminal compact enum field survives construction")
+    assert_eq(USize, CompactFieldLayout58.size(), 3)
+}
+
 test_func_sig_structural_eq := test() {
     mut base := FuncSig(func_type = FuncType.Func, return_type = "I64",
         return_own_type = OwnType.Own, variadic_index = -1, kwargs_index = -1)

@@ -1,5 +1,5 @@
 #+TITLE: src/std/hash.til
-#+SUBTITLE: til 0.0.1-1b5c7faf9
+#+SUBTITLE: til 0.0.1-4e407a330
 #+OPTIONS: toc:t
 
 * KNUTH_MULT
@@ -52,16 +52,6 @@ func hash_i64(shallow x: I64) returns shallow U64
 func hash_u64(shallow x: U64) returns shallow U64
 #+end_src
 
-* hash_str
-:PROPERTIES:
-:CUSTOM_ID: til.src.std.hash.hash_str
-:group: Standard library
-:END:
-
-#+begin_src til
-func hash_str(s: Str) returns shallow U64
-#+end_src
-
 * fnv1a
 :PROPERTIES:
 :CUSTOM_ID: til.src.std.hash.fnv1a
@@ -70,6 +60,16 @@ func hash_str(s: Str) returns shallow U64
 
 #+begin_src til
 func fnv1a(data: Dynamic, shallow n: USize) returns shallow U64
+#+end_src
+
+* hash_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hash.hash_str
+:group: Standard library
+:END:
+
+#+begin_src til
+func hash_str(s: Str) returns shallow U64
 #+end_src
 
 * djb2
