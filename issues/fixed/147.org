@@ -165,12 +165,12 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | Struct        | til (now)                                                                                                                              | rstil                                                          |
    |---------------+----------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------|
    | ~Expr~        | 4 fields: ~node_type, children, line, col~ (post #206: ~til_type~ removed, derived on demand from node_type + payload)                  | 4 fields: ~node_type, params, line, col~                       |
-   | ~Declaration~ | 10 fields: ~name, doc, is_mut, redundant_mut, is_priv, used, own_type, til_type, default_value, orig_name~. Unresolved declaration spelling is represented by ~Type.Custom(name)~; named FuncSig aliases use ~Type.FuncPtrSig(name)~. | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
-   | ~Context~     | ~73 fields. Genuine cross-phase caches stay here (~struct_layouts~, ~interp_type_defs~, ~func_defs~, ~struct_def_exprs~, ~imported~, ~imports_*_done~ Sets); per-phase scratch state (constfolder tables, interpreter runtime flags, typer/builder transients) is the #246 slimming surface. | 19 fields (rstil): mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_constfolder_func, constfolder_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
-   | ~TypeBinding~ | 19 fields (zero ref Expr): ~name, type, is_mut, is_priv, path, line, col, is_param, own_type, is_alias, is_type_alias, is_func_decl, alias_target, func_type, is_builtin, used, written, mut_explicit, orig_name~. The FuncDef/StructDef Exprs live in ~scope.func_defs~/~scope.struct_defs~ (commits ~1c9265a~, ~0d967a8~). | n/a (rstil scope stores names + computes lookups on demand)    |
-   | ~FCallData~   | 9 fields: parse facts ~is_splat, does_throw, is_bang, own_args, ref_args, splat_args~; rewrite markers ~keep_outer_args, swap_replace~; and payload type ~til_type~. Direct and noreturn classification plus variadic/kwargs counts and indices are derived. | 2 fields: ~does_throw, is_bang~                                |
-   | ~StructDef~   | 3 fields: ~fields, ns_decls, c_tag~ (post step 4: ~total_struct_size~ gone -- total in ~ctx.struct_layouts~)                            | 3 fields: ~members, default_values, ns~                        |
-   | ~EnumDef~     | 4 fields: ~ns_decls, variants, payload_types, payload_consts~ (post step 4: ~total_enum_size~ gone -- total in ~ctx.struct_layouts~)   | 3 fields: ~variants, methods, ns~                              |
+   | ~Declaration~ | 11 fields: ~name, doc, is_mut, redundant_mut, is_priv, used, own_type, til_type, default_value, orig_name, gc_storage~. Unresolved declaration spelling is represented by ~Type.Custom(name)~; named FuncSig aliases use ~Type.FuncPtrSig(name)~. | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
+   | ~Context~     | Genuine cross-phase caches stay here (~struct_layouts~, ~interp_type_defs~, ~func_defs~, ~struct_def_exprs~, ~imported~, ~imports_*_done~ Sets); per-phase scratch state (constfolder tables, interpreter runtime flags, typer/builder transients) is the #246 slimming surface. | 19 fields (rstil): mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_constfolder_func, constfolder_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
+   | ~TypeBinding~ | 25 fields (zero ref Expr): identity/type/location/modifier facts, analysis markers, source spelling, DynVec narrowing, string-view/raw-allocation facts, and borrow roots. The FuncDef/StructDef Exprs live in ~scope.func_defs~/~scope.struct_defs~ (commits ~1c9265a~, ~0d967a8~). | n/a (rstil scope stores names + computes lookups on demand)    |
+   | ~FCallData~   | 8 fields: parse facts ~does_throw, is_bang~; argument bitmaps ~own_args, ref_args, splat_args~; rewrite markers ~keep_outer_args, swap_replace~; and payload type ~til_type~. Direct and noreturn classification plus variadic/kwargs counts and indices are derived. | 2 fields: ~does_throw, is_bang~                                |
+   | ~StructDef~   | 8 fields: declaration-ordered ~fields/ns_decls~, their name indexes, ~c_tag~, and interface metadata. ~total_struct_size~ is gone -- total lives in ~ctx.struct_layouts~. | 3 fields: ~members, default_values, ns~                        |
+   | ~EnumDef~     | 5 fields: declaration-ordered ~variants~, ~ns_decls~ plus its name index, ~implements_name~, and ~tag_type~. ~total_enum_size~ is gone -- total lives in ~ctx.struct_layouts~. | 3 fields: ~variants, methods, ns~                              |
 
 *** Audit (read/write site counts; remaining dangerous refs after ~fn_sig~ removal)
 
@@ -319,8 +319,8 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    The scope-resolving helpers (~fcall_*_via_scope~) all mirror the
    same Ident-binding / Type.method namespace lookup that
    ~resolve_variadic_elem_type~ uses, and ~resolve_fn_sig~ /
-   ~fcall_fn_sig~ (the originals that replaced ~fn_sig~) remain the
-   template the rest of the dangerous-ref purge follows.
+   ~fcall_fn_sig~ (the originals that replaced ~fn_sig~) were the
+   template used by the subsequent dangerous-ref purge.
 
    Subsequent work added ~direct_callee~ and ~noreturn_call~ as scalar
    typer stamps. This final change removes them: directness follows from the
@@ -358,14 +358,11 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      ~reregister_field_struct_defs~ walks went with it.
    - ~FCallData.fn_sig~ -- *removed*. Was the original motivating
      case; the "name + lookup" replacement
-     (~resolve_fn_sig~ / ~fcall_fn_sig~) is now the template for the
-     remaining purges.
-   - ~TypeBinding.struct_def~, ~TypeBinding.func_def~
-     ([[file:../../src/self/initer.til:19-20][src/self/initer.til:19-20]]) -- these live in ~scope.bindings~,
-     not on the AST, but they reference into the AST and have the same
-     dangling-on-rebuild risk. Same fix: store name + look up the
-     authoritative payload via ~scope.get_struct~ /
-     ~scope.lookup_func~.
+     (~resolve_fn_sig~ / ~fcall_fn_sig~) became the template for the
+     later purges.
+   - ~TypeBinding.struct_def~, ~TypeBinding.func_def~ -- *removed*.
+     Authoritative definition Exprs live in scope-owned maps and are
+     resolved via ~scope.get_struct~ / ~scope.lookup_func~.
    - Per-walk ~ref mut current_*_def : Expr = NULL~ thread-locals in
      ~typer.til~ / ~builder.til~ / ~interpreter.til~ -- *migrated to
      Context fields* per #177; module-scope-only ref-NULL carve-out is
@@ -384,11 +381,11 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    - Per-file ~ImportUnit~ + ~Context.imports_*_done~ Sets mirror
      rstil's design without rstil's ~Ptr~+~malloc~+~memcpy~ Box<Expr>
      dance.
-   - ~[[./130.org][#130]]~ itself: rstil had no ongoing simplification tracking.
+   - The incremental ~[[./130.org][#130]]~ record made simplification work explicit.
 
 *** Related issues
 
-   - ~[[./130.org][#130]]~ AST/Expr representation cleanup -- field-level, ongoing
+   - ~[[./130.org][#130]]~ AST/Expr representation cleanup -- complete
    - ~[[./58.org][#58]]~ First-class functions: FuncSig/FuncDef hierarchy -- subsumes
      step 8
    - ~[[./93.org][#93]]~ Local struct/enum/function definitions

@@ -1,0 +1,47 @@
+# priority: high
+# category: cleanups
+** FIXED #130 AST / ~Expr~ representation cleanup
+
+*** Post-mortem
+
+The original AST represented node kind and payload through both ~NodeType~
+and ~ExprData~, while also placing names, literal values, inferred type,
+source path, aggregate identity, and rewrite provenance directly on every
+~Expr~. Payload records additionally held runtime values, aggregate layout,
+parallel enum metadata, copied call-resolution facts, and borrowed Expr
+back-references. The duplication made invalid combinations representable and
+gave every node the cost of facts used by only a few variants.
+
+The cleanup landed incrementally through the AST/type/layout work summarized
+in [[file:147.org][#147]] and its linked commits. ~Expr~ now contains only ~node_type~,
+~children~, ~line~, and ~col~; ~NodeType~ is the sole tagged payload union.
+Runtime values live in interpreter environments, aggregate layout lives in
+~Context.struct_layouts~, enum variants use one ~VariantDef~ record each,
+call facts are derived where possible, and ~Declaration~, ~FCallData~, and
+~TypeBinding~ no longer borrow definition Exprs. The final audit also removed
+stale documentation which still described the pre-cleanup property bag.
+
+Regression coverage is the existing parser, typer, ownership, interpreter,
+and generated-C test suite exercised by the commits that changed each AST
+shape. This closing commit adds the source-verified representation audit at
+[[file:../../doc/audits/ast.org][doc/audits/ast.org]] and changes no behavior.
+
+*** Final representation
+
+- ~Expr~ has four fields: ~node_type~, ~children~, ~line~, and ~col~.
+- ~NodeType~ owns all node-kind payload data; ~ExprData~ is gone.
+- Expression result types are payload-specific or derived through the type
+  query chokepoint; there is no universal ~Expr.til_type~.
+- Layout is owned by ~Context.struct_layouts~, not declaration or definition
+  nodes.
+- ~VariantDef~ replaced EnumDef's position-parallel metadata collections.
+- Resolved call signatures, method classification, variadic/keyword indexes,
+  and noreturn status are derived rather than copied into ~FCallData~.
+- ~FCallData.fn_sig~, ~Declaration.field_struct_def~,
+  ~TypeBinding.func_def~, and ~TypeBinding.struct_def~ are gone.
+
+The proposed ~FuncSig~ split and universal resolved-call side table are not
+unfinished field cleanup. Current ~FunctionDef~ signature, capture,
+return-alias, and generated-function facts have cross-phase readers. A future
+split would be a separate data-model design with bootstrap and ownership
+implications.

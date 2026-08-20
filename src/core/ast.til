@@ -1005,7 +1005,7 @@ namespace:
 
 // --- Expr struct ---
 
-/// AST expression node with line/col, type, children, and node-specific payload.
+/// AST expression node with line/col, children, and node-specific payload.
 Expr := struct {
     node_type := NodeType.Body
     children := Vec(Expr).new()
