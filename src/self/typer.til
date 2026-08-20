@@ -4293,12 +4293,16 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: St
 }
 
 // Nested bodies own separate scopes, so only direct declarations contribute
-// to this scope's known initial capacity. Later synthesized bindings may grow it.
+// to this scope's known initial capacity. One bounded spare slot absorbs the
+// common single variadic/hoist binding synthesized during inference.
+priv TYPER_SYNTH_BINDING_SLACK : USize = 1
+
 priv typer_body_binding_count := func(body: Expr) returns USize {
     mut count : USize = 0
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl) { count++ }
     }
+    if count > 0 { count = count + TYPER_SYNTH_BINDING_SLACK }
     return count
 }
 

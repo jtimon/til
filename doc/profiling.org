@@ -234,10 +234,10 @@ Top 32 by bytes allocated:
   | Vec__Expr_push                                | 39.4K  | 12122.9  | 43.2K   |
   | Vec__Expr_clone                               | 23.8K  | 6799.2   | 43.9K   |
   | Str_clone                                     | 448K   | 4860.0   | 508K    |
-  | Map__U32_TypeBinding_set                      | 8.36K  | 4511.6   | 22.7K   |
+  | Map__U32_TypeBinding_set                      | 7.72K  | 4362.9   | 22.7K   |
   | Vec__Expr_push_take                           | 10.4K  | 4158.7   | 72.2K   |
   | swap_bytes                                    | 99.3K  | 3824.9   | 99.3K   |
-  | Vec__TypeBinding_with_capacity                | 3.99K  | 2453.5   | 6.33K   |
+  | Vec__TypeBinding_with_capacity                | 3.99K  | 2561.6   | 6.33K   |
   | Vec__Expr_append                              | 1.14K  | 1921.9   | 22.3K   |
   | Vec__priv___src_self_garbager_til__LocalInfo_push | 7.72K | 1804.4 | 12.7K |
   | cfile_read_all                                | 63     | 1532.3   | 21      |
