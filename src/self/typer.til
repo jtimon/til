@@ -6477,13 +6477,31 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         // A Dynamic destination is exempt: `p : Dynamic = <pointer field>`
         // is #357's own supported form -- Dynamic IS a pointer, so it takes
         // the address by design and both backends agree on it.
+        //
+        // #391: an OWN pointer field (`own c_str : I8` in Str, `own data :
+        // U8` in Vec/Array) is the same defect one qualifier over. It was
+        // missed because the rule was written for the borrow case, but the
+        // scalar/pointer mismatch is a property of the FIELD's storage, not
+        // of who owns it: `I8 a = s.c_str;` is the identical gcc rejection,
+        // and the line after it -- `c_str_len(&a)` -- hands C the address of
+        // one byte where the buffer belongs. The messages differ because the
+        // fixes do: a borrowed field has no owner here to speak of, while an
+        // owned one is copied as a pointer, which is what `ref` means.
         if in_type_body.eq(0).and(sdecl.own_type.is(OwnType.Ref).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
             if rhs.node_type.is(NodeType.FieldAccess).and(rhs.til_type().is(Type.Primitive)) {
-                if fa_own_type(rhs, scope, ctx.symbols).is(OwnType.Ref) {
+                fa_ot := fa_own_type(rhs, scope, ctx.symbols)
+                if fa_ot.is(OwnType.Ref) {
                     stmt.type_error(format("'", sdecl.name,
                         "' binds the borrowed pointer field '", til_type_name_c(rhs.til_type()),
                         "'; declare it 'ref ", sdecl.name, " : ", sdecl.type_name(),
                         " = ...' -- the holder does not own it"), ctx)
+                } else if fa_ot.is(OwnType.Shallow).not() {
+                    stmt.type_error(format("'", sdecl.name,
+                        "' binds the owned pointer field '", til_type_name_c(rhs.til_type()),
+                        "' by value, which stores one ", til_type_name_c(rhs.til_type()),
+                        " where the address belongs; declare it 'ref ", sdecl.name,
+                        " : ", sdecl.type_name(),
+                        " = ...' to borrow the pointer, or ' : Dynamic = ...' for the raw address"), ctx)
                 }
             }
         }

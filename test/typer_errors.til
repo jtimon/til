@@ -1464,3 +1464,23 @@ namespace:
         if call_free { free(own self) }
     }
 }
+
+// #391: an OWN pointer field (`own c_str : I8` in Str, `own data : U8` in
+// Vec/Array) bound BY VALUE -- the #357 case above, one qualifier over.
+// The til type says scalar and the C storage is a pointer, so codegen
+// wrote `I8 a = s.c_str;`: gcc rejects it outright, so the failure was a
+// -Werror line against gen/til/*.c with nothing pointing at the til
+// source, while the interpreter ran the same program and printed the
+// right answer. The two spellings that DO work on both backends are `ref`
+// (borrow the pointer) and `: Dynamic` (the raw address); the diagnostic
+// names both, and test_pointer_field_spellings in test/strings.til runs
+// them as positive cases.
+terr391_lit := "hello"
+terr391_s := terr391_lit.clone()
+terr391_by_value := terr391_s.c_str
+mut terr391_mut := terr391_s.c_str
+terr391_mut = terr391_s.c_str
+
+mut terr391_v := Vec(Str).new()
+terr391_v.push(own terr391_lit.clone())
+terr391_data := terr391_v.data

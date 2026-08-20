@@ -395,6 +395,30 @@ test_clone_terminates_views := test() {
     assert_eq(Str, Str.from_c_str("literal".c_str), "literal")
 }
 
+/// #391: the two spellings that carry `Str.c_str`'s ADDRESS into a local.
+/// Binding it by value is a typer error (test/typer_errors.til pins that);
+/// these are the fixes the diagnostic names, and both must keep agreeing
+/// across the backends -- the value form was accepted by the typer, ran
+/// correctly interpreted, and failed at `cc` with `I8 a = s.c_str;`.
+test_pointer_field_spellings := test() {
+    lit := "hello"
+    s := lit.clone()
+
+    // `ref`: borrow the pointer. The holder still owns the buffer.
+    ref borrowed : I8 = s.c_str
+    assert_eq(USize, c_str_len(borrowed), 5)
+    assert(borrowed.ptr_eq(s.c_str))
+
+    // `Dynamic`: the raw address, which is what a `void *` already is.
+    raw : Dynamic = s.c_str
+    assert_eq(USize, c_str_len(raw), 5)
+    assert(raw.ptr_eq(s.c_str))
+
+    // Unchanged by all of this: the field feeding a call directly.
+    assert_eq(USize, c_str_len(s.c_str), 5)
+    assert_eq(Str, s, "hello")
+}
+
 test_borrowed_view := test() {
     s := format("bor", "rowed")
     v := s.borrowed_view()

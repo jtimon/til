@@ -1,0 +1,70 @@
+# priority: high
+# category: bugs
+** FIXED #391 An owned pointer field bound by value miscompiles, and only the C compiler complains
+
+*** Post-mortem
+
+Root cause: a field whose OwnType is a pointer carries a til type that
+says SCALAR (~own c_str : I8~ in Str, ~own data : U8~ in Vec and Array)
+and a C storage that is a pointer. Binding one into a value local kept
+the scalar and lost the address. Two lines of the same emitted function:
+
+#+begin_src c
+    I8 *m = malloc(8ULL);   // from an allocator call -- pointer, right
+    I8 explicit = s.c_str;  // same `: I8` annotation -- char, from char *
+#+end_src
+
+The declaration form is identical; only the initializer differs, and only
+the allocator call was taught to keep its pointer-ness (#303's raw-alloc
+local). gcc rejects the second outright
+(~-Werror=int-conversion~), so the failure arrived as a line against
+gen/til/*.c with nothing naming the til source -- and the interpreter ran
+the same program and printed the right answers. Another compiled-only
+break of exactly the kind #366 was filed to stop hiding.
+
+The statement after it is worse than the error it raises:
+~c_str_len(&explicit)~ hands C the address of one byte where the buffer
+belongs. Silencing the conversion would have produced a wrong program
+rather than a broken build.
+
+*** The fix is one qualifier wide
+
+This is the #357 family at a Decl, and the rule was ALREADY there --
+~infer_decl_stmt~ has rejected ~x : U8 = h.buf~ for a ~ref~ pointer
+field since 5f060c64, with the same reasoning and the same recommended
+spelling. It tested ~fa_own_type(rhs) == Ref~, so an ~own~ pointer field
+fell straight through. The scalar/pointer mismatch is a property of the
+FIELD'S STORAGE, not of who owns it.
+
+Widened to non-Shallow, with a separate message for the owned case
+because the fixes differ: a borrowed field has no owner in this frame to
+speak of, while an owned one is copied as a pointer -- which is what
+~ref~ means. The existing borrowed-field diagnostic is unchanged, byte
+for byte.
+
+Rejecting rather than emitting the pointer is the honest answer: there
+is no value meaning to give this shape. A copy of an owned pointer IS a
+borrow, and til spells that ~ref~; the raw address is ~Dynamic~. Both
+already worked on both backends before this commit, which is why the
+message names them.
+
+Only PRIMITIVE-typed pointer fields are affected. An aggregate field
+(~Holder.s : Str~) is a struct in C too, so ~Str f = b.s~ is honest and
+keeps working -- verified in both backends.
+
+Blast radius: zero. No ~x := <expr>.c_str~ / ~.data~ binding exists
+anywhere in src/, test/ or examples/.
+
+Regression tests: three negative cases at the end of
+test/typer_errors.til (~terr391_*~, counted as
+~binds the owned pointer field~ = 3, total 232 -> 235) and
+~test_pointer_field_spellings~ in test/strings.til, which runs the ~ref~
+and ~Dynamic~ spellings in BOTH backends and asserts they carry the same
+address the field holds.
+
+*** How it surfaced
+
+Auditing value identity across the backends after #366 -- a probe that
+compared pointers through containers, struct fields and enum payloads
+used ~mut probe := p.c_str~ to hold an address, and that line, not the
+thing being probed, failed to compile.
