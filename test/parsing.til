@@ -13,8 +13,9 @@ parse_src := proc(src: Str, symbols: SymbolPool) returns Expr {
 
 symbol_hash_reference := func(name: Str) returns U64 {
     mut h : U64 = 0.sub(3750763034362895579)
-    for b : I8 in name {
-        h = h.bxor(b.to_u64()).mul(1099511628211)
+    for i in 0..name.len() {
+        ref b : U8 = ptr_add(name.c_str, i)
+        h = h.bxor(b.cast(U64)).mul(1099511628211)
     }
     return h
 }

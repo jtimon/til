@@ -189,6 +189,10 @@ The instrumented build reports conceptual entries for inlined functions, so
 Callgrind measures the uninstrumented effect: inlining removed 21.6M
 instructions from this workload (2.3176B -> 2.2960B, 0.93%).
 
+~SymbolPool_hash_name~ reads unsigned bytes in a four-byte unrolled FNV-1a
+loop. Callgrind measured 109.09M -> 93.68M instructions in that function and
+2.32040B -> 2.30498B overall (0.66%) without changing valid ASCII symbol hashes.
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
@@ -214,10 +218,10 @@ Top 32 by self time:
   | priv___src_self_constfolder_til__fold_subtree   | 57.9K    | 11.5    | 825.2    |
   | expr_transfers_own                              | 148K     | 11.3    | 141.9    |
   | ptr_eq                                          | 655K     | 11.2    | 11.2     |
-  | SymbolPool_hash_name                            | 319K     | 11.2    | 11.2     |
   | qname_cmp                                       | 214K     | 11.2    | 19.6     |
   | builtin_primitive_from_name                     | 48.9K    | 11.1    | 25.0     |
   | TypeScope_get_struct                            | 111K     | 11.1    | 106.5    |
+  | SymbolPool_hash_name                            | 324K     | 10.4    | 10.4     |
   | Type_clone                                      | 318K     | 10.2    | 15.2     |
   | Type_delete                                     | 423K     | 9.5     | 11.5     |
   | priv___src_self_context_til__sym_fingerprint    | 251K     | 9.4     | 13.7     |

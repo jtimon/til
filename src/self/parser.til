@@ -2,6 +2,10 @@ mode lib
 
 import("lexer")
 
+priv SYMBOL_HASH_OFFSET : U64 = 0.sub(3750763034362895579)
+priv SYMBOL_HASH_PRIME : U64 = 1099511628211
+priv SYMBOL_HASH_UNROLL : USize = 4
+
 SymbolPool := struct {
     // Index sym - 1 owns the spelling used by resolve. Borrowed names are
     // consumed before the next intern may grow this Vec.
@@ -12,10 +16,26 @@ SymbolPool := struct {
     next : Sym = 1
 namespace:
     hash_name := func(name: Str) returns U64 {
-        mut h : U64 = 0.sub(3750763034362895579)
-        for i in 0..name.len() {
+        mut h : U64 = SYMBOL_HASH_OFFSET
+        mut i : USize = 0
+        count := name.len()
+        // Symbol spellings are ASCII. Unsigned bytes implement standard FNV-1a
+        // without the signed widening chain, and four at a time amortizes loop control.
+        while count - i >= SYMBOL_HASH_UNROLL {
+            ref b0 : U8 = ptr_add(name.c_str, i)
+            h = h.bxor(b0.cast(U64)).mul(SYMBOL_HASH_PRIME)
+            ref b1 : U8 = ptr_add(name.c_str, i + 1)
+            h = h.bxor(b1.cast(U64)).mul(SYMBOL_HASH_PRIME)
+            ref b2 : U8 = ptr_add(name.c_str, i + 2)
+            h = h.bxor(b2.cast(U64)).mul(SYMBOL_HASH_PRIME)
+            ref b3 : U8 = ptr_add(name.c_str, i + 3)
+            h = h.bxor(b3.cast(U64)).mul(SYMBOL_HASH_PRIME)
+            i = i + SYMBOL_HASH_UNROLL
+        }
+        while i < count {
             ref b : U8 = ptr_add(name.c_str, i)
-            h = h.bxor(b.cast(I8).cast(I64).cast(U64)).mul(1099511628211)
+            h = h.bxor(b.cast(U64)).mul(SYMBOL_HASH_PRIME)
+            i++
         }
         return h
     }
