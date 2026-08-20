@@ -8,7 +8,7 @@ with explicit parameters.
 
 A standalone namespace uses the same name-first syntax as other declarations:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til
 Math := namespace {
     answer := 42
 
@@ -24,14 +24,14 @@ Math := namespace {
 
 Its members are reached through the namespace name:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til
 result := Math.twice(Math.answer)
 #+end_src
 
 Namespace values are immutable by default. Add ~mut~ only for shared mutable
 state:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til
 Settings := namespace {
     mut verbose := false
 }
@@ -44,7 +44,7 @@ Settings.verbose = true
 A struct can contain a ~namespace:~ section after its fields. The namespace
 holds constructors, associated values, and functions related to the type:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til
 Counter := struct {
     value := 0
     namespace:
@@ -76,7 +76,7 @@ Fields belong to each ~Counter~ value. Namespace declarations such as
 When a namespace function's first parameter accepts a value, Til also permits
 method-call syntax. These calls are equivalent:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til
 value_a := Counter.get(counter)
 value_b := counter.get()
 #+end_src
@@ -85,7 +85,7 @@ There is no hidden receiver: ~counter~ is passed as the explicit first
 argument named ~self~. The ~bump~ method above declares that parameter ~mut~,
 so it may update the value:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til
 counter.bump()
 #+end_src
 
@@ -103,7 +103,7 @@ other languages.
 
 Enums may have a namespace section as well:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til
 Direction := enum {
     Up, Down, Left, Right
     namespace:
@@ -125,7 +125,7 @@ Struct fields and namespace members are public by default. Mark implementation
 details ~priv~ when only the struct's own namespace functions should reach
 them:
 
-#+begin_src til
+#+begin_src til :doctest-file namespaces.til :doctest-run
 Box := struct {
     value := 0
     priv changes := 0
@@ -139,6 +139,15 @@ Box := struct {
         self.value = value
     }
 }
+assert_eq(I64, result, 84)
+assert(Settings.verbose)
+assert_eq(I64, value, 10)
+assert_eq(I64, value_a, value_b)
+assert_eq(I64, counter.get(), 11)
+assert(vertical)
+mut box := Box()
+box.set(3)
+assert_eq(I64, box.value, 3)
 #+end_src
 
 Code outside the ~Box~ namespace cannot read ~changes~ or call

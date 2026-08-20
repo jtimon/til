@@ -61,7 +61,7 @@ lives, and step-by-step recipes for adding more throwing methods.
    when control actually reaches it*, so it short-circuits exactly like
    the surrounding construct:
 
-   - *Short-circuit ~and~/~or~* ([[file:../../issues/open/262.org][#262]]). ~cond.and(v[i])~ desugars
+   - *Short-circuit ~and~/~or~* ([[file:../../issues/fixed/262.org][#262]]). ~cond.and(v[i])~ desugars
      to a ~match~ whose taken arm holds ~v[i]~. The throwing call is
      lowered INTO that arm, so when ~cond~ is false ~v[i]~ never runs --
      a guarded subscript never goes out of bounds.
@@ -177,7 +177,7 @@ lives, and step-by-step recipes for adding more throwing methods.
 
 ** Adding a new built-in error type (worked example: DivideByZero)
 
-   Reference implementation: [[file:../../src/core/i64.til][src/core/i64.til]] around
+   Reference implementation: [[file:../../src/core/numbers.til][src/core/numbers.til]] around
    ~DivideByZero~ and ~safe_div~.
 
    1. Declare the error type as an ordinary struct at top level in

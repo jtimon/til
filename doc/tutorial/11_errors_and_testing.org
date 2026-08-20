@@ -8,11 +8,13 @@ Til code and run through both the interpreter and compiled backend.
 Error values are normal types. ~throws~ lists the types a callable may raise,
 and ~throw~ raises one:
 
-#+begin_src til
-DivideByZero := struct {}
+#+begin_src til :doctest-file errors_testing.til
+mode test
 
-safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
-    if b == 0 { throw DivideByZero() }
+ZeroDivisor := struct {}
+
+safe_div := func(a: I64, b: I64) returns I64 throws ZeroDivisor {
+    if b == 0 { throw ZeroDivisor() }
     return a / b
 }
 #+end_src
@@ -24,10 +26,10 @@ An error struct may carry fields when callers need diagnostic data.
 A call to a throwing callable must use postfix ~?~ or ~!~. ~?~ marks a call for
 local handling or propagation:
 
-#+begin_src til
+#+begin_src til :doctest-file errors_testing.til
 show_division := proc(a: I64, b: I64) {
     result := safe_div(a, b)?
-    catch (_err: DivideByZero) {
+    catch (_err: ZeroDivisor) {
         println("cannot divide by zero")
         return
     }
@@ -50,17 +52,16 @@ The bang form panics if the call throws. Checked indexing uses this behavior:
 
 ** Writing tests
 
-~mode test~ makes named ~test()~ declarations entry points:
+The running file began with ~mode test~, which makes named ~test()~ declarations
+entry points:
 
-#+begin_src til
-mode test
-
+#+begin_src til :doctest-file errors_testing.til :doctest-run
 test_safe_division := test() {
     assert_eq(I64, safe_div(8, 2)!, 4)
 
     mut caught := false
     _ := safe_div(8, 0)?
-    catch (_err: DivideByZero) {
+    catch (_err: ZeroDivisor) {
         caught = true
     }
     expect(caught, "division by zero was caught")

@@ -5,15 +5,15 @@ to avoid re-discovering the same things.
 
 ** General til knowledge
 - ~mode test~ is required for test files (not ~mode gui~).
-- ~mode test~ provides ~assert(__LOC__, cond)~ and ~assert_eq(__LOC__, a, b)~.
-- Float equality goes through ~a.eq(b)~ on F32; there is no ~assert_eq_f32~.
+- ~assert(cond)~ checks a Bool; ~assert_eq(T, a, b)~ compares values of type
+  ~T~. Both accept an optional trailing ~loc: Str = __LOC__~ argument.
+- Float equality works through ~assert_eq(F32, a, b)~ or ~a.eq(b)~.
 - Forward references work: functions can reference globals declared later.
 - ~func()~ with no explicit return type works; the compiler infers it.
-- ~proc~ is for side-effect-only procedures; ~func~ is for value-returning functions.
-  Default to ~func~ unless the compiler tells you otherwise.
-- ~format(...)~ takes ~..Str~ variadic but the til compiler may not expand
-  variadics inside ~proc~ bodies correctly.  Use ~print~/~println~ chains
-  instead of ~format~ when in a ~proc~, or test it first.
+- ~proc~ declares effects such as I/O; ~func~ declares their absence. Both may
+  return values, and a ~func~ may mutate through declared ~mut~ parameters.
+- Variadic calls such as ~format(...)~ work inside both ~func~ and ~proc~
+  bodies.
 
 ** til operators and desugaring
 - Arithmetic and comparison operators lower to their UFCS methods: for
@@ -32,8 +32,8 @@ to avoid re-discovering the same things.
 
 ** Struct fields and mutation
 - Struct fields CAN be mutated: ~camera.position.x = new_x~ works.
-- ~Array.new("Type", Type.size(), count)~ creates an Array.
-- ~Array.set(idx, own val)~ — note the ~own~ keyword (required for owned params).
+- ~Array(T).new(count)~ creates a zero-initialized fixed-capacity array.
+- ~Array.set(idx, own val)~ takes ownership of the replacement value.
 - Arrays do NOT have a ~.push()~ method.
 - Trailing commas are allowed and encouraged on multi-line constructors.
 
@@ -49,25 +49,20 @@ to avoid re-discovering the same things.
   headlessly for testing.  Use ~stdbuf -oL~ to force line-buffered
   stdout if output is missing.
 
-** ASAN leak baseline and delta tracking
-- Every merge-commit procedure includes ASAN leak checks. The point is
-  to report the *delta* from the known baseline, not whether leaks exist.
-- Current baseline (commit 9fef36d78, 2026-05-04):
-  - interpret: 254,233 bytes / 48,601 allocs
-  - translate: 145,706 bytes / 25,250 allocs
-- Report delta as: "interpret +N% / -N%, translate +N% / -N%". A 0%
-  delta means no change from baseline. A positive delta means the commit
-  increased leaks; the user decides whether to keep or reject.
+** ASAN
+- ~make test~ includes the ASAN suite. Do not maintain or compare a separate
+  leak baseline.
 
 ** Build & debug workflow
 - Use ~tmp/~ for ad-hoc test files.
 - Run with ~bin/til run tmp/test.til > tmp/test.log 2>&1~.
 - Look at generated C in ~gen/til/<name>.c~ to understand desugaring.
-- ~make > /dev/null 2>&1~ to build ~bin/til~ (needed after translation).
+- Redirect builds to a readable log, for example
+  ~make > tmp/build.log 2>&1~.
 - ~bin/til build~ does translate + C compile; ~bin/til translate~ does
   just the til->C step (faster iteration).
-- ~systemd-run --user --scope -p MemoryMax=64G make clean && make test~
-  prevents OOM from memory leaks during full test suite.
+- ~systemd-run --user --scope -p MemoryMax=64G sh -c 'make clean && make test'
+  > tmp/test.log 2>&1~ prevents OOM during the full suite and records one log.
 
 ** Conventions
 - UPPERCASE for module-level constants (~INIT_POS~, ~KEY_W~, ~MENU_*~).
@@ -95,7 +90,8 @@ to avoid re-discovering the same things.
 ** Doc vs docgen changes
 - *Doc change*: modifications to documentation-only files (e.g.
    ~issues/open/189.org~, ~doc/bots/*.org~, ~README~). These do NOT affect the
-  binary or boot files. Commit with ~Doc: ~ prefix, skip ~make test~.
+  binary or boot files. Commit with ~Doc: ~ prefix and run ~make summary~;
+  tutorial doctest changes are the exception below.
 - *Docgen change*: adding or modifying ~///~ doc comments in core
   library files (~src/core/vec.til~, etc.). The text is emitted to
   ~doc/gen/*.org~ by ~make doc~, and REPL ~help()~ loads those files on
@@ -104,16 +100,19 @@ to avoid re-discovering the same things.
   is rebuilt. A change to a ~:doctest~ block in source documentation or under
   ~doc/tutorial/~ also requires ~make test~ because the suite extracts and
   executes those blocks.
+- A tutorial ~:doctest~ block is wrapped in a generated test. Top-level or
+  multi-file examples use ~:doctest-file relative/path.til~; blocks with the
+  same path are appended in source order, and ~:doctest-run~ registers that
+  generated file. The suite recreates them under ~tmp/tutorial_doctests/~ and
+  runs all registered files sequentially in one job to cap peak memory.
 - *Source change*: any code change to ~.til~ files. Always requires
-  ~make clean && make test~ + ASAN before committing.
-- File change to ~test/repl_help.til~ or ~src/tests.til~ that only
-  adds/removes a test registration line: test-only, still requires
-  make test but may skip ASAN if no core code changed.
+  ~make clean && make test~ before committing; that target includes ASAN.
 
 ** git
 - ~git reset --soft HEAD~1~ keeps changes in worktree; followed by
-  ~git checkout HEAD -- doc/totals.csv img/totals.svg~ to discard
-  auto-generated totals.
-- Never commit without being asked.
+  ~git restore doc/totals.csv img/totals.svg~ to discard both
+  auto-generated totals together.
+- In a dedicated task worktree, commit completed verified work. On the main
+  checkout, wait for an explicit commit request.
 - Doc-only commits: prefix with ~Doc: ~.
 - ~git reflog~ recovers accidentally dropped commits.

@@ -7,7 +7,7 @@ variants, optionally carrying data.
 
 A struct definition is another name-first declaration:
 
-#+begin_src til
+#+begin_src til :doctest-file structs_enums.til
 Point := struct {
     x : I64 = 0
     y : I64 = 0
@@ -17,7 +17,7 @@ Point := struct {
 
 Fields have defaults, so construction may provide all, some, or none of them:
 
-#+begin_src til
+#+begin_src til :doctest-file structs_enums.til
 origin := Point()
 mut p := Point(x = 3, y = 4)
 p.x = 5
@@ -29,7 +29,7 @@ locals and parameters, which are immutable by default.
 
 Field access uses a dot:
 
-#+begin_src til
+#+begin_src til :doctest-file structs_enums.til
 distance_squared := p.x * p.x + p.y * p.y
 #+end_src
 
@@ -37,7 +37,7 @@ distance_squared := p.x * p.x + p.y * p.y
 
 An enum variant may be a plain tag or carry one typed payload:
 
-#+begin_src til
+#+begin_src til :doctest-file structs_enums.til
 Token := enum {
     Number: I64
     Word: Str
@@ -51,7 +51,7 @@ end_token := Token.End
 
 Variants live under the enum's name. A ~switch~ pattern can bind a payload:
 
-#+begin_src til
+#+begin_src til :doctest-file structs_enums.til
 mut description := ""
 switch number {
 case Token.Number(value): description = value.to_str()
@@ -66,12 +66,16 @@ the same behavior.
 
 A ~match~ can turn variants into a value directly:
 
-#+begin_src til
+#+begin_src til :doctest-file structs_enums.til :doctest-run
 kind := match word {
 case Token.Number(_): "number"
 case Token.Word(_): "word"
 case Token.End: "end"
 }
+assert_eq(I64, distance_squared, 41)
+assert_eq(Str, description, "42")
+assert_eq(Str, kind, "word")
+assert(end_token == Token.End)
 #+end_src
 
 ** Generated operations

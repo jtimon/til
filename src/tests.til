@@ -9,6 +9,7 @@ RUNNER := "bin/test_runner"
 PLOT := "bin/plot"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
+TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -101,18 +102,54 @@ doc_test_next_line_pos := func(body: Str, line_end: USize) returns USize {
 }
 
 doc_test_block_text := func(line: Str, path: Str, source_comment: Bool) returns Str {
-    if source_comment.not() { return line.clone() }
+    if source_comment.not() { return line }
     trimmed := line.trim()
     if trimmed.starts_with("///").not() { panic("unterminated doctest block in ", path) }
-    mut text := trimmed.strip_prefix("///").clone()
-    if text.starts_with(" ") { text = text.strip_prefix(" ").clone() }
+    mut text := trimmed.strip_prefix("///")
+    if text.starts_with(" ") { text = text.strip_prefix(" ") }
     return text
 }
 
 doc_test_is_doctest_begin := func(line: Str, source_comment: Bool) returns Bool {
     if source_comment.and(line.trim().starts_with("///").not()) { return false }
     text := doc_test_block_text(line, "<doc-test>", source_comment)
-    return text.trim().starts_with("#+begin_src").and(text.contains(":doctest"))
+    return text.trim().starts_with("#+begin_src").and(doc_test_header_has_flag(text, "doctest"))
+}
+
+doc_test_header_has_flag := func(header: Str, name: Str) returns Bool {
+    text := header.trim()
+    with_space := format(":", name, " ")
+    at_end := format(":", name)
+    return text.contains(with_space).or(text.ends_with(at_end))
+}
+
+doc_test_header_value := func(header: Str, name: Str) returns Str {
+    text := header.trim()
+    needle := format(":", name, " ")
+    pos := text.find(needle)
+    if pos < 0 { return "" }
+    start := pos.to_usize() + needle.len()
+    rest := text.substr(start, text.len() - start)
+    end := rest.find(" ")
+    if end < 0 { return rest }
+    return rest.substr(0, end.to_usize())
+}
+
+doc_test_parent_dir := func(path: Str) returns Str {
+    slash := path.rfind("/")
+    if slash < 0 { return "." }
+    return path.substr(0, slash.to_usize())
+}
+
+doc_test_push := func(mut out: Str, text: Str) {
+    required := out.len() + text.len()
+    if required <= out.cap { out.push_str(text); return }
+    mut new_cap := out.cap * 2
+    if new_cap < required { new_cap = required }
+    mut grown := Str.with_capacity(new_cap)
+    grown.push_str(out)
+    grown.push_str(text)
+    out = grown
 }
 
 append_doc_doctests := func(mut out: Str, path: Str, source: Str, count: USize, source_comment: Bool) returns USize {
@@ -127,8 +164,11 @@ append_doc_doctests := func(mut out: Str, path: Str, source: Str, count: USize, 
             loc := format(path, ":", block_line.to_str())
             pos = doc_test_next_line_pos(source, line_end)
             line_number++
-            out = format(out, "// doctest source: ", loc, "\ndoctest_",
-                         next_count.to_str(), " := test() {\n")
+            doc_test_push(out, "// doctest source: ")
+            doc_test_push(out, loc)
+            doc_test_push(out, "\ndoctest_")
+            doc_test_push(out, next_count.to_str())
+            doc_test_push(out, " := test() {\n")
             mut found_end := false
             mut has_body := false
             while pos < source.len() {
@@ -142,13 +182,14 @@ append_doc_doctests := func(mut out: Str, path: Str, source: Str, count: USize, 
                     break
                 }
                 if body_line.trim().is_empty().not() { has_body = true }
-                out = format(out, body_line, "\n")
+                doc_test_push(out, body_line)
+                doc_test_push(out, "\n")
                 pos = doc_test_next_line_pos(source, src_line_end)
                 line_number++
             }
             if found_end.not() { panic("unterminated doctest block in ", loc) }
             if has_body.not() { panic("empty doctest block in ", loc) }
-            out = format(out, "}\n\n")
+            doc_test_push(out, "}\n\n")
             next_count++
             continue
         }
@@ -176,17 +217,160 @@ append_tracked_doc_doctests := proc(mut out: Str) returns USize {
     return count
 }
 
+write_tutorial_file_blocks := proc(path: Str, source: Str, mut run_files: Vec(Str)) {
+    mut pos : USize = 0
+    mut line_number : USize = 1
+    while pos < source.len() {
+        line_end := doc_test_line_end(source, pos)
+        line := source.substr(pos, line_end - pos)
+        header := line.trim()
+        file_path := doc_test_header_value(header, "doctest-file")
+        is_run := doc_test_header_has_flag(header, "doctest-run")
+        if is_run.and(file_path.is_empty()) {
+            panic("doctest-run requires doctest-file in ", path, ":", line_number.to_str())
+        }
+        if file_path.is_empty().not() {
+            loc := format(path, ":", line_number.to_str())
+            if header.starts_with("#+begin_src til").not() {
+                panic("doctest-file must mark a til source block in ", loc)
+            }
+            if File.is_absolute(file_path).or(file_path.starts_with("..")).or(file_path.contains("/../")) {
+                panic("doctest-file path must stay under ", TUTORIAL_DOCTEST_DIR, " in ", loc)
+            }
+            if file_path.ends_with(".til").not() {
+                panic("doctest-file path must end in .til in ", loc)
+            }
+            pos = doc_test_next_line_pos(source, line_end)
+            line_number++
+            block_start := pos
+            mut block_end := pos
+            mut found_end := false
+            mut has_body := false
+            while pos < source.len() {
+                src_line_end := doc_test_line_end(source, pos)
+                body_line := source.substr(pos, src_line_end - pos)
+                if body_line.trim().starts_with("#+end_src") {
+                    found_end = true
+                    block_end = pos
+                    pos = doc_test_next_line_pos(source, src_line_end)
+                    line_number++
+                    break
+                }
+                if body_line.trim().is_empty().not() { has_body = true }
+                pos = doc_test_next_line_pos(source, src_line_end)
+                line_number++
+            }
+            if found_end.not() { panic("unterminated doctest-file block in ", loc) }
+            if has_body.not() { panic("empty doctest-file block in ", loc) }
+            block := source.substr(block_start, block_end - block_start)
+            output_path := format(TUTORIAL_DOCTEST_DIR, "/", file_path)
+            parent := doc_test_parent_dir(output_path)
+            if mkdir_p(parent) != 0 { panic("could not create tutorial doctest directory ", parent) }
+            File.appendfile(output_path, block)
+            if is_run {
+                for existing in run_files {
+                    if existing == output_path { panic("duplicate doctest-run for ", output_path) }
+                }
+                run_files.push(own output_path.clone())
+            }
+            continue
+        }
+        pos = doc_test_next_line_pos(source, line_end)
+        line_number++
+    }
+}
+
+write_tutorial_file_doctests := proc() returns Vec(Str) {
+    header := "#+begin_src til :doctest-file modules/app.til :doctest-run"
+    if doc_test_header_value(header, "doctest-file") != "modules/app.til" {
+        panic("tutorial doctest header regression: wrong file")
+    }
+    if doc_test_header_has_flag(header, "doctest-run").not() {
+        panic("tutorial doctest header regression: missing run flag")
+    }
+    if doc_test_header_has_flag(header, "doctest") {
+        panic("tutorial doctest header regression: file block mistaken for wrapped block")
+    }
+
+    File.remove_tree(TUTORIAL_DOCTEST_DIR)
+    if mkdir_p(TUTORIAL_DOCTEST_DIR) != 0 {
+        panic("could not create ", TUTORIAL_DOCTEST_DIR)
+    }
+    mut listing := ""
+    result := run_cmd(listing, "git", "ls-files", "doc/tutorial/*.org")
+    if result != 0 { panic("failed to list tutorial sources") }
+    mut run_files := Vec(Str).new()
+    mut pos : USize = 0
+    while pos < listing.len() {
+        line_end := doc_test_line_end(listing, pos)
+        path := listing.substr(pos, line_end - pos).trim()
+        if path.is_empty().not() {
+            source := File.readfile(path)
+            write_tutorial_file_blocks(path, source, run_files)
+        }
+        pos = doc_test_next_line_pos(listing, line_end)
+    }
+    return run_files
+}
+
+check_org_file_links := proc(path: Str, source: Str) {
+    marker := "[[file:"
+    parent := doc_test_parent_dir(path)
+    mut pos : USize = 0
+    while pos < source.len() {
+        rest := source.substr(pos, source.len() - pos)
+        rel_start := rest.find(marker)
+        if rel_start < 0 { return }
+        target_start := pos + rel_start.to_usize() + marker.len()
+        target_rest := source.substr(target_start, source.len() - target_start)
+        target_end := target_rest.find("]")
+        if target_end < 0 { panic("unterminated file link in ", path) }
+        mut target := target_rest.substr(0, target_end.to_usize())
+        anchor := target.find("::")
+        if anchor >= 0 { target = target.substr(0, anchor.to_usize()) }
+        if target.is_empty() { panic("empty file link in ", path) }
+        if File.is_absolute(target) {
+            if File.exists(target).not() { panic("broken file link in ", path, ": ", target) }
+        } else {
+            resolved := format(parent, "/", target)
+            if File.exists(resolved).not() { panic("broken file link in ", path, ": ", target) }
+        }
+        pos = target_start + target_end.to_usize() + 1
+    }
+}
+
+check_handwritten_doc_links := proc() {
+    mut listing := ""
+    result := run_cmd(listing, "git", "ls-files", "doc/*.org")
+    if result != 0 { panic("failed to list handwritten documentation") }
+    mut pos : USize = 0
+    while pos < listing.len() {
+        line_end := doc_test_line_end(listing, pos)
+        path := listing.substr(pos, line_end - pos).trim()
+        if path.is_empty().not().and(path.starts_with("doc/gen/").not()) {
+            source := File.readfile(path)
+            check_org_file_links(path, source)
+        }
+        pos = doc_test_next_line_pos(listing, line_end)
+    }
+}
+
 write_doc_doctests := proc(out_path: Str) {
-    mut regression := ""
-    mut regression_count := append_doc_doctests(regression, "test/doc_fixture.til", "/// #+begin_src til :doctest\n/// assert(true)\n/// #+end_src\n", 0, true)
+    source_fixture := "/// #+begin_src til :doctest\n/// assert(true)\n/// #+end_src\n"
+    org_fixture := "#+begin_src til :doctest\nassert(true)\n#+end_src\n"
+    mut regression := Str.with_capacity(256)
+    mut regression_count := append_doc_doctests(regression, "test/doc_fixture.til",
+                                                 source_fixture, 0, true)
     if regression_count != 1 { panic("doctest extraction regression: wrong count") }
     if regression.contains("// doctest source: test/doc_fixture.til:1").not() { panic("doctest extraction regression: missing source location") }
     if regression.contains("assert(true)").not() { panic("doctest extraction regression: missing body") }
-    regression_count = append_doc_doctests(regression, "doc/tutorial/fixture.org", "#+begin_src til :doctest\nassert(true)\n#+end_src\n", regression_count, false)
+    regression_count = append_doc_doctests(regression, "doc/tutorial/fixture.org",
+                                            org_fixture, regression_count, false)
     if regression_count != 2 { panic("org doctest extraction regression: wrong count") }
     if regression.contains("// doctest source: doc/tutorial/fixture.org:1").not() { panic("org doctest extraction regression: missing source location") }
 
-    mut out := "mode test\n\n"
+    mut out := Str.with_capacity(4096)
+    out.push_str("mode test\n\n")
     count := append_tracked_doc_doctests(out)
     if count == 0 { panic("no doc doctests found") }
     File.writefile(out_path, out)
@@ -505,6 +689,7 @@ main := proc(args: ..Str) {
 
     // Create output directories
     run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected tmp")
+    check_handwritten_doc_links()
 
     mut tests := Vec(Test).new()
     mut flags := mode_flags(en_interp, en_run, asan_flag)
@@ -1519,6 +1704,48 @@ main := proc(args: ..Str) {
     // add_both(tests, "test/doc_comments.til", flags)
     write_doc_doctests(DOC_DOCTEST_FILE)
     add_both(tests, DOC_DOCTEST_FILE, flags)
+    tutorial_run_files := write_tutorial_file_doctests()
+    mut tutorial_cmd_size : USize = 0
+    mut tutorial_step_count : USize = 0
+    for tutorial_file in tutorial_run_files {
+        if en_interp == 1 {
+            if tutorial_step_count > 0 { tutorial_cmd_size = tutorial_cmd_size + " && ".len() }
+            tutorial_cmd_size = tutorial_cmd_size + til_bin.len() + " interpret ''".len() + tutorial_file.len()
+            tutorial_step_count++
+        }
+        if en_run == 1 {
+            if tutorial_step_count > 0 { tutorial_cmd_size = tutorial_cmd_size + " && ".len() }
+            tutorial_cmd_size = tutorial_cmd_size + til_bin.len() + " run ''".len()
+            tutorial_cmd_size = tutorial_cmd_size + asan_flag.len() + tutorial_file.len()
+            tutorial_step_count++
+        }
+    }
+    if tutorial_step_count > 0 {
+        mut tutorial_cmd := Str.with_capacity(tutorial_cmd_size)
+        mut step : USize = 0
+        for tutorial_file in tutorial_run_files {
+            if en_interp == 1 {
+                if step > 0 { tutorial_cmd.push_str(" && ") }
+                tutorial_cmd.push_str(til_bin)
+                tutorial_cmd.push_str(" interpret '")
+                tutorial_cmd.push_str(tutorial_file)
+                tutorial_cmd.push_str("'")
+                step++
+            }
+            if en_run == 1 {
+                if step > 0 { tutorial_cmd.push_str(" && ") }
+                tutorial_cmd.push_str(til_bin)
+                tutorial_cmd.push_str(" run")
+                tutorial_cmd.push_str(asan_flag)
+                tutorial_cmd.push_str(" '")
+                tutorial_cmd.push_str(tutorial_file)
+                tutorial_cmd.push_str("'")
+                step++
+            }
+        }
+        if tutorial_cmd.len() != tutorial_cmd_size { panic("tutorial doctest command size mismatch") }
+        add_single(tests, "tutorial_file_doctests", "docs", 0, "", tutorial_cmd)
+    }
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"

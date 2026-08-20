@@ -8,7 +8,7 @@ file; ~priv~ keeps implementation details inside their declaring file.
 Put reusable declarations in a ~mode lib~ file. For example, ~math.til~ could
 contain:
 
-#+begin_src til
+#+begin_src til :doctest-file modules/math.til
 mode lib
 
 priv square := func(n: I64) returns I64 {
@@ -28,11 +28,11 @@ Declarations are public by default. Importers can call ~sum_of_squares~, while
 A bare import adds the selected file's public declarations to the importing
 file's scope:
 
-#+begin_src til
+#+begin_src til :doctest-file modules/app.til :doctest-run
 mode script
 import("math")
 
-println(sum_of_squares(3, 4).to_str())
+assert_eq(I64, sum_of_squares(3, 4), 25)
 #+end_src
 
 Import paths are relative to the importing file and omit the ~.til~ extension.
@@ -41,9 +41,10 @@ Import paths are relative to the importing file and omit the ~.til~ extension.
 
 Assign an import when its declarations should stay behind a local namespace:
 
-#+begin_src til
+#+begin_src til :doctest-file modules/namespace_app.til :doctest-run
 math := import("math")
 answer := math.sum_of_squares(3, 4)
+assert_eq(I64, answer, 25)
 #+end_src
 
 This is useful when libraries expose similar names or when the module name
@@ -53,8 +54,10 @@ helps the call read clearly.
 
 Names after the path import only those public declarations:
 
-#+begin_src til
+#+begin_src til :doctest-file modules/selective_app.til :doctest-run
 import("math", sum_of_squares)
+answer := sum_of_squares(3, 4)
+assert_eq(I64, answer, 25)
 #+end_src
 
 An import cannot expose a ~priv~ declaration. Top-level privacy is a cross-file
