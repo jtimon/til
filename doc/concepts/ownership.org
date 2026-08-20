@@ -101,7 +101,7 @@ a container and must never be passed to ~free~/~delete~.
 | ~ref x : T = expr~        | borrowed                   | none (~skip_scope_delete~); the SOURCE's lifetime is extended to cover x |
 | ~ref mut x : T = expr~    | mutable borrow             | same as ~ref~                                            |
 | ~buf : U8 = malloc(n)~    | owned raw block (raw_alloc)| ~free(own buf)~ inserted at last use / exit edges (#302) |
-| ~buf : Dynamic = malloc~  | owned raw pointer (LEGACY) | NOT tracked -- manual ~free(own buf)~ or transfer; interpreter island only, slated to become a type error (#302) |
+| ~buf : Dynamic = malloc~  | rejected                   | type error: "raw allocation local must use a concrete type, not Dynamic" (#319). ~Dynamic~ is type-erased BORROWS -- ~to_ptr~ / ~ptr_add~ results, dyn features -- never an allocation owner |
 
 The aggregate-local promotion is the workhorse: a plain ~x := Foo()~ starts
 ~Shallow~ but ~promote_own_transferred_locals~ flips owned aggregates to
@@ -328,16 +328,18 @@ a second look. It is one of two things:
 
 *** Legitimate (the garbager genuinely cannot see it)
 
-  1. ~Dynamic~ locals (LEGACY, interpreter island only). The garbager opts
-     out of raw ~Dynamic~ pointers (type erasure hides pointer escapes), so
-     a ~buf : Dynamic = malloc(...)~ MUST be hand-freed with ~free(own buf)~
-     or transferred. Ruling 2026-07-06 (#302): ~Dynamic~ must not own
-     storage at all -- owned raw buffers are TYPED (~buf : U8 = malloc(n)~,
-     ~out : T = malloc(T.size())~), which the garbager auto-frees by
-     provenance (raw_alloc), so those need NO hand-written free; the
-     remaining Dynamic-owning sites are being migrated and the binding
-     shape is slated to become a type error. A hand-written free on a
-     TYPED allocator local is now the smell, not the rule.
+  1. ~Dynamic~ locals, in the compiler's own erased-ABI slots. Binding an
+     allocator result to ~Dynamic~ is a TYPE ERROR (#319, typer.til's
+     "raw allocation local must use a concrete type, not Dynamic"), so this
+     shape cannot appear in ordinary code at all: owned raw buffers are
+     TYPED (~buf : U8 = malloc(n)~, ~out : T = malloc(T.size())~) and the
+     garbager auto-frees them by provenance (raw_alloc), needing NO
+     hand-written free. What survives is the ~src/self~ interpreter island,
+     where ~write_ptr~ / eval-heap transfers still move ownership through
+     erased slots the garbager cannot see; those hand-written frees are
+     real behaviour until [[../../issues/open/286.org][#286]] gives them
+     typed ownership. A hand-written free on a TYPED allocator local is the
+     smell, not the rule.
   2. Manual-memory islands: heap graphs reached only through ~Dynamic~ and
      stored in ~Dynamic~-valued containers, whose element ~delete~ is the
      no-op ~default_delete~. ~Map(K, Dynamic)~ and ~Vec(Dynamic)~ do NOT free
