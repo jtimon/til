@@ -189,9 +189,11 @@ The instrumented build reports conceptual entries for inlined functions, so
 Callgrind measures the uninstrumented effect: inlining removed 21.6M
 instructions from this workload (2.3176B -> 2.2960B, 0.93%).
 
-~SymbolPool_hash_name~ reads unsigned bytes in a four-byte unrolled FNV-1a
-loop. Callgrind measured 109.09M -> 93.68M instructions in that function and
-2.32040B -> 2.30498B overall (0.66%) without changing valid ASCII symbol hashes.
+The compiler's ~SymbolPool~ uses the shared ~fnv1a~ implementation in
+~src/std/hash.til~, passing each spelling's bytes directly rather than adding a
+~hash_str~ wrapper call. Its unsigned, four-byte-unrolled loop measured 109.09M
+-> 93.68M instructions in the former parser-local function and 2.32040B ->
+2.30498B overall (0.66%) without changing valid ASCII symbol hashes.
 
 Top 32 by self time:
 
@@ -221,7 +223,7 @@ Top 32 by self time:
   | qname_cmp                                       | 214K     | 11.2    | 19.6     |
   | builtin_primitive_from_name                     | 48.9K    | 11.1    | 25.0     |
   | TypeScope_get_struct                            | 111K     | 11.1    | 106.5    |
-  | SymbolPool_hash_name                            | 324K     | 10.4    | 10.4     |
+  | fnv1a                                           | 328K     | 10.7    | 10.7     |
   | Type_clone                                      | 318K     | 10.2    | 15.2     |
   | Type_delete                                     | 423K     | 9.5     | 11.5     |
   | priv___src_self_context_til__sym_fingerprint    | 251K     | 9.4     | 13.7     |

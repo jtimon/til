@@ -1,10 +1,7 @@
 mode lib
 
 import("lexer")
-
-priv SYMBOL_HASH_OFFSET : U64 = 0.sub(3750763034362895579)
-priv SYMBOL_HASH_PRIME : U64 = 1099511628211
-priv SYMBOL_HASH_UNROLL : USize = 4
+import("../std/hash")
 
 SymbolPool := struct {
     // Index sym - 1 owns the spelling used by resolve. Borrowed names are
@@ -15,37 +12,13 @@ SymbolPool := struct {
     buckets := Vec(Sym).new()
     next : Sym = 1
 namespace:
-    hash_name := func(name: Str) returns U64 {
-        mut h : U64 = SYMBOL_HASH_OFFSET
-        mut i : USize = 0
-        count := name.len()
-        // Symbol spellings are ASCII. Unsigned bytes implement standard FNV-1a
-        // without the signed widening chain, and four at a time amortizes loop control.
-        while count - i >= SYMBOL_HASH_UNROLL {
-            ref b0 : U8 = ptr_add(name.c_str, i)
-            h = h.bxor(b0.cast(U64)).mul(SYMBOL_HASH_PRIME)
-            ref b1 : U8 = ptr_add(name.c_str, i + 1)
-            h = h.bxor(b1.cast(U64)).mul(SYMBOL_HASH_PRIME)
-            ref b2 : U8 = ptr_add(name.c_str, i + 2)
-            h = h.bxor(b2.cast(U64)).mul(SYMBOL_HASH_PRIME)
-            ref b3 : U8 = ptr_add(name.c_str, i + 3)
-            h = h.bxor(b3.cast(U64)).mul(SYMBOL_HASH_PRIME)
-            i = i + SYMBOL_HASH_UNROLL
-        }
-        while i < count {
-            ref b : U8 = ptr_add(name.c_str, i)
-            h = h.bxor(b.cast(U64)).mul(SYMBOL_HASH_PRIME)
-            i++
-        }
-        return h
-    }
-
     rebuild := func(mut self: SymbolPool, count: USize) {
         self.buckets.clear()
         for _ in 0..count { self.buckets.push(own 0) }
         for i in 0..self.names.len() {
             sym := (i + 1).to_u32()
-            mut bi := SymbolPool.hash_name(self.names.unsafe_get(i)).to_usize().mod(count)
+            ref name : Str = self.names.unsafe_get(i)
+            mut bi := fnv1a(name.c_str, name.len()).to_usize().mod(count)
             while self.buckets.unsafe_get(bi) != 0 { bi = (bi + 1).mod(count) }
             self.buckets.unsafe_set(bi, own sym)
         }
@@ -53,7 +26,7 @@ namespace:
 
     lookup := func(self: SymbolPool, name: Str) returns Option(Sym) {
         if self.buckets.len() == 0 { return Option(Sym).None }
-        mut bi := SymbolPool.hash_name(name).to_usize().mod(self.buckets.len())
+        mut bi := fnv1a(name.c_str, name.len()).to_usize().mod(self.buckets.len())
         while self.buckets.unsafe_get(bi) != 0 {
             ref sym : Sym = self.buckets.unsafe_get(bi)
             if self.names.unsafe_get(sym.cast(USize) - 1) == name {
@@ -68,7 +41,7 @@ namespace:
         // Core alone exceeds the tiny-table growth ladder; one 4 KB seed
         // avoids repeated rehashes without making an unused pool allocate.
         if self.buckets.len() == 0 { self.rebuild(1024) }
-        mut bi := SymbolPool.hash_name(name).to_usize().mod(self.buckets.len())
+        mut bi := fnv1a(name.c_str, name.len()).to_usize().mod(self.buckets.len())
         while self.buckets.unsafe_get(bi) != 0 {
             ref sym : Sym = self.buckets.unsafe_get(bi)
             if self.names.unsafe_get(sym.cast(USize) - 1) == name { return sym.clone() }

@@ -84,6 +84,31 @@ test_hash_str_empty := test() {
     assert(h.eq(FNV_OFFSET))
 }
 
+test_fnv1a_standard_vectors := test() {
+    // Published FNV-1a 64-bit vectors, written as 0 - (2^64 - expected)
+    // when the unsigned result exceeds the signed literal range.
+    hash_a : U64 = 0.sub(5808556873153909620)
+    hash_abc : U64 = 0.sub(1792535898324117685)
+    hash_foobar : U64 = 0.sub(8821353812377114648)
+    assert_eq(U64, hash_str("a"), hash_a)
+    assert_eq(U64, hash_str("abc"), hash_abc)
+    assert_eq(U64, hash_str("foobar"), hash_foobar)
+
+    // Lengths four and five exercise the unrolled body and its scalar tail.
+    hash_1234 : U64 = 2282126479029740061
+    hash_12345 : U64 = 0.sub(1912366794928059912)
+    assert_eq(U64, hash_str("1234"), hash_1234)
+    assert_eq(U64, hash_str("12345"), hash_12345)
+
+    // FNV hashes octets, not signed chars. Pin 0xff explicitly.
+    mut high_byte := Str.with_capacity(1)
+    ref mut byte : I8 = high_byte.c_str
+    byte = -1
+    high_byte.count = 1
+    hash_ff : U64 = 0.sub(5808391946409677970)
+    assert_eq(U64, hash_str(high_byte), hash_ff)
+}
+
 test_bucket_in_range := test() {
     cap : USize = 16
     for i in 0..100 {

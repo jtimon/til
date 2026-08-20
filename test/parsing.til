@@ -11,26 +11,6 @@ parse_src := proc(src: Str, symbols: SymbolPool) returns Expr {
     return parse(tokens, src, "test", mode_str, anon_counter, symbols)
 }
 
-symbol_hash_reference := func(name: Str) returns U64 {
-    mut h : U64 = 0.sub(3750763034362895579)
-    for i in 0..name.len() {
-        ref b : U8 = ptr_add(name.c_str, i)
-        h = h.bxor(b.cast(U64)).mul(1099511628211)
-    }
-    return h
-}
-
-test_symbol_pool_hash_name := test() {
-    assert_eq(U64, SymbolPool.hash_name(""), symbol_hash_reference(""))
-    assert_eq(U64, SymbolPool.hash_name("identifier"), symbol_hash_reference("identifier"))
-
-    mut high_byte := Str.with_capacity(1)
-    ref mut b : I8 = high_byte.c_str
-    b = -1
-    high_byte.count = 1
-    assert_eq(U64, SymbolPool.hash_name(high_byte), symbol_hash_reference(high_byte))
-}
-
 assert_builtin_primitive := func(name: Str, expected: Primitive) {
     mut actual := Primitive.I64
     expect(builtin_primitive_from_name(name, actual), "expected builtin primitive ", name)
