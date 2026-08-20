@@ -1,10 +1,17 @@
 mode cli
 
 import("../src/std/sys")
+import("../src/std/file")
 
 main := proc() {
     Cmd.new("bin/til", "build", "test/library_namespace_a.til").run_checked()
     Cmd.new("bin/til", "build", "test/library_namespace_b.til").run_checked()
+
+    py_a := File.readfile("gen/til/library_namespace_a.py")
+    py_b := File.readfile("gen/til/library_namespace_b.py")
+    if py_a.contains("USize").or(py_b.contains("USize")) {
+        panic("generated Python binding contains unresolved USize")
+    }
 
     Cmd.new("cc", "-Werror", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
         "gen/lib/liblibrary_namespace_a.a", "gen/lib/liblibrary_namespace_b.a",

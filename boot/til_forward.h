@@ -1773,6 +1773,7 @@ typedef struct Context {
     Set__Str type_gen_synths;
     Map__Str_Expr generic_funcs;
     Set__Str generic_func_synths;
+    Set__Str generic_func_synth_names;
     Expr *generic_pending;
     Expr *func_gen_twins;
     TypeScope scope;

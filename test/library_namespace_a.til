@@ -4,3 +4,7 @@ library_namespace_a_value := func() returns I64 {
     values := array(I64, 10, 11)
     return values[0].clone() + values[1].clone()
 }
+
+library_namespace_a_values := func() returns Array(I64) {
+    return array(I64, 10, 11)
+}

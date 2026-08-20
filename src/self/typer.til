@@ -3905,6 +3905,7 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, mu
         switch cdnd.default_expr().node_type {
         case .FuncDef(cdfd):
             if cdfd.auto_generated { return }
+            if cdfd.func_type.is_bodyless() { return }
             if cdnd.default_expr().children.len() == 0 { return }
             ref cdbody : Expr = cdnd.default_expr().children[0]
             if expr_transfers_own(cdbody, "self", ctx.scope, ctx) { return }

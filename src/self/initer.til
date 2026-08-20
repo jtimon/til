@@ -4021,6 +4021,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
                 mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone(), is_priv = src.is_priv)), line, col)
                 decl.add_child(own cloned)
                 destination.add_child(own decl)
+                ctx.generic_func_synth_names.add(own mono.clone())
             }
             seen.set(dedup_key, own mono.clone())
         }

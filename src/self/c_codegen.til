@@ -6448,26 +6448,32 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     return 0
 }
 
+priv binding_lib_symbol := func(lib_name: Str, name: Str) returns Str {
+    return format(c_lib_prefix(lib_name), "binding__", name)
+}
+
 priv binding_type_name := func(name: Str, ctx: Context, lib_name: Str) returns Str {
-    if ctx.type_gen_synths.has(name) { return c_lib_symbol(lib_name, name) }
+    if ctx.type_gen_synths.has(name) { return binding_lib_symbol(lib_name, name) }
     return name.clone()
 }
 
 priv binding_decl_name := func(name: Str, ctx: Context, lib_name: Str) returns Str {
-    if ctx.type_gen_synths.has(name).or(ctx.generic_func_synths.has(name)) {
-        return c_lib_symbol(lib_name, name)
+    if ctx.type_gen_synths.has(name).or(ctx.generic_func_synth_names.has(name)) {
+        return binding_lib_symbol(lib_name, name)
     }
     return name.clone()
 }
 
-priv emit_binding_func_decl := proc(f: File, name: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
+priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
     mut kw := "ext_func"
     if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "ext_proc" }
-    f.write(name).write(" := ").write(kw).write("(")
+    f.write(indent).write(name).write(" := ").write(kw).write("(")
     for p in 0..fd.params.len() {
         if p > 0 { f.write(", ") }
         ref param : Declaration = fd.params[p]
+        if param.is_mut { f.write("mut ") }
         if param.own_type.is(OwnType.Own) { f.write("own ") }
+        if param.own_type.is(OwnType.Shallow) { f.write("shallow ") }
         pi := p.to_i32()
         if pi == fd.variadic_index { f.write("..") }
         if pi == fd.kwargs_index {
@@ -6480,7 +6486,7 @@ priv emit_binding_func_decl := proc(f: File, name: Str, fd: FunctionDef, ctx: Co
     if fd.return_type.len() > 0 {
         f.write(" returns ")
         if fd.return_own_type.is(OwnType.Ref) { f.write("ref ") }
-        if fd.return_own_type.is(OwnType.Shallow) { f.write("shallow ") }
+        if func_returns_c_value(fd) { f.write("shallow ") }
         f.write(binding_type_name(fd.return_type, ctx, lib_name))
     }
     f.write(" {}\n")
@@ -6494,6 +6500,7 @@ priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, 
     for p in 0..fd.params.len() {
         if p > 0 { f.write(", ") }
         ref param : Declaration = fd.params[p]
+        if param.is_mut { f.write("mut ") }
         if param.own_type.is(OwnType.Own) { f.write("own ") }
         pi := p.to_i32()
         if pi == fd.variadic_index { f.write("..") }
@@ -6541,7 +6548,7 @@ priv emit_binding_ns_actuals := proc(f: File, owner: Str, def: Expr, ctx: Contex
             ref method : Str = def_ns_name_at(def, cur)
             source_name := owner.concat3("_", method)
             actual := c_lib_symbol(lib_name, source_name)
-            emit_binding_func_decl(f, actual, fd, ctx, lib_name)
+            emit_binding_func_decl(f, "", actual, fd, ctx, lib_name)
             f.write("\n")
         case:
         }
@@ -6622,9 +6629,11 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 if fd.func_type.is_bodyless() { continue }
                 if fd.func_type.is(FuncType.Test) { continue }
                 actual_name := c_lib_symbol(lib_name, dd.name)
-                emit_binding_func_decl(f, actual_name, fd, lp.ctx, lib_name)
                 binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
-                emit_binding_wrapper(f, "", binding_name, actual_name, fd, lp.ctx, lib_name)
+                emit_binding_func_decl(f, "", actual_name, fd, lp.ctx, lib_name)
+                if lp.ctx.generic_func_synth_names.has(dd.name).not() {
+                    emit_binding_wrapper(f, "", binding_name, actual_name, fd, lp.ctx, lib_name)
+                }
                 f.write("\n")
             case:
             }
@@ -6636,7 +6645,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
     return 0
 }
 
-priv type_name_to_ctypes := func(name: Str) returns Str {
+priv type_name_to_ctypes := func(name: Str, ctx: Context) returns Str {
     switch name {
     case "I64":     return "ctypes.c_longlong"
     case "U8":      return "ctypes.c_ubyte"
@@ -6649,6 +6658,8 @@ priv type_name_to_ctypes := func(name: Str) returns Str {
     case "F32":     return "ctypes.c_float"
     case "F64":     return "ctypes.c_double"
     case "Bool":    return "ctypes.c_bool"
+    case "USize":   return type_name_to_ctypes(ctx.target_usize_pname, ctx)
+    case "UPtr":    return type_name_to_ctypes(ctx.target_uptr_pname, ctx)
     case "Str":     return "Str"
     case "Dynamic": return "ctypes.c_void_p"
     case:
@@ -6656,14 +6667,14 @@ priv type_name_to_ctypes := func(name: Str) returns Str {
     return name
 }
 
-priv type_name_to_ctypes_param := func(name: Str, is_shallow: Bool) returns Str {
-    base := type_name_to_ctypes(name)
+priv type_name_to_ctypes_param := func(name: Str, is_shallow: Bool, ctx: Context) returns Str {
+    base := type_name_to_ctypes(name, ctx)
     if is_shallow { return base }
     return format("ctypes.POINTER(", base, ")")
 }
 
-priv type_name_to_ctypes_return := func(name: Str, is_shallow: Bool) returns Str {
-    base := type_name_to_ctypes(name)
+priv type_name_to_ctypes_return := func(name: Str, is_shallow: Bool, ctx: Context) returns Str {
+    base := type_name_to_ctypes(name, ctx)
     if is_shallow { return base }
     return format("ctypes.POINTER(", base, ")")
 }
@@ -6741,7 +6752,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 for fdd : Declaration in bpb_sdd.fields {
                     mut ct := ""
                     if fdd.til_type.is(Type.Unknown).not() {
-                        ct = type_name_to_ctypes_param(fdd.type_name(), false)
+                        ct = type_name_to_ctypes_param(fdd.type_name(), false, lp.ctx)
                     } else {
                         switch fdd.til_type {
                         case .Primitive(Primitive.I64):  ct = "ctypes.POINTER(ctypes.c_longlong)"
@@ -6782,7 +6793,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     for ct_uvd : VariantDef in ct_edd.variants {
                         if ct_uvd.payload_type.len() > 0 {
                             f.write("        ('").write(ct_uvd.name).write("', ")
-                            f.write(type_name_to_ctypes_param(ct_uvd.payload_type, false))
+                            f.write(type_name_to_ctypes_param(ct_uvd.payload_type, false, lp.ctx))
                             f.write("),\n")
                         }
                     }
@@ -6833,14 +6844,14 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                         if p > 0 { f.write(", ") }
                         ref param : Declaration = fd.params[p]
                         ps := param.own_type.is(OwnType.Shallow)
-                        f.write(type_name_to_ctypes_param(param.type_name(), ps))
+                        f.write(type_name_to_ctypes_param(param.type_name(), ps, lp.ctx))
                     }
                     f.write("]\n")
                     if fd.return_type.len() > 0 {
                         rs := func_returns_c_value(fd)
                         emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = ")
-                        f.write(type_name_to_ctypes_return(fd.return_type, rs)).write("\n")
+                        f.write(type_name_to_ctypes_return(fd.return_type, rs, lp.ctx)).write("\n")
                     } else {
                         emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = None\n")
@@ -6869,7 +6880,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                             f.write("ctypes.POINTER(Array)")
                         } else {
                             ps := param.own_type.is(OwnType.Shallow)
-                            f.write(type_name_to_ctypes_param(param.type_name(), ps))
+                            f.write(type_name_to_ctypes_param(param.type_name(), ps, lp.ctx))
                         }
                     }
                     f.write("]\n")
@@ -6879,7 +6890,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                         rs := func_returns_c_value(fd)
                         emit_python_lib_symbol(f, lib_name, c_name)
                         f.write(".restype = ")
-                        f.write(type_name_to_ctypes_return(fd.return_type, rs)).write("\n")
+                        f.write(type_name_to_ctypes_return(fd.return_type, rs, lp.ctx)).write("\n")
                     } else {
                         emit_python_lib_symbol(f, lib_name, c_name)
                         f.write(".restype = None\n")
@@ -6940,7 +6951,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     // Constructor: takes payload, returns POINTER(Enum)
                     emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
                     f.write(".argtypes = [")
-                    f.write(type_name_to_ctypes_param(py_vt, false)).write("]\n")
+                    f.write(type_name_to_ctypes_param(py_vt, false, lp.ctx)).write("]\n")
                     emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
                     f.write(".restype = ctypes.POINTER(").write(sname).write(")\n\n")
                     // get_Variant
@@ -6948,7 +6959,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     f.write(".argtypes = [ctypes.POINTER(").write(sname).write(")]\n")
                     emit_python_lib_symbol(f, lib_name, format(sname, "_get_", py_vn))
                     f.write(".restype = ")
-                    f.write(type_name_to_ctypes_param(py_vt, false)).write("\n\n")
+                    f.write(type_name_to_ctypes_param(py_vt, false, lp.ctx)).write("\n\n")
                 } else {
                     // Constructor: no args, returns POINTER(Enum)
                     emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))

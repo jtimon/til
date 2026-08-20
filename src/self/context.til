@@ -1169,6 +1169,10 @@ Context := struct {
     // emits the concrete decl; later units only rewrite their calls to it.
     generic_funcs := Map(Str, Expr).new()
     generic_func_synths := Set(Str).new()
+    // Emitted monomorphization names parallel generic_func_synths' path-keyed
+    // dedup registry. Binding generation needs to distinguish these internal
+    // declarations from source API functions without parsing the dedup key.
+    generic_func_synth_names := Set(Str).new()
     // Issue #328: per-unit holder for the concrete declarations that late
     // (typer-time) generic inference synthesizes. A Decl OWNS its FuncDef
     // child, so the child address is only stable while it sits in this
