@@ -54,7 +54,7 @@ Imported files are currently lexed and parsed as standalone units, then
   - that fails during bootstrap, because ~ast.til~ is parsed in isolation and
     cannot see ~StructDef~ from ~core.til~ at the time ~ExprData~ is declared
   - moving the ~import("ast.til")~ line within ~core.til~ does not help,
-    because imported files are not parsed in the importer’s declaration
+    because imported files are not parsed in the importer's declaration
     context
 
   What this blocks:
