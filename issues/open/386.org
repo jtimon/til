@@ -1,0 +1,79 @@
+# priority: low
+# category: features
+** OPEN #386 Lua backend alongside the C backend
+
+Add a backend that runs til programs in a Lua host by emitting Lua source.
+The C backend remains the default and the only bootstrap path; normal builds
+and ~make test~ must not require Lua or LuaJIT.
+
+Related: [[./370.org][#370]] (embedding til in the Lua/Lisp editor sense).
+This backend lets til code enter existing Lua hosts such as Neovim, while #370
+provides the complementary native design in which a til host loads guest til.
+It must not be mistaken for, or block, that all-til embedding API.
+
+*** Why Lua
+
+- Lua is deliberately embeddable and is already the extension language for
+  editors and applications, making it a useful host interoperation target.
+- It gives til source a migration path into Neovim plugins and other Lua APIs
+  while [[./83.org][#83]] and #370 pursue a host and guest both written in til.
+- It tests the target-neutral frontend and the [[../fixed/288.org][#288]]
+  ~core_func~/~ext_func~ boundary against a small dynamic VM.
+
+*** Output route and surface
+
+Emit readable Lua source through a dedicated backend. First spike standard Lua
+5.4 and the Lua 5.1/LuaJIT environment used by Neovim before choosing the
+supported runtime contract; their integer, bit-operation, module, FFI, and
+bytecode behavior differ. Portable source is preferable to version-specific
+bytecode unless measurements establish a reason otherwise.
+
+Before implementation, get human approval for supported Lua implementations,
+the ~Lang~/~Target~ model, CLI spelling, generated extension and path, runtime
+module, installation/loading flow, and opt-in test target. Generated source or
+bytecode must remain disposable and must not become another source of truth.
+
+*** Semantic decisions
+
+- Pin fixed-width integer lowering separately for Lua 5.4 integers and any
+  supported LuaJIT runtime. Arithmetic, narrowing, unsigned comparisons,
+  shifts, division, and conversion must match til exactly.
+- Keep til ~Bool~, null, and absent table entries distinct despite Lua's
+  ~nil~-deletes-a-key rule. Define deterministic representations for structs,
+  enums, arrays, strings, refs, closures, and function pointers.
+- Lua GC may own backing storage, but observable til ownership, move/delete,
+  mutation, aliasing, equality, and cleanup behavior must remain intact.
+- Lower ~core_func~ in generated Lua. Supply supported ~ext_func~ operations
+  through a Lua runtime module or host registration boundary; do not silently
+  rely on LuaJIT FFI or the existing C runtime.
+- Define host/guest conversion for values and callbacks so a Lua host can load
+  generated modules and til can call approved host APIs. Neovim bindings should
+  sit on this generic boundary rather than leak editor cases into the emitter.
+- Raw pointers, C FFI, threads, GUI mode, and unavailable OS facilities remain
+  loud unsupported errors until each receives an explicit design.
+
+*** Incremental plan
+
+1. Spike ~examples/hello_script.til~ and one Neovim buffer callback as
+   hand-written Lua. Compare Lua 5.4 and Neovim's supported LuaJIT environment,
+   including diagnostics, module loading, numeric edge cases, and test setup.
+2. Choose and approve the runtime/version contract and output surface; freeze
+   scalar, string, aggregate, function, module, and error representations.
+3. Add a dedicated emitter behind the builder boundary. It consumes the same
+   prepared AST as C and rejects unsupported nodes with til source locations.
+4. Implement entry points, fixed-width scalars, locals, direct calls, strings,
+   conditionals, loops, and native ~core_func~ lowering.
+5. Add mutation, aggregates, collections, closures, lifecycle operations, and
+   host API registration incrementally, with cross-backend tests at each step.
+6. Add an opt-in Lua corpus, then focused Neovim coverage for loading a module,
+   registering a command/callback, editing a buffer, and reloading guest code.
+
+*** Acceptance
+
+- A til smoke program runs on every selected Lua implementation with output
+  and scalar edge cases matching the interpreter and C backend.
+- Generated til functions can be called by a Lua host, and til can call an
+  approved host function through explicit value conversion and ownership rules.
+- The Neovim callback slice works without adding editor-specific logic to the
+  compiler frontend or generic Lua emitter.
+- Unsupported constructs fail loudly at translation with a source location.

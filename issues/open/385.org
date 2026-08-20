@@ -1,0 +1,82 @@
+# priority: low
+# category: features
+** OPEN #385 Emacs Lisp backend alongside the C backend
+
+Add a backend that runs til programs inside Emacs by emitting Emacs Lisp.
+The C backend remains the default and the only bootstrap path; normal builds
+and ~make test~ must not require Emacs.
+
+Related: [[./370.org][#370]] (embedding til in an editor-style host/guest
+model). This backend is a bridge into the existing Emacs ecosystem, not a
+replacement for #370's native til host embedding API: generated Elisp lets til
+code call Emacs facilities, while #370 lets a til host load guest til directly.
+
+*** Why Emacs Lisp
+
+- It lets til libraries and editor experiments run in an existing Emacs
+  process and use buffers, windows, commands, hooks, processes, and packages.
+- It provides a concrete interoperability path for [[./83.org][#83]] while the
+  all-til editor and embedded interpreter remain separate goals.
+- It exercises the backend boundary established by [[../fixed/288.org][#288]]:
+  ~core_func~ operations are lowered by the backend and ~ext_func~ operations
+  are implemented by an Emacs-specific runtime boundary.
+
+*** Output route and surface
+
+Start with readable Emacs Lisp source and use Emacs itself for optional byte
+compilation. Do not route through the C emitter: Elisp values, mutation,
+calling conventions, errors, modules, and garbage collection need their own
+emitter and runtime contract.
+
+Before implementation, get human approval for the ~Lang~/~Target~ model, CLI
+spelling, generated extension and path, minimum Emacs version, byte-compilation
+behavior, runtime/support files, installation flow, and opt-in test target.
+Generated files must remain disposable build products rather than a second
+source of truth.
+
+*** Semantic decisions
+
+- Emacs integers may be wider than til integers and can become bignums. Every
+  fixed-width arithmetic, conversion, shift, comparison, division, and
+  remainder operation must preserve til's wrapping and signedness rules.
+- Keep til ~Bool~ and null distinct even though Elisp uses ~nil~ for false and
+  the empty list. Unsupported distinctions must fail at translation rather
+  than collapse silently.
+- Define representations for structs, enums, arrays, strings, mutable refs,
+  closures, and function pointers. Emacs GC may own storage, but it must not
+  silently change observable til move, delete, aliasing, or mutation behavior.
+- Emit lexical bindings and keep generated names isolated from Emacs's global
+  symbol namespace. Pin how til modules, exported functions, callbacks,
+  panics, and source locations map to Elisp.
+- Lower ~core_func~ directly. Implement supported ~ext_func~ operations with
+  Emacs APIs; C FFI, raw pointers, threads, GUI mode, and unavailable process
+  primitives must be explicit unsupported errors until designed.
+- Define both directions of interoperation: til calls into selected Emacs APIs,
+  and Emacs commands/hooks call generated til functions with an explicit value
+  and ownership conversion boundary.
+
+*** Incremental plan
+
+1. Spike a hand-written Elisp equivalent of ~examples/hello_script.til~ and a
+   buffer-editing callback on a pinned Emacs version. Record interpreted and
+   byte-compiled behavior, diagnostics, startup loading, and batch testing.
+2. Approve the output/toolchain surface and freeze scalar, string, function,
+   module, and error representations.
+3. Add a dedicated backend behind the existing builder boundary. It consumes
+   the prepared AST; unsupported nodes fail with their til source location.
+4. Implement a scalar subset: entry point, fixed-width numbers, Bool, locals,
+   direct calls, strings, conditionals, loops, and native ~core_func~ lowering.
+5. Add aggregates, mutation, collections, closures, lifecycle operations, and
+   Emacs API bindings one semantic group at a time.
+6. Add an opt-in cross-backend corpus that runs under Emacs batch mode, then
+   add focused interactive coverage for commands, buffers, hooks, and reloads.
+
+*** Acceptance
+
+- A til smoke program translates and runs under the pinned Emacs version with
+  output matching the interpreter and C backend.
+- Fixed-width scalar edge cases and each supported mutable/aggregate operation
+  preserve til semantics rather than inheriting convenient Elisp behavior.
+- A generated til function can be installed as an Emacs command or hook, and
+  til code can call an approved Emacs API through the explicit runtime boundary.
+- Unsupported constructs fail loudly at translation with a source location.

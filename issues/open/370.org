@@ -50,4 +50,6 @@ Open questions:
 
 Related: #83 (tiled itself), #84 (mode theme -- one .til theme file
 generating .el/.vim/.json is the same "til as the one config language"
-idea, minus the runtime).
+idea, minus the runtime), [[./385.org][#385]] (Elisp backend into an existing
+Emacs host), and [[./386.org][#386]] (Lua backend into existing Lua hosts such
+as Neovim).

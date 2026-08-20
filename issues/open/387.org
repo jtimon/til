@@ -1,0 +1,83 @@
+# priority: low
+# category: features
+** OPEN #387 Arduino target alongside hosted targets
+
+Add a path for building and running til programs on Arduino-supported boards.
+The hosted C backend remains the default and the only bootstrap path; normal
+builds and ~make test~ must not require Arduino tooling or connected hardware.
+
+*** Why Arduino
+
+- It gives til a concrete embedded target with GPIO, timers, serial I/O, and a
+  broad board/toolchain ecosystem.
+- It tests whether the compiler's target-width, runtime, allocation, startup,
+  and unsupported-feature boundaries work without a hosted operating system.
+- It exercises the [[../fixed/288.org][#288]] portability split: supported
+  ~core_func~ operations lower for the board, while ~ext_func~ operations use
+  an Arduino-specific runtime rather than hosted C's POSIX/Windows boundary.
+
+*** Target and output route
+
+Arduino is an ecosystem, not one CPU target. AVR, SAMD, ESP32, RP2040, and
+other boards differ in pointer width, integer ABI, compiler, memory, startup,
+and available runtime APIs. Start with one pinned board and toolchain after a
+spike; do not claim generic Arduino support from one successful build.
+
+The spike must compare reusing the C emitter with an Arduino-specific runtime
+against a dedicated C++/sketch emitter. Arduino cores are commonly C++, but
+that alone does not justify passing dialect flags through C's ownership- and
+evaluation-order-sensitive emitter. Reuse target-neutral preparation and
+emission only where the generated language and ABI are actually compatible.
+
+Before implementation, get human approval for the first board/FQBN, toolchain
+and version, ~Lang~/~Target~ representation, CLI/configuration surface,
+generated extension and directory, runtime/support files, upload/monitor flow,
+and opt-in hardware or emulator test target. Generated sketches, C/C++ files,
+and board artifacts must be disposable build products, not sources of truth.
+
+*** Runtime and semantic decisions
+
+- Pin pointer and integer widths, alignment, endianness, calling conventions,
+  float behavior, stack limits, and narrow-integer arithmetic for the first
+  board. Never infer all Arduino boards from hosted target defaults.
+- Define startup and termination: map a til script entry point coherently onto
+  Arduino ~setup~/~loop~ or a board-specific main without rerunning one-time
+  initialization or pretending process exit exists.
+- Define allocation and ownership under constrained RAM. If heap allocation,
+  recursion, dynamic collections, reflection, or closures cannot be supported,
+  reject them at translation rather than substituting static storage or leaks.
+- Implement serial output, timing, GPIO, and other selected ~ext_func~ APIs in
+  an Arduino runtime boundary. Filesystems, processes, threads, dynamic C FFI,
+  GUI mode, and unsupported hardware APIs must fail explicitly.
+- Keep board APIs out of the frontend. Board-specific libraries and pins are
+  external bindings/runtime concerns, with deterministic declarations and
+  toolchain inputs.
+- Decide how panics and null dereferences report over serial and stop execution
+  on hardware where there is no host process or conventional stderr.
+
+*** Incremental plan
+
+1. Pin one board and Arduino CLI/core version. Hand-build hello over serial and
+   a GPIO blink using the smallest plausible generated C and C++ routes; record
+   commands, artifacts, sizes, diagnostics, upload, and emulator availability.
+2. Choose and approve the emitter/runtime/output contract. Freeze the board's
+   ABI, startup, panic, memory, and supported-language-subset rules.
+3. Add target plumbing and a dedicated runtime boundary. Unsupported AST nodes
+   and runtime operations fail during translation with til source locations.
+4. Implement a no-allocation scalar subset: entry point, fixed-width numbers,
+   Bool, locals, direct calls, conditionals, loops, native ~core_func~ lowering,
+   serial output, timing, and GPIO.
+5. Add strings, aggregates, static data, and carefully bounded allocation only
+   after measuring flash/RAM use and pinning ownership behavior on the board.
+6. Add opt-in compile/emulator coverage and a separately invoked hardware test
+   for upload, serial PASS/FAIL reporting, timeout, and GPIO behavior.
+
+*** Acceptance
+
+- A til hello program builds for the pinned board, uploads or runs in the
+  approved emulator, and reports the expected serial output.
+- A GPIO/timing example executes through the Arduino runtime boundary, and
+  fixed-width scalar edge cases match the interpreter and C backend.
+- Flash and RAM usage are recorded for the named corpus and remain within
+  explicit limits for the selected board.
+- Unsupported hosted or dynamic features fail loudly during translation.
