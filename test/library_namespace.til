@@ -3,6 +3,16 @@ mode cli
 import("../src/std/sys")
 import("../src/std/file")
 
+require_contains := func(text: Str, expected: Str) returns Bool {
+    if text.contains(expected).not() { panic("missing generated binding text: ", expected) }
+    return true
+}
+
+require_absent := func(text: Str, unexpected: Str) returns Bool {
+    if text.contains(unexpected) { panic("unexpected generated binding text: ", unexpected) }
+    return true
+}
+
 main := proc() {
     build_a := Cmd.new("bin/til", "build", "test/library_namespace_a.til")
     build_b := Cmd.new("bin/til", "build", "test/library_namespace_b.til")
@@ -20,6 +30,34 @@ main := proc() {
     if py_a.contains("USize").or(py_b.contains("USize")) {
         panic("generated Python binding contains unresolved USize")
     }
+    til_a := File.readfile("gen/til/library_namespace_a.til")
+    require_contains(til_a, "LibraryNamespaceACallback := func(I64) returns")
+    require_contains(til_a, "LibraryNamespaceACallbackAlias := LibraryNamespaceACallback")
+    require_contains(til_a, "library_namespace_a_value_alias := func() returns I64")
+    require_contains(til_a, "ref borrowed : I64")
+    require_contains(til_a, "shallow point: BindingPoint")
+    require_contains(til_a, "returns Array(I64)")
+    require_contains(til_a, "value: I64 = 31")
+    require_contains(til_a, "throws BindingError")
+    require_absent(til_a, "library_namespace_a_private_value")
+    require_absent(til_a, "hidden :=")
+    require_absent(til_a, "binding__Array__I64")
+
+    require_contains(py_a, "('scalar', ctypes.c_longlong)")
+    require_contains(py_a, "('borrowed', ctypes.POINTER(ctypes.c_longlong))")
+    require_contains(py_a, "('size', ctypes.c_uint)")
+    require_contains(py_a, "('ptr', ctypes.c_ulonglong)")
+    require_contains(py_a, "library_namespace_a_point.argtypes = [BindingPoint]")
+    require_contains(py_a, "library_namespace_a_point.restype = BindingPoint")
+    require_contains(py_a, "library_namespace_a_dynamic.argtypes = [ctypes.c_void_p]")
+    require_contains(py_a, "('tag', ctypes.c_ushort)")
+    require_contains(py_a, "('Number', ctypes.c_longlong)")
+    require_contains(py_a, "('_til_payload_align', ctypes.c_void_p)")
+    require_contains(py_a, "('data', ctypes.POINTER(ctypes.c_longlong))")
+    require_contains(py_a, "LibraryNamespaceACallback = ctypes.c_void_p")
+    require_contains(py_a, "library_namespace_a_value_alias = library_namespace_a_value")
+    require_absent(py_a, "ctypes.POINTER(ctypes.c_void_p)")
+    require_absent(py_a, "library_namespace_a_private_value")
 
     Cmd.new("cc", "-Werror", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
         "gen/lib/liblibrary_namespace_a.a", "gen/lib/liblibrary_namespace_b.a",

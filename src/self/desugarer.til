@@ -2549,7 +2549,8 @@ process_throw_catch_in_func_body := proc(
     mut body: Expr,
     fdef_throws: Vec(Str),
     return_type: Str,
-    return_own_type: OwnType
+    return_own_type: OwnType,
+    validate_declared_throws: Bool
 ) {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     has_body_throw_catch := subtree_has_throw_catch(body)
@@ -2590,10 +2591,12 @@ process_throw_catch_in_func_body := proc(
                 format("function may throw '", tn, "' but it is not in the throws clause; declare 'throws ", tn, "' or catch it"), ctx)
         }
     }
-    for dt : Str in fdef_throws {
-        if vec_str_contains(seen, dt).not() {
-            type_error_at(ctx.path, body.line, body.col,
-                format("'throws ", dt, "' is declared but '", dt, "' is never thrown -- remove it from the throws clause"), ctx)
+    if validate_declared_throws {
+        for dt : Str in fdef_throws {
+            if vec_str_contains(seen, dt).not() {
+                type_error_at(ctx.path, body.line, body.col,
+                    format("'throws ", dt, "' is declared but '", dt, "' is never thrown -- remove it from the throws clause"), ctx)
+            }
         }
     }
 

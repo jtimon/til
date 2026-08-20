@@ -67,16 +67,24 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
         return 1
     }
 
-    // Compile user .c to object if present
-    mut user_obj := ""
+    // Compile each link_c source independently through this library's
+    // namespace map. The per-library index keeps parallel library builds
+    // isolated and lets the final artifacts include every declared source.
+    mut user_objs := ""
     if uc.len() > 0 {
-        user_obj = format("gen/lib/", lib_name, "_user.o")
-        cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -include ", fwd_path, " -I", ext_dir, ifl,
-            " -c ", uc, " -o ", user_obj)
-        result = system_cmd(cmd)
-        if result != 0 {
-            println("error: user .c compilation failed")
-            return 1
+        files : Vec(Str) = uc.split(" ")
+        for fi in 0..files.len() {
+            ref file : Str = files[fi]
+            if file.len() == 0 { continue }
+            user_obj := format("gen/lib/", lib_name, "_user_", fi.to_str(), ".o")
+            cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -include ", fwd_path, " -I", ext_dir, ifl,
+                " -c ", file, " -o ", user_obj)
+            result = system_cmd(cmd)
+            if result != 0 {
+                println(format("error: link_c compilation failed for ", file))
+                return 1
+            }
+            user_objs = user_objs.format(" ", user_obj)
         }
     }
 
@@ -88,7 +96,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     // compile-only flags inside extra are harmless on this link line.
     cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path,
         " ", obj_path, " ", ext_obj,
-        " ", user_obj, lf)
+        user_objs, lf)
     result = system_cmd(cmd)
     if result != 0 {
         println("error: shared library creation failed")
@@ -101,7 +109,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     File.remove(a_tmp_path)
     cmd = format("ar rcs ", a_tmp_path,
         " ", obj_path, " ", ext_obj,
-        " ", user_obj)
+        user_objs)
     result = system_cmd(cmd)
     if result != 0 {
         File.remove(a_tmp_path)

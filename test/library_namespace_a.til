@@ -1,15 +1,51 @@
 mode lib
 
 link_c("library_namespace_a_link.c")
+link_c("library_namespace_a_extra_link.c")
 
 LibraryNamespaceACallback := func(I64) returns I64
+LibraryNamespaceACallbackAlias := LibraryNamespaceACallback
 
 library_link_helper := ext_func(shallow value: I64) returns shallow I64 {}
+library_extra_helper := ext_func(shallow value: I64) returns shallow I64 {}
+
+BindingPoint := struct {
+    scalar : I64 = 7
+    size : USize = 11
+    ptr : UPtr = 13
+namespace:
+    priv hidden := func(value: I64) returns I64 { return value }
+    identity := func(shallow value: BindingPoint) returns shallow BindingPoint {
+        return BindingPoint(
+            scalar=BindingPoint.hidden(value.scalar),
+            size=value.size,
+            ptr=value.ptr)
+    }
+}
+
+BindingRef := struct {
+    ref borrowed : I64
+}
+
+BindingTag := enum(U16) {
+    Empty = 3,
+    Number: I64 = 7,
+}
+
+BindingNiche := enum {
+    None,
+    Borrowed: ref I64,
+}
+
+BindingError := struct {}
+
+priv library_namespace_a_private_value := func() returns I64 { return 21 }
 
 library_namespace_a_value := func() returns I64 {
-    values := array(I64, 10, 11)
-    return values[0].clone() + values[1].clone()
+    return library_namespace_a_private_value()
 }
+
+library_namespace_a_value_alias := library_namespace_a_value
 
 library_namespace_a_values := func() returns Array(I64) {
     return array(I64, 10, 11)
@@ -17,4 +53,25 @@ library_namespace_a_values := func() returns Array(I64) {
 
 library_namespace_a_link_value := func() returns I64 {
     return library_link_helper(11)
+}
+
+library_namespace_a_extra_link_value := func() returns I64 {
+    return library_extra_helper(10)
+}
+
+library_namespace_a_point := func(shallow point: BindingPoint) returns shallow BindingPoint {
+    return BindingPoint.identity(point)
+}
+
+library_namespace_a_dynamic := func(value: Dynamic) returns Dynamic {
+    return value
+}
+
+library_namespace_a_default := func(value: I64 = 31) returns I64 {
+    return value
+}
+
+library_namespace_a_throwing := func(value: I64) returns I64 throws BindingError {
+    if value < 0 { throw BindingError() }
+    return value
 }

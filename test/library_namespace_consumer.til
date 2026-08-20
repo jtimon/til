@@ -11,5 +11,11 @@ main := proc() returns I64 {
     if values.unsafe_get(0).eq(10).not() { return 4 }
     if library_namespace_a_link_value() != 21 { return 5 }
     if library_namespace_b_link_value() != 42 { return 6 }
+    if library_namespace_a_extra_link_value() != 22 { return 7 }
+    if library_namespace_a_value_alias() != 21 { return 8 }
+    point := library_namespace_a_point(BindingPoint())
+    if point.scalar != 7 { return 9 }
+    if library_namespace_a_default() != 31 { return 10 }
+    if library_namespace_a_throwing(12)! != 12 { return 11 }
     return 0
 }

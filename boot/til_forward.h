@@ -270,7 +270,6 @@ typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
-typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Set__U32 Set__U32;
 typedef struct Map__Str_I64 Map__Str_I64;
@@ -279,6 +278,7 @@ typedef struct HashMap__Str_Str HashMap__Str_Str;
 typedef struct HashMap__Str_USize HashMap__Str_USize;
 typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
+typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
@@ -801,12 +801,6 @@ struct Option__Scope {
     Scope *data;
 };
 
-typedef struct Map__Str_Expr {
-    Vec__Str keys;
-    Vec__Expr values;
-} Map__Str_Expr;
-
-
 typedef struct Set__U32 {
     U8 *data;
     USize count;
@@ -848,6 +842,12 @@ typedef struct Map__Str_Dynamic {
     Vec__Str keys;
     Vec__Dynamic values;
 } Map__Str_Dynamic;
+
+
+typedef struct Map__Str_Expr {
+    Vec__Str keys;
+    Vec__Expr values;
+} Map__Str_Expr;
 
 
 struct Option__ref_Expr {
@@ -1845,6 +1845,7 @@ typedef struct Context {
     Map__Str_Dynamic interp_type_defs;
     InternedTypes interned_types;
     FfiState ffi;
+    Map__Str_Expr type_gen_binding_sources;
     SymbolPool symbols;
 } Context;
 

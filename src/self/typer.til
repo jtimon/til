@@ -5100,7 +5100,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // by make_switch_case_condition), so the throw/catch walk
             // cannot see their declaration type via the body-Decl scan.
             collect_switch_case_bindings(func_scope, ctx, expr.children[0], expr.children[0])
-            process_throw_catch_in_func_body(func_scope, ctx, expr.children[0], fdef.sig.throw_types, fdef.sig.return_type, fdef.sig.return_own_type)
+            process_throw_catch_in_func_body(func_scope, ctx, expr.children[0], fdef.sig.throw_types, fdef.sig.return_type, fdef.sig.return_own_type, fdef.sig.func_type.is_bodyless().not())
         }
         if macro_is_template.not() {
             mut capture_source_muts := Vec(Bool).new()
@@ -7551,7 +7551,7 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
         unit_no_throws := Vec(Str).new()
         scope.typer_func.lowering_param_types = Map(Str, Str).new()
         collect_switch_case_bindings(scope, ctx, program, program)
-        process_throw_catch_in_func_body(scope, ctx, program, unit_no_throws, "", OwnType.Shallow)
+        process_throw_catch_in_func_body(scope, ctx, program, unit_no_throws, "", OwnType.Shallow, true)
     }
     // #344: settle which parameters each borrow-returning function hands
     // back, before any body is typed. The bodies below read these summaries

@@ -6484,68 +6484,135 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     return 0
 }
 
-priv binding_lib_symbol := func(lib_name: Str, name: Str) returns Str {
-    return format(c_lib_prefix(lib_name), "binding__", name)
+priv binding_is_core_type_gen := func(name: Str) returns Bool {
+    return name.eq("Array").or(name.eq("Vec")).or(name.eq("Map"))
+        .or(name.eq("Set")).or(name.eq("Option"))
 }
 
-priv binding_type_name := func(name: Str, ctx: Context, lib_name: Str) returns Str {
-    if ctx.type_gen_synths.has(name) { return binding_lib_symbol(lib_name, name) }
-    return name.clone()
-}
-
-priv binding_decl_name := func(name: Str, ctx: Context, lib_name: Str) returns Str {
-    if ctx.type_gen_synths.has(name).or(ctx.generic_func_synth_names.has(name)) {
-        return binding_lib_symbol(lib_name, name)
+// Recover a synthesized core type's source spelling. User-defined generators
+// have no stable API contract across a separately compiled consumer, so a
+// public signature using one is rejected instead of exposing its physical
+// monomorph name as if that were source syntax.
+priv binding_type_name := func(name: Str, ctx: Context) returns Str {
+    if ctx.type_gen_synths.has(name).not() { return name.clone() }
+    if ctx.type_gen_binding_sources.has(name).not() {
+        panic("generated binding has no source application for type '", name, "'")
     }
-    return name.clone()
+    ref source : Expr = ctx.type_gen_binding_sources[name]
+    if source.node_type.is(NodeType.FCall).not().or(source.children.len().lt(2)) {
+        panic("generated binding source for '", name, "' is not a type application")
+    }
+    mut callee := ""
+    switch source.children[0].node_type {
+    case .Ident(cn): callee = Str.clone(cn.ident_name(ctx.symbols.names))
+    case: panic("generated binding source for '", name, "' has a non-name callee")
+    }
+    if binding_is_core_type_gen(callee).not() {
+        panic("public generated binding type '", name, "' uses unsupported user-defined generator '", callee, "'")
+    }
+    mut out := format(callee, "(")
+    for i in 1..source.children.len() {
+        if i > 1 { out = format(out, ", ") }
+        if get_ref_arg(source, i) { out = format(out, "ref ") }
+        switch source.children[i].node_type {
+        case .Ident(an):
+            arg_name := Str.clone(an.ident_name(ctx.symbols.names))
+            out = format(out, binding_type_name(arg_name, ctx))
+        case: panic("generated binding type '", name, "' has a non-type argument")
+        }
+    }
+    return format(out, ")")
 }
 
-priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
+priv binding_param_is_throw_abi := func(param: Declaration, fd: FunctionDef) returns Bool {
+    if fd.sig.throw_types.len() == 0 { return false }
+    if param.name == "_err_kind" { return true }
+    for throw_type : Str in fd.sig.throw_types {
+        if param.name == format("_err_", throw_type) { return true }
+    }
+    return false
+}
+
+priv emit_binding_literal := func(f: File, e: Expr) returns Bool {
+    switch e.node_type {
+    case .Literal(Literal.Str(s)): f.write("\"").write(s).write("\""); return true
+    case .Literal(Literal.Num(n)): f.write(n.literal_num_text()); return true
+    case .Literal(Literal.Bool(b)):
+        if b { f.write("true") } else { f.write("false") }
+        return true
+    case .Literal(Literal.Null): f.write("0"); return true
+    case:
+    }
+    return false
+}
+
+priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, index: USize, wrapper: Bool, ctx: Context) {
+    if param.own_type.is(OwnType.Own) { f.write("own ") }
+    if param.own_type.is(OwnType.Shallow) {
+        if wrapper.not().or(is_scalar_type_name(param.type_name()).not()) { f.write("shallow ") }
+    }
+    if param.is_mut { f.write("mut ") }
+    ii := index.to_i32()
+    if ii == fd.sig.kwargs_index {
+        f.write(param.name).write(": ...")
+    } else if param.name.len() == 0 {
+        if ii == fd.sig.variadic_index { f.write("..") }
+        f.write(binding_type_name(param.type_name(), ctx))
+    } else {
+        f.write(param.name).write(": ")
+        if ii == fd.sig.variadic_index { f.write("..") }
+        f.write(binding_type_name(param.type_name(), ctx))
+    }
+    if param.default_value.is_some() {
+        f.write(" = ")
+        if emit_binding_literal(f, param.default_expr()).not() {
+            emit_til_default(f, param.til_type)
+        }
+    }
+}
+
+priv emit_binding_params := proc(f: File, fd: FunctionDef, wrapper: Bool, ctx: Context) {
+    mut emitted : USize = 0
+    for p in 0..fd.sig.params.len() {
+        ref param : Declaration = fd.sig.params[p]
+        if binding_param_is_throw_abi(param, fd) { continue }
+        if emitted > 0 { f.write(", ") }
+        emit_binding_param(f, param, fd, p, wrapper, ctx)
+        emitted++
+    }
+}
+
+priv emit_binding_throws := proc(f: File, fd: FunctionDef, ctx: Context) {
+    if fd.sig.throw_types.len() == 0 { return }
+    f.write(" throws ")
+    for i in 0..fd.sig.throw_types.len() {
+        if i > 0 { f.write(", ") }
+        f.write(binding_type_name(fd.sig.throw_types[i], ctx))
+    }
+}
+
+priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: FunctionDef, ctx: Context) {
     mut kw := "ext_func"
     if fd.sig.func_type.is(FuncType.Proc).or(fd.sig.func_type.is(FuncType.Test)) { kw = "ext_proc" }
     f.write(indent).write(name).write(" := ").write(kw).write("(")
-    for p in 0..fd.sig.params.len() {
-        if p > 0 { f.write(", ") }
-        ref param : Declaration = fd.sig.params[p]
-        if param.is_mut { f.write("mut ") }
-        if param.own_type.is(OwnType.Own) { f.write("own ") }
-        if param.own_type.is(OwnType.Shallow) { f.write("shallow ") }
-        pi := p.to_i32()
-        if pi == fd.sig.variadic_index { f.write("..") }
-        if pi == fd.sig.kwargs_index {
-            f.write(param.name).write(": ...")
-        } else {
-            f.write(param.name).write(": ").write(binding_type_name(param.type_name(), ctx, lib_name))
-        }
-    }
+    emit_binding_params(f, fd, false, ctx)
     f.write(")")
     if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
         if fd.sig.return_own_type.is(OwnType.Ref) { f.write("ref ") }
         if func_returns_c_value(fd) { f.write("shallow ") }
-        f.write(binding_type_name(fd.sig.return_type, ctx, lib_name))
+        f.write(binding_type_name(fd.sig.return_type, ctx))
     }
+    emit_binding_throws(f, fd, ctx)
     f.write(" {}\n")
 }
 
-priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, fd: FunctionDef, ctx: Context, lib_name: Str) {
+priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, fd: FunctionDef, ctx: Context) {
     mut kw := "func"
     if fd.sig.func_type.is(FuncType.Proc).or(fd.sig.func_type.is(FuncType.Test)) { kw = "proc" }
     f.write(indent)
     f.write(name).write(" := ").write(kw).write("(")
-    for p in 0..fd.sig.params.len() {
-        if p > 0 { f.write(", ") }
-        ref param : Declaration = fd.sig.params[p]
-        if param.is_mut { f.write("mut ") }
-        if param.own_type.is(OwnType.Own) { f.write("own ") }
-        pi := p.to_i32()
-        if pi == fd.sig.variadic_index { f.write("..") }
-        if pi == fd.sig.kwargs_index {
-            f.write(param.name).write(": ...")
-        } else {
-            f.write(param.name).write(": ").write(binding_type_name(param.type_name(), ctx, lib_name))
-        }
-    }
+    emit_binding_params(f, fd, true, ctx)
     f.write(")")
     if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
@@ -6555,20 +6622,42 @@ priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, 
         if fd.sig.return_own_type.is(OwnType.Shallow).and(is_scalar_type_name(fd.sig.return_type).not()) {
             f.write("shallow ")
         }
-        f.write(binding_type_name(fd.sig.return_type, ctx, lib_name))
+        f.write(binding_type_name(fd.sig.return_type, ctx))
     }
+    emit_binding_throws(f, fd, ctx)
     f.write(" { ")
     if fd.sig.return_type.len() > 0 { f.write("return ") }
     f.write(actual).write("(")
+    mut emitted : USize = 0
     for a in 0..fd.sig.params.len() {
-        if a > 0 { f.write(", ") }
         ref arg : Declaration = fd.sig.params[a]
+        if binding_param_is_throw_abi(arg, fd) { continue }
+        if emitted > 0 { f.write(", ") }
         if arg.own_type.is(OwnType.Own) { f.write("own ") }
         ai := a.to_i32()
         if ai.eq(fd.sig.variadic_index).or(ai.eq(fd.sig.kwargs_index)) { f.write("..") }
         f.write(arg.name)
+        emitted++
     }
-    f.write(") }\n")
+    f.write(")")
+    if fd.sig.throw_types.len() > 0 { f.write("?") }
+    f.write(" }\n")
+}
+
+priv emit_binding_funcsig := proc(f: File, name: Str, fd: FunctionDef, ctx: Context) {
+    mut kw := "func"
+    if fd.sig.func_type.is(FuncType.Proc) { kw = "proc" }
+    f.write(name).write(" := ").write(kw).write("(")
+    emit_binding_params(f, fd, true, ctx)
+    f.write(")")
+    if fd.sig.return_type.len() > 0 {
+        f.write(" returns ")
+        if fd.sig.return_own_type.is(OwnType.Ref) { f.write("ref ") }
+        if fd.sig.return_own_type.is(OwnType.Shallow) { f.write("shallow ") }
+        f.write(binding_type_name(fd.sig.return_type, ctx))
+    }
+    emit_binding_throws(f, fd, ctx)
+    f.write("\n\n")
 }
 
 priv emit_binding_ns_actuals := proc(f: File, owner: Str, def: Expr, ctx: Context, lib_name: Str) {
@@ -6577,6 +6666,7 @@ priv emit_binding_ns_actuals := proc(f: File, owner: Str, def: Expr, ctx: Contex
     for nsd : Declaration in ns {
         cur := i
         i++
+        if nsd.is_priv { continue }
         if nsd.default_value.is_none() { continue }
         switch nsd.default_expr().node_type {
         case .FuncDef(fd):
@@ -6584,7 +6674,7 @@ priv emit_binding_ns_actuals := proc(f: File, owner: Str, def: Expr, ctx: Contex
             ref method : Str = def_ns_name_at(def, cur)
             source_name := owner.concat3("_", method)
             actual := c_lib_symbol(lib_name, source_name)
-            emit_binding_func_decl(f, "", actual, fd, ctx, lib_name)
+            emit_binding_func_decl(f, "", actual, fd, ctx)
             f.write("\n")
         case:
         }
@@ -6598,6 +6688,7 @@ priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Contex
     for nsd : Declaration in ebi_ns {
         cur_ebi := ebi
         ebi = ebi + 1
+        if nsd.is_priv { continue }
         if nsd.default_value.is_none() { continue }
         switch nsd.default_expr().node_type {
         case .FuncDef(fd):
@@ -6606,7 +6697,7 @@ priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Contex
             ref method : Str = def_ns_name_at(def, cur_ebi)
             source_name := owner.concat3("_", method)
             actual := c_lib_symbol(lib_name, source_name)
-            emit_binding_wrapper(f, "    ", method, actual, fd, ctx, lib_name)
+            emit_binding_wrapper(f, "    ", method, actual, fd, ctx)
         case:
         }
     }
@@ -6623,55 +6714,64 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
             if stmt.children.len() == 0 { continue }
             switch stmt.node_type {
             case .Decl(dd):
+            if dd.is_priv.or(lp.ctx.type_gen_synths.has(dd.name)).or(lp.ctx.generic_func_synth_names.has(dd.name)) { continue }
             ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case .StructDef(btb_sdd):
                 emit_binding_ns_actuals(f, dd.name, rhs, lp.ctx, lib_name)
-                binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
-                f.write(binding_name).write(" := struct {\n")
+                f.write(dd.name).write(" := struct {\n")
                 mut btbr : USize = 0
                 for fdd : Declaration in btb_sdd.fields {
                     f.write("    ")
+                    if fdd.is_priv { f.write("priv ") }
                     if fdd.own_type.is(OwnType.Own) { f.write("own ") }
+                    if fdd.own_type.is(OwnType.Ref) { f.write("ref ") }
                     // #211: fields are mutable by default; emit `const` only
                     // for immutable fields (never the redundant `mut`).
                     if fdd.is_mut.not() { f.write("const ") }
                     f.write(btb_sdd.field_name_at(btbr))
                     btbr = btbr + 1
                     if fdd.til_type.is(Type.Unknown).not() {
-                        f.write(" : ").write(binding_type_name(fdd.type_name(), lp.ctx, lib_name))
+                        f.write(" : ").write(binding_type_name(fdd.type_name(), lp.ctx))
                     }
-                    f.write(" := ")
-                    if fdd.default_value.is_some() { emit_til_default(f, fdd.til_type) }
-                    else { f.write("0") }
+                    if fdd.default_value.is_some() {
+                        f.write(" := ")
+                        if emit_binding_literal(f, fdd.default_expr()).not() { emit_til_default(f, fdd.til_type) }
+                    }
                     f.write("\n")
                 }
                 emit_binding_ns_methods(f, dd.name, rhs, lp.ctx, lib_name)
                 f.write("}\n\n")
             case .EnumDef(bind_edd):
                 emit_binding_ns_actuals(f, dd.name, rhs, lp.ctx, lib_name)
-                binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
-                f.write(binding_name).write(" := enum {\n")
+                f.write(dd.name).write(" := enum")
+                if bind_edd.tag_type.len() > 0 { f.write("(").write(bind_edd.tag_type).write(")") }
+                f.write(" {\n")
                 for bind_vd : VariantDef in bind_edd.variants {
-                    f.write("    ").write(bind_vd.name)
+                    f.write("    ")
+                    if bind_vd.payload_const { f.write("const ") }
+                    f.write(bind_vd.name)
                     if bind_vd.payload_type.len() > 0 {
-                        f.write(": ").write(binding_type_name(bind_vd.payload_type, lp.ctx, lib_name))
+                        f.write(": ")
+                        if bind_vd.payload_ref { f.write("ref ") }
+                        f.write(binding_type_name(bind_vd.payload_type, lp.ctx))
                     }
-                    f.write(",\n")
+                    f.write(" = ").write(bind_vd.tag_value.to_str()).write(",\n")
                 }
                 emit_binding_ns_methods(f, dd.name, rhs, lp.ctx, lib_name)
                 f.write("}\n\n")
             case .FuncDef(fd):
-                if rhs.children.len() == 0 { continue }
+                if rhs.children.len() == 0 {
+                    emit_binding_funcsig(f, dd.name, fd, lp.ctx)
+                    continue
+                }
                 if fd.sig.func_type.is_bodyless() { continue }
                 if fd.sig.func_type.is(FuncType.Test) { continue }
                 actual_name := c_lib_symbol(lib_name, dd.name)
-                binding_name := binding_decl_name(dd.name, lp.ctx, lib_name)
-                emit_binding_func_decl(f, "", actual_name, fd, lp.ctx, lib_name)
-                if lp.ctx.generic_func_synth_names.has(dd.name).not() {
-                    emit_binding_wrapper(f, "", binding_name, actual_name, fd, lp.ctx, lib_name)
-                }
+                emit_binding_func_decl(f, "", actual_name, fd, lp.ctx)
+                emit_binding_wrapper(f, "", dd.name, actual_name, fd, lp.ctx)
                 f.write("\n")
+            case .Ident:
             case:
             }
             case:
@@ -6679,10 +6779,34 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
             }
         }
     }
+    // Aliases are emitted after concrete declarations so forward aliases and
+    // callable aliases both resolve in the generated module.
+    for u2 : ProgramUnit in lp.units {
+        ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
+        for stmt2 : Expr in iu2.ast.children {
+            if stmt2.node_type.is(NodeType.Decl).not().or(stmt2.children.len().eq(0)) { continue }
+            ref dd2 : Declaration = decl_of(stmt2)
+            if dd2.is_priv.or(lp.ctx.type_gen_synths.has(dd2.name)) { continue }
+            switch stmt2.children[0].node_type {
+            case .Ident(aid):
+                target := Str.clone(aid.ident_name(lp.ctx.symbols.names))
+                target_fd_o := lp.ctx.scope.lookup_func_name(target, lp.ctx.symbols)
+                if target_fd_o.is_some().and(target_fd_o.unwrap().children.len().gt(0)) {
+                    emit_binding_wrapper(f, "", dd2.name, target, funcdef_of(target_fd_o.unwrap()), lp.ctx)
+                    f.write("\n")
+                } else {
+                    f.write(dd2.name).write(" := ").write(binding_type_name(target, lp.ctx)).write("\n\n")
+                }
+            case:
+            }
+        }
+    }
     return 0
 }
 
-priv type_name_to_ctypes := func(name: Str, ctx: Context) returns Str {
+// ctypes spelling of the exact C value type. Pointer decisions belong to the
+// field/parameter/return helpers below so every Python ABI surface agrees.
+priv type_name_to_ctypes_value := func(name: Str, ctx: Context) returns Str {
     switch name {
     case "I64":     return "ctypes.c_longlong"
     case "U8":      return "ctypes.c_ubyte"
@@ -6695,25 +6819,49 @@ priv type_name_to_ctypes := func(name: Str, ctx: Context) returns Str {
     case "F32":     return "ctypes.c_float"
     case "F64":     return "ctypes.c_double"
     case "Bool":    return "ctypes.c_bool"
-    case "USize":   return type_name_to_ctypes(ctx.target_usize_pname, ctx)
-    case "UPtr":    return type_name_to_ctypes(ctx.target_uptr_pname, ctx)
+    case "USize":   return type_name_to_ctypes_value(ctx.target_usize_pname, ctx)
+    case "UPtr":    return type_name_to_ctypes_value(ctx.target_uptr_pname, ctx)
     case "Str":     return "Str"
     case "Dynamic": return "ctypes.c_void_p"
+    case "Fn", "Body": return "ctypes.c_void_p"
     case:
     }
+    sym_o := ctx.symbols.lookup(name)
+    if sym_o.is_some().and(ctx.funcsig_names.has(sym_o.unwrap())) { return "ctypes.c_void_p" }
     return name
 }
 
-priv type_name_to_ctypes_param := func(name: Str, is_shallow: Bool, ctx: Context) returns Str {
-    base := type_name_to_ctypes(name, ctx)
-    if is_shallow { return base }
+priv type_name_to_ctypes_pointer := func(name: Str, ctx: Context) returns Str {
+    // Dynamic and callable values already are pointers in C.
+    sym_o := ctx.symbols.lookup(name)
+    is_funcsig := sym_o.is_some().and(ctx.funcsig_names.has(sym_o.unwrap()))
+    if name.eq("Dynamic").or(name.eq("Fn")).or(name.eq("Body")).or(is_funcsig) {
+        return "ctypes.c_void_p"
+    }
+    base := type_name_to_ctypes_value(name, ctx)
     return format("ctypes.POINTER(", base, ")")
 }
 
-priv type_name_to_ctypes_return := func(name: Str, is_shallow: Bool, ctx: Context) returns Str {
-    base := type_name_to_ctypes(name, ctx)
-    if is_shallow { return base }
-    return format("ctypes.POINTER(", base, ")")
+priv declaration_to_ctypes_field := func(d: Declaration, ctx: Context) returns Str {
+    if d.own_type.is(OwnType.Shallow) { return type_name_to_ctypes_value(d.type_name(), ctx) }
+    return type_name_to_ctypes_pointer(d.type_name(), ctx)
+}
+
+priv func_param_to_ctypes := func(fd: FunctionDef, index: USize, ctx: Context) returns Str {
+    ref p : Declaration = fd.sig.params[index]
+    if index.to_i32() == fd.sig.variadic_index {
+        return type_name_to_ctypes_pointer(builder_variadic_array_type_name(ctx, p.type_name()), ctx)
+    }
+    if index.to_i32() == fd.sig.kwargs_index { return type_name_to_ctypes_pointer(p.type_name(), ctx) }
+    if func_param_passes_c_value(fd, index, ctx.param_value_abi_ok, ctx.scope, ctx.symbols) {
+        return type_name_to_ctypes_value(p.type_name(), ctx)
+    }
+    return type_name_to_ctypes_pointer(p.type_name(), ctx)
+}
+
+priv func_return_to_ctypes := func(fd: FunctionDef, ctx: Context) returns Str {
+    if func_returns_c_value(fd) { return type_name_to_ctypes_value(fd.sig.return_type, ctx) }
+    return type_name_to_ctypes_pointer(fd.sig.return_type, ctx)
 }
 
 priv emit_python_lib_symbol := proc(f: File, lib_name: Str, name: Str) {
@@ -6722,15 +6870,16 @@ priv emit_python_lib_symbol := proc(f: File, lib_name: Str, name: Str) {
 
 priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns I32 {
     f := File.new(py_path, true)
+    shared_ext := shared_lib_extension(lp.target)
     f.write("# Auto-generated Python binding for ").write(lib_name).write("\n")
     f.write("import ctypes\n")
     f.write("import os\n\n")
     f.write("_dir = os.path.dirname(os.path.abspath(__file__))\n")
     f.write("_candidates = [\n")
     f.write("    os.path.abspath(os.path.join(_dir, '..', 'lib', 'lib")
-    f.write(lib_name).write(".so')),\n")
+    f.write(lib_name).write(shared_ext).write("')),\n")
     f.write("    os.path.abspath(os.path.join(_dir, '..', '..', '..', 'lib")
-    f.write(lib_name).write(".so')),\n")
+    f.write(lib_name).write(shared_ext).write("')),\n")
     f.write("]\n")
     f.write("_lib = None\n")
     f.write("for _path in _candidates:\n")
@@ -6739,21 +6888,13 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
     f.write("        break\n")
     f.write("if _lib is None:\n")
     f.write("    raise OSError('could not find lib")
-    f.write(lib_name).write(".so')\n\n")
+    f.write(lib_name).write(shared_ext).write("')\n\n")
 
     f.write("\nclass Str(ctypes.Structure):\n")
     f.write("    _fields_ = [\n")
-    f.write("        ('c_str', ctypes.POINTER(ctypes.c_ubyte)),\n")
-    f.write("        ('count', ctypes.c_uint),\n")
-    f.write("        ('cap', ctypes.c_uint),\n")
-    f.write("    ]\n\n")
-    f.write("\nclass Array(ctypes.Structure):\n")
-    f.write("    _fields_ = [\n")
-    f.write("        ('data', ctypes.POINTER(ctypes.c_ubyte)),\n")
-    f.write("        ('cap', ctypes.c_uint),\n")
-    f.write("        ('elem_size', ctypes.c_uint),\n")
-    f.write("        ('elem_clone', ctypes.c_void_p),\n")
-    f.write("        ('elem_delete', ctypes.c_void_p),\n")
+    f.write("        ('c_str', ctypes.POINTER(ctypes.c_byte)),\n")
+    f.write("        ('count', ").write(type_name_to_ctypes_value("USize", lp.ctx)).write("),\n")
+    f.write("        ('cap', ").write(type_name_to_ctypes_value("USize", lp.ctx)).write("),\n")
     f.write("    ]\n\n")
 
     // Forward-declare all struct/enum classes
@@ -6787,25 +6928,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 f.write("\n").write(dd.name).write("._fields_ = [\n")
                 mut bpbr : USize = 0
                 for fdd : Declaration in bpb_sdd.fields {
-                    mut ct := ""
-                    if fdd.til_type.is(Type.Unknown).not() {
-                        ct = type_name_to_ctypes_param(fdd.type_name(), false, lp.ctx)
-                    } else {
-                        switch fdd.til_type {
-                        case .Primitive(Primitive.I64):  ct = "ctypes.POINTER(ctypes.c_longlong)"
-                        case .Primitive(Primitive.U8):   ct = "ctypes.POINTER(ctypes.c_ubyte)"
-                        case .Primitive(Primitive.I8):   ct = "ctypes.POINTER(ctypes.c_byte)"
-                        case .Primitive(Primitive.I16):  ct = "ctypes.POINTER(ctypes.c_short)"
-                        case .Primitive(Primitive.U16):  ct = "ctypes.POINTER(ctypes.c_ushort)"
-                        case .Primitive(Primitive.I32):  ct = "ctypes.POINTER(ctypes.c_int)"
-                        case .Primitive(Primitive.U32):  ct = "ctypes.POINTER(ctypes.c_uint)"
-                        case .Primitive(Primitive.U64):  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
-                        case .Primitive(Primitive.F32):  ct = "ctypes.POINTER(ctypes.c_float)"
-                        case .Primitive(Primitive.F64):  ct = "ctypes.POINTER(ctypes.c_double)"
-                        case .Primitive(Primitive.Bool): ct = "ctypes.POINTER(ctypes.c_bool)"
-                        case:              ct = "ctypes.c_void_p"
-                        }
-                    }
+                    ct := declaration_to_ctypes_field(fdd, lp.ctx)
                     f.write("    ('").write(bpb_sdd.field_name_at(bpbr)).write("', ")
                     f.write(ct).write("),\n")
                     bpbr = bpbr + 1
@@ -6816,31 +6939,38 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 hp := enum_has_payloads(rhs)
 
                 // Emit tag constants
-                mut tag := 0
                 for ct_vd : VariantDef in ct_edd.variants {
                     f.write(dd.name).write("_TAG_").write(ct_vd.name)
-                    f.write(" = ").write(tag.to_str()).write("\n")
-                    tag++
+                    f.write(" = ").write(ct_vd.tag_value.to_str()).write("\n")
                 }
 
-                // Emit union if has payloads
-                if hp {
+                if hp.and(enum_is_niche(rhs).not()) {
                     f.write("\nclass ").write(dd.name).write("_data(ctypes.Union):\n")
                     f.write("    _fields_ = [\n")
                     for ct_uvd : VariantDef in ct_edd.variants {
                         if ct_uvd.payload_type.len() > 0 {
                             f.write("        ('").write(ct_uvd.name).write("', ")
-                            f.write(type_name_to_ctypes_param(ct_uvd.payload_type, false, lp.ctx))
+                            if ct_uvd.payload_ref {
+                                f.write(type_name_to_ctypes_pointer(ct_uvd.payload_type, lp.ctx))
+                            } else {
+                                f.write(type_name_to_ctypes_value(ct_uvd.payload_type, lp.ctx))
+                            }
                             f.write("),\n")
                         }
                     }
+                    f.write("        ('_til_payload_align', ctypes.c_void_p),\n")
                     f.write("    ]\n")
                 }
 
                 // Emit enum struct _fields_
                 f.write("\n").write(dd.name).write("._fields_ = [\n")
-                f.write("    ('tag', ctypes.c_int),\n")
-                if hp {
+                if enum_is_niche(rhs) {
+                    payload_type := enum_variant_type(rhs, enum_niche_some_index(rhs))
+                    f.write("    ('data', ").write(type_name_to_ctypes_pointer(payload_type, lp.ctx)).write("),\n")
+                } else {
+                    f.write("    ('tag', ").write(type_name_to_ctypes_value(enum_tag_type(rhs), lp.ctx)).write("),\n")
+                }
+                if hp.and(enum_is_niche(rhs).not()) {
                     f.write("    ('data', ").write(dd.name).write("_data),\n")
                 }
                 f.write("]\n")
@@ -6861,6 +6991,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             if stmt.children.len() == 0 { continue }
             switch stmt.node_type {
             case .Decl(dd):
+            if dd.is_priv { continue }
             ref rhs : Expr = stmt.children[0]
 
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -6870,6 +7001,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 for nsd : Declaration in pybi_ns {
                     cur_pybi := pybi
                     pybi = pybi + 1
+                    if nsd.is_priv { continue }
                     if nsd.default_value.is_none() { continue }
                     switch nsd.default_expr().node_type {
                     case .FuncDef(fd):
@@ -6879,20 +7011,19 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     f.write(".argtypes = [")
                     for p in 0..fd.sig.params.len() {
                         if p > 0 { f.write(", ") }
-                        ref param : Declaration = fd.sig.params[p]
-                        ps := param.own_type.is(OwnType.Shallow)
-                        f.write(type_name_to_ctypes_param(param.type_name(), ps, lp.ctx))
+                        f.write(func_param_to_ctypes(fd, p, lp.ctx))
                     }
                     f.write("]\n")
                     if fd.sig.return_type.len() > 0 {
-                        rs := func_returns_c_value(fd)
                         emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = ")
-                        f.write(type_name_to_ctypes_return(fd.sig.return_type, rs, lp.ctx)).write("\n")
+                        f.write(func_return_to_ctypes(fd, lp.ctx)).write("\n")
                     } else {
                         emit_python_lib_symbol(f, lib_name, py_ns_name)
                         f.write(".restype = None\n")
                     }
+                    f.write(dd.name).write("_").write(def_ns_name_at(rhs, cur_pybi)).write(" = ")
+                    emit_python_lib_symbol(f, lib_name, py_ns_name)
                     f.write("\n")
                     case:
                     }
@@ -6912,27 +7043,21 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     f.write(".argtypes = [")
                     for p in 0..fd.sig.params.len() {
                         if p > 0 { f.write(", ") }
-                        ref param : Declaration = fd.sig.params[p]
-                        pi := p.to_i32()
-                        if pi == fd.sig.variadic_index {
-                            f.write("ctypes.POINTER(Array)")
-                        } else {
-                            ps := param.own_type.is(OwnType.Shallow)
-                            f.write(type_name_to_ctypes_param(param.type_name(), ps, lp.ctx))
-                        }
+                        f.write(func_param_to_ctypes(fd, p, lp.ctx))
                     }
                     f.write("]\n")
 
                     // restype
                     if fd.sig.return_type.len() > 0 {
-                        rs := func_returns_c_value(fd)
                         emit_python_lib_symbol(f, lib_name, c_name)
                         f.write(".restype = ")
-                        f.write(type_name_to_ctypes_return(fd.sig.return_type, rs, lp.ctx)).write("\n")
+                        f.write(func_return_to_ctypes(fd, lp.ctx)).write("\n")
                     } else {
                         emit_python_lib_symbol(f, lib_name, c_name)
                         f.write(".restype = None\n")
                     }
+                    f.write(dd.name).write(" = ")
+                    emit_python_lib_symbol(f, lib_name, c_name)
                     f.write("\n")
                 case:
                 }
@@ -6943,68 +7068,20 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
         }
     }
 
-    // Emit enum auto-helper bindings (eq, constructors, is_Variant, get_Variant)
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for stmt : Expr in iu.ast.children {
-            if stmt.node_type.is(NodeType.Decl).not() { continue }
-            if stmt.children.len() == 0 { continue }
-            ref dd : Declaration = decl_of(stmt)
-            ref rhs : Expr = stmt.children[0]
-            if rhs.node_type.is(NodeType.EnumDef).not() { continue }
-            sname := dd.name
-            hp := enum_has_payloads(rhs)
-
-            has_eq := builder_ns_has_func(rhs, "eq")
-            mut eq_ret := "ctypes.POINTER(ctypes.c_bool)"
-            if builder_ns_func_returns_c_value(rhs, "eq") { eq_ret = "ctypes.c_bool" }
-            mut is_ret := "ctypes.POINTER(ctypes.c_bool)"
-            if builder_ns_func_returns_c_value(rhs, "is") { is_ret = "ctypes.c_bool" }
-
-            // eq
-            if has_eq {
-                emit_python_lib_symbol(f, lib_name, format(sname, "_eq"))
-                f.write(".argtypes = [ctypes.POINTER(")
-                f.write(sname).write("), ctypes.POINTER(").write(sname).write(")]\n")
-                emit_python_lib_symbol(f, lib_name, format(sname, "_eq"))
-                f.write(".restype = ")
-                f.write(eq_ret).write("\n\n")
-            }
-
-            // Per-variant helpers
-            ref py_edd : EnumDef = enumdef_of(rhs)
-            for py_vd : VariantDef in py_edd.variants {
-                ref py_vn : Str = py_vd.name
-                ref py_vt : Str = py_vd.payload_type
-
-                if hp {
-                    // is_Variant
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_is_", py_vn))
-                    f.write(".argtypes = [ctypes.POINTER(").write(sname).write(")]\n")
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_is_", py_vn))
-                    f.write(".restype = ").write(is_ret).write("\n\n")
-                }
-
-                if py_vt.len() > 0 {
-                    // Constructor: takes payload, returns POINTER(Enum)
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
-                    f.write(".argtypes = [")
-                    f.write(type_name_to_ctypes_param(py_vt, false, lp.ctx)).write("]\n")
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
-                    f.write(".restype = ctypes.POINTER(").write(sname).write(")\n\n")
-                    // get_Variant
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_get_", py_vn))
-                    f.write(".argtypes = [ctypes.POINTER(").write(sname).write(")]\n")
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_get_", py_vn))
-                    f.write(".restype = ")
-                    f.write(type_name_to_ctypes_param(py_vt, false, lp.ctx)).write("\n\n")
-                } else {
-                    // Constructor: no args, returns POINTER(Enum)
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
-                    f.write(".argtypes = []\n")
-                    emit_python_lib_symbol(f, lib_name, format(sname, "_", py_vn))
-                    f.write(".restype = ctypes.POINTER(").write(sname).write(")\n\n")
-                }
+    // FuncSig names and source aliases are API names, not exported symbols.
+    for u2 : ProgramUnit in lp.units {
+        ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
+        for stmt2 : Expr in iu2.ast.children {
+            if stmt2.node_type.is(NodeType.Decl).not().or(stmt2.children.len().eq(0)) { continue }
+            ref dd2 : Declaration = decl_of(stmt2)
+            if dd2.is_priv.or(lp.ctx.type_gen_synths.has(dd2.name)).or(lp.ctx.generic_func_synth_names.has(dd2.name)) { continue }
+            ref rhs2 : Expr = stmt2.children[0]
+            switch rhs2.node_type {
+            case .FuncDef:
+                if rhs2.children.len() == 0 { f.write(dd2.name).write(" = ctypes.c_void_p\n") }
+            case .Ident(alias_id):
+                f.write(dd2.name).write(" = ").write(alias_id.ident_name(lp.ctx.symbols.names)).write("\n")
+            case:
             }
         }
     }

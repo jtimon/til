@@ -4664,6 +4664,13 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
             // same rule has to gate it -- otherwise the VALUE is substituted
             // for the type parameter and names a type that never existed.
             if init_macro_call_is_type_application(rhs, macro_fdef, macros, scope, ctx).not() { continue }
+            switch stmt.node_type {
+            case .Decl(dd):
+                if ctx.type_gen_synths.has(dd.name).and(ctx.type_gen_binding_sources.has(dd.name).not()) {
+                    ctx.type_gen_binding_sources.set(dd.name, own rhs.clone())
+                }
+            case:
+            }
             mut nested_synthesized := Vec(Expr).new()
             if init_expand_type_gen_decl(stmt, macro_fdef, macros, scope, ctx, true, nested_synthesized).not() { continue }
             for nd : Expr in nested_synthesized {

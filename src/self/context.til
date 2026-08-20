@@ -1472,6 +1472,12 @@ Context := struct {
     // longer exposes each phase-local table and lifecycle flag separately.
     ffi := FfiState()
 
+    // Source applications for synthesized type-generator declarations.
+    // The generated-library binding uses these canonicalized calls to expose
+    // Array(T), Vec(T), Map(K, V), Set(T), and Option(T) instead of leaking
+    // their library-private physical struct names.
+    type_gen_binding_sources := Map(Str, Expr).new()
+
     // Kept last so every Context-owned AST/registry using symbols is deleted
     // before the canonical name table that gives those symbols meaning.
     symbols := SymbolPool()
