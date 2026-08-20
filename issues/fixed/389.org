@@ -1,0 +1,75 @@
+# priority: medium
+# category: bugs
+** FIXED #389 T.delete(own <inline field>, true) frees the middle of the holder
+
+*** Post-mortem
+
+An INLINE (non-~own~) struct field is stored by value: its bytes live inside
+the holder, and there is no box of its own. So ~self.name~ is an interior
+address, and a destructor's tail -- ~if call_free { free(own self) }~ --
+hands exactly that address to ~free~ when the call passes ~call_free =
+true~:
+
+    R := struct {
+        name := ""
+    namespace:
+        delete := func(own self: R, call_free: Bool = true) {
+            Str.delete(own self.name, true)     // <- frees &self->name
+            if call_free { free(own self) }
+        }
+    }
+
+    mut b := R(name = format("a", "b"))
+    R.delete(own b, true)
+
+glibc aborts with "free(): double free detected in tcache 2", on BOTH
+backends. The emitted C is explicit about it: ~Str_delete(&self->name, 1)~.
+
+Why it reads as intermittent, which is what cost the time. The abort needs
+the field's CONTENTS to be heap-allocated: with ~name = "ab"~ the literal
+owns nothing, the bad free lands on a chunk boundary that happens to
+survive, and the same program exits 0. Function scope survives too, for the
+same reason the value never reaches a second release. So the failing matrix
+looked like "script scope + aggregate", which is the signature of an
+entirely different bug (#275 item 0b), and this was mistaken for one for
+several rounds -- reported as a both-backends compiler bug and nearly filed
+as one. It is not a compiler bug at all: it is incorrect user code that the
+language accepted.
+
+~false~ is the whole fix, and it is what the tree already writes --
+~loader.til~'s ~Str.delete(own self.mode_str, false)~ and its five
+neighbours. Release the field's contents; leave the field's storage to the
+holder.
+
+What changed. ~check_delete_inline_field_call_free~ in ~src/self/typer.til~,
+dispatched from the namespace-call path where the method name is known
+(alongside the enum-variant-ctor handling). It rejects
+~T.delete(<field access>, true)~ when the named field is inline and its type
+has a ~delete~.
+
+Three exemptions, each verified rather than assumed:
+
+  - an ~own~ FIELD, which holds a real pointer, so its box is a genuine
+    allocation and ~true~ is correct there -- the same program with
+    ~own buf : Str~ exits 0 on both backends;
+  - a ~ref~ field, a borrow the holder never owned, already governed by the
+    existing rules;
+  - a non-literal ~call_free~, which is a runtime Bool this check says
+    nothing about. Only a literal ~true~ is decidable.
+
+Same family as ~check_free_managed_local~ and #373's dyn_call rule: a
+spelling the language accepts that produces two owners for one address,
+caught where it is written instead of as heap corruption much later.
+
+Regression test. ~Terr389Holder~ in ~test/typer_errors.til~, counted by the
+corpus total and by its own needle, paired across both backends -- the emit
+is identical, so a check that fired on one only would still ship the
+corruption. The legal neighbours (~own~ field with ~true~, inline field with
+~false~) are ordinary everyday spellings already exercised throughout the
+suite, which is what the zero in-tree hits confirm.
+
+Also fixed here: ~test/typer_errors.til~'s ~Terr373Res~ fixture, added with
+#373, was the only ~Str.delete(own self.<field>, true)~ in the tree. It never
+manifested because that corpus is only type-checked, never run, but it
+modelled the wrong convention in a file meant to teach -- and it is what
+this check would have caught at the time.

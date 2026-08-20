@@ -1802,7 +1802,7 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
     return bits.band(callee_bit).bor(bits.band(callee_bit.bnot()).shl(1))
 }
 
-// Issues #380/#381: the field sweep infers on a clone only to stamp the field
+// Issues #389/#381: the field sweep infers on a clone only to stamp the field
 // type; the original default is inferred and validated again in the body
 // sweep. Ordinary struct methods cannot be materialized until every field
 // type is settled, but every generated method NAME has a fixed return type.
@@ -2215,6 +2215,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 set_own_arg(e, 1)
             }
         }
+        if method == "delete" { check_delete_inline_field_call_free(scope, e, ctx) }
         if ns_fdef.is_enum_variant_ctor {
             set_fcall_own_args_for_own_params(e, ns_fdef)
             // #320: a ref-payload ctor arg is a borrow that ESCAPES into
@@ -2370,6 +2371,75 @@ priv check_member_priv := proc(e: Expr, owner_name: Str, member_name: Str, membe
 // Exceptions fall out naturally: `self` is a param (not a local) so a
 // delete method's own `free(own self)` box-release is allowed, and raw
 // pointer types (U8/Dynamic) have no `delete` method so raw frees are fine.
+// Issue #389: `T.delete(own <inline field>, true)` frees a pointer into the
+// MIDDLE of the holder. An inline (non-`own`) field is stored by value, so
+// `self.name` is not a heap box -- but `call_free = true` makes the callee's
+// tail run `free(own self)` over exactly that interior address. glibc aborts
+// ("free(): double free detected in tcache 2"), on BOTH backends, and only
+// when the field's own contents were heap-allocated: with a literal there is
+// no second buffer and the bad free happens to land on a chunk boundary that
+// survives, which is what makes this look intermittent.
+//
+// `false` is the whole fix and is what the tree already writes -- see
+// loader.til's `Str.delete(own self.mode_str, false)` and its neighbours:
+// release the field's contents, leave the field's storage to the holder.
+//
+// An `own` FIELD is exempt and must stay legal: it holds a real pointer, so
+// its box is a genuine allocation and `true` is correct there (verified: the
+// same program with `own buf : Str` exits 0 on both backends).
+//
+// Same family as check_free_managed_local below and #373's dyn_call rule: a
+// spelling the language accepts that makes two owners for one address, caught
+// where it is written instead of as heap corruption much later.
+priv check_delete_inline_field_call_free := proc(scope: TypeScope, e: Expr, mut ctx: Context) {
+    // T.delete(<target>, <call_free>) -- the two-argument namespace form.
+    if e.children.len() < 3 { return }
+    // Only a literal `true` is decidable here; a Bool variable is a runtime
+    // value and this check says nothing about it.
+    switch e.children[2].node_type {
+    case .Literal(Literal.Bool(cf)):
+        if cf.not() { return }
+    case: return
+    }
+    switch e.children[1].node_type {
+    case .FieldAccess(fad):
+        if e.children[1].children.len() < 1 { return }
+        ref holder : Expr = e.children[1].children[0]
+        holder_tn := til_type_name(holder.til_type())
+        if holder_tn.len() == 0 { return }
+        hdef_o := scope.get_struct(holder_tn, ctx.symbols)
+        if hdef_o.is_none() { return }
+        ref hdef : Expr = hdef_o.unwrap()
+        switch hdef.node_type {
+        case .StructDef(hsd):
+            ref fname : Str = fad.field_access_name(ctx.symbols.names)
+            if hsd.fields_index.has(fname).not() { return }
+            mut fidx : I32 = -1
+            fidx = hsd.fields_index[fname].to_i32()
+            if fidx < 0 { return }
+            if fidx.to_usize() >= hsd.fields.len() { return }
+            ref fdecl : Declaration = hsd.fields[fidx.to_usize()]
+            // An `own` field really is a box; a `ref` one is a borrow the
+            // holder never owned, and the existing rules already govern it.
+            if fdecl.own_type.is(OwnType.Own).or(fdecl.own_type.is(OwnType.Ref)) { return }
+            ftn := til_type_name(fdecl.til_type)
+            if ftn.len() == 0 { return }
+            fsdef_o := scope.get_struct(ftn, ctx.symbols)
+            if fsdef_o.is_none() { return }
+            ref fsdef : Expr = fsdef_o.unwrap()
+            if find_namespace_func(fsdef, "delete", scope, ctx.symbols).is_none() { return }
+            e.children[2].type_error(format(
+                "'", ftn, ".delete(own ", holder_tn, ".", Str.clone(fname),
+                ", true)' frees the middle of the holder: '", Str.clone(fname),
+                "' is an inline field, so its storage belongs to '", holder_tn,
+                "' and only its CONTENTS are this call's to release -- pass false",
+            ), ctx)
+        case:
+        }
+    case:
+    }
+}
+
 priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Context) {
     if e.children.len() < 2 { return }
     if get_own_arg(e, 1).not() { return }

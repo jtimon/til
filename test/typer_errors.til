@@ -1384,7 +1384,11 @@ Terr373Res := struct {
 namespace:
     delete := proc(own self: Terr373Res, call_free: Bool = true) {
         println("delete ran")
-        Str.delete(own self.name, true)
+        // `false`: `name` is an INLINE field, so its storage belongs to this
+        // struct and only its contents are ours to release. `true` would
+        // free the middle of the holder -- what #389 now rejects, and what
+        // this fixture wrongly modelled when it was written.
+        Str.delete(own self.name, false)
         if call_free { free(own self) }
     }
 }
@@ -1404,3 +1408,23 @@ terr358_no_to_str := array(Str, 1)
 
 // Dynamic is the deliberate exception: each element converts independently.
 terr358_dynamic := array(Dynamic, 1, "a")
+
+// #389: `T.delete(own <inline field>, true)` frees a pointer into the MIDDLE
+// of the holder. An inline (non-`own`) field is stored by value, so
+// `self.name` is not a heap box, but call_free=true makes the callee's tail
+// run `free(own self)` over that interior address -- glibc aborts on BOTH
+// backends, and only when the field's contents were heap-allocated, which is
+// what makes it look intermittent. `false` is the fix and is what the tree
+// already writes (loader.til's `Str.delete(own self.mode_str, false)`).
+//
+// The legal neighbours are pinned by test/own_fields.til rather than here: an
+// `own` field IS a real box, so `true` is correct there, and `false` on an
+// inline field is the everyday spelling.
+Terr389Holder := struct {
+    name := ""
+namespace:
+    delete := func(own self: Terr389Holder, call_free: Bool = true) {
+        Str.delete(own self.name, true)
+        if call_free { free(own self) }
+    }
+}
