@@ -8697,7 +8697,60 @@ priv global_is_pointer_storage := func(stmt: Expr, dd: Declaration, symbols: Sym
     return rhs_is_allocator_call(stmt.children[0], symbols)
 }
 
-priv emit_global_declaration := proc(f: File, stmt: Expr, mut ctx: Context) {
+// Every Ident occurrence under e, with no exemptions -- unlike
+// builder_collect_body_reads this counts a delete's argument too, because
+// the question its caller asks is "may this declaration disappear", and any
+// surviving mention in the C, cleanup included, would dangle. Expressions
+// stored in Declarations are NOT children (the scavenger's collect_refs
+// walks them separately for the same reason): a struct's field defaults,
+// every ns member body, and a signature's param defaults all live in
+// default_value, and HASHMAP_INIT_BUCKETS' only readers are HashMap ns
+// methods -- children alone misses all of them.
+priv builder_collect_all_ident_syms := proc(e: Expr, mut syms: Set(Sym)) {
+    switch e.node_type {
+    case .Ident(aid): syms.add(own aid.ident_sym())
+    case .FuncDef(ais_fd):
+        for ais_p : Declaration in ais_fd.sig.params {
+            if ais_p.default_value.is_some() { builder_collect_all_ident_syms(ais_p.default_expr(), syms) }
+        }
+    case .StructDef(ais_sdd):
+        for ais_f : Declaration in ais_sdd.fields {
+            if ais_f.default_value.is_some() { builder_collect_all_ident_syms(ais_f.default_expr(), syms) }
+        }
+    case:
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref ais_ns : Vec(Declaration) = def_ns_decls(e)
+        for ais_nd : Declaration in ais_ns {
+            if ais_nd.default_value.is_some() { builder_collect_all_ident_syms(ais_nd.default_expr(), syms) }
+        }
+    }
+    for ais_c : Expr in e.children { builder_collect_all_ident_syms(ais_c, syms) }
+}
+
+// A statically-initialized global the folded program no longer mentions is
+// not emitted. The constfolder bakes a comptime global's consumers to
+// literals (#388 composes whole aggregates), and once the last reader is
+// baked the declaration would be a file-scope static nothing reads -- gcc
+// accepts that silently, clang rejects it outright under -Werror
+// (-Wunused-variable): test/unused_import_ok.til's cb/th on the mac sweep.
+// Only the statically-initialized form can go: a runtime-initialized
+// global is always mentioned by its own init assignment in main.
+priv builder_global_folded_away := func(stmt: Expr, mentioned: Set(Sym), mut ctx: Context) returns Bool {
+    if ctx.builder_static_ok.not() { return false }
+    if ctx.builder_keep_all_exports { return false }
+    if global_decl_has_c_static_initializer(stmt, ctx).not() { return false }
+    ref dd : Declaration = decl_of(stmt)
+    // Only a global that would be a TU-local `static` may go. The names
+    // builder_global_static_prefix exempts (CAP_LIT/CAP_VIEW) are
+    // referenced by emitter-CONJURED C -- Str cap checks the AST never
+    // spells -- so the mention set cannot see their readers.
+    if builder_global_static_prefix(dd.name, ctx).len() == 0 { return false }
+    return mentioned.has(ctx.symbols.intern(dd.name)).not()
+}
+
+priv emit_global_declaration := proc(f: File, stmt: Expr, mentioned: Set(Sym), mut ctx: Context) {
+    if builder_global_folded_away(stmt, mentioned, ctx) { return }
     ref dd : Declaration = decl_of(stmt)
     ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), ctx)
     f.write(builder_global_static_prefix(dd.name, ctx)).write(ctype).write(" ")
@@ -8718,12 +8771,19 @@ priv emit_global_declaration := proc(f: File, stmt: Expr, mut ctx: Context) {
 priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
     lp.ctx.script_globals = Set(Sym).new()
     lp.ctx.ref_globals = Set(Sym).new()
+    // One whole-program mention set for the folded-away gate above: a
+    // global's OWN Decl stores its name in Declaration.name, not as an
+    // Ident child, so declaring never counts as mentioning.
+    mut egd_mentioned := Set(Sym).new()
+    for upath : Str in lp.unit_paths() {
+        builder_collect_all_ident_syms(lp.ctx.imported[upath].ast, egd_mentioned)
+    }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_exported_top_level_global(stmt).not() { continue }
-                emit_global_declaration(f, stmt, lp.ctx)
+                emit_global_declaration(f, stmt, egd_mentioned, lp.ctx)
             }
         }
     }
@@ -8731,7 +8791,7 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
-            emit_global_declaration(f, stmt, lp.ctx)
+            emit_global_declaration(f, stmt, egd_mentioned, lp.ctx)
         }
     }
     emit_ns_const_global_defs(f, lp)
