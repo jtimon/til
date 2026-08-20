@@ -9893,6 +9893,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     }
 }
 priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if ctx.builder_keep_all_exports { return false }
     flat_in := type_name.concat3("_", member)
     // Two ways a method is spliced at every direct call site, so no
     // emitted C calls the out-of-line definition: the len/unsafe_get
