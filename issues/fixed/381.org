@@ -19,5 +19,5 @@ Regression: the ~BadGeneratedDefault~ fixture still rejects ~NoCmp.to_str~,
 while the exact typer-error count drops from latest master's 230 to 228: two
 field defaults exercised the same secondary-comparison path. The
 ~typer_errors_interp~ harness assertion pins the focused diagnostic to exactly
-one occurrence while reusing the output that checks the total error count.
-~make clean && make test~ passes 420/420 after the rebase.
+one occurrence while sharing one capture with every focused interpreter count.
+~make clean && make test~ passes 413/413 after the rebase.

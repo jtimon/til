@@ -225,6 +225,11 @@ namespace:
 
 TestKind := enum { Both: BothData, Single, Count }
 
+CountCheck := struct {
+    needle := ""
+    expected_count := 0
+}
+
 Test := struct {
     label := ""
     cmd := ""
@@ -309,13 +314,16 @@ add_count := func(mut tests: Vec(Test), label: Str, category: Str,
         ))
     }
 
-add_count_pair := func(mut tests: Vec(Test), label: Str, category: Str,
-    needle_a: Str, expected_a: I64, needle_b: Str, expected_b: I64, cmd_suffix: Str) {
-        quoted_a := needle_a.replace("'", "'\\''")
-        quoted_b := needle_b.replace("'", "'\\''")
-        runner_cmd := format(RUNNER, " count ", label,
-            " '", quoted_a, "' ", expected_a.to_str(),
-            " '", quoted_b, "' ", expected_b.to_str(), " -- ", cmd_suffix)
+add_counts := func(mut tests: Vec(Test), label: Str, category: Str,
+    cmd_suffix: Str, checks: ..CountCheck) {
+        if checks.len() == 0 { panic("add_counts requires at least one check") }
+        mut runner_cmd := format(RUNNER, " count ", label)
+        for i in 0..checks.len() {
+            ref check : CountCheck = checks[i]
+            quoted_needle := check.needle.replace("'", "'\\''")
+            runner_cmd = format(runner_cmd, " '", quoted_needle, "' ", check.expected_count.to_str())
+        }
+        runner_cmd = format(runner_cmd, " -- ", cmd_suffix)
         tests.push(own Test(
             label = label.clone(),
             cmd = runner_cmd,
@@ -1592,61 +1600,51 @@ main := proc(args: ..Str) {
     // `interpret` and true for every compiling command, so "the typer says
     // the same thing either way" is a property to pin, not an identity --
     // #342's splat rows below are there because the two disagreed once.
-    // The compiled half counts the file's total, while the per-message
-    // needles stay single-sided: a diagnostic that appeared, vanished, or
-    // moved backends shows up in the total, and re-running one command
-    // seven times to re-read seven substrings of the same output would
-    // not add to that.
+    // Each backend runs once; its assertions check both the file's total and
+    // the focused messages. A diagnostic that appeared, vanished, or moved
+    // backends cannot silently trade places with an unrelated diagnostic.
     // #381: strict body-sweep lookup reports the ineligible generated method
     // exactly once; provisional field inference must not duplicate it. Count
     // both properties from the same interpreter output.
-    add_count_pair(tests, "typer_errors_interp", "typer", "error:", 228,
-        "no method 'to_str' for type 'NoCmp'", 1,
-        format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "typer_errors_build", "typer", "error:", 228,
-        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #358: array()/vec() plain elements are checked at the offending element;
     // the third case pins that array(Str, 1) is rejected rather than coerced.
-    add_count(tests, "literal_elem_type_interp", "typer", "literal element", 3,
-        format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "literal_elem_type_build", "typer", "literal element", 3,
-        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #342: a splat whose elements do not match is reported, not passed
     // through to crash the callee -- four variadic shapes, the two literals,
     // and a Vec source, which the two backends used to disagree about. That
     // history is why this one is paired rather than left interpret-only.
-    add_count(tests, "splat_elem_type_interp", "typer", "splat of", 8,
-        format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "splat_elem_type_build", "typer", "splat of", 8,
-        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #275 step 3: byte-copying a managed aggregate duplicates its owned
     // pointers. Both the naked source and the `to_ptr` laundering are
     // rejected, and the needle is separate from the total above so the two
     // cannot silently trade places with an unrelated diagnostic. Paired
     // because a ban the compiled backend did not also enforce would let the
     // duplication through in exactly the builds that keep the bytes.
-    add_count(tests, "memcpy_managed_src_interp", "typer", "memcpy duplicates", 2,
-        format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "memcpy_managed_src_build", "typer", "memcpy duplicates", 2,
-        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #372: returning a Str view of an owned local is a use-after-free the
     // caller cannot see. Three shapes -- direct, view-of-view, and chained
     // in one expression -- and the needle is separate from the total so a
     // silent trade with an unrelated diagnostic shows up. Paired because
     // the compiled backend is where the freed bytes are actually read.
-    add_count(tests, "view_of_local_return_interp", "typer", "the result is a view sharing", 3,
-        format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "view_of_local_return_build", "typer", "the result is a view sharing", 3,
-        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
     // #373: dyn_call dispatching `delete` over an owned local releases it
     // twice -- once through the dispatched body, once through the local's
     // own scheduled delete -- and `own` cannot mark the transfer because
     // dyn_call's parameter is not own. A runtime fixture would abort the
     // suite rather than fail it, so the diagnostic IS the pinned behaviour.
-    add_count(tests, "dyn_call_delete_local_interp", "typer", "dyn_call cannot delete the local", 1,
-        format(til_bin, " interpret test/typer_errors.til"))
-    add_count(tests, "dyn_call_delete_local_build", "typer", "dyn_call cannot delete the local", 1,
-        format(til_bin, " build", asan_flag, " test/typer_errors.til"))
+    add_counts(tests, "typer_errors_interp", "typer",
+        format(til_bin, " interpret test/typer_errors.til"),
+        CountCheck(needle = "error:", expected_count = 228),
+        CountCheck(needle = "no method 'to_str' for type 'NoCmp'", expected_count = 1),
+        CountCheck(needle = "literal element", expected_count = 3),
+        CountCheck(needle = "splat of", expected_count = 8),
+        CountCheck(needle = "memcpy duplicates", expected_count = 2),
+        CountCheck(needle = "the result is a view sharing", expected_count = 3),
+        CountCheck(needle = "dyn_call cannot delete the local", expected_count = 1))
+    add_counts(tests, "typer_errors_build", "typer",
+        format(til_bin, " build", asan_flag, " test/typer_errors.til"),
+        CountCheck(needle = "error:", expected_count = 228),
+        CountCheck(needle = "literal element", expected_count = 3),
+        CountCheck(needle = "splat of", expected_count = 8),
+        CountCheck(needle = "memcpy duplicates", expected_count = 2),
+        CountCheck(needle = "the result is a view sharing", expected_count = 3),
+        CountCheck(needle = "dyn_call cannot delete the local", expected_count = 1))
     parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
     add_count(tests, "fcall_arg_parity_total_interp", "typer", "error:", 12, parity_cmd)
     add_count(tests, "fcall_arg_parity_total_build", "typer", "error:", 12,
