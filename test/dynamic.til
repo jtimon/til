@@ -61,6 +61,10 @@ Foo := struct {
     const x := 0
     namespace:
     bar := func(self: Foo) returns I64 { return self.x }
+    // A namespace VALUE, not a method: dyn_has_method answers no for it,
+    // because the only thing a yes is good for is indirecting it through
+    // dyn_fn, which cannot indirect a value.
+    limit : I64 = 7
 }
 
 test_dyn_has_method := test() {
@@ -83,6 +87,7 @@ test_dyn_has_method := test() {
     assert_eq(I64, f.bar(), 0)
     expect(dyn_has_method("Foo", "bar"), "Foo has bar")
     expect(dyn_has_method("Foo", "baz").not(), "Foo no baz")
+    expect(dyn_has_method("Foo", "limit").not(), "Foo.limit is a value, not a method")
 }
 
 // Dynamic arg narrowing (#20): pass Dynamic where concrete type expected

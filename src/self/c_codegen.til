@@ -8594,7 +8594,13 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                 if is_struct_or_enum(stmt).not() { continue }
                 ref rhs : Expr = stmt.children[0]
                 ref dd : Declaration = decl_of(stmt)
-                if def_ns_has(rhs, method).not() { continue }
+                // Callable members only, matching h_dyn_has_method: a
+                // namespace VALUE answers no, because the yes is only ever
+                // used to indirect it and dyn_fn cannot indirect a value.
+                dha_o := def_ns_get(rhs, method)
+                if dha_o.is_none() { continue }
+                if dha_o.unwrap().default_value.is_none() { continue }
+                if dha_o.unwrap().default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                 dyn_has_arms.push(own dd.name.clone())
             }
         }

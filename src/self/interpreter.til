@@ -6555,7 +6555,16 @@ priv h_spawn_cmd := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Con
 priv h_dyn_has_method := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
-    write_bool(r, ns_get(type_name, method, ctx).is_some().or(static_ns_func_def(type_name, method, ctx).is_some()))
+    // A METHOD, not any namespace member: the ns_get arm said yes for a
+    // value one too (`limit : I64 = 7`), and the only thing a caller does
+    // with a yes is indirect it -- dyn_fn, which cannot. ns_func_def asks
+    // the runtime slot for its FuncDef (None for a value binding) and
+    // falls through to the static member table, so it covers exactly the
+    // two homes a method can have. DynHashMap.new_type_name is the real
+    // caller: it asks whether the key type has `hash`, and a type whose
+    // `hash` is a constant used to pass the check and die inside dyn_fn
+    // instead of throwing its own MissingMethod.
+    write_bool(r, ns_func_def(type_name, method, ctx).is_some())
     return true
 }
 
