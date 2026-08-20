@@ -63,12 +63,13 @@
   immutable-by-default rule (they opt in with mut, like locals).
 
 * TRUE Enum variant payloads are MUTABLE by default (#211)
-  Payloads behave like struct instance fields: there is no mut/const
-  keyword on the variant declaration, and writability is determined by
-  the holder. In a switch case binding, the payload variable is a
-  ref-mut borrow when the matched value is mut, and a plain ref borrow
-  otherwise -- so `case V(p): p = ...` is allowed iff the enum value is
-  mut. See doc/concepts/enums.org "Payload mutability".
+  Payloads behave like struct instance fields: a plain payload is mutable,
+  ~const Variant: Type~ opts out, and an explicit ~mut~ is redundant and
+  rejected. In a switch case binding, a plain payload is a ref-mut borrow
+  when the matched value is mut and a plain ref borrow otherwise, so
+  ~case V(p): p = ...~ is allowed iff the enum value is mut. A ~const~
+  payload remains immutable in either case. See doc/concepts/enums.org
+  "Payload mutability".
 
 * TRUE The own keyword marks ownership transfer
   At call sites, own marks that the caller gives up ownership: own p.delete().

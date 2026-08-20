@@ -130,18 +130,19 @@ All available in til: ~malloc(n)~, ~free(own p)~, ~realloc(own p, n)~,
 
 ~sizeof(Type)~ becomes ~Type.size()~.
 
-For raw allocations, keep the owned pointer as ~Dynamic~:
+Keep an owned allocation under a concrete pointee type. The garbager tracks
+allocator-rooted typed locals and inserts ~free~ automatically:
 
 #+begin_src til
-buf : Dynamic = malloc(n)
+buf : U8 = malloc(n)
 ref first : U8 = buf
 ref third : U8 = ptr_add(buf, 2)
 ...
-free(own buf)
 #+end_src
 
-If ownership is transferred to an ~own~ arg or ~own~ field, do not free it
-afterward.
+Use ~out : T = malloc(T.size())~ for typed object storage. ~Dynamic~ is for
+type-erased borrows, not ownership. If the typed allocation is transferred to
+an ~own~ argument or field, the new owner becomes responsible for cleanup.
 
 ** Functions
 
@@ -211,7 +212,19 @@ Not needed — til's typer resolves forward references automatically.
 
 *** Static functions
 
-Just regular funcs/procs (no visibility modifiers in til).
+A C ~static~ function becomes a top-level ~priv~ func or proc, which keeps it
+visible within the declaring file but hides it from importers. A function with
+external linkage uses Til's public default:
+
+#+begin_src c
+static int helper(int x) { return x + 1; }
+int public_helper(int x) { return helper(x); }
+#+end_src
+
+#+begin_src til
+priv helper := func(x: I64) returns I64 { return x.add(1) }
+public_helper := func(x: I64) returns I64 { return helper(x) }
+#+end_src
 
 ** Structs
 
