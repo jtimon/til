@@ -557,6 +557,23 @@ priv holyc_function_outputs := func(program: Expr, ctx: Context,
     if prototypes.len() > 0 { prototypes = format(prototypes, "\n") }
 }
 
+priv holyc_runtime_prelude := func() returns Str {
+    return format(
+        "extern U8 *TilMAlloc(U64 count);\n",
+        "extern U8 *TilCAlloc(U64 nmemb,U64 size);\n",
+        "extern U0 TilFree(U8 *ptr);\n",
+        "extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);\n",
+        "extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);\n",
+        "extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);\n",
+        "extern I32 TilMemCmp(U8 *a,U8 *b,U64 count);\n",
+        "extern U0 TilRawWrite(U8 *data,U64 count);\n",
+        "extern U0 TilPanic(U8 *data,U64 count);\n",
+        "extern U0 TilNullDeref();\n",
+        "extern U8 *TilCheckPtr(U8 *ptr);\n",
+        "extern U8 *TilDeref(U8 **slot);\n\n",
+        "#include \"/Home/Ext.HC\"\n\n")
+}
+
 holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32 {
     if lp.mode_str != "script" {
         println("error: HolyC codegen currently supports only mode script")
@@ -579,6 +596,13 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         return 1
     }
 
+    compiler_root := lp.ext_c_path.strip_suffix("/src/c/ext.c")
+    runtime_path := format(compiler_root, "/src/holyc/ext.HC")
+    if File.is_file(runtime_path).not() {
+        println(format("error: HolyC runtime source is missing: ", runtime_path))
+        return 1
+    }
+
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref program : Expr = lp.ctx.imported[root.path].ast
     mut state := holyc_prepare_state(program)
@@ -596,6 +620,7 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
     }
 
     f := File.new(output_path, true)
+    f.write(holyc_runtime_prelude())
     if state.needs_i64_div {
         f.write("I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
     }

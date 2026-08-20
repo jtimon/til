@@ -64,6 +64,35 @@
   ~TempleosX86~ target is excluded from ~target_is_32bit~, so UPtr is U64.
   The project-wide USize default can remain U32 independently of UPtr.
 
+*** HolyC ABI and runtime contract
+
+  ~src/holyc/ext.HC~ is the TempleOS-native external boundary. Generated
+  programs include it from the fixed guest path ~/Home/Ext.HC~; host and CI
+  packaging must inject that file beside the generated program. The ABI is:
+
+  - I8/U8, I16/U16, I32/U32, I64/U64 and Bool have their HolyC widths and are
+    passed and returned by value. UPtr and all raw addresses are 64-bit. The
+    source-level USize alias remains U32 by default.
+  - Raw pointers cross the boundary as ~U8 *~ values. Ownership changes do not
+    add pointer indirection: ~TilFree~ consumes a pointer value. A slot load is
+    the explicit exception and uses ~U8 **~ through ~TilDeref~.
+  - Raw byte counts use U64/UPtr semantics. TempleOS primitives accept signed
+    I64 counts, so the boundary rejects values above ~I64_MAX~ and allocation
+    multiplication overflow rather than wrapping them.
+  - ~TilMAlloc~, ~TilCAlloc~, and ~TilFree~ wrap TempleOS ~MAlloc~, ~CAlloc~,
+    and ~Free~. ~TilFree(NULL)~ and zero-length memory operations are valid.
+  - ~TilMemCpy~, ~TilMemMove~, ~TilMemSet~, and ~TilMemCmp~ preserve counted
+    memory semantics. ~TilMemMove~ handles overlap in both directions because
+    TempleOS ~MemCpy~ only copies forward; memset stores the low byte; memcmp
+    preserves negative/zero/positive results.
+  - ~TilRawWrite~ emits counted bytes without treating them as a format or
+    requiring NUL termination. ~TilPanic~ emits counted bytes and throws the
+    catchable TempleOS exception ~'TILPANIC'~. Null dereferences emit exactly
+    ~panic: null deref\n~ and throw that same exception.
+  - The runtime's presence does not make Til Dynamic/pointer expressions
+    representable. Those ext_func calls remain explicit codegen errors until
+    pointer declarations and lowering are implemented.
+
 *** Incremental plan
 
   - [X] Extract C emission, C ABI bindings, and C-only emit reachability
@@ -92,7 +121,7 @@
   - [ ] Walk all user units and support direct calls across imports. Keep
     backend-specific support roots separate from the C ~ext.c~ roots and its
     C-only emit reachability inventory.
-  - [ ] Define and pin the HolyC ABI/runtime contract: UPtr/USize widths,
+  - [X] Define and pin the HolyC ABI/runtime contract: UPtr/USize widths,
     value versus pointer parameters and returns, null-deref/panic behavior,
     and TempleOS wrappers for ~MAlloc~, ~CAlloc~, ~Free~, raw memory, and raw
     output.
@@ -152,6 +181,17 @@
   unsigned overflow, shifts, Bool, div/mod by zero and nonzero divisors,
   comparisons, bitwise operations, and nested calls. TempleOS 5.03 compiled
   and ran the generated file under QEMU TCG and reported ~TILTEST:PASS~.
+
+  The sixth slice adds ~src/holyc/ext.HC~, installs it with compiler support,
+  and makes every generated program include its fixed guest path. The runtime
+  wraps allocation, counted and overlap-safe raw memory, counted output,
+  pointer checks, and catchable panic/null-deref behavior under the contract
+  above. Til-level pointer calls remain unsupported until Dynamic lowering is
+  implemented. TempleOS 5.03 passed a direct boundary probe covering widths,
+  allocation, zeroing, copy/compare, both overlap directions, low-byte memset,
+  null-free, counted output, slot dereference, panic, and null dereference;
+  the generated scalar corpus also reported ~TILTEST:PASS~ with the runtime
+  prelude and include in place.
 
 *** QEMU validation
 

@@ -682,6 +682,8 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/jvm"), format(dst_root, "/src/jvm"), "install compiler JVM sources")
     if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/holyc"), format(dst_root, "/src/holyc"), "install compiler HolyC sources")
+    if rc != 0 { return rc }
     rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
     if rc != 0 { return rc }
     // What `mode gui` stands on (issue #348). src/modes/gui.til imports

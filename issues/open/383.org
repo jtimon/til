@@ -47,3 +47,10 @@ explicitly rather than acquire silent substitutes.
     fixtures live, and define when they are removed.
   - [ ] Update active backend issues to reference these conventions before
     their runtime or conformance harness grows further.
+
+*** Progress
+
+  The TempleOS backend now uses ~src/holyc/ext.HC~ as its native boundary and
+  documents the concrete ABI in #151. Its generated source includes the fixed
+  guest path ~/Home/Ext.HC~; the runtime source remains separate support
+  input, analogous to ~ext.c~, rather than copied into generated output.
