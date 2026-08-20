@@ -9003,6 +9003,21 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, mut ctx: Context
             }
         }
         if shadowed_by_func { continue }
+        // #326: an ext decl has no body -- it names a symbol some other
+        // object file defines -- so it is never an entry point, and the
+        // prototype is worth writing only when the emitted C calls it. The
+        // site inventory answers exactly that: its walk records bare
+        // callees by plain name and skips the bodies the emit gates drop.
+        // The scavenger cannot answer it, and must not: `*.size` is one of
+        // its unconditional roots (a runtime-name edge no static walk sees,
+        // kept for every backend), so a generated library binding's
+        // `Type.size` wrapper survives there while
+        // builder_size_method_omitted drops it here -- which left five
+        // `..._size` prototypes in test/library_namespace_consumer.c that
+        // nothing defined and nothing called.
+        if ctx.builder_keep_all_exports.not() {
+            if ctx.builder_ns_member_sites.has(dd.name).not() { continue }
+        }
         if fd.sig.return_type.len() > 0 {
             mut rt := ""
             if func_returns_c_value(fd) { rt = type_name_to_c_value(fd.sig.return_type, ctx) }
@@ -9340,7 +9355,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
 
     emit_all_forward_declarations(f, mode, lp)
 
-    f.write("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
+    f.write(c_macro_deref_def())
 
     // #361: a boxed value always gets at least a WORD, however narrow its type
     // is. A value crossing into a Dynamic slot is copied at Dynamic's width --
@@ -9350,7 +9365,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     // is far larger, but UB that ASAN reports as soon as such a value reaches
     // a container of Dynamic. The slack is never interpreted: readers load at
     // the value's own width.
-    f.write("#define TIL_BOX(T) (sizeof(T) < sizeof(void *) ? sizeof(void *) : sizeof(T))\n")
+    f.write(c_macro_box_def())
 
     // Issue #343: `Str` is pointer + count and a C string parameter reads to
     // a NUL, so the two only line up when the byte at c_str[count] IS one.
@@ -9440,6 +9455,51 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     return 0
 }
 
+// #326: the preamble's two macro definitions, written from one place so
+// the emitter above and the sweep below cannot disagree about the text.
+priv c_macro_deref_def := func() returns Str {
+    return "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n"
+}
+priv c_macro_box_def := func() returns Str {
+    return "#define TIL_BOX(T) (sizeof(T) < sizeof(void *) ? sizeof(void *) : sizeof(T))\n"
+}
+
+// True when `token` is spelled somewhere BESIDES its own definition -- the
+// definition itself contains the one occurrence every output has.
+priv c_macro_used_elsewhere := func(src: Str, token: Str) returns Bool {
+    at := src.find(token)
+    if at < 0 { return false }
+    after := at.to_usize() + token.len()
+    return src.substr(after, src.len() - after).contains(token)
+}
+
+// #326: DEREF and TIL_BOX are spelled by the emitters themselves, from
+// decisions that only exist while a function is being emitted -- emit_arg
+// boxes an `own` argument only after consulting that function's stack
+// locals and value params, and half the corpus's boxing outputs box there
+// and nowhere else. A pre-pass over the AST could only predict them by
+// reimplementing that decision, and the second implementation would drift
+// from the first. The finished text is the authority instead: a definition
+// whose macro appears nowhere else is dropped. The rewrite runs only when
+// there is something to drop, which is never the case for the big outputs
+// (til's own .c uses both).
+priv c_drop_unused_macros := proc(c_path: Str) {
+    src := File.readfile(c_path)
+    box_used := c_macro_used_elsewhere(src, "TIL_BOX(")
+    deref_used := c_macro_used_elsewhere(src, "DEREF(")
+    if box_used.and(deref_used) { return }
+    if box_used {
+        File.writefile(c_path, src.replace(c_macro_deref_def(), ""))
+        return
+    }
+    dropped_box := src.replace(c_macro_box_def(), "")
+    if deref_used {
+        File.writefile(c_path, dropped_box)
+        return
+    }
+    File.writefile(c_path, dropped_box.replace(c_macro_deref_def(), ""))
+}
+
 c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, do_lib: Bool) returns I32 {
     builder_prepare_emit(lp)
     mut result := build_forward_header_lp(fwd_path, lp)
@@ -9448,6 +9508,7 @@ c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path
     }
     if result == 0 {
         result = build(lp.cur_mode, lp.run_tests, c_path, lp)
+        if result == 0 { c_drop_unused_macros(c_path) }
     }
     if result.eq(0).and(do_lib) {
         result = build_header_lp(h_path, lp)

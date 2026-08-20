@@ -1517,6 +1517,18 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/first_class_fd.c test/first_class.til '&&' cat gen/c/first_class_fd.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,
         format(til_bin, " translate -c gen/c/first_class_attrs.c test/first_class.til '&&' cat gen/c/first_class_attrs.c"))
+    // Issue #326: the preamble's macro definitions are swept the same way its
+    // functions and globals are. A program that never boxes a value on the
+    // heap -- 128 of the corpus's 250 outputs -- got the TIL_BOX definition
+    // anyway.
+    add_count(tests, "hello_cli_no_dead_box_macro", "build", "#define TIL_BOX", 0,
+        format(til_bin, " translate -c gen/c/hello_box.c examples/hello_cli.til '&&' cat gen/c/hello_box.c"))
+    // ...and the macro it DOES spell stays defined, in the same output.
+    add_count(tests, "hello_cli_keeps_deref_macro", "build", "#define DEREF", 1,
+        format(til_bin, " translate -c gen/c/hello_deref.c examples/hello_cli.til '&&' cat gen/c/hello_deref.c"))
+    // A boxing program keeps both.
+    add_count(tests, "enums_keeps_box_macro", "build", "#define TIL_BOX", 1,
+        format(til_bin, " translate -c gen/c/enums_box.c test/enums.til '&&' cat gen/c/enums_box.c"))
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the

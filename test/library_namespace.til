@@ -74,9 +74,22 @@ main := proc() {
         "-Wl,-rpath,gen/lib", "-lm", "-o", "tmp/library_namespace_shared").run_checked()
     Cmd.new("tmp/library_namespace_shared").run_checked()
 
-    consumer := Cmd.new("bin/til", "run", "test/library_namespace_consumer.til")
+    consumer := Cmd.new("bin/til", "run", "-c", "gen/c/library_namespace_consumer.c",
+                        "test/library_namespace_consumer.til")
     consumer.env("LIBRARY_PATH", "gen/lib")
     consumer.env("LD_LIBRARY_PATH", "gen/lib")
     consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
     consumer.run_checked()
+
+    // Issue #326: the scavenger roots `*.size` unconditionally -- get_elem_size
+    // builds that call from a type name it only learns at runtime -- so a
+    // generated binding's `BindingRef.size` wrapper survives the sweep. The C
+    // emitter drops the wrapper (nothing calls it), and the ext prototype its
+    // body referenced has to go with it: five `..._size` symbols were declared
+    // here with nothing defining and nothing calling them.
+    consumer_c := File.readfile("gen/c/library_namespace_consumer.c")
+    require_absent(consumer_c, "_BindingRef_size(void);")
+    require_absent(consumer_c, "_BindingPoint_size(void);")
+    // ...while the binding call the consumer DOES reach keeps its prototype.
+    require_contains(consumer_c, "_BindingPoint_delete(BindingPoint *, Bool);")
 }
