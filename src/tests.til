@@ -687,10 +687,11 @@ main := proc(args: ..Str) {
         "proc has no proc/ext_proc calls; should be a func", 1,
         format(til_bin, " interpret test/proc_without_proc_call.til"))
 
-    // #375 Stages B-E: JVM owns a distinct Java output tree, emits the lowered
-    // entrypoint, scalar slots, aggregate classes and virtual-heap calls, and
-    // rejects C-only flags. None invokes a JDK, so the default suite remains
-    // JDK-free; the CLI pairs pin the same corpora on interpreter/C.
+    // #375 Stages B-F: JVM owns a distinct Java output tree, emits the lowered
+    // entrypoint, scalar slots, aggregate classes, virtual-heap calls and typed
+    // function carriers, and rejects C-only flags. None invokes a JDK, so the
+    // default suite remains JDK-free; the CLI pairs pin the same corpora on
+    // interpreter/C.
     add_single(tests, "jvm_skeleton", "build", 0, "test/jvm_skeleton.expected",
         format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/hello_script/src/til/generated/p_hello_x5fscript/Main.java ')'"))
     add_count(tests, "jvm_sources_include_runtime", "build", "src/jvm/TilRuntime.java", 1,
@@ -707,6 +708,10 @@ main := proc(args: ..Str) {
         format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/S_p_JvmPoint.java ')'"))
     add_count(tests, "jvm_stage_e_heap_source", "build", "TilRuntime.ptrAdd", 3,
         format("'(' ", til_bin, " translate --target=jvm test/script_raw_alloc.til '&&' cat gen/jvm/script_raw_alloc/src/til/generated/p_script_x5fraw_x5falloc/Main.java ')'"))
+    add_cli_pair(tests, "jvm_stage_f", "test/jvm_stage_f.til", "", 0,
+        "test/jvm_stage_f.expected", til_bin, asan_flag)
+    add_count(tests, "jvm_stage_f_funcsig_source", "build", "@FunctionalInterface", 3,
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_f.til '&&' cat gen/jvm/jvm_stage_f/src/til/generated/p_jvm_x5fstage_x5ff/F_*.java ')'"))
     add_count(tests, "jvm_rejects_c_path", "build", "error: -c is not supported with --target=jvm", 1,
         format(til_bin, " translate --target=jvm -c gen/jvm/nope.java examples/hello_script.til"))
     add_count(tests, "jvm_rejects_cc", "build", "error: --cc is not supported with --target=jvm", 1,

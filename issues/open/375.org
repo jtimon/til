@@ -412,6 +412,20 @@ remains open rather than claiming that corpus early.
   - Run ~test/fn_ptr.til~, ~test/closures.til~, ~test/first_class.til~,
     ~test/dynamic.til~ and the reflection tests under interpreter, C and JVM.
 
+Function-carrier progress 2026-08-20: the emitter now generates one structural
+Java functional interface per concrete FuncSig, uses static method references
+for noncapturing values, emits capturing FuncDefs as Java closure environments,
+checks indirect calls through the typed ~invoke~ path, and tracks explicit
+closure release state. FuncSig fields and enum payloads use the same carrier;
+enum values expose backend-neutral tag/payload/name metadata used by switches
+and the first ~Type~ descriptor operation. The complete ~test/fn_ptr.til~ now
+translates and compiles warning-free with Java 17, while
+~test/jvm_stage_f.til~ produces identical interpreter, native C and verified
+JVM output for aliases, reassignment, mut parameters, aggregate fields, enum
+payload dispatch and an escaping captured closure. Body values, complete
+capture-mode/shadowing support, Dynamic dispatch and reflection introspection
+remain in Stage F.
+
 **** Stage G: runtime breadth and suite burn-down
 
   - Implement standard Java versions of reachable filesystem, process, clock,

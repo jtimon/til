@@ -1164,6 +1164,7 @@ typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
     Set__Str cells;
     Map__Str_Str cell_types;
     Set__Str raw_refs;
+    Map__Str_Str callable_defs;
     Bool return_cell;
 } priv___src_self_jvm_codegen_til__JvmEmitState;
 

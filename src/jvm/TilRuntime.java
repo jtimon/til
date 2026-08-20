@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 public final class TilRuntime {
     private TilRuntime() {}
@@ -57,6 +58,69 @@ public final class TilRuntime {
     public interface F64Slot { double getF64(); void setF64(double value); }
     public interface BoolSlot { boolean getBool(); void setBool(boolean value); }
     public interface StrParts { int length(); Str part(int index); }
+    public interface Closure {}
+    public interface EnumValue {
+        long tilTag();
+        Object tilPayload();
+        String tilVariantName();
+    }
+
+    private static final class ClosureState {
+        private int references = 1;
+        private boolean deleted;
+    }
+
+    private static final Map<Closure, ClosureState> CLOSURES = new WeakHashMap<>();
+
+    private static ClosureState closureState(Closure closure) {
+        return CLOSURES.computeIfAbsent(closure, ignored -> new ClosureState());
+    }
+
+    public static void checkClosure(Closure closure) {
+        if (closureState(closure).deleted) {
+            throw new IllegalStateException("call through deleted closure");
+        }
+    }
+
+    public static <T extends Closure> T retainClosure(T closure) {
+        ClosureState state = closureState(closure);
+        if (state.deleted) { throw new IllegalStateException("retain of deleted closure"); }
+        state.references++;
+        return closure;
+    }
+
+    public static void releaseClosure(Closure closure) {
+        ClosureState state = closureState(closure);
+        if (state.deleted) { throw new IllegalStateException("double closure release"); }
+        state.references--;
+        if (state.references == 0) { state.deleted = true; }
+    }
+
+    public static boolean enumIs(Object value, long tag) {
+        return ((EnumValue) value).tilTag() == tag;
+    }
+
+    public static boolean enumIs(Object value, Object other) {
+        return ((EnumValue) value).tilTag() == ((EnumValue) other).tilTag();
+    }
+
+    public static Object enumPayload(Object value) {
+        return ((EnumValue) value).tilPayload();
+    }
+
+    public static Str dynTypeToStr(EnumValue type) {
+        String variant = type.tilVariantName();
+        Object payload = type.tilPayload();
+        if (variant.equals("Primitive")) {
+            variant = ((EnumValue) payload).tilVariantName();
+        } else if (variant.equals("Struct") || variant.equals("Enum")
+                || variant.equals("Custom") || variant.equals("FuncPtrSig")) {
+            return cloneStr((Str) payload);
+        } else if (variant.equals("FuncPtr") || variant.equals("FuncDef")) {
+            variant = "Fn";
+        }
+        return hostStr(variant);
+    }
 
     public static final class I8Cell implements I8Slot {
         public byte value;
@@ -616,6 +680,16 @@ public final class TilRuntime {
     public static void expect(boolean condition, Str message, Str location) {
         if (!condition) {
             eprint_single(message);
+            System.err.print(" at ");
+            eprint_single(location);
+            System.err.println();
+            throw new AssertionError("til expect failed");
+        }
+    }
+
+    public static void expect(boolean condition, StrParts message, Str location) {
+        if (!condition) {
+            eprint(message);
             System.err.print(" at ");
             eprint_single(location);
             System.err.println();

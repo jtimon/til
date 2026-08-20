@@ -1,0 +1,47 @@
+mode cli
+
+JvmBinary := func(I64, I64) returns I64
+JvmMutator := func(mut I64)
+JvmOffset := func(I64) returns I64
+
+jvm_add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+jvm_mul := func(a: I64, b: I64) returns I64 { return a.mul(b) }
+jvm_apply := func(f: JvmBinary, a: I64, b: I64) returns I64 {
+    return f(a, b)
+}
+jvm_bump := func(mut value: I64) { value = value.add(5) }
+
+JvmHandler := struct { call : JvmBinary = jvm_add }
+JvmAction := enum { Call: JvmBinary, Idle }
+
+jvm_make_offset := func(offset: I64) returns JvmOffset {
+    return func(value: I64) returns I64 [shallow offset] {
+        return value.add(offset)
+    }
+}
+
+main := proc() {
+    mut op : JvmBinary = jvm_add
+    println(op(2, 3).to_str(), " ", jvm_apply(op, 4, 5).to_str())
+    op = jvm_mul
+    println(op(3, 4).to_str())
+
+    mut value := 7
+    mutator : JvmMutator = jvm_bump
+    mutator(value)
+    println(value.to_str())
+
+    handler := JvmHandler(call = jvm_mul)
+    println(handler.call(6, 7).to_str())
+
+    action := JvmAction.Call(jvm_add)
+    switch action {
+    case JvmAction.Call(call):
+        println(call(8, 9).to_str())
+    case:
+        UNREACHABLE()
+    }
+
+    offset := jvm_make_offset(10)
+    println(offset(5).to_str())
+}
