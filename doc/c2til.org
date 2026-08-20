@@ -408,49 +408,38 @@ Direction := enum {
 
 ** Operators
 
-All C operators become method calls in til. No infix operators.
+Most C operators keep their infix spelling in til. The infix forms lower to
+named methods, so the method spelling remains available as well:
 
-| C              | til             |
-|----------------+-----------------|
-| ~a + b~        | ~a.add(b)~      |
-| ~a - b~        | ~a.sub(b)~      |
-| ~a * b~        | ~a.mul(b)~      |
-| ~a / b~        | ~a.div(b)~      |
-| ~a % b~        | ~a.mod(b)~      |
-| ~-a~           | ~a.neg()~       |
-| ~a == b~       | ~a.eq(b)~       |
-| ~a != b~       | ~a.neq(b)~      |
-| ~a < b~        | ~a.lt(b)~       |
-| ~a <= b~       | ~a.lte(b)~      |
-| ~a > b~        | ~a.gt(b)~       |
-| ~a >= b~       | ~a.gte(b)~      |
-| ~a && b~       | nested ~if~ preserving short-circuit |
-| ~a \vert\vert b~ | nested ~if~ preserving short-circuit |
-| ~!a~           | ~a.not()~       |
-| ~a & b~        | ~a.and(b)~      |
-| ~a \vert b~    | ~a.or(b)~       |
-| ~a ^ b~        | ~a.xor(b)~      |
-| ~x++~          | ~x = x.add(1)~  |
-| ~x += n~       | ~x = x.add(n)~  |
+| C                | direct til        | method form       |
+|------------------+-------------------+-------------------|
+| ~a + b~          | ~a + b~           | ~a.add(b)~        |
+| ~a - b~          | ~a - b~           | ~a.sub(b)~        |
+| ~a * b~          | ~a * b~           | ~a.mul(b)~        |
+| ~a / b~          | ~a / b~           | ~a.div(b)~        |
+| ~a % b~          | ~a % b~           | ~a.mod(b)~        |
+| ~-a~             | ~-a~              | ~a.neg()~         |
+| ~a == b~         | ~a == b~          | ~a.eq(b)~         |
+| ~a != b~         | ~a != b~          | ~a.neq(b)~        |
+| ~a < b~          | ~a < b~           | ~a.lt(b)~         |
+| ~a <= b~         | ~a <= b~          | ~a.lte(b)~        |
+| ~a > b~          | ~a > b~           | ~a.gt(b)~         |
+| ~a >= b~         | ~a >= b~          | ~a.gte(b)~        |
+| ~a && b~         | ~a && b~          | ~a.and(b)~        |
+| ~a \vert\vert b~ | ~a \vert\vert b~ | ~a.or(b)~         |
+| ~!a~             | ~!a~              | ~a.not()~         |
+| ~a & b~          | ~a & b~           | ~a.band(b)~       |
+| ~a \vert b~      | ~a \vert b~       | ~a.bor(b)~        |
+| ~a ^ b~          | ~a ^ b~           | ~a.bxor(b)~       |
+| ~x++~            | ~x++~             | ~x = x.add(1)~    |
+| ~x += n~         | ~x = x + n~       | ~x = x.add(n)~    |
 
-Important: Bool ~and~ / ~or~ do *not* short-circuit today.
-For mechanical C translation, do not rewrite ~&&~ / ~||~ blindly to
-~.and(...)~ / ~.or(...)~ when the RHS may dereference null, call a proc,
-or otherwise depend on C evaluation order. Use nested ~if~ statements
-instead. See issue ~#117~.
+Both ~&&~ / ~||~ and their ~.and(...)~ / ~.or(...)~ method forms
+short-circuit. A direct translation therefore preserves C evaluation order
+when the right operand performs work or depends on the left condition.
 
-Common pitfall: ~e.child_count().gt(0).and(e.child(0).data.eq(...))~
-will panic on empty children because ~.and()~ evaluates both sides.
-Use nested ~if~ instead:
-
-#+begin_src til
-if e.child_count().gt(0) {
-    if is_variant(e.child(0).data, NodeType.FuncDef) { ... }
-}
-#+end_src
-
-Bitwise ~and~, ~or~ and boolean ~and~, ~or~ still use the same method
-names on different types (I64 vs Bool).
+Unary minus on a non-literal lowers to ~neg~. The float types do not currently
+provide that method, so translate ~-f~ for a float variable as ~0 - f~.
 
 ** Control Flow
 

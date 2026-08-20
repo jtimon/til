@@ -39,11 +39,12 @@ Use ~break~ to leave a loop and ~continue~ to begin its next iteration.
 
 ~for~ iterates over ranges and other iterable values. A range excludes its end:
 
-#+begin_src til
+#+begin_src til :doctest
 mut total := 0
 for n in 1..5 {
     total = total + n
 }
+assert_eq(I64, total, 10)
 #+end_src
 
 This adds 1, 2, 3, and 4. Descending ranges work as well. Collection iteration
@@ -78,13 +79,14 @@ Save it as ~fizzbuzz.til~ and run ~til fizzbuzz.til~. The repository also has
 ~switch~ compares one subject against cases. The first matching case runs, and
 ~case:~ is the default:
 
-#+begin_src til
+#+begin_src til :doctest
 mut label := ""
 switch 5 {
 case 0: label = "zero"
 case 1..9: label = "digit"
 case: label = "larger"
 }
+assert_eq(Str, label, "digit")
 #+end_src
 
 A range used as a case pattern includes both endpoints, unlike an iteration
@@ -103,13 +105,14 @@ case: println("other")
 ~match~ uses the same case syntax but produces a value. Every possible input
 must be covered:
 
-#+begin_src til
+#+begin_src til :doctest
 score := 7
 label := match score {
 case 0: "none"
 case 1..9: "some"
 case: "many"
 }
+assert_eq(Str, label, "some")
 #+end_src
 
 Enums make exhaustive ~switch~ and ~match~ especially useful; chapter 6 shows

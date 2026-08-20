@@ -16,17 +16,19 @@ to avoid re-discovering the same things.
   instead of ~format~ when in a ~proc~, or test it first.
 
 ** til operators and desugaring
-- ~x / y~ desugars to ~x.div(y)~ via UFCS.  F32 division works:
-  ~1.to_f32() / 2~ == 0.5.
-- ~1 / 2~ with both I64 stays I64 (integer division -> 0).
-- Unary ~-~ desugars to ~.neg()~.  F32 has no ~.neg~ method, so ~-floor_half~
-  does not work.  Use ~0 - x~ instead.
+- Arithmetic and comparison operators lower to their UFCS methods: for
+  example, ~x / y~ becomes ~x.div(y)~ and ~x < y~ becomes ~x.lt(y)~.
+- Bare ~1 / 2~ uses its inferred ~I64~ type and produces 0. A floating-point
+  context such as ~half : F32 = 1 / 2~ produces 0.5.
+- Unary ~-~ on a non-literal desugars to ~.neg()~. F32 and F64 have no ~neg~
+  method, so use ~0 - x~ for a float variable.
 - ~<~, ~>~, ~<=~, ~>=~ desugar to ~.lt()~, ~.gt()~, etc.
 - ~x | y~ is bitwise OR (for U32 flags like ~FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED~).
+- ~&&~ / ~||~ and the equivalent ~.and()~ / ~.or()~ forms short-circuit.
 
 ** til float literals
-- There are no float literals like ~0.5~.  Use ~1.to_f32() / 2.to_f32()~ instead.
-- ~0.5.to_f32()~ panics at build time (~Str.to_i64: invalid char in '0.5'~).
+- Fractional and exponent literals such as ~0.5~ and ~1.5e3~ default to F32.
+- A typed context can select F64 instead: ~precise : F64 = 0.5~.
 
 ** Struct fields and mutation
 - Struct fields CAN be mutated: ~camera.position.x = new_x~ works.
@@ -99,8 +101,9 @@ to avoid re-discovering the same things.
   ~doc/gen/*.org~ by ~make doc~, and REPL ~help()~ loads those files on
   demand; it is not embedded in ~boot/til.c~. Adding or removing physical
   lines can still update embedded ~__LOC__~ line numbers when the compiler
-  is rebuilt. A change to a ~:doctest~ block also requires ~make test~ because
-  the suite extracts and executes those blocks.
+  is rebuilt. A change to a ~:doctest~ block in source documentation or under
+  ~doc/tutorial/~ also requires ~make test~ because the suite extracts and
+  executes those blocks.
 - *Source change*: any code change to ~.til~ files. Always requires
   ~make clean && make test~ + ASAN before committing.
 - File change to ~test/repl_help.til~ or ~src/tests.til~ that only

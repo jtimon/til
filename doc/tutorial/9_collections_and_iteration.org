@@ -7,18 +7,21 @@ the same method, indexing, and iteration conventions as user-defined types.
 
 ~array~ creates a fixed collection. ~vec~ creates a growable ~Vec~:
 
-#+begin_src til
+#+begin_src til :doctest
 fixed := array(I64, 10, 20, 30)
 mut numbers := vec(I64, 10, 20)
 numbers.push(own 30)
+assert_eq(I64, fixed[0], 10)
+assert_eq(USize, numbers.len(), 3)
 #+end_src
 
 The explicit constructor is useful when starting empty:
 
-#+begin_src til
+#+begin_src til :doctest
 mut names := Vec(Str).new()
 names.push(own "Ada")
 names.push(own "Grace")
+assert_eq(USize, names.len(), 2)
 #+end_src
 
 ~push~ takes ownership of its new element, which is why the call says ~own~.
@@ -55,17 +58,19 @@ The element type is usually inferred, so ~for n in numbers~ is equivalent.
 
 A map literal infers its key and value types:
 
-#+begin_src til
+#+begin_src til :doctest
 scores := {"Ada": 10, "Grace": 12}
-ada_score := scores["Ada"]
+ref ada_score : I64 = scores["Ada"]
+assert_eq(I64, ada_score, 10)
 #+end_src
 
 Use ~Map(K, V).new()~ when building a map incrementally:
 
-#+begin_src til
+#+begin_src til :doctest
 mut scores := Map(Str, I64).new()
 scores.set("Ada", own 10)
 scores.set("Grace", own 12)
+assert_eq(USize, scores.len(), 2)
 #+end_src
 
 Map iteration can bind both key and value:

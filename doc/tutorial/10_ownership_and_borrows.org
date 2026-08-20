@@ -8,7 +8,7 @@ borrows, or takes ownership of an argument.
 
 A plain parameter borrows its argument read-only:
 
-#+begin_src til
+#+begin_src til :doctest
 display := proc(text: Str) {
     println(text)
 }
@@ -25,12 +25,13 @@ though they require no destruction.
 
 ~mut~ permits writes through a borrow without transferring ownership:
 
-#+begin_src til
+#+begin_src til :doctest
 append_mark := func(mut text: Str) {
     text.push_str("!")
 }
 
-mut greeting := format("hello")
+mut greeting := Str.with_capacity(6)
+greeting.push_str("hello")
 append_mark(greeting)
 #+end_src
 
@@ -40,13 +41,14 @@ The source binding must be mutable, and the caller continues to own it.
 
 ~own~ moves responsibility to the callee:
 
-#+begin_src til
+#+begin_src til :doctest
 consume := func(own text: Str) returns USize {
     return text.len()
 }
 
 name := format("Ada")
 size := consume(own name)
+assert_eq(USize, size, 3)
 #+end_src
 
 Using ~name~ after that call is a compile error. The callee destroys the value
@@ -67,7 +69,7 @@ display(name)
 ~ref~ declares an explicit borrowed local, field, or return. Indexing a vector
 provides a common example:
 
-#+begin_src til
+#+begin_src til :doctest
 names := vec(Str, "Ada", "Grace")
 ref first : Str = names[0]
 println(first)

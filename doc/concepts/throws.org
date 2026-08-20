@@ -256,22 +256,6 @@ lives, and step-by-step recipes for adding more throwing methods.
 
 ** Pitfalls
 
-   *** ~.and()~ is not short-circuit
-
-   ~Bool.and~ is an ~ext_func~, not a short-circuit operator -- both
-   sides evaluate before the call. A null check followed by a field
-   read in the same ~.and()~ derefs through the null pointer:
-
-   #+begin_src til
-   // WRONG: dereferences fb.func_def when fb is null
-   if is_null(fb).not().and(is_null(fb.func_def).not()) { ... }
-
-   // RIGHT: split into nested ~if~
-   if is_null(fb).not() {
-       if is_null(fb.func_def).not() { ... }
-   }
-   #+end_src
-
    *** Case-binding payload types and the FCall-return-type extension
 
    The throws lookup needs to know the type of a receiver in

@@ -7,12 +7,13 @@ Both forms use name-first syntax.
 
 A ~func~ computes without undeclared external effects:
 
-#+begin_src til
+#+begin_src til :doctest
 double := func(n: I64) returns I64 {
     return n * 2
 }
 
 answer := double(21)
+assert_eq(I64, answer, 42)
 #+end_src
 
 Parameters require types. Use ~returns Type~ when the callable returns a value.
@@ -38,7 +39,7 @@ performs no procedural operation should be a function.
 
 A parameter can provide a default value. Calls may name arguments:
 
-#+begin_src til
+#+begin_src til :doctest
 clamp_low := func(value: I64, minimum: I64 = 0) returns I64 {
     if value < minimum { return minimum }
     return value
@@ -46,6 +47,8 @@ clamp_low := func(value: I64, minimum: I64 = 0) returns I64 {
 
 a := clamp_low(-3)
 b := clamp_low(value = 2, minimum = 5)
+assert_eq(I64, a, 0)
+assert_eq(I64, b, 5)
 #+end_src
 
 Named arguments are also used by struct constructors, where they identify
@@ -56,13 +59,14 @@ fields rather than parameters.
 A ~mut~ parameter is a mutable borrow. Mutation is part of the signature, so it
 does not make the callable a procedure:
 
-#+begin_src til
+#+begin_src til :doctest
 advance := func(mut value: I64, by: I64 = 1) {
     value = value + by
 }
 
 mut position := 10
 advance(position, by = 5)
+assert_eq(I64, position, 15)
 #+end_src
 
 The caller must pass a mutable value to a ~mut~ parameter. Ownership transfer

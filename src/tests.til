@@ -100,7 +100,8 @@ doc_test_next_line_pos := func(body: Str, line_end: USize) returns USize {
     return line_end + 1
 }
 
-doc_test_comment_text := func(line: Str, path: Str) returns Str {
+doc_test_block_text := func(line: Str, path: Str, source_comment: Bool) returns Str {
+    if source_comment.not() { return line.clone() }
     trimmed := line.trim()
     if trimmed.starts_with("///").not() { panic("unterminated doctest block in ", path) }
     mut text := trimmed.strip_prefix("///").clone()
@@ -108,37 +109,32 @@ doc_test_comment_text := func(line: Str, path: Str) returns Str {
     return text
 }
 
-doc_test_is_doctest_begin := func(line: Str) returns Bool {
-    trimmed := line.trim()
-    if trimmed.starts_with("///").not() { return false }
-    text := doc_test_comment_text(line, "<doc-test>")
+doc_test_is_doctest_begin := func(line: Str, source_comment: Bool) returns Bool {
+    if source_comment.and(line.trim().starts_with("///").not()) { return false }
+    text := doc_test_block_text(line, "<doc-test>", source_comment)
     return text.trim().starts_with("#+begin_src").and(text.contains(":doctest"))
 }
 
-append_source_doc_doctests := func(mut out: Str, path: Str, source: Str, count: USize) returns USize {
+append_doc_doctests := func(mut out: Str, path: Str, source: Str, count: USize, source_comment: Bool) returns USize {
     mut next_count := count
     mut pos : USize = 0
     mut line_number : USize = 1
     while pos < source.len() {
         line_end := doc_test_line_end(source, pos)
         line := source.substr(pos, line_end - pos)
-        if doc_test_is_doctest_begin(line) {
+        if doc_test_is_doctest_begin(line, source_comment) {
             block_line := line_number
             loc := format(path, ":", block_line.to_str())
             pos = doc_test_next_line_pos(source, line_end)
             line_number++
-            out.push_str("// doctest source: ")
-            out.push_str(loc)
-            out.push_str("\n")
-            out.push_str("doctest_")
-            out.push_str(next_count.to_str())
-            out.push_str(" := test() {\n")
+            out = format(out, "// doctest source: ", loc, "\ndoctest_",
+                         next_count.to_str(), " := test() {\n")
             mut found_end := false
             mut has_body := false
             while pos < source.len() {
                 src_line_end := doc_test_line_end(source, pos)
                 src_line := source.substr(pos, src_line_end - pos)
-                body_line := doc_test_comment_text(src_line, loc)
+                body_line := doc_test_block_text(src_line, loc, source_comment)
                 if body_line.trim().starts_with("#+end_src") {
                     found_end = true
                     pos = doc_test_next_line_pos(source, src_line_end)
@@ -146,14 +142,13 @@ append_source_doc_doctests := func(mut out: Str, path: Str, source: Str, count: 
                     break
                 }
                 if body_line.trim().is_empty().not() { has_body = true }
-                out.push_str(body_line)
-                out.push_str("\n")
+                out = format(out, body_line, "\n")
                 pos = doc_test_next_line_pos(source, src_line_end)
                 line_number++
             }
             if found_end.not() { panic("unterminated doctest block in ", loc) }
             if has_body.not() { panic("empty doctest block in ", loc) }
-            out.push_str("}\n\n")
+            out = format(out, "}\n\n")
             next_count++
             continue
         }
@@ -165,8 +160,8 @@ append_source_doc_doctests := func(mut out: Str, path: Str, source: Str, count: 
 
 append_tracked_doc_doctests := proc(mut out: Str) returns USize {
     mut listing := ""
-    result := run_cmd(listing, "git", "ls-files", "src/core/*.til", "src/std/*.til", "src/self/*.til", "src/modes/*.til", "src/til.til", "examples/lib/*.til", "vendor/bindings/*.til")
-    if result != 0 { panic("failed to list documented til sources") }
+    result := run_cmd(listing, "git", "ls-files", "src/core/*.til", "src/std/*.til", "src/self/*.til", "src/modes/*.til", "src/til.til", "examples/lib/*.til", "vendor/bindings/*.til", "doc/tutorial/*.org")
+    if result != 0 { panic("failed to list documented sources") }
     mut count : USize = 0
     mut pos : USize = 0
     while pos < listing.len() {
@@ -174,7 +169,7 @@ append_tracked_doc_doctests := proc(mut out: Str) returns USize {
         path := listing.substr(pos, line_end - pos).trim()
         if path.is_empty().not() {
             source := File.readfile(path)
-            count = append_source_doc_doctests(out, path, source, count)
+            count = append_doc_doctests(out, path, source, count, path.ends_with(".til"))
         }
         pos = doc_test_next_line_pos(listing, line_end)
     }
@@ -182,14 +177,16 @@ append_tracked_doc_doctests := proc(mut out: Str) returns USize {
 }
 
 write_doc_doctests := proc(out_path: Str) {
-    mut regression := Str.with_capacity(256)
-    regression_count := append_source_doc_doctests(regression, "test/doc_fixture.til", "/// #+begin_src til :doctest\n/// assert(true)\n/// #+end_src\n", 0)
+    mut regression := ""
+    mut regression_count := append_doc_doctests(regression, "test/doc_fixture.til", "/// #+begin_src til :doctest\n/// assert(true)\n/// #+end_src\n", 0, true)
     if regression_count != 1 { panic("doctest extraction regression: wrong count") }
     if regression.contains("// doctest source: test/doc_fixture.til:1").not() { panic("doctest extraction regression: missing source location") }
     if regression.contains("assert(true)").not() { panic("doctest extraction regression: missing body") }
+    regression_count = append_doc_doctests(regression, "doc/tutorial/fixture.org", "#+begin_src til :doctest\nassert(true)\n#+end_src\n", regression_count, false)
+    if regression_count != 2 { panic("org doctest extraction regression: wrong count") }
+    if regression.contains("// doctest source: doc/tutorial/fixture.org:1").not() { panic("org doctest extraction regression: missing source location") }
 
-    mut out := Str.with_capacity(4096)
-    out.push_str("mode test\n\n")
+    mut out := "mode test\n\n"
     count := append_tracked_doc_doctests(out)
     if count == 0 { panic("no doc doctests found") }
     File.writefile(out_path, out)

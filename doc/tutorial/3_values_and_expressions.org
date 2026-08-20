@@ -14,23 +14,32 @@ declaration needs an explicit type.
 
 The common literal forms infer useful defaults:
 
-#+begin_src til
+#+begin_src til :doctest
 answer := 42          // I64
 ratio := 1.5          // F32
 enabled := true       // Bool
 message := "hello"    // Str
 letter := 'A'         // U8
+assert_eq(I64, answer, 42)
+assert_eq(F32, ratio, 1.5)
+assert(enabled)
+assert_eq(Str, message, "hello")
+assert_eq(U8, letter, 'A')
 #+end_src
 
 Integer literals default to ~I64~. Fractional and exponent forms default to
 ~F32~. A surrounding declaration, parameter, return, or field type can instead
 give a numeric literal its type:
 
-#+begin_src til
+#+begin_src til :doctest
 small : U8 = 42
 wide : U64 = 42
 precise : F64 = 1.5
 half : F32 = 1 / 2
+assert_eq(U8, small, 42)
+assert_eq(U64, wide, 42)
+assert_eq(F64, precise, 1.5)
+assert_eq(F32, half, 0.5)
 #+end_src
 
 Til also provides signed ~I8~ through ~I64~, unsigned ~U8~ through ~U64~,
@@ -41,7 +50,7 @@ Use the type required by the data rather than annotating every local.
 
 Operators are convenient spellings for methods. These pairs are equivalent:
 
-#+begin_src til
+#+begin_src til :doctest
 sum_a := 20 + 22
 sum_b := 20.add(22)
 
@@ -50,6 +59,7 @@ same_b := sum_a.eq(sum_b)
 
 smaller_a := 3 < 5
 smaller_b := 3.lt(5)
+assert(same_a && same_b && smaller_a && smaller_b)
 #+end_src
 
 Arithmetic uses ~+~, ~-~, ~*~, ~/~, and ~%~. Comparisons use ~==~, ~!=~,
@@ -60,9 +70,11 @@ method, such as ~add~, ~mod~, or ~gte~.
 Ordinary precedence rules apply, but parentheses make mixed expressions
 clearer:
 
-#+begin_src til
+#+begin_src til :doctest
 total := 2 + 3 * 4
 grouped := (2 + 3) * 4
+assert_eq(I64, total, 14)
+assert_eq(I64, grouped, 20)
 #+end_src
 
 Division follows the operand type. Bare ~1 / 2~ is integer division, while the
@@ -73,12 +85,13 @@ Division follows the operand type. Bare ~1 / 2~ is integer division, while the
 ~&&~ and ~||~ short-circuit. Their method forms, ~and~ and ~or~, have the same
 lazy behavior, so the right side is evaluated only when needed:
 
-#+begin_src til
+#+begin_src til :doctest
 count := 3
 enabled := true
 valid := count > 0 && enabled
 also_valid := count.gt(0).and(enabled)
 opposite := valid.not()
+assert(valid && also_valid && !opposite)
 #+end_src
 
 This matters when the second expression performs work or requires the first
@@ -86,13 +99,15 @@ condition to hold.
 
 ** Conversion
 
-Numeric conversion is explicit. Named conversions communicate common intent;
-~cast~ handles a direct conversion to a named numeric type:
+Numeric conversion is explicit. Use named conversions for narrowing or a
+signedness change; ~cast~ handles same-size integer reinterpretation and
+same-signedness widening:
 
-#+begin_src til
+#+begin_src til :doctest
 byte : U8 = 65
 code := byte.to_i64()
-unsigned := code.cast(U32)
+unsigned_value := code.to_u32()
+assert_eq(U32, unsigned_value, 65)
 #+end_src
 
 String conversion is also method-based:
@@ -107,10 +122,11 @@ line := format("answer = ", text)
 Local values are immutable by default. Add ~mut~ when a binding will be
 assigned again, then use plain ~=~ for assignment:
 
-#+begin_src til
+#+begin_src til :doctest
 mut count := 0
 count = count + 1
 count++
+assert_eq(I64, count, 2)
 #+end_src
 
 Parameters and namespace declarations are also immutable by default. Struct
