@@ -458,6 +458,182 @@ print_test_result := proc(t: Test) {
     }
 }
 
+// --- Generated-C collision check ---
+//
+// A compiling command writes a .c file, and `-c` decides where: without it
+// the path is gen/til/<basename>.c, derived from the .til. Two rows built
+// from ONE .til therefore share that path, and rows run in parallel -- so
+// one process rewrites the generated C while the other compiles it.
+//
+// The wreckage does not look like a test problem. The reflect rows that hit
+// this reported a function cut in half mid-definition and every symbol after
+// it "declared but never defined": a broken compiler, from a race between
+// two tests. Registration is where it is cheap to notice, so the whole table
+// is checked before anything runs.
+//
+// What is checked is the plain C path and only that. A row carrying
+// `--target=` writes something else entirely (templeos .HC, jvm .java under
+// gen/jvm/), and a row that spells its own -c or -o has already answered the
+// question. Those are skipped rather than guessed at: predicting the
+// artifact of every backend, from a command line, is how a guard starts
+// crying wolf -- the first draft of this one flagged six honest rows.
+
+// The token a shell word carries, minus the quoting the commands add around
+// paths (`'test/x.til'`).
+priv unquoted := func(tok: Str) returns Str {
+    // Trim by index and clone ONCE. Reassigning `t = t.substr(..)` drops the
+    // buffer the view it just made points into -- the first draft did, and
+    // reported collisions between two files whose names were freed memory.
+    mut start : USize = 0
+    mut end : USize = tok.len()
+    if tok.starts_with("'") { start = 1 }
+    if end.gt(start).and(tok.ends_with("'")) { end = end - 1 }
+    return tok.substr(start, end - start).clone()
+}
+
+// A row that asserts the compiler REFUSED writes no C: mode rejections
+// ("mode theme does not support 'build'", "cannot run a library") are
+// answered before codegen, so such a row cannot collide with anything and
+// must not be paired. The runner spec in front of the `--` says so: a
+// `single` row carries its expected exit, and a `count` row asserting an
+// "error:" needle is asserting a refusal. This is the one judgement call in
+// the check -- a row that asserts an error AND still writes C would be
+// skipped -- and it is what keeps the check from flagging three honest rows
+// that cannot be fixed by spelling -c (the theme one is rejected for
+// carrying -c at all).
+priv row_expects_refusal := func(cmd: Str) returns Bool {
+    pos := cmd.find(" -- ")
+    if pos < 0 { return false }
+    spec := cmd.substr(0, pos.to_usize())
+    if spec.find("error:") >= 0 { return true }
+    single_at := spec.find(" single ")
+    if single_at < 0 { return false }
+    // ... single <label> <expected_exit> ...
+    rest_start := single_at.to_usize() + 8
+    rest := spec.substr(rest_start, spec.len() - rest_start)
+    sp := rest.find(" ")
+    if sp < 0 { return false }
+    exit_start := sp.to_usize() + 1
+    tail := rest.substr(exit_start, rest.len() - exit_start)
+    mut exit_tok := tail.clone()
+    sp2 := tail.find(" ")
+    if sp2 >= 0 { exit_tok = tail.substr(0, sp2.to_usize()) }
+    return exit_tok.eq("0").not()
+}
+
+// The til command a row runs, with the runner's own arguments stripped.
+// Needles live before the `--` separator and are arbitrary text -- one of
+// them is "error: -c is not supported with --target=jvm", which a scan of
+// the whole string reads as a -c flag.
+priv til_command_of := func(cmd: Str) returns Str {
+    pos := cmd.find(" -- ")
+    if pos < 0 { return cmd.clone() }
+    start := pos.to_usize() + 4
+    return cmd.substr(start, cmd.len() - start)
+}
+
+// The .til sources a command compiles to plain C without naming the output.
+// Those are the ones whose generated-C path is derived, and so shareable.
+priv collect_default_c_sources := func(cmd: Str, mut out: Vec(Str)) {
+    // Bound, not inlined into the split: the parts are VIEWS into this
+    // buffer, and a temporary would be freed before the loop reads them.
+    til_cmd := til_command_of(cmd)
+    toks := til_cmd.split(" ")
+    mut compiles := false
+    mut overridden := false
+    mut retargeted := false
+    mut skip_next := false
+    for ti in 0..toks.len() {
+        tok := unquoted(toks[ti])
+        if skip_next {
+            skip_next = false
+            continue
+        }
+        if tok == "-c" {
+            overridden = true
+            skip_next = true
+            continue
+        }
+        // `-o` names the BINARY for a C build -- `-o bin/c/foo` leaves the
+        // generated C exactly where it was, which is how the reflect rows
+        // collided while looking distinct. It DOES name the artifact for the
+        // backends whose output is the file itself (`-o gen/til/x.el`), and
+        // those spell an extension; a binary path has none.
+        if tok == "-o" {
+            skip_next = true
+            if ti + 1 < toks.len() {
+                nxt := unquoted(toks[ti + 1])
+                if test_basename(nxt).find(".") >= 0 { overridden = true }
+            }
+            continue
+        }
+        if tok.starts_with("--target") {
+            retargeted = true
+            continue
+        }
+        // Any other flag, including the `--flag=path.til` shape
+        // (--extra-modes=examples/custom_modes.til): a path handed to a flag
+        // is not the source being compiled.
+        if tok.starts_with("-") { continue }
+        // A new invocation starts at every '&&' the suite chains with.
+        if tok.eq("&&").or(tok.eq("'&&'")).or(tok.eq("'('")).or(tok.eq("')'")) {
+            compiles = false
+            overridden = false
+            retargeted = false
+            continue
+        }
+        // `both` is the runner's own compiling subcommand; interpret / ast /
+        // doc write no C at all.
+        if tok.eq("run").or(tok.eq("build")).or(tok.eq("translate")).or(tok.eq("test")).or(tok.eq("both")) {
+            compiles = true
+            continue
+        }
+        if tok.eq("interpret").or(tok.eq("ast")).or(tok.eq("doc")) {
+            compiles = false
+            continue
+        }
+        if tok.ends_with(".til") {
+            if compiles.and(overridden.not()).and(retargeted.not()) {
+                out.push(own tok.clone())
+            }
+            // One .til per invocation: what follows it is arguments.
+            compiles = false
+        }
+    }
+}
+
+// Refuse a table where two rows compile one source to the same derived C
+// path. Runs before the first row is spawned, so the report names both rows
+// instead of leaving a half-written .c for the C compiler to trip over.
+priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
+    mut sources := Vec(Str).new()
+    mut owners := Vec(Str).new()
+    mut clashes := 0
+    for t : Test in tests {
+        if row_expects_refusal(t.cmd) { continue }
+        mut mine := Vec(Str).new()
+        collect_default_c_sources(t.cmd, mine)
+        for src : Str in mine {
+            mut seen := -1
+            for i in 0..sources.len() {
+                if sources[i] == src { seen = i.to_i64() }
+            }
+            if seen >= 0 {
+                println("FAIL: tests '", owners[seen.to_usize()], "' and '", t.label,
+                    "' both compile ", src, " without naming an output, so both write gen/til/",
+                    test_basename(src), ".<ext>")
+                println("  note: give each compiling row its own '-c <path>', or check several",
+                    " needles against ONE command with add_counts")
+                clashes = clashes + 1
+            } else {
+                sources.push(own src.clone())
+                owners.push(own t.label.clone())
+            }
+        }
+    }
+    return clashes
+}
+
 // --- Registration helpers ---
 
 add_both := func(mut tests: Vec(Test), file: Str, flags: Str) {
@@ -1911,8 +2087,13 @@ main := proc(args: ..Str) {
 
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.
+    // Own -c: the same file is an add_both row above, and that row compiles
+    // it to the derived gen/til/test_in_namespace.c too. The two have been
+    // racing for that file whenever the runner scheduled them together --
+    // found by the collision check, which is the whole point of it.
     add_count(tests, "til_test_cmd", "test", "tests passed", 2,
-        format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
+        format(til_bin, " test", asan_flag, " -c gen/c/til_test_cmd.c",
+            " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
     //
@@ -2487,6 +2668,13 @@ main := proc(args: ..Str) {
             til_bin, " interpret examples/hello_cli.til"))
 
     // === Run all tests in parallel ===
+    // Not one row starts until the table is known to be free of the
+    // generated-C collision above: a race there reads as a compiler bug.
+    clashes := check_gen_c_collisions(tests)
+    if clashes > 0 {
+        println(clashes.to_str(), " generated-C collision(s); no test was run")
+        exit(1)
+    }
     mut suite_end_ms := 0
     run_all_parallel(tests, j, fail, suite_end_ms)
 
