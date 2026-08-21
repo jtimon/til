@@ -111,6 +111,15 @@ main := proc() {
     // ...while the binding call the consumer DOES reach keeps its prototype.
     require_contains(consumer_c, "_BindingPoint_delete(BindingPoint *, Bool);")
 
+    // Issue #326: an element walk whose per-element delete does nothing is
+    // dead. `Vec.truncate`'s range is `n..self.count`, whose direction is
+    // not statically known, so the typer hoists the direction test into a
+    // third decl and picks between two whiles with an If -- the same dead
+    // block, two decls longer, and the last shape in the corpus still
+    // carrying one.
+    lib_a_c := File.readfile("gen/til/library_namespace_a.c")
+    require_contains(lib_a_c, "    }\n    self->count = (n);\n}")
+
     interpreted := Cmd.new(til_bin, "interpret", "test/library_namespace_consumer.til")
     interpreted.env("LIBRARY_PATH", "gen/lib")
     interpreted.env("LD_LIBRARY_PATH", "gen/lib")

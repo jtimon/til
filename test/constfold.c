@@ -1288,7 +1288,6 @@ static void test_explicit_tag_enum_return_fold(void) {
     default: {
         U32 hoisted__U32_2 = 0;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_2);
-        (void)_va_Array_0;
         I64 _va_Array_0_ek = 0;
         (void)_va_Array_0_ek;
         UNREACHABLE(&_va_Array_0, &hoisted__Str_test_explicit_tag_enum_return_fold_3);
@@ -1315,7 +1314,6 @@ static void test_nested_enum_payload_return_fold(void) {
         default: {
             U32 hoisted__U32_2 = 0;
             Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_2);
-            (void)_va_Array_0;
             I64 _va_Array_0_ek = 0;
             (void)_va_Array_0_ek;
             UNREACHABLE(&_va_Array_0, &hoisted__Str_test_nested_enum_payload_return_fold_3);
@@ -1327,7 +1325,6 @@ static void test_nested_enum_payload_return_fold(void) {
     default: {
         U32 hoisted__U32_4 = 0;
         Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_4);
-        (void)_va_Array_1;
         I64 _va_Array_1_ek = 0;
         (void)_va_Array_1_ek;
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_nested_enum_payload_return_fold_5);
@@ -1649,7 +1646,6 @@ static void test_static_global_initializers(void) {
     default: {
         U32 hoisted__U32_2 = 0;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_2);
-        (void)_va_Array_0;
         I64 _va_Array_0_ek = 0;
         (void)_va_Array_0_ek;
         UNREACHABLE(&_va_Array_0, &hoisted__Str_test_static_global_initializers_3);
@@ -1668,7 +1664,6 @@ static void test_static_global_initializers(void) {
     default: {
         U32 hoisted__U32_6 = 0;
         Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_6);
-        (void)_va_Array_1;
         I64 _va_Array_1_ek = 0;
         (void)_va_Array_1_ek;
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_static_global_initializers_7);

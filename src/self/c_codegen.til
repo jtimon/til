@@ -1485,6 +1485,75 @@ priv builder_collect_body_liveness := proc(mut ctx: Context, body: Expr) {
     builder_collect_decl_names(body, seen, ctx.builder_func.body_multi_decls, ctx)
 }
 
+// #326: per-DECLARATION liveness for the names a function declares more
+// than once. The function-wide ref set cannot tell sibling-scope bindings
+// apart, so every such declaration used to take the unused cast whether or
+// not its own block reads it -- 1,522 `(void)_sp;` lines across the corpus
+// sitting next to the read on the following line. A C block is exactly the
+// scope the answer belongs to: a `_sp` declared once per switch arm is read
+// in the arms that read it and dead in the ones that do not, and each arm
+// is its own Body. Only blocks that DECLARE a duplicated name pay for the
+// walk, which is a handful per function.
+//
+// The answer is recorded on the Declaration's `used` flag -- the field for
+// exactly this question. The typer is done with it by now (it reads its own
+// bindings' copies, not the AST node's, and only for the unused-local
+// diagnostics it has already emitted).
+priv builder_mark_block_liveness := proc(mut e: Expr, dupes: Set(Sym), mut ctx: Context) {
+    if e.node_type.is(NodeType.Body) {
+        mut bml_has_dupe := false
+        for bml_c : Expr in e.children {
+            switch bml_c.node_type {
+            case .Decl(bml_dd):
+                if dupes.has(ctx.symbols.intern(bml_dd.name)) { bml_has_dupe = true }
+            case:
+            }
+        }
+        if bml_has_dupe {
+            mut bml_refs := Set(Sym).new()
+            for bml_rc : Expr in e.children { builder_collect_body_reads(bml_rc, bml_refs, ctx) }
+            for mut bml_mc : Expr in e.children {
+                switch bml_mc.node_type {
+                case .Decl(bml_md):
+                    bml_sym := ctx.symbols.intern(bml_md.name)
+                    if dupes.has(bml_sym) { bml_md.used = bml_refs.has(bml_sym) }
+                case:
+                }
+            }
+        }
+    }
+    for mut bml_ch : Expr in e.children { builder_mark_block_liveness(bml_ch, dupes, ctx) }
+}
+
+// One body's worth of the answer: the dupe set is computed here exactly as
+// builder_collect_body_liveness computes it for the function it is about to
+// emit, so the two always agree on which names are ambiguous.
+priv builder_mark_body_decls := proc(mut e: Expr, mut ctx: Context) {
+    mut bmb_seen := Set(Sym).new()
+    mut bmb_dupes := Set(Sym).new()
+    builder_collect_decl_names(e, bmb_seen, bmb_dupes, ctx)
+    if bmb_dupes.len() == 0 { return }
+    builder_mark_block_liveness(e, bmb_dupes, ctx)
+}
+
+// Every body the emitters emit: each FuncDef's, and each unit's top-level
+// statements (which become main's). A nested FuncDef is marked after its
+// enclosing body, so its own blocks get the innermost answer -- the same
+// one the emitter will ask for when it emits that function.
+priv builder_mark_unused_decls := proc(mut e: Expr, mut ctx: Context) {
+    if e.node_type.is(NodeType.FuncDef).and(e.children.len().gt(0)) {
+        builder_mark_body_decls(e.children[0], ctx)
+    }
+    for mut bmu_c : Expr in e.children { builder_mark_unused_decls(bmu_c, ctx) }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref mut bmu_ns : Vec(Declaration) = def_ns_decls(e)
+        for mut bmu_nsd : Declaration in bmu_ns {
+            if bmu_nsd.default_value.is_none() { continue }
+            builder_mark_unused_decls(bmu_nsd.default_expr(), ctx)
+        }
+    }
+}
+
 // READS only, unlike collect_ident_refs: an assignment TARGET is a write,
 // and C has a separate diagnostic for a variable that is only ever written
 // (-Wunused-but-set-variable), so a written-never-read binding still needs
@@ -1505,16 +1574,22 @@ priv builder_collect_body_reads := proc(e: Expr, mut refs: Set(U32), mut ctx: Co
     case .Ident(rname): refs.add(own rname.ident_sym())
     case:
     }
-    // A Case is [pattern, (guard,) body]: the pattern's payload binder is a
+    // A Case is [pattern x N, body]: the pattern's payload binder is a
     // DECLARATION, not a read. Counting it kept `case Option(T).Some(_v):`
     // from ever looking unread, which is precisely the shape the underscore
-    // escape hatch exists for.
-    skip_pattern := e.node_type.is(NodeType.Case)
+    // escape hatch exists for. The body is ALWAYS the LAST child, and
+    // skipping child 0 instead skipped the whole BODY of a wildcard `case:`
+    // arm, which has no pattern -- every read in one was invisible here, so
+    // a binding the arm uses on the next line took an unused cast anyway
+    // (326 `(void)_va_Array_N;` lines in til's own output, all of them
+    // panics inside a default arm). Same fix, same reason, as the site
+    // inventory's case_body_only.
+    case_body_only := e.node_type.is(NodeType.Case)
     mut bcr_i : USize = 0
     for bcr_c : Expr in e.children {
         cur_bcr := bcr_i
         bcr_i = bcr_i + 1
-        if cur_bcr.eq(0).and(skip_pattern) { continue }
+        if case_body_only.and(cur_bcr != e.children.len().sub(1)) { continue }
         builder_collect_body_reads(bcr_c, refs, ctx)
     }
 }
@@ -1550,13 +1625,14 @@ priv builder_collect_decl_names := proc(e: Expr, mut seen: Set(U32), mut dupes: 
 // emitted body never reads it. The old rule cast every underscore name
 // unconditionally, so 17,000 of them in boot/til.c sat next to a read on
 // the following line, the same noise the `hoisted__` exemption produced.
-// A name declared more than once in the body keeps the unconditional cast:
-// the ref set is name-keyed and cannot tell sibling-scope bindings apart,
-// and guessing wrong there would be a build error on valid code.
-priv builder_needs_unused_cast := func(name: Str, mut ctx: Context) returns Bool {
-    if name.starts_with("_").not() { return false }
-    sym := ctx.symbols.intern(name)
-    if ctx.builder_func.body_multi_decls.has(sym) { return true }
+// A name declared more than once in the body is answered per DECLARATION
+// instead: the function-wide ref set is name-keyed and cannot tell
+// sibling-scope bindings apart, so builder_mark_block_liveness re-asks the
+// question of the block that declares each one.
+priv builder_needs_unused_cast := func(dd: Declaration, mut ctx: Context) returns Bool {
+    if dd.name.starts_with("_").not() { return false }
+    sym := ctx.symbols.intern(dd.name)
+    if ctx.builder_func.body_multi_decls.has(sym) { return dd.used.not() }
     return ctx.builder_func.body_refs.has(sym).not()
 }
 
@@ -2261,7 +2337,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // `hoisted__` temps are deliberately NOT exempted, so a compiler
         // temp that goes dead trips -Werror=unused-variable instead of
         // being silently accepted.
-        if builder_needs_unused_cast(dd.name, ctx) {
+        if builder_needs_unused_cast(dd, ctx) {
             emit_indent(f, depth); f.write("(void)").write(builder_resolve_c_ident_name(dd.name, ctx)).write(";\n")
         }
     }
@@ -9473,6 +9549,10 @@ builder_prepare_emit := proc(mut lp: LoadedProgram) {
     lp.ctx.builder_prog_closed_world = lp.cur_mode.is_library.not()
         .and(lp.cur_mode.decls_only.not()).and(lp.link_c_paths.len().eq(0))
     builder_fill_used_ctypes(lp)
+    for bmu_path : Str in lp.unit_paths() {
+        builder_mark_body_decls(lp.ctx.imported[bmu_path].ast, lp.ctx)
+        builder_mark_unused_decls(lp.ctx.imported[bmu_path].ast, lp.ctx)
+    }
 }
 
 priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: LoadedProgram) returns I32 {

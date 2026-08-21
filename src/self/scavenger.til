@@ -817,22 +817,39 @@ priv rhs_is_pure_byvalue := func(e: Expr) returns Bool {
 // sees the concrete element type -- here, after monomorphization and
 // constant folding.
 
+// Does this subtree hold a loop, and a way out of one? Both are the
+// lowered for-in's signature by the time DCE runs: the counter's `while`,
+// and the `break` its condition test was rewritten into. A bare
+// `while true {}` with no outer effect has the first and not the second --
+// a hang somebody asked for, not dead code -- so the pair is what keeps
+// this analysis to loops that were written to end.
+priv dce_collect_loop_shape := func(e: Expr, mut has_while: Bool, mut has_break: Bool) {
+    if e.node_type.is(NodeType.While) { has_while = true }
+    if e.node_type.is(NodeType.Break) { has_break = true }
+    for dls_c : Expr in e.children { dce_collect_loop_shape(dls_c, has_while, has_break) }
+}
+
 // The lowered shape of `for <v> in <a>..<b>`: the typer replaces the ForIn
 // statement with a BLOCK holding the bound, the counter and the while
-// (desugar_for_in_range_stmt). Recognising it costs one shape test, and it
-// bounds the analysis below to loops -- a bare `while true {}` with no
-// outer effect is a hang somebody asked for, not dead code. A block that
-// stops matching (because that lowering changes) only stops being
-// optimised.
+// (desugar_for_in_range_stmt). Leading DECLS, then the loop -- how many
+// decls depends on the range: a proven direction needs the bound and the
+// counter, an unproven one hoists the direction test into a third and
+// picks between two whiles with an If. A block that stops matching
+// (because that lowering changes) only stops being optimised.
 priv dce_is_lowered_loop_block := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.Body).not() { return false }
-    if e.children.len() != 3 { return false }
-    if e.children[0].node_type.is(NodeType.Decl).not() { return false }
-    if e.children[1].node_type.is(NodeType.Decl).not() { return false }
-    // One while when the direction is proven, an If picking between two
-    // when it is not (see range_static_direction).
-    if e.children[2].node_type.is(NodeType.While) { return true }
-    return e.children[2].node_type.is(NodeType.If)
+    if e.children.len() < 3 { return false }
+    dil_last := e.children.len() - 1
+    for dil_i in 0..dil_last {
+        if e.children[dil_i].node_type.is(NodeType.Decl).not() { return false }
+    }
+    if e.children[dil_last].node_type.is(NodeType.While).not() {
+        if e.children[dil_last].node_type.is(NodeType.If).not() { return false }
+    }
+    mut dil_while := false
+    mut dil_break := false
+    dce_collect_loop_shape(e, dil_while, dil_break)
+    return dil_while.and(dil_break)
 }
 
 // Every binding the block declares, at any depth. Dropping the block drops

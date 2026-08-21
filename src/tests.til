@@ -1550,6 +1550,21 @@ main := proc(args: ..Str) {
     // frees the buffer whatever call_free says.
     add_count(tests, "structs_keeps_live_element_loop", "build", "Vec__Str_clear(Vec__Str * self) {\n    {", 1,
         format(til_bin, " translate -c gen/c/structs_sel.c test/structs.til '&&' cat gen/c/structs_sel.c"))
+    // Issue #326: a wildcard `case:` arm carries no pattern, so its BODY is
+    // child 0 -- and the liveness walk skipped child 0 of every Case, which
+    // made every read inside one invisible. A binding the arm used on the
+    // next line took an unused cast anyway: 810 of them in til's own
+    // output, `!`-propagation temps and panic argument arrays above all.
+    // Counted against the gen/til pair `make` already produced, never a
+    // second self-translate (see til_no_unneeded_reflect_family).
+    add_count(tests, "til_no_unused_cast_on_case_arm_read", "build", "(void)_bang_ret_", 0,
+        "cat gen/til/til.c")
+    // ...and the per-DECLARATION answer for a name the function declares
+    // more than once: the `_sp`/`_op` payload pointers a generated `eq`
+    // declares once per switch arm are read in the arms that read them, and
+    // the function-wide ref set could not tell those arms apart.
+    add_count(tests, "til_no_unused_cast_on_sibling_scope", "build", "(void)_sp;", 0,
+        "cat gen/til/til.c")
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the
