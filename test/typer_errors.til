@@ -1547,3 +1547,21 @@ terr396_returns_scalar := func(s: Str) returns I8 {
 }
 
 terr396_arg := terr396_takes_scalar(terr391_s.c_str)
+
+// #392 stage B: a raw Dynamic slot is ONE WORD, and a wider value going into
+// one used to be unreported. `Array(Dynamic).set(own s)` handed adopt a
+// 16-byte Str box; adopt copied Dynamic.size() = 8 bytes out of it and freed
+// the box, so `ref back : Str = a[0]` read an empty string -- both backends
+// agreeing on the wrong answer. `d : Dynamic = s` split them instead:
+// interpreted it kept the erased pointer (#362) and read back fine, compiled
+// it emitted `void *d = DEREF(s)` and died inside the C compiler with
+// "incompatible types when initializing type 'void *'", pointing at gen/c
+// rather than at the til line. Tuple keeps every element at its true size, so
+// that is where a wide value belongs; both diagnostics say so.
+terr392_s := format("run", "time")
+terr392_wide_binding : Dynamic = terr392_s
+
+terr392_store := func(s: Str) {
+    mut a := Array(Dynamic).new(1)
+    a.set(0, own s.clone())!
+}

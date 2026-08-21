@@ -1578,6 +1578,27 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                         }
                     }
                 }
+                // #392 stage B: the element slot of a container instantiated
+                // over Dynamic is one word. `a.set(0, own mk("hello"))` on an
+                // Array(Dynamic) handed adopt a 16-byte Str box, adopt copied
+                // Dynamic.size() = 8 bytes out of it and freed the box, and
+                // `ref back : Str = a[0]` read an empty string -- both
+                // backends agreeing on the wrong answer, with nothing
+                // reported. Tuple is the container that keeps each element's
+                // true size, so it is where a wide value belongs.
+                if name_is_raw_dynamic_container(fcall_namespace_name(e, ctx.symbols)) {
+                    arg_name_o := expr_type_name_ref(e.children[ci])
+                    if arg_name_o.is_some() {
+                        ref arg_name : Str = arg_name_o.unwrap()
+                        over := dynamic_slot_overflow(arg_name, scope, ctx)
+                        if over > 0 {
+                            e.children[ci].type_error(format("a Dynamic element slot holds one ",
+                                PTR_SIZE_BYTES.to_str(), "-byte word, but '", arg_name, "' is ", over.to_str(),
+                                " bytes, so parameter '", param2.name,
+                                "' would keep only its first word and lose the rest; store a pointer, or use a Tuple, which keeps every element at its true size"), ctx)
+                        }
+                    }
+                }
                 ci++
                 pi++
                 continue
@@ -4315,7 +4336,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                                 narrow_dynamic(fd.default_expr(), declared_type)
                             }
                             if fd.default_expr().node_type.is(NodeType.Loc).not().and(default_inference_failed.not()) {
-                                check_declared_value_type(fd.default_expr(), tc_fname, fd.default_expr(), declared_type, declared_name, inner, ctx)
+                                check_declared_value_type(fd.default_expr(), tc_fname, fd.default_expr(), declared_type, declared_name, fd.own_type, inner, ctx)
                             }
                         }
                     }
@@ -6561,11 +6582,36 @@ priv fcall_is_raw_alloc := func(e: Expr, symbols: SymbolPool) returns Bool {
 // gen/til/*.c, and `s : Str = 0` / `n : I64 = "x"` typed clean too.
 // `at` is the node the diagnostic hangs off (the Decl stmt for a local,
 // the default expr for a field).
-priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared: Type, declared_name: Str, scope: TypeScope, mut ctx: Context) {
+priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared: Type, declared_name: Str, own_type: OwnType, scope: TypeScope, mut ctx: Context) {
     // An Unknown value type means the initializer's own inference already
     // failed and reported; a second "'x' declared as T but value is "
     // -- with nothing to print after "is" -- is pure noise on top of it.
     if val.til_type().is(Type.Unknown) { return }
+    // #392 stage B: a Dynamic binding is ONE WORD, so a wider value cannot
+    // reach it whole BY VALUE. The two backends did not even fail the same
+    // way: interpreted, `d : Dynamic = s` kept the erased pointer (#362's
+    // wrapper metadata) and read back fine; compiled, the same line emitted
+    // `void *d = DEREF(s)` and died inside the C compiler with "incompatible
+    // types when initializing type 'void *'". One til diagnostic at the
+    // source replaces a cc error on one backend and silence on the other.
+    //
+    // `ref` and `own` are the spellings that DO fit: both store the address
+    // -- `ref mut rtype : Dynamic = ffi_type_ref(...)` in the interpreter's
+    // FFI registration binds a 24-byte ffi_type by pointer, exactly as
+    // intended -- so the word is the value and nothing is lost.
+    if declared.is(Type.Dynamic).and(own_type.is(OwnType.Ref).not()).and(own_type.is(OwnType.Own).not()) {
+        val_name_o := expr_type_name_ref(val)
+        if val_name_o.is_some() {
+            ref val_name : Str = val_name_o.unwrap()
+            over := dynamic_slot_overflow(val_name, scope, ctx)
+            if over > 0 {
+                at.type_error(format("'", name, "' is Dynamic -- one ", PTR_SIZE_BYTES.to_str(),
+                    "-byte word -- but the value is '", val_name, "' (", over.to_str(),
+                    " bytes), which does not fit; bind a pointer to it (to_ptr) or declare '", name,
+                    "' as ", val_name), ctx)
+            }
+        }
+    }
     if can_implicit_usize_coerce(val.til_type(), declared, declared_name).not()
         .and(val.til_type().is(declared).not())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
@@ -6665,7 +6711,7 @@ priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, in_fun
             case:
             }
         } else {
-            check_declared_value_type(stmt, sdecl.name, val, declared, declared_name, scope, ctx)
+            check_declared_value_type(stmt, sdecl.name, val, declared, declared_name, sdecl.own_type, scope, ctx)
         }
     // Resolve type alias in declared til_type so that struct/enum names match
     // the canonical target (e.g. Point2 -> Point).
@@ -9068,6 +9114,51 @@ priv vec_instance_elem_type_name := func(container_name: Str) returns Str {
     if container_name.starts_with(prefix).not() { return "" }
     if container_name.len() <= prefix.len() { return "" }
     return container_name.substr(prefix.len(), container_name.len().sub(prefix.len()))
+}
+
+// #392 stage B: how many bytes a value of this type occupies, when that is
+// MORE than the single word a raw Dynamic slot holds -- 0 otherwise, which is
+// also the answer for a name with no registered layout, since an unknown size
+// is not evidence of a problem. A Dynamic IS til's void *: one word, no record
+// of what was put in it, so a wider value stored into one keeps its first
+// eight bytes and loses the rest with nothing left to say it happened.
+priv dynamic_slot_overflow := func(type_name: Str, scope: TypeScope, ctx: Context) returns USize {
+    if type_name.len() == 0 { return 0 }
+    sz := ctx_total_size(resolve_type_alias(scope, type_name, ctx.symbols), ctx)
+    if sz > PTR_SIZE_BYTES { return sz }
+    return 0
+}
+
+// #392 stage B: a container instantiated over Dynamic ("Array__Dynamic",
+// "Vec__Dynamic") gives each element ONE WORD and records nothing about what
+// went into it -- its `adopt` copies Dynamic.size() = 8 bytes out of the box
+// it was handed and then frees that box, so a wider value loses its only
+// owner. That is the raw slot this stage rejects wide values for, and
+// deliberately NOT "any Dynamic parameter": most of those are ADDRESSES
+// (free, to_ptr, memcpy) where the word IS the value, and Tuple's takes a
+// wide value on purpose, keeping the element's true size beside it.
+priv name_is_raw_dynamic_container := func(container_name: Str) returns Bool {
+    if array_instance_elem_type_name(container_name) == "Dynamic" { return true }
+    return vec_instance_elem_type_name(container_name) == "Dynamic"
+}
+
+// The namespace a resolved method call names -- "Array__Dynamic" in
+// `Array__Dynamic.set(a, 0, own s)`. UFCS has already rewritten `a.set(...)`
+// into that shape by the time arguments are validated. "" when the callee is
+// not a namespace call at all (a plain builtin, a function pointer).
+priv fcall_namespace_name := func(e: Expr, symbols: SymbolPool) returns Str {
+    if e.children.len() == 0 { return "" }
+    ref callee : Expr = e.children[0]
+    switch callee.node_type {
+    case .FieldAccess:
+        if callee.children.len() == 0 { return "" }
+        switch callee.children[0].node_type {
+        case .Ident(nid): return Str.clone(nid.ident_name(symbols.names))
+        case:
+        }
+    case:
+    }
+    return ""
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str {

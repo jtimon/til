@@ -2141,7 +2141,7 @@ main := proc(args: ..Str) {
     // frees its box and leaks what it owned. The needle counts both.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 242),
+        CountCheck(needle = "error:", expected_count = 244),
         CountCheck(needle = "no value parameter mentions it", expected_count = 2),
         CountCheck(needle = "no named signature", expected_count = 1),
         CountCheck(needle = "conflicting evidence", expected_count = 2),
@@ -2158,7 +2158,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "where the address belongs", expected_count = 5))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 242),
+        CountCheck(needle = "error:", expected_count = 244),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
@@ -2558,11 +2558,8 @@ main := proc(args: ..Str) {
     // be emitted after the assignment, so the store dereferenced the
     // ref-returning callee's NULL fallback return first and the program
     // died with "panic: null deref" instead of this message.
-    File.writefile(format(exp, "script_bang_store_panic_msg.out"),
-        format("7", NL,
-            "test/script_bang_store_panic_msg.til:18:1: panic: uncaught throw 'OutOfBounds'", NL))
     add_cli_pair(tests, "script_bang_store_panic_msg", "test/script_bang_store_panic_msg.til",
-        "", 1, format(exp, "script_bang_store_panic_msg.out"), til_bin, asan_flag)
+        "", 1, format(exp, "script_bang_store_panic_msg.expected"), til_bin, asan_flag)
 
     // A bare TODO() keeps working and still points at the CALL SITE, not at
     // core/exit.til: `loc` defaults to __LOC__, which resolves at the caller.

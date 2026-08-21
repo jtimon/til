@@ -140,7 +140,7 @@ first; nothing in A/B depends on it.
       when it lies. type_at makes the check writable; B makes it
       automatic.
 
-- [ ] B. Typed reads checked against type_at; the wider-than-word
+- [X] B. Typed reads checked against type_at; the wider-than-word
       rejection for raw Dynamic slots.
 
       B1 DONE -- typed reads are checked. ~Tuple.expect_type(i, want)~
@@ -172,9 +172,47 @@ first; nothing in A/B depends on it.
       passes unchanged, since the desugar applies to every Tuple, not
       just a variadic's.
 
-      B2 REMAINS -- the wider-than-word rejection, which by this issue's
-      own text gets its own sweep and its own sign-off (it rejects code
-      that compiles today).
+      B2 DONE -- the wider-than-word rejection. Two typer checks share
+      ~dynamic_slot_overflow~ (ctx_total_size > 8, and 0 for a name with
+      no registered layout, since an unknown size is not evidence of a
+      problem).
+
+      At a CALL: a wider-than-a-word argument at a Dynamic parameter of
+      a container instantiated over Dynamic
+      (~name_is_raw_dynamic_container~ -- "Array__Dynamic",
+      "Vec__Dynamic"), read off the callee's namespace by
+      ~fcall_namespace_name~. Deliberately NOT any Dynamic parameter:
+      most of those are ADDRESSES (free, to_ptr, memcpy) where the word
+      IS the value, and Tuple's takes a wide value on purpose, keeping
+      the element's true size beside it. This is the row the issue opens
+      with -- ~a.set(0, own mk("hello"))~ handed adopt a 16-byte Str
+      box, adopt copied Dynamic.size() = 8 bytes and freed the box, and
+      ~ref back : Str = a[0]~ read an empty string with both backends
+      agreeing on the wrong answer.
+
+      At a DECLARATION: ~check_declared_value_type~ now takes the
+      binding's OwnType and rejects a wide value at a plain
+      ~: Dynamic~ binding. ~ref~ and ~own~ are exempt because both store
+      the ADDRESS -- the interpreter's own
+      ~ref mut rtype : Dynamic = ffi_type_ref(...)~ binds a 24-byte
+      ffi_type by pointer, exactly as intended, and was the first thing
+      the check caught. Here the two backends did not even fail the same
+      way: interpreted, ~d : Dynamic = s~ kept the erased pointer (#362)
+      and read back fine; compiled, the same line emitted
+      ~void *d = DEREF(s)~ and died inside the C compiler with
+      "incompatible types when initializing type 'void *'", pointing at
+      gen/c rather than at the til line.
+
+      Verified: terr392_wide_binding and terr392_store pin both
+      diagnostics (typer error count 240 -> 242); suite green.
+
+      Not covered, and deliberately: an aggregate at a plain
+      ~: Dynamic~ binding is rejected only when it is WIDER than a word,
+      which is what this stage signed off. A word-sized struct
+      (~Small := struct { a : U32 }~) is still emitted as
+      ~void *d = s;~ and still dies in the C compiler rather than in the
+      typer -- the general rule is about the SOURCE being stored by
+      value, not about its size, and that is a wider change than B.
 
 - [ ] C. The array(Dynamic, ...) literal decision.
 
