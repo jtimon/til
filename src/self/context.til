@@ -503,6 +503,15 @@ namespace:
     local_struct_def_fp := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
         return defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, sym)
     }
+    // The Sym-taking twin of local_struct_def_fp above, for the same
+    // callers: they are walking self.bindings, so they HOLD the symbol
+    // and its fingerprint already. Going through the name spelling
+    // instead made SymbolPool.lookup hash a name back into the symbol
+    // the caller was iterating -- 62,711 hashes per self-translate to
+    // learn what was already in hand (#292/#337).
+    local_func_def_fp_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
+        return defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
+    }
     local_func_def_fp := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return Option(ref Expr).None }

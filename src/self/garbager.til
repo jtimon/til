@@ -1559,7 +1559,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // lookup_func would, without their binding probe.
         bfp := one.shl(bsym.to_u64().band(63))
         if scope.local_struct_def_fp(bsym, bfp).is_some() { continue }
-        if scope.local_func_def_fp(b.name, ctx.symbols).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
+        if scope.local_func_def_fp_sym(bsym, bfp).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
 
         // One name->bit resolution per binding; every per-statement
         // question below is then a bit test.

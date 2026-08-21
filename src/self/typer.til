@@ -5367,7 +5367,7 @@ check_unused_locals := proc(mut scope: TypeScope, path: Str, mut ctx: Context) {
         if b.is_type_alias { continue }
         fp := one.shl(bsym.to_u64().band(63))
         if scope.local_struct_def_fp(bsym, fp).is_some() { continue }
-        if scope.local_func_def_fp(b.name, ctx.symbols).is_some() { continue }
+        if scope.local_func_def_fp_sym(bsym, fp).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         // Hoist temps are compiler-internal and always have their use
@@ -5401,7 +5401,7 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
         if b.is_type_alias { continue }
         fp := one.shl(bsym.to_u64().band(63))
         if scope.local_struct_def_fp(bsym, fp).is_some() { continue }
-        if scope.local_func_def_fp(b.name, ctx.symbols).is_some() { continue }
+        if scope.local_func_def_fp_sym(bsym, fp).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         if b.name.starts_with("hoisted__") { continue }
@@ -5500,7 +5500,7 @@ check_unused_priv_top_level := proc(mut scope: TypeScope, mut ctx: Context) retu
         // alive it was dropped long before this check ran.
         mut b_is_generic_source := false
         fp := one.shl(bsym.to_u64().band(63))
-        b_fd_o := scope.local_func_def_fp(b.name, ctx.symbols)
+        b_fd_o := scope.local_func_def_fp_sym(bsym, fp)
         if b_fd_o.is_some() { b_is_generic_source = init_func_is_generic(b_fd_o.unwrap()) }
         if b_is_generic_source { continue }
         mut kind := "value"
