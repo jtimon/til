@@ -169,6 +169,41 @@ fa_own_type := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shal
     return OwnType.Shallow
 }
 
+// Issue #396: ONE definition of "this expression evaluates to an ADDRESS,
+// not to the scalar its til type names".
+//
+// til carries pointer-ness in the OwnType qualifier, not in Type: a field
+// declared `own c_str : I8` (Str) or `own data : U8` (Vec, Array) or
+// `ref buf : U8` holds a `char *` / `unsigned char *`, while its til type
+// is the POINTEE's. Reading one yields an address whose type says scalar,
+// and every slot that took it by value emitted C the compiler rejects --
+// `I8 a = s.c_str;`, `a = s.c_str;`, `takes_scalar(s.c_str)`,
+// `return s.c_str`, `Box(p = s.c_str)`. All five ran correctly
+// interpreted, because the interpreter holds the address in a word and
+// never has to name its type, so the whole family was compiled-only.
+//
+// #391 closed the Decl site with this test written inline; the other four
+// were still open. The predicate lives here, once, and each site keeps
+// its own message because the FIX differs by site -- a local wants `ref`,
+// a parameter or a field wants to be declared `Dynamic`.
+//
+// Only PRIMITIVE-typed fields are addresses in this sense. An aggregate
+// field is a struct in C too, so `Str f = b.s` names what it holds.
+expr_is_address := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.FieldAccess).not() { return false }
+    if e.til_type().is(Type.Primitive).not() { return false }
+    return fa_own_type(e, scope, symbols).is(OwnType.Shallow).not()
+}
+
+// The slots that can legitimately RECEIVE an address: a `ref` binding
+// (`ref x : I8 = s.c_str` -- C `I8 *x`, a borrow of the pointer) and a
+// Dynamic one (`p : Dynamic = s.c_str` -- `void *` already IS the
+// pointer). Both already worked in both backends before #391/#396; the
+// diagnostics name them.
+slot_takes_address := func(slot_own: OwnType, slot_type: Type) returns Bool {
+    return slot_own.is(OwnType.Ref).or(slot_type.is(Type.Dynamic))
+}
+
 // hoist_counter / va_counter / kw_counter / coll_counter previously
 // lived here as module-level mut; they moved to Context (see
 // initer.til). The hoist/desugar pre-pass chain (body_pre_passes ->
@@ -1199,7 +1234,23 @@ priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope, sym
 // numeric literals to fit the param type, applies implicit widen /
 // usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
 // args (the caller has already decided this arg is not constrained).
-priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, mut ctx: Context) {
+priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, param_own: OwnType, mut ctx: Context) {
+    // #396: an ADDRESS may only land in a slot shaped to hold one. At a
+    // call that is a Dynamic parameter, or an ext binding's unqualified
+    // pointer parameter (`aTitle : I8` IS `const char *` -- doc/ffi.org's
+    // rule that `shallow` marks the by-value ones). A til function's
+    // primitive parameter is auto-shallowed, so `takes_scalar(s.c_str)`
+    // lands here and gcc rejected the emitted call.
+    if slot_takes_address(param_own, ptype).not() {
+        if expr_is_address(arg, ctx.scope, ctx.symbols) {
+            arg.type_error(format("argument for '", param_name,
+                "' is a pointer field, so passing it by value would hand over one ",
+                til_type_name_c(arg.til_type()),
+                " where the address belongs -- declare the parameter '",
+                param_name, " : Dynamic', or drop 'shallow' if it is an ext binding"), ctx)
+            return
+        }
+    }
     // #269: accept a conforming concrete type where an interface is expected.
     // The #251 conformance check guarantees the methods exist; the runtime
     // dispatches the method call to the concrete type. (Interpreter path
@@ -1484,7 +1535,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                                 }
                             }
                             rewrite_til_type_arg(scope, e, ci + vk, vptype, in_func, ctx)
-                            validate_fcall_arg(e.children[ci + vk], vptype, vptype_name, vparam.name, ctx)
+                            validate_fcall_arg(e.children[ci + vk], vptype, vptype_name, vparam.name, vparam.own_type, ctx)
                         }
                     }
                     ci = ci + fvc
@@ -1565,7 +1616,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 }
             }
             rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
-            validate_fcall_arg(e.children[ci], ptype, ptype_name, param2.name, ctx)
+            validate_fcall_arg(e.children[ci], ptype, ptype_name, param2.name, param2.own_type, ctx)
             ci++
             pi++
         }
@@ -2897,7 +2948,7 @@ priv infer_array_vec_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str,
                 format("the '", elem_type, "' element type of this ", name, "() literal"), ctx)
         } else if elem_t.is(Type.Dynamic).not() {
             validate_fcall_arg(e.children[si], elem_t, resolved_elem_type,
-                format(name, "() literal element"), ctx)
+                format(name, "() literal element"), OwnType.Shallow, ctx)
         }
     }
     if name == "array" {
@@ -5781,6 +5832,20 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
             }
             check_carried_borrow_of_local_return(scope, stmt, ctx)
             check_str_view_of_local_return(scope, stmt, ctx)
+            // #396: the RETURN slot. `returns I8 { return s.c_str }` handed
+            // gcc a `char *` for a `char`. `returns ref I8` and `returns
+            // Dynamic` are the shapes that hold an address; returns_ref == 0
+            // here, so only the Dynamic one can still be right.
+            if stmt.til_type().is(Type.Dynamic).not() {
+                if expr_is_address(stmt.children[0], scope, ctx.symbols) {
+                    stmt.type_error(format(
+                        "returning the pointer field by value would hand back one ",
+                        til_type_name_c(stmt.children[0].til_type()),
+                        " where the address belongs -- declare 'returns ref ",
+                        til_type_name_c(stmt.children[0].til_type()),
+                        "' to lend the pointer, or 'returns Dynamic' for the raw address"), ctx)
+                }
+            }
             switch stmt.children[0].node_type {
             case .Ident(rn):
                 sf := scope.find_sym(rn.ident_sym())
@@ -6043,6 +6108,20 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                                 if rhs_type.is(Type.Dynamic).not() {
                                     stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
                                 }
+                            }
+                        }
+                        // #396: the FIELD slot. `bx.p = s.c_str` (and the
+                        // constructor spelling `Box(p = s.c_str)`, which
+                        // lowers to it) passes the mismatch check above --
+                        // both sides say I8 -- and then emitted an
+                        // assignment of a `char *` to a `char`.
+                        if slot_takes_address(fa_own_type(stmt, scope, ctx.symbols), fld_type).not() {
+                            if expr_is_address(rhs, scope, ctx.symbols) {
+                                stmt.type_error(format("field '", fname,
+                                    "' takes one ", til_type_name_c(fld_type),
+                                    " by value, so assigning a pointer field to it stores the byte, not the address -- declare it 'own ",
+                                    fname, " : ", til_type_name_c(fld_type),
+                                    "' to hold the pointer, or ' : Dynamic' for the raw address"), ctx)
                             }
                         }
                     }
@@ -6723,24 +6802,22 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         // is #357's own supported form -- Dynamic IS a pointer, so it takes
         // the address by design and both backends agree on it.
         //
-        // #393: an OWN pointer field (`own c_str : I8` in Str, `own data :
-        // U8` in Vec/Array) is the same defect one qualifier over. It was
-        // missed because the rule was written for the borrow case, but the
-        // scalar/pointer mismatch is a property of the FIELD's storage, not
-        // of who owns it: `I8 a = s.c_str;` is the identical gcc rejection,
-        // and the line after it -- `c_str_len(&a)` -- hands C the address of
-        // one byte where the buffer belongs. The messages differ because the
-        // fixes do: a borrowed field has no owner here to speak of, while an
-        // owned one is copied as a pointer, which is what `ref` means.
-        if in_type_body.eq(0).and(sdecl.own_type.is(OwnType.Ref).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
-            if rhs.node_type.is(NodeType.FieldAccess).and(rhs.til_type().is(Type.Primitive)) {
-                fa_ot := fa_own_type(rhs, scope, ctx.symbols)
-                if fa_ot.is(OwnType.Ref) {
+        // #393 / #396: an OWN pointer field (`own c_str : I8` in Str, `own
+        // data : U8` in Vec/Array) is the same defect one qualifier over --
+        // the mismatch is a property of the FIELD's storage, not of who owns
+        // it -- and this Decl is one of the five slots the address can reach.
+        // expr_is_address / slot_takes_address are the shared rule; the two
+        // messages differ because the fixes do: a borrowed field has no owner
+        // here to speak of, while an owned one is copied as a pointer, which
+        // is what `ref` means.
+        if in_type_body.eq(0).and(slot_takes_address(sdecl.own_type, stmt.til_type()).not()) {
+            if expr_is_address(rhs, scope, ctx.symbols) {
+                if fa_own_type(rhs, scope, ctx.symbols).is(OwnType.Ref) {
                     stmt.type_error(format("'", sdecl.name,
                         "' binds the borrowed pointer field '", til_type_name_c(rhs.til_type()),
                         "'; declare it 'ref ", sdecl.name, " : ", sdecl.type_name(),
                         " = ...' -- the holder does not own it"), ctx)
-                } else if fa_ot.is(OwnType.Shallow).not() {
+                } else {
                     stmt.type_error(format("'", sdecl.name,
                         "' binds the owned pointer field '", til_type_name_c(rhs.til_type()),
                         "' by value, which stores one ", til_type_name_c(rhs.til_type()),

@@ -442,6 +442,27 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
                     if init_delete_is_noop(fd.type_name(), scope, ctx.symbols) { continue }
                 }
 
+                // #396: an `own <primitive>` field (`own p : U8`, `own
+                // c_str : I8`) holds an ADDRESS whose til type names the
+                // POINTEE. Routing its cleanup through the UFCS
+                // `<field>.delete(...)` hands the pointer to a `self :
+                // U8` slot -- the pointer/pointee conflation this arc is
+                // closing, in generated code, which is why the uniform
+                // rule flagged the compiler's own structs before this.
+                // A raw address is freed by `free`, whose parameter is
+                // `own elem : Dynamic` -- an address slot. That is what
+                // every HAND-WRITTEN delete already writes for such a
+                // field (Str.delete's `free(own self.c_str)`).
+                if fd.own_type.is(OwnType.Own).and(is_primitive(declaration_resolved_type(fd, scope, ctx.symbols))) {
+                    mut raw_free := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                    mut raw_free_id := Expr.new(ident_node(ctx.symbols.intern("free")), stmt.line, stmt.col)
+                    raw_free.add_child(own raw_free_id)
+                    set_own_arg(raw_free, raw_free.children.len())
+                    raw_free.add_child(own field_acc.clone())
+                    proc_body.add_child(own raw_free)
+                    continue
+                }
+
                 mut del_acc := Expr.new(field_access_node(ctx.symbols.intern("delete")), stmt.line, stmt.col)
                 del_acc.add_child(own field_acc)
                 mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)

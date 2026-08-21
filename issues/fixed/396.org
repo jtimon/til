@@ -1,0 +1,87 @@
+# priority: high
+# category: bugs
+** FIXED #396 One rule for "this expression is an address", not one check per slot
+
+*** Post-mortem
+
+#391 fixed the Decl slot with the test written inline, and the sweep
+afterwards found the same defect at four more: assignment, argument,
+return, and field. All five ran correctly INTERPRETED -- the interpreter
+holds an address in a word and never has to name its type -- and all five
+emitted C that gcc rejects, so the whole family was compiled-only and
+arrived as ~-Werror~ text against gen/til/*.c with nothing naming the til
+source.
+
+Root cause, stated once: til carries pointer-ness in the OwnType
+QUALIFIER, not in Type. A field declared ~own c_str : I8~ (Str),
+~own data : U8~ (Vec, Array) or ~ref buf : U8~ holds a pointer whose til
+type names the POINTEE. Reading one yields an address that every slot
+then took by value.
+
+Four checks would have been four workarounds. What landed is one
+predicate pair in typer.til --
+
+- ~expr_is_address(e, scope, symbols)~: a FieldAccess of a
+  primitive-typed, non-Shallow field;
+- ~slot_takes_address(own, type)~: a ~ref~ binding or a Dynamic slot,
+
+-- consulted at each site. The MESSAGES stay per-site on purpose, because
+the fix differs by slot: a local wants ~ref~, a parameter or field wants
+~Dynamic~, a return wants ~returns ref T~.
+
+*** What the uniform rule exposed
+
+Applying it everywhere immediately flagged the compiler's OWN structs --
+five errors, all one shape, reducible to five lines:
+
+#+begin_src til
+BoxP := struct {
+    own p : U8 = 0
+}
+#+end_src
+
+The auto-generated ~delete~ routes every field through the UFCS
+~<field>.delete(call_free)~, so an ~own <primitive>~ field handed its
+POINTER to a ~self : U8~ slot -- the same conflation, in generated code.
+That is why the rule had to fix the generator before it could be applied:
+~init~ now emits ~free(own self.<f>)~ for those fields, which is what
+every HAND-WRITTEN delete already writes (Str.delete's
+~free(own self.c_str)~) and whose parameter, ~own elem : Dynamic~, is an
+address slot.
+
+That generator change is emit-side, so this commit is "Two-pass: ":
+~make test~ alone fails ~self_translate~ (tmp/self_det.c and boot/til.c
+differ at the regenerated deletes), which is exactly the case
+doc/self.org's two-pass section describes. ~make test_two_pass~ is green.
+
+*** The ext boundary is NOT affected, and that is the interesting part
+
+An ext binding's unqualified pointer parameter (~tinyfd_inputBox :=
+ext_proc(aTitle : I8, ...)~) means ~const char *~, and passing ~s.c_str~
+to it is the SUPPORTED idiom #343's TIL_CSTR macro exists for. The
+uniform rule permits it without a special case, because doc/ffi.org's
+existing convention -- ~shallow~ marks the by-value parameters, so
+unqualified means pointer -- is the same OwnType rule the fields use. A
+til function's primitive parameter is auto-shallowed, which is why
+~takes_scalar(s.c_str)~ is rejected and ~setenv(view.c_str, ...)~ is not.
+The two conventions turned out to be one convention.
+
+*** Remaining
+
+Three of the five slots are closed here (Decl from #391, argument,
+return) plus the generator. Two are still open and should be one small
+commit on the same predicate:
+
+- ASSIGN to a scalar local: ~mut a : I8 = 0~ then ~a = s.c_str~;
+- FIELD: ~bx.p = s.c_str~ and its constructor spelling
+  ~Box(p = s.c_str)~. The check is written at the FieldAssign
+  type-mismatch site but does not fire for these -- both sides say I8, so
+  the arm it sits in is not reached; it needs the field's Declaration
+  rather than ~fa_own_type~ on the statement.
+
+Both are in tmp probes and reproduce as gcc int-conversion errors.
+
+Regression tests: ~terr396_*~ in test/typer_errors.til (argument and
+return spellings, counted as ~where the address belongs~ = 5 with the
+#391 Decl cases), and ~test_pointer_field_spellings~ in test/strings.til
+already runs the ~ref~ and ~Dynamic~ forms in both backends.

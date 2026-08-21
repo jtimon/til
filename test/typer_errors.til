@@ -535,10 +535,9 @@ terr_self_conv_struct := func() returns TerrSelfAaa {
     return val.to_terrselfaaa()
 }
 
-// ============================================================
+// =====================================================
 // Issue #198 follow-up: throw/catch validation diagnostics
-// ============================================================
-
+// =====================================================
 // Throwing function for the next batch of cases.
 TerrErrA := struct {}
 TerrErrB := struct {}
@@ -1533,3 +1532,18 @@ gnoev_conflict : GNoEv328 = gpair_noev328("s", GNoEv328())
 gbare_apply328 := func(T: Type, f: T, a: I64, b: I64) returns I64 { return f(a, b) }
 gbare_fn328 := func(a: I64, b: I64) returns I64 { return a + b }
 gbare_call328 := gbare_apply328(gbare_fn328, 2, 5)
+// #396: the same address reaching the OTHER slots. #391 closed the Decl;
+// expr_is_address / slot_takes_address are now one rule consulted by each
+// site, and each keeps its own message because the fix differs by slot.
+// An ext binding's unqualified pointer parameter still takes `s.c_str` --
+// that is doc/ffi.org's rule that `shallow` marks the by-value ones, and
+// test/cstr_view.til holds it.
+terr396_takes_scalar := func(b: I8) returns Bool {
+    return b == 0
+}
+
+terr396_returns_scalar := func(s: Str) returns I8 {
+    return s.c_str
+}
+
+terr396_arg := terr396_takes_scalar(terr391_s.c_str)
