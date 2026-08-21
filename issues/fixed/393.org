@@ -1,0 +1,104 @@
+# priority: high
+# category: bugs
+** FIXED #393 A borrow deposited into another argument's storage loses its root
+
+*** Post-mortem
+
+Root cause: the #344/#354 summaries describe only how a callee's RETURN
+relates to its parameters. A call that stores one argument's borrows
+into storage reachable from another argument recorded nothing, and the
+direct field-assign form recorded nothing either (only Decl RHSes were
+read), so the deposited root vanished -- the missing diagnostic, the
+backend divergence, and the wrong blame all followed.
+
+Fix: FunctionDef.deposit_pairs, a second parameter-pair summary packed
+(sink << 32) | source, computed in the same pre-typing fixed point as
+ref_return_params for any function with a mut parameter and a second
+one. In a body, a deposit is an Assign/FieldAssign whose sink reaches a
+parameter and whose RHS carries bits of another, an adopt / adopt_from
+whose dest does (matched under BOTH spellings -- the call can already be
+monomorphized to adopt__<T> with the Type argument stripped when the
+summary pass sees it), or a call to a function that already has pairs,
+mapped through the arguments -- which is what carries Vec.push's pair up
+through Map.set. At a real call site each pair appends the source
+argument's CARRIED roots (deposit_src_roots is carried-only: an `own`
+argument's local dies with the transfer, so its own storage must not
+become a root -- the first draft got this wrong and lit up 520 false
+errors on src/) to the sink argument's base binding, marked with a new
+BorrowRoot.deposited flag: on a REF binding the declared roots are its
+alias set and a direct write through the ref writes them, while
+deposited roots are only reachable by crossing the carried borrow, so
+lvalue_write_roots' Ident arm skips them. The same deposit is applied
+at direct FieldAssign / Assign statements with a borrow-carrying RHS.
+One honest signature fell out: infer_type_def_expr takes mut scope
+(type_struct_fields parks scope-reaching pointers in the AST it types).
+
+Deliberate limits, all conservative: the union is flow-insensitive (a
+deposit that overwrites an earlier borrow keeps the old source's mut
+demand); a callee that stores a POINTER to a borrow-parameter's own
+storage into a sink is not summarized (carried-only sources); deposits
+nested deep inside a Return/Decl expression tree are scanned only at
+the top level of that expression.
+
+Verified: bin/til translate src/til.til clean; self-translate time
+unchanged vs master's compiler on the same source and machine (17.75s
+vs 17.71s). Regression tests: test/ref.til
+test_borrow_root_through_vec_push / _map_set / _helper_deposit /
+_field_deposit (mut s credited, both backends agree on 2);
+test/typer_errors.til terr393_vec_poke / terr393_helper_poke /
+terr393_direct_poke (one rejection each, naming s; count 236 -> 239).
+
+The #344/#354 summary lattice describes only how a callee's RETURN
+relates to its parameters. A call that stores borrows carried by one
+argument into storage reachable from ANOTHER argument -- Vec.push,
+Map.set, any user function assigning a holder into a mut parameter --
+records nothing, so the deposited root vanishes:
+
+#+begin_src til
+Held := struct { n := 0 }
+Src := struct { held := Held() }
+Holder := struct { ref r : Held }
+held_of := func(s: Src) returns ref Held { return s.held }
+
+p := func(s: Src) {                       // s NOT mut -- accepted
+    mut hs := Vec(Holder).new()
+    hs.push(own Holder(r = held_of(s)))   // root lost at the call
+    ref mut h : Holder = hs[0]
+    h.r.n = h.r.n + 1                     // really writes s.held
+}
+#+end_src
+
+Three consequences, all reproduced on master 4076002:
+
+- Missing diagnostic: the non-mut form compiles. Writing the honest
+  `mut s` is REJECTED as "redundant 'mut' on parameter 's': never
+  written through".
+- Backend divergence: with s non-mut the compiled backend passes it by
+  value, so the write lands on a copy -- interpret prints 2, compiled
+  prints 0 for the same program.
+- Wrong blame: seed a box from s2's borrow, deposit s1's borrow over
+  it through a call, write through the box -- the typer demands mut s2
+  and calls mut s1 redundant.
+
+The plain-local version of the same shape (#351: `h := Holder(r =
+held_of(s)); h.r.n = ...`) is tracked correctly; the loss is specific
+to the call boundary (and to the direct field-assign form `b.h = h`,
+which records nothing either -- only Decl RHSes are read).
+
+Fix shape: a second, parameter-pair summary on FunctionDef --
+deposit_pairs, packing (sink param, source param) -- computed in the
+same pre-typing fixed point as ref_return_params. In a body, a deposit
+is a FieldAssign/Assign whose LHS reaches a parameter and whose RHS
+carries bits of another, an adopt/adopt_from whose dest reaches one,
+or a call to a function that already has pairs (mapped through the
+arguments, which is what carries Vec.push's pair up through Map.set).
+At a real call site, each pair appends the source argument's borrow
+roots (carried, unknown field) to the sink argument's base binding --
+after which the existing #344 write-credit and enforcement walks see
+them with no further change: writes through the sink's elements credit
+and demand the real source's mut.
+
+Flow-insensitive by design, like the rest of #344: a deposit that
+OVERWRITES an earlier borrow unions rather than replaces, so the
+overwritten source may keep demanding mut. Over-asking is the
+conservative direction here; under-crediting is the bug.

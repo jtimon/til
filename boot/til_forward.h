@@ -319,6 +319,7 @@ typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__Cto
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__ReturnEscapeRoots;
 typedef struct FactIndex FactIndex;
 typedef struct RootBits RootBits;
+typedef struct DepositAcc DepositAcc;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
@@ -742,6 +743,7 @@ typedef struct BorrowRoot {
     U32 line;
     U32 col;
     Bool carried;
+    Bool deposited;
     Str field;
 } BorrowRoot;
 
@@ -950,6 +952,11 @@ typedef struct RootBits {
     U64 into;
     U64 carried;
 } RootBits;
+
+
+typedef struct DepositAcc {
+    U64 m;
+} DepositAcc;
 
 
 typedef struct Vec__priv___src_self_typer_til__CtorArg {
@@ -1462,13 +1469,14 @@ typedef struct FunctionDef {
     FuncSig sig;
     Bool auto_generated;
     Bool is_enum_variant_ctor;
+    Bool noreturn;
     Vec__Declaration captures;
     Str closure_name;
-    Bool noreturn;
     U64 ref_return_params;
     U64 ref_return_into_params;
     U64 ref_return_carried_params;
     Option__ref_Declaration namespace_decl;
+    U64 deposit_matrix;
 } FunctionDef;
 
 

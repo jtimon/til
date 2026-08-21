@@ -401,14 +401,6 @@ FunctionDef := struct {
     // boilerplate references.
     auto_generated := false
     is_enum_variant_ctor := false
-    // Issue #54: explicit capture list for closures, e.g.
-    // `func(a: I64) returns I64 [scale] { ... }`. Each entry is a
-    // Declaration carrying the captured name plus its modifier
-    // (is_mut / own_type). Empty for ordinary (non-capturing) functions.
-    captures := Vec(Declaration).new()
-    // C backend name for the generated env-backed closure call function.
-    // Empty until the typer assigns one to a capturing FuncDef.
-    closure_name := ""
     // #303: true when calling this function never returns control to the
     // caller. Seeded on core exit (an ext_func whose libc binding is
     // noreturn), then inferred bottom-up by the typer for any function
@@ -417,7 +409,21 @@ FunctionDef := struct {
     // and TODO end in panic, and user functions with the same shape
     // qualify too. Read through the resolved direct callee when control-flow
     // divergence is derived.
+    //
+    // Sits with the other Bools ON PURPOSE (#393): FunctionDef is the
+    // widest NodeType payload, so its size sets sizeof(Expr) and every
+    // AST node pays for it. Alone between a Str and a U64 this flag cost
+    // a byte plus seven of padding; packed here it costs nothing, and
+    // the eight bytes it frees are what deposit_matrix below spends.
     noreturn := false
+    // Issue #54: explicit capture list for closures, e.g.
+    // `func(a: I64) returns I64 [scale] { ... }`. Each entry is a
+    // Declaration carrying the captured name plus its modifier
+    // (is_mut / own_type). Empty for ordinary (non-capturing) functions.
+    captures := Vec(Declaration).new()
+    // C backend name for the generated env-backed closure call function.
+    // Empty until the typer assigns one to a capturing FuncDef.
+    closure_name := ""
     // #344: parameter-indexed summary of the borrow this function hands
     // back. Bit i is set when parameter i's storage -- or a borrow that
     // parameter i carries -- can reach the returned value, on ANY return
@@ -445,6 +451,29 @@ FunctionDef := struct {
     // rare qualified-identity lookups. This borrow is stable for the AST's
     // lifetime and avoids storing two name pointers on every FunctionDef.
     namespace_decl := Option(ref Declaration).None
+    // #393: parameter-pair deposit summary, an 8x8 matrix packed into one
+    // word. Bit (sink * 8 + source) says calling this function can store
+    // borrows carried by argument `source` into storage reachable from
+    // argument `sink` (Vec.push parking a holder's ref field inside
+    // self). The call site maps both indexes onto its actual arguments
+    // and appends the source's borrow roots to the sink's binding, so
+    // later writes through the sink's elements are credited to -- and
+    // checked against -- the real storage.
+    //
+    // A matrix, not two bitmaps: those would cross-multiply unrelated
+    // sinks and sources into deposits nobody performs, and an invented
+    // deposit is a false "declare it 'mut'" against a correct program.
+    // One word, not a Vec: FunctionDef is the widest NodeType payload,
+    // so its size sets sizeof(Expr) -- the Vec this started as added 16
+    // bytes to EVERY node of EVERY AST (measured: +19 MB peak RSS
+    // translating src/til.til), which the reordered `noreturn` above now
+    // pays for outright.
+    //
+    // Eight parameters is the cap, and past it the answer is 0 -- the
+    // same conservative "no bits" summary_param_bit already gives past
+    // 64. Losing a deposit costs only the diagnostic; inventing one
+    // would cost a working program.
+    deposit_matrix : U64 = 0
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.sig == b.sig }
     to_str := func(self: FunctionDef) returns Str { return self.sig.to_str() }

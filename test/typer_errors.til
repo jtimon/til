@@ -1278,6 +1278,36 @@ terr360_poke := func(s: Terr351Src) {
     h2.r.n = h2.r.n + 1
 }
 
+// #393: a borrow deposited into ANOTHER argument's storage keeps its
+// root. The holder rides Vec.push into hs, so the write through the
+// element writes s -- a read-only borrow here. This compiled while the
+// backends disagreed about where the write landed (the compiled copy of
+// s took it). Exactly one error, naming s.
+terr393_vec_poke := func(s: Terr351Src) {
+    mut hs := Vec(Terr351Holder).new()
+    hs.push(own Terr351Holder(r = terr351_held_of(s)))
+    ref mut h : Terr351Holder = hs[0]
+    h.r.n = h.r.n + 1
+}
+
+// #393: the helper-deposit form -- the (sink, source) pair is computed
+// on the callee's body and mapped onto the caller's arguments.
+Terr393Box := struct { h := Terr351Holder(r = Terr351Held()) }
+terr393_park := func(mut b: Terr393Box, h: Terr351Holder) { b.h = h }
+terr393_helper_poke := func(s: Terr351Src) {
+    mut b := Terr393Box()
+    terr393_park(b, Terr351Holder(r = terr351_held_of(s)))
+    b.h.r.n = b.h.r.n + 1
+}
+
+// #393: the direct field-assign form of the same deposit, no call
+// involved -- only Decl RHSes used to record carried roots.
+terr393_direct_poke := func(s: Terr351Src) {
+    mut b := Terr393Box()
+    b.h = Terr351Holder(r = terr351_held_of(s))
+    b.h.r.n = b.h.r.n + 1
+}
+
 // #357 family: a `ref` FIELD holding a pointer-to-scalar is a borrow, so
 // binding it needs `ref` too. Unlabelled, the interpreter bound the ADDRESS
 // and read through it while codegen emitted `U8 x = h.buf` -- gcc's "makes

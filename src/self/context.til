@@ -45,6 +45,15 @@ BorrowRoot := struct {
     // tracking is the boot). Appended at the END so the committed boot's
     // layout stays stable.
     carried := false
+    // #393: true when the root was DEPOSITED into this binding's storage
+    // by a call or assignment (Vec.push parking a holder), rather than
+    // recorded at the binding's own declaration. On a REF binding the
+    // declared roots are its alias set -- a direct write through the ref
+    // writes them -- while deposited roots are only reachable by crossing
+    // the carried borrow, so the direct-write walk must skip them.
+    // Packed against `carried` rather than appended: the two Bools share
+    // one word of padding, so this flag costs nothing.
+    deposited := false
     // #355/#356: for a carried root, the dotted PATH of fields the
     // pointer sits behind, from the carrying value (`h.r`: cross the
     // owned `h`, then the ref `r`). Set where the constructor makes it

@@ -409,3 +409,74 @@ test_borrow_root_through_owned_intermediate := test() {
     bp357_poke(s)
     assert_eq(I64, s.held.n, 2)
 }
+
+# --- #393: a deposit into another argument's storage keeps its root ---
+#
+# The holder rides Vec.push / Map.set / a helper call / a plain field
+# assign into other storage; the write through that storage still
+# credits s, so the honest `mut s` survives the redundancy check and
+# both backends agree the caller's storage was written twice.
+
+bp393_vec := func(mut s: Bp351Src) {
+    mut hs := Vec(Bp351Holder).new()
+    hs.push(own Bp351Holder(r = bp351_held_of(s)))
+    ref mut h : Bp351Holder = hs[0]
+    h.r.n = h.r.n + 1
+}
+
+test_borrow_root_through_vec_push := test() {
+    mut s := Bp351Src()
+    bp393_vec(s)
+    bp393_vec(s)
+    assert_eq(I64, s.held.n, 2)
+}
+
+bp393_map := func(mut s: Bp351Src) {
+    mut m := Map(Str, Bp351Holder).new()
+    m.set("k", own Bp351Holder(r = bp351_held_of(s)))
+    ref mut h : Bp351Holder = m.get("k")!
+    h.r.n = h.r.n + 1
+}
+
+test_borrow_root_through_map_set := test() {
+    mut s := Bp351Src()
+    bp393_map(s)
+    bp393_map(s)
+    assert_eq(I64, s.held.n, 2)
+}
+
+Bp393Box := struct { h := Bp351Holder(r = Bp351Held()) }
+
+bp393_park := func(mut b: Bp393Box, h: Bp351Holder) { b.h = h }
+
+// The box is seeded from a local, NOT from s, so the write below is
+// credited to s only through the park deposit -- and the bare default
+// (`Bp393Box()`) is avoided because its ref-field default would malloc
+// a Held box nobody owns.
+bp393_helper := func(mut s: Bp351Src) {
+    mut seed := Bp351Held()
+    mut b := Bp393Box(h = Bp351Holder(r = seed))
+    bp393_park(b, Bp351Holder(r = bp351_held_of(s)))
+    b.h.r.n = b.h.r.n + 1
+}
+
+test_borrow_root_through_helper_deposit := test() {
+    mut s := Bp351Src()
+    bp393_helper(s)
+    bp393_helper(s)
+    assert_eq(I64, s.held.n, 2)
+}
+
+bp393_direct := func(mut s: Bp351Src) {
+    mut seed := Bp351Held()
+    mut b := Bp393Box(h = Bp351Holder(r = seed))
+    b.h = Bp351Holder(r = bp351_held_of(s))
+    b.h.r.n = b.h.r.n + 1
+}
+
+test_borrow_root_through_field_deposit := test() {
+    mut s := Bp351Src()
+    bp393_direct(s)
+    bp393_direct(s)
+    assert_eq(I64, s.held.n, 2)
+}

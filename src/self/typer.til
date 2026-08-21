@@ -1407,6 +1407,22 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             ci++
             pi++
         }
+        // #393: map the callee's deposit pairs onto the actual arguments:
+        // the source argument's borrow roots land in the sink argument's
+        // binding, where later writes through the sink's elements find
+        // them.
+        if fdef_data.deposit_matrix != 0 {
+            for dsink in 0..DEPOSIT_PARAMS {
+                for dsrc in 0..DEPOSIT_PARAMS {
+                    if fdef_data.deposit_matrix.band(deposit_bit(dsink, dsrc)) == 0 { continue }
+                    sink_o := summary_fcall_arg_for_param(e, fdef_data, dsink, scope, ctx.symbols)
+                    if sink_o.is_none() { continue }
+                    src_o := summary_fcall_arg_for_param(e, fdef_data, dsrc, scope, ctx.symbols)
+                    if src_o.is_none() { continue }
+                    apply_call_deposit(scope, sink_o.unwrap(), src_o.unwrap(), ctx.symbols)
+                }
+            }
+        }
         ci = 1
         pi = 0
         while pi < fdef_data.sig.params.len() {
@@ -4268,7 +4284,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
     }
 }
 
-priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, type_name: Str, mut ctx: Context) {
+priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name: Str, mut ctx: Context) {
     expr.set_til_type(Type.None)
     mut binding_capacity : USize = 0
     switch expr.node_type {
@@ -5919,6 +5935,13 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     // when `a` is a borrow, the storage `a` aliases.
     mark_written_through(scope, obj, ctx.symbols)
     check_write_roots_mut(scope, stmt, obj, format("assign to '", fname, "' here"), ctx)
+    // #393: a borrow-carrying value assigned into a field parks its
+    // borrows in the base binding's storage -- the direct-assign form of
+    // the deposit a call performs through its pairs.
+    dep_tn_393 := type_to_name(rhs.til_type())
+    if dep_tn_393.len().gt(0).and(type_carries_borrow(scope, dep_tn_393, ctx.symbols)) {
+        apply_call_deposit(scope, obj, rhs, ctx.symbols)
+    }
     obj_sname_o := expr_type_name_ref(obj)
     if obj_sname_o.is_some() {
         ref obj_sname : Str = obj_sname_o.unwrap()
@@ -6662,7 +6685,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         // is #357's own supported form -- Dynamic IS a pointer, so it takes
         // the address by design and both backends agree on it.
         //
-        // #391: an OWN pointer field (`own c_str : I8` in Str, `own data :
+        // #393: an OWN pointer field (`own c_str : I8` in Str, `own data :
         // U8` in Vec/Array) is the same defect one qualifier over. It was
         // missed because the rule was written for the borrow case, but the
         // scalar/pointer mismatch is a property of the FIELD's storage, not
@@ -8161,6 +8184,22 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         // even though it is not a read for the unused-variable check.
         note_cross_file_use(ctx, ub.path)
         if ub.is_param.or(ub.own_type.is(OwnType.Ref)) { ub.used = true }
+    }
+    // #393: `hs = rhs` with a borrow-carrying RHS unions the source's
+    // roots into the target binding -- flow-insensitive like the rest of
+    // #344, so an overwritten borrow keeps its credit.
+    dep_tn_393 := type_to_name(rhs.til_type())
+    if dep_tn_393.len().gt(0).and(type_carries_borrow(scope, dep_tn_393, ctx.symbols)) {
+        deposited_393 := deposit_src_roots(scope, rhs, ctx.symbols)
+        if deposited_393.len() > 0 {
+            mut db_o := scope.get_binding_name(aname, ctx.symbols)
+            if db_o.is_some() {
+                ref mut db : TypeBinding = db_o.unwrap()
+                if binding_is_storage(scope, db, ctx.symbols) {
+                    deposit_roots_into_binding(scope, db, deposited_393, ctx.symbols)
+                }
+            }
+        }
     }
     existing := scope.get_type_name(aname, ctx.symbols)
     // #321: `x = 0` on a Dynamic target is the null spelling.
@@ -10450,8 +10489,13 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool
         // A ref binding IS a window onto its roots: writing through it
         // writes them. An owned binding's carried roots are only reached
         // by crossing a ref field, handled at the FieldAccess arm.
+        // #393: deposited roots are carried BY the value, not aliased by
+        // the binding -- reaching them takes a crossing too.
         if b.own_type.is(OwnType.Ref) {
-            for r : BorrowRoot in b.borrow_roots { push_root_unique(out, r) }
+            for r : BorrowRoot in b.borrow_roots {
+                if r.deposited { continue }
+                push_root_unique(out, r)
+            }
         }
     case .FieldAccess:
         if obj.children.len() == 0 { return out }
@@ -10619,6 +10663,84 @@ priv mark_written_through := func(mut scope: TypeScope, obj: Expr, symbols: Symb
         mark_roots_written(scope, expr_borrow_roots(scope, obj, symbols), symbols)
     case:
     }
+}
+
+// #393: the deposit, applied where it really happens. The source's
+// borrow roots -- both the storage writing it would write and whatever
+// its value carries -- are appended to the sink's binding as carried
+// roots of unknown depth ("" matches every field path). From there the
+// ordinary #344 walks take over with no further change:
+// lvalue_write_roots chases them through the sink's elements,
+// mark_written_through credits them, check_write_roots_mut enforces
+// them.
+priv deposit_src_roots := func(scope: TypeScope, src: Expr, symbols: SymbolPool) returns Vec(BorrowRoot) {
+    // Only the storages the source's value CARRIES: the value itself is
+    // copied or moved into the sink, so its own storage does not become
+    // a borrow root -- an `own` argument's local dies with the transfer.
+    return carried_roots_of(scope, expr_borrow_roots(scope, src, symbols), "", symbols)
+}
+
+priv deposit_roots_into_binding := func(scope: TypeScope, mut b: TypeBinding, deposited: Vec(BorrowRoot), symbols: SymbolPool) {
+    for r : BorrowRoot in deposited {
+        // The sink is not a root of its own deposits.
+        if r.name.eq(b.name).and(r.line == b.line).and(r.col == b.col) { continue }
+        mut cr := r.clone()
+        cr.carried = true
+        cr.deposited = true
+        push_root_unique(b.borrow_roots, cr)
+    }
+    // A ref sink is a window: the deposit lands in the storage it
+    // aliases, so the roots ride along to the aliased bindings too --
+    // a later write spelled on the ORIGINAL name must see them.
+    if b.own_type.is(OwnType.Ref) {
+        mut alias_roots := Vec(BorrowRoot).new()
+        for ar : BorrowRoot in b.borrow_roots {
+            if ar.carried.not() { push_root_unique(alias_roots, ar) }
+        }
+        for ar : BorrowRoot in alias_roots {
+            mut ab_o := lookup_binding_at(scope, ar, symbols)
+            if ab_o.is_none() { continue }
+            ref mut ab : TypeBinding = ab_o.unwrap()
+            for r : BorrowRoot in deposited {
+                if r.name.eq(ab.name).and(r.line == ab.line).and(r.col == ab.col) { continue }
+                mut cr := r.clone()
+                cr.carried = true
+                cr.deposited = true
+                push_root_unique(ab.borrow_roots, cr)
+            }
+        }
+    }
+}
+
+// The binding a deposit's sink argument stores into -- the base of the
+// expression, across field accesses and the raw pointer ops.
+priv deposit_sink_binding := func(scope: TypeScope, sink: Expr, symbols: SymbolPool) returns Option(ref TypeBinding) {
+    switch sink.node_type {
+    case .Ident(id):
+        bo := scope.get_binding_sym(id.ident_sym())
+        if bo.is_some() {
+            ref b : TypeBinding = bo.unwrap()
+            if binding_is_storage(scope, b, symbols) { return safe_ref(b) }
+        }
+    case .FieldAccess:
+        if sink.children.len().gt(0).and(fa_is_ns(sink, scope, symbols).not()) {
+            return deposit_sink_binding(scope, sink.children[0], symbols)
+        }
+    case .FCall:
+        rso := raw_borrow_source(sink, symbols)
+        if rso.is_some() { return deposit_sink_binding(scope, rso.unwrap(), symbols) }
+    case:
+    }
+    return Option(ref TypeBinding).None
+}
+
+priv apply_call_deposit := func(scope: TypeScope, sink: Expr, src: Expr, symbols: SymbolPool) {
+    deposited := deposit_src_roots(scope, src, symbols)
+    if deposited.len() == 0 { return }
+    mut bo := deposit_sink_binding(scope, sink, symbols)
+    if bo.is_none() { return }
+    ref mut b : TypeBinding = bo.unwrap()
+    deposit_roots_into_binding(scope, b, deposited, symbols)
 }
 
 // --- #344: the per-unit return-borrow summary pass ---------------------
@@ -11004,14 +11126,165 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
     return RootBits()
 }
 
+// --- #393: parameter-pair deposit summaries -----------------------------
+
+// Bit (sink * 8 + src) of a deposit matrix. Eight parameters is the cap
+// one word buys; past it the answer is 0, which reads as "no deposit" --
+// the same conservative direction summary_param_bit takes past 64.
+DEPOSIT_PARAMS : USize = 8
+
+// #393: could calling this function deposit anything? It needs storage
+// to deposit INTO (a mut parameter), something to deposit FROM (a second
+// parameter), and a parameter whose value can carry a borrow at all --
+// with nothing borrowed in the arguments there is nothing to lose track
+// of. Read off the DECLARED types, which is what keeps this pre-typing
+// pass off the bodies of the overwhelming majority of functions: without
+// it every mut-parameter function in the program gets its body walked,
+// once per round of the fixed point, to discover it deposits nothing.
+priv fdef_may_deposit := func(fd: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if fd.sig.params.len() < 2 { return false }
+    mut has_mut := false
+    for p : Declaration in fd.sig.params {
+        if p.is_mut { has_mut = true }
+    }
+    if has_mut.not() { return false }
+    // A DIFFERENT parameter must carry the borrow, matching the self-pair
+    // deposit_cross refuses to record: a lone mut parameter carrying its
+    // own borrows deposits nothing a caller can observe.
+    for si in 0..fd.sig.params.len() {
+        if fd.sig.params[si].is_mut.not() { continue }
+        for sj in 0..fd.sig.params.len() {
+            if si == sj { continue }
+            if type_carries_borrow(scope, fd.sig.params[sj].type_name(), symbols) { return true }
+        }
+    }
+    return false
+}
+
+// The summary walk's out-parameter. A struct, not a bare `mut m: U64`:
+// #223's auto-shallow passes a borrowed primitive by value in C, so the
+// callee's writes would never reach the caller.
+DepositAcc := struct {
+    m : U64 = 0
+namespace:
+    eq := func(a: DepositAcc, b: DepositAcc) returns Bool { return a.m == b.m }
+    to_str := func(self: DepositAcc) returns Str { return self.m.to_str() }
+}
+
+priv deposit_bit := func(sink: USize, src: USize) returns U64 {
+    if sink >= DEPOSIT_PARAMS { return 0 }
+    if src >= DEPOSIT_PARAMS { return 0 }
+    one : U64 = 1
+    return one.shl(sink.mul(DEPOSIT_PARAMS).add(src).to_u64())
+}
+
+// Cross every sink bit with every source bit. A self-pair says nothing a
+// caller can use, and a parameter past the cap contributes no bit.
+priv deposit_cross := func(sinks: U64, srcs: U64) returns U64 {
+    if sinks.eq(0).or(srcs == 0) { return 0 }
+    mut out : U64 = 0
+    for si in 0..DEPOSIT_PARAMS {
+        if sinks.band(summary_param_bit(si)) == 0 { continue }
+        for sj in 0..DEPOSIT_PARAMS {
+            if si == sj { continue }
+            if srcs.band(summary_param_bit(sj)) == 0 { continue }
+            out = out.bor(deposit_bit(si, sj))
+        }
+    }
+    return out
+}
+
+// The base binding name a deposit's sink expression stores into --
+// `hs`, `self.field`, `ptr_add(self.data, ...)` all bottom out in one.
+priv summary_deposit_base_name := func(e: Expr, symbols: SymbolPool) returns Str {
+    switch e.node_type {
+    case .Ident(id):
+        return Str.clone(id.ident_name(symbols.names))
+    case .FieldAccess:
+        if e.children.len() > 0 { return summary_deposit_base_name(e.children[0], symbols) }
+    case .FCall:
+        rso := raw_borrow_source(e, symbols)
+        if rso.is_some() { return summary_deposit_base_name(rso.unwrap(), symbols) }
+    case:
+    }
+    return ""
+}
+
+// A deposit whose sink is a named binding also updates the walk's roots
+// map: the sink's value now carries what the source's bits say, so
+// returning the sink later hands the deposit back out (the same
+// carrying relation summary_ctor_wrap records for a constructor).
+priv summary_note_local_deposit := func(name: Str, src_bits: RootBits, mut roots: Map(Str, RootBits)) {
+    if name.len() == 0 { return }
+    if src_bits.is_zero() { return }
+    mut nb := summary_ctor_wrap(src_bits)
+    if roots.has(name) {
+        prev := roots[name].clone()
+        nb = nb.bor(prev)
+    }
+    roots.set(name, own nb.clone())
+}
+
+// #393: record the deposits one call performs, in the enclosing
+// function's parameter bits. adopt / adopt_from are the raw boundary
+// deposits -- dest takes src's bytes, smuggled pointers included; their
+// bodies bottom out in memcpy, which no walk can see through. Any other
+// callee contributes through its own deposit_matrix, mapped onto the
+// arguments -- which is what carries Vec.push's pair up through Map.set.
+priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, symbols: SymbolPool, ctx: Context) {
+    if e.node_type.is(NodeType.FCall).not() { return }
+    if e.children.len() < 2 { return }
+    switch e.children[0].node_type {
+    case .Ident(hid):
+        ref hn : Str = hid.ident_name(symbols.names)
+        // adopt's explicit Type argument means the call may already be
+        // monomorphized (adopt__<T>, Type arg stripped) when the summary
+        // pass sees it; both spellings are the same deposit.
+        mut dest_i : USize = 0
+        if hn == "adopt" { dest_i = 2 }
+        if hn.eq("adopt_from").or(hn.starts_with("adopt__")) { dest_i = 1 }
+        if dest_i > 0 {
+            if e.children.len() < dest_i + 2 { return }
+            sink_bits := summary_expr_bits(e.children[dest_i], roots, scope, self_type, symbols, ctx)
+            src_bits := summary_expr_bits(e.children[dest_i + 1], roots, scope, self_type, symbols, ctx)
+            acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
+            summary_note_local_deposit(summary_deposit_base_name(e.children[dest_i], symbols), src_bits, roots)
+            return
+        }
+    case:
+    }
+    mut fd_o := fcall_callee_fdef(e, scope, symbols)
+    if fd_o.is_none() { fd_o = summary_self_method(e, scope, self_type, symbols) }
+    if fd_o.is_none() { return }
+    switch fd_o.unwrap().node_type {
+    case .FuncDef(cfd):
+        if cfd.deposit_matrix == 0 { return }
+        for dsink in 0..DEPOSIT_PARAMS {
+            for dsrc in 0..DEPOSIT_PARAMS {
+                if cfd.deposit_matrix.band(deposit_bit(dsink, dsrc)) == 0 { continue }
+                sink_arg_o := summary_fcall_arg_for_param(e, cfd, dsink, scope, symbols)
+                if sink_arg_o.is_none() { continue }
+                src_arg_o := summary_fcall_arg_for_param(e, cfd, dsrc, scope, symbols)
+                if src_arg_o.is_none() { continue }
+                sink_bits := summary_expr_bits(sink_arg_o.unwrap(), roots, scope, self_type, symbols, ctx)
+                src_bits := summary_expr_bits(src_arg_o.unwrap(), roots, scope, self_type, symbols, ctx)
+                acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
+                summary_note_local_deposit(summary_deposit_base_name(sink_arg_o.unwrap(), symbols), src_bits, roots)
+            }
+        }
+    case:
+    }
+}
+
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
-priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool, ctx: Context) returns RootBits {
+priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, symbols: SymbolPool, ctx: Context) returns RootBits {
     switch e.node_type {
     case .FuncDef:
         return RootBits()
     case .Return:
         if e.children.len() == 0 { return RootBits() }
+        summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, symbols, ctx)
         return summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
     case .Decl(d):
         // A BORROW forwards its roots whole: the binding IS a window onto
@@ -11021,6 +11294,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeSco
         // same pointers, so parking a borrow in a local and returning it
         // no longer drops the provenance on the floor.
         if e.children.len() > 0 {
+            summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, symbols, ctx)
             if d.own_type.is(OwnType.Ref) {
                 db := summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
                 if db.is_zero().not() { roots.set(d.name, own db.clone()) }
@@ -11047,11 +11321,36 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), scope: TypeSco
                 for ci in 1..e.children.len() { summary_bind_case(e.children[ci], subj, roots, scope, self_type, symbols) }
             }
         }
+    case .Assign(ad):
+        // #393: `hs = rhs` unions the source's carrying relations into the
+        // target; a parameter target is a deposit the caller can observe.
+        if e.children.len() > 0 {
+            src_bits := summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
+            if src_bits.is_zero().not() {
+                if roots.has(ad.name) {
+                    sink := roots[ad.name].clone()
+                    acc.m = acc.m.bor(deposit_cross(sink.all(), src_bits.all()))
+                }
+                summary_note_local_deposit(ad.name, src_bits, roots)
+            }
+        }
+    case .FieldAssign:
+        // #393: `b.h = rhs` parks the source's borrows in b's storage.
+        if e.children.len() >= 2 {
+            src_bits := summary_expr_bits(e.children[1], roots, scope, self_type, symbols, ctx)
+            if src_bits.is_zero().not() {
+                sink_bits := summary_expr_bits(e.children[0], roots, scope, self_type, symbols, ctx)
+                acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
+                summary_note_local_deposit(summary_deposit_base_name(e.children[0], symbols), src_bits, roots)
+            }
+        }
+    case .FCall:
+        summary_fcall_deposits(e, roots, acc, scope, self_type, symbols, ctx)
     case:
     }
     mut bits := RootBits()
     for c : Expr in e.children {
-        bits = bits.bor(summary_walk(c, roots, scope, self_type, symbols, ctx))
+        bits = bits.bor(summary_walk(c, roots, acc, scope, self_type, symbols, ctx))
     }
     return bits
 }
@@ -11068,22 +11367,38 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         // #351/#357: summaries cover every shape that can hand a borrow
         // back, which is now exactly what fdef_return_carries_borrow
         // answers -- including a returned VALUE carrying a ref field.
-        if summary_fdef_return_carries_borrow(fd, scope, ctx).not() { return false }
+        wants_ret := summary_fdef_return_carries_borrow(fd, scope, ctx)
+        // #393: a deposit needs a writable (mut) parameter to land in and
+        // a second parameter to come from; anything else cannot move a
+        // borrow across the call boundary.
+        wants_dep := fdef_may_deposit(fd, scope, ctx.symbols)
+        if wants_ret.not().and(wants_dep.not()) { return false }
         mut roots := Map(Str, RootBits).new()
         for pi in 0..fd.sig.params.len() {
             ref p : Declaration = fd.sig.params[pi]
             if p.name.len() == 0 { continue }
             roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
-        rb := summary_walk(fd_expr.children[0], roots, scope, self_type, ctx.symbols, ctx)
-        merged_a := fd.ref_return_params.bor(rb.alias)
-        merged_i := fd.ref_return_into_params.bor(rb.into)
-        merged_c := fd.ref_return_carried_params.bor(rb.carried)
-        if merged_a.eq(fd.ref_return_params).and(merged_i == fd.ref_return_into_params).and(merged_c == fd.ref_return_carried_params) { return false }
-        fd.ref_return_params = merged_a
-        fd.ref_return_into_params = merged_i
-        fd.ref_return_carried_params = merged_c
-        return true
+        mut acc := DepositAcc()
+        rb := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, ctx.symbols, ctx)
+        mut changed := false
+        merged_d := fd.deposit_matrix.bor(acc.m)
+        if merged_d != fd.deposit_matrix {
+            fd.deposit_matrix = merged_d
+            changed = true
+        }
+        if wants_ret {
+            merged_a := fd.ref_return_params.bor(rb.alias)
+            merged_i := fd.ref_return_into_params.bor(rb.into)
+            merged_c := fd.ref_return_carried_params.bor(rb.carried)
+            if merged_a.neq(fd.ref_return_params).or(merged_i != fd.ref_return_into_params).or(merged_c != fd.ref_return_carried_params) {
+                fd.ref_return_params = merged_a
+                fd.ref_return_into_params = merged_i
+                fd.ref_return_carried_params = merged_c
+                changed = true
+            }
+        }
+        return changed
     case:
     }
     return false
