@@ -3150,10 +3150,32 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
     return true
 }
 
-// #328 follow-up: what the DESTINATION's annotation says `pname` is, or
-// "". `p : Point = gdefault()` names T's answer in the annotation, which
+// #328 follow-up: arm the expected-type evidence for `value`, pinned to
+// that exact node so only the OUTERMOST call reads it. A no-op unless
+// the destination names a type and the value is a call -- the one shape
+// inference can read it from. Every caller SAVES the two fields first
+// and restores them after inferring: a Decl nested inside `value` (a
+// lambda argument's body) arms its own before this one is consumed.
+priv generic_expected_arm := func(mut ctx: Context, scope: TypeScope, declared_name: Str, value: Expr) {
+    if declared_name.len() == 0 { return }
+    if value.node_type.is(NodeType.FCall).not() { return }
+    ctx.generic_expected_type = resolve_type_alias(scope, declared_name, ctx.symbols).clone()
+    ctx.generic_expected_for = to_ptr(value)
+}
+
+// The destination NAME a settled Type imposes, for the positions that
+// carry a Type rather than the written annotation (an assignment target
+// reads its binding). "" when the type has no name to impose.
+priv generic_expected_name_of_type := func(scope: TypeScope, t: Type, ctx: Context) returns Str {
+    n := type_to_name(t)
+    if n.len() == 0 { return "" }
+    return resolve_type_alias(scope, n, ctx.symbols).clone()
+}
+
+// #328 follow-up: what the DESTINATION says `pname` is, or "".
+// `p : Point = gdefault()` names T's answer in the annotation, which
 // argument evidence cannot see -- gdefault's T appears only in its return
-// type. Only the exact RHS node infer_decl_stmt pinned may read it (a
+// type. Only the exact RHS node the destination pinned may read it (a
 // generic nested deeper feeds a parameter, not the annotation), and the
 // annotation only speaks about parameters the RETURN type mentions:
 // directly (`returns T` takes the whole name) or inside a generated
@@ -4208,11 +4230,19 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                     .and(fd.default_expr().node_type.is(NodeType.Loc).not()) {
                     // #341: `kind : Shape = .Nothing` -- same rule as a typed
                     // local, with the field's annotation as the expectation.
+                    // #328 follow-up: the field's annotation is evidence
+                    // for a generic default (`p : Point = gdefault()`),
+                    // the same rule the local and return positions use.
+                    saved_fld_expected_type := ctx.generic_expected_type.clone()
+                    ref saved_fld_expected_for : Dynamic = ctx.generic_expected_for
                     if fd.til_type.is(Type.Unknown).not() {
                         qualify_dotted_expr(fd.default_expr(), type_from_name(fd.type_name(), inner, ctx), ctx.symbols)
+                        generic_expected_arm(ctx, inner, fd.type_name(), fd.default_expr())
                     }
                     errors_before_default := ctx.errors
                     infer_expr(inner, fd.default_expr(), 0, ctx)
+                    ctx.generic_expected_type = saved_fld_expected_type.clone()
+                    ctx.generic_expected_for = saved_fld_expected_for
                     default_inference_failed = ctx.errors > errors_before_default
                     check_ref_field_owned_default(tc_fname, fd, inner, ctx)
                 }
@@ -5697,12 +5727,20 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         if return_type_name.len() > 0 {
             qualify_dotted_expr(stmt.children[0], type_from_name(return_type_name, scope, ctx), ctx.symbols)
         }
+        // #328 follow-up: the declared RETURN type is evidence for a
+        // generic call being returned (`return gdefault()` from a
+        // `returns Point`), exactly as a Decl's annotation is.
+        saved_ret_expected_type := ctx.generic_expected_type.clone()
+        ref saved_ret_expected_for : Dynamic = ctx.generic_expected_for
+        generic_expected_arm(ctx, scope, return_type_name, stmt.children[0])
         if return_type_name.len().gt(0).and(name_is_interface(return_type_name, scope, ctx.symbols)) {
             box_return_value(scope, stmt, in_func, ctx)
         } else {
             infer_expr(scope, stmt.children[0], in_func, ctx)
             narrow_return_literal(scope, stmt.children[0], ctx)
         }
+        ctx.generic_expected_type = saved_ret_expected_type.clone()
+        ctx.generic_expected_for = saved_ret_expected_for
         stmt.set_til_type(stmt.children[0].til_type())
         // #321: `return 0` from a returns-Dynamic function is the null
         // spelling.
@@ -7053,10 +7091,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         case .Decl(qdd):
             if qdd.til_type.is(Type.Unknown).not() {
                 qualify_dotted_expr(stmt.children[0], type_from_name(qdd.type_name(), scope, ctx), ctx.symbols)
-                if stmt.children[0].node_type.is(NodeType.FCall) {
-                    ctx.generic_expected_type = resolve_type_alias(scope, qdd.type_name(), ctx.symbols).clone()
-                    ctx.generic_expected_for = to_ptr(stmt.children[0])
-                }
+                generic_expected_arm(ctx, scope, qdd.type_name(), stmt.children[0])
             }
         case:
         }
@@ -8163,7 +8198,26 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     // #341: `s = .Nothing` -- the target's own type is the expected enum,
     // so fill the elided name in before the RHS is inferred.
     qualify_dotted_expr(stmt.children[0], scope.get_type_name(aname, ctx.symbols), ctx.symbols)
+    // #328 follow-up: that same target type is evidence for a generic RHS
+    // (`m = gdefault()`). The target carries a settled Type rather than a
+    // written annotation, so its NAME comes from the type; an annotated
+    // binding's own spelling wins when it has one, keeping an alias
+    // destination reading the way the Decl position does.
+    saved_asg_expected_type := ctx.generic_expected_type.clone()
+    ref saved_asg_expected_for : Dynamic = ctx.generic_expected_for
+    mut asg_expected_name := ""
+    asg_b_o := scope.get_binding_name(aname, ctx.symbols)
+    if asg_b_o.is_some() {
+        ref asg_b : TypeBinding = asg_b_o.unwrap()
+        asg_expected_name = asg_b.declared_type_name.clone()
+        if asg_expected_name.len() == 0 {
+            asg_expected_name = generic_expected_name_of_type(scope, asg_b.type, ctx)
+        }
+    }
+    generic_expected_arm(ctx, scope, asg_expected_name, stmt.children[0])
     infer_expr(scope, stmt.children[0], in_func, ctx)
+    ctx.generic_expected_type = saved_asg_expected_type.clone()
+    ctx.generic_expected_for = saved_asg_expected_for
     ref mut rhs : Expr = stmt.children[0]
     stmt.set_til_type(rhs.til_type())
     // A write isn't a read. Don't flip `used = true` on the assign

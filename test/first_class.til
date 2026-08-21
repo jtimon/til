@@ -1937,6 +1937,14 @@ gexp_wrapv328 := func(T: Type) returns Vec(T) {
 }
 // A file-scope typed decl goes through the same path as a local one.
 gexp_top328 : GExp328 = gexp_default328()
+// #328 follow-up: the other three destinations that name a type -- an
+// assignment target, a declared return, and a field's annotation. Same
+// evidence as the Decl position, armed at each site and pinned to that
+// exact node, so a generic nested deeper still feeds the enclosing
+// PARAMETER rather than the destination.
+gexp_mk328 := func() returns GExp328 { return gexp_default328() }
+gexp_mku328 := func() returns U8 { return gid328(7) }
+gexp_holder328 := struct { p : GExp328 = gexp_default328() }
 
 test_generic_expected_type_infer := test() {
     p : GExp328 = gexp_default328()
@@ -1950,6 +1958,23 @@ test_generic_expected_type_infer := test() {
     w : Vec(I64) = gexp_wrapv328()
     assert_eq(USize, w.len(), 0)
     assert_eq(I64, gexp_top328.n, 7)
+}
+
+test_generic_expected_type_positions := test() {
+    // Assignment: the target's own type is the expectation.
+    mut m : GExp328 = GExp328(n = 1)
+    m = gexp_default328()
+    assert_eq(I64, m.n, 7)
+    // The alias spelling resolves the same way it does on a Decl.
+    mut al : GExpAlias328 = GExp328(n = 1)
+    al = gexp_default328()
+    assert_eq(I64, al.n, 7)
+    // Return: the declared return type.
+    assert_eq(I64, gexp_mk328().n, 7)
+    // ...including the literal narrowing a Decl annotation gives.
+    assert_eq(U8, gexp_mku328(), 7)
+    // Field default: the field's annotation.
+    assert_eq(I64, gexp_holder328().p.n, 7)
 }
 
 // #328 follow-up: a FUNCTION passed as a value argument deduces T from
