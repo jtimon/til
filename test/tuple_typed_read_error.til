@@ -1,0 +1,20 @@
+mode script
+
+// #392 stage B: a `..Dynamic` element carries its type, so reading one at a
+// TYPED binding is a claim the runtime can check. Before the check, this file
+// printed "0": the I64 element's bytes were reinterpreted as a Str header,
+// whose count field happened to read as zero. Silently answering a question
+// about a value that is not there is the failure mode gradual typing has to
+// avoid -- a Python-side lie fails at runtime, it does not become a plausible
+// wrong answer.
+//
+// The panic is the pinned behaviour, so this cannot live in the `both` suite
+// (it would abort the run); src/tests.til counts the message under each
+// backend instead.
+
+misread := func(xs: ..Dynamic) returns USize {
+    ref s : Str = xs.get(0)
+    return s.len()
+}
+
+println("lying read gives len: ", misread(42).to_str())

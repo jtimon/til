@@ -77,6 +77,42 @@ namespace:
         }
     }
 
+    /// #392 stage B: panic unless element ~i~ really is a ~want~. A Tuple
+    /// element carries its type, so reading one at a typed binding can be
+    /// CHECKED -- the gradual-typing bargain, where a lie about a dynamic
+    /// value fails at runtime instead of quietly reinterpreting bytes
+    /// (reading an I64 element as a Str used to answer len 0).
+    ///
+    /// An element tagged "Dynamic" is exempt: that tag means a raw word --
+    /// a C pointer, a #302 raw allocation, a splatted Array(Dynamic)
+    /// element -- whose reinterpretation is the caller's business and
+    /// always was. Dynamic means you are on your own, and this keeps it so.
+    ///
+    /// A typed read reaches this through ~get_checked~ below; calling it
+    /// by hand, ahead of an unchecked read, reads the same way.
+    expect_type := func(self: Tuple, i: USize, want: Str) {
+        if i >= self.type_names.len() {
+            panic("Tuple.expect_type: index ", i.to_str(), " out of bounds (len ",
+                  self.type_names.len().to_str(), ")")
+        }
+        ref got : Str = self.type_names[i]
+        if got == "Dynamic" { return }
+        if got.eq(want).not() {
+            panic("Tuple element ", i.to_str(), " is a '", got, "', read as a '", want,
+                  "'; ask type_at(", i.to_str(), ") before reading a dynamic value")
+        }
+    }
+
+    /// #392 stage B: ~get~ with the READ's static type in hand. A typed
+    /// binding (`ref a : I64 = t.get(0)`) lowers to this, so the read is
+    /// checked against what the element actually is instead of
+    /// reinterpreting its bytes. ~expect_type~ decides; see it for why a
+    /// "Dynamic" element is exempt.
+    get_checked := func(self: Tuple, i: USize, want: Str) returns ref Dynamic {
+        self.expect_type(i, want)
+        return self.get(i)
+    }
+
     /// Type name of the element at index ~i~. Panics if ~i~ is past
     /// the end.
     type_at := func(self: Tuple, i: USize) returns ref Str {

@@ -1,0 +1,71 @@
+# priority: medium
+# category: bugs
+** OPEN #395 tutorial_file_doctests escapes its runner: 434/435 every run
+
+Every ~make test~ prints
+
+    Passed:       434/435
+
+    all tests passed
+
+The missing one is ~tutorial_file_doctests~, and it is missing every run, not
+intermittently. ~gen/out/results/tutorial_file_doctests.txt~ is 0 bytes, so
+~run_all_parallel~'s ~rfind("RESULT ")~ finds nothing, ~t.ok~ parses as 0, and
+the test counts toward ~total_tests~ but never toward ~total_passed~.
+~fail~ stays 0, so the suite still says "all tests passed".
+
+*** Root cause: the redirect binds to the wrong command
+
+~add_single~ builds
+
+    bin/test_runner single <label> <exit> -- <cmd_suffix>
+
+and ~run_all_parallel~ appends ~" > ", t.outfile, " 2>&1"~ to that whole
+string. For every other test ~cmd_suffix~ is ONE command, so the redirect
+lands on ~bin/test_runner~. ~tutorial_file_doctests~ is the only test whose
+suffix is a shell ~&&~ chain (src/tests.til builds one interpret + one run
+per doctest file, six files today), so the spawned shell sees
+
+    bin/test_runner single tutorial_file_doctests 0 -- bin/til interpret 'A'
+      && bin/til run 'A' && ... && bin/til run 'F' > <outfile> 2>&1
+
+The chain is split before ~test_runner~ ever starts. Two consequences:
+
+- ~test_runner~ wraps only the FIRST doctest command. The other eleven run as
+  ordinary top-level commands -- untimed, unmeasured, and outside the
+  expected-exit check.
+- ~> outfile 2>&1~ binds to the LAST command only. The runner's ~RESULT~ line
+  goes to the SUITE's stdout instead of the result file, and the file gets
+  whatever the last ~bin/til run~ printed, which is nothing.
+
+The leak is visible in the suite log: the ~RESULT ms=... ok=1~ line lands
+jammed onto the ~test/forward_refs.til~ row, followed by that doctest's own
+~pass: test_safe_division~ / ~1/1 tests passed~.
+
+*** What is and is not at risk
+
+Nothing passes silently: ~&&~ still short-circuits, so a failing doctest
+gives the spawned command a non-zero status, ~run_all_parallel~ sees
+~status != 0~ and sets ~fail~. What is lost is the captured-output relay --
+the block ~print_captured_err~ writes, which the comment on that same
+~status != 0~ branch exists to guarantee ("a CI-only failure does not survive
+that filter"). For this one test a failure would report an exit code with no
+second line, which is exactly the twenty-red-runs problem that comment
+describes. The pass count and the per-test timing are wrong too.
+
+*** Fix direction
+
+Either make the redirect cover the whole suffix (wrap it, so the shell binds
+the redirect to the group rather than the last command) or -- probably better
+-- register one ~add_single~ per tutorial doctest file instead of one ~&&~
+chain, which also gives each file its own timing, its own result row and its
+own captured output. Whichever way, the general hazard is that ~add_single~
+silently assumes its ~cmd_suffix~ is a single command; that assumption is
+worth making explicit or enforcing.
+
+*** Regression test
+
+The count itself: after a run, ~total_passed == total_tests~. Any test whose
+result file has no ~RESULT~ line should be a hard failure rather than a
+quietly uncounted pass -- that check would have caught this the day the
+tutorial chain was added.

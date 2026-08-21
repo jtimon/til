@@ -350,6 +350,29 @@ priv dyn_first_str := func(xs: ..Dynamic) returns Str {
     return s.clone()
 }
 
+// #392 stage B: reading an element at a TYPED binding is checked against the
+// type the element carries -- `ref s : Str = xs.get(i)` lowers to
+// `xs.get_checked(i, "Str")` and panics when element i is not a Str (the
+// lying read is test/tuple_typed_read_error.til; it aborts, so it cannot run
+// here). These read CORRECTLY, at several types and at an index that is not a
+// literal, and must be untouched by the check.
+priv dyn_read_each := func(xs: ..Dynamic) returns Str {
+    mut out := ""
+    for i in 0..xs.len() {
+        if xs.type_at(i) == "I64" {
+            ref n : I64 = xs.get(i)
+            out = format(out, n.to_str(), " ")
+        } else if xs.type_at(i) == "Bool" {
+            ref b : Bool = xs.get(i)
+            out = format(out, b.to_str(), " ")
+        } else {
+            ref s : Str = xs.get(i)
+            out = format(out, s, " ")
+        }
+    }
+    return out
+}
+
 test_dynamic_variadic_tuple := test() {
     v := format("run", "time")
     assert_eq(Str, dyn_type_list(1, v, true), "I64,Str,Bool,")
@@ -359,4 +382,7 @@ test_dynamic_variadic_tuple := test() {
     d := array(Dynamic, 1, 2)
     assert_eq(Str, dyn_type_list(9, ..d), "I64,Dynamic,Dynamic,")
     assert_eq(Str, dyn_type_list(), "")
+    // asking type_at first, then reading at that type, is the pattern the
+    // check exists to reward -- every branch below reads what is there
+    assert_eq(Str, dyn_read_each(1, v, true), "1 runtime true ")
 }

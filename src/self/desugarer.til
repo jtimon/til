@@ -4185,6 +4185,68 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
     return false
 }
 
+// #392 stage B: the type a TYPED read of a Tuple element claims the element
+// has -- `ref a : I64 = t.get(0)` claims I64 -- or "" when the statement is
+// not such a read. A Tuple element carries its type, so unlike an
+// Array(Dynamic) word this claim can be CHECKED at runtime; that is the
+// gradual-typing bargain, and without it a lie about a dynamic value quietly
+// reinterprets bytes (reading an I64 element as a Str answered len 0).
+//
+// The RHS shape is tested first because it is the rare one and costs no
+// allocation: after the typer's UFCS pass `t.get(i)` is
+// `FCall(FieldAccess(Ident(Tuple), "get"), t, i)`.
+//
+// A binding declared `Dynamic` is deliberately not a claim -- it is the
+// unchecked read, the caller taking the word as it is -- so it returns "".
+priv decl_tuple_typed_read_type := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
+    if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { return "" }
+    ref rhs : Expr = stmt.children[0]
+    if rhs.node_type.is(NodeType.FCall).not().or(rhs.children.len().eq(3).not()) { return "" }
+    ref callee : Expr = rhs.children[0]
+    switch callee.node_type {
+    case .FieldAccess(m):
+        if m.field_access_name(symbols.names) != "get" { return "" }
+        if callee.children.len() == 0 { return "" }
+        switch callee.children[0].node_type {
+        case .Ident(tn):
+            if tn.ident_name(symbols.names) != "Tuple" { return "" }
+        case:
+            return ""
+        }
+    case:
+        return ""
+    }
+    ref dd : Declaration = decl_of(stmt)
+    declared := dd.type_name()
+    if declared.len() == 0 { return "" }
+    // Same spelling the push side records: desugar_dynamic_variadic_call
+    // stores resolve_type_alias_for_name(type of the argument).
+    ref want : Str = resolve_type_alias_for_name(scope, declared, symbols)
+    if want == "Dynamic" { return "" }
+    return want.clone()
+}
+
+// #392 stage B: `ref a : T = t.get(i)` -> `ref a : T = t.get_checked(i, "T")`.
+// Rewriting the call in place, rather than emitting a separate
+// `t.expect_type(i, "T")` statement ahead of it, keeps the index expression
+// evaluated exactly once -- cloning it into a second call would run any side
+// effect twice.
+priv desugar_tuple_typed_read := func(mut stmt: Expr, want: Str, scope: TypeScope, mut ctx: Context) {
+    ref mut rhs : Expr = stmt.children[0]
+    mut new_fa := Expr.new(field_access_node(ctx.symbols.intern("get_checked")), rhs.line, rhs.col)
+    // Directness lives on the CALLEE's til_type (fcall_is_direct reads
+    // Type.FuncDef there), so the replacement callee has to carry the same
+    // stamp the resolved `get` callee had -- without it the builder reaches
+    // the indirect-call path and finds a FieldAccess it cannot call.
+    new_fa.set_til_type(rhs.children[0].til_type().clone())
+    new_fa.add_child(own rhs.children[0].children[0].clone())
+    rhs.children[0] = new_fa
+    mut want_lit := Expr.new(NodeType.Literal(Literal.Str(want.clone())), rhs.line, rhs.col)
+    want_lit.set_til_type(Type.Struct("Str"))
+    rhs.add_child(own want_lit)
+    sync_own_args_from_callee(rhs, scope, ctx.symbols)
+}
+
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
 priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, mut ctx: Context) returns Bool {
@@ -4538,6 +4600,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
     mut has_array_vec := false
     mut has_variadic := false
     mut has_kwargs := false
+    mut has_tuple_read := false
     mut needs_delete := false
     for stmt : Expr in body.children {
         if owns_scope != 0 {
@@ -4545,6 +4608,11 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
                 ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is_set_lit() { has_set_lit = true }
                 if rhs.node_type.is_map_lit() { has_map_lit = true }
+            }
+            if has_tuple_read.not() {
+                if decl_tuple_typed_read_type(stmt, scope, ctx.symbols).len() > 0 {
+                    has_tuple_read = true
+                }
             }
             // One walk answers all three, resolving each call's callee
             // once instead of once per question (scan_stmt_desugar_needs).
@@ -4566,7 +4634,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
             }
         }
     }
-    has_desugar := has_set_lit.or(has_map_lit).or(has_array_vec).or(has_variadic).or(has_kwargs)
+    has_desugar := has_set_lit.or(has_map_lit).or(has_array_vec).or(has_variadic).or(has_kwargs).or(has_tuple_read)
     do_hoist := owns_scope != 0
     if has_desugar.not().and(do_hoist.not()).and(needs_delete.not()) {
         return false
@@ -4585,6 +4653,14 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
         // per-stmt pipeline below.
         mut temp_ch := Vec(Expr).new()
         mut stmt_handled := false
+        if has_tuple_read {
+            // In place, so the statement continues down the pipeline below
+            // as itself -- only the read got its type check.
+            want := decl_tuple_typed_read_type(stmt, scope, ctx.symbols)
+            if want.len() > 0 {
+                desugar_tuple_typed_read(stmt, want, scope, ctx)
+            }
+        }
         if has_desugar {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                 ref rhs : Expr = stmt.children[0]

@@ -1,3 +1,8 @@
+* Bugs
+** High
+*** [[./open/394.org][#394]] dyn_size_of("Dynamic") is 8 interpreted and 1 compiled
+** Medium
+*** [[./open/395.org][#395]] tutorial_file_doctests escapes its runner: 434/435 every run
 * Cleanups
 ** High
 *** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run

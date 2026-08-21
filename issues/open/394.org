@@ -1,0 +1,90 @@
+# priority: high
+# category: bugs
+** OPEN #394 dyn_size_of("Dynamic") is 8 interpreted and 1 compiled
+
+A runtime ~dyn_size_of~ of the name "Dynamic" answers 8 in the interpreter
+and 1 in the C backend. Every other type agrees; only Dynamic splits:
+
+    ask := func(n: Str) returns USize { return dyn_size_of(n) }
+    mut names := array(Str, "Dynamic", "I64", "Str")
+    for i in 0..names.len() {
+        ref n : Str = names.unsafe_get(i)
+        println("dyn_size_of(", n, ") = ", ask(n).to_str())
+    }
+
+    | name    | interp | compiled |
+    | Dynamic |      8 |        1 |
+    | I64     |      8 |        8 |
+    | Str     |     16 |       16 |
+
+It has to be the RUNTIME dispatch. ~dyn_size_of("Dynamic")~ written with a
+literal is const-folded through the interpreter and answers 8 on both, which
+is why test/dynamic.til's test_dyn_size_of never saw this.
+
+*** Root cause
+
+~Dynamic~ is declared in src/core/dyn.til as a FIELD-LESS ~StructDef~ whose
+namespace carries the real answer:
+
+    Dynamic : StructDef = struct {
+    namespace:
+        size := func() returns USize { return 8 }
+
+The interpreter's ~h_dyn_size_of~ resolves through that ~size()~ and gets 8.
+The C backend does not: ~emit_dyn_size_of_body~ (src/self/c_codegen.til)
+opens with a hardcoded arm
+
+    if (name == "Dynamic") return sizeof(Dynamic);
+
+and ~Dynamic~ in the emitted C is the placeholder a field-less struct gets --
+~emit~ writes ~char _;~ into an otherwise empty struct body so the C is
+legal -- so ~sizeof(Dynamic)~ is 1, not the word the til declaration means.
+
+*** What it breaks
+
+Every runtime consumer of ~dyn_size_of~ that can be handed "Dynamic":
+~Tuple.push_type_name~ (src/core/tuple.til) and the ~src/std/dyn_*.til~
+containers (dyn_array, dyn_set, dyn_vec). An element stored as "Dynamic"
+occupies ONE byte compiled, so the word is truncated to its low byte and
+every element pushed after it sits at the wrong offset.
+
+Found through #392: a ~..~ splat of an ~Array(Dynamic)~ into a ~..Dynamic~
+variadic pushes each element as "Dynamic", and reading them back disagrees.
+
+    d := array(Dynamic, 11, 22)
+    dump := func(xs: ..Dynamic) returns Str {
+        mut out := ""
+        for i in 0..xs.len() {
+            ref n : I64 = xs.get(i)
+            out = format(out, xs.type_at(i), "=", n.to_str(), " ")
+        }
+        return out
+    }
+    println(dump(..d))
+    // interp:   Dynamic=11 Dynamic=22
+    // compiled: Dynamic=94210673546763 Dynamic=368010443542
+
+~size_at(0)~ reads 8 interpreted and 1 compiled, which is the whole story;
+the garbage is the 8-byte read running off a 1-byte slot. Note the array
+itself is fine -- ~d.unsafe_get(0)~ read as I64 gives 11 on both backends,
+because ~Array(Dynamic)~ sizes its elements through ~T.size()~, which is
+const-folded and correct. Only the string-keyed runtime path is wrong.
+
+This predates #392: reproduced with ~bin/til_boot~ at master ~d68d078~.
+#392's issue text claims an element pushed AS Dynamic "keeps raw-word
+semantics" -- true interpreted, false compiled, because of this.
+
+*** Fix direction
+
+The hardcoded arm should report the width the til declaration promises --
+~sizeof(void *)~ -- rather than the size of a placeholder struct that exists
+only to make the C compile. Worth checking at the same time whether any
+OTHER field-less StructDef reaches ~emit_dyn_size_of_arm~ and inherits the
+same ~char _;~ answer, since the arm is generated for every struct decl.
+
+*** Regression test
+
+~dyn_size_of~ of a NON-literal "Dynamic" (behind a func, so the constfolder
+cannot reach it), both backends -- the literal form already passes and hides
+the bug. Plus the round trip through a Tuple element tagged "Dynamic": push
+a known word, read it back, both backends.

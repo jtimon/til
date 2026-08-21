@@ -143,6 +143,39 @@ first; nothing in A/B depends on it.
 - [ ] B. Typed reads checked against type_at; the wider-than-word
       rejection for raw Dynamic slots.
 
+      B1 DONE -- typed reads are checked. ~Tuple.expect_type(i, want)~
+      panics unless element ~i~ really is a ~want~, and
+      ~Tuple.get_checked(i, want)~ is ~get~ with that check in front.
+      The desugar (~decl_tuple_typed_read_type~ +
+      ~desugar_tuple_typed_read~, hooked into ~body_pre_passes~ beside
+      the set/map/array-literal Decl rewrites) turns
+      ~ref s : T = t.get(i)~ into ~ref s : T = t.get_checked(i, "T")~.
+      Rewriting the call IN PLACE rather than emitting a separate
+      ~t.expect_type(i, "T")~ statement ahead of it is what keeps the
+      index expression evaluated exactly once. The replacement callee
+      has to re-carry the Type.FuncDef stamp: directness lives on the
+      callee's til_type, and without it the builder takes the indirect
+      path and hits "non-callable callee FieldAccess".
+
+      Two exemptions, both deliberate: an element TAGGED "Dynamic" (a
+      raw word -- C pointer, #302 allocation, splatted Array(Dynamic)
+      element) passes any check, and a binding DECLARED ~Dynamic~ is not
+      a claim at all, so it is not rewritten. Dynamic still means you
+      are on your own.
+
+      Verified: the lying read panics identically on both backends
+      (test/tuple_typed_read_error.til, counted per backend in
+      src/tests.til -- runtime panic, so the compiled row runs rather
+      than builds); correct reads at several types and at a loop index
+      are untouched (~dyn_read_each~ in test/variadic.til);
+      test/tuples.til's hand-built ~ref a : I64 = t.get(0)~ corpus
+      passes unchanged, since the desugar applies to every Tuple, not
+      just a variadic's.
+
+      B2 REMAINS -- the wider-than-word rejection, which by this issue's
+      own text gets its own sweep and its own sign-off (it rejects code
+      that compiles today).
+
 - [ ] C. The array(Dynamic, ...) literal decision.
 
 *** Subsumed defects
