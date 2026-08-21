@@ -373,6 +373,22 @@ priv dyn_read_each := func(xs: ..Dynamic) returns Str {
     return out
 }
 
+// #394: what a splatted Array(Dynamic) element is WORTH, not just what it is
+// tagged. The type names below were right on both backends while the values
+// were garbage compiled: Tuple sizes each element through a runtime
+// dyn_size_of(<tag>), and "Dynamic" answered 1 there, so the word was stored
+// in one byte and everything after it sat seven bytes early. Sizes are
+// asserted beside the values because the size IS the defect; the values are
+// how it surfaced.
+priv dyn_word_list := func(xs: ..Dynamic) returns Str {
+    mut out := ""
+    for i in 0..xs.len() {
+        ref n : I64 = xs.get(i)
+        out = format(out, n.to_str(), "/", xs.size_at(i).to_str(), ",")
+    }
+    return out
+}
+
 test_dynamic_variadic_tuple := test() {
     v := format("run", "time")
     assert_eq(Str, dyn_type_list(1, v, true), "I64,Str,Bool,")
@@ -381,6 +397,7 @@ test_dynamic_variadic_tuple := test() {
     assert_eq(Str, v, "runtime")
     d := array(Dynamic, 1, 2)
     assert_eq(Str, dyn_type_list(9, ..d), "I64,Dynamic,Dynamic,")
+    assert_eq(Str, dyn_word_list(9, ..d), "9/8,1/8,2/8,")
     assert_eq(Str, dyn_type_list(), "")
     // asking type_at first, then reading at that type, is the pattern the
     // check exists to reward -- every branch below reads what is there

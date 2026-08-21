@@ -206,6 +206,26 @@ test_dyn_size_of := test() {
     assert_eq(USize, via_size, via_method)
 }
 
+// #394: every spelling above folds through the interpreter at compile time,
+// so none of them reached the dispatcher the C backend EMITS -- which
+// answered 1 for "Dynamic", sizeof of the `char _;` placeholder written for a
+// field-less StructDef, where the til declaration's size() says a word. A
+// name read out of an array at a loop index is a spelling the folder cannot
+// reach, so this is the shape that exercises the emitted arms.
+priv runtime_size_list := func(names: Array(Str)) returns Str {
+    mut out := ""
+    for i in 0..names.len() {
+        ref n : Str = names.unsafe_get(i)
+        out = format(out, dyn_size_of(n).to_str(), ",")
+    }
+    return out
+}
+
+test_dyn_size_of_runtime_name := test() {
+    names := array(Str, "Dynamic", "I64", "Str", "U8")
+    assert_eq(Str, runtime_size_list(names), "8,8,16,1,")
+}
+
 TypeNameStruct := struct {
     const x := 0
 }

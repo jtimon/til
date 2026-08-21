@@ -7957,7 +7957,18 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
     // `returns shallow USize`, so a --usize=64 build would otherwise
     // disagree with its own declaration.
     f.write(builder_static_prefix(lp.ctx)).write("USize dyn_size_of(Str *type_name) {\n")
-    f.write("    if (type_name->count == 7ULL && memcmp(type_name->c_str, \"Dynamic\", 7ULL) == 0) return sizeof(Dynamic);\n")
+    // #394: a machine word, NOT sizeof(Dynamic). `Dynamic` is declared in
+    // core/dyn.til as a field-less StructDef whose real width lives in its
+    // `size()` namespace func (8); the emitted C type is the placeholder
+    // emit_struct_typedef writes for a struct with no fields -- `char _;`,
+    // because ISO C has no empty struct -- so sizeof(Dynamic) answered 1
+    // while the interpreter, which resolves through `size()`, answered 8.
+    // Every runtime consumer handed the name "Dynamic" (Tuple.push_type_name,
+    // the std dyn_* containers) stored the word in one byte compiled: the
+    // value truncated to its low byte and every later element off by seven.
+    // Same shape as the Fn / Body branches below -- when the emitted C type
+    // is a stand-in rather than the real layout, the branch names the width.
+    emit_dyn_name_return_branch(f, "Dynamic", "sizeof(void *)")
     // Primitives and the width aliases. Only struct/enum decls were emitted
     // below, so a primitive name reached the "unknown type" exit whenever the
     // call could not be constant-folded -- which is exactly what happens on a

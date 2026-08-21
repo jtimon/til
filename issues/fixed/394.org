@@ -1,6 +1,56 @@
 # priority: high
 # category: bugs
-** OPEN #394 dyn_size_of("Dynamic") is 8 interpreted and 1 compiled
+** FIXED #394 dyn_size_of("Dynamic") is 8 interpreted and 1 compiled
+
+*** Post-mortem
+
+Root cause: ~emit_dyn_size_of_body~ answered the name "Dynamic" with
+~sizeof(Dynamic)~, and ~Dynamic~ in the emitted C is not the type -- it is
+the placeholder ~emit_struct_typedef~ writes for a StructDef with no fields,
+~char _;~, because ISO C has no empty struct. So the compiled dispatcher
+reported 1 where the til declaration's ~size()~ namespace func, which the
+interpreter resolves through, says a word. The arm's own comment explains why
+~sizeof~ is the right oracle -- it makes the width right for the target
+without the emitter knowing any width -- and that reasoning is sound
+everywhere the emitted C type IS the layout. Dynamic is the one name where it
+is not, and the branch was written as if it were.
+
+Fix: one line. The Dynamic arm becomes
+~emit_dyn_name_return_branch(f, "Dynamic", "sizeof(void *)")~ -- the same
+shape the Fn and Body branches beside it already use, which is the existing
+answer to "the emitted C type is a stand-in, so the branch names the width".
+Nothing else changed: the interpreter was already right, and no other name
+disagreed.
+
+Blast radius checked, and it is smaller than the fix direction feared. A
+field-less StructDef only reaches the dispatcher when it has a ~size()~
+method AND survives the scavenger; a user-declared empty struct answers
+"unknown type" on BOTH backends (verified for a bare ~struct { }~ and for one
+carrying a ~size()~), so Dynamic was the only name with a wrong answer rather
+than no answer. Bool and I64 are field-less StructDefs too, but they are
+primitives: their arms resolve through ext.h's real typedefs, not a
+placeholder.
+
+Regression tests: ~test_dyn_size_of_runtime_name~ (test/dynamic.til) reads
+the name out of an array at a loop index, the one spelling the constfolder
+cannot reach -- every literal form in the neighbouring ~test_dyn_size_of~
+folds through the interpreter, which is exactly why a nine-line test of
+~dyn_size_of("Dynamic")~ sat beside this bug without seeing it, and why the
+new test's emitted C was checked for a real call rather than assumed to have
+one. ~test_tuple_dynamic_word~ (test/tuples.til) pins the unit behaviour: a
+"Dynamic"-tagged element is a word wide and a second element lands after it,
+not seven bytes early. ~test_dynamic_variadic_tuple~ (test/variadic.til) now
+asserts what a splatted ~Array(Dynamic)~ element is WORTH beside what it is
+tagged; it asserted only the tags before, which is how the values stayed
+garbage. All three fail against the pre-fix compiler and pass on both
+backends after.
+
+A note for whoever revisits Dynamic's width: ~Dynamic.size()~ in
+src/core/dyn.til returns a literal 8, while the emitted C now says
+~sizeof(void *)~. They agree on every target the suite runs, and the C side
+is the one that stays right if a pointer is ever not eight bytes -- but the
+til literal would then be wrong, and ~Array(Dynamic)~ sizes its elements
+through it. Out of scope here; the disagreement this issue is about is fixed.
 
 A runtime ~dyn_size_of~ of the name "Dynamic" answers 8 in the interpreter
 and 1 in the C backend. Every other type agrees; only Dynamic splits:

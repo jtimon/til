@@ -61,6 +61,30 @@ test_tuple_type_at := test() {
     assert_eq(USize, sz1, 16)
 }
 
+// #394: an element tagged "Dynamic" is a raw MACHINE WORD, and its slot has
+// to be that wide on both backends. Tuple sizes elements through
+// dyn_size_of(<type name>) -- a runtime, string-keyed call the constfolder
+// cannot reach -- and the compiled dispatcher used to answer 1 for "Dynamic":
+// sizeof of the `char _;` placeholder the C backend writes for a field-less
+// StructDef, rather than the width `Dynamic.size()` promises. The word was
+// truncated to its low byte and every element pushed after it sat seven bytes
+// early, so this pins the size AND a second element landing after it.
+test_tuple_dynamic_word := test() {
+    mut t := Tuple.new()
+    t.push(Dynamic, own 4242)
+    t.push(I64, own 77)
+
+    ref tn : Str = t.type_at(0)
+    assert_eq(Str, tn, "Dynamic")
+    ref sz : USize = t.size_at(0)
+    assert_eq(USize, sz, Dynamic.size())
+
+    ref word : I64 = t.get(0)
+    ref after : I64 = t.get(1)
+    assert_eq(I64, word, 4242)
+    assert_eq(I64, after, 77)
+}
+
 test_tuple_clone := test() {
     mut t := Tuple.new()
     t.push(I64, own 42)
