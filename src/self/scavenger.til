@@ -806,6 +806,338 @@ priv rhs_is_pure_byvalue := func(e: Expr) returns Bool {
     return false
 }
 
+// --- #326: dead loop blocks -------------------------------------------------
+//
+// `Vec(T).clear` walks its elements and deletes each one. For an element
+// whose destructor is the `if call_free { free(own self) }` tail -- every
+// primitive, every POD struct, every payload-less enum -- and call_free
+// false, that walk does nothing: 275 loops and 3,578 lines across the
+// corpus, plus the O(n) they cost at runtime. The source is right and
+// generic (`Vec(Str).clear` must walk), so the elision belongs to whoever
+// sees the concrete element type -- here, after monomorphization and
+// constant folding.
+
+// The lowered shape of `for <v> in <a>..<b>`: the typer replaces the ForIn
+// statement with a BLOCK holding the bound, the counter and the while
+// (desugar_for_in_range_stmt). Recognising it costs one shape test, and it
+// bounds the analysis below to loops -- a bare `while true {}` with no
+// outer effect is a hang somebody asked for, not dead code. A block that
+// stops matching (because that lowering changes) only stops being
+// optimised.
+priv dce_is_lowered_loop_block := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.Body).not() { return false }
+    if e.children.len() != 3 { return false }
+    if e.children[0].node_type.is(NodeType.Decl).not() { return false }
+    if e.children[1].node_type.is(NodeType.Decl).not() { return false }
+    // One while when the direction is proven, an If picking between two
+    // when it is not (see range_static_direction).
+    if e.children[2].node_type.is(NodeType.While) { return true }
+    return e.children[2].node_type.is(NodeType.If)
+}
+
+// Every binding the block declares, at any depth. Dropping the block drops
+// these with it, so an effect that lands on one of them -- the counter's
+// `inc`, the loop variable's Decl -- cannot be observed from outside.
+//
+// A `ref` binding is the exception, and not a small one: it ALIASES storage
+// declared somewhere else, so writing through it is an outer effect wearing
+// an inner name. `for mut x in v { x = x.add(5) }` mutates v's elements
+// through exactly such a binding, and counting it as the block's own made
+// that loop disappear (test/loops.til's test_for_in_mut_collection_marks_
+// written summed 60 instead of 75).
+priv dce_collect_block_decls := func(e: Expr, mut names: Set(Str), symbols: SymbolPool) {
+    switch e.node_type {
+    case .Decl(dbd):
+        if dbd.own_type.is(OwnType.Ref).not() {
+            if names.has(dbd.name).not() { names.add(own dbd.name.clone()) }
+        }
+    case .ForIn(dbf):
+        if names.has(dbf.name).not() { names.add(own dbf.name.clone()) }
+        if dbf.name2.len().gt(0).and(names.has(dbf.name2).not()) { names.add(own dbf.name2.clone()) }
+    case:
+    }
+    for c : Expr in e.children { dce_collect_block_decls(c, names, symbols) }
+}
+
+// Is every NAME this expression mentions either a binding the block owns
+// or a type? A type name in receiver position (`U32.inc(_rc)`) is not a
+// binding; anything else names storage that outlives the block.
+priv dce_idents_all_inner := func(e: Expr, inner: Set(Str), scope: TypeScope, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .Ident(dii):
+        ref dii_n : Str = dii.ident_name(symbols.names)
+        if inner.has(dii_n) { return true }
+        if is_scalar_type_name(dii_n) { return true }
+        return scope.get_struct(dii_n, symbols).is_some()
+    case:
+    }
+    for c : Expr in e.children {
+        if dce_idents_all_inner(c, inner, scope, symbols).not() { return false }
+    }
+    return true
+}
+
+// A `delete` that does nothing at all: reached with call_free false, a
+// free-only destructor neither frees nor touches a field, whatever its
+// argument is. `own` does not change that -- there is nothing to consume
+// when nothing happens.
+priv dce_noop_delete_call := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if e.children.len() != 3 { return false }
+    ref dnc_callee : Expr = e.children[0]
+    if dnc_callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut dnc_is_delete := false
+    switch dnc_callee.node_type {
+    case .FieldAccess(dnc_m): dnc_is_delete = dnc_m.field_access_name(symbols.names).eq("delete")
+    case:
+    }
+    if dnc_is_delete.not() { return false }
+    switch e.children[2].node_type {
+    case .Literal(Literal.Bool(dnc_cf)):
+        if dnc_cf { return false }
+    case:
+        return false
+    }
+    if dnc_callee.children.len() == 0 { return false }
+    dnc_tn_o := expr_type_name_ref(dnc_callee.children[0])
+    if dnc_tn_o.is_some() {
+        return init_delete_is_noop(dnc_tn_o.unwrap(), scope, symbols)
+    }
+    switch dnc_callee.children[0].node_type {
+    case .Ident(dnc_id):
+        return init_delete_is_noop(dnc_id.ident_name(symbols.names), scope, symbols)
+    case:
+        return false
+    }
+}
+
+// The FunctionDef a namespace member names, or None when the name does not
+// resolve to one.
+priv dce_ns_member_fdef := func(tname: Str, member: Str, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+    dnm_def_o := scope.get_struct(tname, symbols)
+    if dnm_def_o.is_none() { return Option(ref Expr).None }
+    dnm_nd_o := def_ns_get(dnm_def_o.unwrap(), member)
+    if dnm_nd_o.is_none() { return Option(ref Expr).None }
+    ref dnm_nd : Declaration = dnm_nd_o.unwrap()
+    if dnm_nd.default_value.is_none() { return Option(ref Expr).None }
+    ref dnm_dv : Expr = dnm_nd.default_expr()
+    if dnm_dv.node_type.is(NodeType.FuncDef) { return safe_ref(dnm_dv) }
+    return Option(ref Expr).None
+}
+
+// The definition this call selects. resolve_direct_fcall answers the same
+// question but only for a callee the typer stamped Type.FuncDef, and by
+// this point the desugarer has rewritten the loop's own arithmetic into
+// namespace form (`U32.inc(_rc)`) without that stamp -- which read as
+// "cannot resolve" and kept every loop. Unresolved is still the answer for
+// anything genuinely indirect; the caller refuses those.
+priv dce_callee_fdef := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+    if e.children.len() == 0 { return Option(ref Expr).None }
+    ref dcd_callee : Expr = e.children[0]
+    switch dcd_callee.node_type {
+    case .Ident(dcd_id):
+        return scope.lookup_func_symbol_name(dcd_id.ident_name(symbols.names), symbols)
+    case .FieldAccess(dcd_fa):
+        if dcd_callee.children.len() == 0 { return Option(ref Expr).None }
+        dcd_tn_o := expr_type_name_ref(dcd_callee.children[0])
+        if dcd_tn_o.is_some() {
+            return dce_ns_member_fdef(dcd_tn_o.unwrap(), dcd_fa.field_access_name(symbols.names), scope, symbols)
+        }
+        switch dcd_callee.children[0].node_type {
+        case .Ident(dcd_rid):
+            return dce_ns_member_fdef(dcd_rid.ident_name(symbols.names), dcd_fa.field_access_name(symbols.names), scope, symbols)
+        case:
+            return Option(ref Expr).None
+        }
+    case:
+        return Option(ref Expr).None
+    }
+}
+
+// A call the block may make without anything outside noticing. A
+// `core_func` is a bodyless primitive intrinsic every backend lowers
+// natively; one that declares no `mut` and no `own` parameter cannot reach
+// past its own return value, and one that does is fine as long as every
+// name it is handed is the block's own. Everything else is refused,
+// `ext_func` included: dyn_call is an ext_func whose effect is whatever
+// method name it is handed (see its ///), and a bodied func can assign to
+// a global.
+// How far the purity proof below follows a call. Each step reads a callee's
+// whole body, so the bound is what keeps a DCE pass from turning into an
+// interprocedural analysis; three covers the shapes a container's element
+// walk actually spells (`T.size()`, `usize_to_uptr(i.mul(...))`), and
+// running out of it only means the loop stays.
+priv DCE_PURE_DEPTH : USize = 3
+
+// Is calling this function observable? `func` already means the typer
+// proved no proc hides inside (no I/O), and `mut`/`own` parameters declare
+// the mutation a signature can carry, so a func with neither can only reach
+// the outside world by assigning to a global -- which is what reading the
+// body settles. A `core_func` is a bodyless primitive intrinsic every
+// backend lowers natively and needs no body to read. Everything else is
+// refused, `ext_func` included: dyn_call is an ext_func whose effect is
+// whatever method name it is handed (see its ///).
+//
+// The body shape accepted is deliberately the narrow one: local bindings
+// with pure initializers, then a `return` of a pure expression. That is
+// what the helpers in this position are once the typer has hoisted their
+// arguments (`usize_to_uptr` casts, an auto-`size` returns a width), and a
+// wider rule would have to reason about control flow and storage to say
+// anything more.
+priv dce_fdef_is_pure := func(fdef: Expr, scope: TypeScope, symbols: SymbolPool, depth: USize) returns Bool {
+    switch fdef.node_type {
+    case .FuncDef(dfp_fd):
+        for dfp_p : Declaration in dfp_fd.sig.params {
+            if dfp_p.is_mut { return false }
+            if dfp_p.own_type.is(OwnType.Own) { return false }
+        }
+        if dfp_fd.sig.func_type.is(FuncType.CoreFunc) { return true }
+        if dfp_fd.sig.func_type.is(FuncType.Func).not() { return false }
+        if depth == 0 { return false }
+        if fdef.children.len() == 0 { return false }
+        ref dfp_body : Expr = fdef.children[0]
+        if dfp_body.children.len() == 0 { return false }
+        for dfp_stmt : Expr in dfp_body.children {
+            dfp_is_decl := dfp_stmt.node_type.is(NodeType.Decl)
+            if dfp_is_decl.or(dfp_stmt.node_type.is(NodeType.Return)).not() { return false }
+            for dfp_sc : Expr in dfp_stmt.children {
+                if dce_expr_is_pure(dfp_sc, scope, symbols, depth - 1).not() { return false }
+            }
+        }
+        return true
+    case:
+        return false
+    }
+}
+
+priv dce_expr_is_pure := func(e: Expr, scope: TypeScope, symbols: SymbolPool, depth: USize) returns Bool {
+    switch e.node_type {
+    case .FuncDef, .CaptureBlock, .StructDef, .EnumDef: return false
+    case .Throw, .Catch, .Assign, .FieldAssign: return false
+    case .FCall:
+        if dce_call_is_pure(e, scope, symbols, depth).not() { return false }
+    case:
+    }
+    for dep_c : Expr in e.children {
+        if dce_expr_is_pure(dep_c, scope, symbols, depth).not() { return false }
+    }
+    return true
+}
+
+// `cast` is a compiler BUILTIN, not a declaration: every backend lowers
+// `x.cast(T)` to a conversion of the value already in hand, so it is pure
+// by construction and there is no FunctionDef for the resolver to read.
+priv dce_is_pure_builtin := func(e: Expr, symbols: SymbolPool) returns Bool {
+    if e.children.len() == 0 { return false }
+    switch e.children[0].node_type {
+    case .FieldAccess(dpb_fa): return dpb_fa.field_access_name(symbols.names).eq("cast")
+    case .Ident(dpb_id): return dpb_id.ident_name(symbols.names).eq("cast")
+    case: return false
+    }
+}
+
+// Cloning a POD is a value copy -- that is what POD means for the COPY
+// question -- so the call is pure whatever shape the declaration has. The
+// primitives' clones need this: they are bodyless `ext_func` declarations
+// of a symbol no backend ever emits (the C one writes a plain assignment),
+// so there is no body to read, and the blanket distrust of `ext_func` --
+// which exists for dyn_call, whose effect is whatever method name it is
+// handed -- would otherwise keep every lowered loop alive on the
+// `<var> := <counter>.clone()` its own induction spells.
+priv dce_pod_clone_call := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if e.children.len() == 0 { return false }
+    ref dpc_callee : Expr = e.children[0]
+    if dpc_callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut dpc_is_clone := false
+    switch dpc_callee.node_type {
+    case .FieldAccess(dpc_fa): dpc_is_clone = dpc_fa.field_access_name(symbols.names).eq("clone")
+    case:
+    }
+    if dpc_is_clone.not() { return false }
+    if dpc_callee.children.len() == 0 { return false }
+    dpc_tn_o := expr_type_name_ref(dpc_callee.children[0])
+    if dpc_tn_o.is_some() { return is_pod_type_for_clone(dpc_tn_o.unwrap(), scope, symbols) }
+    switch dpc_callee.children[0].node_type {
+    case .Ident(dpc_id): return is_pod_type_for_clone(dpc_id.ident_name(symbols.names), scope, symbols)
+    case: return false
+    }
+}
+
+// Is this call observable at all? The three shapes with no body to read
+// come first; everything else is settled by reading the callee's.
+priv dce_call_is_pure := func(e: Expr, scope: TypeScope, symbols: SymbolPool, depth: USize) returns Bool {
+    if dce_is_pure_builtin(e, symbols) { return true }
+    if dce_pod_clone_call(e, scope, symbols) { return true }
+    if dce_noop_delete_call(e, scope, symbols) { return true }
+    dcp_o := dce_callee_fdef(e, scope, symbols)
+    if dcp_o.is_none() { return false }
+    return dce_fdef_is_pure(dcp_o.unwrap(), scope, symbols, depth)
+}
+
+priv dce_call_effects_are_inner := func(e: Expr, inner: Set(Str), scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if dce_call_is_pure(e, scope, symbols, DCE_PURE_DEPTH) { return true }
+    dcf_o := dce_callee_fdef(e, scope, symbols)
+    if dcf_o.is_none() { return false }
+    // A core_func that DOES write through a `mut` or `own` parameter is
+    // still fine when every name it is handed is one the block declares --
+    // the counter's own `inc`.
+    switch dcf_o.unwrap().node_type {
+    case .FuncDef(dcf_fd):
+        if dcf_fd.sig.func_type.is(FuncType.CoreFunc).not() { return false }
+        return dce_idents_all_inner(e, inner, scope, symbols)
+    case:
+        return false
+    }
+}
+
+// Does everything this subtree does land on `inner`? A `return` or a
+// `throw` says no on principle -- the block's statements are not all that
+// runs -- but `break` and `continue` are fine once we are inside a loop the
+// block itself contains: they cannot move control past it. The lowered
+// while carries one (`while cond` is `while true { if cond {} else {
+// break } ... }` by this point), so rejecting them outright rejected every
+// loop there is.
+priv dce_effects_are_inner := func(e: Expr, inner: Set(Str), in_loop: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .Return, .Throw, .Catch: return false
+    case .Break, .Continue:
+        if in_loop.not() { return false }
+    case .FuncDef, .CaptureBlock, .StructDef, .EnumDef: return false
+    case .Assign(dea):
+        if inner.has(dea.name).not() { return false }
+    case .FieldAssign:
+        if dce_idents_all_inner(e, inner, scope, symbols).not() { return false }
+    case .FCall:
+        if dce_call_effects_are_inner(e, inner, scope, symbols).not() { return false }
+    case:
+    }
+    dea_in_loop := in_loop.or(e.node_type.is(NodeType.While))
+    for c : Expr in e.children {
+        if dce_effects_are_inner(c, inner, dea_in_loop, scope, symbols).not() { return false }
+    }
+    return true
+}
+
+// Drop every lowered loop block in this body whose every effect is its
+// own. Returns true if anything was removed.
+priv dce_drop_dead_loop_blocks := func(mut body: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    n := body.children.len()
+    if n == 0 { return false }
+    mut ddb_any := false
+    mut ddb_marks : U8 = malloc(n)
+    memset(ddb_marks, 0, n)
+    for i in 0..n {
+        ref ddb_stmt : Expr = body.children[i]
+        if dce_is_lowered_loop_block(ddb_stmt).not() { continue }
+        mut ddb_inner := Set(Str).new()
+        dce_collect_block_decls(ddb_stmt, ddb_inner, symbols)
+        if dce_effects_are_inner(ddb_stmt, ddb_inner, false, scope, symbols).not() { continue }
+        memset(ptr_add(ddb_marks, i), 1, 1)
+        ddb_any = true
+    }
+    if ddb_any { body.children.delete_marked(ddb_marks) }
+    return ddb_any
+}
+
 // One DCE pass over a single Body. Returns true if anything was removed.
 // Mark codes for body rewrite: 0=keep (default), 1=delete, 2=replace-with-rhs.
 priv MARK_DELETE : U8 = 1
@@ -988,43 +1320,47 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 // outer Decl drop too. `at_top_level` is true only for the program-root
 // body; recursion turns it off when descending into any nested Body
 // (which is by definition inside a function/test/proc).
-priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, symbols: SymbolPool) {
+priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, scope: TypeScope, symbols: SymbolPool) {
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
     for mut c : Expr in e.children {
-        body_dce_walk(c, child_top, symbols)
+        body_dce_walk(c, child_top, scope, symbols)
     }
     if is_body {
         // #302 stage 4/6: honest records/destructors first -- the drops
         // below key on gc_storage and on recognizable decl+delete pairs.
         constfolder_normalize_stack_decls_in_body(e, symbols)
         fix_stale_litstr_in_body(e)
+        // #326: whole dead loops first -- their temps are still referenced
+        // by the no-op delete they feed, so the decl-level DCE below cannot
+        // see them, and dropping the block retires all of it at once.
+        while dce_drop_dead_loop_blocks(e, scope, symbols) {}
         while dce_one_body(e, at_top_level, symbols) {}
     }
 }
 
-priv body_dce_ns := proc(mut rhs: Expr, symbols: SymbolPool) {
+priv body_dce_ns := proc(mut rhs: Expr, scope: TypeScope, symbols: SymbolPool) {
     ref mut dce_ns : Vec(Declaration) = def_ns_decls(rhs)
     for mut nsd : Declaration in dce_ns {
         if nsd.default_value.is_none() { continue }
         if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_expr().children.len() == 0 { continue }
-        body_dce_walk(nsd.default_expr().children[0], false, symbols)
+        body_dce_walk(nsd.default_expr().children[0], false, scope, symbols)
     }
 }
 
-dce_program_bodies := proc(mut program: Expr, symbols: SymbolPool) {
+dce_program_bodies := proc(mut program: Expr, scope: TypeScope, symbols: SymbolPool) {
     // Walk the program-root body (becomes main() for non-library
     // modes) and every function/test/proc body inside it.
     // body_dce_walk descends through Expr.children, so namespace
     // methods (which live in StructDef.ns_decls outside the children
     // tree) need a separate walk.
-    body_dce_walk(program, true, symbols)
+    body_dce_walk(program, true, scope, symbols)
     for mut stmt : Expr in program.children {
         if is_def(stmt).not() { continue }
         ref mut rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-            body_dce_ns(rhs, symbols)
+            body_dce_ns(rhs, scope, symbols)
         }
     }
 }
@@ -1622,7 +1958,7 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
     // constfolder's constant folding. Runs over every imported unit (cores
     // included) so the codegen no longer needs `(void)<name>;` guards.
     for upath : Str in lp.unit_paths() {
-        dce_program_bodies(lp.ctx.imported[upath].ast, lp.ctx.symbols)
+        dce_program_bodies(lp.ctx.imported[upath].ast, lp.ctx.scope, lp.ctx.symbols)
     }
 
 }

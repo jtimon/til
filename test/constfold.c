@@ -168,7 +168,6 @@ static void adopt__Str(void * dest, Str * src);
 static Str U32_to_str(U32 val);
 static Str U64_to_str(U64 val);
 static Str I64_to_str(I64 val);
-static void I64_delete(I64 * self, Bool call_free);
 static UPtr usize_to_uptr(USize val);
 static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 static __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
@@ -881,12 +880,6 @@ static Str I64_to_str(I64 val) {
     U64 hoisted__U64_10 = (U64)(val);
     Str hoisted__Str_I64_to_str_11 = U64_to_str(hoisted__U64_10);
     { Str _ret = hoisted__Str_I64_to_str_11; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
-}
-
-static void I64_delete(I64 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
 }
 
 static UPtr usize_to_uptr(USize val) {
@@ -1792,24 +1785,6 @@ static void test_fold_reads_global_const(void) {
 }
 
 static void Array__I64_delete(Array__I64 * self, Bool call_free) {
-    {
-        U32 _re_U32_0 = self->cap;
-        U32 _rc_U32_0 = 0;
-        while (1) {
-            Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-            if (_wcond_Bool_1) {
-            } else {
-                break;
-            }
-            U32 i = (_rc_U32_0);
-            (++_rc_U32_0);
-            U32 hoisted__U32_2 = 8;
-            U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
-            U64 hoisted__U64_4 = usize_to_uptr(hoisted__U32_3);
-            I64 *hoisted__I64_5 = ((void *)((U8 *)(self->data) + (hoisted__U64_4)));
-            I64_delete(hoisted__I64_5, 0);
-        }
-    }
     free(self->data);
     if (call_free) {
         free(self);
@@ -1896,23 +1871,6 @@ static void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free) {
 }
 
 static void Vec__I64_clear(Vec__I64 * self) {
-    {
-        U32 _re_U32_0 = self->count;
-        U32 _rc_U32_0 = 0;
-        while (1) {
-            Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-            if (_wcond_Bool_1) {
-            } else {
-                break;
-            }
-            U32 i = (_rc_U32_0);
-            (++_rc_U32_0);
-            U32 hoisted__U32_2 = 8;
-            U32 hoisted__U32_3 = ((U32)(i * hoisted__U32_2));
-            I64 *hoisted__I64_4 = ((void *)((U8 *)(self->data) + (hoisted__U32_3)));
-            I64_delete(hoisted__I64_4, 0);
-        }
-    }
     U32 hoisted__U32_5 = 0;
     self->count = hoisted__U32_5;
 }

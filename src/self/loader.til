@@ -4314,7 +4314,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
 
 repl_prepare_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) {
     constfolder_repl_delta(lp, delta)
-    dce_program_bodies(delta, lp.ctx.symbols)
+    dce_program_bodies(delta, lp.ctx.scope, lp.ctx.symbols)
 }
 
 prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {

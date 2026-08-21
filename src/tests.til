@@ -1408,10 +1408,10 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/hs_sc.c examples/hello_script.til '&&' cat gen/c/hs_sc.c"))
     // Issue #326: the same for an enum's INLINE primitive payload -- the
     // generated destructor drops the whole arm (a tag compare, a payload
-    // pointer, the call). The one survivor here is Vec(I64).clear's
-    // per-element drop, where the delete is its temp's only reader and
-    // retiring the binding with it is #302's.
-    add_count(tests, "enums_primitive_payload_arm_dropped", "build", "I64_delete(hoisted__I64", 1,
+    // pointer, the call). Vec(I64).clear's per-element drop used to be the
+    // one survivor in this fixture; the dead loop around it went too, so
+    // nothing here deletes an I64 any more.
+    add_count(tests, "enums_primitive_payload_arm_dropped", "build", "I64_delete(hoisted__I64", 0,
         format(til_bin, " translate -c gen/c/enums_pp.c test/enums.til '&&' cat gen/c/enums_pp.c"))
     // ...and a Str payload keeps its arm: that one has real cleanup.
     add_count(tests, "enums_keeps_str_payload_delete", "build", "Str_delete(hoisted__Str_Token_delete", 1,
@@ -1536,6 +1536,20 @@ main := proc(args: ..Str) {
     // A boxing program keeps both.
     add_count(tests, "enums_keeps_box_macro", "build", "#define TIL_BOX", 1,
         format(til_bin, " translate -c gen/c/enums_box.c test/enums.til '&&' cat gen/c/enums_box.c"))
+    // Issue #326: `Vec(T).clear` walks its elements and deletes each one.
+    // With an element whose destructor is the `if call_free { free(own
+    // self) }` tail -- every primitive, every POD struct, every
+    // payload-less enum -- and call_free false, that walk does nothing, so
+    // the lowered loop goes, and its counter and bound with it: 275 loops
+    // and 3,578 lines across the corpus, plus the O(n) they cost at
+    // runtime. The block opener is the witness -- the body is the
+    // `self.count = 0` tail alone.
+    add_count(tests, "structs_no_dead_element_loop", "build", "Vec__I64_clear(Vec__I64 * self) {\n    {", 0,
+        format(til_bin, " translate -c gen/c/structs_del.c test/structs.til '&&' cat gen/c/structs_del.c"))
+    // ...and an element whose delete DOES something keeps its walk: Str's
+    // frees the buffer whatever call_free says.
+    add_count(tests, "structs_keeps_live_element_loop", "build", "Vec__Str_clear(Vec__Str * self) {\n    {", 1,
+        format(til_bin, " translate -c gen/c/structs_sel.c test/structs.til '&&' cat gen/c/structs_sel.c"))
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the

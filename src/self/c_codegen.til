@@ -10360,7 +10360,16 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
             bvs_mi = bvs_mi + 1
             if bvs_d.default_value.is_none() { continue }
             if owner.len() > 0 {
-                if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
+                // An INLINED-away method is not an unemitted body: the
+                // builder splices it at every call site, so the calls its
+                // body makes are real calls. `Vec(T).get`'s bounds-checked
+                // splice spells `T.size()`, and skipping the body here left
+                // that call in the emitted C with the definition gated away
+                // -- an implicit declaration of `U32_size` in
+                // test/interfaces.til as soon as no other site kept it.
+                if builder_ns_method_inlined_away(owner, def_ns_name_at(e, cur_bvs_mi), ctx).not() {
+                    if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
+                }
             }
             builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, reads, "", ctx)
         }
@@ -10796,6 +10805,29 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     for inv_ci : CollectionInfo in inv_coll_infos {
         if lp.ctx.builder_collection_elem_types.has(inv_ci.type_name).not() {
             lp.ctx.builder_collection_elem_types.add(own inv_ci.type_name.clone())
+        }
+    }
+    // #326: `main`'s argv converter is generated C with no AST call site --
+    // it parses each argument into a `_val` box and releases it with
+    // `<T>_delete(_val, 1)`. The scavenger roots the same converter for the
+    // same reason (seed_cli_main_arg_roots); the emit gates need the
+    // parameter types too, or the conjured call outlives the definition it
+    // calls (an implicit declaration of `I64_delete` in every `main(nums:
+    // ..I64)` fixture, as soon as no til-written site kept it).
+    if lp.cur_mode.needs_main {
+        for inv_mpath : Str in lp.unit_paths() {
+            ref inv_miu : ImportUnit = lp.ctx.imported[inv_mpath]
+            for inv_mstmt : Expr in inv_miu.ast.children {
+                if is_func_decl(inv_mstmt).not() { continue }
+                if decl_of(inv_mstmt).name.eq("main").not() { continue }
+                ref inv_mfd : FunctionDef = funcdef_of(inv_mstmt.children[0])
+                for inv_mp : Declaration in inv_mfd.sig.params {
+                    inv_met := resolve_type_alias(lp.ctx.scope, inv_mp.type_name(), lp.ctx.symbols).clone()
+                    if lp.ctx.builder_collection_elem_types.has(inv_met).not() {
+                        lp.ctx.builder_collection_elem_types.add(own inv_met)
+                    }
+                }
+            }
         }
     }
 }
