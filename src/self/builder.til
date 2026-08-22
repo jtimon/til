@@ -653,6 +653,60 @@ cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, 
     return result
 }
 
+// #170: is the built artifact already newer than every source it was built
+// from?
+//
+// The dependency set is the LOADER'S OWN resolved unit list --
+// lp.unit_paths() (core + user units, in the openable display form
+// display_path produces) plus lp.mode_files -- rather than a second import
+// scanner. That matters more than the saved code: a separate resolver would
+// have to track load_program's import/mode resolution forever, and the one
+// failure mode of a build cache is serving a stale binary silently. Reusing
+// the resolved set makes divergence impossible by construction.
+//
+// Conservative in every uncertain case, because a wrong "yes" is invisible
+// and a wrong "no" only costs a rebuild:
+//   - artifact missing or unstat-able (file_mtime -1) -> rebuild;
+//   - any dependency unstat-able -> rebuild;
+//   - a dependency at or newer than the artifact -> rebuild. `>=`, not `>`:
+//     mtime has one-second granularity on some filesystems, so an edit
+//     landing in the same second as the previous build must not look old.
+//
+build_artifact_is_current := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns Bool {
+    // Multi-file outputs: "the artifact" is not one path to stat, so they
+    // answer false until someone does that properly. A cross-compiled native
+    // target is still a single binary, so it stays cacheable.
+    if target.is(Target.Jvm) { return false }
+    if target.is(Target.Wasm32) { return false }
+    if target.is(Target.TempleosX86) { return false }
+    paths := derive_build_paths(lp, custom_bin, custom_c, target)
+    if paths.do_lib { return false }
+    if paths.bin_path.len() == 0 { return false }
+
+    out_mtime := file_mtime(paths.bin_path)
+    if out_mtime < 0 { return false }
+
+    deps := lp.unit_paths()
+    for d : Str in deps {
+        dm := file_mtime(d)
+        if dm < 0 { return false }
+        if dm >= out_mtime { return false }
+    }
+    for mf : Str in lp.mode_files {
+        mm := file_mtime(mf)
+        if mm < 0 { return false }
+        if mm >= out_mtime { return false }
+    }
+    return true
+}
+
+// #170: run an artifact the cache proved current, without translating or
+// compiling it first. Same run_artifact the full path ends in.
+run_current_artifact := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, asan: Bool) returns I32 {
+    paths := derive_build_paths(lp, custom_bin, custom_c, target)
+    return run_artifact(paths, user_argv, target, asan)
+}
+
 cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths, target)

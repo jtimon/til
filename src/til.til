@@ -737,6 +737,9 @@ usage := proc() {
     println("  --target=<name>  Select a target, including the portable JVM target.")
     println("  --usize=64  Opt into U64 container index/size widths (default is U32,")
     println("              which saves memory; UPtr always follows pointer width).")
+    println("  --force-rebuild  For build/run: translate and compile even when the")
+    println("              existing binary is already newer than every source it was")
+    println("              built from (that check otherwise skips both).")
     println("")
     println("bindings audit -- the generated file is a starting point, not a finished")
     println("binding: C headers cannot express three til-side qualifier axes, so the")
@@ -777,6 +780,8 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
+    // #170: bypass the up-to-date check and always translate + compile.
+    force_rebuild := false
     // #309: --usize overrides the USize container-width alias. 0 = follow the
     // source default (U32); 32 pins U32; 64 opts back into U64 even on a
     // 64-bit host (UPtr always stays pointer-width).
@@ -913,6 +918,9 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.path_idx++
         } else if flag == "--asan" {
             cli.asan = true
+            cli.path_idx++
+        } else if flag == "--force-rebuild" {
+            cli.force_rebuild = true
             cli.path_idx++
         } else if flag == "--prof" {
             cli.prof = true
@@ -1091,6 +1099,23 @@ main := proc(args: ..Str) {
     lp.ctx.compile_mode = cli.command.eq("interpret").not()
         .and(cli.command.eq("ast").not())
         .and(cli.command.eq("doc").not())
+
+    // #170: all-or-nothing build cache. Placed between load_program and
+    // prepare_program deliberately -- loading is what resolves the imports,
+    // so this is the earliest point with a trustworthy dependency set, and
+    // it is still ahead of the expensive half (init, type, garbager,
+    // constfold, translate, cc). Measured on test/comparisons.til: translate
+    // 0.72s, build 1.57s, so skipping from here saves nearly all of it.
+    if cli.force_rebuild.not() {
+        if cli.command.eq("build").or(cli.command.eq("run")) {
+            if build_artifact_is_current(lp, cli.custom_bin, cli.custom_c, target) {
+                if cli.command == "run" {
+                    exit(run_current_artifact(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.asan).cast(I64))
+                }
+                exit(0)
+            }
+        }
+    }
 
     prepare_program(lp, cli.command == "test")
 

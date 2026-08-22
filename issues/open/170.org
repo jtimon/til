@@ -1,6 +1,6 @@
 # priority: high
 # category: cleanups
-** OPEN #170 All-or-nothing caching for translate/build/run
+** WIP #170 All-or-nothing caching for translate/build/run
 
 Symptom:
 
@@ -33,3 +33,50 @@ Symptom:
    - Should ~til translate~ always regenerate output (current rstil
      behavior), or should it also be cacheable under the same mechanism?
 
+
+*** Progress (2026-08-20)
+
+    Implemented for ~build~ and ~run~. Measured on test/comparisons.til:
+    a cold build is 1.06s and a warm one 0.03s, ~35x. Correctly rebuilds
+    when the main file is touched, when a CORE dependency is touched
+    (src/core/str.til), and under ~--force-rebuild~; a cached ~run~ still
+    executes the binary and prints what it should.
+
+    Two decisions worth recording, because both differ from the sketch
+    above:
+
+    - There is no separate ~collect_all_deps(path)~. The dependency set
+      is the loader's OWN resolved unit list -- ~lp.unit_paths()~ plus
+      ~lp.mode_files~ -- and the check sits BETWEEN ~load_program~ and
+      ~prepare_program~. Loading is what resolves imports, so that is
+      the earliest point with a trustworthy dependency set, and it is
+      still ahead of the whole expensive half (init, type, garbager,
+      constfold, translate, cc). A standalone scanner would have had to
+      mirror ~resolve_imports~ plus the mode auto-import resolution
+      forever, and the one failure mode of a build cache is serving a
+      stale binary SILENTLY -- reusing the resolved set makes that
+      divergence impossible by construction rather than by vigilance.
+      Cost of loading first is small: translate (load+type+emit) is
+      0.72s of the 1.57s build, and load alone is a fraction of that.
+
+    - ~needs_rebuild~ is spelled ~build_artifact_is_current~ and is
+      conservative in every uncertain case, since a wrong "yes" is
+      invisible while a wrong "no" only costs a rebuild: a missing or
+      unstat-able artifact, an unstat-able dependency, or a dependency
+      at-or-newer than the artifact all answer false. The comparison is
+      ~>=~, not ~>~ -- mtime granularity is one second on some
+      filesystems, so an edit landing in the same second as the previous
+      build must not read as older.
+
+    Not cached: library, theme, JVM, wasm and TempleOS outputs, whose
+    artifact is not one path to stat. A cross-compiled native target is
+    still a single binary, so it stays cacheable.
+
+    STILL OPEN -- the question this issue already asks: should
+    ~til translate~ be cacheable under the same mechanism, or keep the
+    rstil behaviour of always regenerating? It is deliberately untouched.
+    An argument for leaving it: ~translate~ exists to produce source for
+    inspection, so "the output is already current" is a weaker promise
+    there than for a binary. An argument against: it is the same
+    all-or-nothing test on gen/til/<name>.c, and test harnesses that
+    translate repeatedly would benefit identically.

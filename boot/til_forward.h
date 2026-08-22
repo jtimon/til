@@ -1436,6 +1436,7 @@ typedef struct CliArgs {
     Bool early_return;
     Bool asan;
     Bool prof;
+    Bool force_rebuild;
     I64 usize_bits;
     Bool check_unused_imports;
     Vec__Str *extra_modes;
