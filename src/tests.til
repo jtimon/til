@@ -1409,6 +1409,20 @@ main := proc(args: ..Str) {
     // COMPILE without either root ("implicit declaration").
     add_single(tests, "drain_only_delete", "build", 0, "",
         format(til_bin, " run test/drain_only_delete.til"))
+    // #269/#326: the "*.method" wildcard reaches the types the walk reached,
+    // not every type declared. One `..Dynamic` call lowers to a Tuple, whose
+    // delete dispatches by runtime name, and the wildcard that answers it used
+    // to root delete+clone everywhere -- core/tuple.til imports ast, so the
+    // compiler's own Expr/StructDef/NodeType model was emitted into a 40-line
+    // script. The run row is the other half: a type the dispatch CAN land on
+    // must still be there (WcKept keeps its dyn_call_delete arm).
+    add_counts(tests, "scavenge_dyn_wildcard_prunes", "build",
+        format(til_bin, " translate -c gen/c/sc_dw.c test/scavenge_dyn_wildcard.til '&&' cat gen/c/sc_dw.c"),
+        CountCheck(needle = "WcUnused", expected_count = 0),
+        CountCheck(needle = "Expr_delete", expected_count = 0),
+        CountCheck(needle = "static void WcKept_delete(", expected_count = 2))
+    add_single(tests, "scavenge_dyn_wildcard", "build", 0, "",
+        format(til_bin, " run test/scavenge_dyn_wildcard.til"))
     add_count(tests, "enums_no_orphan_prototype", "build", "Color_is", 0,
         format(til_bin, " translate -c gen/c/enums_proto.c test/enums.til '&&' cat gen/c/enums_proto.c"))
     // Clone calls now share the ordinary value-return ABI rather than a
@@ -1564,7 +1578,13 @@ main := proc(args: ..Str) {
     // ...and a program that really does reflect still gets them.
     add_count(tests, "first_class_keeps_reflect_family", "build", "static I64 enum_variant_count(", 2,
         format(til_bin, " translate -c gen/c/fc_rf.c test/first_class.til '&&' cat gen/c/fc_rf.c"))
-    add_count(tests, "closures_dyn_wrapper_is_tu_local", "build", "static void *Mode_clone_dyn(", 1,
+    // The wrapper is anchored on a type the file DECLARES and really does
+    // dispatch by name (its DynVec(WordBox) does `dyn_fn("WordBox", "clone")`).
+    // It used to name std/mode_type's Mode, which the file never mentions: the
+    // "*.clone" wildcard rooted clone on every top-level type, so any name at
+    // all had a wrapper. Now that the wildcard only reaches types the program
+    // reaches, a wrapper exists exactly where a dispatch can land.
+    add_count(tests, "closures_dyn_wrapper_is_tu_local", "build", "static void *WordBox_clone_dyn(", 1,
         format(til_bin, " translate -c gen/c/ci_dw.c test/closures_interp.til '&&' cat gen/c/ci_dw.c"))
     add_count(tests, "hello_print_prelude_is_tu_local", "build", "static void print_single(Str *s)", 2,
         format(til_bin, " translate -c gen/c/hs_pp.c examples/hello_script.til '&&' cat gen/c/hs_pp.c"))

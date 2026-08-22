@@ -199,6 +199,32 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
             sig_name := til_type_name(e.til_type())
             if sig_name.len() > 0 { vec_push_str(refs, sig_name) }
         }
+    case .Literal(Literal.Str(cr_lit)):
+        // #326: a Str LITERAL is how a type name enters the runtime. Every
+        // by-name dispatch -- dyn_call/dyn_fn/dyn_size_of, the dyn_*
+        // containers' `elem_type: Str`, KwargsMap, Tuple.push_type_name, an
+        // interface box's iface_type_name -- reads a string, and the only
+        // places a program can produce one are a literal like this and
+        // dyn_type_to_str(T) (whose T is an Ident, already an edge above).
+        // So the literal IS the edge: `DynVec.new_type_name("Widget")` is
+        // the whole mention of Widget in a program that then dispatches
+        // Widget.clone through the vec.
+        //
+        // That makes it what lets the "*.method" wildcard stop expanding
+        // over every top-level type (see scavenge_visited_imported): the
+        // wildcard now only reaches types the walk got to on its own, and
+        // this is the edge that carries the ones named by a string.
+        //
+        // "?" marks it as a candidate, not a name: the BFS roots it only if
+        // it spells a TYPE. Any literal at all is a candidate -- what a
+        // string was "meant" as is not knowable here -- and a plain name
+        // edge would root far more than types. The self-build is the proof:
+        // `reg_dispatch("struct_field_count", ...)` and
+        // `builder_needs_reflect("struct_field_name")` name the reflection
+        // ext_funcs in ordinary string arguments, so an unmarked edge
+        // emitted all twelve dispatchers into a compiler that calls none of
+        // them (-Werror=unused-function).
+        vec_push_str(refs, format("?", cr_lit))
     case .PrecomputedSequence(data):
         // The C emitter conjures Sequence.clone(&static_template), so there
         // is no FCall child from which reachability could discover it.
@@ -1779,6 +1805,10 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
 
     // 3) BFS
     mut visited := Set(Str).new()
+    // #269 wildcard methods ("*.m"), in arrival order, plus the set that keeps
+    // the list unique. Both halves of the expansion below read them.
+    mut wildcards := Vec(Str).new()
+    mut wc_seen := Set(Str).new()
     mut cursor : USize = 0
     while cursor < worklist.len() {
         name := Str.clone(worklist[cursor])
@@ -1786,20 +1816,59 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         if visited.has(name) { continue }
         visited.add(own name.clone())
 
-        // #269: "*.m" wildcard from collect_refs -- a dyn_call whose type
-        // name is a runtime expression (interface dispatch). The target
-        // type is only known at runtime, so keep method m alive on every
-        // top-level type by expanding to concrete Type.m names; the BFS
-        // then walks each kept method's body normally.
+        // #269: "*.m" wildcard from collect_refs -- a dyn_call whose type name
+        // is a runtime expression (interface dispatch, a dyn_* container's
+        // `elem_type: Str`, a Tuple element's stored type name). The target
+        // type is only known at runtime, so method m has to be kept on every
+        // type that dispatch could reach.
+        //
+        // #326: that is every type the program MENTIONS, not every type that
+        // was ever declared. A by-name dispatch needs either a value of the
+        // type (its layout and constructor are ordinary edges) or its name
+        // (the dyn_type_to_str(T) Ident, or the Str literal collect_refs now
+        // roots), so the reached set already covers it -- and expanding over
+        // the rest was the wildcard INVENTING reachability instead of
+        // following it. One `..Dynamic` call went through Tuple.delete's
+        // `dyn_call(tn, "delete", ...)` and retained Expr_delete,
+        // StructDef_delete, NodeType_delete and the rest of the compiler's own
+        // AST model in a 30-line user program: 2305 lines of C and 105
+        // functions for three structs and a println, against 937 and 47 once
+        // the wildcard follows reachability instead of inventing it.
+        //
+        // Expansion is incremental in both directions, because either side can
+        // arrive first: a wildcard catches up on the types already reached
+        // here, and a type reached later picks up the known wildcards at the
+        // bottom of this loop. Keeping a method can reach new types, which the
+        // second half then covers in turn -- the fixpoint falls out of the BFS
+        // rather than needing a pass of its own.
         if name.starts_with("*.") {
             wc_method := name.substr(2, name.len() - 2)
+            if wc_seen.has(wc_method) { continue }
+            wc_seen.add(own wc_method.clone())
+            vec_push_str(wildcards, wc_method)
             for wk, _ in top {
-                push_qn(worklist, wk, wc_method)
+                if visited.has(wk) { push_qn(worklist, wk, wc_method) }
             }
             for wk2, _ in core_top {
-                push_qn(worklist, wk2, wc_method)
+                if visited.has(wk2) { push_qn(worklist, wk2, wc_method) }
             }
             continue
+        }
+        // "?text" candidate from collect_refs: a Str literal is a
+        // reachability edge exactly when it spells a type, which is the one
+        // thing a runtime by-name dispatch can be handed.
+        if name.starts_with("?") {
+            lit_tname := name.substr(1, name.len() - 1)
+            if imported_name_is_type(lp.ctx, top, lit_tname)
+                .or(imported_name_is_type(lp.ctx, core_top, lit_tname)) {
+                vec_push_str(worklist, lit_tname)
+            }
+            continue
+        }
+        if top.has(name).or(core_top.has(name)) {
+            for wc_m : Str in wildcards {
+                push_qn(worklist, name, wc_m)
+            }
         }
 
         // #326: `cast` is declared `ext_func(e: Dynamic, T: Type)` but there

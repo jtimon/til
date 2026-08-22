@@ -1,0 +1,41 @@
+mode script
+
+// #269/#326 regression: the "*.method" wildcard must not INVENT
+// reachability. Tuple.delete dispatches teardown by runtime name --
+// `dyn_call(tn, "delete", 2, ...)` over the element type it stored -- and
+// the scavenger answers that with a wildcard, because no static call site
+// names the target. The wildcard used to expand over every top-level
+// declaration in the program, core included, so a single `..Dynamic` call
+// (which lowers to a Tuple) kept `delete` and `clone` on types nothing
+// mentions: core/tuple.til imports ast, so a 30-line user program was
+// emitting Expr_delete, StructDef_delete, NodeType_delete and the rest of
+// the compiler's own data model -- 2305 lines of C, 105 functions, for
+// three structs and a println.
+//
+// A by-name dispatch can only land on a type the program mentions somehow:
+// it needs a value of that type (layout and constructor are ordinary edges)
+// or its name (the dyn_type_to_str(T) Ident, or a Str literal, which
+// collect_refs roots when it spells a type). So the wildcard reaches the
+// types the walk already reached, and nothing else.
+//
+// mode script so the reachability walk is the ordinary one: `mode test`
+// roots conservatively and would keep both types regardless.
+
+// Reached: constructed and read below.
+WcKept := struct {
+    wk_n := 0
+}
+
+// Not reached: declared, never constructed, never named as a string. The
+// wildcard used to root WcUnused.delete, and that root kept the struct.
+WcUnused := struct {
+    wu_text := ""
+}
+
+wc_count := func(vals: ..Dynamic) returns USize {
+    return vals.len()
+}
+
+k := WcKept(wk_n = 7)
+println(k.wk_n.to_str())
+println(wc_count(1, "two", true).to_str())
