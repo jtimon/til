@@ -2478,6 +2478,31 @@ priv is_noop_delete_stmt := func(e: Expr, mut ctx: Context) returns Bool {
 // would target the enclosing loop, so the typer keeps such switches out of the
 // C-like set (see switch_is_clike). A til `continue` maps to C `continue`,
 // which a C `switch` does not capture, so it reaches the enclosing loop.
+// #326: does this switch arm leave, in a way the C COMPILER can see? Not
+// the same question as stmt_always_diverges, which is about til semantics:
+// that one proves an arm ending in an exhaustive inner switch never falls
+// through, and gcc's -Wimplicit-fallthrough still flags the arm. The
+// answer has to be one C agrees with, so it is the narrow one -- the arm's
+// LAST statement is itself terminal. Anything subtler keeps its break;
+// a redundant break is one line, a wrong one is a build error.
+priv builder_arm_leaves := func(body: Expr, ctx: Context) returns Bool {
+    if body.node_type.is(NodeType.Body).not() { return false }
+    if body.children.len() == 0 { return false }
+    ref bal_last : Expr = body.children[body.children.len() - 1]
+    switch bal_last.node_type {
+    case .Return, .Break, .Continue: return true
+    case .FCall:
+        bal_o := resolve_direct_fcall(bal_last, ctx.scope, ctx.symbols)
+        if bal_o.is_none() { return false }
+        switch bal_o.unwrap().node_type {
+        case .FuncDef(bal_fd): return bal_fd.noreturn
+        case: return false
+        }
+    case:
+        return false
+    }
+}
+
 priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref scrut : Expr = e.children[0]
     is_enum := scrut.til_type().is(Type.Enum)
@@ -2575,8 +2600,14 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             f.write(" {\n")
             emit_body_scoped(f, cn.children[cn.children.len() - 1], depth + 1, ctx)
         }
-        emit_indent(f, depth + 1)
-        f.write("break;\n")
+        // #326: the arm's `break` is what stops C falling into the next
+        // one -- unless the arm already left, in which case nothing can
+        // reach it. 794 of these in til's own output sat directly under a
+        // `return`.
+        if builder_arm_leaves(cn.children[cn.children.len() - 1], ctx).not() {
+            emit_indent(f, depth + 1)
+            f.write("break;\n")
+        }
         emit_indent(f, depth)
         f.write("}\n")
     }
@@ -2970,10 +3001,26 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // body as a plain scoped block (child 0 is the Body).
         f.write("{\n"); emit_body_scoped(f, e.children[0], depth + 1, ctx); emit_indent(f, depth); f.write("}\n")
     case .If:
-        f.write("if ("); emit_deref(f, e.children[0], depth, ctx); f.write(") {\n")
-        emit_body_scoped(f, e.children[1], depth + 1, ctx); emit_indent(f, depth)
-        if e.children.len() > 2 { f.write("} else {\n"); emit_body_scoped(f, e.children[2], depth + 1, ctx); emit_indent(f, depth) }
-        f.write("}\n")
+        // #326: an EMPTY then-branch spells the test backwards. `if (c) {}
+        // else { ... }` is `if (!(c)) { ... }` -- one line shorter and
+        // without a block that cannot do anything. The while lowering
+        // writes exactly that shape for every loop whose condition needs a
+        // hoisted temp (`if <cond> {} else { break }`, 5,856 of them across
+        // the corpus); negating here rather than in the lowering keeps the
+        // `not()` out of the AST, where the typer would hoist it into a
+        // second Bool temp and spend the line it just saved.
+        mut if_empty_then := false
+        if e.children.len().gt(2).and(e.children[1].children.len().eq(0)) { if_empty_then = true }
+        if if_empty_then {
+            f.write("if (!("); emit_deref(f, e.children[0], depth, ctx); f.write(")) {\n")
+            emit_body_scoped(f, e.children[2], depth + 1, ctx); emit_indent(f, depth)
+            f.write("}\n")
+        } else {
+            f.write("if ("); emit_deref(f, e.children[0], depth, ctx); f.write(") {\n")
+            emit_body_scoped(f, e.children[1], depth + 1, ctx); emit_indent(f, depth)
+            if e.children.len() > 2 { f.write("} else {\n"); emit_body_scoped(f, e.children[2], depth + 1, ctx); emit_indent(f, depth) }
+            f.write("}\n")
+        }
     case .While:
         f.write("while ("); emit_deref(f, e.children[0], depth, ctx); f.write(") {\n")
         emit_body_scoped(f, e.children[1], depth + 1, ctx); emit_indent(f, depth); f.write("}\n")

@@ -1741,6 +1741,18 @@ main := proc(args: ..Str) {
     // the function-wide ref set could not tell those arms apart.
     add_count(tests, "til_no_unused_cast_on_sibling_scope", "build", "(void)_sp;", 0,
         "cat gen/til/til.c")
+    // Issue #326: a switch arm's `break` is what stops C falling into the
+    // next one, and an arm that already left cannot reach it. 794 of those
+    // in til's own output; the value-return wrapper is the witness, since
+    // an arm ending in one always diverges.
+    add_count(tests, "til_no_break_after_diverging_arm", "build", "return _ret; }\n        break;", 0,
+        "cat gen/til/til.c")
+    // ...and an empty then-branch spells the test backwards: the while
+    // lowering hoists a condition that calls anything into a temp and then
+    // wrote `if (c) {} else { break; }`, a block that cannot do anything,
+    // 2,130 times in til's own output.
+    add_count(tests, "til_loop_condition_tests_the_exit", "build", "if (_wcond_Bool_", 0,
+        "cat gen/til/til.c")
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the

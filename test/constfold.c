@@ -435,8 +435,7 @@ static Str format(Array__Str * parts) {
         while (1) {
             U32 hoisted__U32_2 = (_fc_Array__Str_0->cap);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_2));
-            if (_wcond_Bool_1) {
-            } else {
+            if (!(_wcond_Bool_1)) {
                 break;
             }
             Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_0->data) + (usize_to_uptr(((U32)(_fi_USize_0 * 16)))))));
@@ -455,8 +454,7 @@ static Str format(Array__Str * parts) {
         while (1) {
             U32 hoisted__U32_9 = (_fc_Array__Str_7->cap);
             Bool _wcond_Bool_8 = ((Bool)(_fi_USize_7 < hoisted__U32_9));
-            if (_wcond_Bool_8) {
-            } else {
+            if (!(_wcond_Bool_8)) {
                 break;
             }
             Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_7->data) + (usize_to_uptr(((U32)(_fi_USize_7 * 16)))))));
@@ -696,8 +694,7 @@ static void Array__Str_delete(Array__Str * self, Bool call_free) {
         U32 _rc_U32_0 = 0;
         while (1) {
             Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-            if (_wcond_Bool_1) {
-            } else {
+            if (!(_wcond_Bool_1)) {
                 break;
             }
             U32 i = (_rc_U32_0);
@@ -724,8 +721,7 @@ static Array__Str Array__Str_clone(Array__Str * self) {
         U32 _rc_U32_0 = 0;
         while (1) {
             Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-            if (_wcond_Bool_1) {
-            } else {
+            if (!(_wcond_Bool_1)) {
                 break;
             }
             U32 i = (_rc_U32_0);
@@ -754,8 +750,7 @@ static void Vec__Str_clear(Vec__Str * self) {
         U32 _rc_U32_0 = 0;
         while (1) {
             Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-            if (_wcond_Bool_1) {
-            } else {
+            if (!(_wcond_Bool_1)) {
                 break;
             }
             U32 i = (_rc_U32_0);
@@ -817,8 +812,7 @@ static Vec__Str Vec__Str_clone(Vec__Str * self) {
         U32 _rc_U32_1 = 0;
         while (1) {
             Bool _wcond_Bool_2 = ((Bool)(_rc_U32_1 < _re_U32_1));
-            if (_wcond_Bool_2) {
-            } else {
+            if (!(_wcond_Bool_2)) {
                 break;
             }
             U32 i = (_rc_U32_1);
@@ -973,8 +967,7 @@ static void println(Array__Str * parts) {
         while (1) {
             U32 hoisted__U32_2 = (_fc_Array__Str_0->cap);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_2));
-            if (_wcond_Bool_1) {
-            } else {
+            if (!(_wcond_Bool_1)) {
                 break;
             }
             Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_0->data) + (usize_to_uptr(((U32)(_fi_USize_0 * 16)))))));
@@ -1795,8 +1788,7 @@ static Array__I64 Array__I64_clone(Array__I64 * self) {
         U32 _rc_U32_0 = 0;
         while (1) {
             Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-            if (_wcond_Bool_1) {
-            } else {
+            if (!(_wcond_Bool_1)) {
                 break;
             }
             U32 i = (_rc_U32_0);
@@ -1824,8 +1816,7 @@ static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind) {
     USize hi = self->keys.count;
     while (1) {
         Bool _wcond_Bool_0 = ((Bool)(lo < hi));
-        if (_wcond_Bool_0) {
-        } else {
+        if (!(_wcond_Bool_0)) {
             break;
         }
         U32 hoisted__U32_7 = ((U32)(hi - lo));
@@ -1895,8 +1886,7 @@ static Vec__I64 Vec__I64_clone(Vec__I64 * self) {
         U32 _rc_U32_1 = 0;
         while (1) {
             Bool _wcond_Bool_2 = ((Bool)(_rc_U32_1 < _re_U32_1));
-            if (_wcond_Bool_2) {
-            } else {
+            if (!(_wcond_Bool_2)) {
                 break;
             }
             U32 i = (_rc_U32_1);
@@ -1924,8 +1914,7 @@ static void Vec__CfNestedValues_clear(Vec__CfNestedValues * self) {
         U32 _rc_U32_0 = 0;
         while (1) {
             Bool _wcond_Bool_1 = ((Bool)(_rc_U32_0 < _re_U32_0));
-            if (_wcond_Bool_1) {
-            } else {
+            if (!(_wcond_Bool_1)) {
                 break;
             }
             U32 i = (_rc_U32_0);
@@ -1965,8 +1954,7 @@ static Vec__CfNestedValues Vec__CfNestedValues_clone(Vec__CfNestedValues * self)
         U32 _rc_U32_1 = 0;
         while (1) {
             Bool _wcond_Bool_2 = ((Bool)(_rc_U32_1 < _re_U32_1));
-            if (_wcond_Bool_2) {
-            } else {
+            if (!(_wcond_Bool_2)) {
                 break;
             }
             U32 i = (_rc_U32_1);
