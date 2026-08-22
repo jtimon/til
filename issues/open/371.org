@@ -1,6 +1,6 @@
 # priority: medium
 # category: optimizations
-** OPEN #371 Own primitive args: C stack slot passed by pointer, not a malloc'd box
+** WIP #371 Own primitive args: C stack slot passed by pointer, not a malloc'd box
 
 *** The waste
 
@@ -113,3 +113,82 @@ Type scope, and why there is no ambiguity:
   stays true or handle it explicitly.
 - Interpreter/compiled divergence: the interpreter models the box
   today; rule 4 must land in the same commit or interp tests diverge.
+
+*** Attempt 1 (2026-08-20): 462/464, one leak class left
+
+    Re-measured first, as this issue asks. The waste has GROWN since the
+    August figures, which strengthens the case:
+
+    | type  | now     | issue (Aug) |
+    | U8    | 568,863 | 329K        |
+    | U32   | 158,772 | 40K         |
+    | USize |  95,141 | 73K         |
+    | I64   |  58,486 | 46K         |
+    | Bool  |  37,081 | --          |
+    | I32   |  12,193 | 38K         |
+    | U64   |   5,503 | --          |
+    | TOTAL | 936,039 | ~527K       |
+
+    (callgrind, ~translate test/first_class.til~; 945,445 NON-primitive
+    adopt calls stay, correctly out of scope.) Two traps for the next
+    person: ~adopt__Str~ alone is 527,071, which coincidentally equals
+    the old TOTAL and is NOT in scope; and ~translate~ is cached now
+    ([[../fixed/170.org][#170]]), so a baseline needs ~--force-rebuild~.
+
+    Implementation reached 462/464 on ~make clean && make test_two_pass~.
+    The fixpoint was verified separately and IS reached: after ~make
+    two_pass~, ~boot/til.c~ holds the pass-2 output and a fresh translate
+    matches it byte-for-byte. (The ~self_translate~ failure inside
+    ~test_two_pass~ is an ordering artifact -- ~make test~ re-runs pass 1
+    and clobbers ~boot/til.c~ with pass-1 output before the comparison --
+    not a real fixpoint violation. Worth knowing before chasing it.)
+
+    What the attempt established, all of it load-bearing for the retry:
+
+    - THE CALLEE'S PARAMETER DECIDES, never the argument's type. This is
+      the central correction to the plan above. An ~I64~ passed into an
+      ~own Dynamic~ parameter (type erasure -- ~Array(Dynamic)~) must
+      still be boxed, because ~adopt__Dynamic~ still frees. Keying the
+      caller on the argument gave a stack slot to a callee that frees:
+      glibc's "free(): invalid pointer", the wild-free direction. Fixing
+      this one thing took the suite from 446 to 462.
+    - Emit ~&(T){ v }~, the address of a SCALAR compound literal. Not
+      ~&((T[]){ v })~, which is ~T(*)[1]~ and fails
+      -Werror=incompatible-pointer-types. The file already uses the
+      right idiom (~&(U32){1}~).
+    - The CLI variadic-arg emitter (~emit_cli_parse_value~, the
+      ~_val~/memcpy/delete loop) owns its box and releases it through
+      ~<Prim>_delete(_val, 1)~. With the callee free suppressed that
+      leaked; it needs the ~stack_outer~ form, which already existed for
+      main's scalar params. Note its ~<Prim>_delete~ call must STAY: the
+      definition is still emitted, and dropping its last caller trips
+      -Werror=unused-function. Retiring the now-empty primitive delete
+      DEFINITION is the proper follow-through ([[./302.org][#302]] stage 6
+      already established a no-op delete is not worth inserting).
+    - ~Set.add~ consumes via a hand-written ~T.delete(own val, false)~ +
+      ~free(own val)~ pair, not through ~adopt~. Any callee-side rule has
+      to cover that shape too.
+
+    WHERE IT STOPPED, precisely. One leak class remains, 72 bytes / 9
+    allocations on ~ffi_run~:
+
+        Array__I64_set(&_va_Array_0, hoisted__U32_1,
+            ({ I64 *_oa = malloc(TIL_BOX(I64)); *_oa = hoisted__I64_2; _oa; }),
+            &_va_Array_0_ek);
+
+    A THROWING call to a monomorphized generic method. It goes through
+    ~emit_user_fcall_args~, which the attempt did gate -- but the gate
+    asks ~callee_param_type_name(callee_name, i - 1, ctx)~, and that
+    does not resolve the parameter for this shape, returning "". The
+    gate reads that as "not a slot" and boxes, while the callee no
+    longer frees. The fix is to resolve the callee parameter the way the
+    OTHER argument path does (~sfd.sig.params[i - 1]~ plus
+    ~declaration_resolved_type~) rather than through the name-based
+    lookup. Not attempted -- each verification cycle is a full two-pass
+    build, and shipping a compiler that leaks on every throwing
+    container set is not an option.
+
+    Step 4 of the plan (mirror the rule in the INTERPRETER) was never
+    reached. The compiled backend was the whole of this attempt.
+
+    Source reverted to master; this section is the whole artifact.
