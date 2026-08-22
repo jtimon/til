@@ -1568,7 +1568,7 @@ priv fold_const_and_or := func(own call: Expr, symbols: SymbolPool) returns Expr
     if is_and.or(name.eq("or")).not() { return call }
     switch call.node_type {
     case .FCall(fcd):
-        if fcd.splat_args.neq(0).or(fcd.own_args.neq(0)).or(fcd.ref_args.neq(0)) { return call }
+        if fcall_data_has_arg_markers(fcd) { return call }
     case:
     }
     // Collect every operand; bail unless all of them are Bool literals.
@@ -1624,9 +1624,7 @@ priv nest_nary_and_or := func(own call: Expr, mut symbols: SymbolPool) returns E
     mut plain := true
     switch call.node_type {
     case .FCall(fcd):
-        if fcd.splat_args != 0 { plain = false }
-        if fcd.own_args != 0 { plain = false }
-        if fcd.ref_args != 0 { plain = false }
+        if fcall_data_has_arg_markers(fcd) { plain = false }
     case:
     }
     for ai in 1..call.children.len() {
@@ -2944,6 +2942,18 @@ get_ref_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 fcall_has_ref_args := func(fcall: Expr) returns Bool {
     ref fcd : FCallData = fcall_of(fcall)
     return fcd.ref_args > 0
+}
+
+// True when a call carries any per-argument marker the PARSER can set, so a
+// parse-time rewrite that rebuilds the argument list knows it would drop
+// meaning it cannot carry over.
+//
+// ~keep_outer_args~ is deliberately not tested: nothing writes it while
+// parsing (the constfolder propagates it and the garbager records it), so at
+// parse time it is always zero, and including it would suggest a parse-time
+// rewrite has to reason about it.
+fcall_data_has_arg_markers := func(fcd: FCallData) returns Bool {
+    return fcd.own_args.neq(0).or(fcd.ref_args.neq(0)).or(fcd.splat_args.neq(0))
 }
 
 set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
