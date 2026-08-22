@@ -233,6 +233,29 @@ type_name_of := func(t: Type, symbols: SymbolPool) returns Option(ref Str) {
     }
 }
 
+// The "this Type carries no name" answer, as stable storage. type_name_ref
+// hands back a ref, so the no-name case needs a Str that outlives the call
+// rather than a literal riding the return path.
+NO_TYPE_NAME : Str = ""
+
+// #397: compiler-side twin of core til_type_name, and the drop-in the
+// migration sweeps callers onto. Same answer -- the payload spelling, or
+// "" for a variant that carries none -- but BORROWED where til_type_name
+// cloned (70K mallocs per first_class translate, each with a matching
+// free), and it reads the Sym twins that core's pool-less version cannot.
+//
+// The ref points into the Type's own payload for a Str form and into the
+// pool's names vector for a Sym form, so the argument must be a STABLE
+// location: a field, a local, or an x.til_type() stamp ref. Never a Type
+// that is itself a call result -- that rides a stack temp which dies at
+// the call boundary and dangles the payload ref. Sites that must pass a
+// temporary keep til_type_name, which clones and so cannot dangle.
+type_name_ref := func(t: Type, symbols: SymbolPool) returns ref Str {
+    n_o := type_name_of(t, symbols)
+    if n_o.is_none() { return NO_TYPE_NAME }
+    return n_o.unwrap()
+}
+
 // #292: definition registries are keyed by the same interned symbol as the
 // binding registry. A parent walk therefore compares U32s rather than names.
 // Keep the cell deref in this leaf: inlining the ?/catch into a multi-branch
@@ -1761,9 +1784,9 @@ WIDTH_ALIAS_NAMES := array(Str, "USize", "UPtr")
 // rather than a source spelling: a generic body monomorphized on `T` emits
 // `<this name>_<method>`, and the source ident at the call site may be an
 // alias the typer already resolved (or one the file shadows).
-resolved_type_name := func(t: Type) returns Str {
-    name := til_type_name(t)
-    if name.len() > 0 { return name }
+resolved_type_name := func(t: Type, symbols: SymbolPool) returns Str {
+    name_o := type_name_of(t, symbols)
+    if name_o.is_some().and(name_o.unwrap().is_empty().not()) { return Str.clone(name_o.unwrap()) }
     switch t {
     case .Primitive(Primitive.I8): return "I8"
     case .Primitive(Primitive.U8): return "U8"
@@ -2055,15 +2078,19 @@ type_is_primitive := func(t: Type, p: Primitive) returns Bool {
 // Type.Custom("Type"). til_type_name returns "" for non-named variants,
 // so those correctly compare false. Replaces the cross-variant
 // `t.eq(Type.Enum("Type"))` comparisons that needed the bespoke Type.eq.
-is_type_metatype := func(t: Type) returns Bool {
+is_type_metatype := func(t: Type, symbols: SymbolPool) returns Bool {
     // Compared in place, not via til_type_name: that clones the payload
     // to hand back an owned Str, and this predicate ran 28K times per
-    // first_class translate just to test four bytes.
+    // first_class translate just to test four bytes. #397: the Sym twins
+    // go through type_name_of, which borrows the pool's spelling -- still
+    // no clone, and the four-byte comparison is unchanged.
     switch t {
     case .Struct(mts):     return mts == "Type"
     case .Enum(mte):       return mte == "Type"
     case .Custom(mtc):     return mtc == "Type"
     case .FuncPtrSig(mtf): return mtf == "Type"
+    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+        return type_name_of(t, symbols).unwrap() == "Type"
     case: return false
     }
 }
@@ -2075,11 +2102,18 @@ is_type_metatype := func(t: Type) returns Bool {
 // `Type.FuncPtr` and `Type.FuncPtrSig("X")` as distinct because the
 // tags AND payloads differ; this helper restores the wildcard semantic
 // the migration needs while preserving the FuncSig name on the type itself.
-funcptr_eq := func(a: Type, b: Type) returns Bool {
+funcptr_eq := func(a: Type, b: Type, symbols: SymbolPool) returns Bool {
     if a.is_funcptr().not() { return false }
     if b.is_funcptr().not() { return false }
-    an := til_type_name(a)
-    bn := til_type_name(b)
+    // #397: type_name_of borrows the payload where til_type_name cloned it,
+    // and reads the Sym twins core's pool-less version cannot. A tag-only
+    // Type.FuncPtr answers None, which is the same wildcard as the empty
+    // name -- keep both spellings of "no name" collapsed here.
+    an_o := type_name_of(a, symbols)
+    bn_o := type_name_of(b, symbols)
+    if an_o.is_none().or(bn_o.is_none()) { return true }
+    ref an : Str = an_o.unwrap()
+    ref bn : Str = bn_o.unwrap()
     if an.is_empty().or(bn.is_empty()) { return true }
     return an == bn
 }

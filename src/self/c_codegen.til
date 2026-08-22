@@ -47,7 +47,7 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
     // step 5: read the name off dd.til_type's FuncPtrSig payload.
     // til_type_name returns "" for a non-FuncPtrSig
     // type, so the empty-check below still guards the lookup.
-    sig_name := til_type_name(dd.til_type)
+    ref sig_name : Str = type_name_ref(dd.til_type, ctx.symbols)
     if sig_name.len() == 0 { return Option(ref Expr).None }
     sig_bfd_o := scope.lookup_func_name(sig_name, ctx.symbols)
     if sig_bfd_o.is_some() {
@@ -781,7 +781,7 @@ priv seed_primitive_names := func(mut emitted: Set(Str)) {
 priv extern_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, declared_name: Str, mut ctx: Context) returns Str {
     if declared_name.eq("USize").or(declared_name.eq("UPtr")) { return declared_name.clone() }
     if t.is(Type.Dynamic) { return til_type_to_c(t) }
-    return c_type_name(t, til_type_name(rhs_t), ctx)
+    return c_type_name(t, type_name_ref(rhs_t, ctx.symbols), ctx)
 }
 
 priv external_global_ctype := func(d: Declaration, mut ctx: Context) returns Str {
@@ -796,9 +796,9 @@ priv external_global_ctype := func(d: Declaration, mut ctx: Context) returns Str
 priv resolve_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, declared_name: Str, mut ctx: Context) returns Str {
     if declared_name.eq("USize").or(declared_name.eq("UPtr")) { return declared_name.clone() }
     if t.is(Type.Struct).or(t.is(Type.Enum)).or(t.is_funcptr()) {
-        sn := til_type_name(t)
+        ref sn : Str = type_name_ref(t, ctx.symbols)
         if sn.len() > 0 { return c_type_name(t, sn, ctx) }
-        sn2 := til_type_name(rhs_t)
+        ref sn2 : Str = type_name_ref(rhs_t, ctx.symbols)
         if sn2.len() > 0 { return c_type_name(t, sn2, ctx) }
         return c_type_name(t, declared_name, ctx)
     }
@@ -2902,7 +2902,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 }
                 if target_name.len().gt(0).and(temp_name.len().gt(0)) {
                     ref arg_type : Type = swap_target.til_type()
-                    arg_tname := til_type_name(arg_type)
+                    ref arg_tname : Str = type_name_ref(arg_type, ctx.symbols)
                     if arg_tname == "Str" {
                         // The written value describes the CHAR DATA, so a
                         // literal source must land as CAP_VIEW (static chars,
@@ -3190,7 +3190,7 @@ priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: C
         env_type := format(fd.closure_name, "_env")
         f.write("({ ").write(env_type).write(" *til_env = malloc(TIL_BOX(").write(env_type).write(")); ")
         for cap : Declaration in fd.captures {
-            ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), _ctx)
+            ctype := c_type_name(cap.til_type, type_name_ref(cap.til_type, _ctx.symbols), _ctx)
             mut cap_expr := Expr.new(ident_node(_ctx.symbols.intern(cap.name)), e.line, e.col)
             cap_expr.set_til_type(cap.til_type.clone())
             if cap.own_type.is(OwnType.Ref) {
@@ -3214,7 +3214,7 @@ priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: C
         env_type2 := format(bd.closure_name, "_env")
         f.write("({ ").write(env_type2).write(" *til_env = malloc(TIL_BOX(").write(env_type2).write(")); ")
         for cap_b : Declaration in bd.captures {
-            ctype_b := c_type_name(cap_b.til_type, til_type_name(cap_b.til_type), _ctx)
+            ctype_b := c_type_name(cap_b.til_type, type_name_ref(cap_b.til_type, _ctx.symbols), _ctx)
             mut cap_expr_b := Expr.new(ident_node(_ctx.symbols.intern(cap_b.name)), e.line, e.col)
             cap_expr_b.set_til_type(cap_b.til_type.clone())
             if cap_b.own_type.is(OwnType.Ref) {
@@ -3424,8 +3424,8 @@ priv precomputed_sequence_symbol := func(data: PrecomputedSequenceData) returns 
     return format("_til_precomputed_sequence_", data.ordinal.to_str())
 }
 
-priv precomputed_sequence_is_vec := func(data: PrecomputedSequenceData) returns Bool {
-    name := til_type_name(data.til_type)
+priv precomputed_sequence_is_vec := func(data: PrecomputedSequenceData, symbols: SymbolPool) returns Bool {
+    ref name : Str = type_name_ref(data.til_type, symbols)
     if name.eq("Vec").or(name.starts_with("Vec__")) { return true }
     if name.eq("Array").or(name.starts_with("Array__")) { return false }
     panic(__LOC__, "precomputed sequence has non-sequence type: ", name)
@@ -3440,7 +3440,7 @@ priv expr_has_c_initializer := func(e: Expr, allow_sequences: Bool, mut ctx: Con
     case .PrecomputedSequence(data):
         if allow_sequences.not() { return false }
         if e.children.len() > data.capacity { return false }
-        if precomputed_sequence_is_vec(data).not().and(e.children.len() != data.capacity) { return false }
+        if precomputed_sequence_is_vec(data, ctx.symbols).not().and(e.children.len() != data.capacity) { return false }
         for element : Expr in e.children {
             if element.til_type().eq(data.element_type).not() { return false }
             if expr_has_c_initializer(element, true, ctx).not() { return false }
@@ -3515,7 +3515,7 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
         f.write("{.data = ")
         if data.capacity == 0 { f.write("NULL") }
         else { f.write("(U8 *)").write(symbol).write("_data") }
-        if precomputed_sequence_is_vec(data) {
+        if precomputed_sequence_is_vec(data, ctx.symbols) {
             f.write(", .count = "); emit_usize(f, e.children.len()); f.write("ULL")
         }
         f.write(", .cap = "); emit_usize(f, data.capacity); f.write("ULL}")
@@ -3560,7 +3560,7 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
         case .FieldAccess(member):
             ref vname : Str = member.field_access_name(ctx.symbols.names)
             if enum_is_niche(def) {
-                payload_c := c_type_name(e.children[1].til_type(), til_type_name(e.children[1].til_type()), ctx)
+                payload_c := c_type_name(e.children[1].til_type(), type_name_ref(e.children[1].til_type(), ctx.symbols), ctx)
                 f.write("{.data = &(").write(payload_c).write(")")
                 emit_c_static_initializer(f, e.children[1], ctx)
                 f.write("}")
@@ -3596,7 +3596,7 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, in_seque
         emitted.add(own data.ordinal.clone())
         symbol := precomputed_sequence_symbol(data)
         if data.capacity > 0 {
-            elem_c := c_type_name(data.element_type, til_type_name(data.element_type), ctx)
+            elem_c := c_type_name(data.element_type, type_name_ref(data.element_type, ctx.symbols), ctx)
             f.write("static ").write(elem_c).write(" ").write(symbol).write("_data[")
             emit_usize(f, data.capacity)
             f.write("] = {")
@@ -3608,7 +3608,7 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, in_seque
             f.write("};\n")
         }
         if in_sequence_initializer.not() {
-            seq_c := c_type_name(data.til_type, til_type_name(data.til_type), ctx)
+            seq_c := c_type_name(data.til_type, type_name_ref(data.til_type, ctx.symbols), ctx)
             f.write("static ").write(seq_c).write(" ").write(symbol).write(" = ")
             emit_c_static_initializer(f, e, ctx)
             f.write(";\n")
@@ -4269,7 +4269,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
     case .BodyValue:
         emit_capturing_closure_value(f, e, depth, ctx)
     case .PrecomputedSequence(data):
-        seq_name := til_type_name(data.til_type)
+        ref seq_name : Str = type_name_ref(data.til_type, ctx.symbols)
         f.write(seq_name).write("_clone(&").write(precomputed_sequence_symbol(data)).write(")")
     case .FieldAccess(fname):
         ref obj : Expr = e.children[0]
@@ -5118,7 +5118,7 @@ priv emit_closure_env_clone := proc(f: File, closure_name: Str, env_type: Str,
         } else {
             clone_type := type_to_name(cap.til_type)
             if is_primitive_type(clone_type) {
-                ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), lp.ctx)
+                ctype := c_type_name(cap.til_type, type_name_ref(cap.til_type, lp.ctx.symbols), lp.ctx)
                 f.write("    til_clone->").write(cap.name).write(" = malloc(TIL_BOX(").write(ctype).write("));\n")
                 f.write("    *til_clone->").write(cap.name).write(" = *til_env->").write(cap.name).write(";\n")
             } else {
@@ -5145,7 +5145,7 @@ priv emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitte
         env_type := format(fd.closure_name, "_env")
         f.write("typedef struct ").write(env_type).write(" {\n")
         for cap : Declaration in fd.captures {
-            ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), lp.ctx)
+            ctype := c_type_name(cap.til_type, type_name_ref(cap.til_type, lp.ctx.symbols), lp.ctx)
             f.write("    ").write(ctype).write(" *").write(cap.name).write(";\n")
         }
         f.write("} ").write(env_type).write(";\n")
@@ -5218,7 +5218,7 @@ priv emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitte
         f.write("typedef struct ").write(env_type_b).write(" {\n")
         if bd.captures.len() == 0 { f.write("    char unused;\n") }
         for cap_b2 : Declaration in bd.captures {
-            ctype_b2 := c_type_name(cap_b2.til_type, til_type_name(cap_b2.til_type), lp.ctx)
+            ctype_b2 := c_type_name(cap_b2.til_type, type_name_ref(cap_b2.til_type, lp.ctx.symbols), lp.ctx)
             f.write("    ").write(ctype_b2).write(" *").write(cap_b2.name).write(";\n")
         }
         f.write("} ").write(env_type_b).write(";\n")
@@ -5313,7 +5313,7 @@ priv emit_capturing_closures_lp := proc(f: File, mut lp: LoadedProgram) {
     }
 }
 
-priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitted_tags: Set(Str)) {
+priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitted_tags: Set(Str), symbols: SymbolPool) {
     if is_ext_h_type(name) { return }
     ref sdd : StructDef = structdef_of(struct_def)
     if sdd.c_tag.len().gt(0).and(sdd.c_tag.eq("@anon").not()) {
@@ -5343,7 +5343,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
         sbr = sbr + 1
         if dd.own_type.is(OwnType.Shallow).not() {
             if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
-                sname := til_type_name(dd.til_type)
+                ref sname : Str = type_name_ref(dd.til_type, symbols)
                 if sname.len() > 0 {
                     f.write("    ").write(sname).write(" *").write(sb_name).write(";\n")
                 } else {
@@ -5353,7 +5353,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
                 tc := field_emit_ctype(dd); f.write("    ").write(tc).write(" *").write(sb_name).write(";\n")
             }
         } else if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
-            sname := til_type_name(dd.til_type)
+            ref sname : Str = type_name_ref(dd.til_type, symbols)
             if sname.len() > 0 {
                 f.write("    ").write(sname).write(" ").write(sb_name).write(";\n")
             } else {
@@ -5758,7 +5758,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
                 for dd : Declaration in dep_sdd.fields {
                     if dd.own_type.is(OwnType.Shallow) {
                         if is_aggregate(dd.til_type) {
-                            dep_sname := til_type_name(dd.til_type)
+                            ref dep_sname : Str = type_name_ref(dd.til_type, lp.ctx.symbols)
                             if dep_sname.len() > 0 {
                                 if emitted.has(dep_sname).not() { deps_ok = false }
                             }
@@ -5798,7 +5798,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
             }
             if deps_ok.not() { continue }
             if def.node_type.is(NodeType.StructDef) {
-                emit_struct_typedef(f, sdecl.name, def, emitted_tags)
+                emit_struct_typedef(f, sdecl.name, def, emitted_tags, lp.ctx.symbols)
                 f.write("\n")
             } else {
                 emit_enum_struct_body(f, sdecl.name, def, lp.ctx)
@@ -5818,7 +5818,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
                 ref sdecl : Declaration = decl_of(stmt)
                 ref def : Expr = stmt.children[0]
                 if def.node_type.is(NodeType.StructDef) {
-                    emit_struct_typedef(f, sdecl.name, def, emitted_tags)
+                    emit_struct_typedef(f, sdecl.name, def, emitted_tags, lp.ctx.symbols)
                     f.write("\n")
                 } else {
                     emit_enum_struct_body(f, sdecl.name, def, lp.ctx)
@@ -9451,7 +9451,7 @@ priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str), mut c
                 builder_used_ctype_add(uct_pn, used)
                 if builder_name_is_closure_rt(uct_pn, ctx) { ctx.builder_closure_rt_used = true }
             }
-            builder_used_ctype_add(til_type_name(uct_p.til_type), used)
+            builder_used_ctype_add(type_name_ref(uct_p.til_type, ctx.symbols), used)
             if builder_type_is_closure_rt(uct_p.til_type) { ctx.builder_closure_rt_used = true }
         }
         if uct_fd.sig.return_type.len() > 0 {
@@ -9575,7 +9575,7 @@ priv builder_fill_used_ctypes := proc(mut lp: LoadedProgram) {
                 case .StructDef(uct_sd2):
                     for uct_fd2 : Declaration in uct_sd2.fields {
                         if uct_fd2.til_type.is(Type.Unknown).not() { builder_used_ctype_add(uct_fd2.type_name(), used) }
-                        builder_used_ctype_add(til_type_name(uct_fd2.til_type), used)
+                        builder_used_ctype_add(type_name_ref(uct_fd2.til_type, lp.ctx.symbols), used)
                     }
                 case .EnumDef(uct_ed2):
                     for uct_vd2 : VariantDef in uct_ed2.variants {
@@ -10065,7 +10065,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
                 for p : Declaration in cur_fd.sig.params {
                     if p.name.eq(name.ident_name(ctx.symbols.names)).not() { continue }
                     if p.til_type.is(Type.FuncPtrSig).not() { return Option(ref Expr).None }
-                    sig_name := til_type_name(p.til_type)
+                    ref sig_name : Str = type_name_ref(p.til_type, ctx.symbols)
                     if sig_name.len() == 0 { return Option(ref Expr).None }
                     pftbfd_o := s.lookup_func_name(sig_name, ctx.symbols)
                     if pftbfd_o.is_none() { return Option(ref Expr).None }
@@ -10557,7 +10557,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         // The emitted value is Sequence.clone(&static_template), with no
         // FCall child. Keep the generated clone body in the same inventory
         // that gates its declaration and definition.
-        bvs_seq_name := til_type_name(bvs_seq.til_type)
+        ref bvs_seq_name : Str = type_name_ref(bvs_seq.til_type, ctx.symbols)
         if bvs_seq_name.len() == 0 { panic("precomputed sequence has unnamed type") }
         sites.add(own bvs_seq_name.concat3(".", "clone"))
     case:

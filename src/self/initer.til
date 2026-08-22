@@ -2046,7 +2046,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                             // under the resolved name, and the deep-free
                             // lookup misses the alias spelling (leaking the
                             // container's buffer).
-                            mut o_canon := til_type_name(ftype_resolved)
+                            mut o_canon := Str.clone(type_name_ref(ftype_resolved, ctx.symbols))
                             if o_canon.len() == 0 { o_canon = ftype.clone() }
                             field_struct_name = o_canon
                             if o_nested.node_type.is(NodeType.EnumDef) { field_is_enum = true }

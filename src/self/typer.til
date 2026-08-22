@@ -138,7 +138,7 @@ make_til_type_expr := func(src: Expr, t: Type, mut symbols: SymbolPool) returns 
 }
 
 priv rewrite_til_type_arg := proc(mut scope: TypeScope, mut parent: Expr, arg_idx: USize, ptype: Type, in_func: I32, mut ctx: Context) {
-    if is_type_metatype(ptype).not() { return }
+    if is_type_metatype(ptype, ctx.symbols).not() { return }
     ref arg : Expr = parent.children[arg_idx]
     switch arg.node_type {
     case .Ident(arg_name):
@@ -336,7 +336,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope, symbols: SymbolPool) re
         // `enum { ... }`) into this form via make_til_type_expr, so recognise
         // it before the binding lookup below (there is no `Type_Enum` binding
         // for the receiver-qualified method name).
-        if is_type_metatype(e.til_type()) {
+        if is_type_metatype(e.til_type(), symbols) {
             for ai in 1..e.children.len() {
                 if e.children[ai].expr_is_comptime(scope, symbols).not() { return false }
             }
@@ -399,7 +399,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope, symbols: SymbolPool) re
         // Issue #57: `Type.<Variant>` (no payload, e.g. `Type.None` produced
         // by make_til_type_expr for primitive type-token args) is a Type
         // metatype value -- pure and comptime.
-        if is_type_metatype(e.til_type()) {
+        if is_type_metatype(e.til_type(), symbols) {
             return true
         }
         return false
@@ -567,7 +567,7 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) retur
                 // from fd.til_type's FuncPtrSig payload (set by
                 // type_from_name at field-typing time) instead of
                 // a separate declaration-name field plus binding indirection.
-                fsig_name := til_type_name(fd.til_type)
+                ref fsig_name : Str = type_name_ref(fd.til_type, symbols)
                 if fsig_name.len() > 0 {
                     ftb_fd_o := scope.lookup_func_name(fsig_name, symbols)
                     if ftb_fd_o.is_some() {
@@ -775,7 +775,7 @@ priv infer_func_ptr_field_call := proc(mut scope: TypeScope, mut e: Expr, mut fa
             }
             // Issue #58 / #147 step 5: read the FuncSig alias name from
             // fd.til_type's FuncPtrSig payload instead of a separate name.
-            fpf_sig_name := til_type_name(fd.til_type)
+            ref fpf_sig_name : Str = type_name_ref(fd.til_type, ctx.symbols)
             if fpf_sig_name.len() == 0 { return false }
             ftb_fd_o := scope.lookup_func_name(fpf_sig_name, ctx.symbols)
             if ftb_fd_o.is_none() { return false }
@@ -1325,7 +1325,7 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     // tags but are the same family. funcptr_eq applies the wildcard
     // semantic (bare FuncPtr matches any FuncPtrSig; named FuncPtrSig
     // must match exactly).
-    if funcptr_eq(arg.til_type(), ptype) {
+    if funcptr_eq(arg.til_type(), ptype, ctx.symbols) {
         type_matches = true
     }
     if type_matches.not().and(is_aggregate(ptype)) {
@@ -1804,7 +1804,7 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                         // comparison validate_fcall_arg uses -- a bare
                         // FuncPtr (e.g. a thunk wrapping a first-class lazy
                         // arg, #262) matches any named FuncPtrSig param.
-                        if arg.til_type().is(expected).not().and(funcptr_eq(arg.til_type(), expected).not()) {
+                        if arg.til_type().is(expected).not().and(funcptr_eq(arg.til_type(), expected, ctx.symbols).not()) {
                             e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": expected ", expected_name, ", got ", type_to_name(arg.til_type())), ctx)
                         }
                         ai++
@@ -2549,7 +2549,7 @@ priv check_delete_inline_field_call_free := proc(scope: TypeScope, e: Expr, mut 
     case .FieldAccess(fad):
         if e.children[1].children.len() < 1 { return }
         ref holder : Expr = e.children[1].children[0]
-        holder_tn := til_type_name(holder.til_type())
+        ref holder_tn : Str = type_name_ref(holder.til_type(), ctx.symbols)
         if holder_tn.len() == 0 { return }
         hdef_o := scope.get_struct(holder_tn, ctx.symbols)
         if hdef_o.is_none() { return }
@@ -2566,7 +2566,7 @@ priv check_delete_inline_field_call_free := proc(scope: TypeScope, e: Expr, mut 
             // An `own` field really is a box; a `ref` one is a borrow the
             // holder never owned, and the existing rules already govern it.
             if fdecl.own_type.is(OwnType.Own).or(fdecl.own_type.is(OwnType.Ref)) { return }
-            ftn := til_type_name(fdecl.til_type)
+            ref ftn : Str = type_name_ref(fdecl.til_type, ctx.symbols)
             if ftn.len() == 0 { return }
             fsdef_o := scope.get_struct(ftn, ctx.symbols)
             if fsdef_o.is_none() { return }
@@ -2594,7 +2594,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
         case .Found(b):
             if b.is_param { return }
             if b.own_type.is(OwnType.Ref) { return }
-            tn := til_type_name(b.type)
+            ref tn : Str = type_name_ref(b.type, ctx.symbols)
             if tn.len() == 0 { return }
             sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
@@ -2629,7 +2629,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
     case .FieldAccess(ffa):
         if e.children[1].children.len() < 1 { return }
         ref fholder : Expr = e.children[1].children[0]
-        fholder_tn := til_type_name(fholder.til_type())
+        ref fholder_tn : Str = type_name_ref(fholder.til_type(), ctx.symbols)
         if fholder_tn.len() == 0 { return }
         fhdef_o := scope.get_struct(fholder_tn, ctx.symbols)
         if fhdef_o.is_none() { return }
@@ -2644,7 +2644,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
             if ffidx.to_usize() >= fhsd.fields.len() { return }
             ref ffdecl : Declaration = fhsd.fields[ffidx.to_usize()]
             if ffdecl.own_type.is(OwnType.Ref) { return }
-            fftn := til_type_name(ffdecl.til_type)
+            ref fftn : Str = type_name_ref(ffdecl.til_type, ctx.symbols)
             if fftn.len() == 0 { return }
             ffsdef_o := scope.get_struct(fftn, ctx.symbols)
             if ffsdef_o.is_none() { return }
@@ -2737,7 +2737,7 @@ priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Contex
             // right after. A borrowed or `ref` source has no such right,
             // which is the case this ban is for.
             if b.own_type.is(OwnType.Own) { return }
-            tn := til_type_name(b.type)
+            ref tn : Str = type_name_ref(b.type, ctx.symbols)
             if tn.len() == 0 { return }
             sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
@@ -4424,7 +4424,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                     // "this is a FuncSig"; the bodyless-FuncDef check
                     // below is the same belt-and-braces it always was.
                     if fd.til_type.is(Type.FuncPtrSig) {
-                        fsig_name := til_type_name(fd.til_type)
+                        ref fsig_name : Str = type_name_ref(fd.til_type, ctx.symbols)
                         if fsig_name.len() > 0 {
                             fsb_fd_o := inner.lookup_func_name(fsig_name, ctx.symbols)
                             if fsb_fd_o.is_some() {
@@ -6180,7 +6180,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                         ref rhs_type : Type = rhs.til_type()
                         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig
                         // wildcard-aware family-equality.
-                        if rhs_type.is(fld_type).not().and(funcptr_eq(rhs_type, fld_type).not()) {
+                        if rhs_type.is(fld_type).not().and(funcptr_eq(rhs_type, fld_type, ctx.symbols).not()) {
                             if rhs_type.is(Type.Unknown).not() {
                                 if rhs_type.is(Type.Dynamic).not() {
                                     stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
@@ -6239,7 +6239,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                         }
                         if handled_lit2.not() {
                             ref rhs_type : Type = rhs.til_type()
-                            if rhs_type.is(nsd_type).not().and(funcptr_eq(rhs_type, nsd_type).not()) {
+                            if rhs_type.is(nsd_type).not().and(funcptr_eq(rhs_type, nsd_type, ctx.symbols).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
                                         stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
@@ -6691,7 +6691,7 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
     if can_implicit_usize_coerce(val.til_type(), declared, declared_name).not()
         .and(val.til_type().is(declared).not())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
-        .and(funcptr_eq(val.til_type(), declared).not())
+        .and(funcptr_eq(val.til_type(), declared, ctx.symbols).not())
         .and(val.til_type().is(Type.Dynamic).not())
         .and(declared.is(Type.Dynamic).not()) {
         at.type_error(format("'", name, "' declared as ", type_to_name(declared), " but value is ", type_to_name(val.til_type())), ctx)
@@ -7035,7 +7035,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 // sdecl.til_type (Type.FuncPtrSig payload) instead of
                 // a separate declaration-name field plus binding indirection.
                 if sdecl.til_type.is(Type.FuncPtrSig) {
-                    sdsig_name := til_type_name(sdecl.til_type)
+                    ref sdsig_name : Str = type_name_ref(sdecl.til_type, ctx.symbols)
                     if sdsig_name.len() > 0 {
                         fsb_fd_o := scope.lookup_func_name(sdsig_name, ctx.symbols)
                         if fsb_fd_o.is_some() {
@@ -8489,7 +8489,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         stmt.set_til_type(existing)
     } else if rhs.til_type().is(existing).not().and(rhs.til_type().is(Type.Unknown).not())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
-        .and(funcptr_eq(rhs.til_type(), existing).not()) {
+        .and(funcptr_eq(rhs.til_type(), existing, ctx.symbols).not()) {
         // Issue #244: a `_m_*` target is a synthesized match result temp; an
         // arm-type mismatch was already reported cleanly by infer_match_expr,
         // so don't also surface the internal temp name here.
@@ -9100,9 +9100,9 @@ make_free_call := func(var_name: Str, shallow type: Type, src: Expr, mut symbols
 make_clone_call := func(type_name: Str, shallow type: Type, arg: Expr, src: Expr, mut symbols: SymbolPool) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.set_til_type(type)
-    if type.is(Type.Struct).and(til_type_name(type).len().eq(0)) {
+    if type.is(Type.Struct).and(type_name_ref(type, symbols).len().eq(0)) {
         call.set_til_type(Type.Struct(type_name.clone()))
-    } else if type.is(Type.Enum).and(til_type_name(type).len().eq(0)) {
+    } else if type.is(Type.Enum).and(type_name_ref(type, symbols).len().eq(0)) {
         call.set_til_type(Type.Enum(type_name.clone()))
     }
 
@@ -9438,7 +9438,7 @@ priv view_base_owner := func(name: Str, scope: TypeScope, symbols: SymbolPool) r
             if b.str_view_base == name { return "" }
             return view_base_owner(b.str_view_base, scope, symbols)
         }
-        if til_type_name(b.type) != "Str" { return "" }
+        if type_name_ref(b.type, symbols) != "Str" { return "" }
         return Str.clone(name)
     case: return ""
     }
@@ -9462,7 +9462,7 @@ priv view_return_base_local := func(recv: Expr, scope: TypeScope, symbols: Symbo
                 if b.str_view_base.len() == 0 { return "" }
                 return view_base_owner(b.str_view_base, scope, symbols)
             }
-            if til_type_name(b.type) != "Str" { return "" }
+            if type_name_ref(b.type, symbols) != "Str" { return "" }
             return Str.clone(rid.ident_name(symbols.names))
         case: return ""
         }
@@ -9542,7 +9542,7 @@ priv check_dyn_call_delete_of_local := proc(scope: TypeScope, e: Expr, mut ctx: 
         case .Found(b):
             if b.is_param.or(b.is_alias).or(b.is_builtin) { return }
             if b.own_type.is(OwnType.Ref) { return }
-            tn := til_type_name(b.type)
+            ref tn : Str = type_name_ref(b.type, ctx.symbols)
             if tn.len() == 0 { return }
             sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
@@ -9675,7 +9675,7 @@ priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, ro
             if global_b.path.eq(r.path).and(global_b.line.eq(r.line)).and(global_b.col == r.col) { continue }
         }
         if skip_carriers {
-            b_type_name := til_type_name(b.type)
+            ref b_type_name : Str = type_name_ref(b.type, ctx.symbols)
             b_def_o := scope.get_struct(b_type_name, ctx.symbols)
             if b_def_o.is_some() {
                 if b_def_o.unwrap().node_type.is(NodeType.EnumDef).and(enum_has_ref_payload(b_def_o.unwrap())) { continue }
@@ -12840,7 +12840,7 @@ priv qualify_dotted_expr := func(e: Expr, expected: Type, mut symbols: SymbolPoo
     mut recv_o := dotted_pattern_receiver(e, symbols)
     if recv_o.is_none() { return }
     if expected.is(Type.Enum).not() { return }
-    ename := til_type_name(expected)
+    ref ename : Str = type_name_ref(expected, symbols)
     if ename.len() == 0 { return }
     ref mut recv : Expr = recv_o.unwrap()
     recv.node_type = ident_node(symbols.intern(ename))
@@ -12852,7 +12852,7 @@ priv qualify_dotted_expr := func(e: Expr, expected: Type, mut symbols: SymbolPoo
 // to resolve against and is rejected here rather than left to fail as a
 // baffling "no variant" further down.
 priv qualify_dotted_case_patterns := proc(stmt: Expr, sw_type: Type, mut ctx: Context) {
-    sname := til_type_name(sw_type)
+    ref sname : Str = type_name_ref(sw_type, ctx.symbols)
     for ci in 1..stmt.children.len() {
         ref cnode : Expr = stmt.children[ci]
         if cnode.node_type.is(NodeType.Case).not() { continue }

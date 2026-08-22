@@ -60,7 +60,7 @@ priv collect_target_idents := proc(e: Expr, mut names: Set(Str), symbols: Vec(St
 
 priv constfolder_type_is_aggregate := func(t: Type, ctx: Context) returns Bool {
     mut resolved := t.clone()
-    name := til_type_name(t)
+    ref name : Str = type_name_ref(t, ctx.symbols)
     cname := til_type_name_c(t)
     if name.eq("USize").or(name.eq("UPtr"))
     .or(name.eq(ctx.target_usize_pname)).or(name.eq(ctx.target_uptr_pname))
@@ -1039,7 +1039,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
             //     matches Type.Custom/Type.Struct/Type.Enum by payload name, so
             //     til_type_name picks up the right name regardless of which
             //     variant is constructed.
-            if is_type_metatype(arg.til_type()) {
+            if is_type_metatype(arg.til_type(), ctx.symbols) {
                 switch arg.node_type {
                 case .FCall:
                     ec.add_child(own arg.clone())

@@ -331,7 +331,7 @@ priv gc_audit_dump := proc(ctx: Context, body: Expr, locals: Vec(LocalInfo)) {
     for local : LocalInfo in locals {
         if gc_audit_local_is_noise(local) { continue }
         mut tname := type_to_name(local.type)
-        if tname.len() == 0 { tname = til_type_name(local.type) }
+        if tname.len() == 0 { tname = Str.clone(type_name_ref(local.type, ctx.symbols)) }
         println("GC-AUDIT local ", gc_audit_name(local.name, names, counts),
             " type=", tname,
             " decl=", local.decl_index.to_str(),
@@ -3422,7 +3422,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
             case:
             }
             if scope.lookup_func_name(dd.name, ctx.symbols).is_none().and(dtype.is(Type.FuncPtrSig)) {
-                sig_o := scope.lookup_func_name(til_type_name(dtype), ctx.symbols)
+                sig_o := scope.lookup_func_name(type_name_of(dtype, ctx.symbols).unwrap(), ctx.symbols)
                 if sig_o.is_some().and(sig_o.unwrap().children.len().eq(0)) {
                     scope.set_func_def_name(dd.name, sig_o.unwrap(), ctx.symbols)
                 }
@@ -3450,7 +3450,7 @@ priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut sco
         scope.set(param.name, ptype, param.is_mut, ctx.path, line, col,
             true, param.own_type, ctx.symbols)
         if ptype.is(Type.FuncPtrSig) {
-            sig_o := scope.lookup_func_name(til_type_name(ptype), ctx.symbols)
+            sig_o := scope.lookup_func_name(type_name_of(ptype, ctx.symbols).unwrap(), ctx.symbols)
             if sig_o.is_some().and(sig_o.unwrap().children.len().eq(0)) {
                 scope.set_func_def_name(param.name, sig_o.unwrap(), ctx.symbols)
             }

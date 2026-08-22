@@ -402,8 +402,10 @@ priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, mut scope: Typ
             b_o := scope.get_binding_sym(idn.ident_sym())
             if b_o.is_some() {
                 ref b : TypeBinding = b_o.unwrap()
-                tn := til_type_name(b.type)
-                if tn.len() > 0 { func_state.lowering_param_types.set(nm, own tn) }
+                ref tn : Str = type_name_ref(b.type, ctx.symbols)
+                // The map owns its values, so this one name still needs a
+                // copy -- type_name_ref only removes the clones nobody kept.
+                if tn.len() > 0 { func_state.lowering_param_types.set(nm, own Str.clone(tn)) }
             }
         }
     case:
@@ -3372,7 +3374,7 @@ priv expr_has_unguarded_break := func(e: Expr) returns Bool {
 switch_is_clike := func(stmt: Expr, sw_expr: Expr, is_match: Bool, enum_def_o: Option(ref Expr), symbols: SymbolPool) returns Bool {
     if is_match { return false }
     ref sw_type : Type = sw_expr.til_type()
-    sw_sname := til_type_name(sw_type)
+    ref sw_sname : Str = type_name_ref(sw_type, symbols)
     mut is_enum := false
     mut is_bool := false
     if sw_type.is(Type.Enum) {

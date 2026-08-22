@@ -111,15 +111,52 @@ over:
    The interpreter's layout tables pick up the new variants' sizes in
    the same commits.
 
-4. Retirement: when nothing constructs the Str forms, reject them in
-   a transitional commit (panic in the accessors' Str arms naming this
-   issue), then delete the variants... which SHIFTS TAGS -- so the
-   deletion is its own staged dance: master's til_boot must already
-   understand the post-delete tag numbering before the commit that
-   renumbers. Follow Primitive's precedent in reverse and expect this
-   step to be the slowest; it can also simply WAIT -- dead variants
-   cost nothing at runtime -- until a natural Type-layout change
-   batches with it.
+   PREREQUISITE, learned by starting it: a producer flip is only safe
+   once every reader that can see that variant handles both forms.
+   Most Type switches carry a `case:` default (Declaration.type_name's
+   `case: return ""` is the archetype), so a flip under a stale reader
+   is not a compile error -- it is a silently wrong empty name. Four
+   reader families stand between here and the flip, sized by call
+   count and by the call SITES that must gain a SymbolPool:
+
+     til_type_name      70,452 calls   ~60 sites   DONE (below)
+     type_to_name       37,003 calls    65 sites
+     Declaration.type_name 175,352      214 sites
+     expr_type_name_ref 365,152 calls  118 sites
+
+   The first is converted: src/self no longer calls core's cloning
+   til_type_name except through type_to_name. context.til gained
+   type_name_ref(t, symbols), the borrowing drop-in -- same answer,
+   "" for a variant carrying no name, but the payload is borrowed and
+   the Sym twins are read. Its argument must be a STABLE location (a
+   field, a local, an x.til_type() stamp ref): the returned ref points
+   into the Type's payload or the pool's names vector, so a Type that
+   is itself a call result would dangle. That is the same hazard the
+   comment on expr_type_name_ref already records.
+
+   Measured cost of that conversion alone: 6,494,934,014 ->
+   6,492,895,722, -0.031%. It is PREPARATION, not a win, and the
+   prediction that it would save ~0.8% was wrong: only 13,701 of the
+   33,449 converted calls actually dropped a malloc, because most
+   sites still hand the name to something that owns it (a Set, a
+   Map value, a returned Str). Do not expect the other three families
+   to pay for themselves either -- they are the price of the flip.
+
+4. Retirement: NOT POSSIBLE as originally written, and the plan was
+   wrong to include it. The Str variants are the RUNTIME form and must
+   stay forever. src/core/dyn.til is the introspection API -- til_type_name,
+   type_storage_kind, struct_def_of, enum_def_of, func_sig_of -- and it
+   reads a Type inside USER programs at run time, where no SymbolPool
+   exists (SymbolPool is a compile-time structure in src/self/parser.til,
+   and src/core cannot import src/self).
+
+   So the two forms are not "old and new": they are compile-time and
+   runtime. The compiler holds Sym forms internally; make_til_type_expr
+   is the boundary that materialises a user-visible Type, and it already
+   takes `mut symbols`, so it resolves back to the Str form there. Step 1
+   left its four twin arms without payloads (variant_name only) -- that
+   is the landmine step 3 must clear in the same commit as the flip, or
+   reflection starts reporting Type.Struct with no name.
 
 5. Measure at every step against the standing baseline (4,596M
    instructions at 9263b9c8, before the interning regression). Note
@@ -132,6 +169,26 @@ over:
    of get_binding_name go. The success
    criterion is not "faster than yesterday" but BELOW THE PRE-INTERNING
    BASELINE, since that is what finishing the migration is for.
+
+   OPEN QUESTION on whether this issue can reach that criterion. The
+   self-cost profile at f1025673 (translate --force-rebuild
+   test/first_class.til, 6,494,934,014 Ir):
+
+     Str_cmp                    4.32%
+     fnv1a                      4.16%
+     Map__U32_TypeBinding_get   4.16%
+     Map__U32_Dynamic_get       3.86%
+     Str_eq                     3.42%
+     malloc/free family         6.07%
+
+   fnv1a is the hashing this issue removes, and Str_eq is mostly the
+   bucket confirmation behind it -- call it 7.5% addressable. But the
+   Sym-keyed map GETS are 8.0% on their own, and those are what #292
+   INTRODUCED: the interning migration replaced Str-keyed binary
+   searches with U32-keyed hash maps whose gets now cost as much as
+   the hashing at the door. Finishing #397 does not touch them. If the
+   +29.8% regression is to be recovered, the Map(Sym, ...) get path
+   needs its own measurement, and it may be the bigger half.
 
 *** Risks
 

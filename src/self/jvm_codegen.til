@@ -193,7 +193,7 @@ priv jvm_storage_size := func(t: Type, lp: LoadedProgram) returns USize {
         resolved := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
         return jvm_storage_size(resolved, lp)
     case:
-        panic(__LOC__, "JVM storage size unavailable for ", til_type_name(t))
+        panic(__LOC__, "JVM storage size unavailable for ", type_name_ref(t, lp.ctx.symbols))
         return 0
     }
 }
@@ -317,7 +317,7 @@ priv jvm_decl_type := proc(e: Expr, t: Type, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         out := jvm_type_lp(t, lp)
         if out.len() > 0 { return out }
-        mut name := til_type_name(t)
+        mut name := Str.clone(type_name_ref(t, lp.ctx.symbols))
         if name.len() == 0 { name = "unknown" }
         return jvm_fail_expr(e, format("type '", name, "'"), state, lp.ctx.symbols.names)
 }
@@ -1182,7 +1182,7 @@ priv jvm_emit_scalar_core := proc(e: Expr, scalar: Str, op: Str,
             cell := jvm_emit_cell_ref(e.children[1], state, lp)
             mut java_op := "+"
             if op == "dec" { java_op = "-" }
-            mut cell_scalar := til_type_name(e.children[1].til_type())
+            mut cell_scalar := Str.clone(type_name_ref(e.children[1].til_type(), lp.ctx.symbols))
             switch e.children[1].node_type {
             case .Ident(id):
                 ref cell_name : Str = id.ident_name(lp.ctx.symbols.names)
@@ -1253,8 +1253,8 @@ priv jvm_emit_scalar_core := proc(e: Expr, scalar: Str, op: Str,
         return jvm_scalar_narrow(scalar, expr)
 }
 
-priv jvm_emit_conversion := func(target: Type, source: Str, value: Str) returns Str {
-    target_name := til_type_name(target)
+priv jvm_emit_conversion := func(target: Type, source: Str, value: Str, symbols: SymbolPool) returns Str {
+    ref target_name : Str = type_name_ref(target, symbols)
     if target_name == source { return format("(", value, ")") }
     if type_is_primitive(target, Primitive.I64) {
         if source == "U32" { return format("Integer.toUnsignedLong(", value, ")") }
@@ -1307,7 +1307,7 @@ priv jvm_emit_scalar_ext := proc(e: Expr, scalar: Str, method: Str,
             return format("TilRuntime.repr", scalar, "(", first, ")")
         }
         if method.starts_with("to_") {
-            return jvm_emit_conversion(e.til_type(), scalar, first)
+            return jvm_emit_conversion(e.til_type(), scalar, first, lp.ctx.symbols)
         }
         return jvm_fail_expr(e, format("scalar runtime function '", scalar, ".", method, "'"), state, lp.ctx.symbols.names)
 }
@@ -1350,8 +1350,8 @@ priv jvm_emit_cast := proc(e: Expr, mut state: JvmEmitState,
         target := type_from_name_init_name(ident_of(e.children[2]).ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
         if jvm_type(target).len() == 0 { return jvm_fail_expr(e, "cast target", state, lp.ctx.symbols.names) }
         value := jvm_emit_expr(e.children[1], state, lp)
-        source := til_type_name(e.children[1].til_type())
-        return jvm_emit_conversion(target, source, value)
+        ref source : Str = type_name_ref(e.children[1].til_type(), lp.ctx.symbols)
+        return jvm_emit_conversion(target, source, value, lp.ctx.symbols)
 }
 
 priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
@@ -1405,7 +1405,7 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
         if name == "cast" { return jvm_emit_cast(e, state, lp) }
         if name.ends_with("_from_i64_ext") {
             value := jvm_emit_expr(e.children[1], state, lp)
-            return jvm_emit_conversion(e.til_type(), "I64", value)
+            return jvm_emit_conversion(e.til_type(), "I64", value, lp.ctx.symbols)
         }
         if name == "U64_to_str_ext" {
             value := jvm_emit_expr(e.children[1], state, lp)
@@ -1641,7 +1641,7 @@ priv jvm_emit_namespace_call := proc(e: Expr, callee: Expr,
         if jvm_is_scalar_name(scalar) {
             if method == "from_i64" {
                 value := jvm_emit_expr(e.children[1], state, lp)
-                return jvm_emit_conversion(e.til_type(), "I64", value)
+                return jvm_emit_conversion(e.til_type(), "I64", value, lp.ctx.symbols)
             }
             if method.eq("clone").or(method.eq("cmp")).or(method.eq("to_str"))
                 .or(method.eq("to_repr")).or(method.starts_with("to_")) {
@@ -1677,7 +1677,7 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         switch e.node_type {
         case .PrecomputedSequence(data):
-            type_name := til_type_name(data.til_type)
+            ref type_name : Str = type_name_ref(data.til_type, lp.ctx.symbols)
             mut heap := format("TilRuntime.precomputedValues(", data.capacity.to_str(), ", ",
                 jvm_storage_size(data.element_type, lp).to_str())
             for child : Expr in e.children {

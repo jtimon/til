@@ -39,13 +39,13 @@ priv interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
 priv field_nested_def := func(dd: Declaration, ctx: Context) returns Option(ref Expr) {
     resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if is_primitive(resolved) { return Option(ref Expr).None }
-    return lookup_interp_type_def(resolved_type_name(resolved), ctx)
+    return lookup_interp_type_def(resolved_type_name(resolved, ctx.symbols), ctx)
 }
 
 priv decl_is_funcsig := func(dd: Declaration, ctx: Context) returns Bool {
     resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if type_is_callable_storage(resolved) { return true }
-    tdef_o := lookup_interp_type_def(resolved_type_name(resolved), ctx)
+    tdef_o := lookup_interp_type_def(resolved_type_name(resolved, ctx.symbols), ctx)
     if tdef_o.is_none() { return false }
     ref tdef : Expr = tdef_o.unwrap()
     if tdef.node_type.is(NodeType.FuncDef) {
@@ -150,7 +150,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
             foff := hc_fl.offset
             cfi = cfi + 1
-            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope, ctx.symbols))
+            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope, ctx.symbols), ctx.symbols)
             nested_def_o := field_nested_def(dd, ctx)
             if dd.own_type.is(OwnType.Own) {
                 if decl_is_funcsig(dd, ctx) {
@@ -1563,7 +1563,7 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
 }
 
 priv eval_precomputed_sequence := proc(mut scope: Scope, mut e: Expr, data: PrecomputedSequenceData, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic) returns Dynamic {
-    seq_name := til_type_name(data.til_type)
+    ref seq_name : Str = type_name_ref(data.til_type, ctx.symbols)
     is_vec := seq_name.eq("Vec").or(seq_name.starts_with("Vec__"))
     is_array := seq_name.eq("Array").or(seq_name.starts_with("Array__"))
     if is_vec.not().and(is_array.not()) { panic("precomputed sequence has non-sequence type: ", seq_name) }
@@ -2499,7 +2499,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                                     base = ptr_add(base, step_off)
                                 }
                                 cur_sdef_o = field_nested_def(step_fd, ctx)
-                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols))
+                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols), ctx.symbols)
                             }
                         }
                     case:
