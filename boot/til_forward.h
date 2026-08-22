@@ -504,6 +504,7 @@ typedef struct FCallData {
     Type til_type;
     U64 ref_args;
     U64 splat_args;
+    Bool is_subscript;
 } FCallData;
 
 

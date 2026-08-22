@@ -790,3 +790,24 @@ test_owned_aggregate_stack_lifecycle346 := test() {
     owner := StackOwner346(value = moved)
     assert_eq(Str, owner.value.text, "mutated heap-backed text for stack value 346")
 }
+
+// #392 follow-up: a struct with a plain `get` can be SUBSCRIPTED. The parser
+// writes `x[i]` as `x.get(i)!`, so until the synthesized bang was allowed to
+// fall away when the resolved get does not throw, `[]` worked only for the
+// core containers whose get throws OutOfBounds -- every other type was told to
+// "remove the '!' after the call" at a column where the source has no `!`.
+// The `returns ref` shape of the same rule is test_tuple_subscript in
+// test/tuples.til; this one is the plain value return.
+Shelf392 := struct {
+    base := 0
+    label := "shelf"
+namespace:
+    get := func(self: Shelf392, i: I64) returns I64 { return self.base + i }
+}
+
+test_subscript_non_throwing_get := test() {
+    s := Shelf392(base = 10)
+    assert_eq(I64, s[5], 15)
+    assert_eq(I64, s[0], 10)
+    assert_eq(Str, s.label, "shelf")
+}

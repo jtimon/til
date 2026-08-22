@@ -555,6 +555,15 @@ FCallData := struct {
     // header's bytes as its element type.
     // Appended at the END so the committed boot's layout stays stable.
     splat_args : U64 = 0
+    // #392 follow-up: this call is the `x[i]` sugar, which the parser writes
+    // as `x.get(i)!`. The `!` is SYNTHESIZED, not something the user typed,
+    // and at parse time nothing knows whether the resolved `get` throws --
+    // Array's and Vec's do, Tuple's and a user type's need not. So the
+    // leftover bang on one of these is dropped instead of reported: a
+    // "remove the '!' after the call" pointing at a column where the source
+    // has no `!` is a diagnostic about the compiler's own rewrite.
+    // Appended at the END for the same layout reason as splat_args.
+    is_subscript := false
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

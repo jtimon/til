@@ -1347,6 +1347,17 @@ priv set_fcall_bang := func(mut fcall: Expr) {
     fcd.is_bang = true
 }
 
+// #392 follow-up: the `x[i]` sugar's bang. Same flag the user's `!` sets --
+// so a subscript of a THROWING get still panics on a bad index, unchanged --
+// plus the record that the compiler wrote it, which is what lets a
+// non-throwing get keep the sugar instead of being told to remove a `!` that
+// is not in the source.
+priv set_fcall_subscript_bang := func(mut fcall: Expr) {
+    ref mut fcd : FCallData = fcall_of(fcall)
+    fcd.is_bang = true
+    fcd.is_subscript = true
+}
+
 // parse_named_arg: if the cursor is at `IDENT '='`, parse the named
 // argument `name = expr`, append it to `call`, consume a trailing comma,
 // and return true. Otherwise consume nothing and return false. Shared by
@@ -1969,7 +1980,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             mut get_call := Expr.new(NodeType.FCall(FCallData()), b_line, b_col)
             get_call.add_child(own get_callee)
             get_call.add_child(own index)
-            set_fcall_bang(get_call)
+            set_fcall_subscript_bang(get_call)
             e = get_call
             continue
         }

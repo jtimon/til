@@ -1678,11 +1678,31 @@ priv validate_one_fcall_consolidated := proc(
     if fcall_callee_is_dependent_throw_generic(ctx, e) { return }
     mut does_throw := false
     mut is_bang_left := false
+    mut is_subscript := false
     switch e.node_type {
     case .FCall(fcd):
         does_throw = fcd.does_throw
         is_bang_left = fcd.is_bang
+        is_subscript = fcd.is_subscript
     case:
+    }
+    // #392 follow-up: a bang still set HERE means the lowering above found no
+    // throw types for the callee -- the `!` is redundant. For a `!` the user
+    // wrote, saying so is the point. For the one the parser synthesized out of
+    // `x[i]`, it is not: nothing at parse time knows whether the resolved
+    // `get` throws, and a type whose get does not (Tuple, or any user type
+    // with a plain `get`) could not be subscripted at all -- the error pointed
+    // at a column where the source has no `!`. Drop it and let the call stand:
+    // `x[i]` on a non-throwing get is just the call, which is what a reader
+    // expects it to be.
+    if is_bang_left.and(is_subscript) {
+        switch e.node_type {
+        case .FCall(fcd_sub):
+            fcd_sub.is_bang = false
+            fcd_sub.does_throw = false
+        case:
+        }
+        is_bang_left = false
     }
     if is_bang_left {
         type_error_at(path, e.line, e.col, "function does not throw, remove the '!' after the call", ctx)

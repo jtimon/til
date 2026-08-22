@@ -5312,7 +5312,13 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             for lpi in 0..fdef.sig.params.len() {
                 ref lpp : Declaration = fdef.sig.params[lpi]
                 mut lptn := lpp.type_name()
-                if lpi.to_i32() == fdef.sig.variadic_index { lptn = variadic_array_type_name(scope, lpp.type_name(), ctx.symbols) }
+                // #392 stage A named the CARRIER a variadic parameter travels
+                // as, and this seeding kept asking for the Array instance. A
+                // `..Dynamic` param is a Tuple, so the throws walk resolved
+                // `xs.get(i)` against Array__Dynamic -- whose get throws --
+                // and injected err out-args into a call to Tuple.get, which
+                // has none. `xs[0]` died on arity instead of working.
+                if lpi.to_i32() == fdef.sig.variadic_index { lptn = variadic_carrier_type_name(scope, lpp.type_name(), ctx.symbols) }
                 if lpi.to_i32() == fdef.sig.kwargs_index { lptn = "KwargsMap" }
                 if lptn.len() == 0 { continue }
                 func_scope.typer_func.lowering_param_types.set(lpp.name, own lptn)
