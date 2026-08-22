@@ -1,6 +1,66 @@
 # priority: high
 # category: bugs
-** WIP #398 A deposit performed by a callee is invisible one level up
+** FIXED #398 A deposit performed by a callee is invisible one level up
+
+*** Post-mortem
+
+Root cause, both links: the summary pass runs BEFORE any body is typed,
+so the UFCS branch of fcall_callee_fdef -- which reads an INFERRED
+receiver type -- cannot fire, and a callee reached through a receiver
+was never found. summary_receiver_type already resolved `self` and
+`self.field` off DECLARATIONS; nothing resolved a plain parameter.
+
+Link 1 taught summary_receiver_type to place a parameter, and added
+summary_param_method for a free function (whose absent `self` made
+summary_self_method bail before it looked). Link 2 is one more line:
+summary_expr_bits consults summary_param_method too. Until it did, a
+free function's `h.clone()` resolved to nothing, so the deposit's SOURCE
+bits came back empty, deposit_cross had nothing to cross, and the helper
+summarised as depositing nothing however well the SINK resolved.
+
+*** The link-2 analysis in the original report was wrong
+
+It claimed generic templates are unreachable (a generic's definition is
+a macro, so summarize_unit_walk never descends into it) and that closing
+link 2 needed a pipeline change. Both were red herrings, found by
+measuring rather than reasoning:
+
+- A parameter declared `Vec(Holder)` carries the MONOMORPHIZED name by
+  summary time (`Vec__FHolder`), and it resolves. The template is never
+  consulted.
+- `Vec__FHolder.push` IS walked and DOES get the right matrix (bit
+  (0,1)). Probed directly.
+- Descending into macro bodies was implemented and changed nothing.
+- An on-demand "summarise the callee first" path was implemented, worked,
+  and turned out to be unnecessary once the real cause was found.
+
+*** Why this landed in one commit after all
+
+With the fix, three sites in typer.til became write-through roots
+needing `mut sdef_o` -- honest, and the same shape as 47 existing sites
+(`mut b_o := ...; ref mut b = b_o.unwrap(); b.field = ...`; the codebase
+deliberately credits the Option as written). But the boot compiler does
+not have the widening, so it called that `mut` REDUNDANT while the new
+typer demanded it: neither annotation state was legal under both, and a
+preparation/use pair could not split it either, since boot must already
+contain the widening for the annotation to be accepted.
+
+The escape was to stop creating the root. `switch scope.get_struct(...)`
+binds the definition as a CASE payload instead of unwrapping a named
+Option local: the scrutinee is then the call's own hoisted temp, which
+root_carries_own_qualifier already exempts, and the payload binding is
+an alias the language qualifies for you. No annotation, legal under both
+typers, and the is_some()/unwrap() pair it replaces was the more
+roundabout spelling anyway.
+
+A reclassification of an enum ref-payload unwrap from `alias` to
+`carried` was also tried and REJECTED: it broke 47 sites across
+typer.til, interpreter.til, initer.til, desugarer.til and loader.til.
+That convention is deliberate, not an oversight.
+
+Regression tests: test/ref.til test_borrow_root_callee_deposit_self /
+_param / _generic; test/typer_errors.til terr398_via_self /
+terr398_via_param / terr398_via_generic (count 244 -> 247).
 
 #393 derives a function's deposit_matrix only from deposits it performs
 DIRECTLY in its own body: an adopt/adopt_from, a FieldAssign, an Assign.
@@ -49,8 +109,9 @@ is not -- and neither is `self.hs.push(...)` inside a namespace method.
   test/ref.til test_borrow_root_callee_deposit_self /
   test_borrow_root_callee_deposit_param; test/typer_errors.til
   terr398_via_self / terr398_via_param (count 244 -> 246).
-- [ ] Link 2: a receiver whose declared type is GENERIC (`hs: Vec(T)`).
-  Still accepted, still divergent.
+- [X] Link 2: a receiver whose declared type is GENERIC (`hs: Vec(T)`).
+  One line in summary_expr_bits; see the post-mortem for why the
+  original diagnosis of this link was wrong.
 
 The deposit-only restriction on summary_param_method is load-bearing and
 was found the hard way. Wired into summary_expr_bits as well, the same

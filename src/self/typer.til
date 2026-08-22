@@ -6030,9 +6030,15 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
     }
     if obj_sname_o.is_some() {
         ref obj_sname : Str = obj_sname_o.unwrap()
-        sdef_o := scope.get_struct(obj_sname, ctx.symbols)
-        if sdef_o.is_some() {
-            ref sdef : Expr = sdef_o.unwrap()
+        // #398: switch, not is_some()/unwrap(). Marking a member `used`
+        // writes THROUGH this borrow into the type definition, and the
+        // summary now follows that hop -- so a named Option local here
+        // would be a write-through root demanding `mut`. The scrutinee of
+        // a switch is the call itself, whose temp the root check already
+        // exempts, and the payload binding is an alias the language
+        // qualifies for you (doc/concepts/enums.org, "Payload mutability").
+        switch scope.get_struct(obj_sname, ctx.symbols) {
+        case .Some(sdef):
             // #154: reading a member of a cross-file type uses its import.
             note_cross_file_type_use(scope, ctx, obj_sname)
             mut fname := ""
@@ -6081,6 +6087,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                 expr.type_error(format(kind, " '", obj_sname, "' has no field '", fname, "'"), ctx)
                 expr.set_til_type(Type.Unknown)
             }
+        case:
         }
     } else {
         expr.type_error("field access on non-struct value", ctx)
@@ -6125,9 +6132,15 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     obj_sname_o := expr_type_name_ref(obj)
     if obj_sname_o.is_some() {
         ref obj_sname : Str = obj_sname_o.unwrap()
-        sdef_o := scope.get_struct(obj_sname, ctx.symbols)
-        if sdef_o.is_some() {
-            ref sdef : Expr = sdef_o.unwrap()
+        // #398: switch, not is_some()/unwrap(). Marking a member `used`
+        // writes THROUGH this borrow into the type definition, and the
+        // summary now follows that hop -- so a named Option local here
+        // would be a write-through root demanding `mut`. The scrutinee of
+        // a switch is the call itself, whose temp the root check already
+        // exempts, and the payload binding is an alias the language
+        // qualifies for you (doc/concepts/enums.org, "Payload mutability").
+        switch scope.get_struct(obj_sname, ctx.symbols) {
+        case .Some(sdef):
             // #154: writing a member of a cross-file type uses its import.
             note_cross_file_type_use(scope, ctx, obj_sname)
             mut found := false
@@ -6252,6 +6265,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
             if found.not() {
                 stmt.type_error(format("struct '", obj_sname, "' has no field '", fname, "'"), ctx)
             }
+        case:
         }
     } else {
         stmt.type_error("field assignment on non-struct value", ctx)
@@ -11408,6 +11422,11 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
         }
         mut fd_o := fcall_callee_fdef(e, scope, symbols)
         if fd_o.is_none() { fd_o = summary_self_method(e, scope, self_type, params, symbols) }
+        // #398: and a receiver that is a PARAMETER, which is what a
+        // free function's `h.clone()` is. Without it the deposit's SOURCE
+        // bits come back empty, the pair never crosses, and a helper
+        // depositing through a container method summarises as inert.
+        if fd_o.is_none() { fd_o = summary_param_method(e, scope, params, symbols) }
         if fd_o.is_none() {
             // #351: a struct constructor carries the borrows of the
             // arguments feeding its ref (or borrow-carrying) fields, so

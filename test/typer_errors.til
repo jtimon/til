@@ -1637,3 +1637,19 @@ terr392_narrow_call := proc() {
     mut d : Dynamic = terr392_mk()
     println(d.is_null().to_str())
 }
+
+// #398 link 2: the same deposit where the helper's receiver parameter has
+// a GENERIC type. The callee resolves off hs's DECLARED type, since
+// nothing is typed when summaries are built; until it did, the deposit's
+// source bits came back empty and the pair never crossed. One error,
+// naming s.
+terr398_vec_wrap := func(mut hs: Vec(Terr351Holder), h: Terr351Holder) {
+    hs.push(own h.clone())
+}
+
+terr398_via_generic := func(s: Terr351Src) {
+    mut hs := Vec(Terr351Holder).new()
+    terr398_vec_wrap(hs, Terr351Holder(r = terr351_held_of(s)))
+    ref mut h : Terr351Holder = hs[0]
+    h.r.n = h.r.n + 1
+}

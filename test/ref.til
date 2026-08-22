@@ -531,3 +531,28 @@ test_borrow_root_callee_deposit_param := test() {
     bp398_via_param(s)
     assert_eq(I64, s.held.n, 2)
 }
+
+# --- #398 link 2: the receiver is a parameter of GENERIC type ---
+#
+# `hs.push(...)` inside a helper, where hs is the helper's own parameter.
+# Nothing is typed when summaries are built, so the callee resolves off
+# hs's DECLARED type -- and until it did, the deposit's SOURCE bits came
+# back empty, the pair never crossed, and the helper summarised as inert.
+
+bp398_vec_wrap := func(mut hs: Vec(Bp351Holder), h: Bp351Holder) {
+    hs.push(own h.clone())
+}
+
+bp398_via_generic := func(mut s: Bp351Src) {
+    mut hs := Vec(Bp351Holder).new()
+    bp398_vec_wrap(hs, Bp351Holder(r = bp351_held_of(s)))
+    ref mut h : Bp351Holder = hs[0]
+    h.r.n = h.r.n + 1
+}
+
+test_borrow_root_callee_deposit_generic := test() {
+    mut s := Bp351Src()
+    bp398_via_generic(s)
+    bp398_via_generic(s)
+    assert_eq(I64, s.held.n, 2)
+}

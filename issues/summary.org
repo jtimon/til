@@ -1,6 +1,3 @@
-* Bugs
-** High
-*** [[./open/398.org][#398]] A deposit performed by a callee is invisible one level up
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
