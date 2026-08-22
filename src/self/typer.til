@@ -201,7 +201,7 @@ expr_is_address := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns 
 // pointer). Both already worked in both backends before #391/#396; the
 // diagnostics name them.
 slot_takes_address := func(slot_own: OwnType, slot_type: Type) returns Bool {
-    return slot_own.is(OwnType.Ref).or(slot_type.is(Type.Dynamic))
+    return slot_own.is(OwnType.Shallow).not().or(slot_type.is(Type.Dynamic))
 }
 
 // hoist_counter / va_counter / kw_counter / coll_counter previously
@@ -1177,6 +1177,25 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
         if fi >= e.children.len() - 1 { break }
         ref fld_decl : Declaration = ctor_sdd.field_at(fi)
         ai := fi + 1
+        // #396: the CONSTRUCTOR slot, the fifth and last. The
+        // builder lowers `Box(p = s.c_str)` to the field assign
+        // `bx.p = s.c_str;`, which is why it emitted the same
+        // int-conversion -- but at typer time it is still an FCall named
+        // arg, so the FieldAssign arm #396 added never saw it. This loop
+        // already pairs each field's Declaration with its INFERRED value,
+        // which is exactly what the shared rule needs.
+        fld_slot_type := declaration_resolved_type(fld_decl, scope, ctx.symbols)
+        if slot_takes_address(fld_decl.own_type, fld_slot_type).not() {
+            ref carg : Expr = e.children[ai]
+            if expr_is_address(carg, scope, ctx.symbols) {
+                ref fld_slot_name : Str = ctor_sdd.field_name_at(fi)
+                carg.type_error(format("field '", fld_slot_name,
+                    "' takes one ", til_type_name_c(fld_slot_type),
+                    " by value, so a pointer field given here stores the byte, not the address -- declare it 'own ",
+                    fld_slot_name, " : ", til_type_name_c(fld_slot_type),
+                    "' to hold the pointer, or ' : Dynamic' for the raw address"), ctx)
+            }
+        }
         if fld_decl.own_type.is(OwnType.Ref) { continue }
         if fld_decl.own_type.is(OwnType.Own).not() {
             if type_ctor_consumes(fld_decl.til_type).not() { continue }
@@ -8396,6 +8415,21 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         // even though it is not a read for the unused-variable check.
         note_cross_file_use(ctx, ub.path)
         if ub.is_param.or(ub.own_type.is(OwnType.Ref)) { ub.used = true }
+        // #396: the ASSIGN slot, one of the five this rule covers. `mut a
+        // : I8 = 0` then `a = s.c_str` emitted `a = s.c_str;` -- the same
+        // int-conversion the Decl form was rejected for, reached a
+        // statement later. The binding carries the slot's shape, so the
+        // shared rule reads it here the way the Decl reads its own
+        // Declaration.
+        if slot_takes_address(ub.own_type, ub.type).not() {
+            if expr_is_address(rhs, scope, ctx.symbols) {
+                stmt.type_error(format("'", aname,
+                    "' holds one ", til_type_name_c(ub.type),
+                    " by value, so assigning a pointer field to it stores the byte, not the address -- declare it 'ref ",
+                    aname, " : ", til_type_name_c(ub.type),
+                    " = ...' to borrow the pointer, or ' : Dynamic' for the raw address"), ctx)
+            }
+        }
     }
     // #393: `hs = rhs` with a borrow-carrying RHS unions the source's
     // roots into the target binding -- flow-insensitive like the rest of
