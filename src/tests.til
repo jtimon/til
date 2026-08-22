@@ -2141,7 +2141,7 @@ main := proc(args: ..Str) {
     // frees its box and leaks what it owned. The needle counts both.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 244),
+        CountCheck(needle = "error:", expected_count = 245),
         CountCheck(needle = "no value parameter mentions it", expected_count = 2),
         CountCheck(needle = "no named signature", expected_count = 1),
         CountCheck(needle = "conflicting evidence", expected_count = 2),
@@ -2158,7 +2158,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "where the address belongs", expected_count = 5))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 244),
+        CountCheck(needle = "error:", expected_count = 245),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
@@ -2192,17 +2192,15 @@ main := proc(args: ..Str) {
     // #392 stage B: a typed read of a `..Dynamic` element is checked against
     // the type the element actually carries, and a lie panics at RUNTIME --
     // so the compiled row has to `run`, not `build`. It used to answer 0
-    // (the I64's bytes read as a Str header). The needle is the message
-    // without its quoted type names, which keeps it stable if the wording
-    // around them moves; matching the panic's source location would not, it
-    // sits inside src/core/tuple.til and shifts with every edit there.
-    add_count(tests, "tuple_typed_read_interp", "typer",
-        "Tuple element 0 is a", 1,
-        format(til_bin, " interpret test/tuple_typed_read_error.til"))
-    add_count(tests, "tuple_typed_read_run", "typer",
-        "Tuple element 0 is a", 1,
-        format(til_bin, " run", asan_flag, " -o bin/c/tuple_typed_read",
-            " -c gen/c/tuple_typed_read.c test/tuple_typed_read_error.til"))
+    // (the I64's bytes read as a Str header).
+    //
+    // This was a needle count while the panic reported src/core/tuple.til,
+    // a location that shifted with every edit to that file. expect_type now
+    // takes the #281 trailing __LOC__, so the location is the READ's line
+    // and stable -- and it is half of what the check is for, so the whole
+    // output is pinned as a golden instead.
+    add_cli_pair(tests, "tuple_typed_read", "test/tuple_typed_read_error.til",
+        "", 1, "test/tuple_typed_read_error.expected", til_bin, asan_flag)
     add_count(tests, "capture_block_error_interp", "typer",
         "is not captured", 2,
         format(til_bin, " interpret test/capture_block_error.til"))

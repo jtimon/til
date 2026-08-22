@@ -1,0 +1,309 @@
+# priority: high
+# category: features
+** FIXED #392 Dynamic erasure carries no type: ..Dynamic loses values; Tuple is the carrier that does not
+
+Post-mortem:
+
+   Root cause: ~Dynamic~ is one machine word and carries no type, so a
+   value crossing into one was TRUNCATED to its first eight bytes and
+   forgotten. ~adopt~ with T = Dynamic copied ~T.size()~ = 8 bytes out
+   of a 16-byte Str and freed the box, and the characters lost their
+   only owner. Nothing reported it: both backends agreed on the wrong
+   answer, which is the worst shape a bug can take here.
+
+   The fix was not to tag the word -- a Dynamic is also til's ~void *~,
+   FFI currency and #302 raw allocations, and raw words and tagged boxes
+   cannot share a container. It was to route the ONE path that always
+   knew each element's static type, the ~..Dynamic~ variadic, through
+   ~Tuple~, which stores every element at its true size with its type
+   beside it; and then to make every remaining raw slot say so instead
+   of truncating.
+
+   The three stages, in the order they landed: A moved the ..Dynamic
+   collector to Tuple (~desugar_dynamic_variadic_call~,
+   ~variadic_carrier_type_name~), which fixed the compiled-side leak and
+   gave elements a type to be read at. B made a typed read CHECK that
+   type (~Tuple.expect_type~ / ~get_checked~ plus a desugar) and
+   rejected wide values at the raw slots that remain
+   (~dynamic_slot_overflow~ at a Dynamic parameter of a container
+   instantiated over Dynamic, and at a plain ~: Dynamic~ binding, with
+   ~ref~ and ~own~ exempt because both store the address). C decided the
+   ~array(Dynamic, ...)~ literal stays raw and applied B's rule to it.
+
+   Two defects surfaced along the way and were fixed with it. #394:
+   ~dyn_size_of("Dynamic")~ answered 1 in the compiled backend, because
+   the type gets a placeholder ~struct Dynamic { char _; }~ beside the
+   ~void *~ every signature actually spells -- so a ~..~ splat copied one
+   byte per element. And ~expect_type~ reported ~src/core/tuple.til~
+   until it took #281's trailing ~__LOC__~; the desugar has to fill that
+   argument itself, since it builds the call after the call-site default
+   fill has run.
+
+   Regression tests: test_dynamic_variadic_tuple and ~dyn_word_list~
+   (values AND sizes through a splat, both backends),
+   test/tuple_typed_read_error.til with a golden that pins the panic's
+   message and its location, terr392_wide_binding / terr392_store /
+   terr358_dynamic for the three rejections, and test/tuples.til's
+   existing corpus, which now runs entirely through the checked read.
+
+   Left open deliberately, recorded in stage B: a WORD-SIZED aggregate at
+   a plain ~: Dynamic~ binding is still emitted as ~void *d = s;~ and
+   still dies in the C compiler rather than in the typer. The general
+   rule is about the source being stored BY VALUE, not about its size,
+   and that is a wider change than this issue signed off.
+
+The gradual-typing intent behind ~Dynamic~ (static where annotated,
+Python-like where not, failures moving to runtime) needs a value crossing
+into Dynamic to SURVIVE and be reclaimable. Today it is truncated to a
+word and forgotten:
+
+    mut a := Array(Dynamic).new(1)
+    a.set(0, own mk("hello"))!      // mk returns a Str
+    ref back : Str = a[0]
+    // back = '' len=0, BOTH backends -- silent data loss
+
+~adopt~ with T = Dynamic copies ~T.size()~ = 8 bytes out of a 16-byte Str
+and frees the box; the characters lose their only owner. The same
+mechanism behind the ..Dynamic variadic, matrix as of master ~39603ac~
+(leaks per ASAN run):
+
+    | shape                                   | interp | compiled |
+    | dyn_count(1, "a")   (comptime fold)     | clean  | clean    |
+    | dyn_count(1, v)     (runtime Str)       | clean  | LEAK     |
+    | Array(Dynamic).set(own v)               | clean  | clean*   |
+    | Array(Dynamic).set(own v.clone())       | clean  | LEAK     |
+
+    * value still lost; only the accounting balances.
+
+The interpreter column went clean via #362's wrapper metadata
+(is_erased_dynamic, typed owner kept in the known scope) -- per-value
+runtime type info the C backend has no equivalent of. That asymmetry is
+the whole story: erased teardown and typed read-back need the type at
+runtime, and a bare word cannot carry one.
+
+*** Why the fix is not "tag the word"
+
+A Dynamic is also til's ~void *~ -- FFI currency, #302 raw allocations,
+and the compiler's own idioms (~context.til~ interned Vec(Dynamic)s with
+manual pointee frees, ~c_codegen.til~, test_vec_dynamic's raw mallocs).
+Raw words and tagged boxes cannot share a container: teardown cannot
+distinguish them by looking at the word, and a magic header is a
+heuristic. So bare Dynamic stays exactly what it is -- a word, raw
+semantics, manual lifetime -- everywhere it exists today.
+
+*** The carrier already exists: Tuple
+
+src/core/tuple.til is the tagged heterogeneous container this issue
+needs, already in core, already correct:
+
+- per-element ~type_names~ / ~type_sizes~,
+- elements stored AT THEIR TRUE SIZE (a Str keeps its whole 16-byte
+  header -- no truncation),
+- ~delete~ / ~clone~ dispatch per element via
+  ~dyn_call(tn, "delete"/"clone", ...)~ -- the erased teardown that
+  Array(Dynamic) cannot perform,
+- ~type_at(i)~ -- the runtime type introspection the gradual-typing
+  story wants,
+- an element pushed AS Dynamic (~dyn_size_of("Dynamic")~ = 8,
+  dyn_call("Dynamic","delete",..,false) is a no-op) keeps raw-word
+  semantics, so raw pointers ride along unchanged.
+
+So the design is not a new tagged box; it is: **the ..Dynamic variadic
+lowers through Tuple instead of Array(Dynamic)**. The desugar knows every
+element's static type at the crossing -- exactly the fact the current
+lowering throws away.
+
+*** Staged plan
+
+**** A. The ..Dynamic collector becomes a Tuple
+
+- ~desugar_one_variadic_fcall~ (and the splat fold), for vptype Dynamic
+  only: build ~Tuple.new()~ + one ~push~ per element carrying the
+  element's static type name; a raw Dynamic element pushes as "Dynamic".
+  Backend carrier type for a ~..Dynamic~ param becomes Tuple in both
+  backends. ~xs.len()~ keeps working (Tuple.len).
+- Splat of an Array(Dynamic) into ..Dynamic: a core helper on Tuple
+  (push-all over a runtime length, written in til like Array.concat /
+  Array.to_vec were, for the same emitted-nodes-are-not-re-inferred
+  reason), elements pushed as "Dynamic".
+- Blast radius measured: real ~..Dynamic~ callees exist only in
+  test/variadic.til and test/typer_errors.til, both calling only
+  ~.len()~. src/'s only ~..Dynamic~ are the array()/vec() ext_func
+  declarations, which infer_array_vec_fcall intercepts before the
+  variadic machinery -- the compiler itself never lowers a ..Dynamic
+  call, so pass-2 boot should be byte-identical (verify).
+- Fixes: the compiled runtime-Str leak (Tuple.delete deep-drops via the
+  tag), and gives ..Dynamic elements a future: typed reads checked
+  against type_at.
+
+**** B. Typed reads and the raw-container rejection
+
+- Reading a ..Dynamic element at a typed binding checks type_at and
+  errors at runtime on mismatch -- the Python semantics.
+- With Tuple as the sanctioned dynamic path, storing a value WIDER THAN A
+  WORD into a raw Dynamic slot (Array(Dynamic).set(own str),
+  x: Dynamic = str) can finally be rejected by the typer without
+  amputating the gradual-typing story: the diagnostic points at the
+  variadic/Tuple. This REJECTS code that compiles today (silently losing
+  data) -- gets its own sweep and its own sign-off.
+
+**** C. The dynamic literal
+
+Whether ~array(Dynamic, ...)~ (kept valid by #358 exactly because
+Dynamic is unconstrained) should build a Tuple rather than a raw
+Array(Dynamic) -- the Python-list-shaped decision. Design discussion
+first; nothing in A/B depends on it.
+
+*** Progress
+
+- [X] A. The ..Dynamic collector is a Tuple. One new desugar
+      (~desugar_dynamic_variadic_call~) walks the block in source order and
+      replaces the plain, pure-splat and mixed Array paths for vptype
+      Dynamic: each element is one ~Tuple.push_type_name("<T>", own val)~
+      (val built by ~build_variadic_arg_value~, the Array collector's own
+      borrow/clone discipline), each ~..~ splat one
+      ~Tuple.push_all_dynamic(va, arr)~ (new core helper, elements ride as
+      raw "Dynamic" words, source stays usable). No err slots -- push does
+      not throw. The carrier answer lives in ONE new typer helper,
+      ~variadic_carrier_type_name~, consulted by the typer's callee param
+      binding, the garbager's param registration, context's stack-outer
+      answer and c_codegen's ~builder_variadic_array_type_name~;
+      ~variadic_array_type_name~ itself is untouched so array()/vec()
+      literals stay raw. The collector prefix is ~_va_Tuple_~ on purpose:
+      ~_va_Array_~ is the constfolder's cue to interpret a build region, so
+      ..Dynamic calls simply stop const-folding (correctness kept, one
+      optimization dropped).
+
+      Verified: the runtime-Str leak row is ASAN-clean on BOTH backends
+      now; a Str element's VALUE survives the crossing and reads back
+      whole (~xs.get(0)~ points at the full stored header); ~type_at~
+      answers "I64,Str,Bool," from inside a callee on both backends.
+      test_dynamic_variadic_tuple pins all of it. Suite 426/426; pass 2
+      byte-identical to pass 1 (measured), since the compiler's own
+      sources contain no ..Dynamic calls.
+
+      Two notes for B: ~xs[0]~ subscript does not reach Tuple.get (the
+      subscript desugar expects the throwing-get shape -- "too many
+      arguments"), so element access is spelled ~xs.get(i)~ for now; and
+      an element read at a typed binding is still UNCHECKED
+      reinterpretation -- correct bytes when the type matches, garbage
+      when it lies. type_at makes the check writable; B makes it
+      automatic.
+
+- [X] B. Typed reads checked against type_at; the wider-than-word
+      rejection for raw Dynamic slots.
+
+      B1 DONE -- typed reads are checked. ~Tuple.expect_type(i, want)~
+      panics unless element ~i~ really is a ~want~, and
+      ~Tuple.get_checked(i, want)~ is ~get~ with that check in front.
+      The desugar (~decl_tuple_typed_read_type~ +
+      ~desugar_tuple_typed_read~, hooked into ~body_pre_passes~ beside
+      the set/map/array-literal Decl rewrites) turns
+      ~ref s : T = t.get(i)~ into ~ref s : T = t.get_checked(i, "T")~.
+      Rewriting the call IN PLACE rather than emitting a separate
+      ~t.expect_type(i, "T")~ statement ahead of it is what keeps the
+      index expression evaluated exactly once. The replacement callee
+      has to re-carry the Type.FuncDef stamp: directness lives on the
+      callee's til_type, and without it the builder takes the indirect
+      path and hits "non-callable callee FieldAccess".
+
+      Two exemptions, both deliberate: an element TAGGED "Dynamic" (a
+      raw word -- C pointer, #302 allocation, splatted Array(Dynamic)
+      element) passes any check, and a binding DECLARED ~Dynamic~ is not
+      a claim at all, so it is not rewritten. Dynamic still means you
+      are on your own.
+
+      Verified: the lying read panics identically on both backends
+      (test/tuple_typed_read_error.til, counted per backend in
+      src/tests.til -- runtime panic, so the compiled row runs rather
+      than builds); correct reads at several types and at a loop index
+      are untouched (~dyn_read_each~ in test/variadic.til);
+      test/tuples.til's hand-built ~ref a : I64 = t.get(0)~ corpus
+      passes unchanged, since the desugar applies to every Tuple, not
+      just a variadic's.
+
+      B2 DONE -- the wider-than-word rejection. Two typer checks share
+      ~dynamic_slot_overflow~ (ctx_total_size > 8, and 0 for a name with
+      no registered layout, since an unknown size is not evidence of a
+      problem).
+
+      At a CALL: a wider-than-a-word argument at a Dynamic parameter of
+      a container instantiated over Dynamic
+      (~name_is_raw_dynamic_container~ -- "Array__Dynamic",
+      "Vec__Dynamic"), read off the callee's namespace by
+      ~fcall_namespace_name~. Deliberately NOT any Dynamic parameter:
+      most of those are ADDRESSES (free, to_ptr, memcpy) where the word
+      IS the value, and Tuple's takes a wide value on purpose, keeping
+      the element's true size beside it. This is the row the issue opens
+      with -- ~a.set(0, own mk("hello"))~ handed adopt a 16-byte Str
+      box, adopt copied Dynamic.size() = 8 bytes and freed the box, and
+      ~ref back : Str = a[0]~ read an empty string with both backends
+      agreeing on the wrong answer.
+
+      At a DECLARATION: ~check_declared_value_type~ now takes the
+      binding's OwnType and rejects a wide value at a plain
+      ~: Dynamic~ binding. ~ref~ and ~own~ are exempt because both store
+      the ADDRESS -- the interpreter's own
+      ~ref mut rtype : Dynamic = ffi_type_ref(...)~ binds a 24-byte
+      ffi_type by pointer, exactly as intended, and was the first thing
+      the check caught. Here the two backends did not even fail the same
+      way: interpreted, ~d : Dynamic = s~ kept the erased pointer (#362)
+      and read back fine; compiled, the same line emitted
+      ~void *d = DEREF(s)~ and died inside the C compiler with
+      "incompatible types when initializing type 'void *'", pointing at
+      gen/c rather than at the til line.
+
+      Verified: terr392_wide_binding and terr392_store pin both
+      diagnostics (typer error count 240 -> 242); suite green.
+
+      Not covered, and deliberately: an aggregate at a plain
+      ~: Dynamic~ binding is rejected only when it is WIDER than a word,
+      which is what this stage signed off. A word-sized struct
+      (~Small := struct { a : U32 }~) is still emitted as
+      ~void *d = s;~ and still dies in the C compiler rather than in the
+      typer -- the general rule is about the SOURCE being stored by
+      value, not about its size, and that is a wider change than B.
+
+- [X] C. The array(Dynamic, ...) literal decision.
+
+      DECIDED: the literal stays a RAW container. Building a Tuple
+      instead would change the type ~array(Dynamic, ...)~ returns out
+      from under every ~Array(Dynamic)~ that holds a raw word today --
+      the interned ~Vec(Dynamic)~s in context.til, test_vec_dynamic's
+      raw mallocs, every FFI pointer -- to give a second spelling for
+      something ~Tuple~ and ~..Dynamic~ already do. It also contradicts
+      this issue's own premise ("bare Dynamic stays exactly what it is
+      -- a word, raw semantics, manual lifetime -- everywhere it exists
+      today"), and #358 kept the literal valid precisely BECAUSE Dynamic
+      is unconstrained.
+
+      What the literal did need was B's rule. It intercepts before the
+      variadic machinery (~infer_array_vec_fcall~), so B's rejection
+      never reached it, and ~array(Dynamic, "hello", 42)~ read its first
+      element back as a Str whose count came from the SECOND element --
+      on both backends, silently; ~vec(Dynamic, "world")~ answered "".
+      The Dynamic arm of the literal's element loop now runs the same
+      ~dynamic_slot_overflow~ check with the same remedy. So #358's
+      "each element converts independently" survives for WORDS, which is
+      the only thing it ever held for.
+
+      terr358_dynamic changes from a positive case to an error case,
+      which is the whole visible consequence of the decision (typer
+      error count 244 -> 245). doc/concepts/ownership.org's
+      manual-memory-islands section now states the one-word limit and
+      names Tuple.
+
+*** Subsumed defects
+
+The compiled-side leaks above; the round-trip data loss (via B); the
+#362 fix's asymmetry (interpreter wrapper metadata vs compiled nothing)
+becomes moot for the variadic path once the carrier is typed.
+
+*** Regression tests (stage A)
+
+- A runtime Str through ..Dynamic, ASAN-clean COMPILED as well as
+  interpreted (the surviving matrix row).
+- ..Dynamic with Bool / I64 / Str / raw-pointer elements mixed, len()
+  and teardown, both backends.
+- test_vec_dynamic and the interned-Vec compiler idioms untouched: raw
+  Dynamic containers keep raw semantics.

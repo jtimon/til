@@ -1,0 +1,1 @@
+test/tuple_typed_read_error.til:16:22: panic: Tuple element 0 is a 'I64', read as a 'Str'; ask type_at(0) before reading a dynamic value

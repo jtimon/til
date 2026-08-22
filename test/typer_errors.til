@@ -1442,7 +1442,12 @@ terr358_bad_array := array(I64, 1, "a", 9)
 terr358_bad_vec := vec(I64, 1, "a", 9)
 terr358_no_to_str := array(Str, 1)
 
-// Dynamic is the deliberate exception: each element converts independently.
+// #358 made Dynamic the deliberate exception: each element converts
+// independently. #392 stage C is the limit of that -- converting
+// independently still means each converted value has to FIT, and a raw
+// Dynamic slot is one word. This literal read its first element back as a
+// Str whose count came from the SECOND element, on both backends. The
+// exception survives for words; it never held for a Str.
 terr358_dynamic := array(Dynamic, 1, "a")
 
 // #389: `T.delete(own <inline field>, true)` frees a pointer into the MIDDLE
