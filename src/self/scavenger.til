@@ -722,7 +722,7 @@ priv dyn_call_real_arg_count := func(e: Expr, symbols: SymbolPool) returns USize
 // skip trivial `<Type>.delete(<candidate>, false)` cleanup calls (at
 // any nesting depth) so a candidate's auto-generated cleanup doesn't
 // pin it. Phase 3 prunes those cleanup stmts alongside the candidate.
-priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str), symbols: SymbolPool) {
+priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str), scope: TypeScope, symbols: SymbolPool) {
     switch e.node_type {
     case .Ident(name):
         refs.add(own Str.clone(name.ident_name(symbols.names)))
@@ -751,13 +751,13 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
     for c : Expr in e.children {
         if idx >= real_n { break }
         if is_body {
-            target := match_trivial_delete(c, symbols)
+            target := match_trivial_delete(c, scope, symbols)
             if target.len().gt(0).and(candidates.has(target)) {
                 idx++
                 continue
             }
         }
-        collect_body_refs(c, refs, candidates, symbols)
+        collect_body_refs(c, refs, candidates, scope, symbols)
         idx++
     }
 }
@@ -775,19 +775,9 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
 // the cleanup itself.
 //
 // Returns the target Ident name on match, "" otherwise.
-priv match_trivial_delete := func(stmt: Expr, symbols: SymbolPool) returns Str {
+priv match_trivial_delete := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     if stmt.node_type.is(NodeType.FCall).not() { return "" }
     if stmt.children.len() != 3 { return "" }
-    // An `own` arg is CONSUMING: the delete destroys the pointee (the
-    // old element in Array.unsafe_set's `T.delete(own self.unsafe_get(i),
-    // false)`), which is real program semantics, not a temp cleanup. The
-    // generated cleanups this matcher exists for never mark the arg own
-    // -- make_delete_call passes arg_is_own=is_heap, and a hoisted
-    // primitive / LiteralStr temp is never heap. This went unseen while
-    // the desugarer hoisted every call_free literal into an Ident (the
-    // Ident failed the literal-bool check below), and matching the
-    // consuming delete would prune it and orphan its receiver temp.
-    if get_own_arg(stmt, 1) { return "" }
     ref callee : Expr = stmt.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""
@@ -808,8 +798,33 @@ priv match_trivial_delete := func(stmt: Expr, symbols: SymbolPool) returns Str {
     case:
     }
     if bv { return "" }
+    // An `own` arg is CONSUMING: the delete destroys the pointee (the old
+    // element in Vec.unsafe_set's `T.delete(own self.unsafe_get(i),
+    // false)`), which is real program semantics, not a temp cleanup --
+    // matching it would prune the call and orphan its receiver temp. It is
+    // NOT consuming when deleting this type does nothing at all: reached
+    // with call_free false, a free-only destructor neither frees nor
+    // touches a field, and there is nothing left for `own` to hand over.
+    // That is the whole of `unsafe_set`'s drop-the-old-value for a POD
+    // element -- 349 such calls across the corpus, each with a pointer
+    // temp that exists only to be handed to it.
+    if get_own_arg(stmt, 1) {
+        if init_delete_is_noop(mtd_recv_type_name(callee, symbols), scope, symbols).not() { return "" }
+    }
     switch arg0.node_type {
     case .Ident(n): return Str.clone(n.ident_name(symbols.names))
+    case:
+    }
+    return ""
+}
+
+// The type whose `delete` a `<Type>.delete(...)` callee names.
+priv mtd_recv_type_name := func(callee: Expr, symbols: SymbolPool) returns Str {
+    if callee.children.len() == 0 { return "" }
+    mtd_o := expr_type_name_ref(callee.children[0])
+    if mtd_o.is_some() { return mtd_o.unwrap().borrowed_view() }
+    switch callee.children[0].node_type {
+    case .Ident(mtd_id): return mtd_id.ident_name(symbols.names).borrowed_view()
     case:
     }
     return ""
@@ -1218,7 +1233,7 @@ priv MARK_REPLACE_RHS : U8 = 2
 // been dropped/replaced in the outer body, since their cleanup calls
 // also live in nested early-return bodies (if-then deletes before a
 // return) that the outer body's phase 3 didn't reach.
-priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), symbols: SymbolPool) {
+priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), scope: TypeScope, symbols: SymbolPool) {
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n > 0 {
@@ -1226,7 +1241,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), symbols: Symb
             memset(marks, 0, n)
             mut any := false
             for i in 0..n {
-                target := match_trivial_delete(e.children[i], symbols)
+                target := match_trivial_delete(e.children[i], scope, symbols)
                 if target.len() == 0 { continue }
                 if dropped.has(target).not() { continue }
                 memset(ptr_add(marks, i), 1, 1)
@@ -1236,7 +1251,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), symbols: Symb
         }
     }
     for mut c : Expr in e.children {
-        prune_trivial_deletes(c, dropped, symbols)
+        prune_trivial_deletes(c, dropped, scope, symbols)
     }
 }
 
@@ -1245,7 +1260,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), symbols: Symb
 // to compiler-internal `hoisted__*` names so we never drop a
 // user-named global -- those may be exported and referenced from
 // outside this body's view.
-priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, symbols: SymbolPool) returns Bool {
+priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
     n := body.children.len()
     if n == 0 { return false }
 
@@ -1286,14 +1301,18 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, symbols: SymbolPoo
                 // the real side effect we need to keep.
                 if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("hoisted__")) {
                     candidates.add(own dd.name.clone())
-                    candidates_replace.add(own dd.name.clone())
+                    if dce_call_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH).not() {
+                        candidates_replace.add(own dd.name.clone())
+                    }
                 }
             } else if rhs_is_pure_byvalue(rhs) {
                 candidates.add(own dd.name.clone())
             } else if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("hoisted__")) {
                 if dd.gc_storage.is(GcStorage.Stack).and(rhs.til_type().is(Type.Primitive).or(rhs.til_type().is(Type.None))) {
                     candidates.add(own dd.name.clone())
-                    candidates_replace.add(own dd.name.clone())
+                    if dce_call_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH).not() {
+                        candidates_replace.add(own dd.name.clone())
+                    }
                 }
             }
         case:
@@ -1305,9 +1324,9 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, symbols: SymbolPoo
     // with the candidate.
     mut refs := Set(Str).new()
     for stmt : Expr in body.children {
-        target := match_trivial_delete(stmt, symbols)
+        target := match_trivial_delete(stmt, scope, symbols)
         if target.len().gt(0).and(candidates.has(target)) { continue }
-        collect_body_refs(stmt, refs, candidates, symbols)
+        collect_body_refs(stmt, refs, candidates, scope, symbols)
     }
 
     // Phase 3: mark Decls (delete or replace-with-rhs) and the
@@ -1333,7 +1352,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, symbols: SymbolPoo
     }
     if any {
         for j in 0..n {
-            target := match_trivial_delete(body.children[j], symbols)
+            target := match_trivial_delete(body.children[j], scope, symbols)
             if target.len() == 0 { continue }
             if dropped.has(target).not() { continue }
             memset(ptr_add(marks, j), MARK_DELETE.to_i32(), 1)
@@ -1357,7 +1376,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, symbols: SymbolPoo
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
         for mut bstmt : Expr in body.children {
-            prune_trivial_deletes(bstmt, dropped, symbols)
+            prune_trivial_deletes(bstmt, dropped, scope, symbols)
         }
     }
     return any
@@ -1406,7 +1425,7 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, scope: TypeScope, sy
         // see them, and dropping the block retires all of it at once.
         while dce_drop_dead_loop_blocks(e, scope, symbols) {}
         while dce_drop_after_diverge(e, scope, symbols) {}
-        while dce_one_body(e, at_top_level, symbols) {}
+        while dce_one_body(e, at_top_level, scope, symbols) {}
     }
 }
 
