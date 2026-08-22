@@ -1667,11 +1667,28 @@ priv infer_and_validate_fcall_args := proc(mut scope: TypeScope, mut e: Expr, ca
         }
     }
     for i in 1..e.children.len() {
+        // #328 follow-up: the PARAMETER's type is the destination naming a
+        // type for this argument, so it is evidence for a generic argument
+        // whose own arguments say nothing (`takes_point(gdefault())`). It
+        // rides the same one-for-one alignment #341 established just above
+        // -- with a variadic or kwargs block the positional mapping is not
+        // reliable, and arming against the wrong parameter would deduce a
+        // confidently wrong type rather than fail. Only this NON-generic
+        // path arms it: a generic callee's own parameter spells a type
+        // PARAMETER (`v: T`), which names nothing concrete, and its
+        // arguments are inferred by generic_infer_subs instead.
+        saved_arg_expected_type := ctx.generic_expected_type.clone()
+        ref saved_arg_expected_for : Dynamic = ctx.generic_expected_for
         if i - 1 < qparam_types.len() {
             ref qtn : Str = qparam_types[i - 1]
-            if qtn.len() > 0 { qualify_dotted_expr(e.children[i], type_from_name(qtn, scope, ctx), ctx.symbols) }
+            if qtn.len() > 0 {
+                qualify_dotted_expr(e.children[i], type_from_name(qtn, scope, ctx), ctx.symbols)
+                generic_expected_arm(ctx, scope, qtn, e.children[i])
+            }
         }
         infer_expr(scope, e.children[i], in_func, ctx)
+        ctx.generic_expected_type = saved_arg_expected_type.clone()
+        ctx.generic_expected_for = saved_arg_expected_for
     }
     if cb_name.len() == 0 {
         fdef_o = Option(ref Expr).None
@@ -2288,9 +2305,27 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         // it (and any already-typed positional arg) to avoid firing
         // priv / member checks twice on the same node. Genuinely
         // unresolved args (Unknown til_type) still get inferred here.
+        // #328 follow-up: the same parameter-as-destination evidence the
+        // plain call path arms, for namespace and UFCS method calls --
+        // `v.push(own gdefault())` names Point in push's own signature.
+        // desugar_fcall_args_for_fdef above established the one-arg-per
+        // -parameter layout this indexing assumes; the variadic/kwargs
+        // guard keeps it to the calls where that holds exactly.
+        mut ns_qtypes := Vec(Str).new()
+        if ns_fdef.sig.variadic_index.lt(0).and(ns_fdef.sig.kwargs_index.lt(0))
+            .and(ns_fdef.sig.params.len().eq(e.children.len() - 1)) {
+            for nsp : Declaration in ns_fdef.sig.params { ns_qtypes.push(own nsp.type_name()) }
+        }
         for i in 1..e.children.len() {
             if e.children[i].til_type().is(Type.Unknown) {
+                saved_ns_expected_type := ctx.generic_expected_type.clone()
+                ref saved_ns_expected_for : Dynamic = ctx.generic_expected_for
+                if i - 1 < ns_qtypes.len() {
+                    generic_expected_arm(ctx, scope, ns_qtypes[i - 1], e.children[i])
+                }
                 infer_expr(scope, e.children[i], in_func, ctx)
+                ctx.generic_expected_type = saved_ns_expected_type.clone()
+                ctx.generic_expected_for = saved_ns_expected_for
             }
         }
         infer_and_validate_fcall_args_for_fdef(scope, e, ns_fdef, in_func, ctx)

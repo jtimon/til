@@ -1945,6 +1945,19 @@ gexp_top328 : GExp328 = gexp_default328()
 gexp_mk328 := func() returns GExp328 { return gexp_default328() }
 gexp_mku328 := func() returns U8 { return gid328(7) }
 gexp_holder328 := struct { p : GExp328 = gexp_default328() }
+// A PARAMETER is a destination that names a type too -- for a plain
+// call, for a namespace/UFCS method, and through an alias spelling.
+gexp_takes328 := func(p: GExp328) returns I64 { return p.n }
+gexp_takes_alias328 := func(p: GExpAlias328) returns I64 { return p.n }
+gexp_takes_u8_328 := func(n: U8) returns U8 { return n }
+gexp_two328 := func(a: I64, p: GExp328) returns I64 { return a + p.n }
+gexp_int328 := func(n: I64) returns I64 { return n }
+gexp_wrap328 := func(p: GExp328) returns GExp328 { return p }
+gexp_box328 := struct {
+    n := 1
+namespace:
+    take := func(self: gexp_box328, p: GExp328) returns I64 { return self.n + p.n }
+}
 
 test_generic_expected_type_infer := test() {
     p : GExp328 = gexp_default328()
@@ -1975,6 +1988,27 @@ test_generic_expected_type_positions := test() {
     assert_eq(U8, gexp_mku328(), 7)
     // Field default: the field's annotation.
     assert_eq(I64, gexp_holder328().p.n, 7)
+}
+
+test_generic_expected_type_argument := test() {
+    // A parameter's type is the destination for its argument.
+    assert_eq(I64, gexp_takes328(gexp_default328()), 7)
+    assert_eq(I64, gexp_takes_alias328(gexp_default328()), 7)
+    // ...with the same literal narrowing the other positions give.
+    assert_eq(U8, gexp_takes_u8_328(gid328(7)), 7)
+    // Second position, mixed with an ordinary argument.
+    assert_eq(I64, gexp_two328(1, gexp_default328()), 8)
+    // Namespace/UFCS methods resolve their parameters on another path.
+    b := gexp_box328(n = 1)
+    assert_eq(I64, b.take(gexp_default328()), 8)
+    // A real stdlib parameter, through the same path.
+    mut v := Vec(GExp328).new()
+    v.push(own gexp_default328())
+    assert_eq(I64, v[0].n, 7)
+    // The pin holds: the innermost call reads the parameter it is
+    // actually an argument to (wrap's GExp328), not the enclosing I64
+    // destination two levels out.
+    assert_eq(I64, gexp_int328(gexp_wrap328(gexp_default328()).n), 7)
 }
 
 // #328 follow-up: a FUNCTION passed as a value argument deduces T from
