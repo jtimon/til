@@ -523,7 +523,12 @@ build_til := proc(mut b: Build) {
 build_two_pass := proc(mut b: Build) {
     if b.begin("two_pass").not() { return }
     build_til(b)
-    run(TIL, "build", "-o", TIL, "src/til.til")
+    // --force-rebuild: #170's build cache skips a build whose binary is
+    // already newer than every source it was built from, and pass 1 just
+    // wrote exactly that binary -- so without the flag pass 2 does nothing
+    // and regenerate_boot commits pass 1's output, which is the OLD emitter
+    // applied to the new source. Silent, and the whole point of the target.
+    run(TIL, "build", "--force-rebuild", "-o", TIL, "src/til.til")
     regenerate_boot()
 }
 

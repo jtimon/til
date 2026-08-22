@@ -1160,6 +1160,33 @@ priv dce_effects_are_inner := func(e: Expr, inner: Set(Str), in_loop: Bool, scop
     return true
 }
 
+// #326: nothing after a statement that never falls through can run. The
+// garbager emits the cleanup for a value the function RETURNS after the
+// return that hands it over, and a `!` propagation leaves its own tail
+// behind: 34 such statements across the corpus, dead in the C and dead in
+// the interpreter alike. stmt_always_diverges is the typer's own
+// all-paths-return predicate, so this asks til semantics, not what a C
+// compiler can follow.
+priv dce_drop_after_diverge := func(mut body: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    n := body.children.len()
+    if n < 2 { return false }
+    mut dad_cut := n
+    mut dad_i : USize = 0
+    while dad_i < n {
+        if stmt_always_diverges(body.children[dad_i], scope, symbols) {
+            dad_cut = dad_i + 1
+            break
+        }
+        dad_i = dad_i + 1
+    }
+    if dad_cut >= n { return false }
+    mut dad_marks : U8 = malloc(n)
+    memset(dad_marks, 0, n)
+    for dad_j in dad_cut..n { memset(ptr_add(dad_marks, dad_j), 1, 1) }
+    body.children.delete_marked(dad_marks)
+    return true
+}
+
 // Drop every lowered loop block in this body whose every effect is its
 // own. Returns true if anything was removed.
 priv dce_drop_dead_loop_blocks := func(mut body: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
@@ -1378,6 +1405,7 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, scope: TypeScope, sy
         // by the no-op delete they feed, so the decl-level DCE below cannot
         // see them, and dropping the block retires all of it at once.
         while dce_drop_dead_loop_blocks(e, scope, symbols) {}
+        while dce_drop_after_diverge(e, scope, symbols) {}
         while dce_one_body(e, at_top_level, symbols) {}
     }
 }

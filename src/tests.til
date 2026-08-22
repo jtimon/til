@@ -1773,6 +1773,22 @@ main := proc(args: ..Str) {
     // the function-wide ref set could not tell those arms apart.
     add_count(tests, "til_no_unused_cast_on_sibling_scope", "build", "(void)_sp;", 0,
         "cat gen/til/til.c")
+    // Issue #326: nothing after a statement that never falls through can
+    // run. The garbager emits the cleanup for a value the function RETURNS
+    // after the return that hands it over, and a `!` propagation leaves its
+    // own tail behind -- 34 such statements across the corpus, dead in the
+    // C and dead in the interpreter alike.
+    add_count(tests, "errors_no_statement_after_return", "build", "return caught_b;\n    Bool hoisted__Bool", 0,
+        format(til_bin, " translate -c gen/c/errors_ar.c test/errors.til '&&' cat gen/c/errors_ar.c"))
+    // ...and main's fallthrough exit status is not written when main
+    // already returned one -- `return 0;` under `return <status>;`.
+    add_count(tests, "main_return_no_dead_exit_status", "build", "return 0;", 0,
+        format(til_bin, " translate -c gen/c/main_return_es.c test/main_return.til '&&' cat gen/c/main_return_es.c"))
+    // ...and the guard macro follows every other generated helper family:
+    // it is defined only when something spells it. The emitter cannot know
+    // that when it writes the preamble, so the finished text decides.
+    add_count(tests, "structs_no_dead_lit_guard", "build", "#define TIL_LIT_GUARD", 0,
+        format(til_bin, " translate -c gen/c/structs_lg.c test/structs.til '&&' cat gen/c/structs_lg.c"))
     // Issue #326: a switch arm's `break` is what stops C falling into the
     // next one, and an arm that already left cannot reach it. 794 of those
     // in til's own output; the value-return wrapper is the witness, since

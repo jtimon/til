@@ -273,7 +273,6 @@ static struct {
     .hd0e435b6dffc = (Str){.c_str = (void *)"uncaught throw 'KeyNotFound'", .count = 28ULL, .cap = TIL_CAP_LIT},
     .h4d3ab87300de = (Str){.c_str = (void *)"uncaught throw 'OutOfBounds'", .count = 28ULL, .cap = TIL_CAP_LIT},
 };
-#define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); if (_g >= (UPtr)(const void *)&_til_str_lits && _g < (UPtr)(const void *)(&_til_str_lits + 1)) { fprintf(stderr, "panic: write through a shared string literal\n"); exit(1); } } while (0)
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
 static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:129:13", .count = 25ULL, .cap = TIL_CAP_LIT};
@@ -926,7 +925,6 @@ static __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc)
         Array__Str_set(&_va_Array_1, hoisted__U32_7, &hoisted__Str_UNREACHABLE_8, &_va_Array_1_ek);
         panic(&_va_Array_1, loc);
     }
-    Array__Str_delete(parts, (Bool){0});
 }
 
 static void assert(Bool cond, Str * loc) {
@@ -1140,7 +1138,7 @@ static Color Color_clone(Color * self) {
     (void)_va_Array_0_ek;
     static Str hoisted__Str_Color_clone_4 = (Str){.c_str = (void *)"Color.clone:245:1", .count = 17ULL, .cap = TIL_CAP_LIT};
     UNREACHABLE(&_va_Array_0, &hoisted__Str_Color_clone_4);
-    return (Color){.tag = Color_TAG_Red};
+    __builtin_unreachable();
 }
 
 
@@ -1284,7 +1282,6 @@ static void test_explicit_tag_enum_return_fold(void) {
         I64 _va_Array_0_ek = 0;
         (void)_va_Array_0_ek;
         UNREACHABLE(&_va_Array_0, &hoisted__Str_test_explicit_tag_enum_return_fold_3);
-        break;
     }
     }
     WideToken eof = WideToken_clone(&(WideToken){.tag = WideToken_TAG_Eof});
@@ -1310,7 +1307,6 @@ static void test_nested_enum_payload_return_fold(void) {
             I64 _va_Array_0_ek = 0;
             (void)_va_Array_0_ek;
             UNREACHABLE(&_va_Array_0, &hoisted__Str_test_nested_enum_payload_return_fold_3);
-            break;
         }
         }
         break;
@@ -1321,7 +1317,6 @@ static void test_nested_enum_payload_return_fold(void) {
         I64 _va_Array_1_ek = 0;
         (void)_va_Array_1_ek;
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_nested_enum_payload_return_fold_5);
-        break;
     }
     }
     NestedToken_delete(&nested, (Bool){0});
@@ -1642,7 +1637,6 @@ static void test_static_global_initializers(void) {
         I64 _va_Array_0_ek = 0;
         (void)_va_Array_0_ek;
         UNREACHABLE(&_va_Array_0, &hoisted__Str_test_static_global_initializers_3);
-        break;
     }
     }
     I64 hoisted__I64_16 = 42;
@@ -1660,7 +1654,6 @@ static void test_static_global_initializers(void) {
         I64 _va_Array_1_ek = 0;
         (void)_va_Array_1_ek;
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_static_global_initializers_7);
-        break;
     }
     }
     Bool hoisted__Bool_18 = ((Bool)((((NestedToken *)(&STATIC_NICHE))->data != NULL) == 1));

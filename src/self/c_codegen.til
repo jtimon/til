@@ -5059,7 +5059,12 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.builder_func.current_fdef = saved_main_fdef
         lp.ctx.builder_func.in_main_func = false
-        f.write("    return 0;\n")
+        // #326: the exit-status fallthrough, unless main already returned
+        // one. Asked the same narrow way a switch arm's `break` is (the
+        // LAST statement is itself terminal), because the C compiler has to
+        // agree: anything subtler and -Wreturn-type decides control reaches
+        // the end of a non-void function.
+        if builder_arm_leaves(body, lp.ctx).not() { f.write("    return 0;\n") }
         f.write("}\n")
     } else {
         // Return type
@@ -9190,6 +9195,25 @@ priv emit_test_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("}\n")
 }
 
+// The last statement a script's main will emit, across every unit whose
+// top-level statements become that body.
+priv builder_script_main_leaves := func(mut lp: LoadedProgram) returns Bool {
+    mut bsl_last := Option(ref Expr).None
+    for bsl_u : ProgramUnit in lp.units {
+        ref bsl_iu : ImportUnit = lp.ctx.imported[bsl_u.path]
+        for bsl_stmt : Expr in bsl_iu.ast.children {
+            if bsl_stmt.node_type.is(NodeType.Decl) {
+                if global_decl_has_c_static_initializer(bsl_stmt, lp.ctx) { continue }
+                ref bsl_rhs : Expr = bsl_stmt.children[0]
+                if bsl_rhs.node_type.is(NodeType.FuncDef).or(bsl_rhs.node_type.is(NodeType.StructDef)).or(bsl_rhs.node_type.is(NodeType.EnumDef)) { continue }
+            }
+            bsl_last = safe_ref(bsl_stmt)
+        }
+    }
+    if bsl_last.is_none() { return false }
+    return bsl_last.unwrap().node_type.is(NodeType.Return)
+}
+
 priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1, lp)
@@ -9236,7 +9260,9 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
             emit_stmt(f, stmt, 1, lp.ctx)
         }
     }
-    f.write("    return 0;\n")
+    // #326: same as the cli entry -- the fallthrough exit status is not
+    // written when the last top-level statement already returned one.
+    if builder_script_main_leaves(lp).not() { f.write("    return 0;\n") }
     f.write("}\n")
     lp.ctx.script_globals = Set(Sym).new()
 }
@@ -9766,8 +9792,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     return 0
 }
 
-// #326: the preamble's two macro definitions, written from one place so
-// the emitter above and the sweep below cannot disagree about the text.
+// #326: the preamble's two macro definitions, each written from one place.
+// The sweep below finds them by their `#define <NAME>(` prefix rather than
+// by this text, so the two cannot drift apart.
 priv c_macro_deref_def := func() returns Str {
     return "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n"
 }
@@ -9775,13 +9802,16 @@ priv c_macro_box_def := func() returns Str {
     return "#define TIL_BOX(T) (sizeof(T) < sizeof(void *) ? sizeof(void *) : sizeof(T))\n"
 }
 
-// True when `token` is spelled somewhere BESIDES its own definition -- the
-// definition itself contains the one occurrence every output has.
-priv c_macro_used_elsewhere := func(src: Str, token: Str) returns Bool {
+// -1 when this output does not define the macro at all, 0 when its own
+// definition is the only place the name is spelled, 1 when something else
+// spells it. The definition contains the one occurrence every output that
+// has the macro has, so "used" means a SECOND one.
+priv c_macro_state := func(src: Str, token: Str) returns I64 {
     at := src.find(token)
-    if at < 0 { return false }
+    if at < 0 { return -1 }
     after := at.to_usize() + token.len()
-    return src.substr(after, src.len() - after).contains(token)
+    if src.substr(after, src.len() - after).contains(token) { return 1 }
+    return 0
 }
 
 // #326: DEREF and TIL_BOX are spelled by the emitters themselves, from
@@ -9794,21 +9824,125 @@ priv c_macro_used_elsewhere := func(src: Str, token: Str) returns Bool {
 // whose macro appears nowhere else is dropped. The rewrite runs only when
 // there is something to drop, which is never the case for the big outputs
 // (til's own .c uses both).
-priv c_drop_unused_macros := proc(c_path: Str) {
+// True for the bytes C allows inside an identifier.
+priv c_ident_byte := func(b: I8, first: Bool) returns Bool {
+    if b.gte('a').and(b.lte('z')) { return true }
+    if b.gte('A').and(b.lte('Z')) { return true }
+    if b.eq('_') { return true }
+    if first { return false }
+    return b.gte('0').and(b.lte('9'))
+}
+
+// How many times each identifier is spelled in the file. One pass; the
+// caller asks it only for a library output, whose .c carries a name map.
+priv c_count_identifiers := func(src: Str, mut counts: Map(Str, USize)) {
+    n := src.len()
+    mut i : USize = 0
+    while i < n {
+        if c_ident_byte(src.unsafe_get(i), true).not() { i = i + 1 continue }
+        start := i
+        while i < n {
+            if c_ident_byte(src.unsafe_get(i), false).not() { break }
+            i = i + 1
+        }
+        word := src.substr(start, i - start)
+        if counts.has(word) { counts.set(word, own counts[word] + 1) }
+        else { counts.set(word, own 1) }
+    }
+}
+
+// The name a library name-map line renames, or "" when the line is not
+// one. The map is `#define <name> <prefix><name>`, one per exported
+// symbol. Returns a VIEW into `line`.
+priv c_lib_alias_name := func(line: Str, prefix: Str) returns Str {
+    if prefix.len() == 0 { return "" }
+    if line.starts_with("#define ").not() { return "" }
+    rest := line.substr(8, line.len() - 8)
+    sp := rest.find(" ")
+    if sp < 0 { return "" }
+    name := rest.substr(0, sp.to_usize())
+    tail_at := sp.to_usize() + 1
+    tail := rest.substr(tail_at, rest.len() - tail_at)
+    if tail.len() != prefix.len() + name.len() { return "" }
+    if tail.starts_with(prefix).not() { return "" }
+    if tail.substr(prefix.len(), name.len()).eq(name).not() { return "" }
+    return name
+}
+
+// #326: three families of `#define` the finished text is the only honest
+// judge of.
+//
+// DEREF and TIL_BOX are spelled by the emitters themselves, from decisions
+// that only exist while a function is being emitted -- emit_arg boxes an
+// `own` argument only after consulting that function's stack locals and
+// value params, and half the corpus's boxing outputs box there and nowhere
+// else. A pre-pass over the AST could only predict them by reimplementing
+// that decision, and the second implementation would drift from the first.
+//
+// The library name map is the same shape of question from the other end.
+// Its names are collected from the AST, the forward header, ext.h, ext.c
+// and every link_c source, because the OTHER translation units that
+// include the forward header need them all -- and then the emit gates drop
+// whatever THIS .c has no use for. Half the aliases were left renaming a
+// name the file never spells: 1,875 of the corpus's 3,433, 230 of the 401
+// in one small library. An alias for an absent symbol renames nothing and
+// can only capture something later. The forward header keeps its full map;
+// only the .c's own copy is swept.
+//
+// The rewrite runs only when there is something to drop, which is never
+// the case for a program that uses both macros (til's own .c reads the
+// file back, answers two substring searches, and returns).
+// The generated function-like macros, all four emitted before the emitter
+// could know whether anything would spell them.
+priv c_dead_macro_prefix := func(src: Str, name: Str, mut dead: Vec(Str)) returns Bool {
+    token := format(name, "(")
+    if c_macro_state(src, token) != 0 { return false }
+    dead.push(own format("#define ", token))
+    return true
+}
+
+priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str) {
     src := File.readfile(c_path)
-    box_used := c_macro_used_elsewhere(src, "TIL_BOX(")
-    deref_used := c_macro_used_elsewhere(src, "DEREF(")
-    if box_used.and(deref_used) { return }
-    if box_used {
-        File.writefile(c_path, src.replace(c_macro_deref_def(), ""))
-        return
+    mut dead_macros := Vec(Str).new()
+    mut any := c_dead_macro_prefix(src, "TIL_BOX", dead_macros)
+    if c_dead_macro_prefix(src, "DEREF", dead_macros) { any = true }
+    if c_dead_macro_prefix(src, "TIL_CSTR", dead_macros) { any = true }
+    if c_dead_macro_prefix(src, "TIL_LIT_GUARD", dead_macros) { any = true }
+    if any.not().and(lib_prefix.len().eq(0)) { return }
+    mut counts := Map(Str, USize).new()
+    if lib_prefix.len() > 0 { c_count_identifiers(src, counts) }
+    n := src.len()
+    mut out := Str.with_capacity(n)
+    mut dropped := false
+    mut line_start : USize = 0
+    mut i : USize = 0
+    while i <= n {
+        mut at_break := i == n
+        if at_break.not() { at_break = src.unsafe_get(i).eq('\n') }
+        if at_break {
+            line := src.substr(line_start, i - line_start)
+            mut keep := true
+            for dm : Str in dead_macros {
+                if line.starts_with(dm) { keep = false }
+            }
+            if keep {
+                alias := c_lib_alias_name(line, lib_prefix)
+                if alias.len() > 0 {
+                    if counts[alias] <= 1 { keep = false }
+                }
+            }
+            if keep {
+                out.push_str(line)
+                if i < n { out.push_str("\n") }
+            } else {
+                dropped = true
+            }
+            line_start = i + 1
+        }
+        i = i + 1
     }
-    dropped_box := src.replace(c_macro_box_def(), "")
-    if deref_used {
-        File.writefile(c_path, dropped_box)
-        return
-    }
-    File.writefile(c_path, dropped_box.replace(c_macro_deref_def(), ""))
+    if dropped.not() { return }
+    File.writefile(c_path, out)
 }
 
 c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, do_lib: Bool) returns I32 {
@@ -9819,7 +9953,7 @@ c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path
     }
     if result == 0 {
         result = build(lp.cur_mode, lp.run_tests, c_path, lp)
-        if result == 0 { c_drop_unused_macros(c_path) }
+        if result == 0 { c_drop_dead_defines(c_path, lp.ctx.builder_lib_c_prefix) }
     }
     if result.eq(0).and(do_lib) {
         result = build_header_lp(h_path, lp)

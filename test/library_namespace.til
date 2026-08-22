@@ -120,6 +120,23 @@ main := proc() {
     lib_a_c := File.readfile("gen/til/library_namespace_a.c")
     require_contains(lib_a_c, "    }\n    self->count = (n);\n}")
 
+    // Issue #326: the .c carries its own copy of the library name map --
+    // one `#define <name> <prefix><name>` per exported symbol -- so that
+    // what it defines lands in the library's namespace. The names come from
+    // the AST, the forward header, ext.h, ext.c and every link_c source,
+    // because the OTHER translation units that include the forward header
+    // need them all; the emit gates then drop whatever THIS .c has no use
+    // for. 230 of this library's 401 aliases renamed a name the file never
+    // spells, and an alias for an absent symbol renames nothing and can
+    // only capture something later.
+    require_absent(lib_a_c, "#define F64_to_str til_")
+    // ...while the header keeps its full map, for the translation units
+    // that define what this .c does not.
+    require_contains(File.readfile("gen/til/library_namespace_a_forward.h"),
+                     "#define F64_to_str til_")
+    // An alias the .c does spell stays.
+    require_contains(lib_a_c, "#define Array__I64_clone til_")
+
     interpreted := Cmd.new(til_bin, "interpret", "test/library_namespace_consumer.til")
     interpreted.env("LIBRARY_PATH", "gen/lib")
     interpreted.env("LD_LIBRARY_PATH", "gen/lib")
