@@ -8594,6 +8594,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
         ref vt : Str = variant_types[j]
+        mut payload_prim := Primitive.I64
         if vt.len() == 0 {
             display := dyn_type_str_display(vn)
             f.write("    case Type_TAG_")
@@ -8607,6 +8608,25 @@ priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
             f.write(": { Str *r = malloc(TIL_BOX(Str)); *r = Str_clone(&type->data.")
             f.write(vn)
             f.write("); return r; }\n")
+        } else if builtin_primitive_from_name(vt, payload_prim) {
+            // #397: a scalar payload. Type's Sym twins carry ~Sym~, which is
+            // a ~U32~ by the time it reaches here. This renderer can spell a
+            // Str payload and a nested enum's variant names; a bare number it
+            // cannot turn into a type name, so it emits NO case and the value
+            // reaches the "?" default below.
+            //
+            // Falling through is the answer, not a gap. Emitting the
+            // variant's display name ("Struct") would look like a plausible
+            // result for a value whose name was never consulted, while "?" is
+            // visibly not a type name -- the issue's own standard, that a
+            // forgotten resolve should be ugly and loud rather than silently
+            // wrong. The step that flips producers is the step that teaches
+            // this to resolve the Sym.
+            //
+            // Emitting nothing also keeps this in step with
+            // ~builder_register_dyn_type_to_str_lits~, which registers the
+            // literals this func may emit: no new literal, nothing to add
+            // there ("?" is already registered).
         } else {
             // Nested enum
             mut inner_names := Vec(Str).new()

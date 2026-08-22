@@ -3058,6 +3058,51 @@ is_aggregate := func(t: Type) returns Bool {
     return t.is(Type.Struct).or(t.is(Type.Enum))
 }
 
+// Issue #397 step 1: the one question to ask for a name-carrying Type's
+// symbol. Accepts BOTH the ~Str~ forms (interning the spelling on demand)
+// and the ~Sym~ twins (already interned), so a consumer written against this
+// keeps working unchanged as producers flip from one form to the other --
+// which is the reason both forms exist at once rather than one replacing the
+// other in a single commit. ~None~ for a Type that carries no name.
+//
+// Interning on demand is also where the hot-path win starts: a caller that
+// asks once per call site, instead of hashing the spelling again at every
+// scope level of a lookup, already stops paying for the repeats.
+type_sym := func(t: Type, mut symbols: SymbolPool) returns Option(Sym) {
+    switch t {
+    case .Struct(s):          return Option(Sym).Some(symbols.intern(s))
+    case .Enum(s):            return Option(Sym).Some(symbols.intern(s))
+    case .Custom(s):          return Option(Sym).Some(symbols.intern(s))
+    case .FuncPtrSig(s):      return Option(Sym).Some(symbols.intern(s))
+    case .StructSym(sym):     return Option(Sym).Some(sym)
+    case .EnumSym(sym):       return Option(Sym).Some(sym)
+    case .CustomSym(sym):     return Option(Sym).Some(sym)
+    case .FuncPtrSigSym(sym): return Option(Sym).Some(sym)
+    case: return Option(Sym).None
+    }
+}
+
+// The mirror of ~type_sym~: a name-carrying Type's spelling, whichever form
+// it is in. The ~Str~ forms hand back their own storage; the ~Sym~ twins
+// resolve through the pool. ~None~ for a Type that carries no name.
+//
+// The returned ref borrows ~symbols.names~ for the Sym forms, so it lives
+// under the pool's existing rule: consume the name before the next intern,
+// which may grow that Vec out from under it.
+type_name_ref := func(t: Type, symbols: SymbolPool) returns Option(ref Str) {
+    switch t {
+    case .Struct(s):          return safe_ref(s)
+    case .Enum(s):            return safe_ref(s)
+    case .Custom(s):          return safe_ref(s)
+    case .FuncPtrSig(s):      return safe_ref(s)
+    case .StructSym(sym):     return safe_ref(symbols.resolve(sym))
+    case .EnumSym(sym):       return safe_ref(symbols.resolve(sym))
+    case .CustomSym(sym):     return safe_ref(symbols.resolve(sym))
+    case .FuncPtrSigSym(sym): return safe_ref(symbols.resolve(sym))
+    case: return Option(ref Str).None
+    }
+}
+
 fcall_is_direct := func(e: Expr) returns Bool {
     switch e.node_type {
     case .FCall: return e.children[0].til_type().is(Type.FuncDef)

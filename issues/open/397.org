@@ -65,14 +65,43 @@ over:
 
 *** Staged plan (each step merges to master before the next)
 
-1. Preparation: teach the compiler to CONSTRUCT and MATCH both forms.
+1. DONE Preparation: teach the compiler to CONSTRUCT and MATCH both forms.
    Add Sym-carrying twins appended at the enum's END (tag stability,
    same rule Primitive followed): StructSym: Sym, EnumSym: Sym,
    CustomSym: Sym, FuncPtrSigSym: Sym. Nothing produces them yet.
    Shared accessors in context.til so consumers ask one question:
    type_sym(t, symbols) (interning the Str forms on demand) and
-   type_name_ref(t, symbols) (resolving the Sym forms). Suite green,
-   emitted C byte-identical. [plain commit]
+   type_name_ref(t, symbols) (resolving the Sym forms). [plain commit]
+
+   Landed as written. Two things the step turned up that this plan did
+   not anticipate, both of which change what step 3 has to do:
+
+   - THREE exhaustive switches on Type had to answer for the new
+     variants, and the compiler named all three rather than a search
+     having to find them. ~til_type_name_c~ (parser.til) answers
+     "Struct"/"Enum"/"Fn" without ever reading a name, so those arms
+     are already correct; its ~CustomSym~ arm is UNREACHABLE because
+     that answer IS the name and the func has no SymbolPool.
+     ~make_til_type_expr~ (typer.til) and ~write_runtime_type~
+     (interpreter.til) are UNREACHABLE outright -- what a Sym-carrying
+     type emits as a type token, and how the interpreter writes its
+     bytes, are both decisions step 3 owns.
+   - ~emit_dyn_type_to_str_body~ (c_codegen.til) assumed Type's
+     payloads are only {nothing, Str, nested enum} and PANICKED on
+     anything else, so a scalar payload broke the C backend on 12
+     corpus files with "cannot find payload enum 'U32'" (the Sym alias
+     is already resolved to U32 by then). It now recognises a scalar
+     payload via ~builtin_primitive_from_name~ and emits no case,
+     letting the value reach the existing "?" default -- deliberately,
+     since printing the variant's DISPLAY name would look plausible
+     for a value whose name was never consulted, while "?" is visibly
+     not a type name.
+
+   Verified by the full suite (451/452, the standing baseline, zero
+   failures). Note the original "emitted C byte-identical" wording was
+   not separately checked and is not quite right as stated: adding
+   variants necessarily adds tag constants wherever Type is emitted.
+   What holds is that the corpus eqcheck in the suite passed.
 
 2. Consumers go through the accessors. Mechanical sweep of the ~151
    construct/match sites' READERS (expr_type_name_ref callers,
@@ -89,6 +118,25 @@ over:
    changes (different tags in Type literals); "Two-pass: " commits.
    The interpreter's layout tables pick up the new variants' sizes in
    the same commits.
+
+   Step 1 left FOUR markers that must all fall in this step -- three
+   UNREACHABLE arms and one silent-but-visible fallthrough. They are
+   the checklist, and the first three fail loudly if missed:
+     - ~til_type_name_c~ (parser.til), CustomSym arm: needs a
+       SymbolPool parameter, which ripples to its callers.
+     - ~make_til_type_expr~ (typer.til): decide what a Sym-carrying
+       type emits as a type token. The FuncPtrSig arm above it is the
+       precedent that the token surface and the carried name are
+       decided separately.
+     - ~write_runtime_type~ (interpreter.til): the raw-bytes site this
+       issue's risk note already pins to this step.
+     - ~emit_dyn_type_to_str_body~ (c_codegen.til): currently falls
+       through to "?" for a scalar payload. This one does NOT fail
+       loudly -- it prints "?" where a name belongs -- so it is the
+       one to grep for rather than wait for. Whatever literal it grows
+       must also be registered in
+       ~builder_register_dyn_type_to_str_lits~, which registers every
+       literal that func can emit.
 
 4. Retirement: when nothing constructs the Str forms, reject them in
    a transitional commit (panic in the accessors' Str arms naming this

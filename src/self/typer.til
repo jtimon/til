@@ -75,6 +75,14 @@ make_til_type_expr := func(src: Expr, t: Type, mut symbols: SymbolPool) returns 
     case .Body:      variant_name = "Body"
     case .Dynamic:   variant_name = "Dynamic"
     case .Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
+    // #397 step 1: the Sym twins have no producer yet, so this is dead. It
+    // is left loud rather than quietly mapped onto the Str arms above,
+    // because what a Sym-carrying type should EMIT as a type token is a
+    // question for the step that flips producers -- see the FuncPtrSig arm
+    // above for the precedent that the token surface and the carried name
+    // are decided separately.
+    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+        UNREACHABLE("Sym-carrying Type in make_til_type_expr: #397 must settle the type-token surface before producers flip")
     }
     if primitive_variant.len() > 0 {
         // Build Type.Primitive(Primitive.<primitive_variant>).

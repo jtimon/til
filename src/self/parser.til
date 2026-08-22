@@ -2826,10 +2826,19 @@ til_type_name_c := func(t: Type) returns Str {
     case .Enum:      return "Enum"
     case .EnumDef:   return "EnumDef"
     case .FuncDef:   return "FunctionDef"
-    case .FuncPtr, .FuncPtrSig: return "Fn"
+    case .FuncPtr, .FuncPtrSig, .FuncPtrSigSym: return "Fn"
     case .Body:      return "Body"
     case .Dynamic:   return "Dynamic"
     case .Custom(name): return name.clone()
+    // #397 step 1: these three answer without ever reading the name, so they
+    // are already right for the Sym twins.
+    case .StructSym: return "Struct"
+    case .EnumSym:   return "Enum"
+    // Custom is the one whose answer IS the name, and this func has no
+    // SymbolPool to resolve a Sym with. Nothing constructs the twins yet, so
+    // this cannot be reached; the step that flips producers is the step that
+    // has to hand this func a pool.
+    case .CustomSym: UNREACHABLE("Type.CustomSym in til_type_name_c: #397 must give it a SymbolPool before producers flip")
     }
 }
 

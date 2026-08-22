@@ -1528,6 +1528,14 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
     case .Custom(name):
         variant = "Custom"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
+    // #397 step 1: no producer yet, so this is dead -- and deliberately not
+    // written as "resolve the Sym and store the Str". This func writes a
+    // runtime Type's BYTES, and the issue's own risk note puts the raw-bytes
+    // layout model on the same step as the producer flip: a Sym twin's
+    // payload is a U32 where the Str forms store a Str, so both backends
+    // have to change what they decode in the step the bytes change.
+    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+        UNREACHABLE("Sym-carrying Type in write_runtime_type: #397 must move the raw-bytes layout in the same step producers flip")
     case .Primitive(prim):
         variant = "Primitive"
         primitive_def_o := lookup_interp_type_def("Primitive", ctx)

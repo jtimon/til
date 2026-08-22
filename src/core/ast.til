@@ -58,6 +58,23 @@ Type := enum {
     // the same closure carrier as FuncPtr internally, but the source type is
     // distinct.
     Body,
+    // Issue #397 step 1: Sym-carrying twins of the four name-carrying
+    // variants above. NOTHING CONSTRUCTS THESE YET -- this step only teaches
+    // the compiler to hold and match them, so the producers can flip in a
+    // later commit without the same commit also changing what til_boot must
+    // decode. Ask ~type_sym~ / ~type_name_ref~ (src/self/context.til) rather
+    // than matching a pair by hand: those accept both forms, which is the
+    // whole point of the twins existing at once.
+    //
+    // A ~Sym~ is a U32, so these are strictly smaller than the ~Str~ forms
+    // they will replace and the enum's size does not move. Appended at the
+    // END for the reason ~Primitive~ and ~FuncPtrSig~ were: tag values for
+    // every existing variant stay put, so master's til_boot keeps decoding
+    // Type values correctly while it bootstraps the compiler that adds them.
+    StructSym: Sym,
+    EnumSym: Sym,
+    CustomSym: Sym,
+    FuncPtrSigSym: Sym,
 }
 
 // The compiler-facing Type helper funcs (til_type_name_c, is_primitive,
