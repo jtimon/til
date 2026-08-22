@@ -1,3 +1,6 @@
+* Bugs
+** High
+*** [[./open/398.org][#398]] A deposit performed by a callee is invisible one level up
 * Cleanups
 ** High
 *** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run

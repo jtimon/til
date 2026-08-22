@@ -1565,3 +1565,37 @@ terr392_store := func(s: Str) {
     mut a := Array(Dynamic).new(1)
     a.set(0, own s.clone())!
 }
+
+// #398: a deposit the CALLEE performs is credited one level up. #393
+// summarised only deposits a function made directly, so a helper that
+// deposits by calling something else on its parameter looked inert and
+// its callers lost the root -- the non-mut form below compiled while
+// the two backends disagreed about where the write landed. Two errors,
+// each naming s.
+Terr398Store := struct {
+    hs := Vec(Terr351Holder).new()
+namespace:
+    put := func(mut self: Terr398Store, h: Terr351Holder) {
+        self.hs.push(own h.clone())
+    }
+}
+
+terr398_via_self := func(s: Terr351Src) {
+    mut st := Terr398Store()
+    st.put(Terr351Holder(r = terr351_held_of(s)))
+    ref mut h : Terr351Holder = st.hs[0]
+    h.r.n = h.r.n + 1
+}
+
+// The receiver is a plain parameter of a FREE function, resolvable only
+// off its declared type -- nothing is typed when summaries are built.
+terr398_wrap := func(mut st: Terr398Store, h: Terr351Holder) {
+    st.put(h)
+}
+
+terr398_via_param := func(s: Terr351Src) {
+    mut st := Terr398Store()
+    terr398_wrap(st, Terr351Holder(r = terr351_held_of(s)))
+    ref mut h : Terr351Holder = st.hs[0]
+    h.r.n = h.r.n + 1
+}

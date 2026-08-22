@@ -480,3 +480,54 @@ test_borrow_root_through_field_deposit := test() {
     bp393_direct(s)
     assert_eq(I64, s.held.n, 2)
 }
+
+# --- #398: a deposit performed by a CALLEE is credited one level up ---
+#
+# #393 derived a function's deposit summary only from deposits it made
+# directly (an adopt, a field assign). A helper that deposits by CALLING
+# something else on its parameter summarised as depositing nothing, so
+# every caller of it lost the root. Both shapes below write the caller's
+# storage two hops away, and both backends must agree they did.
+
+Bp398Store := struct {
+    hs := Vec(Bp351Holder).new()
+namespace:
+    put := func(mut self: Bp398Store, h: Bp351Holder) {
+        self.hs.push(own h.clone())
+    }
+}
+
+# the deposit goes through a method call on `self.field`
+bp398_via_self := func(mut s: Bp351Src) {
+    mut st := Bp398Store()
+    st.put(Bp351Holder(r = bp351_held_of(s)))
+    ref mut h : Bp351Holder = st.hs[0]
+    h.r.n = h.r.n + 1
+}
+
+test_borrow_root_callee_deposit_self := test() {
+    mut s := Bp351Src()
+    bp398_via_self(s)
+    bp398_via_self(s)
+    assert_eq(I64, s.held.n, 2)
+}
+
+# a FREE function, whose receiver is a plain parameter: resolvable only
+# off its DECLARED type, since nothing is typed when summaries are built
+bp398_wrap := func(mut st: Bp398Store, h: Bp351Holder) {
+    st.put(h)
+}
+
+bp398_via_param := func(mut s: Bp351Src) {
+    mut st := Bp398Store()
+    bp398_wrap(st, Bp351Holder(r = bp351_held_of(s)))
+    ref mut h : Bp351Holder = st.hs[0]
+    h.r.n = h.r.n + 1
+}
+
+test_borrow_root_callee_deposit_param := test() {
+    mut s := Bp351Src()
+    bp398_via_param(s)
+    bp398_via_param(s)
+    assert_eq(I64, s.held.n, 2)
+}

@@ -1,0 +1,102 @@
+# priority: high
+# category: bugs
+** WIP #398 A deposit performed by a callee is invisible one level up
+
+#393 derives a function's deposit_matrix only from deposits it performs
+DIRECTLY in its own body: an adopt/adopt_from, a FieldAssign, an Assign.
+A helper that deposits by CALLING something else on its parameter gets
+no matrix at all, so every caller of that helper loses the root:
+
+#+begin_src til
+Held := struct { n := 0 }
+Src := struct { held := Held() }
+Holder := struct { ref r : Held }
+held_of := func(s: Src) returns ref Held { return s.held }
+
+wrap := func(mut hs: Vec(Holder), h: Holder) {
+    hs.push(own h.clone())          // the deposit happens HERE...
+}
+poke := func(s: Src) {              // ...so `s` is never credited
+    mut hs := Vec(Holder).new()
+    wrap(hs, Holder(r = held_of(s)))
+    ref mut h : Holder = hs[0]
+    h.r.n = h.r.n + 1               // really writes s.held
+}
+#+end_src
+
+All three #393 symptoms return for this shape, reproduced on master
+3679464:
+
+- Missing diagnostic: the non-mut form above compiles.
+- Backend divergence: interpreted prints 1, compiled prints 0 -- with s
+  non-mut the compiled backend passes it by value and the write lands
+  on the copy.
+- Wrong blame: the honest `mut s` is REJECTED as "redundant 'mut' on
+  parameter 's': never written through".
+
+The boundary is sharp. A helper whose deposit is a bare adopt, or
+`b.h = h`, IS summarised and does propagate (#393's terr393_park, and a
+free-function adopt store). A helper whose deposit is `hs.push(...)`
+is not -- and neither is `self.hs.push(...)` inside a namespace method.
+
+*** Progress
+
+- [X] Link 1: receiver resolution off DECLARED types. summary_receiver_type
+  now places a receiver that is a PARAMETER, and summary_param_method
+  does the same job for a free function's own parameters. Fixes the
+  namespace-method form (`self.field.method(...)`) and the free-function
+  form whose receiver has a CONCRETE type. Regression tests:
+  test/ref.til test_borrow_root_callee_deposit_self /
+  test_borrow_root_callee_deposit_param; test/typer_errors.til
+  terr398_via_self / terr398_via_param (count 244 -> 246).
+- [ ] Link 2: a receiver whose declared type is GENERIC (`hs: Vec(T)`).
+  Still accepted, still divergent.
+
+The deposit-only restriction on summary_param_method is load-bearing and
+was found the hard way. Wired into summary_expr_bits as well, the same
+resolution made `sdef_o.unwrap()` resolve to the Option TEMPLATE, whose
+unresolved T cannot say the payload is a REF -- so the walk reported
+`alias` where the truth is `carried`, and demanded `mut sdef_o` against
+three correct sites in typer.til. Deposit bits are parameter-indexed and
+mean the same thing for a template and its instantiations; the
+alias/into/carried relations are not, so they keep the narrow
+resolution.
+
+*** Why link 2 is not a small change
+
+A generic's definition is a MACRO, not a StructDef: `Vec`'s Decl RHS is
+`FuncDef Macro`, so summarize_unit_walk never descends into the
+template's namespace methods and the template's push carries an empty
+matrix forever. Resolving to an instantiation instead does not help at
+this point in the pipeline either -- the summaries are a PRE-TYPING
+fixed point, and `Vec(FHolder)` is not instantiated until the unit is
+typed. Verified directly: `Vec__Dynamic.push` IS walked and does get the
+correct matrix (bit (0,1)), while the `Vec(T)` template is never walked
+at all. Closing link 2 means giving the summary pass a way to reach
+generic bodies, which is a pipeline change rather than a walk change.
+
+*** Original report
+
+Two separate links fail, and both need fixing:
+
+1. Receiver resolution. summary_fcall_deposits runs BEFORE any body is
+   typed, so the UFCS branch of fcall_callee_fdef -- which needs the
+   receiver's inferred type -- cannot fire. summary_receiver_type
+   already resolves `self` and `self.field` off DECLARATIONS; a
+   receiver that is a plain parameter (`hs`) resolves off nothing, so
+   the callee is never found. Parameters have declared types at that
+   point, so this is recoverable.
+
+2. The generic template carries no matrix. `self.hs.push(...)` DOES
+   resolve, to Vec's template `push(mut self: Vec(T), own val: T)`.
+   Instantiations get a matrix (their concrete `val: Holder` carries a
+   borrow, which is why #393's direct call sites work), but the
+   template's own T carries nothing, so the summary the helper reads is
+   empty. Summaries are parameter-indexed precisely so a template and
+   its instantiations answer identically -- the template has to answer
+   too.
+
+NOT a regression from #393's performance work: verified by relaxing
+fdef_may_deposit to admit unresolvable parameter types, after which the
+shape is still accepted. The gate is a filter on which bodies get
+walked, not on what the walk finds.
