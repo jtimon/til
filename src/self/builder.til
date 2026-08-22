@@ -672,31 +672,75 @@ cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, 
 //     mtime has one-second granularity on some filesystems, so an edit
 //     landing in the same second as the previous build must not look old.
 //
-build_artifact_is_current := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns Bool {
-    // Multi-file outputs: "the artifact" is not one path to stat, so they
-    // answer false until someone does that properly. A cross-compiled native
-    // target is still a single binary, so it stays cacheable.
+// Multi-file outputs -- library, theme, JVM, wasm, TempleOS -- answer false
+// everywhere below: "the artifact" is not a fixed little set of paths to
+// stat, and they stay uncached until someone does that properly. A
+// cross-compiled NATIVE target is still one binary, so it remains cacheable.
+priv target_is_cacheable := func(target: Target) returns Bool {
     if target.is(Target.Jvm) { return false }
     if target.is(Target.Wasm32) { return false }
     if target.is(Target.TempleosX86) { return false }
-    paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    if paths.do_lib { return false }
-    if paths.bin_path.len() == 0 { return false }
+    return true
+}
 
-    out_mtime := file_mtime(paths.bin_path)
-    if out_mtime < 0 { return false }
-
-    deps := lp.unit_paths()
-    for d : Str in deps {
+// Are ALL of `outs` strictly newer than every source the program was loaded
+// from? Shared by the build and translate checks, which differ only in which
+// files they call the artifact.
+priv artifacts_outrank_deps := proc(lp: LoadedProgram, outs: Vec(Str)) returns Bool {
+    if outs.len() == 0 { return false }
+    mut oldest_out : I64 = 0
+    mut first := true
+    for o : Str in outs {
+        om := file_mtime(o)
+        if om < 0 { return false }
+        if first.or(om < oldest_out) { oldest_out = om }
+        first = false
+    }
+    for d : Str in lp.unit_paths() {
         dm := file_mtime(d)
         if dm < 0 { return false }
-        if dm >= out_mtime { return false }
+        if dm >= oldest_out { return false }
     }
     for mf : Str in lp.mode_files {
         mm := file_mtime(mf)
         if mm < 0 { return false }
-        if mm >= out_mtime { return false }
+        if mm >= oldest_out { return false }
     }
+    return true
+}
+
+build_artifact_is_current := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns Bool {
+    if target_is_cacheable(target).not() { return false }
+    paths := derive_build_paths(lp, custom_bin, custom_c, target)
+    if paths.do_lib { return false }
+    if paths.bin_path.len() == 0 { return false }
+    mut outs := Vec(Str).new()
+    outs.push(own paths.bin_path.clone())
+    return artifacts_outrank_deps(lp, outs)
+}
+
+// #170: the translate half. Its artifact is the emitted C plus its forward
+// header, so BOTH are stat'd -- the oldest of them is what the dependencies
+// have to be older than, or a half-written pair would look current.
+//
+// Prints the same "Generated:" lines the full path prints on success, so a
+// cache hit is observationally identical to a re-translate apart from speed.
+// Harnesses read those lines.
+translate_output_is_current := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns Bool {
+    if target_is_cacheable(target).not() { return false }
+    // mode theme emits Elisp through a different path; left uncached.
+    if lp.mode_str == "theme" { return false }
+    // Non-theme translate ignores -o (cmd_translate only feeds it to the
+    // theme path), so the bin override is empty here for the same reason.
+    no_bin_override := ""
+    paths := derive_build_paths(lp, no_bin_override, custom_c, target)
+    if paths.do_lib { return false }
+    if paths.c_path.len() == 0 { return false }
+    mut outs := Vec(Str).new()
+    outs.push(own paths.c_path.clone())
+    if paths.fwd_path.len() > 0 { outs.push(own paths.fwd_path.clone()) }
+    if artifacts_outrank_deps(lp, outs).not() { return false }
+    print_translate_success(paths, target)
     return true
 }
 

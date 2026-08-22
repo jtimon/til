@@ -737,9 +737,9 @@ usage := proc() {
     println("  --target=<name>  Select a target, including the portable JVM target.")
     println("  --usize=64  Opt into U64 container index/size widths (default is U32,")
     println("              which saves memory; UPtr always follows pointer width).")
-    println("  --force-rebuild  For build/run: translate and compile even when the")
-    println("              existing binary is already newer than every source it was")
-    println("              built from (that check otherwise skips both).")
+    println("  --force-rebuild  For translate/build/run: regenerate even when the")
+    println("              existing output is already newer than every source it")
+    println("              was built from (that check otherwise skips the work).")
     println("")
     println("bindings audit -- the generated file is a starting point, not a finished")
     println("binding: C headers cannot express three til-side qualifier axes, so the")
@@ -1112,6 +1112,13 @@ main := proc(args: ..Str) {
                 if cli.command == "run" {
                     exit(run_current_artifact(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.asan).cast(I64))
                 }
+                exit(0)
+            }
+        } else if cli.command == "translate" {
+            // Same all-or-nothing test, against the emitted C and its forward
+            // header instead of the binary. The check prints the "Generated:"
+            // lines itself on a hit, so the output matches a re-translate.
+            if translate_output_is_current(lp, cli.custom_c, target) {
                 exit(0)
             }
         }

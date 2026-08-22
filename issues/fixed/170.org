@@ -1,0 +1,138 @@
+# priority: high
+# category: cleanups
+** FIXED #170 All-or-nothing caching for translate/build/run
+
+*** Post-mortem
+
+    ~build~, ~run~ and ~translate~ now check whether their output is
+    already newer than every source it was built from, and skip the work
+    when it is. Measured on test/comparisons.til: build 1.06s -> 0.03s,
+    translate 0.43s -> 0.02s.
+
+    The design departs from the sketch below in one way, and that is the
+    part worth keeping. There is no ~collect_all_deps(path)~. The check
+    sits BETWEEN ~load_program~ and ~prepare_program~ and takes its
+    dependency set from the loader's OWN resolved unit list
+    (~lp.unit_paths()~ plus ~lp.mode_files~). Loading is what resolves
+    imports, so that is the earliest point with a trustworthy dependency
+    set, and it is still ahead of the entire expensive half -- init,
+    type, garbager, constfold, translate, cc. A standalone scanner would
+    have had to mirror ~resolve_imports~ plus the mode auto-import
+    resolution forever, and the single failure mode of a build cache is
+    serving a stale artifact SILENTLY; reusing the resolved set makes
+    that divergence impossible by construction rather than by vigilance.
+
+    ~needs_rebuild~ is spelled ~build_artifact_is_current~ /
+    ~translate_output_is_current~ over a shared
+    ~artifacts_outrank_deps~, and is conservative in every uncertain
+    case -- a wrong "yes" is invisible, a wrong "no" only costs a
+    rebuild. A missing or unstat-able artifact, an unstat-able
+    dependency, or a dependency at-or-newer than the artifact all answer
+    false. The comparison is ~>=~ rather than ~>~: mtime granularity is
+    one second on some filesystems, so an edit landing in the same
+    second as the previous build must not read as older. Where an
+    artifact is more than one file (translate emits the C and its
+    forward header), the OLDEST of them is what the dependencies must
+    predate, so a half-written pair cannot look current.
+
+    A cached ~translate~ prints the same "Generated:" lines the full path
+    prints, so a hit is observationally identical apart from speed --
+    harnesses read those lines. A cached ~build~ prints nothing, which is
+    also what the uncached path does for the non-library case (the only
+    case cached).
+
+    Not cached: library, theme, JVM, wasm and TempleOS outputs, whose
+    artifact is not a fixed small set of paths to stat. A cross-compiled
+    NATIVE target is still one binary, so it stays cacheable.
+
+    ~--force-rebuild~ bypasses the check for all three commands and is
+    listed in ~til help~.
+
+    Verified by hand beyond the suite: warm hit, invalidation on
+    touching the main file, invalidation on touching a CORE dependency
+    (src/core/str.til), ~--force-rebuild~ bypassing, a cached ~run~ still
+    executing the binary and printing its output, and a cached
+    ~translate~ printing byte-identical success lines.
+
+    No regression test in the suite: the behaviour is a timing/filesystem
+    property rather than a language one, and asserting on mtimes would
+    make the suite sensitive to filesystem granularity. The suite does
+    cover it indirectly -- it drives many build/run/translate invocations
+    and passes 463/463.
+
+Symptom:
+
+   ~bin/til build~ / ~bin/til run~ redo expensive work even when the
+   output binary is already up-to-date for the current source tree.
+   This makes test harnesses that invoke many small ~build/run~ actions
+   much slower than they need to be.
+
+   Target behavior:
+
+   Go-style coarse caching (all-or-nothing):
+
+   - If the output binary exists and all transitive dependencies are
+     older than it, skip translate/build entirely.
+   - ~run~ still runs the binary; it just avoids rebuilding first.
+   - A flag like ~--force-rebuild~ bypasses the cache.
+
+   Sketch:
+
+   - Implement ~collect_all_deps(path)~ for a given .til file:
+     - the main file
+     - its transitive ~import("...")~ deps
+     - implicitly loaded core file(s)
+     - mode imports
+   - Implement ~needs_rebuild(output_path, deps)~ using ~file_mtime~.
+   - Wire the check into ~til build~ and ~til run~.
+
+   Open question:
+
+   - Should ~til translate~ always regenerate output (current rstil
+     behavior), or should it also be cacheable under the same mechanism?
+
+
+*** Progress (2026-08-20)
+
+    Implemented for ~build~ and ~run~. Measured on test/comparisons.til:
+    a cold build is 1.06s and a warm one 0.03s, ~35x. Correctly rebuilds
+    when the main file is touched, when a CORE dependency is touched
+    (src/core/str.til), and under ~--force-rebuild~; a cached ~run~ still
+    executes the binary and prints what it should.
+
+    Two decisions worth recording, because both differ from the sketch
+    above:
+
+    - There is no separate ~collect_all_deps(path)~. The dependency set
+      is the loader's OWN resolved unit list -- ~lp.unit_paths()~ plus
+      ~lp.mode_files~ -- and the check sits BETWEEN ~load_program~ and
+      ~prepare_program~. Loading is what resolves imports, so that is
+      the earliest point with a trustworthy dependency set, and it is
+      still ahead of the whole expensive half (init, type, garbager,
+      constfold, translate, cc). A standalone scanner would have had to
+      mirror ~resolve_imports~ plus the mode auto-import resolution
+      forever, and the one failure mode of a build cache is serving a
+      stale binary SILENTLY -- reusing the resolved set makes that
+      divergence impossible by construction rather than by vigilance.
+      Cost of loading first is small: translate (load+type+emit) is
+      0.72s of the 1.57s build, and load alone is a fraction of that.
+
+    - ~needs_rebuild~ is spelled ~build_artifact_is_current~ and is
+      conservative in every uncertain case, since a wrong "yes" is
+      invisible while a wrong "no" only costs a rebuild: a missing or
+      unstat-able artifact, an unstat-able dependency, or a dependency
+      at-or-newer than the artifact all answer false. The comparison is
+      ~>=~, not ~>~ -- mtime granularity is one second on some
+      filesystems, so an edit landing in the same second as the previous
+      build must not read as older.
+
+    Not cached: library, theme, JVM, wasm and TempleOS outputs, whose
+    artifact is not one path to stat. A cross-compiled native target is
+    still a single binary, so it stays cacheable.
+
+    RESOLVED, the question this issue asked: ~til translate~ IS cached,
+    under the same mechanism. The "translate output is for inspection, so
+    currency is a weaker promise" argument does not survive
+    ~--force-rebuild~ existing -- anyone wanting a guaranteed fresh emit
+    has the flag -- and a harness that translates repeatedly gets the
+    identical win. Cold 0.43s, warm 0.02s.

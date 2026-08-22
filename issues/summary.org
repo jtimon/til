@@ -3,7 +3,6 @@
 *** [[./open/398.org][#398]] A deposit performed by a callee is invisible one level up
 * Cleanups
 ** High
-*** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
