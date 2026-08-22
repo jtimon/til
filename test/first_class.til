@@ -1953,6 +1953,14 @@ gexp_takes_u8_328 := func(n: U8) returns U8 { return n }
 gexp_two328 := func(a: I64, p: GExp328) returns I64 { return a + p.n }
 gexp_int328 := func(n: I64) returns I64 { return n }
 gexp_wrap328 := func(p: GExp328) returns GExp328 { return p }
+// A struct FIELD is a destination too -- filled at construction, and
+// written by a field assignment.
+gexp_holder2_328 := struct {
+    p : GExp328 = GExp328(n = 0)
+    n : U8 = 0
+    q : GExpAlias328 = GExp328(n = 0)
+}
+gexp_wrapp328 := func(p: GExp328) returns GExp328 { return p }
 gexp_box328 := struct {
     n := 1
 namespace:
@@ -2009,6 +2017,22 @@ test_generic_expected_type_argument := test() {
     // actually an argument to (wrap's GExp328), not the enclosing I64
     // destination two levels out.
     assert_eq(I64, gexp_int328(gexp_wrap328(gexp_default328()).n), 7)
+}
+
+test_generic_expected_type_field_destination := test() {
+    // Construction: each named argument gets its FIELD's declared type,
+    // including an alias spelling and the U8 literal narrowing.
+    h := gexp_holder2_328(p = gexp_default328(), n = gid328(7), q = gexp_default328())
+    assert_eq(I64, h.p.n, 7)
+    assert_eq(U8, h.n, 7)
+    assert_eq(I64, h.q.n, 7)
+    // Field assignment names the same destination.
+    mut m := gexp_holder2_328()
+    m.p = gexp_default328()
+    assert_eq(I64, m.p.n, 7)
+    // The pin holds through a constructor argument as well.
+    h2 := gexp_holder2_328(p = gexp_wrapp328(gexp_default328()))
+    assert_eq(I64, h2.p.n, 7)
 }
 
 // #328 follow-up: a FUNCTION passed as a value argument deduces T from
