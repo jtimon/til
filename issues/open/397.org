@@ -74,15 +74,36 @@ over:
    type_name_ref(t, symbols) (resolving the Sym forms). Suite green,
    emitted C byte-identical. [plain commit]
 
-2. Consumers go through the accessors. Mechanical sweep of the ~151
-   construct/match sites' READERS (expr_type_name_ref callers,
-   type_to_name, switch arms on Type.Struct/Enum/Custom) to accept
-   both forms via the step-1 accessors. get_struct/get_binding_name
-   callers switch to get_struct_by_sym(type_sym(...)) --
-   the hot-path win starts landing here even before producers flip,
-   because type_sym interns ONCE per call instead of per scope level.
-   Suite green each slice; can be several commits, one file family
-   per commit. [plain commits]
+2. Consumers that ALREADY hold a symbol stop round-tripping through a
+   spelling. Correction to this step's original rationale, which was
+   wrong: it claimed routing get_struct/get_binding_name callers
+   through get_struct_by_sym(type_sym(...)) wins "because type_sym
+   interns ONCE per call instead of per scope level". get_struct
+   already hashes once per call, not once per level -- it does a
+   single symbols.lookup and then walks the levels by Sym. Routing a
+   Str-holding caller through type_sym therefore buys nothing: the
+   hash simply moves. The only free win available before step 3 is
+   the caller that never needed a spelling in the first place --
+   IdentData.name has been a Sym since #292, so any site doing
+   ident_name(names) purely to hand the result to a name-keyed lookup
+   is resolving a symbol so the lookup can hash it back.
+
+   Harvested here (measured, `translate --force-rebuild
+   test/first_class.til`): fa_is_ns's Ident branch via
+   fa_is_ns_named_sym, the interpreter's static_ns_func_def_sym /
+   ns_func_def_sym, and the constfolder's two ns_func_def sites.
+   get_struct 279,919 -> 146,155 calls, SymbolPool.lookup 592,240 ->
+   546,825, fnv1a 860,686 -> 815,271: 6,374,349,409 -> 6,353,302,722
+   instructions, -0.330%. Modest, and that is the honest size of it.
+
+   What is left is NOT free and belongs to step 3: get_binding_name's
+   top caller resolve_type_alias (97,283), get_struct's top caller
+   name_is_interface (42,369), and fa_is_ns's other branch (88,349)
+   all take their name off a Type payload. find_callee_fdef's 59,660
+   are worse than free -- those names are SYNTHESIZED at emit time
+   (type_name.format("_delete") and friends), so interning them would
+   add a hash plus an insert where today there is one lookup.
+   [plain commits]
 
 3. Producers flip: infer/parse/init sites that build Type.Struct(name)
    build Type.StructSym(symbols.intern(name)) instead. Emitted C
@@ -101,9 +122,14 @@ over:
    batches with it.
 
 5. Measure at every step against the standing baseline (4,596M
-   instructions at 9263b9c8, before the interning regression):
-   expect step 2 to remove most of get_struct's 225K hashes, step 3
-   to remove the rest and most of get_binding_name's. The success
+   instructions at 9263b9c8, before the interning regression). Note
+   for anyone re-running the numbers: since #170 landed, `translate`
+   CACHES its output, and a warm cache turns the benchmark into a
+   lex-and-exit that measures 177M instead of ~6,350M while printing
+   the same "Generated:" lines. Always pass --force-rebuild.
+   Step 2 removed 45K of get_struct's hashes (the ones whose caller
+   held an Ident); step 3 is where the rest of get_struct and most
+   of get_binding_name go. The success
    criterion is not "faster than yesterday" but BELOW THE PRE-INTERNING
    BASELINE, since that is what finishing the migration is for.
 

@@ -13,7 +13,12 @@ fa_is_ns := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if sn_o.is_some() { return fa_is_ns_named(e, scope, sn_o.unwrap(), symbols) }
     switch obj.node_type {
     case .Ident(id):
-        return fa_is_ns_named(e, scope, id.ident_name(symbols.names), symbols)
+        // #397: the Ident already HOLDS the symbol. Resolving it to a
+        // spelling so the lookup could hash it back into the same symbol
+        // is the round-trip this migration exists to remove -- and unlike
+        // the branch above, it needs no Type change to fix, because
+        // IdentData.name has been a Sym since #292.
+        return fa_is_ns_named_sym(e, scope, id.ident_sym(), symbols)
     case:
         return false
     }
@@ -22,7 +27,17 @@ fa_is_ns := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
 // The tail of fa_is_ns once the receiver's type name is known: does the
 // named def carry this member in its namespace?
 priv fa_is_ns_named := func(e: Expr, scope: TypeScope, sn: Str, symbols: SymbolPool) returns Bool {
-    sdef_o := scope.get_struct(sn, symbols)
+    sym_o := symbols.lookup(sn)
+    if sym_o.is_none() { return false }
+    return fa_is_ns_named_sym(e, scope, sym_o.unwrap(), symbols)
+}
+
+// The same tail, for callers that already hold the receiver type's
+// symbol. The Str form above is the transitional one: it exists for
+// receivers whose name still comes from a Type payload (#397 step 3
+// turns those into symbols too, at which point it can go).
+priv fa_is_ns_named_sym := func(e: Expr, scope: TypeScope, sym: Sym, symbols: SymbolPool) returns Bool {
+    sdef_o := scope.get_struct_by_sym(sym)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     switch e.node_type {

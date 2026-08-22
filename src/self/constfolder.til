@@ -850,7 +850,7 @@ priv fa_recv_type_name := func(callee: Expr, mut ctx: Context) returns Str {
     case .Ident(ident):
         // If the Ident names a known type (`Str`/`I64`/...), use it.
         // Otherwise it's a value and we fall back to its til_type.
-        if ns_func_def(ident.ident_name(ctx.symbols.names), "size", ctx).is_some() { return Str.clone(ident.ident_name(ctx.symbols.names)) }
+        if ns_func_def_sym(ident.ident_sym(), "size", ctx).is_some() { return Str.clone(ident.ident_name(ctx.symbols.names)) }
     case:
     }
     return til_type_name_c(recv.til_type())
@@ -928,7 +928,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
             ref recv : Expr = callee.children[0]
             switch recv.node_type {
             case .Ident(ri):
-                if ns_func_def(ri.ident_name(ctx.symbols.names), "size", ctx).is_none() {
+                if ns_func_def_sym(ri.ident_sym(), "size", ctx).is_none() {
                     if constfolder_known_has(ctx, ri.ident_name(ctx.symbols.names)).not() { return Option(Expr).None }
                 }
             case:

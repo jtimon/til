@@ -4207,6 +4207,15 @@ priv static_ns_func_def := func(sname: Str, fname: Str, ctx: Context) returns Op
     return def_static_ns_func_def(def_o.unwrap(), fname)
 }
 
+// #397: the receiver's symbol, for callers holding an Ident (which has
+// carried a Sym since #292) rather than a spelling. Skips resolving the
+// symbol to a name just so get_struct can hash it back.
+priv static_ns_func_def_sym := func(sname: Sym, fname: Str, ctx: Context) returns Option(ref Expr) {
+    def_o := ctx.scope.get_struct_by_sym(sname)
+    if def_o.is_none() { return Option(ref Expr).None }
+    return def_static_ns_func_def(def_o.unwrap(), fname)
+}
+
 // The FuncDef behind a namespace member (`Str.size`), or None when the
 // member holds a value. Same slot-is-not-an-Expr reasoning as hb_func_def.
 ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Expr) {
@@ -4216,6 +4225,19 @@ ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref
         if hb_o.is_some() { return hb_func_def(hb_o.unwrap()) }
     }
     return static_ns_func_def(sname, fname, ctx)
+}
+
+// Sym-taking twin: same two steps, but the static lookup skips the hash
+// for a caller that already holds the receiver's symbol. The dynamic
+// ns_fields probe still needs the spelling, so it resolves -- one
+// resolve (a vector index) beats one hash of the whole name.
+ns_func_def_sym := func(sname: Sym, fname: Str, mut ctx: Context) returns Option(ref Expr) {
+    ref mut c : Context = ctx
+    if c.eval.ns_fields.is_some() {
+        hb_o := scope_lookup_ns_binding(ns_scope(c), c.symbols.resolve(sname), fname)
+        if hb_o.is_some() { return hb_func_def(hb_o.unwrap()) }
+    }
+    return static_ns_func_def_sym(sname, fname, ctx)
 }
 
 // Recover the qualified identity of a first-class namespace callable. A
