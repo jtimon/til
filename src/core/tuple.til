@@ -90,16 +90,23 @@ namespace:
     ///
     /// A typed read reaches this through ~get_checked~ below; calling it
     /// by hand, ahead of an unchecked read, reads the same way.
-    expect_type := func(self: Tuple, i: USize, want: Str) {
+    ///
+    /// ~loc~ is #281's trailing-__LOC__ parameter: it resolves at the CALL
+    /// SITE, so the panic names the line that read the element wrong.
+    /// Without it every one of these reported src/core/tuple.til, where
+    /// nothing is wrong -- and the whole point of the check is to send the
+    /// reader to the read.
+    expect_type := func(self: Tuple, i: USize, want: Str, loc: Str = __LOC__) {
         if i >= self.type_names.len() {
             panic("Tuple.expect_type: index ", i.to_str(), " out of bounds (len ",
-                  self.type_names.len().to_str(), ")")
+                  self.type_names.len().to_str(), ")", loc = loc)
         }
         ref got : Str = self.type_names[i]
         if got == "Dynamic" { return }
         if got.eq(want).not() {
             panic("Tuple element ", i.to_str(), " is a '", got, "', read as a '", want,
-                  "'; ask type_at(", i.to_str(), ") before reading a dynamic value")
+                  "'; ask type_at(", i.to_str(), ") before reading a dynamic value",
+                  loc = loc)
         }
     }
 
@@ -107,9 +114,10 @@ namespace:
     /// binding (`ref a : I64 = t.get(0)`) lowers to this, so the read is
     /// checked against what the element actually is instead of
     /// reinterpreting its bytes. ~expect_type~ decides; see it for why a
-    /// "Dynamic" element is exempt.
-    get_checked := func(self: Tuple, i: USize, want: Str) returns ref Dynamic {
-        self.expect_type(i, want)
+    /// "Dynamic" element is exempt. ~loc~ is forwarded rather than
+    /// defaulted again, so the panic names the READ, not this line.
+    get_checked := func(self: Tuple, i: USize, want: Str, loc: Str = __LOC__) returns ref Dynamic {
+        self.expect_type(i, want, loc = loc)
         return self.get(i)
     }
 

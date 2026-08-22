@@ -3051,6 +3051,39 @@ priv infer_array_vec_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str,
         } else if elem_t.is(Type.Dynamic).not() {
             validate_fcall_arg(e.children[si], elem_t, resolved_elem_type,
                 format(name, "() literal element"), OwnType.Shallow, ctx)
+        } else {
+            // #392 stage C: `array(Dynamic, ...)` / `vec(Dynamic, ...)` stay
+            // RAW containers -- one word per element, no record of what went
+            // in. That is what Dynamic means, and what #358 kept the literal
+            // valid for; making it build a Tuple instead would change the
+            // type it returns out from under every `Array(Dynamic)` that
+            // holds a raw word today (the interned Vec(Dynamic)s in
+            // context.til, test_vec_dynamic's raw mallocs, every FFI
+            // pointer), to give a second spelling for something Tuple and
+            // ..Dynamic already do.
+            //
+            // So #358's "each element converts independently" survives -- for
+            // WORDS. It never held for a wider value: `array(Dynamic, "hello",
+            // 42)` read its first element back as a Str whose count came from
+            // the SECOND element, on both backends, silently. Stage B rejects
+            // that at Array(Dynamic).set; the literal intercepts before the
+            // variadic machinery, so it was the one way left in. Same rule,
+            // same remedy: build a Tuple, which keeps every element at its
+            // true size.
+            elem_name_o := expr_type_name_ref(e.children[si])
+            if elem_name_o.is_some() {
+                ref elem_name : Str = elem_name_o.unwrap()
+                over := dynamic_slot_overflow(elem_name, scope, ctx)
+                if over > 0 {
+                    // Not the words "literal element": that phrase is the
+                    // needle counting #358's element-TYPE mismatches, and
+                    // this is a different check with a different remedy.
+                    e.children[si].type_error(format("a Dynamic element slot holds one ",
+                        PTR_SIZE_BYTES.to_str(), "-byte word, but this element of an ", name,
+                        "() literal is '", elem_name, "' (", over.to_str(),
+                        " bytes), so it would keep only its first word and lose the rest; store a pointer, or build a Tuple, which keeps every element at its true size"), ctx)
+                }
+            }
         }
     }
     if name == "array" {

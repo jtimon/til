@@ -4264,6 +4264,16 @@ priv desugar_tuple_typed_read := func(mut stmt: Expr, want: Str, scope: TypeScop
     mut want_lit := Expr.new(NodeType.Literal(Literal.Str(want.clone())), rhs.line, rhs.col)
     want_lit.set_til_type(Type.Struct("Str"))
     rhs.add_child(own want_lit)
+    // get_checked's trailing `loc: Str = __LOC__` has to be filled HERE. The
+    // call-site fill that resolves a defaulted __LOC__ runs during argument
+    // inference, and this node is built after that, carrying the resolved
+    // `get` callee's stamp -- so nothing downstream would ever look at
+    // get_checked's own signature, and the call would reach the backends one
+    // argument short. Materializing it through resolve_default_value keeps
+    // the location's spelling in the one place that knows it.
+    mut loc_lit := resolve_default_value(Expr.new(NodeType.Loc, rhs.line, rhs.col), rhs, ctx)
+    loc_lit.set_til_type(Type.Struct("Str"))
+    rhs.add_child(own loc_lit)
     sync_own_args_from_callee(rhs, scope, ctx.symbols)
 }
 

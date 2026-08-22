@@ -345,6 +345,16 @@ a second look. It is one of two things:
      no-op ~default_delete~. ~Map(K, Dynamic)~ and ~Vec(Dynamic)~ do NOT free
      their values on teardown -- so whoever puts a heap pointer in there owns
      a manual free. The interpreter's runtime is built from these.
+
+     A ~Dynamic~ slot is ONE WORD, so a POINTER is all it can hold. Putting a
+     wider value in one -- ~Array(Dynamic).set(own s)~ on a 16-byte ~Str~, an
+     ~array(Dynamic, "hello")~ literal, a plain ~d : Dynamic = s~ binding --
+     used to keep the first eight bytes and lose the rest, silently and in
+     both backends; [[../../issues/fixed/392.org][#392]] stages B and C
+     reject all three. ~ref~ and ~own~ are the spellings that DO fit, because
+     both store the address. When what you want really is a heterogeneous
+     container, that is ~Tuple~: it records every element's type and size
+     beside it, and a ~..Dynamic~ variadic already travels as one.
   3. Inside a hand-written ~clone~ / ~delete~ / ~move~ implementation (the
      container destructors themselves -- ~Vec.delete~, ~Map.delete~, etc.).
      These ARE the destructors the garbager calls; they are allowed to free.

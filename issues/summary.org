@@ -10,8 +10,6 @@
 ** Medium
 *** [[./open/397.org][#397]] A Type carries its Sym: Struct/Enum/Custom payloads become symbols
 * Features
-** High
-*** [[./open/392.org][#392]] Dynamic erasure carries no type: ..Dynamic loses values; Tuple is the carrier that does not
 ** Medium
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
