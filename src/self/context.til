@@ -967,6 +967,11 @@ BuilderFuncScratch := struct {
     stack_local_types := Map(Sym, Str).new()
     stack_lit_str_locals := Set(Sym).new()
     force_heap_stack_lit_str_own : Bool = false
+    // #371: does the own argument being emitted travel as a caller-frame
+    // slot? Decided by the CALLEE PARAMETER, never the argument: an I64
+    // passed into an `own Dynamic` parameter (Array(Dynamic)) must still be
+    // boxed, because adopt__Dynamic still frees it.
+    own_arg_travels_by_slot : Bool = false
     unsafe_to_hoist := Set(Sym).new()
     ref_locals := Set(Sym).new()
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked

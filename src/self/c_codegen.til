@@ -467,6 +467,63 @@ priv is_value_param := func(name: Str, mut ctx: Context) returns Bool {
     }
 }
 
+// #371: does an `own` parameter of this DECLARED TYPE NAME travel as the
+// address of a caller-frame slot instead of a malloc'd box?
+//
+// For a primitive there is no destructor and no owned interior, so "the
+// callee consumes the value" IS the byte copy. The free(own src) in adopt
+// was never part of own's semantics -- it was the box-passing ABI cleaning
+// up its own vehicle. Remove the vehicle and the free goes with it.
+//
+// Keyed on the declared SPELLING, and every site below asks this same
+// question of the same string. That uniformity is the correctness
+// argument: caller and callee must never disagree, or the value is either
+// leaked (caller boxes, callee no longer frees) or wild-freed (caller
+// passes a slot, callee still frees). A monomorphized generic is exactly
+// where they can drift -- `own val: T` in Array__I64_set has type_name()
+// substituted to "I64" while its til_type can still read Custom("T"), so
+// resolving the TYPE rather than reading the spelling answers differently
+// on the two sides.
+//
+// Dynamic is excluded and not by omission: it is the typer's opt-out, so
+// an own Dynamic parameter can be a real heap pointer the callee must free
+// (free, realloc). It keeps the box ABI unchanged.
+priv type_name_travels_by_slot := func(name: Str) returns Bool {
+    if name == "Dynamic" { return false }
+    for prim : Str in PRIM_NAMES { if prim == name { return true } }
+    for alias_name : Str in WIDTH_ALIAS_NAMES { if alias_name == name { return true } }
+    return false
+}
+
+// #371: is `name` a parameter of the function being emitted whose own-ness
+// is carried by a caller-frame slot? Such a parameter has no heap wrapper,
+// so a source-level free(own name) has nothing physical to release. This is
+// the ABI, not a defensive guard: the slot belongs to the caller's frame by
+// definition, so freeing it would be a wild free.
+priv is_slot_own_param := func(name: Str, mut ctx: Context) returns Bool {
+    if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
+    switch ctx.builder_func.current_fdef {
+    case .None: return false
+    case .Some(cf):
+    switch cf.node_type {
+    case .FuncDef(fd):
+        for i in 0..fd.sig.params.len() {
+            if fd.sig.params[i].name == name {
+                if fd.sig.params[i].own_type.is(OwnType.Own).not() { return false }
+                return type_name_travels_by_slot(fd.sig.params[i].type_name())
+            }
+        }
+        return false
+    case:
+        return false
+    }
+    }
+}
+
+// #371: slot or box for the own argument now being emitted. A gated
+// argument path has already answered from the CALLEE's parameter; anywhere
+// else, the argument's own type is the evidence available.
+
 priv is_stack_outer_param := func(name: Str, mut ctx: Context) returns Bool {
     if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
     switch ctx.builder_func.current_fdef {
@@ -1323,12 +1380,31 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             if own_arg.and(callee_param_type_name(callee_name, i - 1, ctx).eq("Dynamic")) {
                 ctx.builder_func.force_heap_stack_lit_str_own = true
             }
+            // #371: the callee's parameter decides -- an I64 passed into an
+            // `own Dynamic` parameter must still be boxed, because
+            // adopt__Dynamic still frees it.
+            //
+            // When the callee cannot be resolved at all, fall back to the
+            // ARGUMENT's type. callee_param_type_name goes through
+            // lookup_func_symbol_name, which does not find a flattened
+            // monomorphized namespace method (Array__I64_set), and answering
+            // "box" there disagreed with that callee's own body -- which
+            // resolves its parameter from its FuncDef and suppresses the
+            // free. That mismatch is the ffi_run leak. The fallback is the
+            // best evidence available and agrees with the callee whenever
+            // argument and parameter types match, which is everything except
+            // erasure to Dynamic -- and an erasing callee is one this lookup
+            // does find.
+            saved_slot_own := ctx.builder_func.own_arg_travels_by_slot
+            cpt_name := callee_param_type_name(callee_name, i - 1, ctx)
+            ctx.builder_func.own_arg_travels_by_slot = type_name_travels_by_slot(cpt_name)
             if stack_outer_arg { emit_stack_outer_arg(f, arg, depth, ctx) }
             else {
                 emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).not())
                     .and(delete_stack_outer.not()), ctx)
             }
             ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
+            ctx.builder_func.own_arg_travels_by_slot = saved_slot_own
         }
     }
 }
@@ -3165,8 +3241,11 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
         mut arg_value := false
         mut arg_own := false
         mut arg_stack_outer := false
+        // #371: same question, same string, asked of the callee parameter.
+        mut arg_slot_own := false
         if i - 1 < sfd.sig.params.len() {
             ref p : Declaration = sfd.sig.params[i - 1]
+            arg_slot_own = type_name_travels_by_slot(p.type_name())
             arg_value = func_param_passes_c_value(sfd, i - 1, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             arg_own = p.own_type.is(OwnType.Own)
             arg_stack_outer = func_param_has_stack_outer(sfd, i - 1, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
@@ -3178,8 +3257,11 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
         } else if arg_stack_outer {
             emit_stack_outer_arg(f, e.children[i], depth, ctx)
         } else {
+            saved_slot_own2 := ctx.builder_func.own_arg_travels_by_slot
+            ctx.builder_func.own_arg_travels_by_slot = arg_slot_own
             emit_as_ptr(f, e.children[i], depth,
                 get_own_arg(e, i).and(get_keep_outer_arg(e, i).not()), ctx)
+            ctx.builder_func.own_arg_travels_by_slot = saved_slot_own2
         }
     }
 }
@@ -3836,6 +3918,15 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                         if own_arg.and(callee_param_type_name(flat, i - 1, ctx).eq("Dynamic")) {
                             ctx.builder_func.force_heap_stack_lit_str_own = true
                         }
+                        // #371: the namespace-method path. `flat` is the
+                        // flattened monomorphized name (Array__I64_set), which
+                        // is where the callee parameter actually resolves --
+                        // and this is the path the desugarer's variadic array
+                        // setters take, so leaving it ungated boxed a value
+                        // whose callee no longer frees.
+                        saved_slot_own3 := ctx.builder_func.own_arg_travels_by_slot
+                        ctx.builder_func.own_arg_travels_by_slot =
+                            type_name_travels_by_slot(callee_param_type_name(flat, i - 1, ctx))
                         if stack_outer_arg { emit_stack_outer_arg(f, e.children[i], depth, ctx) }
                         else {
                             emit_as_ptr(f, e.children[i], depth,
@@ -3843,6 +3934,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                                     .and(delete_stack_outer.not()), ctx)
                         }
                         ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
+                        ctx.builder_func.own_arg_travels_by_slot = saved_slot_own3
                     }
                 }
                 f.write(")")
@@ -3880,6 +3972,11 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             case .Ident(free_id):
                 free_stack_param = is_value_param(free_id.ident_name(ctx.symbols.names), ctx)
                     .or(is_stack_outer_param(free_id.ident_name(ctx.symbols.names), ctx))
+                    // #371: an own PRIMITIVE parameter is a caller-frame
+                    // slot, so there is no box to release. One rule covers
+                    // both consumption shapes -- adopt's free(own src) and
+                    // Set.add's hand-written T.delete + free(own val) pair.
+                    .or(is_slot_own_param(free_id.ident_name(ctx.symbols.names), ctx))
             case:
             }
             if free_stack_param {
@@ -4684,7 +4781,16 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                         ctype = c_type_name(e.til_type(), "", ctx)
                     }
                 }
-                if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_name(ctx.symbols.names), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not()) {
+                if ctx.builder_func.own_arg_travels_by_slot {
+                    // #371: `&(T){ v }` -- the address of a SCALAR compound
+                    // literal, type T*. Not `&((T[]){ v })`, which is
+                    // T(*)[1] and does not match the pointer-taking
+                    // parameter.
+                    f.write("&(").write(ctype).write("){ ")
+                    if stack_outer_param { emit_deref(f, e, depth, ctx) }
+                    else { emit_expr(f, e, depth, ctx) }
+                    f.write(" }")
+                } else if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_name(ctx.symbols.names), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not()) {
                     f.write("&")
                     f.write(builder_resolve_c_ident_name(ident.ident_name(ctx.symbols.names), ctx))
                 } else {
@@ -4752,7 +4858,11 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 if e_sname_o.is_some() { ctype = c_type_name(e.til_type(), e_sname_o.unwrap(), ctx) }
                 else { ctype = c_type_name(e.til_type(), "", ctx) }
             }
-            if is_own {
+            if is_own.and(ctx.builder_func.own_arg_travels_by_slot) {
+                f.write("&(").write(ctype).write("){ ")
+                emit_expr(f, e, depth, ctx)
+                f.write(" }")
+            } else if is_own {
                 f.write("({ ").write(ctype).write(" *_oa = malloc(TIL_BOX(").write(ctype).write(")); *_oa = ")
                 emit_expr(f, e, depth, ctx)
                 if ctype == "Str" { f.write("; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }") }
@@ -5021,7 +5131,12 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
-                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false, false)
+                    // #371: a PRIMITIVE element takes the caller-frame slot
+                    // form. This emitter owned its box and released it via
+                    // `<T>_delete(_val, 1)`, and that free is now a no-op for
+                    // an own primitive param, so a box here would leak.
+                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false,
+                        type_name_travels_by_slot(elem_c))
                     // Issue #225: write the element directly instead of via
                     // Array.set. Array.set is about to start throwing
                     // OutOfBounds (so `arr[i] = v` can desugar to
