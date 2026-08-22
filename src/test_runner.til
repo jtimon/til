@@ -55,6 +55,23 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 // cannot bury the rest of it. `what` names the kind of content so a reader
 // scanning the log knows whether the block is a raw capture or a diff.
 echo_file := proc(what: Str, path: Str) {
+    // A capture file that does not EXIST is the third case, and the one that
+    // used to be fatal. The redirect this reads back is spliced onto the END
+    // of a registered command, so a `&&` chain gives it to the chain's LAST
+    // element -- and a chain that short-circuits earlier never creates the
+    // file. File.readfile then opens through cfile_open, which exit(1)s on a
+    // missing path, INSIDE the failure path: after the FAIL line and before
+    // the RESULT line. The suite saw a row with no RESULT and reported
+    // "test_runner did not run it", which is wrong -- it ran, and it was
+    // reporting the failure when it died. self_translate is that shape
+    // (`translate ... && cmp ... && cmp ...`), so a genuine cmp mismatch
+    // there came out as a harness accusation with no cmp line under it.
+    // The reporter has to survive what it is reporting on.
+    if File.exists(path).not() {
+        println("--- ", what, " (", path, "): NOT CREATED",
+                " (a && chain short-circuited before the redirect)")
+        return
+    }
     content := File.readfile(path)
     // An EMPTY capture is a finding, not a reason to stay quiet: a failing
     // command that wrote nothing at all did not get far enough to report
