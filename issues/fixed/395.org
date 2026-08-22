@@ -1,6 +1,48 @@
 # priority: medium
 # category: bugs
-** OPEN #395 tutorial_file_doctests escapes its runner: 434/435 every run
+** FIXED #395 tutorial_file_doctests escapes its runner: 434/435 every run
+
+*** Post-mortem
+
+Root cause: the codebase already HAS a way to put a shell chain in a
+registered command, and this one site did not use it. ~run_all_parallel~
+splices a registered command into ~<cmd> > <outfile> 2>&1~ and hands the
+result to a shell, so an ~&&~ written bare is the OUTER shell's operator: it
+splits the chain before ~test_runner~ starts, leaving it wrapping only the
+first command while the redirect lands on the last. Every other chained test
+quotes the token -- ~'&&'~ -- so it survives as an argument and takes effect
+inside ~test_runner~'s own shell, and ~self_translate~'s comment says exactly
+that three lines above where it does it. The tutorial block, written later,
+built its chain with bare ~&&~ and so ran outside the runner entirely.
+
+Fix, in two parts.
+
+The tutorial doctests now register ONE ~add_single~ per command -- interpret
+and run, per file -- instead of one chain. That is the direction this issue
+preferred over quoting, and the reason holds up: each doctest gets its own
+result row, its own timing, and its own captured output when it fails. The
+compiled rows pass explicit ~-o bin/c/<label> -c gen/c/<label>.c~ like
+~add_cli_pair~ does, because these rows run in PARALLEL now and the default
+artifact paths are keyed by source basename -- shared ground. Labels carry a
+~tutorial_~ prefix: the label keys the result file, and ~namespaces~ alone
+would collide with test/namespaces.til.
+
+And the silence that let it last: a result file with no ~RESULT ~ line is now
+a hard failure. ~test_runner~ prints that line on every path it takes, so its
+absence means the runner never ran -- there is no benign reading. Before, the
+missing line parsed as ~ok=0~ and the test simply stopped being counted,
+which is why the only symptom was a "Passed: N-1/N" printed directly above
+the words "all tests passed".
+
+Verified both directions. With the fix the suite reports 459/459 -- the
+twelve new rows replacing the one chained row, and, more to the point, no
+legitimate test trips the new guard. To check it fires at all, a temporary
+~add_single(tests, "guard_probe_395", "docs", 0, "", "true && true")~ was
+registered and the suite run: it printed
+~FAIL: guard_probe_395 produced no RESULT line~ and exited non-zero, with
+"all tests passed" gone. That probe was removed; the guard is the regression
+test, and it would have caught the original the day the tutorial chain was
+added.
 
 Every ~make test~ prints
 

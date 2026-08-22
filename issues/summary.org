@@ -1,6 +1,3 @@
-* Bugs
-** Medium
-*** [[./open/395.org][#395]] tutorial_file_doctests escapes its runner: 434/435 every run
 * Cleanups
 ** High
 *** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run

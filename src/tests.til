@@ -746,13 +746,25 @@ run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64, mut suit
                     ref mut t : Test = tests[slot.test_idx]
                     runner_out := File.readfile(t.outfile)
 
-                    // Find RESULT line
+                    // Find RESULT line. #395: its ABSENCE is a failure, not a
+                    // zero to carry quietly. test_runner prints the line on
+                    // every path it takes, so no line means it never ran --
+                    // which is what a shell operator in a registered command
+                    // does, by taking the redirect (and the rest of the work)
+                    // away from it. The old silence let one such test sit
+                    // uncounted for as long as it existed, visible only as a
+                    // "Passed: N-1/N" over the words "all tests passed".
                     mut result_line := ""
                     result_pos := runner_out.rfind("RESULT ")
                     if result_pos >= 0 {
                         result_pos_u : USize = result_pos.to_usize()
                         result_line = runner_out.substr(result_pos_u,
                             runner_out.len() - result_pos_u)
+                    } else {
+                        println("FAIL: ", t.label, " produced no RESULT line",
+                            " -- test_runner did not run it (a shell operator",
+                            " in the registered command takes the redirect)")
+                        fail = 1
                     }
 
                     // Parse common fields
@@ -1942,47 +1954,31 @@ main := proc(args: ..Str) {
     // add_both(tests, "test/doc_comments.til", flags)
     write_doc_doctests(DOC_DOCTEST_FILE)
     add_both(tests, DOC_DOCTEST_FILE, flags)
+    // #395: ONE row per command, never a shell `&&` chain. run_all_parallel
+    // splices a registered command into `<cmd> > <outfile> 2>&1`, and a shell
+    // binds that redirect to the LAST command of a chain -- so the chained
+    // form these doctests used ran only its first command inside test_runner,
+    // sent the RESULT line to the suite's own stdout, and left an empty result
+    // file that was never counted (the standing 434/435). A row per command
+    // also gives each doctest its own timing and its own captured output when
+    // it fails, which the chain could not.
     tutorial_run_files := write_tutorial_file_doctests()
-    mut tutorial_cmd_size : USize = 0
-    mut tutorial_step_count : USize = 0
     for tutorial_file in tutorial_run_files {
+        // The label keys the result file, so a bare basename would collide
+        // with the test/ file of the same name (test/namespaces.til).
+        tutorial_label := format("tutorial_", test_basename(tutorial_file))
         if en_interp == 1 {
-            if tutorial_step_count > 0 { tutorial_cmd_size = tutorial_cmd_size + " && ".len() }
-            tutorial_cmd_size = tutorial_cmd_size + til_bin.len() + " interpret ''".len() + tutorial_file.len()
-            tutorial_step_count++
+            add_single(tests, format(tutorial_label, "_i"), "docs", 0, "",
+                format(til_bin, " interpret '", tutorial_file, "'"))
         }
         if en_run == 1 {
-            if tutorial_step_count > 0 { tutorial_cmd_size = tutorial_cmd_size + " && ".len() }
-            tutorial_cmd_size = tutorial_cmd_size + til_bin.len() + " run ''".len()
-            tutorial_cmd_size = tutorial_cmd_size + asan_flag.len() + tutorial_file.len()
-            tutorial_step_count++
+            // Explicit artifact paths, like add_cli_pair: these rows run in
+            // PARALLEL now, and the defaults are keyed by source basename
+            // (gen/til/<name>.c, bin/<name>), which is shared ground.
+            add_single(tests, format(tutorial_label, "_r"), "docs", 0, "",
+                format(til_bin, " run", asan_flag, " -o bin/c/", tutorial_label,
+                    " -c gen/c/", tutorial_label, ".c '", tutorial_file, "'"))
         }
-    }
-    if tutorial_step_count > 0 {
-        mut tutorial_cmd := Str.with_capacity(tutorial_cmd_size)
-        mut step : USize = 0
-        for tutorial_file in tutorial_run_files {
-            if en_interp == 1 {
-                if step > 0 { tutorial_cmd.push_str(" && ") }
-                tutorial_cmd.push_str(til_bin)
-                tutorial_cmd.push_str(" interpret '")
-                tutorial_cmd.push_str(tutorial_file)
-                tutorial_cmd.push_str("'")
-                step++
-            }
-            if en_run == 1 {
-                if step > 0 { tutorial_cmd.push_str(" && ") }
-                tutorial_cmd.push_str(til_bin)
-                tutorial_cmd.push_str(" run")
-                tutorial_cmd.push_str(asan_flag)
-                tutorial_cmd.push_str(" '")
-                tutorial_cmd.push_str(tutorial_file)
-                tutorial_cmd.push_str("'")
-                step++
-            }
-        }
-        if tutorial_cmd.len() != tutorial_cmd_size { panic("tutorial doctest command size mismatch") }
-        add_single(tests, "tutorial_file_doctests", "docs", 0, "", tutorial_cmd)
     }
 
     // === 2 FFI tests ===
