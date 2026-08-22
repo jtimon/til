@@ -1,0 +1,123 @@
+# priority: medium
+# category: optimizations
+** OPEN #397 A Type carries its Sym: Struct/Enum/Custom payloads become symbols
+
+*** Why
+
+The #292/#337 interning migration converted the scope registries to
+Map(Sym, ...) keys, but the names that FEED the hot lookups still come
+from the AST's type spellings: Type.Struct(Str) / Type.Enum(Str) /
+Type.Custom(Str), read via expr_type_name_ref and friends. So
+get_struct(name) and get_binding_name(name) hash a spelling to recover
+a symbol that was known when the Type value was built.
+
+Measured on `translate test/first_class.til` (2026-08-19, master
+d125e36e): SymbolPool.lookup runs 540,767 times; get_struct is 41.6%
+of the calls and get_binding_name 29.3% -- 71% combined. Each lookup
+is fnv1a over the whole name (~15 instructions/byte at -O0) plus a
+Str_eq bucket confirmation; fnv1a + Str_eq together are ~8% of the
+run. This is the main remaining chunk of the interning migration's
+half-way cost (the migration's maps got cheaper, but paying
+hash+confirm at the door made hot paths NET slower than the
+pre-interning Str-keyed binary searches).
+
+Micro-alternatives measured and rejected before this design, so they
+stay rejected:
+  - first-byte fast path in Str.cmp: +4.5%;
+  - value-form tag reads: +0.001% (noise);
+  - wiring the never-read bindings_filt as a probe filter: the filter
+    skipped 18.5% of probes and still cost +2.5% net (per-call
+    fingerprint arithmetic on 826K calls outweighed the skipped
+    searches). At -O0 the win comes from removing WORK, not from
+    adding cleverness in front of it.
+
+*** The design: replace, not duplicate
+
+Type's name payloads become symbols:
+
+    Struct: Sym,  Enum: Sym,  Custom: Sym   (FuncPtrSig: Sym too)
+
+ONE representation. The alternative -- carrying {name: Str, sym: Sym}
+side by side -- is a second representation of the same fact that must
+never disagree, exactly what CLAUDE.md's duplication rule exists to
+prevent, and is rejected here by design, not deferred.
+
+Spellings come back through SymbolPool.resolve(sym) at the edges that
+genuinely need text: diagnostics, name mangling, C emission, to_str.
+A site that forgets resolve() prints a number instead of a name --
+ugly and loud, not silently wrong.
+
+*** Why this is NOT a single commit
+
+doc/self.org "Staged migration across master merges" applies twice
+over:
+
+  - Type's own comment records the constraint: til_boot has Type's
+    layout and tag values BAKED into its compiled C. Changing a
+    payload from Str (16 bytes) to Sym (4) changes the variant's
+    layout; a single commit would have master's til_boot mis-decoding
+    Type values while bootstrapping the very compiler that defines
+    the new layout. Pass 1 dies, so two_pass cannot rescue it (the
+    CAP_INLINE lesson, which burned exactly this way).
+  - The interpreter reads Type through its raw-bytes layout model
+    (struct_layouts / enum payload slots), so both backends must
+    switch understanding in the same step a value's bytes change.
+
+*** Staged plan (each step merges to master before the next)
+
+1. Preparation: teach the compiler to CONSTRUCT and MATCH both forms.
+   Add Sym-carrying twins appended at the enum's END (tag stability,
+   same rule Primitive followed): StructSym: Sym, EnumSym: Sym,
+   CustomSym: Sym, FuncPtrSigSym: Sym. Nothing produces them yet.
+   Shared accessors in context.til so consumers ask one question:
+   type_sym(t, symbols) (interning the Str forms on demand) and
+   type_name_ref(t, symbols) (resolving the Sym forms). Suite green,
+   emitted C byte-identical. [plain commit]
+
+2. Consumers go through the accessors. Mechanical sweep of the ~151
+   construct/match sites' READERS (expr_type_name_ref callers,
+   type_to_name, switch arms on Type.Struct/Enum/Custom) to accept
+   both forms via the step-1 accessors. get_struct/get_binding_name
+   callers switch to get_struct_by_sym(type_sym(...)) --
+   the hot-path win starts landing here even before producers flip,
+   because type_sym interns ONCE per call instead of per scope level.
+   Suite green each slice; can be several commits, one file family
+   per commit. [plain commits]
+
+3. Producers flip: infer/parse/init sites that build Type.Struct(name)
+   build Type.StructSym(symbols.intern(name)) instead. Emitted C
+   changes (different tags in Type literals); "Two-pass: " commits.
+   The interpreter's layout tables pick up the new variants' sizes in
+   the same commits.
+
+4. Retirement: when nothing constructs the Str forms, reject them in
+   a transitional commit (panic in the accessors' Str arms naming this
+   issue), then delete the variants... which SHIFTS TAGS -- so the
+   deletion is its own staged dance: master's til_boot must already
+   understand the post-delete tag numbering before the commit that
+   renumbers. Follow Primitive's precedent in reverse and expect this
+   step to be the slowest; it can also simply WAIT -- dead variants
+   cost nothing at runtime -- until a natural Type-layout change
+   batches with it.
+
+5. Measure at every step against the standing baseline (4,596M
+   instructions at 9263b9c8, before the interning regression):
+   expect step 2 to remove most of get_struct's 225K hashes, step 3
+   to remove the rest and most of get_binding_name's. The success
+   criterion is not "faster than yesterday" but BELOW THE PRE-INTERNING
+   BASELINE, since that is what finishing the migration is for.
+
+*** Risks
+
+  - Forgotten resolve() at a text edge: symbol number in a diagnostic
+    or, worse, in MANGLED C names. The corpus eqcheck catches the
+    C-name case byte-for-byte; goldens and typer_errors.til catch
+    diagnostics.
+  - The Sym is Context-local: a Type value must never cross Contexts
+    (REPL cached base vs deltas is the place to look; SymbolPool
+    clone semantics already note "a cloned Context starts with a
+    FRESH interner").
+  - Map(Sym,...) iteration order is intern order, not alphabetical:
+    anywhere a walk over a Type-keyed or name-keyed structure feeds
+    OUTPUT, determinism must be re-checked (the #292 conversions are
+    the precedent that this is manageable).

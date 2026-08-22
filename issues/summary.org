@@ -13,6 +13,7 @@
 * Optimizations
 ** Medium
 *** [[./open/371.org][#371]] Own primitive args: C stack slot passed by pointer, not a malloc'd box
+*** [[./open/397.org][#397]] A Type carries its Sym: Struct/Enum/Custom payloads become symbols
 * Features
 ** High
 *** [[./open/392.org][#392]] Dynamic erasure carries no type: ..Dynamic loses values; Tuple is the carrier that does not
