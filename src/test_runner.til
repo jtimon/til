@@ -84,6 +84,30 @@ print_captured_err := proc(path: Str) {
     echo_file("captured output", path)
 }
 
+// The capture file must never survive the run that did not write it.
+//
+// What fills it is a shell redirect, and in a chained command -- `a '&&' b`,
+// which ~130 rows use as `translate ... '&&' cat gen/c/x.c` -- that redirect
+// belongs to `b` alone. When `a` fails, `b` never runs, the file is never
+// opened, and the LAST run's contents are still sitting there. `count` then
+// reads it: it counts needles and deliberately does not look at the exit
+// status, because the typer-error rows legitimately exit non-zero. So a
+// chain that died at `translate` counted the previous run's generated C and
+// reported ok=1 -- a green row for a command that failed. Reproduced
+// directly:
+//
+//     test_runner count P HELLO 1 -- echo HELLO        -> ok=1  (writes P.out)
+//     test_runner count P HELLO 1 -- false '&&' echo HELLO -> ok=1, exit 0
+//
+// Truncating here is the whole fix: an unwritten capture is now empty, which
+// `count` fails on and echo_file reports as "EMPTY (nothing was written)".
+// Wrapping the redirect around the chain instead would ALSO capture the
+// first command's output, which is not what these rows mean -- their needles
+// are counted against the cat'd file, not against translate's chatter.
+truncate_capture := proc(path: Str) {
+    File.writefile(path, "")
+}
+
 // An output mismatch reported as two blobs makes the reader eyeball them;
 // `diff -u` says which lines moved. Both sides are real files on disk, so
 // the reader can rerun the same diff by hand from the printed command.
@@ -301,6 +325,7 @@ main := proc(args: ..Str) {
         }
 
         outfile := format("gen/out/single/", label, ".out")
+        truncate_capture(outfile)
 
         phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
         mut ok := 1
@@ -381,6 +406,7 @@ main := proc(args: ..Str) {
         }
 
         outfile := format("gen/out/single/", label, ".out")
+        truncate_capture(outfile)
 
         phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
         actual_out := File.readfile(outfile)

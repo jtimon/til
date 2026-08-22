@@ -44,6 +44,31 @@ registered and the suite run: it printed
 test, and it would have caught the original the day the tutorial chain was
 added.
 
+*** Follow-up: the two checks the fix above left out
+
+Both come straight from this issue's own text and landed after it.
+
+~one_command_only~ is "that assumption is worth making explicit or
+enforcing", enforced: ~add_single~, ~add_count~ and ~add_counts~ refuse a
+suffix containing a bare ~ && ~ and name the row. The missing-RESULT failure
+catches the same mistake, but from the symptom and only once the suite has
+run; this catches it at the call site, before anything is spawned. The
+quoted ~'&&'~ form is not matched by the needle and stays legal -- it is how
+~self_translate~ and the gui build rows chain, correctly.
+
+And the count itself -- "after a run, ~total_passed == total_tests~" -- is
+now asserted in the summary rather than printed and ignored. That line is
+the one that reads as the original symptom: 434/435 sitting directly above
+"all tests passed", for as long as the chained row existed.
+
+Verified against deliberate breakage: a chained
+~add_single(tests, "tmp395_chain_probe", "docs", 0, "", "true && true")~
+panics at registration before a single row is spawned, and a row wired to a
+command that writes no RESULT gives both failures at once --
+~... wrote no RESULT line~ and
+~FAIL: 444/445 -- a registered test was counted but never passed~ -- exit 1,
+with "all tests passed" gone.
+
 Every ~make test~ prints
 
     Passed:       434/435

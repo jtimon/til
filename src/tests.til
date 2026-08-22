@@ -636,6 +636,28 @@ priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
 
 // --- Registration helpers ---
 
+// #395 left the runner able to REPORT a command it never ran; this refuses
+// to register one. run_all_parallel splices what these helpers build into
+// `<cmd> > <outfile> 2>&1` and hands it to a shell, so a bare `&&` belongs
+// to that OUTER shell: it splits the row before test_runner starts, keeps
+// the redirect on the last command, and leaves the runner wrapping only the
+// first. The missing-RESULT failure catches that afterwards, from the
+// symptom; this catches it at the call site, by name, before anything runs.
+//
+// Quoting is the way to chain, and it is what the rest of the suite does:
+// `'&&'` survives the outer shell as an ordinary argument, so test_runner
+// joins it back into its own command string and the whole chain runs inside
+// the measured phase (self_translate and the gui build rows both rely on
+// this). Hence the needle is the bare operator with spaces around it --
+// `'&&'` does not match, and must not.
+priv one_command_only := func(label: Str, cmd_suffix: Str) {
+    if cmd_suffix.find(" && ") >= 0 {
+        panic("test '", label, "' chains commands with a bare '&&': ", cmd_suffix,
+            " -- quote it as '&&' so test_runner runs the chain,",
+            " or register one row per command")
+    }
+}
+
 add_both := func(mut tests: Vec(Test), file: Str, flags: Str) {
     bn := test_basename(file)
     tests.push(own Test(
@@ -650,6 +672,7 @@ add_both := func(mut tests: Vec(Test), file: Str, flags: Str) {
 
 add_single := func(mut tests: Vec(Test), label: Str, category: Str,
     expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
+        one_command_only(label, cmd_suffix)
         mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
         if expected_out.len() > 0 {
             runner_cmd = format(runner_cmd, " ", expected_out, REGEN)
@@ -666,6 +689,7 @@ add_single := func(mut tests: Vec(Test), label: Str, category: Str,
 
 add_count := func(mut tests: Vec(Test), label: Str, category: Str,
     needle: Str, expected_count: I64, cmd_suffix: Str) {
+        one_command_only(label, cmd_suffix)
         quoted_needle := needle.replace("'", "'\\''")
         runner_cmd := format(RUNNER, " count ", label, " '", quoted_needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
         tests.push(own Test(
@@ -680,6 +704,7 @@ add_count := func(mut tests: Vec(Test), label: Str, category: Str,
 add_counts := func(mut tests: Vec(Test), label: Str, category: Str,
     cmd_suffix: Str, checks: ..CountCheck) {
         if checks.len() == 0 { panic("add_counts requires at least one check") }
+        one_command_only(label, cmd_suffix)
         mut runner_cmd := format(RUNNER, " count ", label)
         for i in 0..checks.len() {
             ref check : CountCheck = checks[i]
@@ -2711,6 +2736,20 @@ main := proc(args: ..Str) {
         "REGEN: golden_regen_probe", 1,
         format(RUNNER, " single golden_regen_probe 0 tmp/golden_regen_probe.expected --regen -- ",
             til_bin, " interpret examples/hello_cli.til"))
+    // A capture file cannot outlive the run that did not write it. The
+    // redirect filling it belongs to the LAST command of a chain, so when
+    // `false` short-circuits the rest the file is never opened -- and
+    // `count` reads that file without looking at the exit status, which
+    // legitimately is non-zero for the typer-error rows. Left stale, the
+    // ~130 `translate '&&' cat` rows would count the PREVIOUS run's
+    // generated C and report ok=1 for a translate that failed.
+    //
+    // Seeded here rather than by a second row: rows run in parallel and in
+    // no fixed order, so the only way to guarantee the capture is dirty
+    // before the row runs is to dirty it at registration.
+    run("printf STALE_CAPTURE_MARKER > gen/out/single/chain_capture_probe.out")
+    add_count(tests, "chain_capture_probe", "test",
+        "STALE_CAPTURE_MARKER", 0, "false '&&' true")
 
     // === Run all tests in parallel ===
     // Not one row starts until the table is known to be free of the
@@ -2861,6 +2900,19 @@ main := proc(args: ..Str) {
     println("Wall-clock:   ", ms_to_str(wall_ms))
     println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
     println("")
+
+    // The count itself, which #395 asked for and nothing else asserts: a
+    // registered row that did not pass is a failure, whatever else stayed
+    // green. The pass total is built from the RESULT lines the rows wrote,
+    // so a row that reports NOTHING lands here as a gap -- and for as long
+    // as this line did not exist, the gap was printed ("Passed: N-1/N")
+    // directly above the words "all tests passed" and read as normal.
+    if total_passed != total_tests {
+        println("FAIL: ", total_passed.to_i64().to_str(), "/",
+            total_tests.to_i64().to_str(),
+            " -- a registered test was counted but never passed")
+        fail = 1
+    }
 
     if fail == 0 {
         println("all tests passed")
