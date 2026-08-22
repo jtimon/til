@@ -206,13 +206,39 @@ first; nothing in A/B depends on it.
       Verified: terr392_wide_binding and terr392_store pin both
       diagnostics (typer error count 240 -> 242); suite green.
 
-      Not covered, and deliberately: an aggregate at a plain
-      ~: Dynamic~ binding is rejected only when it is WIDER than a word,
-      which is what this stage signed off. A word-sized struct
-      (~Small := struct { a : U32 }~) is still emitted as
-      ~void *d = s;~ and still dies in the C compiler rather than in the
-      typer -- the general rule is about the SOURCE being stored by
-      value, not about its size, and that is a wider change than B.
+      B3 DONE -- the width test became the general rule B2 named. B2 left
+      an aggregate at a plain ~: Dynamic~ binding rejected only when it
+      was WIDER than a word, and said the general rule is about the
+      SOURCE being stored by value, not about its size. It is:
+      ~void * d = e;~ is the same cc error for
+      ~struct { a : U32  b : U32 }~ as for a Str, and the interpreter
+      accepted every spelling of it. The check now fires on any AGGREGATE
+      at a plain or ~mut~ ~: Dynamic~ binding, ~ref~ / ~own~ exempt as
+      before, with the size kept in the message.
+
+      What made it look narrower than it was: exactly ONE shape escaped,
+      and by accident. An immutable binding of an immutable local Ident
+      is turned into a borrow by the aliasing rule in ~infer_decl_stmt~
+      (~sdecl.own_type = OwnType.Ref~), so ~d : Dynamic = e~ emitted
+      ~&e~ and worked, while ~mut d : Dynamic = e~, ~d : Dynamic = T()~
+      and ~mut d : Dynamic = mk()~ all emitted ~void * d = e;~ and died
+      in cc. Which spelling you wrote decided whether your program
+      compiled -- an unrelated optimization deciding a diagnostic. That
+      one working shape is now rejected too, which is the behaviour
+      change this carries: it was ~ref~ semantics without the ~ref~, and
+      B2 already rejected the wide version of the very same line.
+
+      The remedy in the message is also spelled the way it works now.
+      B2's wording suggested ~to_ptr~, but ~p : Dynamic = to_ptr(e)~ is
+      refused two checks down by the ref-returning-result rule; the
+      message says ~ref~, and ~ref p : Dynamic = to_ptr(e)~ works too.
+
+      Verified: four new fixtures in test/typer_errors.til (alias, mut,
+      constructor, call), 244 -> 248 errors, and the message gets its own
+      needle counted 5x under BOTH backends -- the wide binding now
+      reports through the same wording. Suite 463/463; self_translate
+      passes, so pass 2 is byte-identical (a diagnostic that never fires
+      while compiling the compiler changes no emission).
 
 - [ ] C. The array(Dynamic, ...) literal decision.
 

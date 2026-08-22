@@ -2178,9 +2178,16 @@ main := proc(args: ..Str) {
     // two different wrongs: an inline field hands free an address inside the
     // holder (abort interpreted, a raw gcc error compiled), an owned field
     // frees its box and leaks what it owned. The needle counts both.
+    // #392 follow-up: an aggregate at a plain or `mut` `: Dynamic` binding,
+    // whatever its size. Its own needle, because the rule stopped being about
+    // width: a struct that FITS in a word is still not a word, and four
+    // spellings of it (alias, mut, constructor, call) died in the C compiler
+    // while the interpreter took all four. Paired for the reason #342's rows
+    // are -- this is a diagnostic the two backends have to agree on, and the
+    // shape it covers is one they used to fail differently.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 246),
+        CountCheck(needle = "error:", expected_count = 250),
         CountCheck(needle = "no value parameter mentions it", expected_count = 2),
         CountCheck(needle = "no named signature", expected_count = 1),
         CountCheck(needle = "conflicting evidence", expected_count = 2),
@@ -2194,10 +2201,11 @@ main := proc(args: ..Str) {
         CountCheck(needle = "does not free managed type", expected_count = 2),
         CountCheck(needle = "cannot return a borrow of local", expected_count = 2),
         CountCheck(needle = "binds the owned pointer field", expected_count = 3),
-        CountCheck(needle = "where the address belongs", expected_count = 5))
+        CountCheck(needle = "where the address belongs", expected_count = 5),
+        CountCheck(needle = "is an aggregate, not a word", expected_count = 5))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 246),
+        CountCheck(needle = "error:", expected_count = 250),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
@@ -2207,7 +2215,8 @@ main := proc(args: ..Str) {
         CountCheck(needle = "does not free managed type", expected_count = 2),
         CountCheck(needle = "cannot return a borrow of local", expected_count = 2),
         CountCheck(needle = "binds the owned pointer field", expected_count = 3),
-        CountCheck(needle = "where the address belongs", expected_count = 5))
+        CountCheck(needle = "where the address belongs", expected_count = 5),
+        CountCheck(needle = "is an aggregate, not a word", expected_count = 5))
     // One interpreter capture pins both the aggregate and each parity class.
     add_counts(tests, "fcall_arg_parity_total_interp", "typer",
         format(til_bin, " interpret test/fcall_arg_parity_error.til"),

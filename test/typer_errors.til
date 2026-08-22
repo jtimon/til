@@ -1599,3 +1599,41 @@ terr398_via_param := func(s: Terr351Src) {
     ref mut h : Terr351Holder = st.hs[0]
     h.r.n = h.r.n + 1
 }
+
+// Stage B checked the WIDTH, and a struct that FITS in a word slipped
+// through: `void * d = e;` is the same cc error for an 8-byte struct as for a
+// Str, and the interpreter accepted every spelling of it. Exactly one shape
+// escaped, and by accident -- an immutable binding of an immutable local
+// Ident is turned into a borrow by the aliasing rule in infer_decl_stmt, so
+// it emitted `&e` and worked, while `mut` on the same line, or a constructor
+// or a call on the right, did not. Which one you wrote decided whether your
+// program compiled. Four spellings of one mistake, reported at the til line
+// now; `ref` remains the way to bind the address.
+TerrWord := struct {
+    a : U32 = 7
+    b : U32 = 8
+}
+
+terr392_mk := func() returns TerrWord { return TerrWord() }
+
+terr392_narrow_alias := proc() {
+    e := TerrWord()
+    d : Dynamic = e
+    println(d.is_null().to_str())
+}
+
+terr392_narrow_mut := proc() {
+    e := TerrWord()
+    mut d : Dynamic = e
+    println(d.is_null().to_str())
+}
+
+terr392_narrow_ctor := proc() {
+    d : Dynamic = TerrWord()
+    println(d.is_null().to_str())
+}
+
+terr392_narrow_call := proc() {
+    mut d : Dynamic = terr392_mk()
+    println(d.is_null().to_str())
+}

@@ -6628,13 +6628,24 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
     // failed and reported; a second "'x' declared as T but value is "
     // -- with nothing to print after "is" -- is pure noise on top of it.
     if val.til_type().is(Type.Unknown) { return }
-    // #392 stage B: a Dynamic binding is ONE WORD, so a wider value cannot
-    // reach it whole BY VALUE. The two backends did not even fail the same
-    // way: interpreted, `d : Dynamic = s` kept the erased pointer (#362's
-    // wrapper metadata) and read back fine; compiled, the same line emitted
+    // #392 stage B: a Dynamic binding is ONE WORD, so an AGGREGATE cannot
+    // reach it BY VALUE. The two backends did not even fail the same way:
+    // interpreted, `d : Dynamic = s` kept the erased pointer (#362's wrapper
+    // metadata) and read back fine; compiled, the same line emitted
     // `void *d = DEREF(s)` and died inside the C compiler with "incompatible
     // types when initializing type 'void *'". One til diagnostic at the
     // source replaces a cc error on one backend and silence on the other.
+    //
+    // Stage B checked the WIDTH, and its own note said the general rule is
+    // about the source being stored by value rather than about its size. It
+    // is: a struct that happens to fit in eight bytes is still not a word,
+    // and `void * d = e;` is the same cc error for `struct { a : U32
+    // b : U32 }` as for a Str. Only ONE narrow shape escaped, and by
+    // accident -- an immutable binding of an immutable local Ident is turned
+    // into a borrow by the aliasing rule in infer_decl_stmt, so it emitted
+    // `&e` and worked, while `mut` on the same line, or a constructor or a
+    // call on the right, did not. Which of those you wrote decided whether
+    // your program compiled; none of them should.
     //
     // `ref` and `own` are the spellings that DO fit: both store the address
     // -- `ref mut rtype : Dynamic = ffi_type_ref(...)` in the interpreter's
@@ -6642,14 +6653,23 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
     // intended -- so the word is the value and nothing is lost.
     if declared.is(Type.Dynamic).and(own_type.is(OwnType.Ref).not()).and(own_type.is(OwnType.Own).not()) {
         val_name_o := expr_type_name_ref(val)
-        if val_name_o.is_some() {
+        if val_name_o.is_some().and(is_aggregate(val.til_type())) {
             ref val_name : Str = val_name_o.unwrap()
-            over := dynamic_slot_overflow(val_name, scope, ctx)
-            if over > 0 {
+            // Size only for the message. A name with no registered layout
+            // reports 0, and stage B's caution holds: an unknown size is not
+            // evidence of a problem, and there is no number to print.
+            sz := ctx_total_size(resolve_type_alias(scope, val_name, ctx.symbols), ctx)
+            if sz > 0 {
+                // The remedy is spelled the way it actually works: `ref`.
+                // Stage B's wording said "bind a pointer to it (to_ptr)",
+                // but `p : Dynamic = to_ptr(e)` is refused by the
+                // ref-returning-result rule two checks down -- the working
+                // spellings are `ref p : Dynamic = to_ptr(e)` and, more
+                // directly, `ref` on the binding itself.
                 at.type_error(format("'", name, "' is Dynamic -- one ", PTR_SIZE_BYTES.to_str(),
-                    "-byte word -- but the value is '", val_name, "' (", over.to_str(),
-                    " bytes), which does not fit; bind a pointer to it (to_ptr) or declare '", name,
-                    "' as ", val_name), ctx)
+                    "-byte word -- but '", val_name, "' (", sz.to_str(),
+                    " bytes) is an aggregate, not a word; write 'ref ", name,
+                    "' to bind its address, or declare '", name, "' as ", val_name), ctx)
             }
         }
     }
