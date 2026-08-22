@@ -1551,6 +1551,12 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
     case .FuncPtrSig(name):
         variant = "FuncPtrSig"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
+    // #397: no producer builds a Sym twin yet, so marshalling one means
+    // a step-3 site flipped without teaching this path how to write a
+    // Sym payload into the runtime Type. Fail loudly rather than
+    // marshal a Type whose payload silently reads as garbage.
+    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+        panic("interp: Type Sym variant reached raw marshalling before #397 step 3 taught it the payload")
     case .Body: variant = "Body"
     }
     write_i32(result, enum_variant_tag(type_def, variant).to_i32())

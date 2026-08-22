@@ -41,7 +41,11 @@ enum {
     Type_TAG_Custom,
     Type_TAG_Primitive,
     Type_TAG_FuncPtrSig,
-    Type_TAG_Body
+    Type_TAG_Body,
+    Type_TAG_StructSym,
+    Type_TAG_EnumSym,
+    Type_TAG_CustomSym,
+    Type_TAG_FuncPtrSigSym
 };
 typedef struct Type Type;
 enum {
@@ -450,6 +454,10 @@ struct Type {
         Str Custom;
         Primitive Primitive;
         Str FuncPtrSig;
+        U32 StructSym;
+        U32 EnumSym;
+        U32 CustomSym;
+        U32 FuncPtrSigSym;
         void *_til_payload_align;
     } data;
 };

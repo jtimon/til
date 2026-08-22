@@ -191,6 +191,48 @@ priv sym_fingerprint := func(sym: Sym) returns U64 {
     return one.shl(sym.to_u64().band(63))
 }
 
+// #397: the two questions every name-payload consumer actually asks,
+// answered for BOTH the Str payloads and their Sym twins. Step 2 routes
+// consumers through these; step 3 flips producers to build the Sym forms,
+// and only these two functions have to notice.
+//
+// type_sym is the one that pays off: a caller holding a Type gets the
+// symbol the scope registries are keyed by. For a Sym payload that is a
+// field read. For a Str payload it interns -- ONCE per call, where the
+// old path hashed the spelling once per scope level of the lookup walk.
+type_sym := func(t: Type, mut symbols: SymbolPool) returns Sym {
+    switch t {
+    case .StructSym(sym):     return sym.clone()
+    case .EnumSym(sym):       return sym.clone()
+    case .CustomSym(sym):     return sym.clone()
+    case .FuncPtrSigSym(sym): return sym.clone()
+    case .Struct(s):     return symbols.intern(s)
+    case .Enum(s):       return symbols.intern(s)
+    case .Custom(s):     return symbols.intern(s)
+    case .FuncPtrSig(s): return symbols.intern(s)
+    case: return 0
+    }
+}
+
+// The spelling, for the edges that genuinely need text: diagnostics, name
+// mangling, C emission. Borrowed either way -- a Str payload is borrowed
+// from the Type, a Sym payload from the pool's names vector -- so callers
+// keep whatever lifetime discipline they already had with
+// expr_type_name_ref / til_type_name.
+type_name_of := func(t: Type, symbols: SymbolPool) returns Option(ref Str) {
+    switch t {
+    case .Struct(s):     return safe_ref(s)
+    case .Enum(s):       return safe_ref(s)
+    case .Custom(s):     return safe_ref(s)
+    case .FuncPtrSig(s): return safe_ref(s)
+    case .StructSym(sym):     return safe_ref(symbols.resolve(sym))
+    case .EnumSym(sym):       return safe_ref(symbols.resolve(sym))
+    case .CustomSym(sym):     return safe_ref(symbols.resolve(sym))
+    case .FuncPtrSigSym(sym): return safe_ref(symbols.resolve(sym))
+    case: return Option(ref Str).None
+    }
+}
+
 // #292: definition registries are keyed by the same interned symbol as the
 // binding registry. A parent walk therefore compares U32s rather than names.
 // Keep the cell deref in this leaf: inlining the ?/catch into a multi-branch

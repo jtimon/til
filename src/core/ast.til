@@ -58,6 +58,21 @@ Type := enum {
     // the same closure carrier as FuncPtr internally, but the source type is
     // distinct.
     Body,
+    // #397 step 1: the Sym-carrying twins of the four name-payload
+    // variants above. A Type built with these answers "which type?" with
+    // the interned symbol the scope registries are keyed by, so the hot
+    // lookups (get_struct, get_binding_name) stop hashing a spelling to
+    // recover a symbol that was known when the Type was built.
+    //
+    // NOTHING produces them yet -- this commit only teaches the compiler
+    // to hold and match them. APPENDED AT THE END for the same reason
+    // Primitive and FuncPtrSig were: master's til_boot has these tag
+    // values baked into its compiled C, so inserting anywhere else would
+    // mis-decode every Type value it creates while bootstrapping.
+    StructSym: Sym,
+    EnumSym: Sym,
+    CustomSym: Sym,
+    FuncPtrSigSym: Sym,
 }
 
 // The compiler-facing Type helper funcs (til_type_name_c, is_primitive,

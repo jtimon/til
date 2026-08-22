@@ -2827,6 +2827,15 @@ til_type_name_c := func(t: Type) returns Str {
     case .EnumDef:   return "EnumDef"
     case .FuncDef:   return "FunctionDef"
     case .FuncPtr, .FuncPtrSig: return "Fn"
+    // #397: the Sym twins are the same C types as the Str forms they
+    // will replace. Custom's name is the whole answer, so it needs the
+    // pool; til_type_name_c has no access to one and no caller that
+    // reaches a CustomSym yet -- resolve it through type_name_of_sym
+    // when producers flip (step 3).
+    case .StructSym: return "Struct"
+    case .EnumSym:   return "Enum"
+    case .FuncPtrSigSym: return "Fn"
+    case .CustomSym: return "Custom"
     case .Body:      return "Body"
     case .Dynamic:   return "Dynamic"
     case .Custom(name): return name.clone()

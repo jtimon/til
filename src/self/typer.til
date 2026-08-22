@@ -72,6 +72,12 @@ make_til_type_expr := func(src: Expr, t: Type, mut symbols: SymbolPool) returns 
     // type via til_type_name. As migration progresses this can grow
     // its own variant_name path.
     case .FuncPtrSig: variant_name = "FuncPtr"
+    // #397: reflection reports the twins as the variants they stand in
+    // for; the payload spelling is added when producers flip (step 3).
+    case .StructSym: variant_name = "Struct"
+    case .EnumSym:   variant_name = "Enum"
+    case .CustomSym: variant_name = "Custom"
+    case .FuncPtrSigSym: variant_name = "FuncPtr"
     case .Body:      variant_name = "Body"
     case .Dynamic:   variant_name = "Dynamic"
     case .Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
