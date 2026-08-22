@@ -9293,9 +9293,14 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, mut ctx: Context
         // builder_size_method_omitted drops it here -- which left five
         // `..._size` prototypes in test/library_namespace_consumer.c that
         // nothing defined and nothing called.
-        if ctx.builder_keep_all_exports.not() {
-            if ctx.builder_ns_member_sites.has(dd.name).not() { continue }
-        }
+        //
+        // A LIBRARY is no exception, though every other gate makes one for
+        // it: an ext decl is an IMPORT. It names a symbol some OTHER
+        // object file defines, so it is not part of this library's ABI and
+        // no consumer of it needs the prototype -- only a call in this .c
+        // does. Exempting it with the exports left 597 raylib prototypes in
+        // the generated binding, none of them called anywhere in the file.
+        if ctx.builder_ns_member_sites.has(dd.name).not() { continue }
         if fd.sig.return_type.len() > 0 {
             mut rt := ""
             if func_returns_c_value(fd) { rt = type_name_to_c_value(fd.sig.return_type, ctx) }

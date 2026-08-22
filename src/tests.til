@@ -2056,6 +2056,17 @@ main := proc(args: ..Str) {
     add_single(tests, "bindgen_typechecks", "build", 0, "",
         format(til_bin, " bindings -o tmp/bindgen_raylib.til vendor/raylib/src/raylib.h",
             " '&&' ", til_bin, " translate tmp/bindgen_raylib.til"))
+    // Issue #326: an ext decl is an IMPORT -- it names a symbol some other
+    // object file defines -- so it is not part of a library's ABI and no
+    // consumer of one needs the prototype; only a call in the emitted .c
+    // does. Every other gate makes an exception for a library's exports and
+    // this one did too, which left 597 raylib prototypes in the generated
+    // binding with nothing in the file calling them. Own output paths: two
+    // tests cannot write one generated file.
+    add_count(tests, "bindgen_lib_no_uncalled_ext_proto", "build", "ImageColorBrightness", 0,
+        format(til_bin, " bindings -o tmp/bindgen_ray_ext.til vendor/raylib/src/raylib.h",
+            " '&&' ", til_bin, " translate -c tmp/bindgen_ray_ext.c tmp/bindgen_ray_ext.til",
+            " '&&' cat tmp/bindgen_ray_ext.c"))
     // Regenerating over an audited file must reproduce it. A C header cannot
     // express til's qualifier axes, so every committed binding carries human
     // answers -- ext_proc tags, own/ref overrides, Option re-typings and the
