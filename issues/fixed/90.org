@@ -181,3 +181,29 @@ but would not reduce artifact duplication.
 
 These are substantial new concurrency and distribution features. They should
 not be implemented as implicit follow-ups to the completed #90 collision fix.
+
+*** Follow-up: versioned shared runtime (2026-08-27)
+
+The earlier shared-core assessment correctly rejected one unversioned runtime:
+it would silently bind libraries built for incompatible compiler ABIs. The
+missing boundary was an exact ABI identity, not a reason to duplicate the
+entire hand-written runtime forever.
+
+Each native library now maps ~ext.c~-owned symbols into a runtime namespace
+containing the full compiler commit, target, resolved USize type, and ASAN
+mode. ~compile_lib~ atomically publishes the matching
+~gen/lib/libtilrt-<abi>~ shared object and links generated shared libraries to
+it with a same-directory loader path. Different compiler ABIs coexist under
+different filenames and symbols; libraries with the same ABI share one loaded
+image and its code pages. Installation copies that runtime beside the library.
+
+~ext.c~ formerly retained relocations to each generated library's ~CAP_LIT~
+and ~CAP_VIEW~ globals. It now uses the same constant values locally, making
+the runtime object independent of any one generated library. Static archives
+embed the versioned runtime object, so they remain self-contained and the
+static linker selects one copy when combining compatible libraries.
+
+This does not pretend that all core code is already separately compilable.
+Program-specific generic, lifecycle, reflection, and closure helpers remain in
+the artifact namespace. Concrete core/std partitions can reuse this ABI and
+loader model once the emitter has a real partition for them.

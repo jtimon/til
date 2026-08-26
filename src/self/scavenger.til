@@ -1767,10 +1767,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     // builder_size_method_omitted drops the function there, where a future
     // backend can make its own call.)
     vec_push_str(worklist, "*.size")
-    // #326: src/c/ext.c is linked only into C-family outputs. Its three til
-    // references are C-backend support roots, not language roots: alternative
-    // backends own separate native runtimes and must not inherit ext.c's
-    // reachability inventory.
+    // Keep the established generated-C boundary stable. Shared library
+    // runtimes undefine the CAP names and Str_clone inside ext.c, so these
+    // roots no longer create relocations from the runtime to a library.
     if target_lang(lp.target).is(Lang.C) {
         push_qn(worklist, "Str", "clone")
         vec_push_str(worklist, "CAP_LIT")

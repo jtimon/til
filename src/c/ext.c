@@ -10,6 +10,14 @@
 #include <errno.h>
 #include <fcntl.h>
 
+/* A shared runtime cannot retain relocations to one generated library's
+ * CAP globals. These are ABI constants, already emitted as TIL_CAP_* in
+ * generated C, so keep ext.c's copies local and value-identical. */
+#undef CAP_LIT
+#undef CAP_VIEW
+#define CAP_LIT ((USize)-1)
+#define CAP_VIEW ((USize)-2)
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 // The process environment (ccmd_env's child block). macOS does not

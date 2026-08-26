@@ -13,6 +13,14 @@ require_absent := func(text: Str, unexpected: Str) returns Bool {
     return true
 }
 
+line_starting_with := func(text: Str, prefix: Str) returns Str {
+    for line : Str in text.split("\n") {
+        if line.starts_with(prefix) { return line.clone() }
+    }
+    panic("missing generated line: ", prefix)
+    return ""
+}
+
 main := proc() {
     til_bin := "bin/til"
     build_a := Cmd.new(til_bin, "build", "test/library_namespace_a.til")
@@ -28,6 +36,13 @@ main := proc() {
 
     py_a := File.readfile("gen/til/library_namespace_a.py")
     py_b := File.readfile("gen/til/library_namespace_b.py")
+    fwd_a := File.readfile("gen/til/library_namespace_a_forward.h")
+    fwd_b := File.readfile("gen/til/library_namespace_b_forward.h")
+    runtime_alias_a := line_starting_with(fwd_a, "#define I64_clone ")
+    runtime_alias_b := line_starting_with(fwd_b, "#define I64_clone ")
+    if runtime_alias_a != runtime_alias_b { panic("libraries do not share one versioned runtime namespace") }
+    require_contains(runtime_alias_a, "til_tilrt_x2d")
+    require_absent(runtime_alias_a, "til_library_x5fnamespace")
     if py_a.contains("USize").or(py_b.contains("USize")) {
         panic("generated Python binding contains unresolved USize")
     }
@@ -57,6 +72,8 @@ main := proc() {
     require_absent(til_a, "binding__Array__I64")
 
     require_contains(py_a, "('scalar', ctypes.c_longlong)")
+    require_contains(py_a, "_runtime_name = 'libtilrt-")
+    require_contains(py_b, "_runtime_name = 'libtilrt-")
     require_contains(py_a, "('borrowed', ctypes.POINTER(ctypes.c_longlong))")
     require_contains(py_a, "('size', ctypes.c_uint)")
     require_contains(py_a, "('ptr', ctypes.c_ulonglong)")

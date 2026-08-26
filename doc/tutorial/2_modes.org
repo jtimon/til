@@ -136,6 +136,13 @@ double := func(n: I64) returns I64 {
 }
 #+end_src
 
+Native shared libraries depend on a versioned ~libtilrt-*.so~ (or the host
+platform's equivalent) emitted beside them. The identity includes the exact
+compiler revision, target, USize ABI, and ASAN mode, so compatible libraries
+share runtime code pages while incompatible runtimes coexist. Installed
+libraries install that dependency beside the library. Static archives remain
+self-contained and need no additional link argument.
+
 ~mode pure~ is a library mode that rejects impure ~proc~ declarations. The
 [[file:../../examples/hello_pure.til][pure Hello World example]] contains only
 a pure function and its test:

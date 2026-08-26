@@ -154,6 +154,8 @@ LoadedProgram := struct {
     link_flags := ""
     include_flags := ""
     link_c_paths := ""
+    compiler_revision := ""
+    asan_build := false
     run_tests := false
     // Non-zero when load_program gave up on a user import (missing file, or a
     // syntax error inside one). The program is unusable; the caller decides
@@ -167,6 +169,37 @@ LoadedProgram := struct {
     // stamps the alias widths.
     usize_override_bits : I64 = 0
 namespace:
+    uses_shared_runtime := func(self: LoadedProgram) returns Bool {
+        return self.cur_mode.is_library.and(self.target.is(Target.Wasm32).not())
+    }
+    runtime_abi_id := func(self: LoadedProgram) returns Str {
+        if self.compiler_revision.len() == 0 { panic("library runtime ABI has no compiler revision") }
+        mut target_name := ""
+        switch self.target {
+        case .LinuxX64: target_name = "linux-x64"
+        case .LinuxArm64: target_name = "linux-arm64"
+        case .LinuxRiscv64: target_name = "linux-riscv64"
+        case .LinuxX86: target_name = "linux-x86"
+        case .LinuxArm32: target_name = "linux-arm32"
+        case .LinuxRiscv32: target_name = "linux-riscv32"
+        case .WindowsX64: target_name = "windows-x64"
+        case .WindowsX86: target_name = "windows-x86"
+        case .MacosX64: target_name = "macos-x64"
+        case .MacosArm64: target_name = "macos-arm64"
+        case .Wasm32: target_name = "wasm32"
+        case .TempleosX86: target_name = "templeos-x86"
+        case .Jvm: target_name = "jvm"
+        }
+        mut out := format(self.compiler_revision, "-", target_name, "-", self.ctx.target_usize_pname)
+        if self.asan_build { out = format(out, "-asan") }
+        return out
+    }
+    runtime_stem := func(self: LoadedProgram) returns Str {
+        return format("tilrt-", self.runtime_abi_id())
+    }
+    runtime_shared_basename := func(self: LoadedProgram) returns Str {
+        return format("lib", self.runtime_stem(), shared_lib_extension(self.target))
+    }
     // Every unit path a pass should walk: the core units first, unless this
     // program skips core, then the program's own units.
     //
@@ -199,6 +232,7 @@ namespace:
         Str.delete(own self.link_flags, false)
         Str.delete(own self.include_flags, false)
         Str.delete(own self.link_c_paths, false)
+        Str.delete(own self.compiler_revision, false)
         if call_free { free(own self) }
     }
 }

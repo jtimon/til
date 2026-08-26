@@ -6001,13 +6001,11 @@ priv builder_core_func_omitted := func(name: Str, mut lp: LoadedProgram) returns
 }
 
 // #326: may this function carry `static`? Only in a closed world, and
-// never for the two names something outside the .c calls by name: main
-// (the C runtime) and Str_clone (the hand-written ext.c).
+// never for the established ext.c boundary names: main, Str_clone, and the
+// CAP globals. Shared-library ext.c replaces the latter three locally.
 // "static " when the generated families may be TU-local, "" otherwise.
-// A GLOBAL may be static on the same closed-world argument as a
-// function, minus the two the hand-written ext.c reads by name: the
-// capacity sentinels every Str writer stamps. Making them static puts
-// -Wunused-variable on duty over the program's globals.
+// A GLOBAL may be static on the same closed-world argument as a function,
+// except for the two CAP names retained in the generated forward ABI.
 priv builder_global_static_prefix := func(name: Str, ctx: Context) returns Str {
     if ctx.builder_static_ok.not() { return "" }
     if name.eq("CAP_LIT").or(name.eq("CAP_VIEW")) { return "" }
@@ -6151,9 +6149,18 @@ priv c_lib_collect_header_names := func(content: Str, mut names: Vec(Str), mut s
 
 priv c_lib_collect_c_source_names := func(content: Str, mut names: Vec(Str), mut seen: Set(Str)) {
     mut pending := ""
+    mut in_block_comment := false
     for raw : Str in content.split("\n") {
         if raw.len() == 0 { continue }
         line := raw.trim()
+        if in_block_comment {
+            if line.contains("*/") { in_block_comment = false }
+            continue
+        }
+        if line.starts_with("/*") {
+            if line.contains("*/").not() { in_block_comment = true }
+            continue
+        }
         if pending.len() > 0 {
             pending = format(pending, " ", line)
             if line.find("{") >= 0 {
@@ -6208,7 +6215,10 @@ priv c_lib_collect_c_source_names := func(content: Str, mut names: Vec(Str), mut
 priv emit_lib_c_name_map := proc(f: File, ctx: Context) {
     if ctx.builder_lib_c_prefix.len() == 0 { return }
     for name : Str in ctx.builder_lib_c_names {
-        f.write("#define ").write(name).write(" ").write(ctx.builder_lib_c_prefix).write(name).write("\n")
+        f.write("#define ").write(name).write(" ")
+        if ctx.builder_runtime_c_names.has(name) { f.write(ctx.builder_runtime_c_prefix) }
+        else { f.write(ctx.builder_lib_c_prefix) }
+        f.write(name).write("\n")
     }
     f.write("\n")
 }
@@ -6229,8 +6239,13 @@ priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_n
     fwd_content := File.readfile(fwd_path)
     c_lib_collect_header_names(fwd_content, names, seen)
     ext_h_path := format(lp.ext_c_path.strip_suffix(".c"), ".h")
-    c_lib_collect_header_names(File.readfile(ext_h_path), names, seen)
-    c_lib_collect_c_source_names(File.readfile(lp.ext_c_path), names, seen)
+    mut runtime_names := Vec(Str).new()
+    mut runtime_seen := Set(Str).new()
+    c_lib_collect_header_names(File.readfile(ext_h_path), runtime_names, runtime_seen)
+    c_lib_collect_c_source_names(File.readfile(lp.ext_c_path), runtime_names, runtime_seen)
+    for runtime_name : Str in runtime_names {
+        c_lib_add_name(runtime_name, names, seen)
+    }
     for link_c_path : Str in lp.link_c_paths.split(" ") {
         if link_c_path.len() > 0 {
             c_lib_collect_c_source_names(File.readfile(link_c_path), names, seen)
@@ -6244,6 +6259,10 @@ priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_n
 
     lp.ctx.builder_lib_c_prefix = c_lib_prefix(lib_name)
     lp.ctx.builder_lib_c_names = names
+    if lp.uses_shared_runtime() {
+        lp.ctx.builder_runtime_c_prefix = c_lib_prefix(lp.runtime_stem())
+        lp.ctx.builder_runtime_c_names = runtime_seen
+    }
 
     f := File.new(fwd_path, true)
     f.write("#pragma once\n")
@@ -6264,8 +6283,7 @@ priv builder_static_prefix := func(ctx: Context) returns Str {
 // (not the .c) for a closed-world program, so the .c will make the symbol
 // static and no other translation unit can ever reach it. Exactly the
 // complement of builder_func_is_tu_local / builder_global_static_prefix,
-// which is why it names both boundary pairs: the only reader of
-// til_forward.h is the hand-written src/c/ext.c.
+// which is why it names both boundary pairs.
 priv lp_header_hides := func(name: Str, ctx: Context) returns Bool {
     if ctx.builder_static_ok { return false }
     if ctx.builder_prog_closed_world.not() { return false }
@@ -7237,9 +7255,20 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
     f.write("_candidates = [\n")
     f.write("    os.path.abspath(os.path.join(_dir, '..', 'lib', 'lib")
     f.write(lib_name).write(shared_ext).write("')),\n")
-    f.write("    os.path.abspath(os.path.join(_dir, '..', '..', '..', 'lib")
+    f.write("    os.path.abspath(os.path.join(_dir, '..', '..', 'lib")
     f.write(lib_name).write(shared_ext).write("')),\n")
     f.write("]\n")
+    if lp.uses_shared_runtime() {
+        f.write("_runtime_name = '").write(lp.runtime_shared_basename()).write("'\n")
+        f.write("_runtime = None\n")
+        f.write("for _path in _candidates:\n")
+        f.write("    _runtime_path = os.path.join(os.path.dirname(_path), _runtime_name)\n")
+        f.write("    if os.path.exists(_runtime_path):\n")
+        f.write("        _runtime = ctypes.CDLL(_runtime_path)\n")
+        f.write("        break\n")
+        f.write("if _runtime is None:\n")
+        f.write("    raise OSError('could not find ' + _runtime_name)\n")
+    }
     f.write("_lib = None\n")
     f.write("for _path in _candidates:\n")
     f.write("    if os.path.exists(_path):\n")
@@ -10039,8 +10068,8 @@ priv c_count_identifiers := func(src: Str, mut counts: Map(Str, USize)) {
 // The name a library name-map line renames, or "" when the line is not
 // one. The map is `#define <name> <prefix><name>`, one per exported
 // symbol. Returns a VIEW into `line`.
-priv c_lib_alias_name := func(line: Str, prefix: Str) returns Str {
-    if prefix.len() == 0 { return "" }
+priv c_lib_alias_name := func(line: Str, lib_prefix: Str, runtime_prefix: Str) returns Str {
+    if lib_prefix.len() == 0 { return "" }
     if line.starts_with("#define ").not() { return "" }
     rest := line.substr(8, line.len() - 8)
     sp := rest.find(" ")
@@ -10048,6 +10077,8 @@ priv c_lib_alias_name := func(line: Str, prefix: Str) returns Str {
     name := rest.substr(0, sp.to_usize())
     tail_at := sp.to_usize() + 1
     tail := rest.substr(tail_at, rest.len() - tail_at)
+    mut prefix := lib_prefix
+    if runtime_prefix.len() > 0 { if tail.starts_with(runtime_prefix) { prefix = runtime_prefix } }
     if tail.len() != prefix.len() + name.len() { return "" }
     if tail.starts_with(prefix).not() { return "" }
     if tail.substr(prefix.len(), name.len()).eq(name).not() { return "" }
@@ -10086,7 +10117,7 @@ priv c_dead_macro_prefix := func(src: Str, name: Str, mut dead: Vec(Str)) return
     return true
 }
 
-priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str) {
+priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str, runtime_prefix: Str) {
     src := File.readfile(c_path)
     mut dead_macros := Vec(Str).new()
     mut any := c_dead_macro_prefix(src, "TIL_BOX", dead_macros)
@@ -10111,7 +10142,7 @@ priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str) {
                 if line.starts_with(dm) { keep = false }
             }
             if keep {
-                alias := c_lib_alias_name(line, lib_prefix)
+                alias := c_lib_alias_name(line, lib_prefix, runtime_prefix)
                 if alias.len() > 0 {
                     if counts[alias] <= 1 { keep = false }
                 }
@@ -10138,7 +10169,10 @@ c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path
     }
     if result == 0 {
         result = build(lp.cur_mode, lp.run_tests, c_path, lp)
-        if result == 0 { c_drop_dead_defines(c_path, lp.ctx.builder_lib_c_prefix) }
+        if result == 0 {
+            c_drop_dead_defines(c_path, lp.ctx.builder_lib_c_prefix,
+                lp.ctx.builder_runtime_c_prefix)
+        }
     }
     if result.eq(0).and(do_lib) {
         result = build_header_lp(h_path, lp)

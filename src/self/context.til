@@ -1516,6 +1516,10 @@ Context := struct {
     // the .c emitter and public-header emitter consume this same ordered list.
     builder_lib_c_prefix := ""
     builder_lib_c_names := Vec(Str).new()
+    // ext.c is shared by every library built by one exact compiler ABI. Its
+    // names use this versioned prefix; generated and link_c names stay local.
+    builder_runtime_c_prefix := ""
+    builder_runtime_c_names := Set(Str).new()
     // #326: does any emitted statement write a Str THROUGH a pointer? Only
     // those three shapes call TIL_LIT_GUARD, and the pool -- with its
     // `#define` -- is emitted long before any body, so the answer has to

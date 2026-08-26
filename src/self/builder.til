@@ -11,7 +11,32 @@ import("../std/sys")
 import("../std/file")
 
 
-priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool, usize64: Bool) returns I32 {
+priv runtime_link_identity_args := func(target: Target, basename: Str, import_path: Str) returns Str {
+    switch target {
+    case .WindowsX64, .WindowsX86:
+        return format(" -Wl,--out-implib,", import_path)
+    case .MacosX64, .MacosArm64:
+        return format(" -Wl,-install_name,@rpath/", basename)
+    case:
+        return format(" -Wl,-soname,", basename)
+    }
+}
+
+priv runtime_dependency_args := func(target: Target, shared_path: Str, import_path: Str) returns Str {
+    switch target {
+    case .WindowsX64, .WindowsX86:
+        return format(" ", import_path)
+    case .MacosX64, .MacosArm64:
+        return format(" ", shared_path, " -Wl,-rpath,@loader_path")
+    case:
+        return format(" ", shared_path, " -Wl,-rpath,'$ORIGIN'")
+    }
+}
+
+priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
+        user_c_path: Str, link_flags: Str, include_flags: Str, target: Target,
+        cc_override: Str, asan: Bool, usize64: Bool, shared_runtime: Bool,
+        runtime_stem: Str, runtime_basename: Str) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -58,14 +83,50 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
         return 1
     }
 
-    // Compile ext.c to object
-    ext_obj := format("gen/lib/", lib_name, "_ext.o")
-    cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
-        " -c ", ext_c_path, " -o ", ext_obj)
-    result = system_cmd(cmd)
-    if result != 0 {
-        println("error: ext.c compilation failed")
-        return 1
+    mut ext_obj := format("gen/lib/", lib_name, "_ext.o")
+    mut runtime_shared_path := ""
+    mut runtime_import_path := ""
+    if shared_runtime {
+        runtime_shared_path = format("gen/lib/", runtime_basename)
+        runtime_import_path = format("gen/lib/lib", runtime_stem, ".dll.a")
+        pid_suffix := format(".tmp.", process_id().to_str())
+        runtime_obj_tmp := format("gen/lib/", runtime_stem, ".o", pid_suffix)
+        runtime_shared_tmp := format(runtime_shared_path, pid_suffix)
+        runtime_import_tmp := format(runtime_import_path, pid_suffix)
+        cmd = compiler.format(extra, werr, asan_flags, usize_flags,
+            " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
+            " -c ", ext_c_path, " -o ", runtime_obj_tmp)
+        result = system_cmd(cmd)
+        if result != 0 {
+            println("error: shared runtime compilation failed")
+            return 1
+        }
+        identity_args := runtime_link_identity_args(target, runtime_basename, runtime_import_tmp)
+        cmd = compiler.format(extra, asan_flags, target_link_extra_args(target),
+            " -shared -o ", runtime_shared_tmp, " ", runtime_obj_tmp,
+            identity_args, " ", target_system_libs(target))
+        result = system_cmd(cmd)
+        if result != 0 {
+            File.remove(runtime_obj_tmp)
+            File.remove(runtime_import_tmp)
+            println("error: shared runtime creation failed")
+            return 1
+        }
+        ext_obj = format("gen/lib/", runtime_stem, ".o")
+        File.rename(runtime_obj_tmp, ext_obj)
+        if target.is(Target.WindowsX64).or(target.is(Target.WindowsX86)) {
+            File.rename(runtime_import_tmp, runtime_import_path)
+        }
+        File.rename(runtime_shared_tmp, runtime_shared_path)
+    } else {
+        cmd = compiler.format(extra, werr, asan_flags, usize_flags,
+            " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
+            " -c ", ext_c_path, " -o ", ext_obj)
+        result = system_cmd(cmd)
+        if result != 0 {
+            println("error: ext.c compilation failed")
+            return 1
+        }
     }
 
     // Compile each link_c source independently through this library's
@@ -95,9 +156,12 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     // drives the HOST toolchain and (for mac cross) ELF lld rejects the
     // Mach-O objects with "unknown file type". No -Werror here, so the
     // compile-only flags inside extra are harmless on this link line.
+    mut runtime_dependency := format(" ", ext_obj)
+    if shared_runtime {
+        runtime_dependency = runtime_dependency_args(target, runtime_shared_path, runtime_import_path)
+    }
     cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path,
-        " ", obj_path, " ", ext_obj,
-        user_objs, lf)
+        " ", obj_path, runtime_dependency, user_objs, lf)
     result = system_cmd(cmd)
     if result != 0 {
         println("error: shared library creation failed")
@@ -634,7 +698,10 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     // (the opt-out from the U32 default; the default needs no flag).
     usize64 := lp.usize_override_bits.eq(64)
     if paths.do_lib {
-        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, asan, usize64)
+        return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
+            lp.link_c_paths, lp.link_flags, lp.include_flags, target,
+            cc_override, asan, usize64, lp.uses_shared_runtime(),
+            lp.runtime_stem(), lp.runtime_shared_basename())
     }
     return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize64)
 }
@@ -818,6 +885,9 @@ cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target:
         print_translate_success(paths, target)
         println(format("Generated: gen/lib/lib", paths.name, shared_lib_extension(target)))
         println(format("Generated: gen/lib/lib", paths.name, ".a"))
+        if lp.uses_shared_runtime() {
+            println(format("Generated: gen/lib/", lp.runtime_shared_basename()))
+        }
     }
     return result
 }
@@ -962,8 +1032,13 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         h_dst := format(install_prefix, "/include/", paths.name, ".h")
         til_dst := format(support_root(install_prefix), "/lib/", paths.name, ".til")
         py_dst := format(support_root(install_prefix), "/lib/", paths.name, ".py")
+        runtime_dst := format(install_prefix, "/lib/", lp.runtime_shared_basename())
 
-        result = install_file(format("gen/lib/lib", paths.name, shared_lib_extension(target)), so_dst, "install shared library")
+        if lp.uses_shared_runtime() {
+            result = install_file(format("gen/lib/", lp.runtime_shared_basename()),
+                runtime_dst, "install shared til runtime")
+        }
+        if result == 0 { result = install_file(format("gen/lib/lib", paths.name, shared_lib_extension(target)), so_dst, "install shared library") }
         if result == 0 { result = install_file(format("gen/lib/lib", paths.name, ".a"), a_dst, "install static library") }
         if result == 0 { result = install_file(paths.h_path, h_dst, "install C header") }
         if result == 0 { result = install_file(paths.til_path, til_dst, "install til binding") }
@@ -974,6 +1049,7 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
             print_install_success(h_dst)
             print_install_success(til_dst)
             print_install_success(py_dst)
+            if lp.uses_shared_runtime() { print_install_success(runtime_dst) }
         }
         return result
     }

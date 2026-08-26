@@ -1905,6 +1905,8 @@ typedef struct Context {
     Bool builder_keep_all_exports;
     Str builder_lib_c_prefix;
     Vec__Str builder_lib_c_names;
+    Str builder_runtime_c_prefix;
+    Set__Str builder_runtime_c_names;
     Bool builder_lit_guard_used;
     Bool builder_cstr_used;
     Bool builder_closure_rt_used;
@@ -1939,6 +1941,8 @@ typedef struct LoadedProgram {
     Str link_flags;
     Str include_flags;
     Str link_c_paths;
+    Str compiler_revision;
+    Bool asan_build;
     Bool run_tests;
     I32 load_errors;
     I64 usize_override_bits;

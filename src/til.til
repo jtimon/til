@@ -9,7 +9,16 @@ get_version := macro() returns shallow Str {
     return format(BASE_VERSION, hash)
 }
 
+get_compiler_revision := macro() returns shallow Str {
+    mut hash : Str = ""
+    run_cmd(hash, "git", "rev-parse", "HEAD")
+    hash = hash.replace("\n", "")
+    if hash.len() == 0 { panic("cannot derive the compiler ABI revision from git") }
+    return hash
+}
+
 VERSION := get_version()
+COMPILER_REVISION := get_compiler_revision()
 
 // Import self-hosted modules
 import("std/sys")
@@ -1065,6 +1074,8 @@ main := proc(args: ..Str) {
     validate_target_flags(cli, target)
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
+    lp.compiler_revision = COMPILER_REVISION.clone()
+    lp.asan_build = cli.asan
     // An unresolvable / unparsable import used to panic inside load_program.
     // It reports and returns now (so the REPL can drop the turn); a file
     // compile still stops here, with the message resolve_imports printed.

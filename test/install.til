@@ -93,6 +93,31 @@ main := proc() returns I64 {
         panic("the program built by the installed til printed '", run.out(), "'")
     }
 
+    // A generated shared library installs its exact-version runtime beside
+    // it, and the installed Python binding finds both from outside the repo.
+    File.writefile(format(WORK, "/installed_lib.til"), format(
+        "mode lib\n\n",
+        "installed_value := func() returns I64 { return 77 }\n"))
+    lib_install := Cmd.new(installed_til, "install", "--prefix=../install_test", "installed_lib.til")
+    lib_install.cwd(WORK)
+    lib_install.run_checked()
+    mut shared_ext := ".so"
+    if host_os() == "macos" { shared_ext = ".dylib" }
+    else if host_os() == "windows" { shared_ext = ".dll" }
+    require(format(PREFIX, "/lib/libinstalled_lib", shared_ext))
+    require(format(PREFIX, "/lib/til/lib/installed_lib.py"))
+    mut runtime_count : USize = 0
+    for installed_name : Str in Dir.list(format(PREFIX, "/lib")) {
+        if installed_name.starts_with("libtilrt-").and(installed_name.ends_with(shared_ext)) {
+            runtime_count++
+        }
+    }
+    if runtime_count != 1 { panic("library install produced ", runtime_count.to_str(), " shared runtimes") }
+    py := Cmd.new("python3", "-c",
+        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77")
+    py.cwd(WORK)
+    py.run_checked()
+
     // The gui leg (issue #348): mode gui from OUTSIDE the repo, both
     // backends, deliberately windowless (like test/gui_interp.til --
     // what #348 broke is import/link/dlopen resolution, not rendering,
