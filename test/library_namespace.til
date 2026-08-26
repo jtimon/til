@@ -36,6 +36,8 @@ main := proc() {
     require_contains(til_a, "LibraryNamespaceACallbackAlias := LibraryNamespaceACallback")
     require_contains(til_a, "library_namespace_a_value_alias := func() returns I64")
     require_contains(til_a, "ref borrowed : I64")
+    require_contains(til_a, "priv secret : U32 := 17")
+    require_contains(til_a, "binding_layout_BindingPoint := func(self: BindingPoint)")
     require_contains(til_a, "shallow point: BindingPoint")
     require_contains(til_a, "returns Array(I64)")
     require_contains(til_a, "value: I64 = 31")

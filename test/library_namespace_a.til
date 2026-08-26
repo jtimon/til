@@ -13,6 +13,7 @@ BindingPoint := struct {
     scalar : I64 = 7
     size : USize = 11
     ptr : UPtr = 13
+    priv secret : U32 = 17
 namespace:
     COUNT : I64 = 5
     mut STATE : I64 = 6
@@ -24,7 +25,8 @@ namespace:
         return BindingPoint(
             scalar=BindingPoint.hidden(value.scalar),
             size=value.size,
-            ptr=value.ptr)
+            ptr=value.ptr,
+            secret=value.secret)
     }
 }
 

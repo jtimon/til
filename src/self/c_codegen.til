@@ -6892,7 +6892,8 @@ priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: Functio
     f.write(" {}\n")
 }
 
-priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, fd: FunctionDef, ctx: Context) {
+priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str,
+        fd: FunctionDef, before_call: Str, ctx: Context) {
     mut kw := "func"
     if fd.sig.func_type.is(FuncType.Proc).or(fd.sig.func_type.is(FuncType.Test)) { kw = "proc" }
     f.write(indent)
@@ -6911,6 +6912,7 @@ priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, 
     }
     emit_binding_throws(f, fd, ctx)
     f.write(" { ")
+    if before_call.len() > 0 { f.write(before_call).write("(self); ") }
     if fd.sig.return_type.len() > 0 { f.write("return ") }
     f.write(actual).write("(")
     mut emitted : USize = 0
@@ -6927,6 +6929,34 @@ priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str, 
     f.write(")")
     if fd.sig.throw_types.len() > 0 { f.write("?") }
     f.write(" }\n")
+}
+
+priv binding_layout_helper_name := func(owner: Str, lib_name: Str) returns Str {
+    return c_lib_symbol(lib_name, format("binding_layout_", owner))
+}
+
+priv binding_struct_has_private_fields := func(def: Expr) returns Bool {
+    switch def.node_type {
+    case .StructDef(sdd):
+        for field : Declaration in sdd.fields { if field.is_priv { return true } }
+    case:
+    }
+    return false
+}
+
+priv emit_binding_layout_helper := proc(f: File, owner: Str, def: Expr, lib_name: Str) {
+    if binding_struct_has_private_fields(def).not() { return }
+    f.write("    priv ").write(binding_layout_helper_name(owner, lib_name))
+        .write(" := func(self: ").write(owner).write(") {\n")
+    switch def.node_type {
+    case .StructDef(sdd):
+        for i in 0..sdd.fields.len() {
+            if sdd.fields[i].is_priv.not() { continue }
+            f.write("        to_ptr(self.").write(sdd.field_name_at(i)).write(")\n")
+        }
+    case:
+    }
+    f.write("    }\n")
 }
 
 priv emit_binding_funcsig := proc(f: File, name: Str, fd: FunctionDef, ctx: Context) {
@@ -7002,7 +7032,11 @@ priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Contex
             ref method : Str = def_ns_name_at(def, cur_ebi)
             source_name := owner.concat3("_", method)
             actual := c_lib_symbol(lib_name, source_name)
-            emit_binding_wrapper(f, "    ", method, actual, fd, ctx)
+            mut before_call := ""
+            if method.eq("delete").and(binding_struct_has_private_fields(def)) {
+                before_call = owner.concat3(".", binding_layout_helper_name(owner, lib_name))
+            }
+            emit_binding_wrapper(f, "    ", method, actual, fd, before_call, ctx)
         case:
             if binding_global_representable(nsd, nsd.default_expr().til_type()) {
                 if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
@@ -7058,6 +7092,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                     f.write("\n")
                 }
                 emit_binding_ns_methods(f, dd.name, rhs, lp.ctx, lib_name)
+                emit_binding_layout_helper(f, dd.name, rhs, lib_name)
                 f.write("}\n\n")
             case .EnumDef(bind_edd):
                 emit_binding_ns_actuals(f, dd.name, rhs, lp.ctx, lib_name)
@@ -7086,7 +7121,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 if fd.sig.func_type.is(FuncType.Test) { continue }
                 actual_name := c_lib_symbol(lib_name, dd.name)
                 emit_binding_func_decl(f, "", actual_name, fd, lp.ctx)
-                emit_binding_wrapper(f, "", dd.name, actual_name, fd, lp.ctx)
+                emit_binding_wrapper(f, "", dd.name, actual_name, fd, "", lp.ctx)
                 f.write("\n")
             case .Ident:
             case:
@@ -7109,7 +7144,8 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 target := Str.clone(aid.ident_name(lp.ctx.symbols.names))
                 target_fd_o := lp.ctx.scope.lookup_func_name(target, lp.ctx.symbols)
                 if target_fd_o.is_some().and(target_fd_o.unwrap().children.len().gt(0)) {
-                    emit_binding_wrapper(f, "", dd2.name, target, funcdef_of(target_fd_o.unwrap()), lp.ctx)
+                    emit_binding_wrapper(f, "", dd2.name, target,
+                        funcdef_of(target_fd_o.unwrap()), "", lp.ctx)
                     f.write("\n")
                 } else {
                     f.write(dd2.name).write(" := ").write(binding_type_name(target, lp.ctx)).write("\n\n")
