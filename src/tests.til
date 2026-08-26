@@ -433,6 +433,9 @@ Test := struct {
     // both config flags
     has_interp := 0
     has_run := 0
+    // The row's command is refused before codegen (a mode rejection), so it
+    // writes no generated C and cannot collide -- see check_gen_c_collisions.
+    refused_before_codegen := false
 }
 
 Slot := struct {
@@ -491,35 +494,19 @@ priv unquoted := func(tok: Str) returns Str {
     return tok.substr(start, end - start).clone()
 }
 
-// A row that asserts the compiler REFUSED writes no C: mode rejections
-// ("mode theme does not support 'build'", "cannot run a library") are
-// answered before codegen, so such a row cannot collide with anything and
-// must not be paired. The runner spec in front of the `--` says so: a
-// `single` row carries its expected exit, and a `count` row asserting an
-// "error:" needle is asserting a refusal. This is the one judgement call in
-// the check -- a row that asserts an error AND still writes C would be
-// skipped -- and it is what keeps the check from flagging three honest rows
-// that cannot be fixed by spelling -c (the theme one is rejected for
-// carrying -c at all).
-priv row_expects_refusal := func(cmd: Str) returns Bool {
-    pos := cmd.find(" -- ")
-    if pos < 0 { return false }
-    spec := cmd.substr(0, pos.to_usize())
-    if spec.find("error:") >= 0 { return true }
-    single_at := spec.find(" single ")
-    if single_at < 0 { return false }
-    // ... single <label> <expected_exit> ...
-    rest_start := single_at.to_usize() + 8
-    rest := spec.substr(rest_start, spec.len() - rest_start)
-    sp := rest.find(" ")
-    if sp < 0 { return false }
-    exit_start := sp.to_usize() + 1
-    tail := rest.substr(exit_start, rest.len() - exit_start)
-    mut exit_tok := tail.clone()
-    sp2 := tail.find(" ")
-    if sp2 >= 0 { exit_tok = tail.substr(0, sp2.to_usize()) }
-    return exit_tok.eq("0").not()
-}
+// A row whose command is refused before codegen ("mode theme does not
+// support 'build'", "cannot run a library") writes no C, so it cannot
+// collide and must not be paired. Three rows are that shape, and the row
+// SAYS so -- `refused_before_codegen = true` at registration -- rather than
+// the check inferring it from the runner spec. The inference this replaces
+// read a nonzero expected exit, or an "error:" needle, as proof of a
+// refusal; neither is. A row that panics at RUNTIME also exits nonzero, and
+// it compiled first, so the inference would have exempted exactly the row
+// whose C is being raced for.
+//
+// The declaration is cross-checked below: a row that claims a refusal but
+// compiles nothing to a derived path is a stale claim, reported like a
+// collision.
 
 // The til command a row runs, with the runner's own arguments stripped.
 // Needles live before the `--` separator and are arbitrary text -- one of
@@ -610,9 +597,17 @@ priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
     mut owners := Vec(Str).new()
     mut clashes := 0
     for t : Test in tests {
-        if row_expects_refusal(t.cmd) { continue }
         mut mine := Vec(Str).new()
         collect_default_c_sources(t.cmd, mine)
+        if t.refused_before_codegen {
+            if mine.len() == 0 {
+                println("FAIL: test '", t.label, "' declares refused_before_codegen",
+                    " but compiles nothing to a derived path")
+                println("  note: the command changed under the declaration -- drop the flag")
+                clashes = clashes + 1
+            }
+            continue
+        }
         for src : Str in mine {
             mut seen := -1
             for i in 0..sources.len() {
@@ -623,7 +618,8 @@ priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
                     "' both compile ", src, " without naming an output, so both write gen/til/",
                     test_basename(src), ".<ext>")
                 println("  note: give each compiling row its own '-c <path>', or check several",
-                    " needles against ONE command with add_counts")
+                    " needles against ONE command with add_counts; a row the compiler",
+                    " refuses before codegen says 'refused_before_codegen = true' instead")
                 clashes = clashes + 1
             } else {
                 sources.push(own src.clone())
@@ -648,8 +644,13 @@ add_both := func(mut tests: Vec(Test), file: Str, flags: Str) {
     ))
 }
 
+// ~refused_before_codegen~ is for a row whose command the compiler rejects
+// before it writes any C -- a mode rejection, not a typer error and not a
+// runtime panic. It exempts the row from the generated-C collision check
+// above, and nothing else reads it.
 add_single := func(mut tests: Vec(Test), label: Str, category: Str,
-    expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
+    expected_exit: I64, expected_out: Str, cmd_suffix: Str,
+    refused_before_codegen: Bool = false) {
         mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
         if expected_out.len() > 0 {
             runner_cmd = format(runner_cmd, " ", expected_out, REGEN)
@@ -660,12 +661,14 @@ add_single := func(mut tests: Vec(Test), label: Str, category: Str,
             cmd = runner_cmd,
             outfile = format("gen/out/results/", label, ".txt"),
             category = category.clone(),
-            kind = TestKind.Single
+            kind = TestKind.Single,
+            refused_before_codegen = refused_before_codegen
         ))
     }
 
 add_count := func(mut tests: Vec(Test), label: Str, category: Str,
-    needle: Str, expected_count: I64, cmd_suffix: Str) {
+    needle: Str, expected_count: I64, cmd_suffix: Str,
+    refused_before_codegen: Bool = false) {
         quoted_needle := needle.replace("'", "'\\''")
         runner_cmd := format(RUNNER, " count ", label, " '", quoted_needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
         tests.push(own Test(
@@ -673,7 +676,8 @@ add_count := func(mut tests: Vec(Test), label: Str, category: Str,
             cmd = runner_cmd,
             outfile = format("gen/out/results/", label, ".txt"),
             category = category.clone(),
-            kind = TestKind.Count
+            kind = TestKind.Count,
+            refused_before_codegen = refused_before_codegen
         ))
     }
 
@@ -924,8 +928,27 @@ main := proc(args: ..Str) {
     // The '&&' tokens are quoted for the OUTER shell: test_runner joins its
     // post-`--` argv with spaces and re-runs the result under sh, which is
     // where they take effect.
+    //
+    // #170: the artifacts are REMOVED first, because this row's whole content
+    // is that the translation happens. translate joins the build cache now,
+    // and the cache's dependency set is the loader's resolved .til units --
+    // so a tmp/self_det.c left by an earlier run, newer than every source, is
+    // served as current: "Generated:" is printed, nothing is translated, and
+    // the guard compares an old file against itself in 0.4s instead of doing
+    // the work in ~130s. tmp/ is outside `make clean` (only tmp/boot goes),
+    // so the leftover is the normal state on a machine that builds twice.
+    //
+    // It does not merely no-op: VERSION embeds `git rev-parse --short HEAD`,
+    // evaluated at COMPTIME, which is not a file and so cannot be in any
+    // mtime dependency set. Commit anything -- even a change to this file,
+    // which src/til.til does not import -- and boot/til.c is regenerated with
+    // the new hash while the cached tmp/self_det.c still carries the old one.
+    // The cmp then fails on a VERSION line, reporting a bootstrap
+    // fixed-point break that did not happen. Removing the artifacts is what
+    // makes the row test what it says it tests.
     add_single(tests, "self_translate", "self", 0, "",
-        format(til_bin, " translate -c tmp/self_det.c src/til.til",
+        format("rm -f tmp/self_det.c tmp/self_det_forward.h",
+            " '&&' ", til_bin, " translate -c tmp/self_det.c src/til.til",
             " '&&' cmp tmp/self_det.c boot/til.c",
             " '&&' cmp tmp/self_det_forward.h boot/til_forward.h"))
 
@@ -1125,9 +1148,13 @@ main := proc(args: ..Str) {
     add_count(tests, "theme_rejects_c_path", "build",
         "error: -c is not supported with mode theme; use -o for the Elisp output", 1,
         format(til_bin, " translate -c gen/til/theme-invalid.el editor/themes/til-dark-theme.til"))
+    // Shares its .til with theme_default_path, and may: mode theme answers
+    // 'build' before writing anything, so there is no gen/til artifact for
+    // the two rows to race over.
     add_count(tests, "theme_rejects_build", "build",
         "error: mode theme does not support 'build'; use translate", 1,
-        format(til_bin, " build editor/themes/til-dark-theme.til"))
+        format(til_bin, " build editor/themes/til-dark-theme.til"),
+        refused_before_codegen = true)
     add_count(tests, "theme_rejects_target", "build",
         "error: --target is not supported with mode theme", 1,
         format(til_bin, " translate --target=jvm editor/themes/til-dark-theme.til"))
@@ -2070,12 +2097,17 @@ main := proc(args: ..Str) {
         format(til_bin, " build", asan_flag, " test/pura.til"))
     add_single(tests, "pure_interp_forbidden", "library", 1, "",
         format(til_bin, " interpret test/pure.til"))
+    // The two `run` rows share their .til with the `build` rows above, and
+    // may: "cannot run a library" is answered before codegen, so the run
+    // writes no gen/til/pure.c for the build to race against.
     add_single(tests, "pure_run_forbidden", "library", 1, "",
-        format(til_bin, " run", asan_flag, " test/pure.til"))
+        format(til_bin, " run", asan_flag, " test/pure.til"),
+        refused_before_codegen = true)
     add_single(tests, "pura_interp_forbidden", "library", 1, "",
         format(til_bin, " interpret test/pura.til"))
     add_single(tests, "pura_run_forbidden", "library", 1, "",
-        format(til_bin, " run", asan_flag, " test/pura.til"))
+        format(til_bin, " run", asan_flag, " test/pura.til"),
+        refused_before_codegen = true)
 
     // === build tests: svg2ttf + issues summary ===
     // svg2ttf: transparent 2-colour logo produces img/til_logo.ttf (exit=0);
