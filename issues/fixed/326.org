@@ -834,6 +834,122 @@ compiler-model enums, and examples/custom_modes.til compiled AS a
 program (a misuse of a mode-definition file; the suite exercises it
 correctly via --extra-modes).
 
+*** The second follow-up arc (closed 2026-08-26)
+
+Surveying the corpus line by line after the first arc found seven more
+classes of emitted text nothing uses, and pulling the last thread found
+a memory-safety bug. In landing order:
+
+- An ext decl has no body -- it names a symbol some other object file
+  defines -- so it is never an entry point, and its prototype is worth
+  writing only when the emitted C calls it. The scavenger cannot answer
+  that (~*.size~ is one of its unconditional roots, a runtime-name edge
+  kept for every backend), so the gate reads the site inventory, which
+  skips the bodies the emit gates drop. Five orphan ~..._size~
+  prototypes in the library-binding consumer; later the same gate
+  stopped exempting libraries -- an ext decl is an IMPORT, not ABI --
+  which removed 597 uncalled raylib prototypes from the generated
+  binding.
+- The preamble's function-like macros (~DEREF~, ~TIL_BOX~, later
+  ~TIL_CSTR~ and ~TIL_LIT_GUARD~) are spelled by emitters from decisions
+  that exist only mid-emission, so no pre-pass can predict them without
+  reimplementing the decision. The finished text is the authority: a
+  definition whose macro appears nowhere else is dropped by a post-pass
+  rewrite that runs only when there is something to drop. 140 of 265
+  outputs never boxed a value.
+- A statement BLOCK is dead when every effect inside it lands on a
+  binding the block itself declares -- and that is exactly what a
+  lowered ~for v in a..b~ is. Deciding it needs one honest question: is
+  calling this observable? ~func~ means the typer proved no proc hides
+  inside; ~mut~/~own~ declare the mutation a signature can carry; a
+  func with neither can only assign a global, which reading its body
+  settles. ~ext_func~ is refused wholesale (dyn_call's effect is
+  whatever method name it is handed) except ~cast~ (a builtin) and a
+  POD ~clone~ (a value copy by definition). A ~ref~ binding is NOT the
+  block's own -- writing through it is an outer effect wearing an inner
+  name (test/loops.til caught the miscount). 275 loops walking elements
+  with nothing to do, ~3,600 lines, plus their O(n) at runtime.
+  Two conjured call sites surfaced when til-written sites stopped
+  keeping callees alive: an inlined-away method's body is spliced at
+  every call site (its calls are real calls), and main's argv converter
+  releases parsed elements with ~<T>_delete(_val, 1)~. Both seed the
+  emit inventory now, like the drain delete and ext.c's Str_clone.
+- A wildcard ~case:~ arm carries no pattern, so its body is child 0 --
+  and the liveness walk skipped child 0 of every Case, making every
+  read inside a default arm invisible: 810 ~(void)x;~ casts in til's
+  own output sat next to the read on the following line. The body is
+  the LAST child; walk that (the site inventory hit the same trap
+  first). A name declared more than once is answered per DECLARATION
+  instead of per function -- a C block is where the answer belongs, and
+  the ~used~ flag on the Declaration is the field for exactly this
+  question. 1,522 casts on bindings that are read became 1 (a
+  deliberate over-approximation of the delete-is-not-a-read rule,
+  commented at the site).
+- A switch arm's ~break~ is unreachable when the arm already left --
+  but the question must be one the C COMPILER agrees with, not til
+  semantics: stmt_always_diverges proves an exhaustive inner switch
+  never falls through and gcc's -Wimplicit-fallthrough flags the arm
+  anyway. So the rule is the narrow one -- the arm's LAST statement is
+  itself terminal. 1,157 breaks under a return, corpus-wide. An empty
+  then-branch spells its test backwards: ~if (c) {} else { ... }~ is
+  ~if (!(c)) { ... }~, negated in the EMITTER -- a ~not()~ in the AST
+  makes the typer hoist a second Bool temp that spends the line it
+  saved (measured, reverted). 5,856 of them, one per hoisted loop
+  condition.
+- A library's .c carries its own copy of the name map (one
+  ~#define <name> <prefix><name>~ per exported symbol); the emit gates
+  drop whatever the .c has no use for, and 1,875 of the corpus's 3,433
+  aliases renamed a name the file never spells. An alias for an absent
+  symbol renames nothing and can only capture something later. The
+  forward header keeps its full map for the units that define what the
+  .c does not.
+- Nothing after a statement that never falls through can run: the
+  garbager emitted the cleanup for a value the function RETURNS after
+  the return that hands it over (34 statements, dead in both
+  backends). main's fallthrough ~return 0;~ is not written under a
+  ~return <status>;~.
+- A delete that does nothing is not consuming either: ~own~ on the
+  argument of a free-only destructor reached with call_free false has
+  nothing left to hand over, so ~Vec(T).unsafe_set~'s drop-the-old-
+  value for a POD element goes, with the pointer temp that existed
+  only to feed it (349 pairs -> the deliberate sole-reader remainder).
+  A candidate whose RHS is a pure call is dropped outright rather than
+  replaced -- a pure call left bare is -Werror=unused-value.
+- The last no-op deletes sat next to assigns through enum case payload
+  binders, and following them home found that the old payload's
+  teardown had TWO authors that never agreed. For a rebind in the
+  arm's own body, the garbager's standalone delete AND the C emitter's
+  unconditional payload-alias delete both freed the old c_str -- a
+  real double free, ASAN-verified, latent because every fixture's
+  payload was a folded literal whose delete does nothing. For a rebind
+  from a NESTED body, neither garbager pass decided anything and the
+  interpreter leaked the old c_str, with the emitter's unconditional
+  delete masking the same hole in the C. One owner now: the garbager
+  decides (flag_outer_assign_rebinds includes payload aliases;
+  garbager_register_decl re-derives the typer's is_alias stamp with
+  the shared rhs_is_payload_binding), both backends follow.
+  test_mut_heap_str_payload_rebind and its _nested twin pin it, with
+  payloads built at runtime so the constfolder cannot fold them.
+
+Not a #326 change but landed in the arc because its verification
+depended on it: #170's build cache made ~make two_pass~ commit pass
+1's boot/til.c -- the OLD emitter applied to the new source,
+silently -- because pass 1 writes exactly the binary the cache then
+declares current. Pass 2 passes --force-rebuild. The self_translate
+determinism check is what noticed.
+
+End state, audited across every generated .c (til itself, the
+fixtures, a regenerated raylib binding; ~1M lines): zero prototypes
+with no definition and no call, zero definitions unreachable from main
+(the dead-cycle class -Wunused-function cannot see), zero unmentioned
+typedefs / string-pool members / enum-tag defines, zero unused macro
+definitions, zero dead name-map aliases, zero statements after a
+terminal statement, zero write-only file-scope statics, zero dead
+element loops. The deliberate remainders, documented in place: the
+sole-reader deletes (structs_keeps_sole_reader_delete pins them;
+retiring the binding is #302's), and one ~(void)~ cast where the
+delete-is-not-a-read rule over-approximates.
+
 *** Related issues
 
 - #86 defines the user-visible underscore escape hatch.
