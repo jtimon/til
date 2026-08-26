@@ -1197,7 +1197,18 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
         case:
         }
         if needs_infer {
+            // #328 follow-up: the FIELD's declared type is this argument's
+            // destination, the same evidence a parameter gives a call
+            // argument. The rebuild above put exactly one child per field,
+            // so the index maps straight across with no alignment guard.
+            saved_ctor_expected_type := ctx.generic_expected_type.clone()
+            ref saved_ctor_expected_for : Dynamic = ctx.generic_expected_for
+            if i - 1 < nfields {
+                generic_expected_arm(ctx, scope, ctor_sdd.field_at(i - 1).type_name(), ci)
+            }
             infer_expr(scope, ci, in_func, ctx)
+            ctx.generic_expected_type = saved_ctor_expected_type.clone()
+            ctx.generic_expected_for = saved_ctor_expected_for
         }
     }
     for fi in 0..nfields {
@@ -6167,12 +6178,27 @@ priv mark_callable_field_transfer := func(mut stmt: Expr, shallow target_type: T
     }
 }
 
+// #328 follow-up: the declared type of the field an assignment targets,
+// or "". Same walk the checks below do (the object's type name, its
+// struct def, the field), hoisted because the RHS has to be inferred
+// with that destination already known.
+priv field_assign_declared_type_name := func(scope: TypeScope, obj: Expr, fname: Str, ctx: Context) returns Str {
+    obj_sname_o := expr_type_name_ref(obj)
+    if obj_sname_o.is_none() { return "" }
+    sdef_o := scope.get_struct(obj_sname_o.unwrap(), ctx.symbols)
+    if sdef_o.is_none() { return "" }
+    switch sdef_o.unwrap().node_type {
+    case .StructDef(fa_sdd):
+        fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+        if fld_o.is_some() { return fld_o.unwrap().type_name().clone() }
+    case:
+    }
+    return ""
+}
+
 priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
     infer_expr(scope, stmt.children[0], in_func, ctx)
-    infer_expr(scope, stmt.children[1], in_func, ctx)
-    ref obj : Expr = stmt.children[0]
-    ref mut rhs : Expr = stmt.children[1]
     mut fname := ""
     switch stmt.node_type {
     case .FieldAssign(fad):
@@ -6181,6 +6207,18 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
         UNREACHABLE("expected FieldAssign, got ", stmt.node_type.head_str(ctx.symbols.names))
         return
     }
+    // #328 follow-up: `h.p = gdefault()` -- the field is the destination
+    // naming a type, exactly as a plain assignment target is. The field
+    // name is read before the RHS is inferred (rather than after, with
+    // the other checks) precisely so the destination is known in time.
+    saved_fa_expected_type := ctx.generic_expected_type.clone()
+    ref saved_fa_expected_for : Dynamic = ctx.generic_expected_for
+    generic_expected_arm(ctx, scope, field_assign_declared_type_name(scope, stmt.children[0], fname, ctx), stmt.children[1])
+    infer_expr(scope, stmt.children[1], in_func, ctx)
+    ctx.generic_expected_type = saved_fa_expected_type.clone()
+    ctx.generic_expected_for = saved_fa_expected_for
+    ref obj : Expr = stmt.children[0]
+    ref mut rhs : Expr = stmt.children[1]
     // #164 / #344: walk to the root identifier of the obj chain and mark
     // it written. `a.b.c = ...` writes the root `a` (transitively), and
     // when `a` is a borrow, the storage `a` aliases.
