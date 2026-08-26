@@ -389,8 +389,29 @@ priv dyn_word_list := func(xs: ..Dynamic) returns Str {
     return out
 }
 
+// #392 follow-up: `xs[i]` inside a ..Dynamic callee. Two things had to be
+// true for this to work, and neither was. The parser writes `x[i]` as
+// `x.get(i)!` before anything knows whether the resolved get throws, and
+// Tuple's does not. And the throws walk seeded this parameter's receiver type
+// with the ARRAY instance rather than stage A's carrier, so `xs.get(i)`
+// resolved against Array__Dynamic -- whose get DOES throw -- and took err
+// out-args that Tuple.get has no parameters for. The call then failed arity
+// ("too many arguments: expected 1, got 2"), which named nothing a reader
+// could act on. Reads at index 0 and at a loop index, so the seeding is
+// exercised by more than a literal.
+priv dyn_sub_read := func(xs: ..Dynamic) returns Str {
+    ref first : I64 = xs[0]
+    mut out := first.to_str()
+    for i in 1..xs.len() {
+        ref s : Str = xs[i]
+        out = format(out, "|", s)
+    }
+    return out
+}
+
 test_dynamic_variadic_tuple := test() {
     v := format("run", "time")
+    assert_eq(Str, dyn_sub_read(7, v, "tail"), "7|runtime|tail")
     assert_eq(Str, dyn_type_list(1, v, true), "I64,Str,Bool,")
     // the value survives the crossing, and the source outlives the call
     assert_eq(Str, dyn_first_str(v), "runtime")

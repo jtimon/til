@@ -85,6 +85,23 @@ test_tuple_dynamic_word := test() {
     assert_eq(I64, after, 77)
 }
 
+// #392 follow-up: `t[i]` reaches Tuple.get. The parser writes `x[i]` as
+// `x.get(i)!`, and Tuple.get does not throw -- it panics on a bad index -- so
+// the synthesized bang used to be reported as "function does not throw, remove
+// the '!' after the call", pointing at a column where the source has no `!`.
+// The subscript is the same call `t.get(i)` makes, so #392 stage B's typed-read
+// check applies to it too.
+test_tuple_subscript := test() {
+    mut t := Tuple.new()
+    t.push(I64, own 42)
+    t.push(Str, own "hello")
+
+    ref a : I64 = t[0]
+    ref b : Str = t[1]
+    assert_eq(I64, a, 42)
+    assert_eq(Str, b, "hello")
+}
+
 test_tuple_clone := test() {
     mut t := Tuple.new()
     t.push(I64, own 42)

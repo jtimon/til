@@ -132,9 +132,10 @@ first; nothing in A/B depends on it.
       byte-identical to pass 1 (measured), since the compiler's own
       sources contain no ..Dynamic calls.
 
-      Two notes for B: ~xs[0]~ subscript does not reach Tuple.get (the
-      subscript desugar expects the throwing-get shape -- "too many
-      arguments"), so element access is spelled ~xs.get(i)~ for now; and
+      Two notes for B, both since closed (B1 and B4 below): ~xs[0]~
+      subscript does not reach Tuple.get (the subscript desugar expects
+      the throwing-get shape -- "too many arguments"), so element access
+      is spelled ~xs.get(i)~ for now; and
       an element read at a typed binding is still UNCHECKED
       reinterpretation -- correct bytes when the type matches, garbage
       when it lies. type_at makes the check writable; B makes it
@@ -239,6 +240,55 @@ first; nothing in A/B depends on it.
       reports through the same wording. Suite 463/463; self_translate
       passes, so pass 2 is byte-identical (a diagnostic that never fires
       while compiling the compiler changes no emission).
+
+      B4 DONE -- ~xs[i]~ reaches Tuple.get, closing stage A's first note
+      above. Two independent defects, and the second is a stage A
+      leftover.
+
+      One: the parser writes ~x[i]~ as ~x.get(i)!~, and nothing at parse
+      time knows whether the resolved ~get~ throws. Array's and Vec's do;
+      Tuple's does not, and neither need a user type's. The leftover bang
+      was then reported as "function does not throw, remove the '!' after
+      the call" -- pointing at a column where the source has no ~!~, a
+      diagnostic about the compiler's own rewrite. So the bang is marked
+      as SYNTHESIZED (~FCallData.is_subscript~, appended at the end like
+      splat_args) and dropped silently when the callee turns out not to
+      throw. A user-written redundant ~!~ still reports, and a subscript
+      of a THROWING get still panics on a bad index -- unchanged, same
+      flag.
+
+      This half was never Tuple-specific: ANY type with a plain ~get~
+      could not be subscripted, which is why the fix and its test live
+      with structs, not with Tuple.
+
+      Two: the throws walk seeds each parameter's receiver type
+      (~lowering_param_types~) and was still asking
+      ~variadic_array_type_name~ for the variadic one -- one more site
+      stage A's ~variadic_carrier_type_name~ had to reach, beside the
+      four it did. A ~..Dynamic~ parameter seeded as ~Array__Dynamic~
+      resolved ~xs.get(i)~ against a get that DOES throw, so err out-args
+      were injected into a call to Tuple.get, which has no parameters for
+      them, and the call failed arity: "too many arguments: expected 1,
+      got 2". That is why the variadic and hand-built spellings reported
+      differently.
+
+      Two speculative changes were written and then removed once the real
+      cause was found: a live-scope fallback in ~resolve_value_type~ and
+      dropping the synthesized bang as evidence in
+      ~find_callee_throws_key~'s unresolvable-receiver guess. Neither is
+      needed with the seeding fixed, and the second would have made an
+      unresolvable receiver with a throwing ~get~ compile as
+      non-throwing.
+
+      Verified: test_tuple_subscript (test/tuples.til) for the
+      ~returns ref~ shape, test_subscript_non_throwing_get
+      (test/structs.til) for a plain value-returning ~get~ on a user
+      struct, and dyn_sub_read (test/variadic.til) reading ~xs[0]~ and
+      ~xs[i]~ inside a ..Dynamic callee. Throwing subscripts are
+      unchanged -- ~v[5]~ past the end still panics with an uncaught
+      OutOfBounds -- and ~a[0] = v~ subscript assignment still works.
+      Suite 466/466, both backends and ASAN; self_translate passes, so
+      pass 2 is byte-identical.
 
 - [ ] C. The array(Dynamic, ...) literal decision.
 
