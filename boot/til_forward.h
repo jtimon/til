@@ -1008,6 +1008,8 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
     Type type;
     I32 decl_index;
     I32 last_use;
+    Bool is_str_view;
+    Str str_view_base;
     I32 own_transfer;
     Bool has_transfer;
     Bool skip_scope_delete;

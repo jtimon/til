@@ -1,0 +1,71 @@
+mode cli
+
+// Negative test (issue #401): the two ways a Str view ESCAPES the buffer
+// it borrows, sequels to #372's return-site rule. Both were
+// heap-use-after-free in BOTH backends -- and interpreted they only became
+// reproducible when #366 made the interpreter alias views instead of
+// copying them.
+//
+// The remedy each message names is a clone: it is always correct and
+// costs one copy.
+
+// 1. A view of a block-local pushed, `own`, into a container that
+//    outlives the block: the base's buffer dies with the block and the
+//    container reads freed memory after it. Direct-call spelling; the
+//    typer hoists the argument, so this also pins that hoisted view
+//    temps are tracked.
+escape_direct := proc() {
+    lit := "hello world"
+    mut v := Vec(Str).new()
+    {
+        base := lit.clone()
+        v.push(own base.substr(0, 5))
+    }
+    println(v[0])
+}
+
+// 2. The same escape through a NAMED view local.
+escape_named := proc() {
+    lit := "hello world"
+    mut v := Vec(Str).new()
+    {
+        base := lit.clone()
+        line := base.substr(0, 5)
+        v.push(own line)
+    }
+    println(v[0])
+}
+
+// 3. The view's base reassigned while the view is still live: the assign
+//    frees the old buffer, and every later read of the view is through
+//    freed storage.
+reassign_then_use := proc() {
+    lit := "hello world"
+    mut base := lit.clone()
+    w := base.substr(0, 5)
+    other := lit.clone()
+    base = other
+    println(w)
+}
+
+// 4. Reassign and use interleaved by a LOOP: statement order cannot clear
+//    it -- iteration 2's use reads the buffer iteration 1's assign freed,
+//    whichever comes first in the source.
+reassign_in_loop := proc() {
+    lit := "hello world"
+    mut base := lit.clone()
+    w := base.substr(0, 5)
+    mut i : USize = 0
+    while i < 2 {
+        println(w)
+        base = lit.clone()
+        i = i + 1
+    }
+}
+
+main := proc() {
+    escape_direct()
+    escape_named()
+    reassign_then_use()
+    reassign_in_loop()
+}

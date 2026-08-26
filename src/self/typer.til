@@ -9546,7 +9546,7 @@ priv check_is_null_arg_dynamic := proc(mut scope: TypeScope, e: Expr, mut ctx: C
 // `cap` field and nothing in a signature says it (#367 is the issue for
 // putting that guarantee in the type; until it lands, the set is small,
 // lives in one file, and is spelled out here).
-priv str_method_returns_view := func(name: Str) returns Bool {
+str_method_returns_view := func(name: Str) returns Bool {
     return match name {
     case "substr", "trim", "trim_start", "trim_end", "strip_prefix",
          "strip_suffix", "get_char", "borrowed_view": true
@@ -9579,7 +9579,7 @@ priv str_method_returns_view := func(name: Str) returns Bool {
 // The binding a view-producing initializer borrows FROM, or "" when the
 // initializer is not one. Lowered form is `Str.<method>(self, ...)`, so
 // the receiver is argument one.
-priv str_view_source_name := func(rhs: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
+str_view_source_name := func(rhs: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     if rhs.node_type.is(NodeType.FCall).not() { return "" }
     if rhs.children.len() < 2 { return "" }
     switch rhs.children[0].node_type {
@@ -9599,7 +9599,7 @@ priv str_view_source_name := func(rhs: Expr, scope: TypeScope, symbols: SymbolPo
 // owner only when it is an owned local of this frame. A param, a `ref`, an
 // alias or a builtin bottoms out as "" -- storage this frame did not
 // allocate and does not free.
-priv view_base_owner := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Str {
+view_base_owner := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Str {
     sf := scope.find_name(name, symbols)
     switch sf {
     case .Found(b):
@@ -9616,7 +9616,7 @@ priv view_base_owner := func(name: Str, scope: TypeScope, symbols: SymbolPool) r
     }
 }
 
-priv view_return_base_local := func(recv: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
+view_return_base_local := func(recv: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     switch recv.node_type {
     case .Ident(rid):
         sf := scope.find_sym(rid.ident_sym())

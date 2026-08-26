@@ -513,3 +513,16 @@ view_local_own_arg_in_nested_loop := test() {
     }
     assert_eq(USize, kept, 4)
 }
+
+/// #401 boundary: reassigning a view's base AFTER the view's last use is
+/// legal -- the view-escape diagnostic is about order, not about ever
+/// mixing the two.
+view_base_reassign_after_last_use := test() {
+    lit := "hello world"
+    mut base := lit.clone()
+    v := base.substr(0, 5)
+    n := v.len()
+    base = lit.clone()
+    assert_eq(USize, n, 5)
+    assert_eq(USize, base.len(), 11)
+}

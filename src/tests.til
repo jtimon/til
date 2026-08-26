@@ -2373,6 +2373,19 @@ main := proc(args: ..Str) {
     add_count(tests, "loop_transfer_error_build", "typer",
         "transferred inside a loop", 7,
         format(til_bin, " build", asan_flag, " test/loop_transfer_error.til"))
+    // #401: a Str view escaping the buffer it borrows -- stored `own` into
+    // a container that outlives its base (2 cases), or its base reassigned
+    // while the view is live (2 cases). Sequels to #372's return-site rule.
+    add_counts(tests, "view_escape_error_interp", "typer",
+        format(til_bin, " interpret test/view_escape_error.til"),
+        CountCheck(needle = "error:", expected_count = 4),
+        CountCheck(needle = "outlives", expected_count = 2),
+        CountCheck(needle = "still borrows", expected_count = 2))
+    add_counts(tests, "view_escape_error_build", "typer",
+        format(til_bin, " build", asan_flag, " test/view_escape_error.til"),
+        CountCheck(needle = "error:", expected_count = 4),
+        CountCheck(needle = "outlives", expected_count = 2),
+        CountCheck(needle = "still borrows", expected_count = 2))
     // #288: a core_func / core_proc is an inline-only primitive intrinsic and
     // cannot be indirected -- dyn_fn on one is a typer error (2 cases). Count
     // the enforcement substring, not "error:", since dyn_fn's Dynamic result

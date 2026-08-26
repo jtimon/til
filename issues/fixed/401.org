@@ -1,0 +1,129 @@
+# priority: high
+# category: bugs
+** FIXED #401 A Str view escapes the buffer it borrows: stored past its base's scope, or its base reassigned under it
+
+*** Post-mortem
+
+The two escape routes #372's return-site rule does not cover, found by
+auditing that rule's neighbours right after #366 made them reproducible
+interpreted at all (before #366 the interpreter copied views, so both
+were compiled-only):
+
+1. A view of a local stored, ~own~, into a container declared in a
+   scope that OUTLIVES the view's base:
+
+   #+begin_src til
+   mut v := Vec(Str).new()
+   {
+       base := lit.clone()
+       v.push(own base.substr(0, 5))
+   }
+   println(v[0])    // reads freed memory
+   #+end_src
+
+2. The view's base reassigned while the view is still live -- the
+   assign frees the old buffer, and every later read of the view is
+   through freed storage:
+
+   #+begin_src til
+   mut base := lit.clone()
+   w := base.substr(0, 5)
+   base = other
+   println(w)       // reads freed memory
+   #+end_src
+
+Both were heap-use-after-free under ASAN in both backends; without ASAN
+they print recycled heap bytes. Both are rejected now, and ~clone()~ --
+always correct, one copy -- is the remedy each message names.
+
+*** What the fix is
+
+One new garbager check, ~check_view_escapes~, next to
+~check_use_after_own_transfer~ and built from parts that already
+existed:
+
+- View identity comes from #372's records: ~TypeBinding.is_str_view~ /
+  ~.str_view_base~, chased to the owning local by ~view_base_owner~ /
+  ~view_return_base_local~ (de-privd from typer.til; the garbager
+  imports the typer). Those end at an OWNED local and answer "" for
+  params, refs and aliases -- storage the frame does not free -- so the
+  legal borrowing idioms stay legal without special cases.
+- Order and lifetime come from the index model: ~LocalInfo.decl_index~
+  says whether a name dies with THIS body (a receiver that is not a
+  body local outlives every body local), ~last_use~ says whether a view
+  outlives a reassign. A While that contains both the reassign and a
+  use is rejected regardless of their order, because iterations
+  interleave them.
+- An ~own~ Ident argument that is a plain owned Str is a MOVE -- the
+  normal push idiom -- and is not touched: only a binding marked
+  ~is_str_view~, or a direct view-method call, borrows. The first
+  draft got this wrong and the corpus said so immediately: 294 errors,
+  every ~parts.push(own s.substr(...))~ in core flagged because the
+  resolver treated any Str ident as a buffer owner.
+
+*** The check must be free where there are no views
+
+The first landed version cost 3-4% of a self-translate (interleaved
+A/B, tmp/til_old vs tmp/til_new, 5 pairs, old slower in every pair) and
+was unmerged for it. Three re-derivations paid on every body were the
+cost, and each moved to work a pass had already done:
+
+- Route 1 walked EVERY statement's whole tree hunting stored own-view
+  arguments. Gone: ~LocalInfo.own_transfer~ already points at the one
+  statement that transfers each view local (the facts pass found it),
+  so only that statement is walked, and only for view locals.
+- Every body local paid a ~scope.find_name~ to ask "is this a view".
+  Gone: ~collect_scope_locals~ has the binding in hand while building
+  LocalInfo, so the mark rides two copied fields and the common path
+  is a tag test per local.
+- Route 2 walked every following statement per view local hunting
+  reassigns. Now the facts row prefilters: only statements that
+  MENTION the base at all pay the ~expr_reassigns_var~ walk -- and a
+  base missing from the universe entirely (a view of a view whose
+  owner lives in an enclosing body) means no reassign here either.
+- ~garbager_register_decl~'s mark derivation is gated on the decl
+  being Str-typed before any name is compared.
+
+After the rework the check is indistinguishable from baseline in the
+same interleaved A/B (new marginally FASTER than base across 5 pairs,
+i.e. inside the noise).
+
+*** Two findings along the way, both load-bearing
+
+1. THE GARBAGER NEVER SAW THE TYPER'S VIEW MARKS. The destroy walk
+   deliberately rebuilds per-body scopes from the typed AST
+   (~garbager_register_decl~) instead of retaining typer scopes, so
+   ~is_str_view~ -- written on TYPER bindings -- never reached it.
+   The fix re-derives the mark where the garbager builds its own
+   binding, from the same RHS shape the typer reads
+   (~str_view_source_name~). A side benefit: EVERY Decl passes through
+   there, including the typer's hoisted argument temps
+   (~hoisted__Str_N := Str.substr(base, ...)~), which the typer's own
+   mark site misses -- so the direct-call spelling
+   ~v.push(own base.substr(...))~ is caught through its hoisted temp.
+
+2. GARBAGER DIAGNOSTICS HAD STOPPED FAILING THE BUILD. Since the
+   garbager became a separate pass, the destroy walk runs AFTER
+   ~type_program_errors~'s gate, and nothing re-checked ~ctx.errors~:
+   ~bin/til build test/loop_transfer_error.til~ printed its 7 errors
+   and EXITED 0. The count-needle tests kept passing, so the
+   regression was invisible to the suite. ~init_and_type_program_errors~
+   and ~repl_init_cached_program~ now count what the destroy walk
+   found and fail; the interactive REPL's own turn path is unchanged.
+
+*** Not covered, on purpose
+
+- A view stored through a plain function call (~sink(dst, own view)~):
+  whether the callee stores or consumes is interprocedural; only
+  method-call receivers (container inserts) are checked.
+- A ~mut~ Str PARAM reassigned under a live view: ~view_base_owner~
+  excludes params by #372's contract. The assign does free the old
+  buffer, so this is a real remaining hole, one notch narrower.
+- Same-scope container + base stay legal in either declaration order:
+  they die together and element wrappers do not free borrowed buffers
+  (pinned by the ownership-shape matrix's view rows).
+
+Regression tests: test/view_escape_error.til (4 cases, both backends,
+registered as view_escape_error_interp / _build) and
+~view_base_reassign_after_last_use~ in test/ownership_shapes.til pins
+the legal boundary -- reassign AFTER the view's last use.

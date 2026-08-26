@@ -28,6 +28,12 @@ priv LocalInfo := struct {
     type := Type.Unknown
     decl_index : I32 = 0
     last_use : I32 = 0
+    // #401: copied off the garbager-registered binding at collection time
+    // so check_view_escapes never has to re-find bindings by name -- views
+    // are rare, and the common path must cost two field reads, not a scope
+    // walk per local.
+    is_str_view := false
+    str_view_base := ""
     own_transfer : I32 = -1
     // #302 stage 3: "some statement of this body transfers this name",
     // recorded once at collection time and NEVER cleared -- unlike
@@ -1649,6 +1655,10 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         mut li := LocalInfo(name = b.name.clone())
         li.type = b.type
         li.decl_index = decl_idx
+        if b.is_str_view {
+            li.is_str_view = true
+            li.str_view_base = b.str_view_base.clone()
+        }
         li.last_use = last_use
         li.own_transfer = own_transfer
         li.has_transfer = own_transfer >= 0
@@ -2157,6 +2167,166 @@ priv expr_reassigns_var := func(e: Expr, name: Str) returns Bool {
         if expr_reassigns_var(rc, name) { return true }
     }
     return false
+}
+
+// #401: the two ways a Str view ESCAPES the buffer it borrows, sequels to
+// #372's return-site rule and only checkable at all since #366 made the
+// interpreter alias views like the compiler. Both were
+// heap-use-after-free in both backends, and neither is reachable from the
+// return site:
+//
+//   1. the view is stored, `own`, into a container declared in a scope
+//      that OUTLIVES the view's base -- the base's buffer dies with its
+//      scope and the container reads freed memory after it;
+//   2. the view's BASE is reassigned while the view is still live -- the
+//      assign frees the old buffer (save_old_delete), and every later
+//      read of the view is through freed storage.
+//
+// The view chain comes from the typer's #372 records (TypeBinding
+// .is_str_view / .str_view_base, resolved by view_base_owner /
+// view_return_base_local, which end at an OWNED local and answer "" for
+// params, refs and aliases -- storage this frame does not free). Order
+// and body-locality come from the index model, like
+// check_use_after_own_transfer below: LocalInfo.decl_index says whether a
+// name dies with THIS body, last_use says whether a view outlives a
+// statement. `clone()` is the remedy both messages name; it is always
+// correct and costs one copy.
+
+// This body's record for `name`: decl_index >= 0 means the name dies at
+// this body's end; -1 is a param; absent (-2) means an enclosing scope
+// owns it -- either way it outlives this body's locals.
+priv body_local_decl_index := func(locals: Vec(LocalInfo), name: Str) returns I32 {
+    for local : LocalInfo in locals {
+        if local.name.eq(name) { return local.decl_index }
+    }
+    return -2
+}
+
+// A While that both reassigns `base` and uses `vname`: the two interleave
+// across ITERATIONS, so the index model's statement order cannot clear
+// it -- iteration 2's use reads the buffer iteration 1's assign freed,
+// whichever comes first in the source.
+priv while_reassigns_and_uses := func(e: Expr, base: Str, vname: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.While) {
+        if expr_reassigns_var(e, base).and(expr_uses_var(e, vname, symbols)) { return true }
+    }
+    for c : Expr in e.children {
+        if while_reassigns_and_uses(c, base, vname, scope, symbols) { return true }
+    }
+    return false
+}
+
+// The buffer owner a stored `own` argument BORROWS, or "" when it borrows
+// nothing. This is narrower than view_return_base_local on purpose: an
+// Ident argument that is a plain owned Str is an owned MOVE into the
+// container -- the normal push idiom -- not a view. Only a binding the
+// typer marked is_str_view (#372), or a direct view-method call, borrows.
+// The receiver a transfer of view `name` stores it into, or "" when the
+// statement's transfer of `name` is not a stored method argument. Only the
+// ONE statement LocalInfo.own_transfer already points at is walked -- the
+// facts pass has done the finding, so the common body pays nothing here.
+// A method call's lowered shape: children[0] is the FieldAccess callee
+// (its base the TYPE identifier), children[1] the receiver, arguments
+// from 2. (`Str.delete(own v)` and friends put the own arg at index 1 and
+// are never storage; a plain function callee is interprocedural and out
+// of scope, recorded in the issue.)
+priv view_transfer_receiver := func(e: Expr, name: Str, symbols: SymbolPool) returns Str {
+    switch e.node_type {
+    case .FuncDef, .BodyValue: return ""
+    case .FCall:
+        if e.children.len() >= 3 {
+            mut is_method := false
+            switch e.children[0].node_type {
+            case .FieldAccess: is_method = true
+            case:
+            }
+            if is_method {
+                for ai in 2..e.children.len() {
+                    if get_own_arg(e, ai) {
+                        switch e.children[ai].node_type {
+                        case .Ident(aid):
+                            if aid.ident_name(symbols.names).eq(name) {
+                                mut recv_e := safe_ref(e.children[1])
+                                mut chasing := true
+                                while chasing {
+                                    ref rn : Expr = recv_e.unwrap()
+                                    switch rn.node_type {
+                                    case .Ident(rid):
+                                        return Str.clone(rid.ident_name(symbols.names))
+                                    case .FieldAccess:
+                                        if rn.children.len() > 0 { recv_e = safe_ref(rn.children[0]) }
+                                        else { chasing = false }
+                                    case:
+                                        chasing = false
+                                    }
+                                }
+                                return ""
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        r := view_transfer_receiver(c, name, symbols)
+        if r.len() > 0 { return r }
+    }
+    return ""
+}
+
+priv check_view_escapes := proc(body: Expr, locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex, mut ctx: Context) {
+    for local : LocalInfo in locals {
+        // The mark rides LocalInfo from collection (two field reads), so a
+        // body with no views -- almost every body -- skips in a tag test
+        // per local, with no scope walks and no statement walks.
+        if local.is_str_view.not() { continue }
+        if local.decl_index < 0 { continue }
+        if local.str_view_base.len() == 0 { continue }
+        base := view_base_owner(local.str_view_base, scope, ctx.symbols)
+        if base.len() == 0 { continue }
+        // Route 1: the view stored, `own`, into a receiver that outlives
+        // its base. The facts pass already found the transfer statement;
+        // walk just that one.
+        if local.own_transfer.gte(0).and(body_local_decl_index(locals, base).gte(0)) {
+            ref tstmt : Expr = body.children[local.own_transfer.to_usize()]
+            recv := view_transfer_receiver(tstmt, local.name, ctx.symbols)
+            if recv.len().gt(0).and(body_local_decl_index(locals, recv) < 0) {
+                tstmt.type_error(format("cannot store a view of '", base, "' in '", recv,
+                    "': '", recv, "' outlives '", base,
+                    "', whose buffer dies with this scope -- store a clone instead"), ctx)
+            }
+        }
+        // Route 2: the view's base reassigned while the view is live. The
+        // facts row says which statements mention `base` at all; only those
+        // pay the expr_reassigns_var walk. The base can be missing from the
+        // universe entirely -- a view of a view whose OWNER lives in an
+        // enclosing body is chased there by view_base_owner while this body
+        // never names it -- and a reassign would be a mention, so missing
+        // means route 2 has nothing to find here.
+        base_bit_s := fact_bit_search(fi.idx, base)
+        if base_bit_s < 0 { continue }
+        base_bit := base_bit_s.to_usize()
+        mut j := local.decl_index.add(1)
+        while j.to_usize() < body.children.len() {
+            if fact_bit_test(facts.uses, j.to_usize().mul(facts.words), base_bit).not() {
+                j = j.add(1)
+                continue
+            }
+            ref jstmt : Expr = body.children[j.to_usize()]
+            if is_compile_directive(jstmt, ctx.symbols).not().and(expr_reassigns_var(jstmt, base)) {
+                if local.last_use.gt(j).or(while_reassigns_and_uses(jstmt, base, local.name, scope, ctx.symbols)) {
+                    jstmt.type_error(format("reassigning '", base, "' frees the buffer view '",
+                        local.name, "' still borrows -- clone the view, or reassign '",
+                        base, "' after the view's last use"), ctx)
+                    break
+                }
+            }
+            j = j.add(1)
+        }
+    }
 }
 
 priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) {
@@ -3276,6 +3446,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     if locals_vec.len() > 0 {
         extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx.symbols)
         check_use_after_own_transfer(body, locals_vec, scope, ctx)
+        check_view_escapes(body, locals_vec, scope, facts, fidx, ctx)
     }
     if insert.not() { return false }
     // Before the zero-locals early return: outer-target assigns need
@@ -3432,6 +3603,31 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
                 if grd_bo.is_some() {
                     ref mut grd_b : TypeBinding = grd_bo.unwrap()
                     grd_b.is_alias = true
+                }
+            }
+        }
+        // #401: the typer's #372 view marks live on TYPER bindings, and this
+        // walk deliberately rebuilds scopes instead of retaining those (see
+        // garbager_walk_body). Re-derive the mark on the binding this pass
+        // owns, from the same RHS shape the typer read -- and because EVERY
+        // Decl passes through here, the typer's hoisted argument temps
+        // (`hoisted__Str_N := Str.substr(base, ...)`) get marked too, which
+        // the view-escape checks below rely on. Gated on the decl being
+        // Str-typed first: a view call returns Str, and the tag test is
+        // what every non-Str decl -- most of them -- pays.
+        mut vgate := false
+        switch dtype {
+        case .Struct(vsn): vgate = vsn.eq("Str")
+        case:
+        }
+        if vgate.and(stmt.children.len() > 0) {
+            view_src := str_view_source_name(stmt.children[0], scope, ctx.symbols)
+            if view_src.len() > 0 {
+                mut vreg_o := scope.get_binding_name(dd.name, ctx.symbols)
+                if vreg_o.is_some() {
+                    ref mut vreg : TypeBinding = vreg_o.unwrap()
+                    vreg.is_str_view = true
+                    vreg.str_view_base = view_src
                 }
             }
         }
