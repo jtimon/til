@@ -43,7 +43,7 @@ catch, the enclosing callable must declare the propagated error in its own
 
 Use ~!~ when failure is not recoverable at that call site:
 
-#+begin_src til
+#+begin_src til :doctest-file errors_testing.til
 answer := safe_div(84, 2)!
 #+end_src
 

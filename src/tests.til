@@ -320,6 +320,61 @@ write_tutorial_file_doctests := proc() returns Vec(Str) {
     return run_files
 }
 
+org_source_has_heading := func(source: Str, heading: Str) returns Bool {
+    mut pos : USize = 0
+    while pos < source.len() {
+        line_end := doc_test_line_end(source, pos)
+        line := source.substr(pos, line_end - pos)
+        mut heading_start : USize = 0
+        while heading_start < line.len() {
+            if line.substr(heading_start, 1) != "*" { break }
+            heading_start++
+        }
+        if heading_start.gt(0).and(heading_start.lt(line.len())) {
+            if line.substr(heading_start, 1) == " " {
+                text_start := heading_start + 1
+                if line.substr(text_start, line.len() - text_start).trim() == heading {
+                    return true
+                }
+            }
+        }
+        pos = doc_test_next_line_pos(source, line_end)
+    }
+    return false
+}
+
+org_source_has_id := func(source: Str, id: Str) returns Bool {
+    custom_id := format(":CUSTOM_ID: ", id)
+    org_id := format(":ID: ", id)
+    mut pos : USize = 0
+    while pos < source.len() {
+        line_end := doc_test_line_end(source, pos)
+        line := source.substr(pos, line_end - pos).trim()
+        if line.eq(custom_id).or(line.eq(org_id)) { return true }
+        pos = doc_test_next_line_pos(source, line_end)
+    }
+    return false
+}
+
+check_org_link_anchor := proc(link_path: Str, target_path: Str, anchor: Str) {
+    target_source := File.readfile(target_path)
+    if anchor.starts_with("*") {
+        heading := anchor.substr(1, anchor.len() - 1)
+        if heading.is_empty().or(org_source_has_heading(target_source, heading).not()) {
+            panic("broken heading anchor in ", link_path, ": ", target_path, "::", anchor)
+        }
+        return
+    }
+    if anchor.starts_with("#") {
+        id := anchor.substr(1, anchor.len() - 1)
+        if id.is_empty().or(org_source_has_id(target_source, id).not()) {
+            panic("broken ID anchor in ", link_path, ": ", target_path, "::", anchor)
+        }
+        return
+    }
+    panic("unsupported file link anchor in ", link_path, ": ", target_path, "::", anchor)
+}
+
 check_org_file_links := proc(path: Str, source: Str) {
     marker := "[[file:"
     parent := doc_test_parent_dir(path)
@@ -333,20 +388,40 @@ check_org_file_links := proc(path: Str, source: Str) {
         target_end := target_rest.find("]")
         if target_end < 0 { panic("unterminated file link in ", path) }
         mut target := target_rest.substr(0, target_end.to_usize())
-        anchor := target.find("::")
-        if anchor >= 0 { target = target.substr(0, anchor.to_usize()) }
+        mut anchor := ""
+        anchor_pos := target.find("::")
+        if anchor_pos >= 0 {
+            anchor_start := anchor_pos.to_usize() + 2
+            anchor = target.substr(anchor_start, target.len() - anchor_start)
+            target = target.substr(0, anchor_pos.to_usize())
+        }
         if target.is_empty() { panic("empty file link in ", path) }
+        mut resolved := target.clone()
         if File.is_absolute(target) {
             if File.exists(target).not() { panic("broken file link in ", path, ": ", target) }
         } else {
-            resolved := format(parent, "/", target)
+            resolved = format(parent, "/", target)
             if File.exists(resolved).not() { panic("broken file link in ", path, ": ", target) }
         }
+        if anchor_pos >= 0 { check_org_link_anchor(path, resolved, anchor) }
         pos = target_start + target_end.to_usize() + 1
     }
 }
 
 check_handwritten_doc_links := proc() {
+    anchor_fixture := "* Top\n** Visibility (priv keyword)\n:PROPERTIES:\n:CUSTOM_ID: custom-anchor\n:END:\n:ID: org-id\n"
+    if org_source_has_heading(anchor_fixture, "Visibility (priv keyword)").not() {
+        panic("Org heading anchor regression: existing heading not found")
+    }
+    if org_source_has_heading(anchor_fixture, "Missing heading") {
+        panic("Org heading anchor regression: missing heading found")
+    }
+    if org_source_has_id(anchor_fixture, "custom-anchor").not().or(org_source_has_id(anchor_fixture, "org-id").not()) {
+        panic("Org ID anchor regression: existing ID not found")
+    }
+    if org_source_has_id(anchor_fixture, "missing-id") {
+        panic("Org ID anchor regression: missing ID found")
+    }
     mut listing := ""
     result := run_cmd(listing, "git", "ls-files", "doc/*.org")
     if result != 0 { panic("failed to list handwritten documentation") }

@@ -7513,7 +7513,9 @@ priv emit_global_inits_prog := proc(f: File, prog: Expr, mut ctx: Context) {
                 if rhs.node_type.is(NodeType.Ident) { continue }
             }
         } else {
-            if gs.node_type.is(NodeType.FCall).not() { continue }
+            // Throw lowering appends If checks after a top-level ?/! call.
+            // They are part of global initialization, not ordinary test code.
+            if gs.node_type.is(NodeType.FCall).not().and(gs.node_type.is(NodeType.If).not()) { continue }
         }
         emit_stmt(f, gs, 1, ctx)
     }
