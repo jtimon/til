@@ -22,6 +22,8 @@ MARGIN_TOP := 40
 MARGIN_BOTTOM := 60
 CHART_W := W.sub(MARGIN_LEFT).sub(MARGIN_RIGHT)
 CHART_H := H.sub(MARGIN_TOP).sub(MARGIN_BOTTOM)
+Y_TICK_INTERVALS := 4
+Y_TICK_LENGTH := 4
 
 BG_COLOR := "white"
 AXIS_COLOR := "#333"
@@ -192,7 +194,13 @@ svg_text := func(x: I64, y: I64, anchor: Str, size: I64, color: Str, body: Str) 
                   " fill=", qa(color), ">", body, "</text>", NL)
 }
 
-svg_polyline := func(points: Str, color: Str) returns Str {
+svg_polyline := func(points: Str, color: Str, dashed: Bool) returns Str {
+    if dashed {
+        return format("<polyline points=", qa(points),
+                      " fill=", qa("none"), " stroke=", qa(color),
+                      " stroke-width=", qa("2"),
+                      " stroke-dasharray=", qa("6 4"), "/>", NL)
+    }
     return format("<polyline points=", qa(points),
                   " fill=", qa("none"), " stroke=", qa(color),
                   " stroke-width=", qa("2"), "/>", NL)
@@ -268,22 +276,33 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
 
     if show_y_labels {
         if has_left {
-            mid_val := left_max.div(2)
             lx := MARGIN_LEFT.sub(5)
-            svg = format(svg, svg_text(lx, MARGIN_TOP.add(CHART_H).add(4), "end", 11, AXIS_COLOR, "0"))
-            svg = format(svg, svg_text(lx, y_px(mid_val, left_max).add(4), "end", 11, AXIS_COLOR, mid_val.to_str()))
-            svg = format(svg, svg_text(lx, MARGIN_TOP.add(4), "end", 11, AXIS_COLOR, left_max.to_str()))
+            mut tick := 0
+            while tick.lte(Y_TICK_INTERVALS) {
+                val := left_max.mul(tick).div(Y_TICK_INTERVALS)
+                y := y_px(val, left_max)
+                svg = format(svg, svg_line(MARGIN_LEFT.sub(Y_TICK_LENGTH), y,
+                                          MARGIN_LEFT, y, AXIS_COLOR))
+                svg = format(svg, svg_text(lx, y.add(4), "end", 11, AXIS_COLOR, val.to_str()))
+                tick++
+            }
             if left_unit.is_empty().not() {
                 svg = format(svg, svg_text(MARGIN_LEFT, MARGIN_TOP.sub(10),
                                           "middle", 12, AXIS_COLOR, left_unit))
             }
         }
         if has_right {
-            rmid := right_max.div(2)
             rx := MARGIN_LEFT.add(CHART_W).add(5)
-            svg = format(svg, svg_text(rx, MARGIN_TOP.add(CHART_H).add(4), "start", 11, AXIS_COLOR, "0"))
-            svg = format(svg, svg_text(rx, y_px(rmid, right_max).add(4), "start", 11, AXIS_COLOR, rmid.to_str()))
-            svg = format(svg, svg_text(rx, MARGIN_TOP.add(4), "start", 11, AXIS_COLOR, right_max.to_str()))
+            mut tick := 0
+            while tick.lte(Y_TICK_INTERVALS) {
+                val := right_max.mul(tick).div(Y_TICK_INTERVALS)
+                y := y_px(val, right_max)
+                svg = format(svg, svg_line(MARGIN_LEFT.add(CHART_W), y,
+                                          MARGIN_LEFT.add(CHART_W).add(Y_TICK_LENGTH),
+                                          y, AXIS_COLOR))
+                svg = format(svg, svg_text(rx, y.add(4), "start", 11, AXIS_COLOR, val.to_str()))
+                tick++
+            }
             if right_unit.is_empty().not() {
                 svg = format(svg, svg_text(MARGIN_LEFT.add(CHART_W), MARGIN_TOP.sub(10),
                                           "middle", 12, AXIS_COLOR, right_unit))
@@ -299,7 +318,8 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                 mut axis_max := left_max
                 if item.right_axis { axis_max = right_max }
                 svg = format(svg, svg_polyline(
-                    build_points(rows, item, axis_max, left_divisor, right_divisor), item.color))
+                    build_points(rows, item, axis_max, left_divisor, right_divisor),
+                    item.color, item.right_axis))
             }
             si++
         }

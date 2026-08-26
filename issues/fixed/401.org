@@ -10,11 +10,15 @@ column names and receives each series' column, display label, and axis through
 ~--series~, with independent axis-unit and divisor options. A follow-up added
 configurable axis rounding precision and moved unit labels horizontally above
 the axes. ~src/tests.til~ owns the special totals configuration and requests
-seconds for time and MB for memory, while retaining coarse rounding.
+seconds for time and MB for memory. Totals uses two-digit axis precision to
+show small memory changes, while dashed right-axis lines remain distinguishable
+when independently scaled time and memory series coincide. Both Y axes now
+show five labelled positions with short outward tick marks.
 
 Regression test: the plot test in ~src/tests.til~ plots unrelated ~requests~
 and ~heap_bytes~ columns, verifies that an unselected column is absent, and
-checks both divisors, configurable precision, and horizontal units.
+checks both divisors, configurable precision, horizontal units, and right-axis
+dash styling, plus five tick marks on each Y axis.
 
 ~examples/plot.til~ was nominally a CSV chart generator, but it hardcoded the
 totals.csv schema, series names, colors, two-axis assignment, and memory

@@ -13,7 +13,7 @@ RUNNER := "bin/test_runner"
 // otherwise all have to carry a flag none of them decides.
 mut REGEN := ""
 PLOT := "bin/plot"
-TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit mb --right-divisor 1000000 --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right"
+TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit mb --right-divisor 1000000 --axis-precision 2 --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
@@ -3044,6 +3044,16 @@ main := proc(args: ..Str) {
     }
     if count_matches(plot_svg, "rotate(") != 0 {
         println("FAIL: plot.til axis units should be horizontal")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, "stroke-dasharray") != 1 {
+        println("FAIL: plot.til should dash only the selected right-axis series")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, "x1=\"66\"").eq(5).not().or(count_matches(plot_svg, "x2=\"734\"").eq(5).not()) {
+        println("FAIL: plot.til should draw five outward tick marks per Y axis")
         plot_ok = 0
         fail = 1
     }
