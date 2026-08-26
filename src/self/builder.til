@@ -683,6 +683,62 @@ priv target_is_cacheable := func(target: Target) returns Bool {
     return true
 }
 
+// A VALUE macro puts the artifact's content outside what mtimes can prove.
+// Its body is full til run by the constfolder interpreter at translate time,
+// procs included -- the compiler's own get_version shells out to `git
+// rev-parse --short HEAD` -- so the emitted bytes depend on state no
+// dependency file carries. The concrete failure: a merge moves HEAD without
+// touching any compiler source, the cached tmp/self_det.c keeps the OLD
+// commit's VERSION line, boot/til.c is regenerated with the new one, and
+// self_translate's cmp fails on that one line.
+//
+// TYPE-GEN macros (returns StructDef / EnumDef / FuncDef) stay cacheable:
+// they are expanded by substitution, not interpreted -- `struct<T>` and
+// `func<T>` literally parse INTO this shape (wrap_struct_def_in_macro) --
+// so their output is a function of sources alone. Excluding them is not an
+// optimization but survival: core's Option is one, so every program
+// declares it. Purity analysis could narrow the value side further
+// (nathex_step_ratio is pure math), but the cache's contract is "a wrong
+// yes is invisible, a wrong no costs a rebuild" -- any value macro answers
+// uncacheable, called or not.
+priv macro_is_type_gen := func(fd: FunctionDef) returns Bool {
+    rt := fd.sig.return_type
+    return rt.eq("StructDef").or(rt.eq("EnumDef")).or(rt.eq("FuncDef"))
+}
+
+priv program_declares_value_macro := func(lp: LoadedProgram) returns Bool {
+    for path : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[path]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { continue }
+            switch stmt.children[0].node_type {
+            case .FuncDef(fd):
+                if fd.sig.func_type.is(FuncType.Macro).and(macro_is_type_gen(fd).not()) { return true }
+            case .StructDef(sdd_data):
+                for fdd : Declaration in sdd_data.ns_decls {
+                    if fdd.default_value.is_none() { continue }
+                    switch fdd.default_expr().node_type {
+                    case .FuncDef(ffd):
+                        if ffd.sig.func_type.is(FuncType.Macro).and(macro_is_type_gen(ffd).not()) { return true }
+                    case:
+                    }
+                }
+            case .EnumDef(edd_data):
+                for nsd : Declaration in edd_data.ns_decls {
+                    if nsd.default_value.is_none() { continue }
+                    switch nsd.default_expr().node_type {
+                    case .FuncDef(ffd):
+                        if ffd.sig.func_type.is(FuncType.Macro).and(macro_is_type_gen(ffd).not()) { return true }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    }
+    return false
+}
+
 // Are ALL of `outs` strictly newer than every source the program was loaded
 // from? Shared by the build and translate checks, which differ only in which
 // files they call the artifact.
@@ -711,6 +767,7 @@ priv artifacts_outrank_deps := proc(lp: LoadedProgram, outs: Vec(Str)) returns B
 
 build_artifact_is_current := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns Bool {
     if target_is_cacheable(target).not() { return false }
+    if program_declares_value_macro(lp) { return false }
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     if paths.do_lib { return false }
     if paths.bin_path.len() == 0 { return false }
@@ -728,6 +785,7 @@ build_artifact_is_current := proc(lp: LoadedProgram, custom_bin: Str, custom_c: 
 // Harnesses read those lines.
 translate_output_is_current := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns Bool {
     if target_is_cacheable(target).not() { return false }
+    if program_declares_value_macro(lp) { return false }
     // mode theme emits Elisp through a different path; left uncached.
     if lp.mode_str == "theme" { return false }
     // Non-theme translate ignores -o (cmd_translate only feeds it to the

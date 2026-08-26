@@ -1,0 +1,22 @@
+mode script
+
+import("../src/std/sys")
+
+// #170 cache regression: a program with a macro must NOT be served from the
+// translate/build cache. Macro bodies run at compile time and may read state
+// no dependency file carries -- this one reads a probe file, mirroring
+// src/til.til's get_version (git rev-parse at translate time). The suite
+// translates this file twice with different probe contents and no .til mtime
+// change in between; a cache that answers "current" from mtimes alone keeps
+// the FIRST run's string in the emitted C, which is exactly how a merge that
+// moved HEAD without touching compiler sources shipped a stale VERSION line
+// and failed self_translate's cmp.
+read_probe := macro() returns shallow Str {
+    mut out : Str = ""
+    run_cmd(out, "cat", "tmp/macro_env_probe.txt")
+    return out.replace("\n", "")
+}
+
+PROBE := read_probe()
+
+println("probe: ", PROBE)
