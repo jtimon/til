@@ -905,6 +905,49 @@ test_mut_str_payload_binding := test() {
     }
 }
 
+// #326 follow-up: a HEAP Str payload rebind, with the old and new values
+// built at runtime so the constfolder cannot turn them into literals whose
+// delete does nothing. The old payload's teardown has exactly one owner --
+// the garbager's save_old_delete / standalone-delete decision, which both
+// backends follow. It used to have two: the C emitter's payload-alias arm
+// deleted the old value unconditionally on top of the garbager's standalone
+// delete, a double free of the old c_str (ASAN-caught) that stayed latent
+// while every fixture's payload was a folded literal.
+test_mut_heap_str_payload_rebind := test() {
+    mut prefix := Str.with_capacity(4)
+    prefix.push_str("fir")
+    mut c := ColorG.Name(format(prefix, "st"))
+    switch c {
+    case ColorG.Name(p): p = format(prefix, "ond")
+    case:
+    }
+    switch c {
+    case ColorG.Name(n2): assert_eq(Str, n2, "firond")
+    case: assert_eq(Str, "wrong variant", "")
+    }
+}
+
+// ...and the same rebind from a NESTED body inside the arm. The binder is
+// not that body's local, so only flag_outer_assign_rebinds can flag the
+// assign -- and it excluded every ref target, payload aliases included, so
+// the AST carried no cleanup at all: the interpreter leaked the old c_str
+// (the C emitter's unconditional delete was masking the same hole).
+test_mut_heap_str_payload_rebind_nested := test() {
+    mut prefix := Str.with_capacity(4)
+    prefix.push_str("fir")
+    flag := prefix.len() > 1
+    mut c := ColorG.Name(format(prefix, "st"))
+    switch c {
+    case ColorG.Name(p):
+        if flag { p = format(prefix, "ond") }
+    case:
+    }
+    switch c {
+    case ColorG.Name(n2): assert_eq(Str, n2, "firond")
+    case: assert_eq(Str, "wrong variant", "")
+    }
+}
+
 // #211 follow-up: struct payloads also propagate now that the typer
 // accepts a constructor RHS on a payload-alias ref-mut target and the
 // builder lowers it to `*p = *new` (paired with the existing

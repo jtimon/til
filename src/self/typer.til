@@ -12537,7 +12537,7 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, mut c
 // slot payload was a `ref` one: those live in enums whose `unwrap` returns
 // `ref T`, so the return path never asked. An OWNED slot payload returns by
 // value and asked immediately.
-priv rhs_is_payload_binding := func(rhs: Expr, symbols: SymbolPool) returns Bool {
+rhs_is_payload_binding := func(rhs: Expr, symbols: SymbolPool) returns Bool {
     if rhs.node_type.is(NodeType.FCall).not() { return false }
     if rhs.children.len() != 2 { return false }
     mut head := ""

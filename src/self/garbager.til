@@ -2730,8 +2730,22 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), m
             sf_out := scope.find_name(vname, symbols)
             switch sf_out {
             case .Found(ob):
-                if is_aggregate(ob.type).and(ob.own_type.is(OwnType.Ref).not())
-                    .and(assign_target_is_func_local(scope, vname, symbols)) {
+                mut flag_it := is_aggregate(ob.type).and(ob.own_type.is(OwnType.Ref).not())
+                    .and(assign_target_is_func_local(scope, vname, symbols))
+                // A PAYLOAD ALIAS is the exception to the ref exclusion
+                // above: writing through it replaces a value its enum OWNS,
+                // so the old payload must be torn down at the write. This
+                // pass is the only one that can say so for an assign from a
+                // NESTED body -- the binder is not that body's local, so
+                // insert_assign_delete never sees it -- and without the
+                // flag both backends were left to guess: the interpreter
+                // leaked the old payload, and the C emitter papered over it
+                // by deleting unconditionally, which double-freed the
+                // assigns the garbager HAD covered.
+                if flag_it.not().and(is_aggregate(ob.type)) {
+                    if ob.own_type.is(OwnType.Ref).and(ob.is_alias) { flag_it = true }
+                }
+                if flag_it {
                     ref orhs : Expr = stmt.children[0]
                     mut rebind := orhs.node_type.is_literal_str()
                     if rebind.not().and(orhs.node_type.is(NodeType.FCall)) {
@@ -3406,6 +3420,21 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         }
         scope.set(dd.name, dtype, dd.is_mut, ctx.path, stmt.line, stmt.col,
             false, dd.own_type, ctx.symbols)
+        // A `ref` Decl whose RHS is the typer-lowered payload access is a
+        // PAYLOAD ALIAS -- the same is_alias stamp infer_decl puts on its
+        // binding, re-derived here because this pass registers its own.
+        // flag_outer_assign_rebinds reads it: a write through the alias
+        // from a nested body replaces a value the enum owns, and only the
+        // save_old_delete flag can tell both backends to tear it down.
+        if dd.own_type.is(OwnType.Ref).and(stmt.children.len().gt(0)) {
+            if rhs_is_payload_binding(stmt.children[0], ctx.symbols) {
+                mut grd_bo := scope.get_binding_name(dd.name, ctx.symbols)
+                if grd_bo.is_some() {
+                    ref mut grd_b : TypeBinding = grd_bo.unwrap()
+                    grd_b.is_alias = true
+                }
+            }
+        }
         if dtype.is_funcptr().and(stmt.children.len().gt(0)) {
             ref rhs2 : Expr = stmt.children[0]
             switch rhs2.node_type {
