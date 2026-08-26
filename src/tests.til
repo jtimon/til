@@ -1049,6 +1049,13 @@ main := proc(args: ..Str) {
         format(til_bin, " test/cstr_view.til"))
     add_count(tests, "cstr_view_run", "cli", cstr_view_msg, 1,
         format(til_bin, " build", asan_flag, " -o bin/cstr_view test/cstr_view.til '&&' bin/cstr_view"))
+    // #367: same discriminator one layer earlier -- a provenance-less view
+    // dying in Str.to_cstr's construction check instead of at the ext
+    // boundary. The safe shapes ride test/cstr_type.til (a both entry).
+    add_count(tests, "cstr_construct_interp", "cli", cstr_view_msg, 1,
+        format(til_bin, " test/cstr_construct.til"))
+    add_count(tests, "cstr_construct_run", "cli", cstr_view_msg, 1,
+        format(til_bin, " build", asan_flag, " -o bin/cstr_construct test/cstr_construct.til '&&' bin/cstr_construct"))
 
     // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
     // binary through Cmd with the argument shapes a quoted command
@@ -2029,6 +2036,7 @@ main := proc(args: ..Str) {
     // interpreter goes through libffi and its own `returns ref` handling,
     // which is what borrows the environ pointer.
     add_both(tests, "test/ext_libc.til", flags)
+    add_both(tests, "test/cstr_type.til", flags)
     add_both(tests, "examples/priv_demo.til", flags)
     add_both(tests, "test/imports.til", flags)
     add_both(tests, "test/arrays.til", flags)
@@ -2280,7 +2288,7 @@ main := proc(args: ..Str) {
     // shape it covers is one they used to fail differently.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 256),
+        CountCheck(needle = "error:", expected_count = 258),
         CountCheck(needle = "no value parameter mentions it", expected_count = 2),
         CountCheck(needle = "no named signature", expected_count = 1),
         CountCheck(needle = "conflicting evidence", expected_count = 2),
@@ -2296,10 +2304,11 @@ main := proc(args: ..Str) {
         CountCheck(needle = "binds the owned pointer field", expected_count = 3),
         CountCheck(needle = "where the address belongs", expected_count = 5),
         CountCheck(needle = "not the address", expected_count = 3),
-        CountCheck(needle = "is an aggregate, not a word", expected_count = 5))
+        CountCheck(needle = "is an aggregate, not a word", expected_count = 5),
+        CountCheck(needle = "views are not NUL-terminated", expected_count = 2))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 256),
+        CountCheck(needle = "error:", expected_count = 258),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),

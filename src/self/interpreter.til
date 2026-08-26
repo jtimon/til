@@ -8217,6 +8217,21 @@ priv interp_c_str_arg_shape := func(arg_expr: Expr, symbols: SymbolPool) returns
     }
 }
 
+// #367: the CStr twin of interp_ext_c_string_param below -- is this ext
+// parameter declared as the terminated-Str wrapper type?
+priv interp_ext_cstr_param := func(mut scope: Scope, name: Str, arg_index: USize) returns Bool {
+    ref ext_slot : Dynamic = scope_get(scope, name)?
+    catch (knf: KeyNotFound) { return false }
+    ref ext_def : Expr = callable_raw_func_def(ext_slot)
+    switch ext_def.node_type {
+    case .FuncDef(fd):
+        if arg_index >= fd.sig.params.len() { return false }
+        return fd.sig.params[arg_index].type_name().eq("CStr")
+    case:
+        return false
+    }
+}
+
 priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: USize) returns Bool {
     ref ext_slot : Dynamic = scope_get(scope, name)?
     catch (knf: KeyNotFound) { return false }
@@ -8265,6 +8280,34 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(8)), arg_info.is_ref)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(9)), arg_pointer.ptr_eq(arg_raw))
+        // #367: a CStr arg for a CStr ext param. The evaluated value is the
+        // wrapper struct (one field: Str *s); C wants the char*. Unwrap
+        // here, re-check the terminator (route 1 stays at the boundary,
+        // same as the compiled TIL_CSTR), and pass the inner pointer.
+        //
+        // Gated on the ARG's stamped type FIRST: interp_ext_cstr_param is
+        // a scope lookup plus a param walk, and this loop runs for every
+        // argument of every ext call the interpreter makes -- its hottest
+        // FFI path. The stamped-type test is a borrow and a Str compare,
+        // so a program that never builds a CStr pays nothing here. Same
+        // shape as the I8 probe above, which gates on the arg's syntax
+        // (interp_c_str_arg_shape) before touching scope.
+        mut arg_is_cstr := false
+        arg_tn_o := expr_type_name_ref(arg_expr)
+        if arg_tn_o.is_some() {
+            if arg_tn_o.unwrap().eq("CStr") {
+                arg_is_cstr = interp_ext_cstr_param(scope, name, i)
+            }
+        }
+        if arg_is_cstr {
+            ref cstr_sptr : Dynamic = deref(arg_pointer)
+            check_c_string_terminator(cstr_sptr, ctx)
+            ref cstr_cptr : Dynamic = deref(cstr_sptr)
+            ref mut cstr_dst : Dynamic = ptr_add(args, i.mul(8))
+            write_ptr(cstr_dst, cstr_cptr)
+            write_ptr(ptr_add(arg_ptrs, i.mul(8)), cstr_dst)
+            continue
+        }
         arg_is_callable := heap_type_is_callable(raw_result_source_type(arg_info))
         mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam))

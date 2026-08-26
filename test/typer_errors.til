@@ -1690,3 +1690,23 @@ terr399_agg_field := func() returns Str {
     ss.push(own Terr399S(t = format("he", "llo")))
     return ss[0].t
 }
+
+// #367: to_cstr on a receiver the typer KNOWS is a Str view -- the
+// typecheck the CStr type exists for. Two knowable shapes: a binding
+// carrying #372's view provenance, and a view-returning call used as
+// the receiver directly. (A view WITHOUT provenance falls through to
+// the construction-time check; that path is test/cstr_construct.til.)
+terr367_view_binding := proc() {
+    base := format("hello", " world")
+    v := base.substr(0, 5)
+    c := v.to_cstr()
+    ref p : I8 = c.ptr()
+    if is_null(p) { println("z") }
+}
+
+terr367_view_chain := proc() {
+    base := format("hello", " world")
+    c := base.substr(0, 5).to_cstr()
+    ref p : I8 = c.ptr()
+    if is_null(p) { println("z") }
+}

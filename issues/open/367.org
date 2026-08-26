@@ -1,6 +1,6 @@
 # priority: medium
 # category: features
-** OPEN #367 The NUL guarantee in the type: #343's route 2
+** WIP #367 The NUL guarantee in the type: #343's route 2
 
 #343 shipped its route 1: the ext-call boundary panics when a Str whose
 ~c_str~ feeds a C string parameter is not NUL-terminated (the compiled
@@ -47,3 +47,71 @@ terminate), which no til-side type can see. #343's NUL audit -- every
 allocating Str path reserves count+1 -- is the invariant both routes
 stand on; ~test_file_readfile_is_nul_terminated~ and the boundary tests
 (~cstr_view_interp~ / ~cstr_view_run~) pin it.
+
+*** Stage 1 landed: the type, both boundaries, the typecheck
+
+    Shape DECIDED per this issue's own lean: the wrapper. `CStr` in
+    core/str.til, whose one field is `ref s : Str` -- a BORROW,
+    deliberately, because a by-value Str field would hand CStr's
+    generated delete the inner buffer (Str's destructor frees c_str
+    regardless of call_free) and the wrapper would free a string it
+    never owned. `Str.to_cstr` is the spelled conversion; it verifies
+    the terminator at CONSTRUCTION (the #343 discriminator, one layer
+    earlier), so a CStr in hand is proof.
+
+    The typecheck: `to_cstr` on a receiver the typer KNOWS is a view is
+    a type error naming the fix (clone first). Two shapes are knowable
+    -- an Ident binding carrying #372's provenance, and a view-returning
+    method call as the receiver directly (matched in its RAW pre-UFCS
+    shape; str_view_source_name expects the post-rewrite one). A
+    provenance-less view (arriving through a call result) falls through
+    to the construction check and dies with #343's exact message.
+
+    Both boundaries marshal `name : CStr` ext params:
+    - compiled: the prototype writer maps a CStr param on an EXT decl to
+      `const I8 *` (the binding declares the real C signature); the arg
+      lowering emits `TIL_CSTR((<value>).s)` -- route 1's boundary check
+      deliberately stays; and the #326 TIL_CSTR site collector counts
+      the new shape, or the macro definition is dead-pruned out from
+      under the call.
+    - interpreter: a CStr param's cif slot was already ffi_type_pointer
+      (non-shallow default); the marshal loop unwraps value -> s ->
+      c_str with the terminator re-check between.
+
+    Tests: test/cstr_type.til (safe shapes end to end through real libc,
+    both backends), test/cstr_construct.til (the provenance-less view
+    panics at construction, both backends), and two typer_errors
+    negatives for the typecheck shapes. 473/473.
+
+    THE BOOTSTRAP TRAP, why the std/vendor flip is NOT in this commit:
+    pass 1 compiles src/std/sys.til and src/modes/gui.til with the
+    PREVIOUS boot compiler, which has no CStr lowering -- flipping
+    `getenv` / `til_setenv` to CStr in the same commit as the emitter
+    support cannot build. Classic preparation + use (doc/self.org):
+    this commit is the preparation; the flip follows once it is in the
+    merged boot.
+
+*** Remaining stages
+
+    1. Flip std/sys (`getenv`) and src/modes/gui.til (`til_setenv`) to
+       CStr params, call sites to `.to_cstr()`.
+    2. Flip vendor/bindings (raylib 105, nng 220, tinyfd 7 I8 string
+       params) plus their call sites; regenerate nothing by hand --
+       which is stage 3's point:
+    3. Teach the BINDER (`til bindings`) to emit CStr for `const char *`
+       params so regenerated bindings come out right (doc/ffi.org's
+       ownership table gains the CStr row; c2til.org too).
+    4. Optionally retire ext_c_string_param's I8 special case once no
+       binding spells a C string as bare I8 any more.
+
+*** Recorded hazard, pre-existing and adjacent
+
+    Declaring the SAME ext symbol twice with different signatures (a
+    test file rebinding sys.til's `getenv` with a CStr param while the
+    import's I8 binding is live) segfaults the interpreter: the FFI
+    entry is keyed by name and registered once, while call-site
+    marshalling consults the SCOPE's def -- two different declarations,
+    one cif. Reproducible without CStr (my marshal arm just makes the
+    mismatch fatal faster). A duplicate ext binding with a conflicting
+    signature should probably be a load-time error; not this issue's
+    scope, recorded here so it is not rediscovered the hard way.

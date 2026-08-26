@@ -275,8 +275,8 @@ static struct {
 };
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
-static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:129:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:133:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:149:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:153:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_collection_return_fold_102 = (Str){.c_str = (void *)"test/constfold.til:444:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_collection_return_fold_105 = (Str){.c_str = (void *)"test/constfold.til:447:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_collection_return_fold_110 = (Str){.c_str = (void *)"test/constfold.til:448:5", .count = 24ULL, .cap = TIL_CAP_LIT};

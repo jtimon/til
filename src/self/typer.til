@@ -2015,6 +2015,50 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             return true
         }
     }
+    // #367: `to_cstr` on a receiver the typer KNOWS is a Str view is the
+    // error the type exists to catch, promoted from #343's runtime panic
+    // to a typecheck. Two shapes are knowable here: an Ident whose
+    // binding carries #372's view provenance (v := s.substr(...)), and a
+    // view-returning method call used as the receiver directly
+    // (s.substr(...).to_cstr()). Everything else -- params, fields,
+    // call results without provenance -- keeps the construction-time
+    // check in Str.to_cstr, which is #343's discriminator one layer
+    // earlier. Report and fall through: the call still types as CStr,
+    // so one honest error does not cascade.
+    if method == "to_cstr" {
+        switch obj.node_type {
+        case .Ident(tc_id):
+            tc_sf := scope.find_sym(tc_id.ident_sym())
+            switch tc_sf {
+            case .Found(tc_b):
+                if tc_b.is_str_view {
+                    e.type_error(format("'", tc_id.ident_name(ctx.symbols.names),
+                        "' is a Str view; views are not NUL-terminated -- clone first: ",
+                        tc_id.ident_name(ctx.symbols.names), ".clone().to_cstr()"), ctx)
+                }
+            case:
+            }
+        case .FCall:
+            // The RAW pre-UFCS shape: the receiver still sits inside the
+            // FieldAccess callee (str_view_source_name matches the
+            // post-rewrite shape with the receiver at children[1], which
+            // does not exist yet at this point in inference). Any receiver
+            // of a view-returning method yields a view, so the callee's
+            // method name alone decides.
+            if obj.children.len() > 0 {
+                switch obj.children[0].node_type {
+                case .FieldAccess(tc_vfa):
+                    if str_method_returns_view(tc_vfa.field_access_name(ctx.symbols.names)) {
+                        e.type_error(format("'", tc_vfa.field_access_name(ctx.symbols.names),
+                            "' returns a Str view; views are not NUL-terminated -- clone first: .",
+                            tc_vfa.field_access_name(ctx.symbols.names), "(...).clone().to_cstr()"), ctx)
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    }
     // #294: a numeric conversion on a numeric literal is redundant. A
     // bare literal already narrows to the target type through its
     // declaration type, an argument/field type, or any numeric context

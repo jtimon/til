@@ -1,0 +1,21 @@
+mode cli
+
+// Issue #367: the CONSTRUCTION-TIME check, for the receivers the typer
+// cannot classify. #372's provenance covers `v := s.substr(...)` and the
+// direct `s.substr(...).to_cstr()` chain -- both are TYPE errors now
+// (test/typer_errors.til). A view that arrives through a call result
+// carries no provenance, so it must fall through to Str.to_cstr's own
+// terminator check and die with #343's message on both backends.
+
+tail_view := func(s: Str) returns shallow Str {
+    return s.substr(0, 13)
+}
+
+main := proc() {
+    padded := format("TIL_ISSUE_367", "_TAIL")
+    v := tail_view(padded)
+    c := v.to_cstr()
+    ref p2 : I8 = c.ptr()
+    if is_null(p2) { panic("unreachable") }
+    println("the view built a CStr unchecked")
+}

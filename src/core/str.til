@@ -121,6 +121,26 @@ namespace:
         return Str(c_str = s, count = c_str_len(s), cap = CAP_VIEW)
     }
 
+    /// #367: the spelled conversion to the C boundary. Verifies the NUL
+    /// terminator HERE, at construction, so a CStr in hand is proof --
+    /// the same discriminator as #343's TIL_CSTR, one layer earlier.
+    /// Reading the byte at [count] is always in bounds: every allocating
+    /// Str path reserves count+1, and a view's end never passes its
+    /// base's (#343's audit). The typer additionally rejects this call
+    /// on a receiver it KNOWS is a view (substr/trim provenance), so the
+    /// common mistake never reaches the runtime check; for those, clone
+    /// first -- the conversion doc/ffi.org already teaches.
+    to_cstr := func(self: Str) returns shallow CStr {
+        if is_null(self.c_str) {
+            panic("Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first")
+        }
+        ref b : I8 = ptr_add(self.c_str, self.count)
+        if b != 0 {
+            panic("Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first")
+        }
+        return CStr(s = self)
+    }
+
     /// Append ~s~ to ~self~. Panics if ~self~ is a view/literal or if
     /// capacity is exceeded.
     push_str := func(mut self: Str, s: Str) {
@@ -579,6 +599,29 @@ c_str_len := func(s: Dynamic) returns USize {
         n++
     }
     return n
+}
+
+/// #367 (#343 route 2): a Str whose NUL termination has been CHECKED, as a
+/// type. `s : Str` means length-counted bytes; a C string parameter needs
+/// the terminator, and before this type that difference lived only in
+/// doc/ffi.org and a runtime panic at the boundary (TIL_CSTR, #343). A
+/// CStr can only be built through Str.to_cstr, which verifies the
+/// terminator at construction -- so an ext binding that demands CStr
+/// pushes the check to the call site, where the typer can also reject
+/// KNOWN views outright before anything runs.
+///
+/// The field is a BORROW, deliberately: a CStr is a view-wrapper over a
+/// Str that someone else owns, valid exactly as long as its source. A
+/// by-value `s : Str` field here would hand CStr's generated delete the
+/// inner buffer (Str's destructor frees c_str regardless of call_free),
+/// so the wrapper would free a string it never owned.
+CStr := struct {
+    ref s : Str
+namespace:
+    /// The raw pointer for the C side; the "explicit accessor" #367 asks
+    /// for. Reading it is safe by construction: to_cstr checked the
+    /// terminator when this CStr was built.
+    ptr := func(self: CStr) returns ref I8 { return self.s.c_str }
 }
 
 /// Error thrown by indexed collection accessors (Array.get, Vec.get,

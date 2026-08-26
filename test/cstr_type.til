@@ -1,0 +1,47 @@
+mode cli
+
+// Issue #367 (#343 route 2): the NUL guarantee as a TYPE. A CStr can only
+// be built by Str.to_cstr, which verifies the terminator at construction,
+// so an ext binding that says `name : CStr` gets a checked pointer by
+// construction -- and the typer rejects KNOWN views at the call site
+// before anything runs (those negatives live in test/typer_errors.til).
+//
+// This file pins the SAFE shapes end to end on both backends, mirroring
+// what test/ext_libc.til does for the #343 runtime check: a literal, an
+// owned Str, and a cloned view, each crossing into real libc through a
+// CStr parameter.
+
+setenv := ext_proc(name: CStr, value: CStr, shallow overwrite: I32) returns shallow I32 {}
+getenv := ext_proc(name: CStr) returns ref I8 {}
+unsetenv := ext_proc(name: CStr) returns shallow I32 {}
+
+main := proc() {
+    // A literal is terminated by definition.
+    rc1 := setenv("TIL_ISSUE_367".to_cstr(), "expected".to_cstr(), 1)
+    if rc1.neq(0) { panic("literal setenv failed") }
+
+    ref v1 : I8 = getenv("TIL_ISSUE_367".to_cstr())
+    if is_null(v1) { panic("getenv returned NULL") }
+    if Str.from_c_str(v1).neq("expected") { panic("getenv read the wrong value") }
+
+    // An owned Str (every allocating path reserves count+1).
+    owned := format("TIL_ISSUE_", "367")
+    ref v2 : I8 = getenv(owned.to_cstr())
+    if is_null(v2) { panic("owned-name getenv returned NULL") }
+    if Str.from_c_str(v2).neq("expected") { panic("owned-name getenv read the wrong value") }
+
+    // A cloned view: the clone owns a terminated copy -- the conversion
+    // doc/ffi.org teaches, now demanded by the type for the raw view.
+    padded := format("TIL_ISSUE_367", "_TAIL")
+    view := padded.substr(0, 13)
+    cloned := view.clone()
+    ref v3 : I8 = getenv(cloned.to_cstr())
+    if is_null(v3) { panic("cloned-view getenv returned NULL") }
+    if Str.from_c_str(v3).neq("expected") { panic("cloned-view getenv read the wrong value") }
+
+    _rc2 := unsetenv("TIL_ISSUE_367".to_cstr())
+    ref gone : I8 = getenv("TIL_ISSUE_367".to_cstr())
+    if is_null(gone).not() { panic("unsetenv did not unset") }
+
+    println("ok")
+}

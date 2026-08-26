@@ -760,6 +760,23 @@ priv ext_c_string_param := func(callee_name: Str, arg_index: USize, ctx: Context
     }
 }
 
+// #367: is this ext callee parameter the terminated-Str type? Such a
+// parameter is declared `name : CStr` on the til side and `const I8 *`
+// on the C side; the arg lowering bridges the two.
+priv ext_cstr_param := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
+    switch fdef.node_type {
+    case .FuncDef(fd):
+        if fd.sig.func_type.is_ext().not() { return false }
+        if arg_index >= fd.sig.params.len() { return false }
+        return fd.sig.params[arg_index].type_name().eq("CStr")
+    case:
+        return false
+    }
+}
+
 // The `<str>.c_str` argument shape the NUL check wraps. A STRING LITERAL
 // base is excluded: it emits the C literal itself, terminator and all, so
 // the check would be provably dead at every `"text".c_str` call site --
@@ -1093,7 +1110,15 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
                     const_prefix = true
                 }
             }
-            ptype := param_ctype(fd, i, ctx)
+            mut ptype := param_ctype(fd, i, ctx)
+            // #367: a CStr parameter on an EXT declaration is `const I8 *`
+            // on the C side -- the binding declares the real C signature,
+            // and the C function takes a char*, not a til wrapper struct.
+            // Only ext decls: a til-defined function taking CStr keeps the
+            // ordinary struct ABI.
+            if for_ext_decl.and(fd.sig.params[i].type_name().eq("CStr")) {
+                ptype = format("I8 *")
+            }
             if with_names {
                 if const_prefix { f.write("const ") }
                 f.write(ptype)
@@ -1361,6 +1386,15 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
         if delete_stack_outer.and(i == 2) {
             if callee_param_passes_c_value(callee_name, i - 1, ctx) { f.write("(Bool){0}") }
             else { f.write("&(Bool){0}") }
+        } else if ext_cstr_param(callee_name, i - 1, ctx) {
+            // #367: the arg is a CStr VALUE (struct { Str *s; }); the C
+            // side wants char*. TIL_CSTR re-checks the terminator at the
+            // boundary -- construction already checked it, but route 1's
+            // check deliberately stays (#343: it also catches C-side
+            // breakage no til-side type can see).
+            f.write("TIL_CSTR((")
+            emit_deref(f, arg, depth, ctx)
+            f.write(").s)")
         } else if ext_c_string_param(callee_name, i - 1, ctx).and(c_str_arg_needs_nul_check(arg, ctx.symbols)) {
             emit_checked_c_str(f, arg, depth, ctx)
         } else if callee_param_passes_c_value(callee_name, i - 1, ctx) {
@@ -11010,6 +11044,10 @@ priv builder_collect_cstr_use := func(e: Expr, mut used: Bool, ctx: Context) {
             for bcu_i in 1..e.children.len() {
                 if ext_c_string_param(bcu_name, bcu_i - 1, ctx)
                     .and(c_str_arg_needs_nul_check(e.children[bcu_i], ctx.symbols)) { used = true return }
+                // #367: a CStr ext param's arg lowering also emits TIL_CSTR
+                // (the boundary re-check); without counting it here the
+                // macro definition is dead-pruned out from under the call.
+                if ext_cstr_param(bcu_name, bcu_i - 1, ctx) { used = true return }
             }
         }
     }
