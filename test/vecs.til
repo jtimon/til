@@ -158,6 +158,46 @@ test_vec_dynamic := test() {
     expect(ptr_eq(a, b).not(), "distinct dynamic pointers stay distinct")
 }
 
+// #392 stage C rejects a Dynamic literal element WIDER than a word. What is
+// left over is the passing side of that rule, and nothing pinned it: the vec
+// spelling of the literal had no positive test at all, and neither spelling
+// had one at the boundary the check actually draws. Two shapes, both of which
+// round-trip through a raw word today:
+//
+//   - scalars, #358's "each element converts independently" -- the part of
+//     that exemption stage C kept;
+//   - an aggregate of EXACTLY one word. dynamic_slot_overflow fires above
+//     eight bytes, not at eight, and this is why that is the right line here
+//     rather than the "any aggregate" rule the `: Dynamic` BINDING needs: a
+//     binding emits `void * d = e;`, which no C compiler accepts whatever the
+//     struct's size, while the literal's setters memcpy at Dynamic's width, so
+//     a struct that fits really does survive. Both backends read it back.
+//
+// A regression in either direction lands here: rejection creeping down onto
+// what fits, or the literal quietly changing carrier.
+Word8VecLit := struct {
+    a : U32 = 11
+    b : U32 = 22
+}
+
+test_vec_dynamic_literal_fits := test() {
+    v := vec(Dynamic, true, 7)
+    assert_eq(USize, v.len(), 2)
+    ref flag : Bool = v.unsafe_get(0)
+    ref n : I64 = v.unsafe_get(1)
+    assert(flag)
+    assert_eq(I64, n, 7)
+
+    w := vec(Dynamic, Word8VecLit())
+    ref boxed : Word8VecLit = w.unsafe_get(0)
+    assert_eq(U32, boxed.a, 11)
+    assert_eq(U32, boxed.b, 22)
+
+    a := array(Dynamic, Word8VecLit(), 9)
+    ref from_array : Word8VecLit = a.unsafe_get(0)
+    assert_eq(U32, from_array.b, 22)
+}
+
 test_vec_pop := test() {
     mut v := Vec(I64).new()
     v.push(own 11)
