@@ -1631,6 +1631,7 @@ typedef struct BuilderFuncScratch {
     Map__U32_Str stack_local_types;
     Set__U32 stack_lit_str_locals;
     Bool force_heap_stack_lit_str_own;
+    Bool own_arg_travels_by_slot;
     Set__U32 unsafe_to_hoist;
     Set__U32 ref_locals;
     Set__U32 ref_dyn_locals;

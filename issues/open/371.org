@@ -114,7 +114,69 @@ Type scope, and why there is no ambiguity:
 - Interpreter/compiled divergence: the interpreter models the box
   today; rule 4 must land in the same commit or interp tests diverge.
 
-*** Attempt 1 (2026-08-20): 462/464, one leak class left
+*** Done (2026-08-20) -- and the premise needed correcting
+
+    Implemented for the compiled backend. 469/469 on
+    ~make clean && make test_two_pass~, ASAN included.
+
+    THE MEASUREMENT IN THIS ISSUE IS MISLEADING, and that is the most
+    useful thing this work turned up. The 936,039 primitive ~adopt~ calls
+    re-measured here (up from the ~527K recorded above) are real, but
+    they cost NO malloc/free: every ~adopt__<primitive>~ already takes
+    its ~own src~ BY C VALUE, because ~func_param_passes_c_value~ got
+    there first. Grep the compiler's own emitted C -- ~boot/til.c~ has
+    ZERO primitive own-arg boxes, before this change and after. Counting
+    ~adopt__<prim>~ calls does not count boxes.
+
+    Where the boxes actually survived is the POINTER-taking shape: a
+    monomorphized ~Array__T_set~ / ~Vec__T_push~ called from the
+    desugarer's variadic-array setters. examples/ffi/ext_module.til went
+    from 9 primitive boxes to 9 stack slots; test/first_class.til, which
+    is DynVec-dominated, converts 1 -- its other 15 boxes go to
+    ~DynVec_push~ / ~DynVec_unsafe_set~, whose element parameter IS
+    ~Dynamic~ and which this issue correctly excludes.
+
+    So the win is narrow and real, not the ~9%-of-allocations figure the
+    issue projected. Anyone re-measuring should count ~_oa = malloc~
+    sites by element type, not ~adopt~ calls.
+
+    Design, as decided above, with one correction: THE CALLEE'S
+    PARAMETER DECIDES, never the argument's type. An I64 passed into an
+    ~own Dynamic~ parameter must still be boxed, because
+    ~adopt__Dynamic~ still frees it -- keying on the argument gave a
+    stack slot to a callee that frees, glibc's "free(): invalid
+    pointer". Three argument paths ask that question and all three ask
+    it the same way, of the same string: ~emit_user_fcall_args~, the
+    funcptr path, and the namespace-method path (the last is where the
+    variadic setters go, and leaving it ungated was a 72-byte leak on
+    ~ffi_run~). Caller and callee must never disagree; that uniformity
+    is the correctness argument.
+
+    Other things worth keeping:
+    - Emit ~&(T){ v }~, the address of a SCALAR compound literal. Not
+      ~&((T[]){ v })~, which is ~T(*)[1]~ and fails
+      -Werror=incompatible-pointer-types.
+    - The CLI variadic-arg emitter owns its box and releases it through
+      ~<Prim>_delete(_val, 1)~; with the callee free suppressed that
+      leaked, so primitive elements take the ~stack_outer~ form. Its
+      delete call must STAY -- the definition is still emitted and
+      dropping its last caller trips -Werror=unused-function. Retiring
+      the now-empty primitive delete DEFINITION is the follow-through
+      ([[./302.org][#302]] stage 6).
+    - ~Set.add~ consumes via a hand-written ~T.delete(own val, false)~ +
+      ~free(own val)~ pair rather than through ~adopt~, so the
+      callee-side rule has to cover that shape too.
+    - The ~self_translate~ failure that appears inside ~test_two_pass~
+      mid-migration is an ordering artifact, not a fixpoint violation:
+      ~make test~ re-runs pass 1 and clobbers ~boot/til.c~ before the
+      comparison. The fixpoint does hold.
+
+    NOT DONE: step 4, mirroring the rule in the INTERPRETER. Untouched,
+    and it does not have to change -- the interpreter never built these
+    C boxes, so there is nothing there to remove. Left recorded rather
+    than assumed.
+
+*** Attempt 1 (superseded by the section above)
 
     Re-measured first, as this issue asks. The waste has GROWN since the
     August figures, which strengthens the case:
