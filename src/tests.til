@@ -1214,8 +1214,13 @@ main := proc(args: ..Str) {
     add_count(tests, "delete_own_param_pointer_abi", "build",
         "static void Str_delete(Str * self, Bool call_free)", 2,
         "cat boot/til.c")
+    // The witness moved from I64 to U32 when the last `I64.delete` call in
+    // til's own build went away (#326: a delete that does nothing is not
+    // consuming, so `Vec(I64).unsafe_set`'s drop-the-old-value went, and
+    // with its last caller the definition did too). The property is about
+    // a SCALAR `own` parameter, and U32 is one.
     add_count(tests, "scalar_delete_own_param_pointer_abi", "build",
-        "static void I64_delete(I64 * self, Bool call_free)", 2,
+        "static void U32_delete(U32 * self, Bool call_free)", 2,
         "cat boot/til.c")
     add_count(tests, "variadic_param_pointer_abi", "build",
         "static Str format(Array__Str * parts)", 2,
@@ -1780,6 +1785,14 @@ main := proc(args: ..Str) {
     // C and dead in the interpreter alike.
     add_count(tests, "errors_no_statement_after_return", "build", "return caught_b;\n    Bool hoisted__Bool", 0,
         format(til_bin, " translate -c gen/c/errors_ar.c test/errors.til '&&' cat gen/c/errors_ar.c"))
+    // Issue #326: a `delete` that does nothing is not consuming either --
+    // reached with call_free false a free-only destructor neither frees nor
+    // touches a field, so there is nothing left for `own` to hand over.
+    // `Vec(T).unsafe_set` drops the old element before adopting the new
+    // one, which for a POD element is that call and a pointer temp that
+    // exists only to be handed to it: 349 such pairs across the corpus.
+    add_count(tests, "structs_no_noop_own_delete", "build", "I64_delete(hoisted__I64", 0,
+        format(til_bin, " translate -c gen/c/structs_od.c test/structs.til '&&' cat gen/c/structs_od.c"))
     // ...and main's fallthrough exit status is not written when main
     // already returned one -- `return 0;` under `return <status>;`.
     add_count(tests, "main_return_no_dead_exit_status", "build", "return 0;", 0,
