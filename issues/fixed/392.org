@@ -1,6 +1,63 @@
 # priority: high
 # category: features
-** WIP #392 Dynamic erasure carries no type: ..Dynamic loses values; Tuple is the carrier that does not
+** FIXED #392 Dynamic erasure carries no type: ..Dynamic loses values; Tuple is the carrier that does not
+
+Post-mortem:
+
+   Root cause: ~Dynamic~ is one machine word and carries no type, so a
+   value crossing into one was TRUNCATED to its first eight bytes and
+   forgotten. ~adopt~ with T = Dynamic copied ~T.size()~ = 8 bytes out
+   of a 16-byte Str and freed the box, and the characters lost their
+   only owner. Nothing reported it: both backends agreed on the wrong
+   answer, which is the worst shape a bug can take here.
+
+   The fix was not to tag the word -- a Dynamic is also til's ~void *~,
+   FFI currency and #302 raw allocations, and raw words and tagged boxes
+   cannot share a container. It was to route the ONE path that always
+   knew each element's static type, the ~..Dynamic~ variadic, through
+   ~Tuple~, which stores every element at its true size with its type
+   beside it; and then to make every remaining raw slot say so instead
+   of truncating.
+
+   The stages, in the order they landed: A moved the ..Dynamic collector
+   to Tuple (~desugar_dynamic_variadic_call~,
+   ~variadic_carrier_type_name~), which fixed the compiled-side leak and
+   gave elements a type to be read at. B made a typed read CHECK that
+   type (~Tuple.expect_type~ / ~get_checked~ plus a desugar) and rejected
+   wide values at the raw slots that remain -- B1 the read, B2 the
+   rejection (~dynamic_slot_overflow~ at a Dynamic parameter of a
+   container instantiated over Dynamic, and at a plain ~: Dynamic~
+   binding, ~ref~ and ~own~ exempt because both store the address), B3
+   generalizing the declaration half from "wider than a word" to any
+   AGGREGATE (which is what ~void * d = e;~ actually refuses), B4 making
+   ~xs[i]~ reach ~Tuple.get~. C decided the ~array(Dynamic, ...)~ literal
+   stays raw and applied B's rule to it.
+
+   Two defects surfaced along the way and were fixed with it. #394:
+   ~dyn_size_of("Dynamic")~ answered 1 in the compiled backend, because
+   the type gets a placeholder ~struct Dynamic { char _; }~ beside the
+   ~void *~ every signature actually spells -- so a ~..~ splat copied one
+   byte per element. And ~expect_type~ reported ~src/core/tuple.til~
+   until it took #281's trailing ~__LOC__~; the desugar has to fill that
+   argument itself, since it builds the call after the call-site default
+   fill has run.
+
+   Regression tests: test_dynamic_variadic_tuple and ~dyn_word_list~
+   (values AND sizes through a splat, both backends),
+   test/tuple_typed_read_error.til with a golden that pins the panic's
+   message and its location, terr392_wide_binding / terr392_store /
+   terr358_dynamic for the three rejections, and test/tuples.til's
+   existing corpus, which now runs entirely through the checked read.
+
+   Nothing is left open. B2 rejected a wide value at a ~: Dynamic~
+   binding and recorded that the real rule was about the source being
+   stored BY VALUE rather than about its size; B3 went and made it that
+   rule, so a word-sized aggregate is rejected too. The one shape that
+   had escaped was an accident -- an immutable binding of an immutable
+   local is turned into a borrow by the aliasing rule in
+   ~infer_decl_stmt~, so ~d : Dynamic = e~ emitted ~&e~ and compiled
+   while ~mut d : Dynamic = e~ did not. An unrelated optimization was
+   deciding a diagnostic.
 
 The gradual-typing intent behind ~Dynamic~ (static where annotated,
 Python-like where not, failures moving to runtime) needs a value crossing
@@ -290,7 +347,42 @@ first; nothing in A/B depends on it.
       Suite 466/466, both backends and ASAN; self_translate passes, so
       pass 2 is byte-identical.
 
-- [ ] C. The array(Dynamic, ...) literal decision.
+- [X] C. The array(Dynamic, ...) literal decision.
+
+      DECIDED: the literal stays a RAW container. Building a Tuple
+      instead would change the type ~array(Dynamic, ...)~ returns out
+      from under every ~Array(Dynamic)~ that holds a raw word today --
+      the interned ~Vec(Dynamic)~s in context.til, test_vec_dynamic's
+      raw mallocs, every FFI pointer -- to give a second spelling for
+      something ~Tuple~ and ~..Dynamic~ already do. It also contradicts
+      this issue's own premise ("bare Dynamic stays exactly what it is
+      -- a word, raw semantics, manual lifetime -- everywhere it exists
+      today"), and #358 kept the literal valid precisely BECAUSE Dynamic
+      is unconstrained.
+
+      What the literal did need was B's rule. It intercepts before the
+      variadic machinery (~infer_array_vec_fcall~), so B's rejection
+      never reached it, and ~array(Dynamic, "hello", 42)~ read its first
+      element back as a Str whose count came from the SECOND element --
+      on both backends, silently; ~vec(Dynamic, "world")~ answered "".
+      The Dynamic arm of the literal's element loop now runs the same
+      ~dynamic_slot_overflow~ check with the same remedy. So #358's
+      "each element converts independently" survives for WORDS, which is
+      the only thing it ever held for.
+
+      C keeps the WIDTH test that B3 generalized away at the declaration,
+      and the difference is real rather than an oversight: a declaration
+      emits ~void * d = e;~, which cc refuses for an aggregate of any
+      size, while a literal element is handed over as a BOX and ~adopt~
+      copies a word out of it -- so a word-sized aggregate arrives whole.
+      Measured: ~array(Dynamic, Small(a = 5), Small(a = 7))~ reads
+      element 1 back as 7 on both backends.
+
+      terr358_dynamic changes from a positive case to an error case,
+      which is the whole visible consequence of the decision (typer
+      error count 244 -> 245). doc/concepts/ownership.org's
+      manual-memory-islands section now states the one-word limit and
+      names Tuple.
 
 *** Subsumed defects
 
