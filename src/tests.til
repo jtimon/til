@@ -2052,6 +2052,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/trailing.til", flags)
     add_both(tests, "test/globals.til", flags)
     add_both(tests, "test/errors.til", flags)
+    add_both(tests, "test/top_level_bang_generic.til", flags)
     add_both(tests, "test/tuples.til", flags)
     add_both(tests, "test/auto.til", flags)
     add_both(tests, "test/first_class.til", flags)

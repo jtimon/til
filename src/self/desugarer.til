@@ -636,6 +636,9 @@ priv collect_throw_ident_names := proc(e: Expr, mut names: Set(Str), symbols: Sy
 }
 
 priv annotate_throw_ident_expr_types := proc(scope: TypeScope, mut e: Expr, root_body: Expr, symbols: SymbolPool) {
+    if e.node_type.is(NodeType.FuncDef)
+        .or(e.node_type.is(NodeType.StructDef))
+        .or(e.node_type.is(NodeType.EnumDef)) { return }
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
         switch e.children[0].node_type {
         case .Ident(idn):
@@ -825,6 +828,9 @@ subtree_has_bang := func(e: Expr) returns Bool {
 // the lowering can read each Throw's til_type directly. This
 // also handles `throw <Ident>` by walking to the Ident's Decl.
 priv annotate_throw_types_in := proc(ctx: Context, mut e: Expr, root_body: Expr) {
+    if e.node_type.is(NodeType.FuncDef)
+        .or(e.node_type.is(NodeType.StructDef))
+        .or(e.node_type.is(NodeType.EnumDef)) { return }
     if e.node_type.is(NodeType.Body) {
         for bi in 0..e.children.len() {
             ref mut stmt : Expr = e.children[bi]

@@ -5106,8 +5106,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 f.write("    if (argc - 1 != "); emit_i32(f, nparam.to_i32()); f.write(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.to_i32()); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             }
         }
-        emit_ns_inits(f, 1, lp)
-        emit_global_inits(f, lp)
+        emit_runtime_inits(f, lp)
         if nparam > 0 {
             mut argi : I32 = 1
             for i in 0..nparam {
@@ -7529,6 +7528,19 @@ priv emit_global_inits := proc(f: File, mut lp: LoadedProgram) {
     }
 }
 
+// Runtime initializers are emitted after ordinary functions, so the
+// name-keyed scratch still describes whichever function was emitted last.
+// Start each generated entry wrapper as a fresh function before emitting any
+// namespace or global initializer that can reuse one of those local names.
+priv emit_runtime_inits := proc(f: File, mut lp: LoadedProgram) {
+    saved_fdef := lp.ctx.builder_func.current_fdef
+    lp.ctx.builder_func.current_fdef = Option(ref Expr).None
+    builder_reset_func_scratch(lp.ctx)
+    emit_ns_inits(f, 1, lp)
+    emit_global_inits(f, lp)
+    lp.ctx.builder_func.current_fdef = saved_fdef
+}
+
 priv build_register_funcsig_names_lp := func(mut lp: LoadedProgram) {
         lp.ctx.funcsig_names = Set(Sym).new()
     for upath : Str in lp.unit_paths() {
@@ -9317,8 +9329,7 @@ priv emit_ns_const_global_defs := proc(f: File, mut lp: LoadedProgram) {
 
 priv emit_test_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
-    emit_ns_inits(f, 1, lp)
-    emit_global_inits(f, lp)
+    emit_runtime_inits(f, lp)
     mut test_count : I32 = 0
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -9388,7 +9399,6 @@ priv builder_script_main_leaves := func(mut lp: LoadedProgram) returns Bool {
 
 priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
-    emit_ns_inits(f, 1, lp)
     // main's body is a FUNCTION body like any other, so it starts from
     // fresh per-function scratch. Clearing only unsafe_to_hoist left the
     // previously emitted function's locals in stack_locals / ptr_locals,
@@ -9399,7 +9409,10 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     // as a shadowing local static in main while its file-scope global was
     // left declared and never assigned. Any OTHER function reading it
     // would have read that uninitialized global.
+    saved_script_fdef := lp.ctx.builder_func.current_fdef
+    lp.ctx.builder_func.current_fdef = Option(ref Expr).None
     builder_reset_func_scratch(lp.ctx)
+    emit_ns_inits(f, 1, lp)
     // Collect hoist restrictions across all user units.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -9436,6 +9449,7 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     // written when the last top-level statement already returned one.
     if builder_script_main_leaves(lp).not() { f.write("    return 0;\n") }
     f.write("}\n")
+    lp.ctx.builder_func.current_fdef = saved_script_fdef
     lp.ctx.script_globals = Set(Sym).new()
 }
 
@@ -9539,8 +9553,7 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, mut ctx: Context
 
 priv emit_lib_init := proc(f: File, mut lp: LoadedProgram) {
     f.write("__attribute__((constructor))\nstatic void _til_lib_init(void) {\n")
-    emit_ns_inits(f, 1, lp)
-    emit_global_inits(f, lp)
+    emit_runtime_inits(f, lp)
     f.write("}\n\n")
 }
 

@@ -1,0 +1,33 @@
+mode test
+
+// Top-level throw lowering must not annotate a nested generic function's
+// throws using the unit scope. The function gets its own concrete parameter
+// types when its explicit instantiation is inferred.
+BangError := struct {}
+
+bang_value := func(fail: Bool) returns I64 throws BangError {
+    if fail { throw BangError() }
+    return 42
+}
+
+top_value := bang_value(false)!
+
+GenericError := struct {
+    message: Str = "generic failure"
+}
+
+generic_throw := func(T: Type, value: T, fail: Bool) returns I64 throws T {
+    if fail { throw value }
+    return 3
+}
+
+test_top_bang_and_generic_throw := test() {
+    assert_eq(I64, top_value, 42)
+    err := GenericError()
+    assert_eq(I64, generic_throw(GenericError, err, false)!, 3)
+
+    mut caught := false
+    _ := generic_throw(GenericError, err, true)?
+    catch (_err: GenericError) { caught = true }
+    assert(caught)
+}
