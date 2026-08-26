@@ -1986,6 +1986,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             mut get_callee := Expr.new(field_access_node(p.symbols.intern("get")), b_line, b_col)
             get_callee.add_child(own e.clone())
             mut get_call := Expr.new(NodeType.FCall(FCallData()), b_line, b_col)
+            get_call.children = Vec(Expr).with_capacity(BINARY_CALL_CHILD_COUNT)
             get_call.add_child(own get_callee)
             get_call.add_child(own index)
             set_fcall_subscript_bang(get_call)
@@ -2101,6 +2102,8 @@ priv parse_binop := proc(mut p: Parser, min_prec: I64) returns Expr {
 }
 
 // parse_expression: top-level expression (binary operators + range)
+priv RANGE_CALL_CHILD_COUNT : USize = 3
+
 priv parse_expression := proc(mut p: Parser) returns Expr {
     mut e := parse_binop(p, 1)
     // Range expression: e..rhs -> Range.new(e, rhs)
@@ -2113,6 +2116,7 @@ priv parse_expression := proc(mut p: Parser) returns Expr {
         mut new_access := Expr.new(field_access_node(p.symbols.intern("new")), dt_line, dt_col)
         new_access.add_child(own range_ident)
         mut rcall := Expr.new(NodeType.FCall(FCallData()), dt_line, dt_col)
+        rcall.children = Vec(Expr).with_capacity(RANGE_CALL_CHILD_COUNT)
         rcall.add_child(own new_access)
         rcall.add_child(own take_expr(e))
         rcall.add_child(own rhs)
@@ -2535,6 +2539,8 @@ priv parse_switch := proc(mut p: Parser) returns Expr {
     return node
 }
 
+priv CONTROL_FLOW_CHILD_COUNT : USize = 2
+
 priv parse_statement_body := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
@@ -2593,6 +2599,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     case .KwIf:
         advance(p)
         mut node := Expr.new(NodeType.If, t_line, t_col)
+        node.children = Vec(Expr).with_capacity(CONTROL_FLOW_CHILD_COUNT)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
         node.add_child(own parse_block(p))
@@ -2632,6 +2639,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     case .KwWhile:
         advance(p)
         mut node := Expr.new(NodeType.While, t_line, t_col)
+        node.children = Vec(Expr).with_capacity(CONTROL_FLOW_CHILD_COUNT)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
         node.add_child(own parse_block(p))
@@ -2664,6 +2672,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             fid.name2 = expect_text(p, TokenType.Ident)
         }
         mut node := Expr.new(NodeType.ForIn(fid), i_line, i_col)
+        node.children = Vec(Expr).with_capacity(CONTROL_FLOW_CHILD_COUNT)
         if has_declared_type {
             node.set_til_type(declared_type)
         }

@@ -216,6 +216,13 @@ binary calls for their exact two children. Normal-build DHAT measured
 and end heap unchanged; callgrind measured 99.016M -> 98.804M instructions
 (0.21%). Zero-argument calls retain one-slot lazy growth.
 
+Pre-sizing the parser's remaining fixed-arity subscript and range calls, plus
+the first two children of ~if~, ~while~, and ~for~ nodes, measured 42,729 ->
+42,279 blocks and 9,453,337 -> 9,350,297 allocated bytes. Peak heap fell by
+5,520 bytes, end heap by 6,072 bytes, and callgrind measured 98,804,287 ->
+98,669,554 instructions (0.14%). Optional third ~if~ children retain normal
+vector growth.
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
