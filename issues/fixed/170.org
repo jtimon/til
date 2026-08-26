@@ -60,6 +60,42 @@
     cover it indirectly -- it drives many build/run/translate invocations
     and passes 463/463.
 
+*** Addendum: the silent-staleness failure mode found one gap
+
+    The post-mortem above names the cache's single failure mode --
+    serving a stale artifact SILENTLY -- and the mtime dependency set had
+    one hole through which exactly that happened. ~get_version~ is a
+    VALUE macro: it runs ~git rev-parse --short HEAD~ at translate time
+    and the result is baked into the emitted C as VERSION. Git HEAD is
+    not a dependency file, so a merge that moved HEAD without touching
+    any compiler source left every ~.til~ older than the cached
+    ~tmp/self_det.c~; ~translate~ answered "current", kept the OLD
+    commit's VERSION line, and ~self_translate~'s cmp against the freshly
+    regenerated ~boot/til.c~ failed on that one line -- 466/467 and then
+    470/471 on the merge machine, while the same commit ran green on a
+    machine whose rebase happened to touch ~src/self/~ mtimes.
+    ~make clean~ did not clear it: clean covers ~bin/~ and ~gen/~, and
+    ~tmp/self_det.c~ survives.
+
+    The fix draws the line the language already draws. A program
+    declaring a VALUE macro is never served from the build or translate
+    cache (~program_declares_value_macro~, checked next to
+    ~target_is_cacheable~): its body is full til run by the constfolder
+    interpreter at translate time, procs included, so its output is not
+    provable from mtimes. TYPE-GEN macros (~returns StructDef / EnumDef
+    / FuncDef~) stay cacheable -- they are expanded by substitution, not
+    interpreted (~struct<T>~ parses into one), and core's Option is one,
+    so flagging them would have disabled the cache for every program.
+    ~src/til.til~ itself therefore no longer caches, which is correct:
+    its output genuinely depends on HEAD.
+
+    Regression test: ~macro_no_stale_cache~ over
+    ~test/macro_env_dep.til~, get_version's shape without git -- a macro
+    that cats a probe file. The row rewrites the probe between two
+    translates with no ~.til~ mtime change and requires the emitted C to
+    hold the new string and not the old; the pre-fix compiler kept the
+    old one.
+
 Symptom:
 
    ~bin/til build~ / ~bin/til run~ redo expensive work even when the
