@@ -8,7 +8,6 @@
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
 * Optimizations
 ** Medium
-*** [[./open/371.org][#371]] Own primitive args: C stack slot passed by pointer, not a malloc'd box
 *** [[./open/397.org][#397]] A Type carries its Sym: Struct/Enum/Custom payloads become symbols
 * Features
 ** High

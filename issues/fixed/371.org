@@ -1,6 +1,52 @@
 # priority: medium
 # category: optimizations
-** WIP #371 Own primitive args: C stack slot passed by pointer, not a malloc'd box
+** FIXED #371 Own primitive args: C stack slot passed by pointer, not a malloc'd box
+
+*** Post-mortem
+
+    Fixed by 9c498dc0 (the caller-frame slot ABI for own primitive
+    args); this close confirms the two items that stayed open there.
+
+    STEP 4 (interpreter): confirmed NO change needed, with the mechanism
+    rather than the suite as the argument. The compiled bug was a
+    caller/callee ABI split -- the caller manufactured a box for the
+    callee to free. The interpreter has no such split to desynchronize:
+    it allocates its own EvalHeap slot for every binding at bind time
+    (scope_set_heap_owned; an erased word is even re-boxed "so the owned
+    copy matches h_free's two-level layout") and h_free releases exactly
+    that slot. Allocation and release live on the same side, in the same
+    runtime, so the C emission change cannot be mirrored there because
+    there is nothing to mirror. The suite (469/469, interp mode and ASAN
+    teardown included) is the empirical confirmation.
+
+    THE STAGE-6 FOLLOW-UP (retiring the now-empty primitive delete
+    DEFINITIONS) turns out not to be a small follow-up, and is not done
+    here. Traced end to end on `main(nums: ..I64)`:
+
+    - The scavenger keeps the qname `I64.delete` through a REAL static
+      edge: `Array(T).unsafe_set`'s `T.delete(own self.unsafe_get(i),
+      false)` and `Array(T).delete`'s element walk, monomorphized to
+      I64. The scavenger walks these PRE-DCE.
+    - a2a923d2 (#326) then elides those calls POST-scavenge, as no-op
+      deletes of a POD element. What keeps the emitted definition from
+      being orphaned today is the CLI variadic loop's
+      `<Prim>_delete(_val, 1)` -- reached with call_free TRUE, so the
+      DCE's no-op predicate correctly refuses it, even though the slot
+      ABI made its body empty anyway.
+    - Dropping that CLI call (plus its scavenger seed,
+      seed_cli_main_arg_roots) therefore yields "defined but not used"
+      -- the definition survives on the Array-body edges regardless.
+      Verified by neutralizing the seed entirely: the definition still
+      emits, with zero callers.
+
+    So retiring the definitions requires the scavenger's keep-decision
+    to know which monomorphized container edges the builder's DCE will
+    elide -- the same layering question a2a923d2 navigated, and exactly
+    its recorded residual (349 no-op deletes -> 134; the CLI call is
+    among the 134). That belongs to #326's active thread, not to this
+    issue: the slot ABI's win (no malloc/free per own primitive arg) is
+    delivered either way, and an inert call to an empty function is
+    dead weight for #326's sweep, not a leak.
 
 *** The waste
 
