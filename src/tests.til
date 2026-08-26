@@ -13,7 +13,7 @@ RUNNER := "bin/test_runner"
 // otherwise all have to carry a flag none of them decides.
 mut REGEN := ""
 PLOT := "bin/plot"
-TOTALS_PLOT_ARGS := " --left-unit ms --right-unit kb --right-divisor 1000 --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right"
+TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit mb --right-divisor 1000000 --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
@@ -2992,11 +2992,12 @@ main := proc(args: ..Str) {
 
     plot_start := clock_ms()
     test_csv := format("sample,requests,heap_bytes,ignored", NL,
-        "alpha,10,500000,70", NL,
-        "beta,20,900000,90", NL)
+        "alpha,10500,500000000,70", NL,
+        "beta,23456,950000000,90", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0",
-               " --left-unit widgets --right-unit kb --right-divisor 1000",
+               " --left-unit widgets --left-divisor 1000",
+               " --right-unit mb --right-divisor 1000000 --axis-precision 2",
                " --series requests:work:left --series heap_bytes:memory:right"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
     mut plot_ok := 1
@@ -3035,13 +3036,18 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">kb<") == 0 {
+    if count_matches(plot_svg, ">mb<") == 0 {
         println("FAIL: plot.til missing configured right-axis unit")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">900<") == 0 {
-        println("FAIL: plot.til did not apply the right-axis divisor")
+    if count_matches(plot_svg, "rotate(") != 0 {
+        println("FAIL: plot.til axis units should be horizontal")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, ">23<").eq(0).or(count_matches(plot_svg, ">950<").eq(0)) {
+        println("FAIL: plot.til did not apply axis divisors and precision")
         plot_ok = 0
         fail = 1
     }
