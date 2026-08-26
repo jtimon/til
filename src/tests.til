@@ -13,6 +13,7 @@ RUNNER := "bin/test_runner"
 // otherwise all have to carry a flag none of them decides.
 mut REGEN := ""
 PLOT := "bin/plot"
+TOTALS_PLOT_ARGS := " --left-unit ms --right-unit kb --right-divisor 1000 --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
@@ -2915,11 +2916,13 @@ main := proc(args: ..Str) {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem", NL,
-        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000,5200,600000", NL,
-        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000,5100,620000", NL)
+    test_csv := format("sample,requests,heap_bytes,ignored", NL,
+        "alpha,10,500000,70", NL,
+        "beta,20,900000,90", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
-    run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0"))
+    run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0",
+               " --left-unit widgets --right-unit kb --right-divisor 1000",
+               " --series requests:work:left --series heap_bytes:memory:right"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
     mut plot_ok := 1
     if count_matches(plot_svg, "<svg") == 0 {
@@ -2927,33 +2930,43 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline") < 9 {
-        println("FAIL: plot.til expected 9 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+    if count_matches(plot_svg, "<polyline") != 2 {
+        println("FAIL: plot.til expected 2 selected polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "abc1234") == 0 {
-        println("FAIL: plot.til missing commit label abc1234")
+    if count_matches(plot_svg, "alpha") == 0 {
+        println("FAIL: plot.til missing X-axis label alpha")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "inte") == 0 {
-        println("FAIL: plot.til missing legend label inte")
+    if count_matches(plot_svg, ">work<") == 0 {
+        println("FAIL: plot.til missing configured legend label work")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "mem-total") != 0 {
-        println("FAIL: plot.til should not draw mem-total legend")
+    if count_matches(plot_svg, ">memory<") == 0 {
+        println("FAIL: plot.til missing configured legend label memory")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">self<") == 0 {
-        println("FAIL: plot.til missing legend label self")
+    if count_matches(plot_svg, "ignored") != 0 {
+        println("FAIL: plot.til drew an unselected CSV column")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">self-mem<") == 0 {
-        println("FAIL: plot.til missing legend label self-mem")
+    if count_matches(plot_svg, ">widgets<") == 0 {
+        println("FAIL: plot.til missing configured left-axis unit")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, ">kb<") == 0 {
+        println("FAIL: plot.til missing configured right-axis unit")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, ">900<") == 0 {
+        println("FAIL: plot.til did not apply the right-axis divisor")
         plot_ok = 0
         fail = 1
     }
@@ -3070,7 +3083,7 @@ main := proc(args: ..Str) {
         totals_content = format(totals_content, totals_line, NL)
         File.writefile(totals_path, totals_content)
 
-        run(format(PLOT, " doc/totals.csv img/totals.svg 10 --no-x-labels"))
+        run(format(PLOT, " doc/totals.csv img/totals.svg 10 --no-x-labels", TOTALS_PLOT_ARGS))
         println("Updated doc/totals.csv and img/totals.svg")
     }
 

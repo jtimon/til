@@ -1,10 +1,11 @@
 mode cli
 
-// SVG line chart generator for benchmark CSV data.
-// Usage: plot <csv_path> <svg_output_path> [last_n]
+// SVG line chart generator for non-negative integer CSV data.
+// Usage: plot <csv_path> <svg_output_path> [last_n] [options]
 //
-// CSV format (header + data rows):
-//   commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem
+// The first CSV column supplies X-axis labels. Each plotted numeric column is
+// selected with --series column:label:left|right. Series order determines
+// color. Axis units are optional; --right-divisor converts right-axis values.
 
 import("../src/std/file")
 
@@ -21,45 +22,52 @@ MARGIN_BOTTOM := 60
 CHART_W := W.sub(MARGIN_LEFT).sub(MARGIN_RIGHT)
 CHART_H := H.sub(MARGIN_TOP).sub(MARGIN_BOTTOM)
 
-// Colors
 BG_COLOR := "white"
 AXIS_COLOR := "#333"
-COMMIT_LABEL_COLOR := "#666"
-INTERP_COLOR := "#0072B2"
-COMPILE_COLOR := "#CC79A7"
-RUN_COLOR := "#D55E00"
-WALL_COLOR := "#009E73"
-SELF_COLOR := "#984EA3"
-MEM_INTE_COLOR := "#56B4E9"
-MEM_COMP_COLOR := "#E69F00"
-MEM_RUN_COLOR := "#C44E52"
-MEM_TOTAL_COLOR := "#000000"
-SELF_MEM_COLOR := "#8C564B"
+X_LABEL_COLOR := "#666"
 
-// Helper to wrap a value in quotes: "val"
+Row := struct {
+    const label := ""
+    const values := Vec(I64).new()
+}
+
+Series := struct {
+    const column_index : USize = 0
+    const label := ""
+    const right_axis := false
+    const color := ""
+}
+
 qa := func(val: Str) returns Str {
     return format(Q, val, Q)
 }
 
-// Data row
-Row := struct {
-    const commit := ""
-    const interp_ms := 0
-    const compile_ms := 0
-    const run_ms := 0
-    const wall_ms := 0
-    const self_ms := 0
-    const mem_inte := 0
-    const mem_comp := 0
-    const mem_run := 0
-    const mem_total := 0
-    const self_mem := 0
+series_color := func(index: USize) returns Str {
+    switch index.mod(9) {
+    case 0: return "#0072B2"
+    case 1: return "#CC79A7"
+    case 2: return "#D55E00"
+    case 3: return "#009E73"
+    case 4: return "#984EA3"
+    case 5: return "#56B4E9"
+    case 6: return "#E69F00"
+    case 7: return "#C44E52"
+    case:   return "#8C564B"
+    }
+}
+
+parse_headers := func(content: Str) returns Vec(Str) {
+    lines := content.split(NL)
+    if lines.len().eq(0).or(lines[0].is_empty()) {
+        panic(__LOC__, "plot: CSV has no header")
+    }
+    return lines[0].split(",")
 }
 
 parse_csv := func(content: Str) returns Vec(Row) {
     mut rows := Vec(Row).new()
     lines := content.split(NL)
-    mut i : USize = 1 // skip header
+    mut i : USize = 1
     while i.lt(lines.len()) {
         ref line : Str = lines[i]
         if line.is_empty() {
@@ -67,101 +75,94 @@ parse_csv := func(content: Str) returns Vec(Row) {
             continue
         }
         cols := line.split(",")
-        if cols.len().lt(8) {
-            i++
-            continue
+        mut values := Vec(I64).new()
+        mut c : USize = 1
+        while c.lt(cols.len()) {
+            values.push(own cols[c].to_i64())
+            c++
         }
-        mut c10 := "0"
-        mut c11 := "0"
-        mut c12 := "0"
-        mut c13 := "0"
-        mut c14 := "0"
-        mut c15 := "0"
-        if cols.len().eq(11) {
-            // Older history stored a single memory column; treat it as mem_total.
-            ref c10r : Str = cols[10]
-            c13 = c10r.clone()
-        } else {
-            if cols.len().gt(10) {
-                ref c10r : Str = cols[10]
-                c10 = c10r.clone()
-            }
-            if cols.len().gt(11) {
-                c11 = cols[11].clone()
-            }
-            if cols.len().gt(12) {
-                c12 = cols[12].clone()
-            }
-            if cols.len().gt(13) {
-                c13 = cols[13].clone()
-            }
-            if cols.len().gt(14) {
-                c14 = cols[14].clone()
-            }
-            if cols.len().gt(15) {
-                c15 = cols[15].clone()
-            }
-        }
-        rows.push(own Row(
-            commit = cols[0].clone(),
-            interp_ms = cols[1].to_i64(),
-            compile_ms = cols[2].to_i64(),
-            run_ms = cols[3].to_i64(),
-            wall_ms = cols[7].to_i64(),
-            self_ms = c14.to_i64(),
-            mem_inte = c10.to_i64(),
-            mem_comp = c11.to_i64(),
-            mem_run = c12.to_i64(),
-            mem_total = c13.to_i64(),
-            self_mem = c15.to_i64()
-        ))
+        rows.push(own Row(label = cols[0].clone(), values = values))
         i++
     }
     return rows
 }
 
-// Map a data value to Y pixel coordinate (top = high value, bottom = low)
+resolve_series := func(specs: Vec(Str), headers: Vec(Str)) returns Vec(Series) {
+    mut series := Vec(Series).new()
+    mut si : USize = 0
+    while si.lt(specs.len()) {
+        ref spec : Str = specs[si]
+        parts := spec.split(":")
+        if parts.len().eq(3).not() {
+            panic(__LOC__, "plot: invalid --series '", spec,
+                  "' (expected column:label:left|right)")
+        }
+        ref column : Str = parts[0]
+        ref label : Str = parts[1]
+        ref axis : Str = parts[2]
+        if column.is_empty().or(label.is_empty()) {
+            panic(__LOC__, "plot: --series column and label must not be empty")
+        }
+
+        mut found := false
+        mut column_index : USize = 0
+        mut hi : USize = 1
+        while hi.lt(headers.len()) {
+            if headers[hi].eq(column) {
+                found = true
+                column_index = hi.sub(1)
+                break
+            }
+            hi++
+        }
+        if found.not() {
+            panic(__LOC__, "plot: CSV has no numeric column '", column, "'")
+        }
+
+        mut right_axis := false
+        if axis.eq("right") {
+            right_axis = true
+        } else if axis.eq("left").not() {
+            panic(__LOC__, "plot: invalid axis '", axis, "' in --series '", spec, "'")
+        }
+        series.push(own Series(
+            column_index = column_index,
+            label = label.clone(),
+            right_axis = right_axis,
+            color = series_color(si)
+        ))
+        si++
+    }
+    return series
+}
+
+// Map a data value to Y pixel coordinate (top = high value, bottom = low).
 y_px := func(val: I64, y_max: I64) returns I64 {
-    if y_max.eq(0) { return MARGIN_TOP.add(CHART_H) }
     scaled := val.mul(CHART_H).div(y_max)
     return MARGIN_TOP.add(CHART_H).sub(scaled)
 }
 
-// Map data index to X pixel coordinate
 x_px := func(idx: I64, count: I64) returns I64 {
     if count.lte(1) { return MARGIN_LEFT.add(CHART_W.div(2)) }
     return MARGIN_LEFT.add(idx.mul(CHART_W).div(count.sub(1)))
 }
 
-// The Row field a series name selects. build_points and series_has_data both
-// need this mapping and MUST agree on it: a series the has-data check reads
-// from a different field than the plot would either drop a populated series
-// or draw a flat line for an empty one. Unknown series answer 0, which
-// series_has_data reports as "no data" and so never reaches the plot.
-series_value := func(row: Row, series: Str) returns I64 {
-    switch series {
-    case "interp":    return row.interp_ms
-    case "compile":   return row.compile_ms
-    case "run":       return row.run_ms
-    case "wall":      return row.wall_ms
-    case "self":      return row.self_ms
-    case "mem-inte":  return row.mem_inte
-    case "mem-comp":  return row.mem_comp
-    case "mem-run":   return row.mem_run
-    case "mem-total": return row.mem_total
-    case "self-mem":  return row.self_mem
-    case:
-    }
-    return 0
+raw_series_value := func(row: Row, series: Series) returns I64 {
+    return row.values[series.column_index].clone()
 }
 
-// Build a polyline points string for one data series
-build_points := func(rows: Vec(Row), series: Str, y_max: I64) returns Str {
+display_series_value := func(row: Row, series: Series, right_divisor: I64) returns I64 {
+    val := raw_series_value(row, series)
+    if series.right_axis { return val.div(right_divisor) }
+    return val
+}
+
+build_points := func(rows: Vec(Row), series: Series, y_max: I64, right_divisor: I64) returns Str {
     mut pts := ""
     mut i : USize = 0
     while i.lt(rows.len()) {
         ref row : Row = rows[i]
-        val := series_value(row, series)
+        val := display_series_value(row, series, right_divisor)
         x := x_px(i.to_i64(), rows.len().to_i64())
         y := y_px(val, y_max)
         if i.gt(0) { pts = format(pts, " ") }
@@ -171,7 +172,6 @@ build_points := func(rows: Vec(Row), series: Str, y_max: I64) returns Str {
     return pts
 }
 
-// SVG element helpers
 svg_line := func(x1: I64, y1: I64, x2: I64, y2: I64, color: Str) returns Str {
     return format("<line x1=", qa(x1.to_str()), " y1=", qa(y1.to_str()),
                   " x2=", qa(x2.to_str()), " y2=", qa(y2.to_str()),
@@ -195,257 +195,241 @@ svg_polyline := func(points: Str, color: Str) returns Str {
                   " stroke-width=", qa("2"), "/>", NL)
 }
 
-// Check if any row has nonzero data for a series
-series_has_data := func(rows: Vec(Row), series: Str) returns Bool {
+series_has_data := func(rows: Vec(Row), series: Series) returns Bool {
     for row : Row in rows {
-        if series_value(row, series).gt(0) { return true }
+        if raw_series_value(row, series).gt(0) { return true }
     }
     return false
 }
 
-max_val := func(a: I64, b: I64) returns I64 {
-    if a.gt(b) { return a }
-    return b
+round_axis_max := func(value: I64) returns I64 {
+    if value.lte(0) { return 1 }
+    mut step := 1
+    while value.div(step).gt(10) {
+        step = step.mul(10)
+    }
+    if value.mod(step).gt(0) {
+        return value.div(step).add(1).mul(step)
+    }
+    return value
 }
 
-generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: Bool = true) returns Str {
-    mut y_max := 0
-    mut mem_max := 0
+series_legend_width := func(series: Series) returns I64 {
+    return series.label.len().to_i64().mul(7).add(25)
+}
+
+generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
+                     right_unit: Str, right_divisor: I64,
+                     show_x_labels: Bool = true,
+                     show_y_labels: Bool = true) returns Str {
+    mut left_max := 0
+    mut right_max := 0
+    mut has_left := false
+    mut has_right := false
     for row : Row in rows {
-        y_max = max_val(y_max, row.interp_ms)
-        y_max = max_val(y_max, row.compile_ms)
-        y_max = max_val(y_max, row.run_ms)
-        y_max = max_val(y_max, row.wall_ms)
-        y_max = max_val(y_max, row.self_ms)
-        mem_max = max_val(mem_max, row.mem_inte)
-        mem_max = max_val(mem_max, row.mem_comp)
-        mem_max = max_val(mem_max, row.mem_run)
-        mem_max = max_val(mem_max, row.self_mem)
+        for item : Series in series {
+            val := display_series_value(row, item, right_divisor)
+            if item.right_axis {
+                if val.gt(right_max) { right_max = val }
+                if raw_series_value(row, item).gt(0) { has_right = true }
+            } else {
+                if val.gt(left_max) { left_max = val }
+                if val.gt(0) { has_left = true }
+            }
+        }
     }
-    // Round up y_max to nice number (next multiple of 1000)
-    if y_max.mod(1000).gt(0) {
-        y_max = y_max.div(1000).add(1).mul(1000)
-    }
-    if y_max.eq(0) { y_max = 1000 }
-    if mem_max.mod(1000000).gt(0) {
-        mem_max = mem_max.div(1000000).add(1).mul(1000000)
-    }
-    if mem_max.eq(0) { mem_max = 1000000 }
+    left_max = round_axis_max(left_max)
+    right_max = round_axis_max(right_max)
 
     mut svg := ""
     svg = format(svg, "<svg width=", qa(W.to_str()), " height=", qa(H.to_str()),
-                            " xmlns=", qa("http://www.w3.org/2000/svg"), ">", NL)
-
-    // Background
+                        " xmlns=", qa("http://www.w3.org/2000/svg"), ">", NL)
     svg = format(svg, "<rect width=", qa(W.to_str()), " height=", qa(H.to_str()),
-                            " fill=", qa(BG_COLOR), "/>", NL)
+                        " fill=", qa(BG_COLOR), "/>", NL)
 
-    // Axes
-    svg = format(svg, svg_line(MARGIN_LEFT, MARGIN_TOP, MARGIN_LEFT, MARGIN_TOP.add(CHART_H), AXIS_COLOR))
-    svg = format(svg, svg_line(MARGIN_LEFT, MARGIN_TOP.add(CHART_H), MARGIN_LEFT.add(CHART_W), MARGIN_TOP.add(CHART_H), AXIS_COLOR))
-    has_mem_inte := series_has_data(rows, "mem-inte")
-    has_mem_comp := series_has_data(rows, "mem-comp")
-    has_mem_run := series_has_data(rows, "mem-run")
-    has_self_mem := series_has_data(rows, "self-mem")
-    has_any_mem := has_mem_inte.or(has_mem_comp).or(has_mem_run).or(has_self_mem)
-    if has_any_mem {
-        svg = format(svg, svg_line(MARGIN_LEFT.add(CHART_W), MARGIN_TOP, MARGIN_LEFT.add(CHART_W), MARGIN_TOP.add(CHART_H), AXIS_COLOR))
+    svg = format(svg, svg_line(MARGIN_LEFT, MARGIN_TOP, MARGIN_LEFT,
+                              MARGIN_TOP.add(CHART_H), AXIS_COLOR))
+    svg = format(svg, svg_line(MARGIN_LEFT, MARGIN_TOP.add(CHART_H),
+                              MARGIN_LEFT.add(CHART_W), MARGIN_TOP.add(CHART_H), AXIS_COLOR))
+    if has_right {
+        svg = format(svg, svg_line(MARGIN_LEFT.add(CHART_W), MARGIN_TOP,
+                                  MARGIN_LEFT.add(CHART_W), MARGIN_TOP.add(CHART_H), AXIS_COLOR))
     }
 
-    // Y-axis tick labels
     if show_y_labels {
-        mid_val := y_max.div(2)
-        lx := MARGIN_LEFT.sub(5)
-        svg = format(svg, svg_text(lx, MARGIN_TOP.add(CHART_H).add(4), "end", 11, AXIS_COLOR, "0"))
-        svg = format(svg, svg_text(lx, y_px(mid_val, y_max).add(4), "end", 11, AXIS_COLOR, mid_val.to_str()))
-        svg = format(svg, svg_text(lx, MARGIN_TOP.add(4), "end", 11, AXIS_COLOR, y_max.to_str()))
-
-        // Y-axis label (rotated)
         ym := MARGIN_TOP.add(CHART_H.div(2))
-        rot := format("rotate(-90 15 ", ym.to_str(), ")")
-        svg = format(svg, "<text x=", qa("15"), " y=", qa(ym.to_str()),
-                                " text-anchor=", qa("middle"), " font-size=", qa("12"),
-                                " fill=", qa(AXIS_COLOR),
-                                " transform=", qa(rot),
-                                ">ms</text>", NL)
-        if has_any_mem {
-            rmid := mem_max.div(2)
+        if has_left {
+            mid_val := left_max.div(2)
+            lx := MARGIN_LEFT.sub(5)
+            svg = format(svg, svg_text(lx, MARGIN_TOP.add(CHART_H).add(4), "end", 11, AXIS_COLOR, "0"))
+            svg = format(svg, svg_text(lx, y_px(mid_val, left_max).add(4), "end", 11, AXIS_COLOR, mid_val.to_str()))
+            svg = format(svg, svg_text(lx, MARGIN_TOP.add(4), "end", 11, AXIS_COLOR, left_max.to_str()))
+            if left_unit.is_empty().not() {
+                rot := format("rotate(-90 15 ", ym.to_str(), ")")
+                svg = format(svg, "<text x=", qa("15"), " y=", qa(ym.to_str()),
+                                    " text-anchor=", qa("middle"), " font-size=", qa("12"),
+                                    " fill=", qa(AXIS_COLOR), " transform=", qa(rot),
+                                    ">", left_unit, "</text>", NL)
+            }
+        }
+        if has_right {
+            rmid := right_max.div(2)
             rx := MARGIN_LEFT.add(CHART_W).add(5)
             svg = format(svg, svg_text(rx, MARGIN_TOP.add(CHART_H).add(4), "start", 11, AXIS_COLOR, "0"))
-            svg = format(svg, svg_text(rx, y_px(rmid, mem_max).add(4), "start", 11, AXIS_COLOR, rmid.to_str()))
-            svg = format(svg, svg_text(rx, MARGIN_TOP.add(4), "start", 11, AXIS_COLOR, mem_max.to_str()))
-            rlabel_x := W.sub(15)
-            rrot := format("rotate(90 ", rlabel_x.to_str(), " ", ym.to_str(), ")")
-            svg = format(svg, "<text x=", qa(rlabel_x.to_str()), " y=", qa(ym.to_str()),
+            svg = format(svg, svg_text(rx, y_px(rmid, right_max).add(4), "start", 11, AXIS_COLOR, rmid.to_str()))
+            svg = format(svg, svg_text(rx, MARGIN_TOP.add(4), "start", 11, AXIS_COLOR, right_max.to_str()))
+            if right_unit.is_empty().not() {
+                rlabel_x := W.sub(15)
+                rrot := format("rotate(90 ", rlabel_x.to_str(), " ", ym.to_str(), ")")
+                svg = format(svg, "<text x=", qa(rlabel_x.to_str()), " y=", qa(ym.to_str()),
                                     " text-anchor=", qa("middle"), " font-size=", qa("12"),
-                                    " fill=", qa(AXIS_COLOR),
-                                    " transform=", qa(rrot),
-                                    ">bytes</text>", NL)
-        }
-    }
-
-    // Data polylines (skip series with all-zero data)
-    has_interp := series_has_data(rows, "interp")
-    has_compile := series_has_data(rows, "compile")
-    has_run := series_has_data(rows, "run")
-    has_wall := series_has_data(rows, "wall")
-    has_self := series_has_data(rows, "self")
-    if rows.len().gt(0) {
-        if has_interp { svg = format(svg, svg_polyline(build_points(rows, "interp", y_max), INTERP_COLOR)) }
-        if has_compile { svg = format(svg, svg_polyline(build_points(rows, "compile", y_max), COMPILE_COLOR)) }
-        if has_run { svg = format(svg, svg_polyline(build_points(rows, "run", y_max), RUN_COLOR)) }
-        if has_wall { svg = format(svg, svg_polyline(build_points(rows, "wall", y_max), WALL_COLOR)) }
-        if has_self { svg = format(svg, svg_polyline(build_points(rows, "self", y_max), SELF_COLOR)) }
-        if has_mem_inte { svg = format(svg, svg_polyline(build_points(rows, "mem-inte", mem_max), MEM_INTE_COLOR)) }
-        if has_mem_comp { svg = format(svg, svg_polyline(build_points(rows, "mem-comp", mem_max), MEM_COMP_COLOR)) }
-        if has_mem_run { svg = format(svg, svg_polyline(build_points(rows, "mem-run", mem_max), MEM_RUN_COLOR)) }
-        if has_self_mem { svg = format(svg, svg_polyline(build_points(rows, "self-mem", mem_max), SELF_MEM_COLOR)) }
-
-        // Dots on data points
-        mut i : USize = 0
-        while i.lt(rows.len()) {
-            ref row : Row = rows[i]
-            x := x_px(i.to_i64(), rows.len().to_i64())
-            if has_interp { svg = format(svg, svg_circle(x, y_px(row.interp_ms, y_max), 3, INTERP_COLOR)) }
-            if has_compile { svg = format(svg, svg_circle(x, y_px(row.compile_ms, y_max), 3, COMPILE_COLOR)) }
-            if has_run { svg = format(svg, svg_circle(x, y_px(row.run_ms, y_max), 3, RUN_COLOR)) }
-            if has_wall { svg = format(svg, svg_circle(x, y_px(row.wall_ms, y_max), 3, WALL_COLOR)) }
-            if has_self { svg = format(svg, svg_circle(x, y_px(row.self_ms, y_max), 3, SELF_COLOR)) }
-            if has_mem_inte { svg = format(svg, svg_circle(x, y_px(row.mem_inte, mem_max), 3, MEM_INTE_COLOR)) }
-            if has_mem_comp { svg = format(svg, svg_circle(x, y_px(row.mem_comp, mem_max), 3, MEM_COMP_COLOR)) }
-            if has_mem_run { svg = format(svg, svg_circle(x, y_px(row.mem_run, mem_max), 3, MEM_RUN_COLOR)) }
-            if has_self_mem { svg = format(svg, svg_circle(x, y_px(row.self_mem, mem_max), 3, SELF_MEM_COLOR)) }
-            i++
-        }
-
-        // X-axis commit labels
-        if show_x_labels {
-            i = 0
-            while i.lt(rows.len()) {
-                ref row : Row = rows[i]
-                x := x_px(i.to_i64(), rows.len().to_i64())
-                mut label := row.commit
-                if label.len().gt(7) { label = label.substr(0, 7) }
-                svg = format(svg, svg_text(x, MARGIN_TOP.add(CHART_H).add(15), "middle", 10, COMMIT_LABEL_COLOR, label))
-                i++
+                                    " fill=", qa(AXIS_COLOR), " transform=", qa(rrot),
+                                    ">", right_unit, "</text>", NL)
             }
         }
     }
 
-    // Legend (only show series with data), horizontally centered so any
-    // number of entries stays on-canvas. First sum the widths of the present
-    // entries, then start at (W - total) / 2.
+    if rows.len().gt(0) {
+        mut si : USize = 0
+        while si.lt(series.len()) {
+            ref item : Series = series[si]
+            if series_has_data(rows, item) {
+                mut axis_max := left_max
+                if item.right_axis { axis_max = right_max }
+                svg = format(svg, svg_polyline(
+                    build_points(rows, item, axis_max, right_divisor), item.color))
+            }
+            si++
+        }
+
+        mut ri : USize = 0
+        while ri.lt(rows.len()) {
+            ref row : Row = rows[ri]
+            x := x_px(ri.to_i64(), rows.len().to_i64())
+            si = 0
+            while si.lt(series.len()) {
+                ref item : Series = series[si]
+                if series_has_data(rows, item) {
+                    mut axis_max := left_max
+                    if item.right_axis { axis_max = right_max }
+                    y := y_px(display_series_value(row, item, right_divisor), axis_max)
+                    svg = format(svg, svg_circle(x, y, 3, item.color))
+                }
+                si++
+            }
+            ri++
+        }
+
+        if show_x_labels {
+            ri = 0
+            while ri.lt(rows.len()) {
+                ref row : Row = rows[ri]
+                x := x_px(ri.to_i64(), rows.len().to_i64())
+                svg = format(svg, svg_text(x, MARGIN_TOP.add(CHART_H).add(15),
+                                          "middle", 10, X_LABEL_COLOR, row.label))
+                ri++
+            }
+        }
+    }
+
     ly := 20
     mut leg_total := 0
-    if has_interp { leg_total = leg_total.add(60) }
-    if has_compile { leg_total = leg_total.add(65) }
-    if has_run { leg_total = leg_total.add(55) }
-    if has_wall { leg_total = leg_total.add(65) }
-    if has_self { leg_total = leg_total.add(65) }
-    if has_mem_inte { leg_total = leg_total.add(90) }
-    if has_mem_comp { leg_total = leg_total.add(95) }
-    if has_mem_run { leg_total = leg_total.add(85) }
-    if has_self_mem { leg_total = leg_total.add(90) }
+    for item : Series in series {
+        if series_has_data(rows, item) {
+            leg_total = leg_total.add(series_legend_width(item))
+        }
+    }
     mut lx_pos := W.sub(leg_total).div(2)
     if lx_pos.lt(MARGIN_LEFT) { lx_pos = MARGIN_LEFT }
-    if has_interp {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, INTERP_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, INTERP_COLOR, "inte"))
-        lx_pos = lx_pos.add(60)
-    }
-    if has_compile {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, COMPILE_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, COMPILE_COLOR, "comp"))
-        lx_pos = lx_pos.add(65)
-    }
-    if has_run {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, RUN_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, RUN_COLOR, "run"))
-        lx_pos = lx_pos.add(55)
-    }
-    if has_wall {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, WALL_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, WALL_COLOR, "wall"))
-        lx_pos = lx_pos.add(65)
-    }
-    if has_self {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, SELF_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, SELF_COLOR, "self"))
-        lx_pos = lx_pos.add(65)
-    }
-    if has_mem_inte {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, MEM_INTE_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, MEM_INTE_COLOR, "mem-inte"))
-        lx_pos = lx_pos.add(90)
-    }
-    if has_mem_comp {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, MEM_COMP_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, MEM_COMP_COLOR, "mem-comp"))
-        lx_pos = lx_pos.add(95)
-    }
-    if has_mem_run {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, MEM_RUN_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, MEM_RUN_COLOR, "mem-run"))
-        lx_pos = lx_pos.add(85)
-    }
-    if has_self_mem {
-        svg = format(svg, svg_circle(lx_pos, ly, 4, SELF_MEM_COLOR))
-        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, SELF_MEM_COLOR, "self-mem"))
+    for item : Series in series {
+        if series_has_data(rows, item) {
+            svg = format(svg, svg_circle(lx_pos, ly, 4, item.color))
+            svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12,
+                                      item.color, item.label))
+            lx_pos = lx_pos.add(series_legend_width(item))
+        }
     }
 
     svg = svg.format("</svg>", NL)
     return svg
 }
 
-// Generate SVG chart from CSV file. last_n = 0 means all points.
-plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: Bool = true, show_y_labels: Bool = true) {
+plot_csv := proc(csv_path: Str, svg_path: Str, specs: Vec(Str),
+                 left_unit: Str = "", right_unit: Str = "",
+                 right_divisor: I64 = 1, last_n: I64 = 0,
+                 show_x_labels: Bool = true, show_y_labels: Bool = true) {
     content := File.readfile(csv_path)
+    headers := parse_headers(content)
+    series := resolve_series(specs, headers)
     all_rows := parse_csv(content)
 
     mut rows := Vec(Row).new()
     if last_n.gt(0) {
         last_n_us : USize = last_n.to_usize()
+        mut start : USize = 0
         if all_rows.len().gt(last_n_us) {
-            mut i : USize = all_rows.len().sub(last_n_us)
-            while i.lt(all_rows.len()) {
-                ref r : Row = all_rows[i]
-                rows.push(own Row(commit = r.commit.clone(), interp_ms = r.interp_ms,
-                                  compile_ms = r.compile_ms, run_ms = r.run_ms,
-                                  wall_ms = r.wall_ms, self_ms = r.self_ms,
-                                  mem_inte = r.mem_inte,
-                                  mem_comp = r.mem_comp, mem_run = r.mem_run,
-                                  mem_total = r.mem_total, self_mem = r.self_mem))
-                i++
-            }
-        } else {
-            rows = all_rows
+            start = all_rows.len().sub(last_n_us)
+        }
+        mut i := start
+        while i.lt(all_rows.len()) {
+            ref row : Row = all_rows[i]
+            rows.push(own row.clone())
+            i++
         }
     } else {
         rows = all_rows
     }
 
-    svg := generate_svg(rows, show_x_labels, show_y_labels)
+    svg := generate_svg(rows, series, left_unit, right_unit, right_divisor,
+                        show_x_labels, show_y_labels)
     File.writefile(svg_path, svg)
 }
 
 main := proc(args: ..Str) {
     if args.len().lt(2) {
-        println("usage: plot <csv_path> <svg_output_path> [last_n] [--no-x-labels]")
+        println("usage: plot <csv_path> <svg_output_path> [last_n]",
+                " [--no-x-labels] [--left-unit unit] [--right-unit unit]",
+                " [--right-divisor n] --series column:label:left|right ...")
         exit(1)
     }
     ref csv_path : Str = args[0]
     ref svg_path : Str = args[1]
+    mut specs := Vec(Str).new()
+    mut left_unit := ""
+    mut right_unit := ""
+    mut right_divisor := 1
     mut last_n := 0
     mut show_x := true
     mut i : USize = 2
     while i.lt(args.len()) {
-        ref a : Str = args[i]
-        if a.eq("--no-x-labels") {
+        ref arg : Str = args[i]
+        if arg.eq("--no-x-labels") {
             show_x = false
+        } else if arg.eq("--series") {
+            if i.add(1).eq(args.len()) { panic(__LOC__, "plot: --series needs a value") }
+            i++
+            specs.push(own args[i].clone())
+        } else if arg.eq("--left-unit") {
+            if i.add(1).eq(args.len()) { panic(__LOC__, "plot: --left-unit needs a value") }
+            i++
+            left_unit = args[i].clone()
+        } else if arg.eq("--right-unit") {
+            if i.add(1).eq(args.len()) { panic(__LOC__, "plot: --right-unit needs a value") }
+            i++
+            right_unit = args[i].clone()
+        } else if arg.eq("--right-divisor") {
+            if i.add(1).eq(args.len()) { panic(__LOC__, "plot: --right-divisor needs a value") }
+            i++
+            right_divisor = args[i].to_i64()
+            if right_divisor.lte(0) { panic(__LOC__, "plot: --right-divisor must be positive") }
+        } else if arg.starts_with("--") {
+            panic(__LOC__, "plot: unknown option '", arg, "'")
         } else {
-            last_n = a.to_i64()
+            last_n = arg.to_i64()
         }
         i++
     }
-    plot_csv(csv_path, svg_path, last_n, show_x_labels=show_x)
+    if specs.len().eq(0) { panic(__LOC__, "plot: at least one --series is required") }
+    plot_csv(csv_path, svg_path, specs, left_unit, right_unit,
+             right_divisor, last_n, show_x_labels=show_x)
 }

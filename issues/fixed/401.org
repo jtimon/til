@@ -1,0 +1,21 @@
+# priority: low
+# category: examples
+** FIXED #401 Make plot.til generic
+
+*** Post-mortem
+
+The plotter encoded the totals.csv schema directly in its row type, parser,
+series lookup, colors, axes, and labels. It now treats CSV headers as opaque
+column names and receives each series' column, display label, and axis through
+~--series~, with independent axis-unit and right-axis-divisor options.
+~src/tests.til~ owns the special totals configuration and requests a kb memory
+axis with a divisor of 1000.
+
+Regression test: the plot test in ~src/tests.til~ plots unrelated ~requests~
+and ~heap_bytes~ columns, verifies that an unselected column is absent, and
+checks both configured units and the divided right-axis maximum.
+
+~examples/plot.til~ was nominally a CSV chart generator, but it hardcoded the
+totals.csv schema, series names, colors, two-axis assignment, and memory
+units. This prevented other CSV data from using the example without modifying
+its source.
