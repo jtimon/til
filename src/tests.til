@@ -1491,8 +1491,15 @@ main := proc(args: ..Str) {
     // `#ifdef __linux__` half of til_prof_bind_symbols, and elsewhere the
     // slots keep the names dladdr gave them, so adopt__Str never appears.
     if host_os() == "linux" {
+        // --force-rebuild: the row asserts on what the CURRENT compiler's
+        // --prof instrumentation emits, and tmp/prof_static survives
+        // `make clean` (only tmp/boot goes) -- without it the #170 cache
+        // serves the previous build's binary whenever no source mtime moved,
+        // and the row re-tests old instrumentation. Same leftover-artifact
+        // shape self_translate had; the flag is the build-path spelling of
+        // that row's rm -f.
         add_count(tests, "prof_resolves_static_symbols", "build", "adopt__Str", 2,
-            format(til_bin, " build --prof -o tmp/prof_static examples/hello_script.til '&&' TIL_PROF_TOP=0 tmp/prof_static"))
+            format(til_bin, " build --prof --force-rebuild -o tmp/prof_static examples/hello_script.til '&&' TIL_PROF_TOP=0 tmp/prof_static"))
     }
     // A delete's call_free Bool literal is read by value in both back
     // ends, and the C emitter overrides it for a stack local -- so
