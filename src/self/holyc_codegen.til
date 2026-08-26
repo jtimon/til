@@ -9,6 +9,7 @@ import("../std/file")
 // runtime requirements, and entrypoint policy.
 priv HolyCEmitState := struct {
     user_functions := Set(Str).new()
+    str_return_functions := Set(Str).new()
     needs_i64_div := false
     needs_i64_mod := false
 }
@@ -16,6 +17,7 @@ priv HolyCEmitState := struct {
 priv HolyCLocalState := struct {
     pointer_types := Map(Str, Str).new()
     str_names := Set(Str).new()
+    str_pointer_names := Set(Str).new()
 }
 
 priv holyc_direct_call_name := func(e: Expr, ctx: Context) returns Str {
@@ -125,7 +127,8 @@ priv holyc_storage_type_name := func(name: Str) returns Str {
 
 priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState {
     return HolyCLocalState(pointer_types = locals.pointer_types.clone(),
-        str_names = locals.str_names.clone())
+        str_names = locals.str_names.clone(),
+        str_pointer_names = locals.str_pointer_names.clone())
 }
 
 // Post-escape byte count for source-form string literals. HolyC receives the
@@ -214,10 +217,34 @@ priv holyc_str_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
     case .Ident(id):
         ref name : Str = id.ident_name(ctx.symbols.names)
         if locals.str_names.has(name) { return format("&", name) }
+        if locals.str_pointer_names.has(name) { return Str.clone(name) }
     case:
     }
     error = format("unsupported Str value '", node_name(e.node_type), "'")
     return ""
+}
+
+priv holyc_call_args := func(e: Expr, start: USize, ctx: Context,
+    mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
+    mut args := ""
+    for i in start..e.children.len() {
+        if i > start { args = format(args, ", ") }
+        ref arg : Expr = e.children[i]
+        type_name_o := expr_type_name_ref(arg)
+        mut value := ""
+        mut is_str := false
+        if type_name_o.is_some() {
+            is_str = holyc_storage_type_name(type_name_o.unwrap()) == "Str"
+        }
+        if is_str {
+            value = holyc_str_ref(arg, ctx, locals, error)
+        } else {
+            value = holyc_expr(arg, ctx, state, locals, error)
+        }
+        if error.len() > 0 { return "" }
+        args = format(args, value)
+    }
+    return args
 }
 
 priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
@@ -226,10 +253,20 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
     case .Literal(Literal.Str(s)):
         return format("TilStrInitLit(&", dest, ", \"", s, "\", ",
             holyc_lit_byte_count(s).to_str(), ")")
+    case .Ident:
+        src := holyc_str_ref(e, ctx, locals, error)
+        return format("TilStrCopyValue(&", dest, ", ", src, ")")
     case .FCall:
         if e.children.len() == 0 {
             error = "Str initializer call has no callee"
             return ""
+        }
+        direct_name := holyc_direct_call_name(e, ctx)
+        if state.str_return_functions.has(direct_name) {
+            mut args := holyc_call_args(e, 1, ctx, state, locals, error)
+            if error.len() > 0 { return "" }
+            if args.len() > 0 { args = format(", ", args) }
+            return format(direct_name, "(&", dest, args, ")")
         }
         method := holyc_field_call_name(e, ctx)
         owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols))
@@ -326,6 +363,13 @@ priv holyc_prepare_state := func(program: Expr, mut state: HolyCEmitState) {
         case .Decl(decl):
             if stmt.children.len().eq(1).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
                 state.user_functions.add(own decl.name.clone())
+                switch stmt.children[0].node_type {
+                case .FuncDef(fdef):
+                    if holyc_storage_type_name(fdef.sig.return_type) == "Str" {
+                        state.str_return_functions.add(own decl.name.clone())
+                    }
+                case:
+                }
             }
         case:
         }
@@ -352,25 +396,39 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr, mut error: Str
             return ""
         }
         mut return_type := "U0"
+        mut returns_str := false
         if fdef.sig.return_type.len() > 0 {
             return_type_name := holyc_storage_type_name(fdef.sig.return_type)
-            if holyc_scalar_type_name(return_type_name).not()
+            if return_type_name == "Str" {
+                if fdef.sig.return_own_type.is(OwnType.Ref) {
+                    error = "ref Str returns are not supported yet"
+                    return ""
+                }
+                returns_str = true
+            } else if holyc_scalar_type_name(return_type_name).not()
                 .or(fdef.sig.return_own_type.is(OwnType.Shallow).not()) {
                 error = format("unsupported function return type '", fdef.sig.return_type, "'")
                 return ""
+            } else {
+                return_type = return_type_name
             }
-            return_type = return_type_name
         }
         mut params := ""
+        if returns_str { params = "TilStr *return_out" }
         for i in 0..fdef.sig.params.len() {
             ref param : Declaration = fdef.sig.params[i]
             param_type := holyc_storage_type_name(param.type_name())
+            if param_type == "Str" {
+                if params.len() > 0 { params = format(params, ", ") }
+                params = format(params, "TilStr *", param.name)
+                continue
+            }
             if holyc_scalar_type_name(param_type).not().or(param.is_mut)
                 .or(param.own_type.is(OwnType.Shallow).not()) {
                 error = format("unsupported parameter '", param.name, "' of type '", param_type, "'")
                 return ""
             }
-            if i > 0 { params = format(params, ", ") }
+            if params.len() > 0 { params = format(params, ", ") }
             params = format(params, param_type, " ", param.name)
         }
         return format(return_type, " ", name, "(", params, ")")
@@ -441,8 +499,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 if method == "delete" {
                     if e.children.len() != 3 { error = "invalid Str.delete call"; return "" }
                     src := holyc_str_ref(e.children[1], ctx, locals, error)
-                    call_free := holyc_expr(e.children[2], ctx, state, locals, error)
-                    return format("TilStrDelete(", src, ", ", call_free, ")")
+                    return format("TilStrDelete(", src, ", FALSE)")
                 }
                 error = format("unsupported call 'Str.", method, "'")
                 return ""
@@ -639,13 +696,11 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 error = format("unsupported direct call '", name, "'")
                 return ""
             }
-            mut args := ""
-            for i in 1..e.children.len() {
-                if i > 1 { args = format(args, ", ") }
-                arg := holyc_expr(e.children[i], ctx, state, locals, error)
-                if error.len() > 0 { return "" }
-                args = format(args, arg)
+            if state.str_return_functions.has(name) {
+                error = format("Str-returning call '", name, "' requires a Str destination")
+                return ""
             }
+            args := holyc_call_args(e, 1, ctx, state, locals, error)
             return format(name, "(", args, ")")
         case:
             error = "unsupported indirect call"
@@ -746,7 +801,7 @@ priv holyc_print_scaffold := func(body: Expr, start: USize, depth: USize,
     consumed = cursor.sub(start) + 4
 }
 
-priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
+priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: Bool, ctx: Context,
     mut state: HolyCEmitState, mut locals: HolyCLocalState, mut error: Str) returns Str {
     mut out := ""
     mut i : USize = 0
@@ -818,8 +873,14 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
                 return ""
             }
             if locals.str_names.has(assign.name) {
-                error = "Str assignment is not supported yet"
-                return ""
+                value := holyc_str_init("replacement", stmt.children[0], ctx, state, locals, error)
+                if error.len() > 0 { return "" }
+                out = format(out, prefix, "{\n",
+                    prefix, "    TilStr replacement;\n",
+                    prefix, "    ", value, ";\n",
+                    prefix, "    TilStrDelete(&", assign.name, ", FALSE);\n",
+                    prefix, "    TilStrCopyValue(&", assign.name, ", &replacement);\n",
+                    prefix, "}\n")
             } else if locals.pointer_types.has(assign.name) {
                 ref pointer_type : Str = locals.pointer_types[assign.name]
                 if pointer_type.eq("Dynamic").or(holyc_expr_is_pointer(stmt.children[0], ctx, locals)) {
@@ -848,7 +909,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
             condition := holyc_expr(stmt.children[0], ctx, state, locals, error)
             if error.len() > 0 { return "" }
             mut nested_locals := holyc_clone_locals(locals)
-            nested := holyc_body(stmt.children[1], depth + 1, false, ctx, state, nested_locals, error)
+            nested := holyc_body(stmt.children[1], depth + 1, false, str_return, ctx, state, nested_locals, error)
             if error.len() > 0 { return "" }
             out = format(out, prefix, "while (", condition, ") {\n", nested, prefix, "}\n")
         case .If:
@@ -859,12 +920,12 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
             condition := holyc_expr(stmt.children[0], ctx, state, locals, error)
             if error.len() > 0 { return "" }
             mut then_locals := holyc_clone_locals(locals)
-            then_body := holyc_body(stmt.children[1], depth + 1, false, ctx, state, then_locals, error)
+            then_body := holyc_body(stmt.children[1], depth + 1, false, str_return, ctx, state, then_locals, error)
             if error.len() > 0 { return "" }
             out = format(out, prefix, "if (", condition, ") {\n", then_body, prefix, "}")
             if stmt.children.len() == 3 {
                 mut else_locals := holyc_clone_locals(locals)
-                else_body := holyc_body(stmt.children[2], depth + 1, false, ctx, state, else_locals, error)
+                else_body := holyc_body(stmt.children[2], depth + 1, false, str_return, ctx, state, else_locals, error)
                 if error.len() > 0 { return "" }
                 out = format(out, " else {\n", else_body, prefix, "}")
             }
@@ -876,11 +937,27 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
             return ""
         case .Return:
             if stmt.children.len() == 0 {
+                if str_return {
+                    error = "Str-returning function requires a return value"
+                    return ""
+                }
                 out = format(out, prefix, "return;\n")
             } else if stmt.children.len() == 1 {
-                value := holyc_expr(stmt.children[0], ctx, state, locals, error)
-                if error.len() > 0 { return "" }
-                out = format(out, prefix, "return ", value, ";\n")
+                if str_return {
+                    value := holyc_str_init("return_value", stmt.children[0], ctx, state, locals, error)
+                    if error.len() > 0 { return "" }
+                    out = format(out, prefix, "{\n",
+                        prefix, "    TilStr return_value;\n",
+                        prefix, "    ", value, ";\n",
+                        prefix, "    TilStrCopyValue(return_out, &return_value);\n",
+                        prefix, "    TilStrPrepareReturn(return_out);\n",
+                        prefix, "    return;\n",
+                        prefix, "}\n")
+                } else {
+                    value := holyc_expr(stmt.children[0], ctx, state, locals, error)
+                    if error.len() > 0 { return "" }
+                    out = format(out, prefix, "return ", value, ";\n")
+                }
             } else {
                 error = "invalid return statement"
                 return ""
@@ -909,7 +986,18 @@ priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
                 return
             }
             mut locals := HolyCLocalState()
-            body := holyc_body(func_expr.children[0], 1, false, ctx, state, locals, error)
+            mut str_return := false
+            switch func_expr.node_type {
+            case .FuncDef(fdef):
+                str_return = holyc_storage_type_name(fdef.sig.return_type) == "Str"
+                for param : Declaration in fdef.sig.params {
+                    if holyc_storage_type_name(param.type_name()) == "Str" {
+                        locals.str_pointer_names.add(own param.name.clone())
+                    }
+                }
+            case:
+            }
+            body := holyc_body(func_expr.children[0], 1, false, str_return, ctx, state, locals, error)
             if error.len() > 0 { return }
             prototypes = format(prototypes, "extern ", signature, ";\n")
             definitions = format(definitions, signature, "\n{\n", body, "}\n\n")
@@ -981,7 +1069,7 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
     if validation_error.len() == 0 {
         for unit : ProgramUnit in lp.units {
             ref program : Expr = lp.ctx.imported[unit.path].ast
-            body = format(body, holyc_body(program, 1, true, lp.ctx, state, main_locals, validation_error))
+            body = format(body, holyc_body(program, 1, true, false, lp.ctx, state, main_locals, validation_error))
             if validation_error.len() > 0 { break }
         }
     }

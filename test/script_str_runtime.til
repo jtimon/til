@@ -1,5 +1,23 @@
 mode script
 
+str_runtime_middle := func(s: Str) returns Str {
+    return s.substr(1, 3).clone()
+}
+
+str_runtime_len := func(s: Str) returns I64 {
+    return s.len().to_i64()
+}
+
+str_runtime_push := func(mut s: Str) {
+    s.push_str("!")
+}
+
+str_runtime_consume := func(own s: Str) returns I64 {
+    n := s.len().to_i64()
+    own s.delete()
+    return n
+}
+
 literal := "  1234  "
 copy := literal.clone()
 view := copy.substr(2, 4)
@@ -14,5 +32,21 @@ number := literal.trim().to_i64()
 println(number.to_str())
 println(out.len().to_i64().to_str())
 
+mut reassigned := Str.with_capacity(8)
+reassigned.push_str("abcdef")
+reassigned = reassigned.substr(1, 4).clone()
+returned := str_runtime_middle(reassigned)
+println(returned)
+println(str_runtime_len(returned).to_str())
+mut mutable := Str.with_capacity(4)
+mutable.push_str("xy")
+str_runtime_push(mutable)
+println(mutable)
+owned := mutable.clone()
+println(str_runtime_consume(own owned).to_str())
+
 own out.delete()
 own copy.delete()
+own reassigned.delete()
+own returned.delete()
+own mutable.delete()

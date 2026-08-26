@@ -238,8 +238,19 @@
   interpreter, C backend, and HolyC translation; TempleOS 5.03 compiled and ran
   it with ~TILTEST:PASS~. A guest self-check additionally covered clone buffer
   independence, view pointer identity, prefixed integer parsing, and I64_MIN
-  formatting. Str assignment, user-function Str parameters/returns, and real
-  ~Array(Str)~ execution remain in the unchecked Str milestone.
+  formatting. Real ~Array(Str)~ execution remains in the unchecked Str
+  milestone.
+
+  The tenth slice makes Str replacement alias-safe by initializing the new
+  value before deleting the old payload, matching the C backend's ordering for
+  assignments such as ~s = s.substr(...).clone()~. User functions pass shallow,
+  mutable, and owned Str parameters as ~TilStr *~ and return Str through a
+  caller-owned out parameter because TempleOS cannot return class values.
+  Returning a literal converts its cap sentinel to a non-owning view, and
+  deleting an owned parameter frees its payload but never its caller-owned
+  stack wrapper. The expanded shared ~test/script_str_runtime.til~ covers all
+  of these paths; TempleOS 5.03 and a self-checking guest probe both reported
+  ~TILTEST:PASS~.
 
 *** QEMU validation
 

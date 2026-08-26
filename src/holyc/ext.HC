@@ -183,6 +183,19 @@ public U0 TilStrInitLit(TilStr *out,U8 *data,U32 count)
   out->cap=TIL_STR_CAP_LIT;
 }
 
+public U0 TilStrCopyValue(TilStr *out,TilStr *src)
+{
+  out->c_str=src->c_str;
+  out->count=src->count;
+  out->cap=src->cap;
+}
+
+public U0 TilStrPrepareReturn(TilStr *out)
+{
+  if (out->cap==TIL_STR_CAP_LIT)
+    out->cap=TIL_STR_CAP_VIEW;
+}
+
 public U0 TilStrWithCapacity(TilStr *out,U32 cap)
 {
   if (!cap) {

@@ -15,6 +15,52 @@ extern U0 TilWritePtr(U8 *slot,U8 *value);
 
 #include "/Home/Ext.HC"
 
+extern U0 str_runtime_middle(TilStr *return_out, TilStr *s);
+extern I64 str_runtime_len(TilStr *s);
+extern U0 str_runtime_push(TilStr *s);
+extern I64 str_runtime_consume(TilStr *s);
+
+U0 str_runtime_middle(TilStr *return_out, TilStr *s)
+{
+    U32 hoisted__U32_0 = 1;
+    U32 hoisted__U32_1 = 3;
+    TilStr hoisted__Str_str_runtime_middle_2;
+    TilStrSubstr(&hoisted__Str_str_runtime_middle_2, s, hoisted__U32_0, hoisted__U32_1);
+    TilStr hoisted__Str_str_runtime_middle_3;
+    TilStrClone(&hoisted__Str_str_runtime_middle_3, &hoisted__Str_str_runtime_middle_2);
+    TilStrDelete(&hoisted__Str_str_runtime_middle_2, FALSE);
+    {
+        TilStr return_value;
+        TilStrCopyValue(&return_value, &hoisted__Str_str_runtime_middle_3);
+        TilStrCopyValue(return_out, &return_value);
+        TilStrPrepareReturn(return_out);
+        return;
+    }
+}
+
+I64 str_runtime_len(TilStr *s)
+{
+    U32 hoisted__U32_0 = (s)->count;
+    I64 hoisted__I64_1 = (hoisted__U32_0)(I64);
+    return hoisted__I64_1;
+}
+
+U0 str_runtime_push(TilStr *s)
+{
+    TilStr hoisted__Str_str_runtime_push_0;
+    TilStrInitLit(&hoisted__Str_str_runtime_push_0, "!", 1);
+    TilStrPush(s, &hoisted__Str_str_runtime_push_0);
+    TilStrDelete(&hoisted__Str_str_runtime_push_0, FALSE);
+}
+
+I64 str_runtime_consume(TilStr *s)
+{
+    U32 hoisted__U32_0 = (s)->count;
+    I64 n = (hoisted__U32_0)(I64);
+    TilStrDelete(s, FALSE);
+    return n;
+}
+
 I64 TilMain()
 {
     TilStr literal;
@@ -56,8 +102,63 @@ I64 TilMain()
     TilStrWrite(&hoisted__Str_g22);
     TilRawWrite("\n", 1);
     TilStrDelete(&hoisted__Str_g22, FALSE);
+    U32 hoisted__U32_g23 = 8;
+    TilStr reassigned;
+    TilStrWithCapacity(&reassigned, hoisted__U32_g23);
+    TilStr hoisted__Str_g24;
+    TilStrInitLit(&hoisted__Str_g24, "abcdef", 6);
+    TilStrPush(&reassigned, &hoisted__Str_g24);
+    TilStrDelete(&hoisted__Str_g24, FALSE);
+    U32 hoisted__U32_g25 = 1;
+    U32 hoisted__U32_g26 = 4;
+    TilStr hoisted__Str_g27;
+    TilStrSubstr(&hoisted__Str_g27, &reassigned, hoisted__U32_g25, hoisted__U32_g26);
+    {
+        TilStr replacement;
+        TilStrClone(&replacement, &hoisted__Str_g27);
+        TilStrDelete(&reassigned, FALSE);
+        TilStrCopyValue(&reassigned, &replacement);
+    }
+    TilStrDelete(&hoisted__Str_g27, FALSE);
+    TilStr returned;
+    str_runtime_middle(&returned, &reassigned);
+    TilStr hoisted__Str_g30;
+    TilStrClone(&hoisted__Str_g30, &returned);
+    TilStrWrite(&hoisted__Str_g30);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g30, FALSE);
+    I64 hoisted__I64_g32 = str_runtime_len(&returned);
+    TilStr hoisted__Str_g34;
+    TilStrFromI64(&hoisted__Str_g34, hoisted__I64_g32);
+    TilStrWrite(&hoisted__Str_g34);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g34, FALSE);
+    U32 hoisted__U32_g35 = 4;
+    TilStr mutable;
+    TilStrWithCapacity(&mutable, hoisted__U32_g35);
+    TilStr hoisted__Str_g36;
+    TilStrInitLit(&hoisted__Str_g36, "xy", 2);
+    TilStrPush(&mutable, &hoisted__Str_g36);
+    TilStrDelete(&hoisted__Str_g36, FALSE);
+    str_runtime_push(&mutable);
+    TilStr hoisted__Str_g39;
+    TilStrClone(&hoisted__Str_g39, &mutable);
+    TilStrWrite(&hoisted__Str_g39);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g39, FALSE);
+    TilStr owned;
+    TilStrClone(&owned, &mutable);
+    I64 hoisted__I64_g41 = str_runtime_consume(&owned);
+    TilStr hoisted__Str_g43;
+    TilStrFromI64(&hoisted__Str_g43, hoisted__I64_g41);
+    TilStrWrite(&hoisted__Str_g43);
+    TilRawWrite("\n", 1);
+    TilStrDelete(&hoisted__Str_g43, FALSE);
     TilStrDelete(&out, FALSE);
     TilStrDelete(&copy, FALSE);
+    TilStrDelete(&reassigned, FALSE);
+    TilStrDelete(&returned, FALSE);
+    TilStrDelete(&mutable, FALSE);
     return 0;
 }
 
