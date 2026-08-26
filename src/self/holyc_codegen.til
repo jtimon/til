@@ -18,6 +18,7 @@ priv HolyCLocalState := struct {
     pointer_types := Map(Str, Str).new()
     str_names := Set(Str).new()
     str_pointer_names := Set(Str).new()
+    str_array_names := Set(Str).new()
 }
 
 priv holyc_direct_call_name := func(e: Expr, ctx: Context) returns Str {
@@ -25,73 +26,6 @@ priv holyc_direct_call_name := func(e: Expr, ctx: Context) returns Str {
     if e.children.len() == 0 { return "" }
     switch e.children[0].node_type {
     case .Ident(id): return Str.clone(id.ident_name(ctx.symbols.names))
-    case: return ""
-    }
-}
-
-priv holyc_is_array_str_call := func(e: Expr, method: Str, ctx: Context) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() == 0 { return false }
-    ref callee : Expr = e.children[0]
-    switch callee.node_type {
-    case .FieldAccess(fa):
-        if fa.field_access_name(ctx.symbols.names) != method { return false }
-        if callee.children.len() != 1 { return false }
-        switch callee.children[0].node_type {
-        case .Ident(owner): return owner.ident_name(ctx.symbols.names) == "Array__Str"
-        case: return false
-        }
-    case: return false
-    }
-}
-
-priv holyc_ident_name := func(e: Expr, ctx: Context) returns Str {
-    switch e.node_type {
-    case .Ident(id): return Str.clone(id.ident_name(ctx.symbols.names))
-    case: return ""
-    }
-}
-
-priv holyc_decl_num := func(stmt: Expr, text: Str, mut name: Str) returns Bool {
-    if stmt.node_type.is(NodeType.Decl).not() { return false }
-    if stmt.children.len() != 1 { return false }
-    switch stmt.children[0].node_type {
-    case .Literal(Literal.Num(num)):
-        if num.literal_num_text() != text { return false }
-        name = decl_of(stmt).name.clone()
-        return true
-    case: return false
-    }
-}
-
-priv holyc_array_new_name := func(stmt: Expr, capacity_name: Str, mut array_name: Str, ctx: Context) returns Bool {
-    if stmt.node_type.is(NodeType.Decl).not() { return false }
-    if stmt.children.len() != 1 { return false }
-    ref rhs : Expr = stmt.children[0]
-    if holyc_is_array_str_call(rhs, "new", ctx).not() { return false }
-    if rhs.children.len() != 2 { return false }
-    if holyc_ident_name(rhs.children[1], ctx) != capacity_name { return false }
-    array_name = decl_of(stmt).name.clone()
-    return array_name.starts_with("_va_Array_")
-}
-
-priv holyc_array_set_names := func(e: Expr, mut array_name: Str, mut index_name: Str,
-    mut value_name: Str, mut error_name: Str, ctx: Context) returns Bool {
-    if holyc_is_array_str_call(e, "set", ctx).not() { return false }
-    if e.children.len() != 5 { return false }
-    array_name = holyc_ident_name(e.children[1], ctx)
-    index_name = holyc_ident_name(e.children[2], ctx)
-    value_name = holyc_ident_name(e.children[3], ctx)
-    error_name = holyc_ident_name(e.children[4], ctx)
-    return array_name.len().gt(0).and(index_name.len().gt(0))
-        .and(value_name.len().gt(0)).and(error_name.len().gt(0))
-}
-
-priv holyc_print_array_name := func(e: Expr, ctx: Context) returns Str {
-    if holyc_direct_call_name(e, ctx) != "println" { return "" }
-    if e.children.len() != 2 { return "" }
-    switch e.children[1].node_type {
-    case .Ident(array_id): return Str.clone(array_id.ident_name(ctx.symbols.names))
     case: return ""
     }
 }
@@ -128,7 +62,8 @@ priv holyc_storage_type_name := func(name: Str) returns Str {
 priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState {
     return HolyCLocalState(pointer_types = locals.pointer_types.clone(),
         str_names = locals.str_names.clone(),
-        str_pointer_names = locals.str_pointer_names.clone())
+        str_pointer_names = locals.str_pointer_names.clone(),
+        str_array_names = locals.str_array_names.clone())
 }
 
 // Post-escape byte count for source-form string literals. HolyC receives the
@@ -310,6 +245,34 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
     }
 }
 
+priv holyc_str_array_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
+    mut error: Str) returns Str {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        if locals.str_array_names.has(name) { return format("&", name) }
+    case:
+    }
+    error = format("unsupported Array(Str) value '", node_name(e.node_type), "'")
+    return ""
+}
+
+priv holyc_str_array_init := func(dest: Str, e: Expr, ctx: Context,
+    mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len().neq(2)) {
+        error = "unsupported Array(Str) initializer"
+        return ""
+    }
+    method := holyc_field_call_name(e, ctx)
+    owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols))
+    if owner.neq("Array__Str").or(method.neq("new")) {
+        error = format("unsupported Array(Str) initializer call '", owner, ".", method, "'")
+        return ""
+    }
+    cap := holyc_expr(e.children[1], ctx, state, locals, error)
+    return format("TilStrArrayNew(&", dest, ", ", cap, ")")
+}
+
 priv holyc_narrow_wrap := func(value: Str, owner: Str) returns Str {
     switch owner {
     case "U8":  return format("((", value, ") & 255)")
@@ -465,6 +428,32 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         case .FieldAccess(fa):
             ref method : Str = fa.field_access_name(ctx.symbols.names)
             owner := holyc_storage_type_name(holyc_field_owner_name(callee, ctx.symbols))
+            if owner == "Array__Str" {
+                if method == "len" {
+                    if e.children.len() != 2 { error = "invalid Array(Str).len call"; return "" }
+                    array := holyc_str_array_ref(e.children[1], ctx, locals, error)
+                    return format("(", array, ")->cap")
+                }
+                if method.eq("set").or(method.eq("unsafe_set")) {
+                    mut expected_len : USize = 4
+                    if method == "set" { expected_len = 5 }
+                    if e.children.len() != expected_len {
+                        error = format("invalid Array(Str).", method, " call")
+                        return ""
+                    }
+                    array := holyc_str_array_ref(e.children[1], ctx, locals, error)
+                    index := holyc_expr(e.children[2], ctx, state, locals, error)
+                    value := holyc_str_ref(e.children[3], ctx, locals, error)
+                    return format("TilStrArraySet(", array, ", ", index, ", ", value, ")")
+                }
+                if method == "delete" {
+                    if e.children.len() != 3 { error = "invalid Array(Str).delete call"; return "" }
+                    array := holyc_str_array_ref(e.children[1], ctx, locals, error)
+                    return format("TilStrArrayDelete(", array, ")")
+                }
+                error = format("unsupported call 'Array(Str).", method, "'")
+                return ""
+            }
             if owner == "Str" {
                 if method == "len" {
                     if e.children.len() != 2 { error = "invalid Str.len call"; return "" }
@@ -602,6 +591,13 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             return value
         case .Ident(id):
             ref name : Str = id.ident_name(ctx.symbols.names)
+            if name.eq("print").or(name.eq("println")) {
+                if e.children.len() != 2 { error = format("invalid call '", name, "'"); return "" }
+                parts := holyc_str_array_ref(e.children[1], ctx, locals, error)
+                mut runtime_name := "TilPrint"
+                if name == "println" { runtime_name = "TilPrintln" }
+                return format(runtime_name, "(", parts, ")")
+            }
             if name == "print_single" {
                 if e.children.len() != 2 { error = "invalid call 'print_single'"; return "" }
                 value := holyc_str_ref(e.children[1], ctx, locals, error)
@@ -712,110 +708,11 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
     }
 }
 
-priv holyc_print_scaffold := func(body: Expr, start: USize, depth: USize,
-    ctx: Context, mut state: HolyCEmitState, locals: HolyCLocalState, mut consumed: USize,
-    mut output: Str, mut error: Str) {
-    consumed = 0
-    output = ""
-    mut capacity_name := ""
-    if holyc_decl_num(body.children[start], "1", capacity_name).not()
-        .or(capacity_name.starts_with("hoisted__").not()) { return }
-    if start.add(1).gte(body.children.len()) { return }
-    mut array_name := ""
-    if holyc_array_new_name(body.children[start + 1], capacity_name, array_name, ctx).not() { return }
-    if start.add(6).gte(body.children.len()) {
-        error = "incomplete println scaffold"
-        return
-    }
-    mut error_name := ""
-    if holyc_decl_num(body.children[start + 2], "0", error_name).not()
-        .or(error_name != format(array_name, "_ek")).or(decl_of(body.children[start + 2]).is_mut.not()) {
-        error = "invalid println error scaffold"
-        return
-    }
-    prefix := holyc_indent(depth)
-    mut prelude := ""
-    mut index_name := ""
-    mut cursor := start + 3
-    while cursor < body.children.len() {
-        if holyc_decl_num(body.children[cursor], "0", index_name)
-            .and(index_name.starts_with("hoisted__")) { break }
-        ref extra : Expr = body.children[cursor]
-        if extra.node_type.is(NodeType.Decl).not().or(extra.children.len().neq(1)) {
-            error = "invalid println index scaffold"
-            return
-        }
-        extra_type := holyc_storage_type_name(til_type_name_c(extra.til_type()))
-        if holyc_scalar_type_name(extra_type).not() {
-            error = "unsupported println scaffold prelude"
-            return
-        }
-        extra_value := holyc_expr(extra.children[0], ctx, state, locals, error)
-        if error.len() > 0 { return }
-        prelude = format(prelude, prefix, extra_type, " ", decl_of(extra).name,
-            " = ", extra_value, ";\n")
-        cursor++
-    }
-    if cursor.gte(body.children.len()) {
-        error = "invalid println index scaffold"
-        return
-    }
-
-    if cursor.add(3).gte(body.children.len()) {
-        error = "incomplete println scaffold"
-        return
-    }
-    ref value_stmt : Expr = body.children[cursor + 1]
-    if value_stmt.node_type.is(NodeType.Decl).not().or(value_stmt.children.len().neq(1)) {
-        error = "invalid println value scaffold"
-        return
-    }
-    value_name := decl_of(value_stmt).name.clone()
-    if value_name.starts_with("hoisted__").not() {
-        error = "invalid println value name"
-        return
-    }
-    value_init := holyc_str_init(value_name, value_stmt.children[0], ctx, state, locals, error)
-    if error.len() > 0 { return }
-    output = format(prelude,
-        prefix, "TilStr ", value_name, ";\n",
-        prefix, value_init, ";\n",
-        prefix, "TilStrWrite(&", value_name, ");\n",
-        prefix, "TilRawWrite(\"\\n\", 1);\n",
-        prefix, "TilStrDelete(&", value_name, ", FALSE);\n")
-
-    mut set_array := ""
-    mut set_index := ""
-    mut set_value := ""
-    mut set_error := ""
-    if holyc_array_set_names(body.children[cursor + 2], set_array, set_index, set_value, set_error, ctx).not()
-        .or(set_array != array_name).or(set_index != index_name)
-        .or(set_value != value_name).or(set_error != error_name) {
-        error = "invalid println set scaffold"
-        return
-    }
-    if holyc_print_array_name(body.children[cursor + 3], ctx) != array_name {
-        error = "invalid println call scaffold"
-        return
-    }
-    consumed = cursor.sub(start) + 4
-}
-
 priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: Bool, ctx: Context,
     mut state: HolyCEmitState, mut locals: HolyCLocalState, mut error: Str) returns Str {
     mut out := ""
     mut i : USize = 0
     while i < body.children.len() {
-        mut consumed : USize = 0
-        mut print_output := ""
-        holyc_print_scaffold(body, i, depth, ctx, state, locals, consumed, print_output, error)
-        if error.len() > 0 { return "" }
-        if consumed > 0 {
-            out = format(out, print_output)
-            i = i + consumed
-            continue
-        }
-
         ref stmt : Expr = body.children[i]
         if is_compile_directive(stmt, ctx.symbols) {
             i++
@@ -843,6 +740,12 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: B
                 out = format(out, prefix, "TilStr ", decl.name, ";\n",
                     prefix, value, ";\n")
                 locals.str_names.add(own decl.name.clone())
+            } else if decl_type == "Array__Str" {
+                value := holyc_str_array_init(decl.name, stmt.children[0], ctx, state, locals, error)
+                if error.len() > 0 { return "" }
+                out = format(out, prefix, "TilStrArray ", decl.name, ";\n",
+                    prefix, value, ";\n")
+                locals.str_array_names.add(own decl.name.clone())
             } else {
                 pointer_type := holyc_decl_pointer_type(decl, stmt.children[0], ctx.symbols)
                 if pointer_type.len() > 0 {
@@ -881,6 +784,9 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: B
                     prefix, "    TilStrDelete(&", assign.name, ", FALSE);\n",
                     prefix, "    TilStrCopyValue(&", assign.name, ", &replacement);\n",
                     prefix, "}\n")
+            } else if locals.str_array_names.has(assign.name) {
+                error = "Array(Str) assignment is not supported yet"
+                return ""
             } else if locals.pointer_types.has(assign.name) {
                 ref pointer_type : Str = locals.pointer_types[assign.name]
                 if pointer_type.eq("Dynamic").or(holyc_expr_is_pointer(stmt.children[0], ctx, locals)) {

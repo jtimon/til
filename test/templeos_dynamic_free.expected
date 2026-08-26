@@ -24,11 +24,15 @@ I64 TilMain()
     U8 *recovered = back;
     TilFree(recovered);
     TilFree(slot);
+    U32 hoisted__U32_g8 = 1;
+    TilStrArray _va_Array_g0;
+    TilStrArrayNew(&_va_Array_g0, hoisted__U32_g8);
+    I64 _va_Array_g0_ek = 0;
+    U32 hoisted__U32_g9 = 0;
     TilStr hoisted__Str_g10;
     TilStrInitLit(&hoisted__Str_g10, "ok", 2);
-    TilStrWrite(&hoisted__Str_g10);
-    TilRawWrite("\n", 1);
-    TilStrDelete(&hoisted__Str_g10, FALSE);
+    TilStrArraySet(&_va_Array_g0, hoisted__U32_g9, &hoisted__Str_g10);
+    TilPrintln(&_va_Array_g0);
     U8 *slot2 = TilMAlloc(8);
     I8 *b = TilMAlloc(4);
     TilWritePtr(slot2, b);
@@ -36,11 +40,15 @@ I64 TilMain()
     U8 *recovered2 = back2;
     TilFree(recovered2);
     TilFree(slot2);
+    U32 hoisted__U32_g11 = 1;
+    TilStrArray _va_Array_g1;
+    TilStrArrayNew(&_va_Array_g1, hoisted__U32_g11);
+    I64 _va_Array_g1_ek = 0;
+    U32 hoisted__U32_g12 = 0;
     TilStr hoisted__Str_g13;
     TilStrInitLit(&hoisted__Str_g13, "ok2", 3);
-    TilStrWrite(&hoisted__Str_g13);
-    TilRawWrite("\n", 1);
-    TilStrDelete(&hoisted__Str_g13, FALSE);
+    TilStrArraySet(&_va_Array_g1, hoisted__U32_g12, &hoisted__Str_g13);
+    TilPrintln(&_va_Array_g1);
     return 0;
 }
 

@@ -19,11 +19,15 @@ extern I64 twice(I64 n);
 
 I64 twice(I64 n)
 {
+    U32 hoisted__U32_0 = 1;
+    TilStrArray _va_Array_0;
+    TilStrArrayNew(&_va_Array_0, hoisted__U32_0);
+    I64 _va_Array_0_ek = 0;
+    U32 hoisted__U32_1 = 0;
     TilStr hoisted__Str_twice_2;
     TilStrInitLit(&hoisted__Str_twice_2, "Inside twice", 12);
-    TilStrWrite(&hoisted__Str_twice_2);
-    TilRawWrite("\n", 1);
-    TilStrDelete(&hoisted__Str_twice_2, FALSE);
+    TilStrArraySet(&_va_Array_0, hoisted__U32_1, &hoisted__Str_twice_2);
+    TilPrintln(&_va_Array_0);
     I64 hoisted__I64_3 = 2;
     I64 hoisted__I64_4 = (n * hoisted__I64_3);
     return hoisted__I64_4;
@@ -31,18 +35,26 @@ I64 twice(I64 n)
 
 I64 TilMain()
 {
+    U32 hoisted__U32_g7 = 1;
+    TilStrArray _va_Array_g0;
+    TilStrArrayNew(&_va_Array_g0, hoisted__U32_g7);
+    I64 _va_Array_g0_ek = 0;
+    U32 hoisted__U32_g8 = 0;
     TilStr hoisted__Str_g9;
     TilStrInitLit(&hoisted__Str_g9, "Imported calls helper", 21);
-    TilStrWrite(&hoisted__Str_g9);
-    TilRawWrite("\n", 1);
-    TilStrDelete(&hoisted__Str_g9, FALSE);
+    TilStrArraySet(&_va_Array_g0, hoisted__U32_g8, &hoisted__Str_g9);
+    TilPrintln(&_va_Array_g0);
     I64 hoisted__I64_g10 = 21;
     I64 result = twice(hoisted__I64_g10);
+    U32 hoisted__U32_g11 = 1;
+    TilStrArray _va_Array_g1;
+    TilStrArrayNew(&_va_Array_g1, hoisted__U32_g11);
+    I64 _va_Array_g1_ek = 0;
+    U32 hoisted__U32_g12 = 0;
     TilStr hoisted__Str_g13;
     TilStrFromI64(&hoisted__Str_g13, result);
-    TilStrWrite(&hoisted__Str_g13);
-    TilRawWrite("\n", 1);
-    TilStrDelete(&hoisted__Str_g13, FALSE);
+    TilStrArraySet(&_va_Array_g1, hoisted__U32_g12, &hoisted__Str_g13);
+    TilPrintln(&_va_Array_g1);
     return 0;
 }
 

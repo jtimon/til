@@ -132,7 +132,7 @@
     output.
   - [X] Add typed raw-pointer and Dynamic storage, checked scalar loads, and
     explicit lowering for allocation, pointer, and raw-memory primitives.
-  - [ ] Implement the general til ~Str~ representation in HolyC: literals,
+  - [X] Implement the general til ~Str~ representation in HolyC: literals,
     clone/delete, views, mutation, integer conversion, and native output.
     Keep the current lowered-~println~ scaffold optimization only until real
     ~Array(Str)~ execution can replace it.
@@ -238,8 +238,7 @@
   interpreter, C backend, and HolyC translation; TempleOS 5.03 compiled and ran
   it with ~TILTEST:PASS~. A guest self-check additionally covered clone buffer
   independence, view pointer identity, prefixed integer parsing, and I64_MIN
-  formatting. Real ~Array(Str)~ execution remains in the unchecked Str
-  milestone.
+  formatting. Real ~Array(Str)~ execution follows in the eleventh slice.
 
   The tenth slice makes Str replacement alias-safe by initializing the new
   value before deleting the old payload, matching the C backend's ordering for
@@ -251,6 +250,15 @@
   stack wrapper. The expanded shared ~test/script_str_runtime.til~ covers all
   of these paths; TempleOS 5.03 and a self-checking guest probe both reported
   ~TILTEST:PASS~.
+
+  The eleventh slice replaces the one-element ~println~ shape matcher with a
+  real ~TilStrArray~ value: zeroed fixed-capacity element storage, bounds-
+  checked ownership-transferring set, element/payload teardown, and consuming
+  ~print~/~println~ operations. The shared Str runtime script now includes a
+  four-part println assembled through ordinary lowered ~Array(Str)~ operations.
+  TempleOS 5.03 compiled and ran that generated program with ~TILTEST:PASS~;
+  the self-checking guest probe also verified that print consumes the array,
+  moved element temporaries are empty, and cloned source strings remain owned.
 
 *** QEMU validation
 

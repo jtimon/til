@@ -37,39 +37,55 @@ I64 TilMain()
         I64 hoisted__I64_g31 = 0;
         Bool hoisted__Bool_g32 = (hoisted__I64_g30 == hoisted__I64_g31);
         if (hoisted__Bool_g32) {
+            U32 hoisted__U32_g8 = 1;
+            TilStrArray _va_Array_g0;
+            TilStrArrayNew(&_va_Array_g0, hoisted__U32_g8);
+            I64 _va_Array_g0_ek = 0;
+            U32 hoisted__U32_g9 = 0;
             TilStr hoisted__Str_g10;
             TilStrInitLit(&hoisted__Str_g10, "FizzBuzz", 8);
-            TilStrWrite(&hoisted__Str_g10);
-            TilRawWrite("\n", 1);
-            TilStrDelete(&hoisted__Str_g10, FALSE);
+            TilStrArraySet(&_va_Array_g0, hoisted__U32_g9, &hoisted__Str_g10);
+            TilPrintln(&_va_Array_g0);
         } else {
             I64 hoisted__I64_g24 = 3;
             I64 hoisted__I64_g25 = TilI64Mod(i, hoisted__I64_g24);
             I64 hoisted__I64_g26 = 0;
             Bool hoisted__Bool_g27 = (hoisted__I64_g25 == hoisted__I64_g26);
             if (hoisted__Bool_g27) {
+                U32 hoisted__U32_g11 = 1;
+                TilStrArray _va_Array_g1;
+                TilStrArrayNew(&_va_Array_g1, hoisted__U32_g11);
+                I64 _va_Array_g1_ek = 0;
+                U32 hoisted__U32_g12 = 0;
                 TilStr hoisted__Str_g13;
                 TilStrInitLit(&hoisted__Str_g13, "Fizz", 4);
-                TilStrWrite(&hoisted__Str_g13);
-                TilRawWrite("\n", 1);
-                TilStrDelete(&hoisted__Str_g13, FALSE);
+                TilStrArraySet(&_va_Array_g1, hoisted__U32_g12, &hoisted__Str_g13);
+                TilPrintln(&_va_Array_g1);
             } else {
                 I64 hoisted__I64_g20 = 5;
                 I64 hoisted__I64_g21 = TilI64Mod(i, hoisted__I64_g20);
                 I64 hoisted__I64_g22 = 0;
                 Bool hoisted__Bool_g23 = (hoisted__I64_g21 == hoisted__I64_g22);
                 if (hoisted__Bool_g23) {
+                    U32 hoisted__U32_g14 = 1;
+                    TilStrArray _va_Array_g2;
+                    TilStrArrayNew(&_va_Array_g2, hoisted__U32_g14);
+                    I64 _va_Array_g2_ek = 0;
+                    U32 hoisted__U32_g15 = 0;
                     TilStr hoisted__Str_g16;
                     TilStrInitLit(&hoisted__Str_g16, "Buzz", 4);
-                    TilStrWrite(&hoisted__Str_g16);
-                    TilRawWrite("\n", 1);
-                    TilStrDelete(&hoisted__Str_g16, FALSE);
+                    TilStrArraySet(&_va_Array_g2, hoisted__U32_g15, &hoisted__Str_g16);
+                    TilPrintln(&_va_Array_g2);
                 } else {
+                    U32 hoisted__U32_g17 = 1;
+                    TilStrArray _va_Array_g3;
+                    TilStrArrayNew(&_va_Array_g3, hoisted__U32_g17);
+                    I64 _va_Array_g3_ek = 0;
+                    U32 hoisted__U32_g18 = 0;
                     TilStr hoisted__Str_g19;
                     TilStrFromI64(&hoisted__Str_g19, i);
-                    TilStrWrite(&hoisted__Str_g19);
-                    TilRawWrite("\n", 1);
-                    TilStrDelete(&hoisted__Str_g19, FALSE);
+                    TilStrArraySet(&_va_Array_g3, hoisted__U32_g18, &hoisted__Str_g19);
+                    TilPrintln(&_va_Array_g3);
                 }
             }
         }

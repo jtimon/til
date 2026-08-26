@@ -17,11 +17,15 @@ extern U0 TilWritePtr(U8 *slot,U8 *value);
 
 I64 TilMain()
 {
+    U32 hoisted__U32_g7 = 1;
+    TilStrArray _va_Array_g0;
+    TilStrArrayNew(&_va_Array_g0, hoisted__U32_g7);
+    I64 _va_Array_g0_ek = 0;
+    U32 hoisted__U32_g8 = 0;
     TilStr hoisted__Str_g9;
     TilStrInitLit(&hoisted__Str_g9, "\x25s", 2);
-    TilStrWrite(&hoisted__Str_g9);
-    TilRawWrite("\n", 1);
-    TilStrDelete(&hoisted__Str_g9, FALSE);
+    TilStrArraySet(&_va_Array_g0, hoisted__U32_g8, &hoisted__Str_g9);
+    TilPrintln(&_va_Array_g0);
     return 0;
 }
 

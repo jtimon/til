@@ -10,6 +10,11 @@ public class TilStr {
   U32 cap;
 };
 
+public class TilStrArray {
+  TilStr *data;
+  U32 cap;
+};
+
 public U0 TilRawWriteUnchecked(U8 *data,U64 count)
 {
   U64 i=0;
@@ -413,4 +418,51 @@ public I64 TilStrCmp(TilStr *a,TilStr *b)
 public U0 TilStrWrite(TilStr *s)
 {
   TilRawWrite(s->c_str,s->count);
+}
+
+public U0 TilStrArrayNew(TilStrArray *out,U32 cap)
+{
+  out->data=TilCAlloc(cap,sizeof(TilStr));
+  out->cap=cap;
+}
+
+public U0 TilStrArraySet(TilStrArray *array,U32 index,TilStr *value)
+{
+  TilStr *slot;
+  if (index>=array->cap)
+    TilPanicZ("Array.set: index out of bounds\n");
+  slot=&array->data[index];
+  TilStrDelete(slot,FALSE);
+  TilStrCopyValue(slot,value);
+  value->c_str=NULL;
+  value->count=0;
+  value->cap=TIL_STR_CAP_VIEW;
+}
+
+public U0 TilStrArrayDelete(TilStrArray *array)
+{
+  U32 i=0;
+  while (i<array->cap) {
+    TilStrDelete(&array->data[i],FALSE);
+    i++;
+  }
+  TilFree(array->data);
+  array->data=NULL;
+  array->cap=0;
+}
+
+public U0 TilPrint(TilStrArray *parts)
+{
+  U32 i=0;
+  while (i<parts->cap) {
+    TilStrWrite(&parts->data[i]);
+    i++;
+  }
+  TilStrArrayDelete(parts);
+}
+
+public U0 TilPrintln(TilStrArray *parts)
+{
+  TilPrint(parts);
+  TilRawWrite("\n",1);
 }
