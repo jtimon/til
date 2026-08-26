@@ -1,4 +1,6 @@
 * Bugs
+** Medium
+*** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 ** Low
 *** [[./open/400.org][#400]] Dynamic's width is written down twice, and only one copy follows the target
 * Cleanups

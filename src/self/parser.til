@@ -1466,10 +1466,15 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
 // parse_call: callee Expr already built, current token is '('. The callee
 // is usually an Ident, but may be a StructDef literal for anonymous-struct
 // instantiation (`struct { ... }(args)`).
+priv CALL_INITIAL_CHILD_CAPACITY : USize = 2
+
 priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U32) returns Expr {
     expect_token(p, TokenType.LParen)
 
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
+    if check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+        call.children = Vec(Expr).with_capacity(CALL_INITIAL_CHILD_CAPACITY)
+    }
     call.add_child(own callee)
 
     // parse arguments
@@ -1677,10 +1682,13 @@ priv nest_nary_and_or := func(own call: Expr, mut symbols: SymbolPool) returns E
 // from the result, so `e = make_binop_call(e, ...)` cannot also move `e`
 // out. rhs is taken `own` -- callers never reuse it -- which drops one
 // full AST clone per binary operator.
+priv BINARY_CALL_CHILD_COUNT : USize = 2
+
 priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr, mut symbols: SymbolPool) returns Expr {
     mut callee := Expr.new(field_access_node(symbols.intern(method)), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
     mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
+    call.children = Vec(Expr).with_capacity(BINARY_CALL_CHILD_COUNT)
     Expr.add_child(call, own callee)
     Expr.add_child(call, own rhs)
     return call

@@ -1,0 +1,33 @@
+# priority: medium
+# category: bugs
+** OPEN #402 Coerce namespace constant refs to value arguments
+
+Reading a namespace data member produces a borrowed reference that does not
+coerce to the member's value type when passed to a shallow parameter. This
+fails even though the diagnostic prints the same type on both sides:
+
+#+begin_src til
+Expr := struct {
+    children := Vec(Expr).new()
+namespace:
+    priv CHILD_SEED_CAPACITY : USize = 2
+
+    add_child := func(mut self: Expr, own child: Expr) {
+        self.children = Vec(Expr).with_capacity(Expr.CHILD_SEED_CAPACITY)
+    }
+}
+#+end_src
+
+#+begin_example
+error: argument type mismatch for 'n': expected USize, got USize
+#+end_example
+
+Assigning ~Expr.CHILD_SEED_CAPACITY~ to a local ~USize~ first makes the call
+compile, proving that the value itself is valid and only the direct member-read
+coercion is missing. Namespace constants should behave as values in shallow
+argument position, just as their declared type and diagnostic imply.
+
+Fix argument matching/lowering to load a namespace data member when its
+declared value type matches the shallow parameter. Add focused coverage for a
+private namespace constant passed directly to both an ordinary and generic
+function, and make ref/value distinctions visible in mismatch diagnostics.

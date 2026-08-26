@@ -210,6 +210,12 @@ have canonical argument layout. Bypassing the named/default/variadic planner
 for that shape removed 5,646 rebuild allocations and 3.04 MiB; callgrind
 measured 2.50640B -> 2.49036B instructions (0.64%).
 
+The parser pre-sizes non-empty calls for the callee plus first argument and
+binary calls for their exact two children. Normal-build DHAT measured
+44,283 -> 42,729 blocks and 9,739,273 -> 9,453,337 allocated bytes, with peak
+and end heap unchanged; callgrind measured 99.016M -> 98.804M instructions
+(0.21%). Zero-argument calls retain one-slot lazy growth.
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
