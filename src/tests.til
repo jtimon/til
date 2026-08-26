@@ -2248,7 +2248,7 @@ main := proc(args: ..Str) {
     // shape it covers is one they used to fail differently.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 251),
+        CountCheck(needle = "error:", expected_count = 254),
         CountCheck(needle = "no value parameter mentions it", expected_count = 2),
         CountCheck(needle = "no named signature", expected_count = 1),
         CountCheck(needle = "conflicting evidence", expected_count = 2),
@@ -2263,10 +2263,11 @@ main := proc(args: ..Str) {
         CountCheck(needle = "cannot return a borrow of local", expected_count = 2),
         CountCheck(needle = "binds the owned pointer field", expected_count = 3),
         CountCheck(needle = "where the address belongs", expected_count = 5),
+        CountCheck(needle = "not the address", expected_count = 3),
         CountCheck(needle = "is an aggregate, not a word", expected_count = 5))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 251),
+        CountCheck(needle = "error:", expected_count = 254),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),
@@ -2277,6 +2278,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "cannot return a borrow of local", expected_count = 2),
         CountCheck(needle = "binds the owned pointer field", expected_count = 3),
         CountCheck(needle = "where the address belongs", expected_count = 5),
+        CountCheck(needle = "not the address", expected_count = 3),
         CountCheck(needle = "is an aggregate, not a word", expected_count = 5))
     // One interpreter capture pins both the aggregate and each parity class.
     add_counts(tests, "fcall_arg_parity_total_interp", "typer",

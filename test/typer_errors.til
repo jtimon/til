@@ -1653,3 +1653,23 @@ terr398_via_generic := func(s: Terr351Src) {
     ref mut h : Terr351Holder = hs[0]
     h.r.n = h.r.n + 1
 }
+
+// #396, the last two slots: ASSIGN to a scalar local, and the CONSTRUCTOR
+// spelling of a field. The FieldAssign spelling (`bx.p = s.c_str`) was
+// already rejected; the constructor reaches the builder as that same
+// assign but is an FCall named argument at typer time, so it needed the
+// ctor's own field/value pairing.
+Terr396Box := struct {
+    p : I8 = 0
+}
+
+terr396_assign := proc() {
+    mut a : I8 = 0
+    a = terr391_s.c_str
+    if a == 0 { println("z") }
+}
+
+terr396_ctor := proc() {
+    bx := Terr396Box(p = terr391_s.c_str)
+    if bx.p == 0 { println("z") }
+}

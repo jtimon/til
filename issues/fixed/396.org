@@ -66,22 +66,52 @@ til function's primitive parameter is auto-shallowed, which is why
 ~takes_scalar(s.c_str)~ is rejected and ~setenv(view.c_str, ...)~ is not.
 The two conventions turned out to be one convention.
 
-*** Remaining
+*** All five slots, and a correction
 
-Three of the five slots are closed here (Decl from #391, argument,
-return) plus the generator. Two are still open and should be one small
-commit on the same predicate:
+The first commit closed three (Decl from #391, argument, return) plus the
+generator, and said this about the other two:
 
-- ASSIGN to a scalar local: ~mut a : I8 = 0~ then ~a = s.c_str~;
-- FIELD: ~bx.p = s.c_str~ and its constructor spelling
-  ~Box(p = s.c_str)~. The check is written at the FieldAssign
-  type-mismatch site but does not fire for these -- both sides say I8, so
-  the arm it sits in is not reached; it needs the field's Declaration
-  rather than ~fa_own_type~ on the statement.
+  "the check is written at the FieldAssign type-mismatch site but does
+   not fire for these -- both sides say I8, so the arm it sits in is not
+   reached"
 
-Both are in tmp probes and reproduce as gcc int-conversion errors.
+That is wrong about half of it, and the correction is the useful part.
+The FieldAssign arm DOES fire: ~bx.p = s.c_str~ was rejected from the
+first commit onward. What slipped through was the CONSTRUCTOR spelling
+~Box(p = s.c_str)~, which reaches the builder as that same field assign
+but is still an FCall named argument at typer time, so the FieldAssign
+arm never sees it. Two different spellings of one slot, one covered and
+one not -- read as a single unreached check.
 
-Regression tests: ~terr396_*~ in test/typer_errors.til (argument and
-return spellings, counted as ~where the address belongs~ = 5 with the
-#391 Decl cases), and ~test_pointer_field_spellings~ in test/strings.til
-already runs the ~ref~ and ~Dynamic~ forms in both backends.
+Both remaining slots are closed now:
+
+- ASSIGN: ~infer_assign_stmt~, where the target's TypeBinding already
+  carries the slot's own_type and type -- the same pair the Decl reads
+  off its Declaration.
+- CONSTRUCTOR: the loop at the end of the struct-ctor handler that
+  already pairs each field's Declaration with its INFERRED value, which
+  is exactly what the rule needs and why no new plumbing was required.
+
+*** slot_takes_address was asymmetric, and the corpus said so
+
+Applying the rule at the constructor immediately failed on til's own
+~substr~:
+
+    Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
+
+~Str.c_str~ is ~own c_str : I8~ -- an OWN pointer field, which is an
+address slot -- but ~slot_takes_address~ accepted only ~ref~ and
+Dynamic. The predicate now mirrors ~expr_is_address~ exactly:
+non-Shallow, or Dynamic. That symmetry is the point of having one rule;
+the first version had the two halves disagreeing about what ~own~ means,
+and the constructor slot is simply where a corpus with an ~own~ pointer
+field on the receiving end existed.
+
+The earlier sites did not expose it because a local cannot be ~own~ (the
+typer rejects "no need for 'own' on local") and the ext parameters that
+take addresses are unqualified rather than ~own~.
+
+Regression tests: ~terr396_*~ in test/typer_errors.til covers all five
+spellings now -- Decl, argument, return, assign and constructor -- and
+~test_pointer_field_spellings~ in test/strings.til runs the ~ref~ and
+~Dynamic~ forms in both backends.
