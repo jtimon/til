@@ -307,12 +307,12 @@ priv holyc_core_binop := func(op: Str) returns Str {
 
 priv holyc_field_owner_name := func(e: Expr, symbols: SymbolPool) returns Str {
     if e.children.len() == 0 {
-        name_o := expr_type_name_ref(e)
+        name_o := expr_type_name_ref(e, symbols)
         if name_o.is_some() { return name_o.unwrap().clone() }
         return ""
     }
     ref obj : Expr = e.children[0]
-    name_o := expr_type_name_ref(obj)
+    name_o := expr_type_name_ref(obj, symbols)
     if name_o.is_some() { return name_o.unwrap().clone() }
     switch obj.node_type {
     case .Ident(ident): return Str.clone(ident.ident_name(symbols.names))
@@ -332,7 +332,7 @@ priv holyc_prepare_state := func(program: Expr, mut state: HolyCEmitState) {
     }
 }
 
-priv holyc_function_signature := func(name: Str, func_expr: Expr, mut error: Str) returns Str {
+priv holyc_function_signature := func(name: Str, func_expr: Expr, mut error: Str, symbols: SymbolPool) returns Str {
     switch func_expr.node_type {
     case .FuncDef(fdef):
         if fdef.sig.func_type.is_plain().not() {
@@ -364,7 +364,7 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr, mut error: Str
         mut params := ""
         for i in 0..fdef.sig.params.len() {
             ref param : Declaration = fdef.sig.params[i]
-            param_type := holyc_storage_type_name(param.type_name())
+            param_type := holyc_storage_type_name(decl_type_name(param, symbols))
             if holyc_scalar_type_name(param_type).not().or(param.is_mut)
                 .or(param.own_type.is(OwnType.Shallow).not()) {
                 error = format("unsupported parameter '", param.name, "' of type '", param_type, "'")
@@ -781,7 +781,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
                 error = "nested functions are not supported yet"
                 return ""
             }
-            decl_type := holyc_storage_type_name(decl.type_name())
+            decl_type := holyc_storage_type_name(decl_type_name(decl, ctx.symbols))
             if decl_type == "Str" {
                 value := holyc_str_init(decl.name, stmt.children[0], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
@@ -804,7 +804,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, ctx: Context,
                 } else {
                     scalar_type := decl_type
                     if holyc_scalar_type_name(scalar_type).not() {
-                        error = format("unsupported declaration type '", decl.type_name(), "'")
+                        error = format("unsupported declaration type '", decl_type_name(decl, ctx.symbols), "'")
                         return ""
                     }
                     value := holyc_expr(stmt.children[0], ctx, state, locals, error)
@@ -902,7 +902,7 @@ priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
         case .Decl(decl):
             if stmt.children.len().neq(1).or(stmt.children[0].node_type.is(NodeType.FuncDef).not()) { continue }
             ref func_expr : Expr = stmt.children[0]
-            signature := holyc_function_signature(decl.name, func_expr, error)
+            signature := holyc_function_signature(decl.name, func_expr, error, ctx.symbols)
             if error.len() > 0 { return }
             if func_expr.children.len() != 1 {
                 error = format("function '", decl.name, "' has no body")

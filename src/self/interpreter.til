@@ -39,13 +39,13 @@ priv interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
 priv field_nested_def := func(dd: Declaration, ctx: Context) returns Option(ref Expr) {
     resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if is_primitive(resolved) { return Option(ref Expr).None }
-    return lookup_interp_type_def(resolved_type_name(resolved), ctx)
+    return lookup_interp_type_def(resolved_type_name(resolved, ctx.symbols), ctx)
 }
 
 priv decl_is_funcsig := func(dd: Declaration, ctx: Context) returns Bool {
     resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if type_is_callable_storage(resolved) { return true }
-    tdef_o := lookup_interp_type_def(resolved_type_name(resolved), ctx)
+    tdef_o := lookup_interp_type_def(resolved_type_name(resolved, ctx.symbols), ctx)
     if tdef_o.is_none() { return false }
     ref tdef : Expr = tdef_o.unwrap()
     if tdef.node_type.is(NodeType.FuncDef) {
@@ -59,7 +59,7 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
         if decl_is_funcsig(dd, ctx) { return false }
-        if dd.type_name() == "Str" { return false }
+        if decl_type_name(dd, ctx.symbols) == "Str" { return false }
         fsd_o := field_nested_def(dd, ctx)
         if fsd_o.is_some() {
             ref fsd : Expr = fsd_o.unwrap()
@@ -150,7 +150,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
             foff := hc_fl.offset
             cfi = cfi + 1
-            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope, ctx.symbols))
+            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope, ctx.symbols), ctx.symbols)
             nested_def_o := field_nested_def(dd, ctx)
             if dd.own_type.is(OwnType.Own) {
                 if decl_is_funcsig(dd, ctx) {
@@ -631,14 +631,12 @@ priv ext_fdef_copies_str := func(fd: FunctionDef) returns Bool {
     return fd.sig.return_type == "Str"
 }
 
-priv resolved_call_result_is_ref := func(shallow result_type: Type, fn_def: Expr) returns Bool {
+priv resolved_call_result_is_ref := func(shallow result_type: Type, fn_def: Expr, ctx: Context) returns Bool {
     switch fn_def.node_type {
     case .FuncDef(fd):
         if fd.sig.return_own_type.is(OwnType.Ref).not() { return false }
-        switch result_type {
-        case .Struct(name):
-            if (name == "Str").and(ext_fdef_copies_str(fd)) { return false }
-        case:
+        if is_struct_type(result_type) {
+            if (type_name_of(result_type, ctx.symbols).unwrap() == "Str").and(ext_fdef_copies_str(fd)) { return false }
         }
         return true
     case:
@@ -661,6 +659,7 @@ raw_type_is_prim := func(shallow t: Type, ctx: Context) returns Bool {
     switch t {
     case .Primitive: return true
     case .Custom(name): return raw_type_is_prim(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
+    case .CustomSym(csym): return raw_type_is_prim(type_from_sym_init(csym, ctx.scope, ctx.symbols), ctx)
     case:
     }
     return false
@@ -686,6 +685,7 @@ priv scalar_word_encode := func(shallow t: Type, bits: U64, ctx: Context) return
         case: return bits_word(bits)
         }
     case .Custom(name): return scalar_word_encode(type_from_name_init_name(name, ctx.scope, ctx.symbols), bits, ctx)
+    case .CustomSym(csym): return scalar_word_encode(type_from_sym_init(csym, ctx.scope, ctx.symbols), bits, ctx)
     case:
     }
     panic("scalar_word_encode on non-primitive: ", til_type_name_c(t))
@@ -708,6 +708,7 @@ scalar_word_load := func(shallow t: Type, addr: Dynamic, ctx: Context) returns D
         case: ref v : U64 = addr; return bits_word(v.clone())
         }
     case .Custom(name): return scalar_word_load(type_from_name_init_name(name, ctx.scope, ctx.symbols), addr, ctx)
+    case .CustomSym(csym): return scalar_word_load(type_from_sym_init(csym, ctx.scope, ctx.symbols), addr, ctx)
     case:
     }
     panic("scalar_word_load on non-primitive: ", til_type_name_c(t))
@@ -746,6 +747,7 @@ priv scalar_word_store := func(shallow t: Type, mut addr: Dynamic, w: Dynamic, c
         }
         return
     case .Custom(name): scalar_word_store(type_from_name_init_name(name, ctx.scope, ctx.symbols), addr, w, ctx); return
+    case .CustomSym(csym): scalar_word_store(type_from_sym_init(csym, ctx.scope, ctx.symbols), addr, w, ctx); return
     case:
     }
     panic("scalar_word_store on non-primitive: ", til_type_name_c(t))
@@ -833,7 +835,7 @@ priv raw_result_source_type := func(info: RawResultInfo) returns ref Type {
 }
 
 priv set_resolved_call_result_info := func(shallow result_type: Type, fn_def: Expr, destination: Dynamic, mut info: RawResultInfo, ctx: Context) {
-    info.is_ref = resolved_call_result_is_ref(result_type, fn_def)
+    info.is_ref = resolved_call_result_is_ref(result_type, fn_def, ctx)
     info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(result_type, ctx))
 }
 
@@ -907,12 +909,21 @@ priv raw_result_move_into := proc(shallow t: Type, mut dst: Dynamic, src: Dynami
     case .Struct(name):
         if return_is_ref { size = Dynamic.size() }
         else { size = ctx_total_size(name, ctx) }
+    case .StructSym(s_sym):
+        if return_is_ref { size = Dynamic.size() }
+        else { size = ctx_total_size(ctx.symbols.resolve(s_sym), ctx) }
     case .Enum(name):
         if return_is_ref { size = Dynamic.size() }
         else { size = dispatch_enum_size(name, ctx) }
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: size = Dynamic.size()
+    case .EnumSym(e_sym):
+        if return_is_ref { size = Dynamic.size() }
+        else { size = dispatch_enum_size(ctx.symbols.resolve(e_sym), ctx) }
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body: size = Dynamic.size()
     case .Custom(name):
         raw_result_move_into(type_from_name_init_name(name, ctx.scope, ctx.symbols), dst, src, return_is_ref, ctx)
+        return
+    case .CustomSym(csym):
+        raw_result_move_into(type_from_sym_init(csym, ctx.scope, ctx.symbols), dst, src, return_is_ref, ctx)
         return
     case:
         panic("cannot move raw call result for type ", til_type_name_c(t))
@@ -931,12 +942,18 @@ priv raw_result_drop_nested := proc(shallow t: Type, mut raw: Dynamic, return_is
     switch t {
     case .Struct(name):
         if return_is_ref.not() { heap_drop_struct(name, raw, ctx) }
+    case .StructSym(s_sym):
+        if return_is_ref.not() { heap_drop_struct(ctx.symbols.resolve(s_sym), raw, ctx) }
     case .Enum(name):
         if return_is_ref.not() { heap_drop_enum(name, raw, ctx) }
-    case .FuncPtr, .FuncPtrSig, .Body:
+    case .EnumSym(e_sym):
+        if return_is_ref.not() { heap_drop_enum(ctx.symbols.resolve(e_sym), raw, ctx) }
+    case .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body:
         heap_drop_by_type(t, raw, ctx)
     case .Custom(name):
         raw_result_drop_nested(type_from_name_init_name(name, ctx.scope, ctx.symbols), raw, return_is_ref, ctx)
+    case .CustomSym(csym):
+        raw_result_drop_nested(type_from_sym_init(csym, ctx.scope, ctx.symbols), raw, return_is_ref, ctx)
     case:
     }
 }
@@ -1013,6 +1030,8 @@ priv raw_coerce_value := func(raw: Dynamic, shallow source_type: Type, shallow t
     switch source_type {
     case .Custom(name):
         return raw_coerce_value(raw, type_from_name_init_name(name, ctx.scope, ctx.symbols), target_type, ctx, target_own_type)
+    case .CustomSym(csym):
+        return raw_coerce_value(raw, type_from_sym_init(csym, ctx.scope, ctx.symbols), target_type, ctx, target_own_type)
     case .Dynamic:
         if target_type.is(Type.Dynamic).not() {
             if heap_type_is_callable(target_type).and(callable_box_is(deref(raw))) { return raw }
@@ -1047,9 +1066,12 @@ priv raw_type_size := func(shallow t: Type, ctx: Context) returns USize {
         builtin_primitive_size_align(prim, size, align)
         return size
     case .Struct(name): return ctx_total_size(name, ctx)
+    case .StructSym(s_sym): return ctx_total_size(ctx.symbols.resolve(s_sym), ctx)
     case .Enum(name): return dispatch_enum_size(name, ctx)
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return Dynamic.size()
+    case .EnumSym(e_sym): return dispatch_enum_size(ctx.symbols.resolve(e_sym), ctx)
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body: return Dynamic.size()
     case .Custom(name): return raw_type_size(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
+    case .CustomSym(csym): return raw_type_size(type_from_sym_init(csym, ctx.scope, ctx.symbols), ctx)
     case:
         panic("cannot size raw type ", til_type_name_c(t))
         return 0
@@ -1076,6 +1098,7 @@ priv raw_to_u64 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns U64
         case .Bool: return bits
         }
     case .Custom(name): return raw_to_u64(type_from_name_init_name(name, ctx.scope, ctx.symbols), raw, ctx)
+    case .CustomSym(csym): return raw_to_u64(type_from_sym_init(csym, ctx.scope, ctx.symbols), raw, ctx)
     case:
     }
     panic("raw value is not numeric: ", til_type_name_c(t))
@@ -1107,13 +1130,23 @@ priv raw_arg_pointer := func(raw: Dynamic, info: RawResultInfo, ctx: Context) re
     // slot so raw-memory builtins get a real address.
     if info.is_word { return word_ring_slot(value_type, raw, ctx) }
     switch value_type {
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return deref(raw)
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body: return deref(raw)
+    case .CustomSym(ring_csym):
+        alias_type_sym := type_from_sym_init(ring_csym, ctx.scope, ctx.symbols)
+        switch alias_type_sym {
+        case .Dynamic: return deref(raw)
+        case .FuncPtr: return deref(raw)
+        case .FuncPtrSig, .FuncPtrSigSym: return deref(raw)
+        case .Body: return deref(raw)
+        case:
+        }
+        return raw
     case .Custom(name):
         alias_type := type_from_name_init_name(name, ctx.scope, ctx.symbols)
         switch alias_type {
         case .Dynamic: return deref(raw)
         case .FuncPtr: return deref(raw)
-        case .FuncPtrSig: return deref(raw)
+        case .FuncPtrSig, .FuncPtrSigSym: return deref(raw)
         case .Body: return deref(raw)
         case:
         }
@@ -1206,8 +1239,10 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
         }
         return
     }
-    switch dd.til_type {
-    case .Struct(name):
+    // #397: family-predicate form of the old .Struct/.Enum payload switch,
+    // so the Sym twins take the same paths with a resolved name.
+    if is_struct_type(dd.til_type) {
+        ref name : Str = type_name_ref(dd.til_type, ctx.symbols)
         if dd.own_type.is(OwnType.Own) {
             if raw_is_ref.or(raw_is_place) {
                 write_ptr(dst, heap_clone(name, raw, ctx))
@@ -1227,10 +1262,12 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
             }
         }
         return
-    case .Enum(name):
+    }
+    if is_enum_type(dd.til_type) {
+        ref ename : Str = type_name_ref(dd.til_type, ctx.symbols)
         if dd.own_type.is(OwnType.Own) {
             if raw_is_ref.or(raw_is_place) {
-                write_ptr(dst, heap_clone_enum(name, raw, dispatch_enum_size(name, ctx), ctx))
+                write_ptr(dst, heap_clone_enum(ename, raw, dispatch_enum_size(ename, ctx), ctx))
             } else {
                 write_ptr(dst, raw)
             }
@@ -1241,7 +1278,7 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
             // least one word), not the inline C field width. Compact tag-only
             // enums may occupy only 1/2/4 bytes in a struct.
             if raw_is_ref.or(raw_is_place) {
-                copied : Dynamic = heap_clone_enum(name, raw, field_size, ctx)
+                copied : Dynamic = heap_clone_enum(ename, raw, field_size, ctx)
                 memcpy(dst, copied, field_size)
                 raw_block_free(copied)
             } else {
@@ -1250,7 +1287,6 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
             }
         }
         return
-    case:
     }
     if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
         if raw_is_ref {
@@ -1302,7 +1338,7 @@ priv context_return_take := func(mut ctx: Context) returns Dynamic {
 }
 
 priv field_access_sname := func(e: Expr, mut fallback: Str, symbols: SymbolPool) returns ref Str {
-    sname_o := expr_type_name_ref(e.children[0])
+    sname_o := expr_type_name_ref(e.children[0], symbols)
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
         return sname
@@ -1451,7 +1487,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
-        if (fdecl.type_name() == "USize").or(fdecl.type_name() == "UPtr") {
+        if (decl_type_name(fdecl, ctx.symbols) == "USize").or(decl_type_name(fdecl, ctx.symbols) == "UPtr") {
             mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
             if (sname == ctx.eval.cached_str_name).and(fa.field_access_name(ctx.symbols.names) == "cap").and(fl.size == 4) {
                 field_type = Type.Primitive(Primitive.I32)
@@ -1517,10 +1553,18 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
     case .Struct(name):
         variant = "Struct"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
+    case .StructSym(marshal_ssym):
+        variant = "Struct"
+        ref marshal_sname : Str = ctx.symbols.resolve(marshal_ssym)
+        dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), marshal_sname.c_str, marshal_sname.count, ctx)
     case .StructDef: variant = "StructDef"
     case .Enum(name):
         variant = "Enum"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
+    case .EnumSym(marshal_esym):
+        variant = "Enum"
+        ref marshal_ename : Str = ctx.symbols.resolve(marshal_esym)
+        dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), marshal_ename.c_str, marshal_ename.count, ctx)
     case .EnumDef: variant = "EnumDef"
     case .FuncDef: variant = "FuncDef"
     case .FuncPtr: variant = "FuncPtr"
@@ -1528,6 +1572,10 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
     case .Custom(name):
         variant = "Custom"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
+    case .CustomSym(marshal_csym):
+        variant = "Custom"
+        ref marshal_cname : Str = ctx.symbols.resolve(marshal_csym)
+        dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), marshal_cname.c_str, marshal_cname.count, ctx)
     case .Primitive(prim):
         variant = "Primitive"
         primitive_def_o := lookup_interp_type_def("Primitive", ctx)
@@ -1551,19 +1599,20 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
     case .FuncPtrSig(name):
         variant = "FuncPtrSig"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
-    // #397: no producer builds a Sym twin yet, so marshalling one means
-    // a step-3 site flipped without teaching this path how to write a
-    // Sym payload into the runtime Type. Fail loudly rather than
-    // marshal a Type whose payload silently reads as garbage.
-    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
-        panic("interp: Type Sym variant reached raw marshalling before #397 step 3 taught it the payload")
+    // #397 step 3: the compile-time Sym form marshals as the RUNTIME
+    // form -- the spelling, resolved from the pool -- so the user-visible
+    // Type ABI does not change with the internal representation.
+    case .FuncPtrSigSym(marshal_fsig_sym):
+        variant = "FuncPtrSig"
+        ref marshal_fsig_name : Str = ctx.symbols.resolve(marshal_fsig_sym)
+        dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), marshal_fsig_name.c_str, marshal_fsig_name.count, ctx)
     case .Body: variant = "Body"
     }
     write_i32(result, enum_variant_tag(type_def, variant).to_i32())
 }
 
 priv eval_precomputed_sequence := proc(mut scope: Scope, mut e: Expr, data: PrecomputedSequenceData, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic) returns Dynamic {
-    seq_name := til_type_name(data.til_type)
+    ref seq_name : Str = type_name_ref(data.til_type, ctx.symbols)
     is_vec := seq_name.eq("Vec").or(seq_name.starts_with("Vec__"))
     is_array := seq_name.eq("Array").or(seq_name.starts_with("Array__"))
     if is_vec.not().and(is_array.not()) { panic("precomputed sequence has non-sequence type: ", seq_name) }
@@ -1741,11 +1790,12 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         mut resolved_type := expr_type.clone()
         switch resolved_type {
         case .Custom(expr_type_name): resolved_type = type_from_name_init_name(expr_type_name, ctx.scope, ctx.symbols)
+        case .CustomSym(expr_type_csym): resolved_type = type_from_sym_init(expr_type_csym, ctx.scope, ctx.symbols)
         case:
         }
-        switch resolved_type {
-        case .Enum(type_name):
-            if (type_name == "Type").and(hb.is_static_callable) {
+        if is_enum_type(resolved_type) {
+            type_name_metatype_o := type_name_of(resolved_type, ctx.symbols)
+            if (type_name_metatype_o.unwrap() == "Type").and(hb.is_static_callable) {
                 mut result : Dynamic = destination
                 if result.is_null() { result = dispatch_result_alloc(expr_type, ctx) }
                 mut runtime_type_name := ident.ident_name(ctx.symbols.names).clone()
@@ -1756,7 +1806,6 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
                 write_runtime_type(result, type_from_name_init_name(runtime_type_name, ctx.scope, ctx.symbols), ctx)
                 return result
             }
-        case:
         }
         ref place : Dynamic = to_ptr(hb.ptr)
         if heap_type_is_callable(hb_type(hb)) {
@@ -1821,7 +1870,7 @@ priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr, symbols
         if hb_o.is_none() { return Option(ref Dynamic).None }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
-        case .Struct:
+        case .Struct, .StructSym:
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name(symbols.names)) }
             ref base : Dynamic = to_ptr(hb.ptr)
             return safe_ref(Dynamic, base)
@@ -1838,12 +1887,12 @@ priv resolve_field_assign_sname := func(mut scope: Scope, obj_expr: Expr, symbol
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name(symbols.names))
         if hb_o.is_none() { return "" }
         ref hb : HeapBinding = hb_o.unwrap()
-        switch hb_type(hb) {
-        case .Struct(sname):
+        if is_struct_type(hb_type(hb)) {
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name(symbols.names)) }
-            return sname.clone()
-        case: return ""
+            return Str.clone(type_name_of(hb_type(hb), symbols).unwrap())
         }
+        return ""
+        
     case:
         return ""
     }
@@ -1862,9 +1911,19 @@ priv raw_switch_key := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) ret
     switch raw_type {
     case .Custom(name):
         raw_type = type_from_name_init_name(name, ctx.scope, ctx.symbols)
+    case .CustomSym(csym):
+        raw_type = type_from_sym_init(csym, ctx.scope, ctx.symbols)
     case:
     }
     switch raw_type {
+    case .EnumSym(switch_esym):
+        tag_ptr_sym : Dynamic = raw_arg_pointer(raw, info, ctx)
+        enum_def_sym_o := lookup_interp_type_def(ctx.symbols.resolve(switch_esym), ctx)
+        if enum_def_sym_o.is_none() { panic("switch enum definition not found: ", ctx.symbols.resolve(switch_esym)) }
+        ref enum_def_sym : Expr = enum_def_sym_o.unwrap()
+        result_sym := enum_data_tag_key(tag_ptr_sym, enum_def_sym)
+        raw_result_drop(raw_type, raw, info.is_ref, ctx)
+        return result_sym
     case .Enum(enum_name):
         tag_ptr : Dynamic = raw_arg_pointer(raw, info, ctx)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
@@ -1916,9 +1975,9 @@ priv eval_switch := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     // enum def: a bare payload variant (`Type.V`) evaluates to its constructor,
     // not a tagged value, so it can't be eval'd for the key. int/char/bool
     // labels are constant expressions and evaluate directly.
-    is_enum_subj := stmt.children[0].til_type().is(Type.Enum)
+    is_enum_subj := is_enum_type(stmt.children[0].til_type())
     mut enum_def_o := Option(ref Expr).None
-    sname_o := expr_type_name_ref(stmt.children[0])
+    sname_o := expr_type_name_ref(stmt.children[0], ctx.symbols)
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
         enum_def_o = lookup_type_def_helper(sname, scope, ctx)
@@ -1997,9 +2056,9 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
     }
     ref rhs_type : Type = raw_result_source_type(rhs_info)
     mut decl_type := rhs_type.clone()
-    declared_name := dd.type_name()
+    declared_name := decl_type_name(dd, ctx.symbols)
     if dd.til_type.is(Type.Unknown).not() { decl_type = declaration_resolved_type(dd, ctx.scope, ctx.symbols) }
-    if decl_type.is(Type.Body).and(rhs_type.is(Type.Enum)) { decl_type = rhs_type.clone() }
+    if decl_type.is(Type.Body).and(is_enum_type(rhs_type)) { decl_type = rhs_type.clone() }
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
         decl_type = Type.Body
     }
@@ -2012,14 +2071,12 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         if source_hb.moved_out { panic("declaration from moved binding: ", rhs_ident.ident_name(ctx.symbols.names)) }
         ref mut source_scope : Scope = scope_get_binding_scope(scope, rhs_ident.ident_name(ctx.symbols.names))
         ref source_raw : Dynamic = to_ptr(source_hb.ptr)
-        switch decl_type {
-        case .Enum(type_name):
-            if (type_name == "Type").and(source_hb.is_static_callable) {
+        if is_enum_type(decl_type) {
+            if (type_name_of(decl_type, ctx.symbols).unwrap() == "Type").and(source_hb.is_static_callable) {
                 runtime_type : Dynamic = eval_expr_raw(scope, rhs, ctx)
                 scope_set_raw_owned(scope, dd.name, runtime_type, bind_type_w, dd.own_type, ctx)
                 return
             }
-        case:
         }
         if dd.own_type.is(OwnType.Ref) {
             if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
@@ -2415,7 +2472,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 }
             }
             if interp_fa_namespace_def(scope, stmt, ctx).is_some() {
-                mut sname_o := expr_type_name_ref(stmt.children[0])
+                mut sname_o := expr_type_name_ref(stmt.children[0], ctx.symbols)
                 if sname_o.is_none() {
                     switch stmt.children[0].node_type {
                     case .Ident(oi): sname_o = safe_ref(oi.ident_name(ctx.symbols.names))
@@ -2499,7 +2556,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                                     base = ptr_add(base, step_off)
                                 }
                                 cur_sdef_o = field_nested_def(step_fd, ctx)
-                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols))
+                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols), ctx.symbols)
                             }
                         }
                     case:
@@ -2758,7 +2815,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     // over-reads on the word load).
                     own_src_w : Dynamic = scalar_word_load(hb_type(source_hb), owned_raw, ctx)
                     EvalHeap.heap_free(own owned_raw)
-                    owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.type_name(), ctx), ctx)
+                    owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), decl_type_name(param, ctx.symbols), ctx), ctx)
                 } else {
                     owned_raw = raw_coerce_value(owned_raw, hb_type(source_hb), bind_type, ctx, param.own_type)
                 }
@@ -2780,7 +2837,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         // width (a narrow clone bound under a wider type
                         // over-reads on the word load).
                         src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
-                        widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.type_name(), ctx)
+                        widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), decl_type_name(param, ctx.symbols), ctx)
                         scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type_w, param.own_type, ctx)
                     } else {
                         mut converted : Dynamic = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
@@ -2855,7 +2912,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     // compiled build read 2. Copy the scalar instead.
                     if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
                         src_w : Dynamic = scalar_word_load(arg_source_type, arg_raw, ctx)
-                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.type_name(), ctx), ctx)
+                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, decl_type_name(param, ctx.symbols), ctx), ctx)
                     } else {
                         borrowed = true
                     }
@@ -2982,7 +3039,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         switch callee_expr.node_type {
         case .FieldAccess(callee_field):
-            enum_dispatch_shape := call_type.is(Type.Enum).or(callee_field.field_access_name(ctx.symbols.names) == "is")
+            enum_dispatch_shape := is_enum_type(call_type).or(callee_field.field_access_name(ctx.symbols.names) == "is")
             if enum_dispatch_shape {
                 mut fallback_enum_name := ""
                 ref enum_name : Str = field_access_sname(callee_expr, fallback_enum_name, ctx.symbols)
@@ -3065,9 +3122,9 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             if fdef_ns.sig.return_type.len() > 0 { direct_result_type = type_from_name_init_name(fdef_ns.sig.return_type, ctx.scope, ctx.symbols) }
             if fdef_func_type.is_bodyless() {
                 ref fn_name : FieldAccessData = fieldaccess_of(callee_expr)
-                enum_dispatch_shape2 := call_type.is(Type.Enum).or(fn_name.field_access_name(ctx.symbols.names) == "is")
+                enum_dispatch_shape2 := is_enum_type(call_type).or(fn_name.field_access_name(ctx.symbols.names) == "is")
                 if enum_dispatch_shape2 {
-                    parent_sname_o := expr_type_name_ref(callee_expr.children[0])
+                    parent_sname_o := expr_type_name_ref(callee_expr.children[0], ctx.symbols)
                     if parent_sname_o.is_some() {
                         ref parent_sname : Str = parent_sname_o.unwrap()
                         // REM: an unbound parent_sname -- or one bound to a VALUE,
@@ -3099,7 +3156,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                     }
                 }
                 mut flat_str := Str.clone(fn_name.field_access_name(ctx.symbols.names))
-                sn_o := expr_type_name_ref(callee_expr.children[0])
+                sn_o := expr_type_name_ref(callee_expr.children[0], ctx.symbols)
                 // til_type_name returns "" for primitives. For ext_func
                 // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
                 // `I64_sub(0, 1)`), fall back to til_type_name_c.
@@ -3347,8 +3404,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 mut preserve_outer := get_keep_outer_arg(e, cur_idx)
                                 if fdd.own_type.is(OwnType.Shallow) {
                                     switch hb_type(source_hb) {
-                                    case .Struct: preserve_outer = true
-                                    case .Enum: preserve_outer = true
+                                    case .Struct, .StructSym: preserve_outer = true
+                                    case .Enum, .EnumSym: preserve_outer = true
                                     case:
                                     }
                                 }
@@ -3375,19 +3432,16 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 } else {
                                     mut clone_source := source_hb.is_borrowed.or(heap_slot_is_static_callable(hb_type(source_hb), source_ptr))
                                     mut promote_str_view := false
-                                    switch hb_type(source_hb) {
-                                    case .Struct(source_name):
-                                        if (source_name == "Str").and(str_cap_at(source_ptr, ctx).gte(CAP_VIEW)) {
+                                    if is_struct_type(hb_type(source_hb)) {
+                                        if (type_name_of(hb_type(source_hb), ctx.symbols).unwrap() == "Str").and(str_cap_at(source_ptr, ctx).gte(CAP_VIEW)) {
                                             clone_source = true
                                             promote_str_view = true
                                         }
-                                    case:
                                     }
                                     if clone_source {
                                         arg_raw = heap_clone_by_type(hb_type(source_hb), source_ptr, source_hb.ctx)
-                                        switch hb_type(source_hb) {
-                                        case .Struct(source_name2):
-                                            if (source_name2 == "Str").and(promote_str_view) {
+                                        if is_struct_type(hb_type(source_hb)) {
+                                            if (type_name_of(hb_type(source_hb), ctx.symbols).unwrap() == "Str").and(promote_str_view) {
                                                 cnt := str_count_at(source_ptr, ctx)
                                                 if cnt == 0 {
                                                     str_write_count_cap(arg_raw, 0, CAP_VIEW, ctx)
@@ -3400,7 +3454,6 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                                     str_write_count_cap(arg_raw, cnt, cnt, ctx)
                                                 }
                                             }
-                                        case:
                                         }
                                     } else {
                                         arg_raw = source_ptr
@@ -3452,7 +3505,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             arg_is_ref = false
                             arg_is_place = false
                         }
-                        arg_raw = raw_widen_numeric(arg_raw, arg_source_type, fdd.type_name(), ctx)
+                        arg_raw = raw_widen_numeric(arg_raw, arg_source_type, decl_type_name(fdd, ctx.symbols), ctx)
                         ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
                         mut arg_is_null := false
                         switch arg.node_type {
@@ -4301,12 +4354,16 @@ priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Co
     case .Primitive:
     case .Struct(sname):
         heap_drop_struct(sname, ptr, ctx)
+    case .StructSym(s_sym):
+        heap_drop_struct(ctx.symbols.resolve(s_sym), ptr, ctx)
     case .Enum(ename):
         heap_drop_enum(ename, ptr, ctx)
+    case .EnumSym(e_sym):
+        heap_drop_enum(ctx.symbols.resolve(e_sym), ptr, ctx)
     case .FuncPtr:
         ref mut stored_callable : Dynamic = deref(ptr)
         if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
-    case .FuncPtrSig:
+    case .FuncPtrSig, .FuncPtrSigSym:
         ref mut stored_callable2 : Dynamic = deref(ptr)
         if stored_callable2.is_null().not() { callable_storage_free(stored_callable2) }
     case .Body:
@@ -4314,6 +4371,8 @@ priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Co
         if stored_callable3.is_null().not() { callable_storage_free(stored_callable3) }
     case .Custom(name):
         heap_drop_by_type(type_from_name_init_name(name, ctx.scope, ctx.symbols), ptr, ctx)
+    case .CustomSym(csym):
+        heap_drop_by_type(type_from_sym_init(csym, ctx.scope, ctx.symbols), ptr, ctx)
     case:
     }
 }
@@ -4338,18 +4397,24 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
         return dst0
     case .Struct(sname):
         return heap_clone(sname, ptr, ctx)
+    case .StructSym(s_sym):
+        return heap_clone(ctx.symbols.resolve(s_sym), ptr, ctx)
     case .Enum(ename):
         // Interpreter enum values use the flat dispatch layout, not the
         // compact generated-C struct layout. A payload-less enum can be one
         // C byte but still occupies the dispatch tag word.
         total : USize = dispatch_enum_size(ename, ctx)
         return heap_clone_enum(ename, ptr, total, ctx)
+    case .EnumSym(e_sym):
+        ref clone_ename : Str = ctx.symbols.resolve(e_sym)
+        total_sym : USize = dispatch_enum_size(clone_ename, ctx)
+        return heap_clone_enum(clone_ename, ptr, total_sym, ctx)
     case .FuncPtr:
         mut dst : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         ref stored_callable : Dynamic = deref(ptr)
         if stored_callable.is_null().not() { write_ptr(dst, callable_storage_clone(stored_callable)) }
         return dst
-    case .FuncPtrSig:
+    case .FuncPtrSig, .FuncPtrSigSym:
         mut dst2 : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         ref stored_callable2 : Dynamic = deref(ptr)
         if stored_callable2.is_null().not() { write_ptr(dst2, callable_storage_clone(stored_callable2)) }
@@ -4361,6 +4426,8 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
         return dst3
     case .Custom(name):
         return heap_clone_by_type(type_from_name_init_name(name, ctx.scope, ctx.symbols), ptr, ctx)
+    case .CustomSym(csym):
+        return heap_clone_by_type(type_from_sym_init(csym, ctx.scope, ctx.symbols), ptr, ctx)
     case:
         panic("cannot clone raw binding of type ", til_type_name_c(til_type))
         return bits_word(0)
@@ -4389,6 +4456,13 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         owned_src2 : Dynamic = src
         EvalHeap.heap_free(own owned_src2)
         return true
+    case .StructSym(s_sym):
+        ref move_sname : Str = ctx.symbols.resolve(s_sym)
+        if drop_old { heap_drop_struct(move_sname, dst, ctx) }
+        memcpy(dst, src, ctx_total_size(move_sname, ctx).cast(U64))
+        owned_src2s : Dynamic = src
+        EvalHeap.heap_free(own owned_src2s)
+        return true
     case .Enum(ename):
         if drop_old { heap_drop_enum(ename, dst, ctx) }
         mut total : USize = ctx_total_size(ename, ctx)
@@ -4396,6 +4470,15 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         memcpy(dst, src, total.cast(U64))
         owned_src3 : Dynamic = src
         EvalHeap.heap_free(own owned_src3)
+        return true
+    case .EnumSym(e_sym):
+        ref move_ename : Str = ctx.symbols.resolve(e_sym)
+        if drop_old { heap_drop_enum(move_ename, dst, ctx) }
+        mut total_sym : USize = ctx_total_size(move_ename, ctx)
+        if total_sym < 8 { total_sym = 8 }
+        memcpy(dst, src, total_sym.cast(U64))
+        owned_src3s : Dynamic = src
+        EvalHeap.heap_free(own owned_src3s)
         return true
     case .FuncPtr:
         ref mut old_callable : Dynamic = deref(dst)
@@ -4406,7 +4489,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         owned_src4 : Dynamic = src
         EvalHeap.heap_free(own owned_src4)
         return true
-    case .FuncPtrSig:
+    case .FuncPtrSig, .FuncPtrSigSym:
         ref mut old_callable2 : Dynamic = deref(dst)
         if old_callable2.is_null().not() { callable_storage_free(old_callable2) }
         ref moved_callable2 : Dynamic = deref(src)
@@ -4567,9 +4650,13 @@ priv intern_slot := func(mut v: Vec(Dynamic), idx: USize, shallow t: Type) retur
 interp_intern_type := func(shallow t: Type, mut ctx: Context) returns Dynamic {
     switch t {
     case .Struct(name): return intern_named(ctx.interned_types.structs, name, t)
+    case .StructSym(s_sym): return intern_named(ctx.interned_types.structs, ctx.symbols.resolve(s_sym), t)
     case .Enum(name): return intern_named(ctx.interned_types.enums, name, t)
+    case .EnumSym(e_sym): return intern_named(ctx.interned_types.enums, ctx.symbols.resolve(e_sym), t)
     case .Custom(name): return intern_named(ctx.interned_types.customs, name, t)
+    case .CustomSym(c_sym): return intern_named(ctx.interned_types.customs, ctx.symbols.resolve(c_sym), t)
     case .FuncPtrSig(name): return intern_named(ctx.interned_types.funcsigs, name, t)
+    case .FuncPtrSigSym(fsig_sym): return intern_named(ctx.interned_types.funcsigs, ctx.symbols.resolve(fsig_sym), t)
     case .Primitive(p): return intern_slot(ctx.interned_types.prims, intern_prim_index(p), t)
     case: return intern_slot(ctx.interned_types.simples, intern_simple_index(t), t)
     }
@@ -4595,7 +4682,7 @@ priv scope_drop_existing_heap_slot := func(mut s: Scope, name: Str, drop_nested:
 scope_set_heap_owned := func(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: Dynamic, own_type: OwnType, ctx: Context, is_local: Bool, is_borrowed: Bool = false, is_erased_dynamic: Bool = false) {
     ref til_type : Type = to_ptr(til_type_w)
     if ptr.is_null() {
-        if is_borrowed.not().and(til_type.is(Type.Struct).or(til_type.is(Type.Enum))) { panic("null aggregate heap binding: ", name) }
+        if is_borrowed.not().and(is_struct_type(til_type).or(is_enum_type(til_type))) { panic("null aggregate heap binding: ", name) }
     }
     is_static_callable := heap_slot_is_static_callable(til_type, ptr)
     scope_drop_existing_heap_slot(s, name)
@@ -4950,7 +5037,7 @@ priv interp_fa_namespace_def_with_name := func(mut scope: Scope, e: Expr, sname:
 
 priv interp_fa_namespace_def := func(mut scope: Scope, e: Expr, ctx: Context) returns Option(ref Expr) {
     ref obj_expr : Expr = e.children[0]
-    sname_o := expr_type_name_ref(obj_expr)
+    sname_o := expr_type_name_ref(obj_expr, ctx.symbols)
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
         return interp_fa_namespace_def_with_name(scope, e, sname, false, ctx)
@@ -5298,7 +5385,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, fie
         write_ptr(result, pointed)
         return result
     }
-    if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)).or(field_nested_def(dd, ctx).is_some()) {
+    if is_struct_type(dd.til_type).or(is_enum_type(dd.til_type)).or(field_nested_def(dd, ctx).is_some()) {
         mut result : Dynamic = dispatch_result_alloc(Type.Dynamic, ctx)
         write_ptr(result, ptr)
         return result
@@ -5345,8 +5432,10 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
         return
     }
-    switch dd.til_type {
-    case .Struct(name):
+    // #397: family-predicate form of the old .Struct/.Enum payload switch,
+    // so the Sym twins take the same paths with a resolved name.
+    if is_struct_type(dd.til_type) {
+        ref name : Str = type_name_ref(dd.til_type, ctx.symbols)
         mut source : Dynamic = raw
         if dd.own_type.is(OwnType.Own) {
             if drop_old { free_owned_struct_slot(dst, name, ctx) }
@@ -5362,25 +5451,26 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         }
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
         return
-    case .Enum(name):
+    }
+    if is_enum_type(dd.til_type) {
+        ref ename : Str = type_name_ref(dd.til_type, ctx.symbols)
         mut source : Dynamic = raw
         if dd.own_type.is(OwnType.Own) {
-            if drop_old { free_owned_enum_slot(dst, name, ctx) }
-            if raw_is_ref { write_ptr(dst, heap_clone_enum(name, source, dispatch_enum_size(name, ctx), ctx)) }
+            if drop_old { free_owned_enum_slot(dst, ename, ctx) }
+            if raw_is_ref { write_ptr(dst, heap_clone_enum(ename, source, dispatch_enum_size(ename, ctx), ctx)) }
             else { write_ptr(dst, source); return }
         } else if dd.own_type.is(OwnType.Ref) {
             write_ptr(dst, source)
         } else {
-            if drop_old { heap_drop_enum(name, dst, ctx) }
+            if drop_old { heap_drop_enum(ename, dst, ctx) }
             // Raw enum results use a word-sized carrier even when their
             // inline host representation is a 1/2/4-byte tag. Copy only the
             // destination field width or the carrier overwrites its neighbour.
             memcpy(dst, source, field_size)
-            enum_payload_deep_clone(name, dst, ctx)
+            enum_payload_deep_clone(ename, dst, ctx)
         }
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
         return
-    case:
     }
     if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
         // The field stores a POINTER, so the value written is the source
@@ -5936,7 +6026,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         // stride and CLI parsing resolve the width
                         // themselves (elem_size_for_type/parse_cli_arg
                         // both handle USize/UPtr).
-                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.sig.params[vi.to_usize()].type_name(), lp.ctx.symbols).clone()
+                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, decl_type_name(fd.sig.params[vi.to_usize()], lp.ctx.symbols), lp.ctx.symbols).clone()
                         arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
                         va_array_binding_o := lp.ctx.scope.get_binding_name(format("Array__", va_elem), lp.ctx.symbols)
                         if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
@@ -5944,7 +6034,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
                         argi = argi + va_count.to_i32()
                     } else {
-                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.type_name(), lp.ctx)
+                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], decl_type_name(param, lp.ctx.symbols), lp.ctx)
                         scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols), lp.ctx), param.own_type, lp.ctx)
                         argi++
                     }
@@ -6431,12 +6521,18 @@ dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
         if size < Dynamic.size() { size = Dynamic.size() }
     case .Struct(name):
         size = ctx_total_size(name, ctx)
+    case .StructSym(s_sym):
+        size = ctx_total_size(ctx.symbols.resolve(s_sym), ctx)
     case .Enum(name):
         size = dispatch_enum_size(name, ctx)
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body:
+    case .EnumSym(e_sym):
+        size = dispatch_enum_size(ctx.symbols.resolve(e_sym), ctx)
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body:
         size = Dynamic.size()
     case .Custom(name):
         return dispatch_result_alloc(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
+    case .CustomSym(csym):
+        return dispatch_result_alloc(type_from_sym_init(csym, ctx.scope, ctx.symbols), ctx)
     case:
         panic("cannot allocate dispatch result for type ", til_type_name_c(t))
     }
@@ -6691,7 +6787,7 @@ priv storage_kind_for_type_name := proc(type_name: Str, src: Expr, ctx: Context)
     resolved := type_from_name_init_name(type_name, ctx.scope, ctx.symbols)
     if is_primitive(resolved).or(resolved.is(Type.Dynamic)) { return ELEM_POD }
     if type_is_callable_storage(resolved) { return ELEM_FN }
-    if resolved.is(Type.Struct).or(resolved.is(Type.Enum)) { return ELEM_BOXED }
+    if is_struct_type(resolved).or(is_enum_type(resolved)) { return ELEM_BOXED }
     tdef_o := lookup_interp_type_def(type_name, ctx)
     if tdef_o.is_some() {
         ref tdef : Expr = tdef_o.unwrap()
@@ -6843,7 +6939,7 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
         exit(1)
     }
     ref fd : Declaration = sd.field_at(idx)
-    str_copy_into(r, fd.type_name(), ctx)
+    str_copy_into(r, decl_type_name(fd, ctx.symbols), ctx)
     return true
 }
 
@@ -7017,7 +7113,7 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
         exit(1)
     }
     ref pd : Declaration = fd.sig.params[idx]
-    str_copy_into(r, pd.type_name(), ctx)
+    str_copy_into(r, decl_type_name(pd, ctx.symbols), ctx)
     return true
 }
 
@@ -7354,7 +7450,7 @@ priv shallow_ffi_type := func(type_name: Str, mut ctx: Context) returns ref ffi_
 priv field_ffi_type := func(dd: Declaration, mut ctx: Context) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
-    t_o := known_ffi_type(dd.type_name(), ctx)
+    t_o := known_ffi_type(decl_type_name(dd, ctx.symbols), ctx)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_sint64")
 }
@@ -7694,7 +7790,7 @@ priv get_payload_field_addr := func(mut s: Scope, arg: Expr, mut ctx: Context) r
         if ns_hb_o.is_some() {
             ref ns_hb : HeapBinding = ns_hb_o.unwrap()
             switch hb_type(ns_hb) {
-            case .Enum: return to_ptr(ns_hb.ptr)
+            case .Enum, .EnumSym: return to_ptr(ns_hb.ptr)
             case:
             }
         }
@@ -7704,8 +7800,9 @@ priv get_payload_field_addr := func(mut s: Scope, arg: Expr, mut ctx: Context) r
         hb_o := scope_lookup_heap_binding(s, base_id.ident_name(ctx.symbols.names))
         if hb_o.is_none() { return bits_word(0) }
         ref hb : HeapBinding = hb_o.unwrap()
-        switch hb_type(hb) {
-        case .Struct(sname):
+        if is_struct_type(hb_type(hb)).not() { return bits_word(0) }
+        {
+            ref sname : Str = type_name_ref(hb_type(hb), ctx.symbols)
             ref data : Dynamic = to_ptr(hb.ptr)
             ref fl : FieldLayout = ctx_field_layout(sname, fname, ctx)
             if fl.is_enum.not() { return bits_word(0) }
@@ -7717,8 +7814,6 @@ priv get_payload_field_addr := func(mut s: Scope, arg: Expr, mut ctx: Context) r
             }
             // Shallow enum field: the tag+payload bytes live inline.
             return ptr_add(data, fl.offset)
-        case:
-            return bits_word(0)
         }
     case:
         return bits_word(0)
@@ -7736,7 +7831,7 @@ priv h_get_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     mut gp_off : USize = ENUM_PAYLOAD_OFFSET
     mut gp_is_niche := false
     mut gp_def_o := Option(ref Expr).None
-    gp_tname_o := expr_type_name_ref(e.children[1])
+    gp_tname_o := expr_type_name_ref(e.children[1], ctx.symbols)
     if gp_tname_o.is_some() {
         ref gp_tname : Str = gp_tname_o.unwrap()
         gp_def_o = lookup_interp_type_def(gp_tname, ctx)
@@ -8217,7 +8312,7 @@ priv interp_c_str_arg_shape := func(arg_expr: Expr, symbols: SymbolPool) returns
     }
 }
 
-priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: USize) returns Bool {
+priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: USize, symbols: SymbolPool) returns Bool {
     ref ext_slot : Dynamic = scope_get(scope, name)?
     catch (knf: KeyNotFound) { return false }
     ref ext_def : Expr = callable_raw_func_def(ext_slot)
@@ -8225,7 +8320,7 @@ priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: U
     case .FuncDef(fd):
         if arg_index >= fd.sig.params.len() { return false }
         ref p : Declaration = fd.sig.params[arg_index]
-        if p.type_name().eq("I8").not() { return false }
+        if decl_type_name(p, symbols).eq("I8").not() { return false }
         return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
     case:
         return false
@@ -8255,7 +8350,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     for i in 0..nargs {
         ref mut arg_expr : Expr = e.children[i + 1]
         mut arg_info := raw_result_info_new()
-        if interp_c_str_arg_shape(arg_expr, ctx.symbols).and(interp_ext_c_string_param(scope, name, i)) {
+        if interp_c_str_arg_shape(arg_expr, ctx.symbols).and(interp_ext_c_string_param(scope, name, i, ctx.symbols)) {
             ctx.eval.interp_cstr_arg = true
         }
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
@@ -8311,6 +8406,17 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                     size := raw_type_size(raw_result_source_type(arg_info), ctx)
                     dp = malloc(size)
                     memcpy(dp, arg_pointer, size)
+                case .CustomSym(ffi_csym):
+                    alias_type_sym := type_from_sym_init(ffi_csym, ctx.scope, ctx.symbols)
+                    switch alias_type_sym {
+                    case .Primitive:
+                        size := raw_type_size(alias_type_sym, ctx)
+                        dp = malloc(size)
+                        memcpy(dp, arg_pointer, size)
+                    case:
+                        if arg_is_callable.and(callable_box_is(arg_pointer)) { panic("FFI cannot receive captured closures") }
+                        write_ptr(ptr_add(args, i.mul(8)), arg_pointer)
+                    }
                 case .Custom(name):
                     alias_type := type_from_name_init_name(name, ctx.scope, ctx.symbols)
                     switch alias_type {
@@ -8778,7 +8884,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
         ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
         dynamic_slot = declaration_resolved_type(pk, ctx.scope, ctx.symbols).is(Type.Dynamic)
         if pk.own_type.is(OwnType.Shallow) {
-            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.type_name(), ctx))
+            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(decl_type_name(pk, ctx.symbols), ctx))
             has_shallow = true
         } else {
             write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))

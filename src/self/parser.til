@@ -302,7 +302,7 @@ priv anon_decl_key := func(dname: Str, d: Declaration, symbols: SymbolPool) retu
     // default-value tree, so present-vs-absent yields distinct keys.
     mut dv_key := "-"
     if d.default_value.is_some() { dv_key = d.default_expr().to_str_with_symbols(symbols.names) }
-    return format(dname, ":", d.type_name(), ":", mut_tag, own_tag, ":",
+    return format(dname, ":", decl_type_name(d, symbols), ":", mut_tag, own_tag, ":",
         dv_key, ";")
 }
 
@@ -765,7 +765,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         if param_decl.til_type.is(Type.FuncPtr) {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
             if syn_name.len() > 0 {
-                param_decl.til_type = Type.FuncPtrSig(syn_name)
+                param_decl.til_type = Type.FuncPtrSigSym(p.symbols.intern(syn_name))
             }
         }
 
@@ -773,7 +773,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut has_default := false
         if check(p, TokenType.Eq) {
             advance(p)
-            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, param_decl.type_name()))
+            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, decl_type_name(param_decl, p.symbols)))
             has_default = true
         }
         if fd.sig.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
@@ -2806,13 +2806,37 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
 // keeps the returned payload ref pointing into the stamp's stable
 // storage (a Type passed as a call argument can ride a stack temp that
 // dies at the call boundary, dangling the payload ref).
-expr_type_name_ref := func(e: Expr) returns Option(ref Str) {
+// #397: compiler-side twin of Declaration.type_name. The method lives in
+// core, where no SymbolPool exists, so its `case:` default would answer ""
+// for a Sym-carrying til_type -- silently, since every caller treats ""
+// as "no name". Everything except the Sym arms delegates to the method:
+// the primitive spellings and the StructDef/FuncDef/... table stay in one
+// place. Lives HERE, not context.til, because parser-only programs
+// (til ast, the parsing tests) load this file without context.til.
+decl_type_name := func(dd: Declaration, symbols: SymbolPool) returns Str {
+    switch dd.til_type {
+    case .StructSym(s_sym):     return Str.clone(symbols.resolve(s_sym))
+    case .EnumSym(e_sym):       return Str.clone(symbols.resolve(e_sym))
+    case .CustomSym(c_sym):     return Str.clone(symbols.resolve(c_sym))
+    case .FuncPtrSigSym(f_sym): return Str.clone(symbols.resolve(f_sym))
+    case: return dd.type_name()
+    }
+}
+
+expr_type_name_ref := func(e: Expr, symbols: SymbolPool) returns Option(ref Str) {
     ref t : Type = e.til_type()
     switch t {
     case .Struct(s):     return safe_ref(s)
     case .Enum(s):       return safe_ref(s)
     case .Custom(s):     return safe_ref(s)
     case .FuncPtrSig(s): return safe_ref(s)
+    // #397: the Sym twins resolve through the pool; the ref points into
+    // the pool's names vector, which is as stable as the stamp storage
+    // the Str arms borrow from.
+    case .StructSym(s_sym):     return safe_ref(symbols.resolve(s_sym))
+    case .EnumSym(e_sym):       return safe_ref(symbols.resolve(e_sym))
+    case .CustomSym(c_sym):     return safe_ref(symbols.resolve(c_sym))
+    case .FuncPtrSigSym(f_sym): return safe_ref(symbols.resolve(f_sym))
     case: return Option(ref Str).None
     }
 }

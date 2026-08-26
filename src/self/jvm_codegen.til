@@ -59,14 +59,14 @@ priv jvm_enum_class := func(name: Str) returns Str {
     return format("E_", jvm_package_segment(name))
 }
 
-priv jvm_funcsig_class := func(fd: FunctionDef) returns Str {
+priv jvm_funcsig_class := func(fd: FunctionDef, symbols: SymbolPool) returns Str {
     mut key := "fn"
     for param : Declaration in fd.sig.params {
         mut ownership := "own"
         if param.own_type.is(OwnType.Ref) { ownership = "ref" }
         else if param.own_type.is(OwnType.Shallow) { ownership = "shallow" }
         if param.is_mut { ownership = format(ownership, "_mut") }
-        key = format(key, "__", ownership, "_", param.type_name())
+        key = format(key, "__", ownership, "_", decl_type_name(param, symbols))
     }
     if fd.sig.return_type.len() == 0 { key = format(key, "__void") }
     else {
@@ -107,7 +107,7 @@ priv jvm_byte_array := func(s: Str) returns Str {
     return format(out, "}")
 }
 
-priv jvm_type := func(t: Type) returns Str {
+priv jvm_type := func(t: Type, symbols: SymbolPool) returns Str {
     switch t {
     case .None: return "void"
     case .Primitive(Primitive.I8): return "byte"
@@ -124,11 +124,20 @@ priv jvm_type := func(t: Type) returns Str {
     case .Struct(name):
         if name == "Str" { return "TilRuntime.Str" }
         return jvm_struct_class(name)
+    case .StructSym(s_sym):
+        ref sname_sym : Str = symbols.resolve(s_sym)
+        if sname_sym == "Str" { return "TilRuntime.Str" }
+        return jvm_struct_class(sname_sym)
     case .Enum(name): return jvm_enum_class(name)
+    case .EnumSym(e_sym): return jvm_enum_class(symbols.resolve(e_sym))
     case .Dynamic: return "TilRuntime.Ptr"
     case .Custom(name):
         if name == "USize" { return "int" }
         if name == "UPtr" { return "long" }
+    case .CustomSym(c_sym):
+        ref cname_sym : Str = symbols.resolve(c_sym)
+        if cname_sym == "USize" { return "int" }
+        if cname_sym == "UPtr" { return "long" }
     case:
     }
     return ""
@@ -136,6 +145,14 @@ priv jvm_type := func(t: Type) returns Str {
 
 priv jvm_funcsig_def := func(t: Type, lp: LoadedProgram) returns Option(ref Expr) {
     switch t {
+    case .FuncPtrSigSym(fsig_sym):
+        fdef_sym_o := lp.ctx.scope.lookup_func_name(lp.ctx.symbols.resolve(fsig_sym), lp.ctx.symbols)
+        if fdef_sym_o.is_some() {
+            ref fexpr_sym : Expr = fdef_sym_o.unwrap()
+            if fexpr_sym.node_type.is(NodeType.FuncDef).and(fexpr_sym.children.len() == 0) {
+                return fdef_sym_o
+            }
+        }
     case .FuncPtrSig(name):
         fdef_o := lp.ctx.scope.lookup_func_name(name, lp.ctx.symbols)
         if fdef_o.is_some() {
@@ -157,7 +174,7 @@ priv jvm_find_funcsig_class := func(class_name: Str,
                 if stmt.children.len() == 0 { continue }
                 if stmt.children[0].node_type.is(NodeType.FuncDef) {
                     ref fexpr : Expr = stmt.children[0]
-                    if jvm_funcsig_class(funcdef_of(fexpr)) == class_name {
+                    if jvm_funcsig_class(funcdef_of(fexpr), lp.ctx.symbols) == class_name {
                         return safe_ref(fexpr)
                     }
                 }
@@ -167,10 +184,10 @@ priv jvm_find_funcsig_class := func(class_name: Str,
 }
 
 priv jvm_type_lp := func(t: Type, lp: LoadedProgram) returns Str {
-    out := jvm_type(t)
+    out := jvm_type(t, lp.ctx.symbols)
     if out.len() > 0 { return out }
     fdef_o := jvm_funcsig_def(t, lp)
-    if fdef_o.is_some() { return jvm_funcsig_class(funcdef_of(fdef_o.unwrap())) }
+    if fdef_o.is_some() { return jvm_funcsig_class(funcdef_of(fdef_o.unwrap()), lp.ctx.symbols) }
     return ""
 }
 
@@ -188,12 +205,17 @@ priv jvm_storage_size := func(t: Type, lp: LoadedProgram) returns USize {
     case .Primitive(Primitive.U64): return 8
     case .Primitive(Primitive.F64): return 8
     case .Struct(name): return ctx_total_size(name, lp.ctx)
+    case .StructSym(size_ssym): return ctx_total_size(lp.ctx.symbols.resolve(size_ssym), lp.ctx)
     case .Enum(name): return ctx_total_size(name, lp.ctx)
+    case .EnumSym(size_esym): return ctx_total_size(lp.ctx.symbols.resolve(size_esym), lp.ctx)
     case .Custom(name):
         resolved := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
         return jvm_storage_size(resolved, lp)
+    case .CustomSym(size_csym):
+        resolved_sym := type_from_sym_init(size_csym, lp.ctx.scope, lp.ctx.symbols)
+        return jvm_storage_size(resolved_sym, lp)
     case:
-        panic(__LOC__, "JVM storage size unavailable for ", til_type_name(t))
+        panic(__LOC__, "JVM storage size unavailable for ", type_name_ref(t, lp.ctx.symbols))
         return 0
     }
 }
@@ -317,7 +339,7 @@ priv jvm_decl_type := proc(e: Expr, t: Type, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         out := jvm_type_lp(t, lp)
         if out.len() > 0 { return out }
-        mut name := til_type_name(t)
+        mut name := Str.clone(type_name_ref(t, lp.ctx.symbols))
         if name.len() == 0 { name = "unknown" }
         return jvm_fail_expr(e, format("type '", name, "'"), state, lp.ctx.symbols.names)
 }
@@ -352,6 +374,10 @@ priv jvm_num_literal := proc(e: Expr, num: LiteralNumData,
         case .Custom(name):
             if name == "USize" { return format("(int) (", text, "L)") }
             if name == "UPtr" { return format(text, "L") }
+        case .CustomSym(num_csym):
+            ref num_cname : Str = names[num_csym.cast(USize) - 1]
+            if num_cname == "USize" { return format("(int) (", text, "L)") }
+            if num_cname == "UPtr" { return format(text, "L") }
         case:
         }
         return jvm_fail_expr(e, "untyped numeric literal", state, names)
@@ -729,11 +755,11 @@ priv jvm_signature_param_type := func(fd: FunctionDef, i: USize,
         ref param : Declaration = fd.sig.params[i]
         mut param_type := param.til_type.clone()
         if fd.sig.variadic_index == i.to_i32() {
-            param_type = Type.Struct(format("Array__", param.type_name()))
+            param_type = Type.Struct(format("Array__", decl_type_name(param, lp.ctx.symbols)))
         }
         mut out := jvm_type_lp(param_type, lp)
         if out.len() == 0 {
-            param_type = type_from_name_init_name(param.type_name(), lp.ctx.scope, lp.ctx.symbols)
+            param_type = type_from_name_init_name(decl_type_name(param, lp.ctx.symbols), lp.ctx.scope, lp.ctx.symbols)
             out = jvm_type_lp(param_type, lp)
         }
         if jvm_param_needs_cell(fd, i) { return jvm_cell_type(param_type) }
@@ -897,15 +923,15 @@ priv jvm_collect_return_cells := proc(e: Expr, mut cells: Set(Str),
         for child : Expr in e.children { jvm_collect_return_cells(child, cells, lp) }
 }
 
-priv jvm_collect_cell_types := proc(e: Expr, mut cell_types: Map(Str, Str)) {
+priv jvm_collect_cell_types := proc(e: Expr, mut cell_types: Map(Str, Str), symbols: SymbolPool) {
     switch e.node_type {
     case .Decl(dd):
         if is_primitive(dd.til_type) {
-            cell_types.set(dd.name, own dd.type_name())
+            cell_types.set(dd.name, own decl_type_name(dd, symbols))
         }
     case:
     }
-    for child : Expr in e.children { jvm_collect_cell_types(child, cell_types) }
+    for child : Expr in e.children { jvm_collect_cell_types(child, cell_types, symbols) }
 }
 
 priv jvm_fcall_returns_cell := func(e: Expr, lp: LoadedProgram) returns Bool {
@@ -976,11 +1002,11 @@ priv jvm_emit_struct_ctor := proc(e: Expr, name: Str,
             } else {
                 arg = jvm_emit_expr(e.children[i], state, lp)
             }
-            arg_type := jvm_type(e.children[i].til_type())
-            if field.type_name().eq("USize").and(arg_type != "int") {
+            arg_type := jvm_type(e.children[i].til_type(), lp.ctx.symbols)
+            if decl_type_name(field, lp.ctx.symbols).eq("USize").and(arg_type != "int") {
                 arg = format("(int) (", arg, ")")
             }
-            if field.type_name().eq("UPtr").and(arg_type != "long") {
+            if decl_type_name(field, lp.ctx.symbols).eq("UPtr").and(arg_type != "long") {
                 arg = format("(long) (", arg, ")")
             }
             args = format(args, arg)
@@ -1009,6 +1035,29 @@ priv jvm_emit_enum_payload := proc(value: Expr, payload_type: Str,
 priv jvm_emit_enum_ctor := proc(e: Expr, call_name: Str,
     mut state: JvmEmitState, lp: LoadedProgram) returns Str {
         switch e.til_type() {
+        case .EnumSym(ctor_esym):
+            ref enum_name_sym : Str = lp.ctx.symbols.resolve(ctor_esym)
+            def_sym_o := lp.ctx.scope.get_struct_by_sym(ctor_esym)
+            if def_sym_o.is_some() {
+                ref def_sym_expr : Expr = def_sym_o.unwrap()
+                if def_sym_expr.node_type.is(NodeType.EnumDef) {
+                    ref ed_sym : EnumDef = enumdef_of(def_sym_expr)
+                    for variant_sym : VariantDef in ed_sym.variants {
+                        if call_name == format(enum_name_sym, "_", variant_sym.name) {
+                            mut payload_sym := "null"
+                            if variant_sym.payload_type.len() > 0 {
+                                if e.children.len() != 2 {
+                                    return jvm_fail_expr(e, "enum payload constructor shape", state, lp.ctx.symbols.names)
+                                }
+                                payload_sym = jvm_emit_enum_payload(e.children[1],
+                                    variant_sym.payload_type, state, lp)
+                            }
+                            return format("new ", jvm_enum_class(enum_name_sym), "(",
+                                variant_sym.tag_value.to_str(), "L, ", payload_sym, ")")
+                        }
+                    }
+                }
+            }
         case .Enum(enum_name):
             def_o := lp.ctx.scope.get_struct(enum_name, lp.ctx.symbols)
             if def_o.is_some() {
@@ -1154,14 +1203,9 @@ priv jvm_emit_value := proc(e: Expr, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         out := jvm_emit_expr(e, state, lp)
         if jvm_expr_is_raw_ref(e, state, lp.ctx.symbols.names) {
-            switch e.til_type() {
-            case .Struct(name):
-                return format("(", jvm_type(e.til_type()), ") TilRuntime.value(", out, ", ",
-                    ctx_total_size(name, lp.ctx).to_str(), "L)")
-            case .Enum(name):
-                return format("(", jvm_type(e.til_type()), ") TilRuntime.value(", out, ", ",
-                    ctx_total_size(name, lp.ctx).to_str(), "L)")
-            case:
+            if is_struct_type(e.til_type()).or(is_enum_type(e.til_type())) {
+                return format("(", jvm_type(e.til_type(), lp.ctx.symbols), ") TilRuntime.value(", out, ", ",
+                    ctx_total_size(type_name_ref(e.til_type(), lp.ctx.symbols), lp.ctx).to_str(), "L)")
             }
         }
         return out
@@ -1182,7 +1226,7 @@ priv jvm_emit_scalar_core := proc(e: Expr, scalar: Str, op: Str,
             cell := jvm_emit_cell_ref(e.children[1], state, lp)
             mut java_op := "+"
             if op == "dec" { java_op = "-" }
-            mut cell_scalar := til_type_name(e.children[1].til_type())
+            mut cell_scalar := Str.clone(type_name_ref(e.children[1].til_type(), lp.ctx.symbols))
             switch e.children[1].node_type {
             case .Ident(id):
                 ref cell_name : Str = id.ident_name(lp.ctx.symbols.names)
@@ -1253,8 +1297,8 @@ priv jvm_emit_scalar_core := proc(e: Expr, scalar: Str, op: Str,
         return jvm_scalar_narrow(scalar, expr)
 }
 
-priv jvm_emit_conversion := func(target: Type, source: Str, value: Str) returns Str {
-    target_name := til_type_name(target)
+priv jvm_emit_conversion := func(target: Type, source: Str, value: Str, symbols: SymbolPool) returns Str {
+    ref target_name : Str = type_name_ref(target, symbols)
     if target_name == source { return format("(", value, ")") }
     if type_is_primitive(target, Primitive.I64) {
         if source == "U32" { return format("Integer.toUnsignedLong(", value, ")") }
@@ -1276,7 +1320,7 @@ priv jvm_emit_conversion := func(target: Type, source: Str, value: Str) returns 
         if source == "U64" { return format("TilRuntime.u64ToF64(", value, ")") }
         return format("(double) (", value, ")")
     }
-    jt := jvm_type(target)
+    jt := jvm_type(target, symbols)
     return jvm_narrow(target, format("(", jt, ") (", value, ")"))
 }
 
@@ -1307,7 +1351,7 @@ priv jvm_emit_scalar_ext := proc(e: Expr, scalar: Str, method: Str,
             return format("TilRuntime.repr", scalar, "(", first, ")")
         }
         if method.starts_with("to_") {
-            return jvm_emit_conversion(e.til_type(), scalar, first)
+            return jvm_emit_conversion(e.til_type(), scalar, first, lp.ctx.symbols)
         }
         return jvm_fail_expr(e, format("scalar runtime function '", scalar, ".", method, "'"), state, lp.ctx.symbols.names)
 }
@@ -1330,11 +1374,11 @@ priv jvm_emit_closure := proc(e: Expr, fd: FunctionDef,
             params = format(params, jvm_var_name(param.name))
             if jvm_param_needs_cell(fd, i) {
                 state.cells.add(own param.name.clone())
-                state.cell_types.set(param.name, own param.type_name())
+                state.cell_types.set(param.name, own decl_type_name(param, lp.ctx.symbols))
             }
         }
         jvm_collect_cells(e.children[0], state.cells, state.raw_refs, lp)
-        jvm_collect_cell_types(e.children[0], state.cell_types)
+        jvm_collect_cell_types(e.children[0], state.cell_types, lp.ctx.symbols)
         body := jvm_emit_body(e.children[0], 1, state, lp)
         state.cells = saved_cells
         state.cell_types = saved_cell_types
@@ -1348,18 +1392,17 @@ priv jvm_emit_cast := proc(e: Expr, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         if e.children.len() < 3 { return jvm_fail_expr(e, "malformed cast", state, lp.ctx.symbols.names) }
         target := type_from_name_init_name(ident_of(e.children[2]).ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
-        if jvm_type(target).len() == 0 { return jvm_fail_expr(e, "cast target", state, lp.ctx.symbols.names) }
+        if jvm_type(target, lp.ctx.symbols).len() == 0 { return jvm_fail_expr(e, "cast target", state, lp.ctx.symbols.names) }
         value := jvm_emit_expr(e.children[1], state, lp)
-        source := til_type_name(e.children[1].til_type())
-        return jvm_emit_conversion(target, source, value)
+        ref source : Str = type_name_ref(e.children[1].til_type(), lp.ctx.symbols)
+        return jvm_emit_conversion(target, source, value, lp.ctx.symbols)
 }
 
 priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
-        switch e.til_type() {
-        case .Struct(sname):
-            if name == sname { return jvm_emit_struct_ctor(e, sname, state, lp) }
-        case:
+        if is_struct_type(e.til_type()) {
+            ref ctor_sname : Str = type_name_ref(e.til_type(), lp.ctx.symbols)
+            if name == ctor_sname { return jvm_emit_struct_ctor(e, ctor_sname, state, lp) }
         }
         if name.eq("println").or(name.eq("print")).or(name.eq("eprintln")).or(name.eq("eprint")) {
             if e.children.len() != 2 { return jvm_fail_expr(e, format("malformed runtime call '", name, "'"), state, lp.ctx.symbols.names) }
@@ -1405,7 +1448,7 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
         if name == "cast" { return jvm_emit_cast(e, state, lp) }
         if name.ends_with("_from_i64_ext") {
             value := jvm_emit_expr(e.children[1], state, lp)
-            return jvm_emit_conversion(e.til_type(), "I64", value)
+            return jvm_emit_conversion(e.til_type(), "I64", value, lp.ctx.symbols)
         }
         if name == "U64_to_str_ext" {
             value := jvm_emit_expr(e.children[1], state, lp)
@@ -1530,41 +1573,35 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
         }
 
         if name.ends_with("_clone").and(e.children.len() == 2) {
-            switch e.children[1].til_type() {
-            case .Struct(struct_name):
-                if jvm_struct_has_raw_fields(struct_name, lp).not() {
+            if is_struct_type(e.children[1].til_type()) {
+                if jvm_struct_has_raw_fields(type_name_ref(e.children[1].til_type(), lp.ctx.symbols), lp).not() {
                     return format(jvm_emit_expr(e.children[1], state, lp), ".cloneValue()")
                 }
-            case .Enum:
+            }
+            if is_enum_type(e.children[1].til_type()) {
                 return format(jvm_emit_expr(e.children[1], state, lp), ".cloneValue()")
-            case:
             }
         }
         if name.ends_with("_delete").and(e.children.len() >= 2) {
-            switch e.children[1].til_type() {
-            case .Struct(struct_name):
-                if jvm_struct_has_raw_fields(struct_name, lp).not() {
+            if is_struct_type(e.children[1].til_type()) {
+                if jvm_struct_has_raw_fields(type_name_ref(e.children[1].til_type(), lp.ctx.symbols), lp).not() {
                     return format(jvm_emit_expr(e.children[1], state, lp), ".delete()")
                 }
-            case .Enum:
+            }
+            if is_enum_type(e.children[1].til_type()) {
                 return format(jvm_emit_expr(e.children[1], state, lp), ".delete()")
-            case:
             }
         }
         if name.ends_with("_is").and(e.children.len() == 3) {
-            switch e.children[1].til_type() {
-            case .Enum:
+            if is_enum_type(e.children[1].til_type()) {
                 return format(jvm_emit_expr(e.children[1], state, lp), ".sameTag(",
                     jvm_emit_expr(e.children[2], state, lp), ")")
-            case:
             }
         }
         if name.ends_with("_eq").and(e.children.len() == 3) {
-            switch e.children[1].til_type() {
-            case .Enum:
+            if is_enum_type(e.children[1].til_type()) {
                 return format(jvm_emit_expr(e.children[1], state, lp), ".sameValue(",
                     jvm_emit_expr(e.children[2], state, lp), ")")
-            case:
             }
         }
         if name.ends_with("_size").and(e.children.len() == 1) {
@@ -1641,7 +1678,7 @@ priv jvm_emit_namespace_call := proc(e: Expr, callee: Expr,
         if jvm_is_scalar_name(scalar) {
             if method == "from_i64" {
                 value := jvm_emit_expr(e.children[1], state, lp)
-                return jvm_emit_conversion(e.til_type(), "I64", value)
+                return jvm_emit_conversion(e.til_type(), "I64", value, lp.ctx.symbols)
             }
             if method.eq("clone").or(method.eq("cmp")).or(method.eq("to_str"))
                 .or(method.eq("to_repr")).or(method.starts_with("to_")) {
@@ -1677,7 +1714,7 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         switch e.node_type {
         case .PrecomputedSequence(data):
-            type_name := til_type_name(data.til_type)
+            ref type_name : Str = type_name_ref(data.til_type, lp.ctx.symbols)
             mut heap := format("TilRuntime.precomputedValues(", data.capacity.to_str(), ", ",
                 jvm_storage_size(data.element_type, lp).to_str())
             for child : Expr in e.children {
@@ -1685,11 +1722,11 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
             }
             heap = format(heap, ")")
             if type_name.eq("Vec").or(type_name.starts_with("Vec__")) {
-                return format("new ", jvm_type(data.til_type), "(", heap, ", ",
+                return format("new ", jvm_type(data.til_type, lp.ctx.symbols), "(", heap, ", ",
                     e.children.len().to_str(), ", ", data.capacity.to_str(), ")")
             }
             if type_name.eq("Array").or(type_name.starts_with("Array__")) {
-                return format("new ", jvm_type(data.til_type), "(", heap, ", ",
+                return format("new ", jvm_type(data.til_type, lp.ctx.symbols), "(", heap, ", ",
                     data.capacity.to_str(), ")")
             }
             return jvm_fail_expr(e, format("precomputed sequence type '", type_name, "'"),
@@ -1773,6 +1810,7 @@ priv jvm_emit_switch := proc(e: Expr, depth: I32, mut state: JvmEmitState,
         case .Primitive(Primitive.I32):
         case .Primitive(Primitive.U32):
         case .Enum(name): enum_name = name.clone()
+        case .EnumSym(sw_esym): enum_name = Str.clone(lp.ctx.symbols.resolve(sw_esym))
         case:
             return jvm_fail_expr(e, "non-32-bit scalar switch", state, lp.ctx.symbols.names)
         }
@@ -1822,7 +1860,7 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                 if rhs.node_type.is(NodeType.FuncDef) {
                     ref closure_fd : FunctionDef = funcdef_of(rhs)
                     if rhs.children.len() == 0 { return "" }
-                    closure_type := jvm_funcsig_class(closure_fd)
+                    closure_type := jvm_funcsig_class(closure_fd, lp.ctx.symbols)
                     state.callable_defs.set(dd.name, own closure_type.clone())
                     return format(jvm_source_comment(e, state, depth), jvm_indent(depth),
                         closure_type, " ", jvm_var_name(dd.name), " = ",
@@ -1843,7 +1881,7 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                 if decl_type.is(Type.Unknown).or(decl_type.is(Type.FuncDef))
                     .or(decl_type.is_funcptr())
                     .and(rhs_sig_o.is_some()) {
-                    jt = jvm_funcsig_class(funcdef_of(rhs_sig_o.unwrap()))
+                    jt = jvm_funcsig_class(funcdef_of(rhs_sig_o.unwrap()), lp.ctx.symbols)
                 } else {
                     jt = jvm_decl_type(e, decl_type, state, lp)
                 }
@@ -1854,7 +1892,7 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                         state.callable_defs.set(dd.name, own state.callable_defs[rhs_name].clone())
                     } else if rhs_sig_o.is_some() {
                         state.callable_defs.set(dd.name, own
-                            jvm_funcsig_class(funcdef_of(rhs_sig_o.unwrap())))
+                            jvm_funcsig_class(funcdef_of(rhs_sig_o.unwrap()), lp.ctx.symbols))
                     }
                 case:
                 }
@@ -2007,7 +2045,7 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
             if is_raw_return { ret = "TilRuntime.Ptr" }
             else if state.return_cell { ret = jvm_cell_type(rt) }
             else if fd.sig.return_own_type.is(OwnType.Ref)
-                .and(rt.is(Type.Struct).or(rt.is(Type.Enum))) { ret = "TilRuntime.Ptr" }
+                .and(is_struct_type(rt).or(is_enum_type(rt))) { ret = "TilRuntime.Ptr" }
             else { ret = jvm_decl_type(fexpr, rt, state, lp) }
         }
         mut params := ""
@@ -2016,7 +2054,7 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
             if i > 0 { params = format(params, ", ") }
             pt := jvm_signature_param_type(fd, i, lp)
             if jvm_param_needs_cell(fd, i) {
-                state.cell_types.set(param.name, own param.type_name())
+                state.cell_types.set(param.name, own decl_type_name(param, lp.ctx.symbols))
                 if state.cells.has(param.name).not() {
                     state.cells.add(own param.name.clone())
                 }
@@ -2026,7 +2064,7 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
             }
             params = format(params, pt, " ", jvm_var_name(param.name))
         }
-        jvm_collect_cell_types(fexpr.children[0], state.cell_types)
+        jvm_collect_cell_types(fexpr.children[0], state.cell_types, lp.ctx.symbols)
         jvm_collect_cells(fexpr.children[0], state.cells, state.raw_refs, lp)
         if state.return_cell { jvm_collect_return_cells(fexpr.children[0], state.cells, lp) }
         out := format(jvm_source_comment(decl, state, depth), jvm_indent(depth),
@@ -2056,6 +2094,18 @@ priv jvm_field_setter := func(name: Str) returns Str {
 priv jvm_field_is_cell := func(owner_type: Type, field_name: Str,
     lp: LoadedProgram) returns Bool {
         switch owner_type {
+        case .StructSym(owner_ssym):
+            def_sym_o := lp.ctx.scope.get_struct_by_sym(owner_ssym)
+            if def_sym_o.is_some() {
+                ref def_sym_expr : Expr = def_sym_o.unwrap()
+                if def_sym_expr.node_type.is(NodeType.StructDef) {
+                    ref sd_sym : StructDef = structdef_of(def_sym_expr)
+                    if sd_sym.fields_index.has(field_name) {
+                        ref field_sym : Declaration = sd_sym.field_at(sd_sym.fields_index[field_name])
+                        return is_primitive(field_sym.til_type).and(field_sym.own_type.is(OwnType.Own).not())
+                    }
+                }
+            }
         case .Struct(owner_name):
             def_o := lp.ctx.scope.get_struct(owner_name, lp.ctx.symbols)
             if def_o.is_some() {
@@ -2119,7 +2169,7 @@ priv jvm_emit_struct := proc(decl: Expr, mut state: JvmEmitState,
                 if field.own_type.is(OwnType.Ref) { param_type = field_type.clone() }
             }
             if field_type.len() == 0 {
-                jvm_fail_expr(def_expr, format("field type '", field.type_name(), "'"), state, lp.ctx.symbols.names)
+                jvm_fail_expr(def_expr, format("field type '", decl_type_name(field, lp.ctx.symbols), "'"), state, lp.ctx.symbols.names)
             }
             jname := jvm_field_name(fname)
             fields = format(fields, "    ", field_type, " ", jname, ";\n")
@@ -2153,7 +2203,7 @@ priv jvm_emit_struct := proc(decl: Expr, mut state: JvmEmitState,
                 deletes = format(deletes, "        TilRuntime.releaseBox(this.", jname, ");\n")
             } else {
                 switch field.til_type {
-                case .FuncPtr, .FuncPtrSig, .Body:
+                case .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body:
                     clones = format(clones, "TilRuntime.retainClosure(this.", jname, ")")
                     deletes = format(deletes, "        TilRuntime.releaseClosure(this.", jname, ");\n")
                 case .Struct(field_name):
@@ -2164,7 +2214,15 @@ priv jvm_emit_struct := proc(decl: Expr, mut state: JvmEmitState,
                         clones = format(clones, "this.", jname, ".cloneValue()")
                         deletes = format(deletes, "        this.", jname, ".delete();\n")
                     }
-                case .Enum:
+                case .StructSym(field_ssym):
+                    if lp.ctx.symbols.resolve(field_ssym) == "Str" {
+                        clones = format(clones, "TilRuntime.cloneStr(this.", jname, ")")
+                        deletes = format(deletes, "        TilRuntime.deleteStr(this.", jname, ");\n")
+                    } else {
+                        clones = format(clones, "this.", jname, ".cloneValue()")
+                        deletes = format(deletes, "        this.", jname, ".delete();\n")
+                    }
+                case .Enum, .EnumSym:
                     clones = format(clones, "this.", jname, ".cloneValue()")
                     deletes = format(deletes, "        this.", jname, ".delete();\n")
                 case:
@@ -2251,7 +2309,7 @@ priv jvm_emit_enum := func(decl: Expr) returns Str {
 priv jvm_emit_funcsig := func(fexpr: Expr, package_name: Str,
     lp: LoadedProgram) returns Str {
         ref fd : FunctionDef = funcdef_of(fexpr)
-        cls := jvm_funcsig_class(fd)
+        cls := jvm_funcsig_class(fd, lp.ctx.symbols)
         ret := jvm_signature_return_type(fd, lp)
         mut params := ""
         mut args := ""
@@ -2340,11 +2398,11 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
                 jvm_fail_expr(fexpr, "main parameters/return value in Stage D", state, lp.ctx.symbols.names)
             }
             jvm_collect_cells(fexpr.children[0], state.cells, state.raw_refs, lp)
-            jvm_collect_cell_types(fexpr.children[0], state.cell_types)
+            jvm_collect_cell_types(fexpr.children[0], state.cell_types, lp.ctx.symbols)
             main_body = jvm_emit_body(fexpr.children[0], 2, state, lp)
         } else {
             jvm_collect_cells(iu.ast, state.cells, state.raw_refs, lp)
-            jvm_collect_cell_types(iu.ast, state.cell_types)
+            jvm_collect_cell_types(iu.ast, state.cell_types, lp.ctx.symbols)
             for stmt : Expr in iu.ast.children {
                 mut is_definition := false
                 switch stmt.node_type {
@@ -2442,7 +2500,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                             ref fexpr : Expr = stmt.children[0]
                             ref fd : FunctionDef = funcdef_of(fexpr)
                             if (fexpr.children.len() == 0).and(fd.sig.func_type.is_plain()) {
-                                funcsigs_class := jvm_funcsig_class(fd)
+                                funcsigs_class := jvm_funcsig_class(fd, lp.ctx.symbols)
                                 if emitted_funcsigs.has(funcsigs_class).not() {
                                     emitted_funcsigs.add(own funcsigs_class.clone())
                                     funcsigs_path := format(package_dir, "/", funcsigs_class, ".java")
