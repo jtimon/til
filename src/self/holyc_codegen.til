@@ -918,23 +918,34 @@ priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
     }
 }
 
-priv holyc_runtime_prelude := func() returns Str {
+// #326: one runtime extern, emitted only when the rest of the output
+// spells its name. The whole program text is built in memory before the
+// prelude is written (prototypes, definitions and the main body are all
+// Strs by then), so this backend can simply ASK instead of predicting --
+// the same authority the C backend's finished-text macro sweep uses, with
+// no re-read because nothing has been written yet.
+priv holyc_runtime_decl := func(name: Str, decl: Str, rest: Str) returns Str {
+    if rest.contains(name).not() { return "" }
+    return decl
+}
+
+priv holyc_runtime_prelude := func(rest: Str) returns Str {
     return format(
-        "extern U8 *TilMAlloc(U64 count);\n",
-        "extern U8 *TilCAlloc(U64 nmemb,U64 size);\n",
-        "extern U8 *TilReAlloc(U8 *ptr,U64 count);\n",
-        "extern U0 TilFree(U8 *ptr);\n",
-        "extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);\n",
-        "extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);\n",
-        "extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);\n",
-        "extern I32 TilMemCmp(U8 *a,U8 *b,U64 count);\n",
-        "extern U0 TilRawWrite(U8 *data,U64 count);\n",
-        "extern U0 TilPanic(U8 *data,U64 count);\n",
-        "extern U0 TilNullDeref();\n",
-        "extern U8 *TilCheckPtr(U8 *ptr);\n",
-        "extern U8 *TilDeref(U8 **slot);\n",
-        "extern U0 TilWritePtr(U8 *slot,U8 *value);\n\n",
-        "#include \"/Home/Ext.HC\"\n\n")
+        holyc_runtime_decl("TilMAlloc", "extern U8 *TilMAlloc(U64 count);\n", rest),
+        holyc_runtime_decl("TilCAlloc", "extern U8 *TilCAlloc(U64 nmemb,U64 size);\n", rest),
+        holyc_runtime_decl("TilReAlloc", "extern U8 *TilReAlloc(U8 *ptr,U64 count);\n", rest),
+        holyc_runtime_decl("TilFree", "extern U0 TilFree(U8 *ptr);\n", rest),
+        holyc_runtime_decl("TilMemCpy", "extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);\n", rest),
+        holyc_runtime_decl("TilMemMove", "extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);\n", rest),
+        holyc_runtime_decl("TilMemSet", "extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);\n", rest),
+        holyc_runtime_decl("TilMemCmp", "extern I32 TilMemCmp(U8 *a,U8 *b,U64 count);\n", rest),
+        holyc_runtime_decl("TilRawWrite", "extern U0 TilRawWrite(U8 *data,U64 count);\n", rest),
+        holyc_runtime_decl("TilPanic", "extern U0 TilPanic(U8 *data,U64 count);\n", rest),
+        holyc_runtime_decl("TilNullDeref", "extern U0 TilNullDeref();\n", rest),
+        holyc_runtime_decl("TilCheckPtr", "extern U8 *TilCheckPtr(U8 *ptr);\n", rest),
+        holyc_runtime_decl("TilDeref", "extern U8 *TilDeref(U8 **slot);\n", rest),
+        holyc_runtime_decl("TilWritePtr", "extern U0 TilWritePtr(U8 *slot,U8 *value);\n", rest),
+        "\n#include \"/Home/Ext.HC\"\n\n")
 }
 
 holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32 {
@@ -990,14 +1001,21 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         return 1
     }
 
-    f := File.new(output_path, true)
-    f.write(holyc_runtime_prelude())
+    // Everything the prelude has to answer for is in hand: the two
+    // arithmetic helpers this backend already gates, the prototypes, the
+    // definitions and main's body.
+    mut helpers := ""
     if state.needs_i64_div {
-        f.write("I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
+        helpers = format(helpers, "I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
     }
     if state.needs_i64_mod {
-        f.write("I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n")
+        helpers = format(helpers, "I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n")
     }
+    rest := format(helpers, prototypes, definitions, body)
+
+    f := File.new(output_path, true)
+    f.write(holyc_runtime_prelude(rest))
+    f.write(helpers)
     f.write(prototypes)
     f.write(definitions)
     f.write("I64 TilMain()\n{\n")

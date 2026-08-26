@@ -1,17 +1,9 @@
 extern U8 *TilMAlloc(U64 count);
-extern U8 *TilCAlloc(U64 nmemb,U64 size);
-extern U8 *TilReAlloc(U8 *ptr,U64 count);
 extern U0 TilFree(U8 *ptr);
 extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);
-extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);
 extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);
-extern I32 TilMemCmp(U8 *a,U8 *b,U64 count);
 extern U0 TilRawWrite(U8 *data,U64 count);
-extern U0 TilPanic(U8 *data,U64 count);
-extern U0 TilNullDeref();
 extern U8 *TilCheckPtr(U8 *ptr);
-extern U8 *TilDeref(U8 **slot);
-extern U0 TilWritePtr(U8 *slot,U8 *value);
 
 #include "/Home/Ext.HC"
 

@@ -4392,6 +4392,8 @@ static Str priv___src_self_holyc_codegen_til__holyc_expr(Expr * e, Context * ctx
 static void priv___src_self_holyc_codegen_til__holyc_print_scaffold(Expr * body, USize start, USize depth, Context * ctx, priv___src_self_holyc_codegen_til__HolyCEmitState * state, priv___src_self_holyc_codegen_til__HolyCLocalState * locals, USize * consumed, Str * output, Str * error);
 static Str priv___src_self_holyc_codegen_til__holyc_body(Expr * body, USize depth, Bool top_level, Context * ctx, priv___src_self_holyc_codegen_til__HolyCEmitState * state, priv___src_self_holyc_codegen_til__HolyCLocalState * locals, Str * error);
 static void priv___src_self_holyc_codegen_til__holyc_append_function_outputs(Expr * program, Context * ctx, priv___src_self_holyc_codegen_til__HolyCEmitState * state, Str * prototypes, Str * definitions, Str * error);
+static Str priv___src_self_holyc_codegen_til__holyc_runtime_decl(Str * name, Str * decl, Str * rest);
+static Str priv___src_self_holyc_codegen_til__holyc_runtime_prelude(Str * rest);
 static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path);
 static void priv___src_self_jvm_codegen_til__JvmEmitState_delete(priv___src_self_jvm_codegen_til__JvmEmitState * self, Bool call_free);
 static Str priv___src_self_jvm_codegen_til__jvm_hex_byte(U8 byte);
@@ -5788,6 +5790,7 @@ static struct {
     Str h8e2d6d975c35;
     Str h2162a8f27023;
     Str h4b7ddd6b0b52;
+    Str hd21116b383e4;
     Str h146a5f2468c0;
     Str he855f6161476;
     Str hf314b8e7e6c0;
@@ -6855,6 +6858,7 @@ static struct {
     .h8e2d6d975c35 = (Str){.c_str = (void *)"TilClosure *", .count = 12ULL, .cap = TIL_CAP_LIT},
     .h2162a8f27023 = (Str){.c_str = (void *)"TilClosure *til_closure = malloc(TIL_BOX(TilClosure)); ", .count = 55ULL, .cap = TIL_CAP_LIT},
     .h4b7ddd6b0b52 = (Str){.c_str = (void *)"TilClosure *til_closure_arg_", .count = 28ULL, .cap = TIL_CAP_LIT},
+    .hd21116b383e4 = (Str){.c_str = (void *)"TilMemMove", .count = 10ULL, .cap = TIL_CAP_LIT},
     .h146a5f2468c0 = (Str){.c_str = (void *)"TilRuntime.", .count = 11ULL, .cap = TIL_CAP_LIT},
     .he855f6161476 = (Str){.c_str = (void *)"TilRuntime.Ptr", .count = 14ULL, .cap = TIL_CAP_LIT},
     .hf314b8e7e6c0 = (Str){.c_str = (void *)"TilRuntime.load", .count = 15ULL, .cap = TIL_CAP_LIT},
@@ -7780,9 +7784,9 @@ static Str hoisted__Str_get_ref_arg_4 = (Str){.c_str = (void *)"./src/self/parse
 static Str hoisted__Str_get_splat_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:2942:27", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_hb_func_def_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:4176:33", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_hb_func_def_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4176:27", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_holyc_codegen_translate_41 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:967:45", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_holyc_codegen_translate_53 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:974:45", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_holyc_codegen_translate_73 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:983:49", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_holyc_codegen_translate_41 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:978:45", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_holyc_codegen_translate_53 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:985:45", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_holyc_codegen_translate_73 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:994:49", .count = 35ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_import_path_for_stmt_5 = (Str){.c_str = (void *)"./src/self/context.til:923:50", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_infer_body_stmt_14 = (Str){.c_str = (void *)"./src/self/typer.til:7804:21", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_infer_body_stmt_22 = (Str){.c_str = (void *)"./src/self/typer.til:7819:26", .count = 28ULL, .cap = TIL_CAP_LIT};
@@ -12321,7 +12325,7 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-11da1c77b", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-2725deb", .count = 13ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -213422,7 +213426,7 @@ static Str priv___src_self_holyc_codegen_til__holyc_expr(Expr * e, Context * ctx
                                     Str runtime_name = (Str){.c_str = (void *)"TilMemCpy", .count = 9ULL, .cap = TIL_CAP_LIT};
                                     Bool hoisted__Bool_789 = Str_eq(name, &_til_str_lits.hd0b4bdd69f1b);
                                     if (hoisted__Bool_789) {
-                                        { Str _new = (Str){.c_str=(void*)"TilMemMove", .count=10ULL, .cap=TIL_CAP_LIT}; Str_delete(&runtime_name, (Bool){0}); runtime_name = _new; }
+                                        { Str _new = _til_str_lits.hd21116b383e4; Str_delete(&runtime_name, (Bool){0}); runtime_name = _new; }
                                     }
                                     U32 hoisted__U32_790 = 8;
                                     Array__Str _va_Array_61 = Array__Str_new(hoisted__U32_790);
@@ -215860,10 +215864,100 @@ static void priv___src_self_holyc_codegen_til__holyc_append_function_outputs(Exp
     }
 }
 
+static Str priv___src_self_holyc_codegen_til__holyc_runtime_decl(Str * name, Str * decl, Str * rest) {
+    Bool hoisted__Bool_1 = Str_contains(rest, name);
+    Bool hoisted__Bool_2 = ((Bool)(!(hoisted__Bool_1)));
+    if (hoisted__Bool_2) {
+        { Str _ret = _til_str_lits.h000000001505; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    }
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_decl_3 = Str_clone(decl);
+    { Str _ret = hoisted__Str_self_holyc_codegen_holyc_runtime_decl_3; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+}
+
+static Str priv___src_self_holyc_codegen_til__holyc_runtime_prelude(Str * rest) {
+    U32 hoisted__U32_0 = 15;
+    Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
+    I64 _va_Array_0_ek = 0;
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_1 = (Str){.c_str = (void *)"TilMAlloc", .count = 9ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_2 = (Str){.c_str = (void *)"extern U8 *TilMAlloc(U64 count);\n", .count = 33ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_3 = 0;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_4 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_1, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_2, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_4, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_5 = (Str){.c_str = (void *)"TilCAlloc", .count = 9ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_6 = (Str){.c_str = (void *)"extern U8 *TilCAlloc(U64 nmemb,U64 size);\n", .count = 42ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_7 = 1;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_8 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_5, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_6, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_7, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_8, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_9 = (Str){.c_str = (void *)"TilReAlloc", .count = 10ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_10 = (Str){.c_str = (void *)"extern U8 *TilReAlloc(U8 *ptr,U64 count);\n", .count = 42ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_11 = 2;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_12 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_9, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_10, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_11, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_12, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_13 = (Str){.c_str = (void *)"TilFree", .count = 7ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_14 = (Str){.c_str = (void *)"extern U0 TilFree(U8 *ptr);\n", .count = 28ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_15 = 3;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_16 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_13, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_14, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_15, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_16, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_17 = (Str){.c_str = (void *)"TilMemCpy", .count = 9ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_18 = (Str){.c_str = (void *)"extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);\n", .count = 49ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_19 = 4;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_20 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_17, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_18, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_19, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_20, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_22 = (Str){.c_str = (void *)"extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);\n", .count = 50ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_23 = 5;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_24 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&_til_str_lits.hd21116b383e4, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_22, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_23, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_24, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_25 = (Str){.c_str = (void *)"TilMemSet", .count = 9ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_26 = (Str){.c_str = (void *)"extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);\n", .count = 51ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_27 = 6;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_28 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_25, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_26, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_27, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_28, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_29 = (Str){.c_str = (void *)"TilMemCmp", .count = 9ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_30 = (Str){.c_str = (void *)"extern I32 TilMemCmp(U8 *a,U8 *b,U64 count);\n", .count = 45ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_31 = 7;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_32 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_29, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_30, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_31, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_32, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_33 = (Str){.c_str = (void *)"TilRawWrite", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_34 = (Str){.c_str = (void *)"extern U0 TilRawWrite(U8 *data,U64 count);\n", .count = 43ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_35 = 8;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_36 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_33, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_34, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_35, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_36, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_37 = (Str){.c_str = (void *)"TilPanic", .count = 8ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_38 = (Str){.c_str = (void *)"extern U0 TilPanic(U8 *data,U64 count);\n", .count = 40ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_39 = 9;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_40 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_37, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_38, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_39, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_40, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_41 = (Str){.c_str = (void *)"TilNullDeref", .count = 12ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_42 = (Str){.c_str = (void *)"extern U0 TilNullDeref();\n", .count = 26ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_43 = 10;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_44 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_41, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_42, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_43, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_44, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_45 = (Str){.c_str = (void *)"TilCheckPtr", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_46 = (Str){.c_str = (void *)"extern U8 *TilCheckPtr(U8 *ptr);\n", .count = 33ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_47 = 11;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_48 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_45, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_46, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_47, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_48, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_49 = (Str){.c_str = (void *)"TilDeref", .count = 8ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_50 = (Str){.c_str = (void *)"extern U8 *TilDeref(U8 **slot);\n", .count = 32ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_51 = 12;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_52 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_49, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_50, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_51, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_52, &_va_Array_0_ek);
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_53 = (Str){.c_str = (void *)"TilWritePtr", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_54 = (Str){.c_str = (void *)"extern U0 TilWritePtr(U8 *slot,U8 *value);\n", .count = 43ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_55 = 13;
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_56 = priv___src_self_holyc_codegen_til__holyc_runtime_decl(&hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_53, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_54, rest);
+    Array__Str_set(&_va_Array_0, hoisted__U32_55, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_56, &_va_Array_0_ek);
+    U32 hoisted__U32_57 = 14;
+    static Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_58 = (Str){.c_str = (void *)"\n#include \"/Home/Ext.HC\"\n\n", .count = 26ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_0, hoisted__U32_57, &hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_58, &_va_Array_0_ek);
+    Str hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_59 = format(&_va_Array_0);
+    { Str _ret = hoisted__Str_self_holyc_codegen_holyc_runtime_prelude_59; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+}
+
 static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
     I64 _err_kind = 0;
-    Bool hoisted__Bool_98 = Str_neq(&lp->mode_str, &_til_str_lits.h06531b600fba);
-    if (hoisted__Bool_98) {
+    Bool hoisted__Bool_106 = Str_neq(&lp->mode_str, &_til_str_lits.h06531b600fba);
+    if (hoisted__Bool_106) {
         U32 hoisted__U32_0 = 1;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
@@ -215874,10 +215968,10 @@ static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
         I64 hoisted__I64_3 = 1;
         return hoisted__I64_3;
     }
-    U32 hoisted__U32_99 = (lp->link_c_paths.count);
-    U32 hoisted__U32_100 = 0;
-    Bool hoisted__Bool_101 = ((Bool)(hoisted__U32_99 > hoisted__U32_100));
-    if (hoisted__Bool_101) {
+    U32 hoisted__U32_107 = (lp->link_c_paths.count);
+    U32 hoisted__U32_108 = 0;
+    Bool hoisted__Bool_109 = ((Bool)(hoisted__U32_107 > hoisted__U32_108));
+    if (hoisted__Bool_109) {
         U32 hoisted__U32_4 = 1;
         Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_4);
         I64 _va_Array_1_ek = 0;
@@ -215928,20 +216022,20 @@ static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
         return hoisted__I64_25;
     }
     Str compiler_root = Str_strip_suffix(&lp->ext_c_path, &_til_str_lits.h53d5b0b01f3f);
-    U32 hoisted__U32_103 = 2;
-    Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_103);
-    I64 _va_Array_12_ek = 0;
-    U32 hoisted__U32_104 = 0;
-    Str hoisted__Str_holyc_codegen_translate_105 = Str_clone(&compiler_root);
-    Array__Str_set(&_va_Array_12, hoisted__U32_104, &hoisted__Str_holyc_codegen_translate_105, &_va_Array_12_ek);
-    U32 hoisted__U32_106 = 1;
-    static Str hoisted__Str_holyc_codegen_translate_107 = (Str){.c_str = (void *)"/src/holyc/ext.HC", .count = 17ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_12, hoisted__U32_106, &hoisted__Str_holyc_codegen_translate_107, &_va_Array_12_ek);
-    Str runtime_path = format(&_va_Array_12);
+    U32 hoisted__U32_111 = 2;
+    Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_111);
+    I64 _va_Array_14_ek = 0;
+    U32 hoisted__U32_112 = 0;
+    Str hoisted__Str_holyc_codegen_translate_113 = Str_clone(&compiler_root);
+    Array__Str_set(&_va_Array_14, hoisted__U32_112, &hoisted__Str_holyc_codegen_translate_113, &_va_Array_14_ek);
+    U32 hoisted__U32_114 = 1;
+    static Str hoisted__Str_holyc_codegen_translate_115 = (Str){.c_str = (void *)"/src/holyc/ext.HC", .count = 17ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_14, hoisted__U32_114, &hoisted__Str_holyc_codegen_translate_115, &_va_Array_14_ek);
+    Str runtime_path = format(&_va_Array_14);
     Str_delete(&compiler_root, (Bool){0});
-    Bool hoisted__Bool_108 = File_is_file(&runtime_path);
-    Bool hoisted__Bool_109 = ((Bool)(!(hoisted__Bool_108)));
-    if (hoisted__Bool_109) {
+    Bool hoisted__Bool_116 = File_is_file(&runtime_path);
+    Bool hoisted__Bool_117 = ((Bool)(!(hoisted__Bool_116)));
+    if (hoisted__Bool_117) {
         U32 hoisted__U32_26 = 2;
         Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_26);
         I64 _va_Array_4_ek = 0;
@@ -215963,12 +216057,12 @@ static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
         return hoisted__I64_34;
     }
     Str_delete(&runtime_path, (Bool){0});
-    Bool hoisted__Bool_110 = 0;
-    Bool hoisted__Bool_111 = 0;
+    Bool hoisted__Bool_118 = 0;
+    Bool hoisted__Bool_119 = 0;
     priv___src_self_holyc_codegen_til__HolyCEmitState state = {0};
     state.user_functions = Set__Str_new();
-    state.needs_i64_div = hoisted__Bool_110;
-    state.needs_i64_mod = hoisted__Bool_111;
+    state.needs_i64_div = hoisted__Bool_118;
+    state.needs_i64_mod = hoisted__Bool_119;
     {
         Vec__ProgramUnit *_fc_Vec__ProgramUnit_35 = lp->units;
         USize _fi_USize_35 = 0;
@@ -216038,10 +216132,10 @@ static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
             }
         }
     }
-    U32 hoisted__U32_112 = (prototypes.count);
-    U32 hoisted__U32_113 = 0;
-    Bool hoisted__Bool_114 = ((Bool)(hoisted__U32_112 > hoisted__U32_113));
-    if (hoisted__Bool_114) {
+    U32 hoisted__U32_120 = (prototypes.count);
+    U32 hoisted__U32_121 = 0;
+    Bool hoisted__Bool_122 = ((Bool)(hoisted__U32_120 > hoisted__U32_121));
+    if (hoisted__Bool_122) {
         U32 hoisted__U32_62 = 2;
         Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_62);
         I64 _va_Array_8_ek = 0;
@@ -216058,10 +216152,10 @@ static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
     _sc1.values = Vec__Str_clone(&_til_precomputed_sequence_571);
  _sc1; });
     main_locals.str_names = Set__Str_new();
-    U32 hoisted__U32_115 = (validation_error.count);
-    U32 hoisted__U32_116 = 0;
-    Bool hoisted__Bool_117 = ((Bool)(hoisted__U32_115 == hoisted__U32_116));
-    if (hoisted__Bool_117) {
+    U32 hoisted__U32_123 = (validation_error.count);
+    U32 hoisted__U32_124 = 0;
+    Bool hoisted__Bool_125 = ((Bool)(hoisted__U32_123 == hoisted__U32_124));
+    if (hoisted__Bool_125) {
         {
             Vec__ProgramUnit *_fc_Vec__ProgramUnit_67 = lp->units;
             USize _fi_USize_67 = 0;
@@ -216111,10 +216205,10 @@ static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
         }
     }
     priv___src_self_holyc_codegen_til__HolyCLocalState_delete(&main_locals, (Bool){0});
-    U32 hoisted__U32_118 = (validation_error.count);
-    U32 hoisted__U32_119 = 0;
-    Bool hoisted__Bool_120 = ((Bool)(hoisted__U32_118 > hoisted__U32_119));
-    if (hoisted__Bool_120) {
+    U32 hoisted__U32_126 = (validation_error.count);
+    U32 hoisted__U32_127 = 0;
+    Bool hoisted__Bool_128 = ((Bool)(hoisted__U32_126 > hoisted__U32_127));
+    if (hoisted__Bool_128) {
         U32 hoisted__U32_89 = 2;
         Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_89);
         I64 _va_Array_11_ek = 0;
@@ -216133,33 +216227,70 @@ static I32 holyc_codegen_translate(LoadedProgram * lp, Str * output_path) {
         Str_delete(&validation_error, (Bool){0});
         return hoisted__I64_94;
     }
-    Bool hoisted__Bool_121 = 1;
-    File f = File_new(output_path, &hoisted__Bool_121);
-    static Str hoisted__Str_holyc_codegen_translate_122 = (Str){.c_str = (void *)"extern U8 *TilMAlloc(U64 count);\nextern U8 *TilCAlloc(U64 nmemb,U64 size);\nextern U8 *TilReAlloc(U8 *ptr,U64 count);\nextern U0 TilFree(U8 *ptr);\nextern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);\nextern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);\nextern U8 *TilMemSet(U8 *dst,I64 value,U64 count);\nextern I32 TilMemCmp(U8 *a,U8 *b,U64 count);\nextern U0 TilRawWrite(U8 *data,U64 count);\nextern U0 TilPanic(U8 *data,U64 count);\nextern U0 TilNullDeref();\nextern U8 *TilCheckPtr(U8 *ptr);\nextern U8 *TilDeref(U8 **slot);\nextern U0 TilWritePtr(U8 *slot,U8 *value);\n\n#include \"/Home/Ext.HC\"\n\n", .count = 583ULL, .cap = TIL_CAP_LIT};
-    File_write(&f, &hoisted__Str_holyc_codegen_translate_122);
+    Str helpers = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT};
     if (state.needs_i64_div) {
-        static Str hoisted__Str_holyc_codegen_translate_95 = (Str){.c_str = (void *)"I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n", .count = 81ULL, .cap = TIL_CAP_LIT};
-        File_write(&f, &hoisted__Str_holyc_codegen_translate_95);
+        U32 hoisted__U32_95 = 2;
+        Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_95);
+        I64 _va_Array_12_ek = 0;
+        U32 hoisted__U32_96 = 0;
+        Str hoisted__Str_holyc_codegen_translate_97 = Str_clone(&helpers);
+        Array__Str_set(&_va_Array_12, hoisted__U32_96, &hoisted__Str_holyc_codegen_translate_97, &_va_Array_12_ek);
+        U32 hoisted__U32_98 = 1;
+        static Str hoisted__Str_holyc_codegen_translate_99 = (Str){.c_str = (void *)"I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n", .count = 81ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_12, hoisted__U32_98, &hoisted__Str_holyc_codegen_translate_99, &_va_Array_12_ek);
+        { Str _new = format(&_va_Array_12); Str_delete(&helpers, (Bool){0}); helpers = _new; }
     }
     if (state.needs_i64_mod) {
-        static Str hoisted__Str_holyc_codegen_translate_96 = (Str){.c_str = (void *)"I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n", .count = 81ULL, .cap = TIL_CAP_LIT};
-        File_write(&f, &hoisted__Str_holyc_codegen_translate_96);
+        U32 hoisted__U32_100 = 2;
+        Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_100);
+        I64 _va_Array_13_ek = 0;
+        U32 hoisted__U32_101 = 0;
+        Str hoisted__Str_holyc_codegen_translate_102 = Str_clone(&helpers);
+        Array__Str_set(&_va_Array_13, hoisted__U32_101, &hoisted__Str_holyc_codegen_translate_102, &_va_Array_13_ek);
+        U32 hoisted__U32_103 = 1;
+        static Str hoisted__Str_holyc_codegen_translate_104 = (Str){.c_str = (void *)"I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n", .count = 81ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_13, hoisted__U32_103, &hoisted__Str_holyc_codegen_translate_104, &_va_Array_13_ek);
+        { Str _new = format(&_va_Array_13); Str_delete(&helpers, (Bool){0}); helpers = _new; }
     }
     priv___src_self_holyc_codegen_til__HolyCEmitState_delete(&state, (Bool){0});
+    U32 hoisted__U32_129 = 4;
+    Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_129);
+    I64 _va_Array_15_ek = 0;
+    U32 hoisted__U32_130 = 0;
+    Str hoisted__Str_holyc_codegen_translate_131 = Str_clone(&helpers);
+    Array__Str_set(&_va_Array_15, hoisted__U32_130, &hoisted__Str_holyc_codegen_translate_131, &_va_Array_15_ek);
+    U32 hoisted__U32_132 = 1;
+    Str hoisted__Str_holyc_codegen_translate_133 = Str_clone(&prototypes);
+    Array__Str_set(&_va_Array_15, hoisted__U32_132, &hoisted__Str_holyc_codegen_translate_133, &_va_Array_15_ek);
+    U32 hoisted__U32_134 = 2;
+    Str hoisted__Str_holyc_codegen_translate_135 = Str_clone(&definitions);
+    Array__Str_set(&_va_Array_15, hoisted__U32_134, &hoisted__Str_holyc_codegen_translate_135, &_va_Array_15_ek);
+    U32 hoisted__U32_136 = 3;
+    Str hoisted__Str_holyc_codegen_translate_137 = Str_clone(&body);
+    Array__Str_set(&_va_Array_15, hoisted__U32_136, &hoisted__Str_holyc_codegen_translate_137, &_va_Array_15_ek);
+    Str rest = format(&_va_Array_15);
+    Bool hoisted__Bool_138 = 1;
+    File f = File_new(output_path, &hoisted__Bool_138);
+    Str hoisted__Str_holyc_codegen_translate_139 = priv___src_self_holyc_codegen_til__holyc_runtime_prelude(&rest);
+    File_write(&f, &hoisted__Str_holyc_codegen_translate_139);
+    Str_delete(&hoisted__Str_holyc_codegen_translate_139, (Bool){0});
+    File_write(&f, &helpers);
+    Str_delete(&helpers, (Bool){0});
     File_write(&f, &prototypes);
     File_write(&f, &definitions);
     Str_delete(&definitions, (Bool){0});
-    static Str hoisted__Str_holyc_codegen_translate_123 = (Str){.c_str = (void *)"I64 TilMain()\n{\n", .count = 16ULL, .cap = TIL_CAP_LIT};
-    File_write(&f, &hoisted__Str_holyc_codegen_translate_123);
+    static Str hoisted__Str_holyc_codegen_translate_140 = (Str){.c_str = (void *)"I64 TilMain()\n{\n", .count = 16ULL, .cap = TIL_CAP_LIT};
+    File_write(&f, &hoisted__Str_holyc_codegen_translate_140);
     File_write(&f, &body);
     Str_delete(&body, (Bool){0});
-    static Str hoisted__Str_holyc_codegen_translate_124 = (Str){.c_str = (void *)"    return 0;\n}\n\nTilMain;\n", .count = 26ULL, .cap = TIL_CAP_LIT};
-    File_write(&f, &hoisted__Str_holyc_codegen_translate_124);
+    static Str hoisted__Str_holyc_codegen_translate_141 = (Str){.c_str = (void *)"    return 0;\n}\n\nTilMain;\n", .count = 26ULL, .cap = TIL_CAP_LIT};
+    File_write(&f, &hoisted__Str_holyc_codegen_translate_141);
     File_delete(&f, (Bool){0});
     Str_delete(&prototypes, (Bool){0});
+    Str_delete(&rest, (Bool){0});
     Str_delete(&validation_error, (Bool){0});
-    I64 hoisted__I64_125 = 0;
-    return hoisted__I64_125;
+    I64 hoisted__I64_142 = 0;
+    return hoisted__I64_142;
 }
 
 static void priv___src_self_jvm_codegen_til__JvmEmitState_delete(priv___src_self_jvm_codegen_til__JvmEmitState * self, Bool call_free) {
