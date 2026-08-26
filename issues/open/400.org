@@ -1,0 +1,58 @@
+# priority: low
+# category: bugs
+** OPEN #400 Dynamic's width is written down twice, and only one copy follows the target
+
+~Dynamic~ means "one machine word", but the codebase spells that width two
+different ways, and they only agree because every exercised target has 8-byte
+pointers:
+
+- The til side says a literal 8. ~Dynamic.size()~ (src/core/dyn.til) returns
+  ~8~; ~PTR_SIZE_BYTES : USize = 8~ in src/self/typer.til feeds every "is one
+  8-byte word" diagnostic and the ~dynamic_slot_overflow~ threshold; the
+  interpreter's ~h_dyn_size_of~ defaults ~sz~ to 8; and
+  ~Tuple.push_all_dynamic~ (src/core/tuple.til) hard-codes ~malloc(8)~ /
+  ~memcpy(.., 8)~ for a splatted raw word.
+- The emitted C says ~sizeof(void *)~. #394 fixed the compiled
+  ~dyn_size_of("Dynamic")~ arm to exactly that, on the argument that the C
+  side "stays right if a pointer is ever not eight bytes" -- which is true,
+  and is precisely how the two copies part ways.
+
+On a target where a pointer is not 8 bytes the two answers diverge:
+~Array(Dynamic)~ / ~Vec(Dynamic)~ size elements through ~T.size()~ (the til
+literal, 8) while the runtime string-keyed ~dyn_size_of("Dynamic")~ answers
+~sizeof(void *)~, so a Tuple element tagged "Dynamic" and a raw container
+slot would disagree about element width -- the same class of split #394
+closed, reopened one abstraction level up.
+
+This is not purely hypothetical: ~Target.Wasm32~ is a live target
+(src/self/builder.til builds it, GUI mode emits .html) and wasm32 pointers
+are 4 bytes. Nothing exercises Dynamic-heavy paths there today, which is why
+nothing is observably broken -- hence low priority -- and #313 (narrowing
+UPtr on 64-bit hosts) would move the same fault line onto mainstream builds
+if it ever lands.
+
+*** Fix direction
+
+One authority for the width, target-aware, that both spellings read:
+
+- The typer already knows the target when it folds ~Dynamic.size()~ and when
+  it compares against ~PTR_SIZE_BYTES~; #309 solved the same problem for
+  USize with ~ctx.target_usize_bytes~ plus C-side ~sizeof~ through real
+  typedefs. The same route fits here: a per-target pointer width on ctx that
+  ~Dynamic.size()~'s fold, ~PTR_SIZE_BYTES~'s users, ~h_dyn_size_of~, and
+  the diagnostics' "8-byte word" text all consult.
+- ~Tuple.push_all_dynamic~'s literal 8s become ~Dynamic.size()~ so core
+  stops carrying a third copy.
+
+Until then the invariant to not break: every current target has 8-byte
+pointers, so the literal and the sizeof agree -- any new target that does
+not (or #313) must pick up this issue first.
+
+*** Regression test
+
+Cross-width is not runnable until such a target is exercised, so the
+pinnable part today is single-authority: ~dyn_size_of("Dynamic")~ (runtime
+spelling, behind a func) == ~Dynamic.size()~ on both backends -- half of
+which test_dyn_size_of already asserts -- plus a grep-level check is not
+worth automating; the real test arrives with the first 4-byte-pointer
+target's suite run.
