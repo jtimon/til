@@ -5916,6 +5916,13 @@ priv fcall_has_injected_err_arg := func(e: Expr, symbols: SymbolPool) returns Bo
     return false
 }
 
+priv return_fieldaccess_root := func(e: Expr) returns ref Expr {
+    if e.node_type.is(NodeType.FieldAccess).and(e.children.len().gt(0)) {
+        return return_fieldaccess_root(e.children[0])
+    }
+    return e
+}
+
 priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
     if stmt.children.len() > 0 {
@@ -5981,6 +5988,40 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
                 .and(fcall_returns_ref(ret_val, scope, ctx.symbols).neq(0))
                 .and(fcall_has_injected_err_arg(ret_val, ctx.symbols).or(is_aggregate(stmt.til_type()))) {
                 stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
+            }
+            // #399: the aggregate FIELD of a borrowed element is the same
+            // borrowed block one hop down: `return ss[0].t` hands back a
+            // by-value copy whose heap still belongs to the element, and
+            // the container dies with this call. The return-position
+            // hoist cannot save it -- copying an aggregate copies its
+            // pointers, not the bytes behind them -- so reject it the way
+            // #286 rejects returning the element itself. A parameter root
+            // is exempt: its storage is the caller's and outlives us.
+            ret_agg_tn := type_to_name(stmt.til_type())
+            mut ret_agg_owns_heap := is_aggregate(stmt.til_type())
+            if ret_agg_owns_heap.and(ret_agg_tn.len().gt(0)) {
+                // A POD aggregate (delete is a no-op) owns nothing; the
+                // return-position hoist detaches it safely, so only the
+                // heap-owning ones are rejected.
+                if init_delete_is_noop(ret_agg_tn, scope, ctx.symbols) { ret_agg_owns_heap = false }
+            }
+            if ret_agg_owns_heap.and(ret_val.node_type.is(NodeType.FieldAccess)) {
+                ref agg_root : Expr = return_fieldaccess_root(ret_val)
+                mut agg_borrowed := false
+                switch agg_root.node_type {
+                case .FCall:
+                    agg_borrowed = fcall_returns_ref(agg_root, scope, ctx.symbols) != 0
+                case .Ident(agg_rid):
+                    ab_o := scope.get_binding_sym(agg_rid.ident_sym())
+                    if ab_o.is_some() {
+                        ref ab : TypeBinding = ab_o.unwrap()
+                        agg_borrowed = ab.own_type.is(OwnType.Ref).and(ab.is_param.not())
+                    }
+                case:
+                }
+                if agg_borrowed {
+                    stmt.type_error("cannot return an aggregate field reached through a borrow: the by-value copy shares heap that dies with the borrow's owner; use .clone(), or 'returns ref'", ctx)
+                }
             }
             check_carried_borrow_of_local_return(scope, stmt, ctx)
             check_str_view_of_local_return(scope, stmt, ctx)
@@ -7960,7 +8001,7 @@ infer_body := proc(mut scope: TypeScope, mut body: Expr, in_func: I32, owns_scop
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         i++
     }
-    if body_pre_passes(ctx, body, scope, owns_scope) {
+    if body_pre_passes(ctx, body, scope, owns_scope, returns_ref) {
         reregister_scope_defs(body, scope, ctx.symbols)
     }
 }
@@ -8060,7 +8101,7 @@ priv infer_body_unit := proc(mut scope: TypeScope, mut body: Expr, in_func: I32,
         flush_generic_pending(scope, body, ctx)
         i++
     }
-    if body_pre_passes(ctx, body, scope, owns_scope) {
+    if body_pre_passes(ctx, body, scope, owns_scope, returns_ref) {
         reregister_scope_defs(body, scope, ctx.symbols)
     }
 }

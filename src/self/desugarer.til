@@ -4624,7 +4624,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
 // Compile directives (link / link_c / import) flow through untouched:
 // the call-desugar walk is a no-op on them, the hoist switch's default
 // case skips them, and field_delete is FieldAssign-only.
-body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, owns_scope: I32) returns Bool {
+body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, owns_scope: I32, returns_ref: I32) returns Bool {
     mut has_set_lit := false
     mut has_map_lit := false
     mut has_array_vec := false
@@ -4713,11 +4713,11 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
         if stmt_handled {
             for j in 0..temp_ch.len() {
                 ref mut ts : Expr = temp_ch[j]
-                apply_call_hoist_delete(ctx, ts, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete)
+                apply_call_hoist_delete(ctx, ts, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete, returns_ref)
                 new_ch.push_take(temp_ch, j)
             }
         } else {
-            apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete)
+            apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete, returns_ref)
             new_ch.push_take(old, i)
         }
     }
@@ -4827,7 +4827,7 @@ hoist_constfolded_stack_outer_ctors := proc(mut ctx: Context, mut program: Expr)
 
 // Apply per-stmt hoist (the body_pre_passes equivalent of the old
 // hoist_fcall_args dispatch). Prepends any new temp Decls to new_ch.
-priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) {
+priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, returns_ref: I32) {
     mut hoisted := Vec(Expr).new()
     switch stmt.node_type {
     case .Decl:
@@ -4835,7 +4835,7 @@ priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: V
     case .FCall:
         hoist_stmt_fcall(ctx, stmt, hoisted, scope)
     case .Return:
-        hoist_return_expr(ctx, stmt, hoisted, scope)
+        hoist_return_expr(ctx, stmt, hoisted, scope, returns_ref)
     case .Assign:
         hoist_assign_rhs(ctx, stmt, hoisted, scope)
         hoist_param_swap_assign(ctx, stmt, hoisted, scope)
@@ -4859,19 +4859,19 @@ priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: V
 // must be hoisted into a temp Decl so the builder takes its address).
 // To match the original two-pass flow, every desugar-emitted stmt is
 // routed through hoist before being pushed.
-priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool) {
+priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool, returns_ref: I32) {
     if is_compile_directive(stmt, ctx.symbols) { return }
     if has_array_vec.or(has_variadic).or(has_kwargs) {
         mut emitted := Vec(Expr).new()
         process_call_desugars(ctx, stmt, emitted, scope, has_array_vec, has_variadic, has_kwargs)
         for j in 0..emitted.len() {
             ref mut es : Expr = emitted[j]
-            if do_hoist { apply_hoist_to_stmt(ctx, es, new_ch, scope) }
+            if do_hoist { apply_hoist_to_stmt(ctx, es, new_ch, scope, returns_ref) }
             new_ch.push_take(emitted, j)
         }
     }
     if do_hoist {
-        apply_hoist_to_stmt(ctx, stmt, new_ch, scope)
+        apply_hoist_to_stmt(ctx, stmt, new_ch, scope, returns_ref)
     }
     if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
         if field_assign_needs_delete(stmt, scope, ctx.symbols) {
@@ -5233,7 +5233,14 @@ priv hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Ex
     }
 }
 
-priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
+priv hoist_fieldaccess_root := func(e: Expr) returns ref Expr {
+    if e.node_type.is(NodeType.FieldAccess).and(e.children.len().gt(0)) {
+        return hoist_fieldaccess_root(e.children[0])
+    }
+    return e
+}
+
+priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope, returns_ref: I32) {
     if stmt.children.len() == 0 { return }
     hoist_expr(ctx, stmt.children[0], hoisted, scope)
     ref rhs : Expr = stmt.children[0]
@@ -5241,6 +5248,54 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     .or(rhs.node_type.is_nonnull_literal()) {
         replacement := hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
         stmt.children[0] = replacement
+        return
+    }
+    // #399: a field read THROUGH A BORROW OF A LOCAL, still sitting in
+    // return position, is evaluated after the exit deletes -- the
+    // garbager's return-operand exclusion is textual, so it protects the
+    // ref temp but not the container the temp points into, and
+    // `return ps[0].v` read freed memory (heap-use-after-free, both
+    // backends). Hoist the read into a value temp so it happens before
+    // the deletes. Params are exempt (their storage is the caller's, no
+    // local delete touches it -- and hoisting every `return self.x`
+    // would churn the world), aggregates copy pointers rather than the
+    // bytes behind them so a hoist alone cannot save those (rejected
+    // separately), and a ref-returning function must hand back the
+    // ADDRESS, which a value temp would destroy.
+    if returns_ref != 0 { return }
+    if rhs.node_type.is(NodeType.FieldAccess).not() { return }
+    // An aggregate whose delete is a no-op is a plain bit-copy: hoisting
+    // it detaches it from the dying container just like a primitive. One
+    // that owns heap cannot be saved by a copy (the pointers come along,
+    // the bytes behind them die) -- infer_return_stmt rejects those.
+    if is_aggregate(rhs.til_type()) {
+        agg_tn := type_to_name(rhs.til_type())
+        if agg_tn.len() == 0 { return }
+        if init_delete_is_noop(agg_tn, scope, ctx.symbols).not() { return }
+    }
+    ref root : Expr = hoist_fieldaccess_root(rhs)
+    mut root_name := ""
+    switch root.node_type {
+    case .Ident(rid):
+        root_name = Str.clone(rid.ident_name(ctx.symbols.names))
+    case .FCall:
+        // `return ps[0].v` before the bang lowering: the root is still
+        // the ref-returning call itself. Same read-through-a-borrow, one
+        // pass earlier.
+        if fcall_returns_ref(root, scope, ctx.symbols) != 0 {
+            stmt.children[0] = hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
+        }
+        return
+    case: return
+    }
+    if root_name.len() == 0 { return }
+    sf := scope.find_name(root_name, ctx.symbols)
+    switch sf {
+    case .Found(rb):
+        if rb.own_type.is(OwnType.Ref).and(rb.is_param.not()) {
+            stmt.children[0] = hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
+        }
+    case:
     }
 }
 

@@ -4305,7 +4305,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
     // typed cleanly the first time. That is why `c := Color(r = 255, g = 0,
     // b = 0, a = 255)` failed at the REPL but worked in a file: only this
     // delta path re-typed, and only turns that skip the full load reach it.
-    if body_pre_passes(lp.ctx, delta, lp.ctx.scope, 1) {
+    if body_pre_passes(lp.ctx, delta, lp.ctx.scope, 1, 0) {
         reregister_repl_scope_defs(delta, lp.ctx.scope, lp.ctx.symbols)
     }
     garbager_destroy_body(lp.ctx, delta, lp.ctx.scope)

@@ -1,0 +1,58 @@
+# priority: high
+# category: bugs
+** FIXED #399 A field read through a borrow, in return position, reads freed memory
+
+*** Post-mortem
+
+Root cause: the garbager's return-site delete exclusion is TEXTUAL
+(expr_uses_var on the return operand), so it protects the ref temp the
+operand names but not the container the temp points into. For
+`return ps[0].v` the bang lowering leaves `return _bang_ret_0.v`, the
+exclusion sees only `_bang_ret_0`, and `Vec__P_delete(&ps)` lands
+BEFORE the read -- a heap-use-after-free that returned whatever the
+allocator wrote over the element (an address, in practice).
+
+Three things kept it invisible:
+
+- The constfolder evaluates a pure call at compile time through the
+  interpreter and bakes the folded value in, so BOTH backends printed
+  the same garbage -- the interp-vs-compiled divergence net that caught
+  every #344-family bug saw agreement.
+- ASAN was clean on the folded form for the same reason: the broken
+  code never ran at runtime. An unfoldable variant (argument derived
+  from clock_ms) showed the truth: backends diverging, and ASAN
+  reporting heap-use-after-free at the return.
+- The typer's own guard family stops one hop short: `return xs[0]` IS
+  rejected ("cannot own result of ref-returning function"), but a
+  field access on top slipped through.
+
+Fix, two halves:
+
+- Primitive fields: hoist_return_expr (desugarer) now hoists a
+  FieldAccess return operand into a value temp when the read goes
+  through a borrow of a LOCAL -- the chain root is a ref-returning call
+  (pre-bang-lowering) or a non-param Ref binding (a `ref` local, a bang
+  temp). The read then happens before the exit deletes, and the
+  garbager needs no change. Parameters are exempt (their storage is the
+  caller's, and hoisting every `return self.x` would churn the world);
+  ref-returning functions are exempt (they must hand back the ADDRESS,
+  which a value temp would destroy). body_pre_passes threads the
+  enclosing returns_ref down to make that gate possible.
+- Aggregate fields: a hoist cannot save `return ss[0].t` -- copying an
+  aggregate copies its pointers, not the bytes behind them, so the copy
+  shares heap that dies with the container. Rejected in
+  infer_return_stmt the way #286 rejects returning the element itself,
+  naming .clone() and 'returns ref' as the fixes. (This shape also
+  crashed `til test` outright on master, interpreting to silence and
+  segfaulting compiled.)
+
+Found while probing for #398 follow-ups: a false-positive battery
+happened to return a written element field directly, and the assert
+failed on an address where an 8 belonged.
+
+Regression tests: test/ref.til test_return_field_through_elem_borrow /
+test_return_field_through_ref_binding (both backends agree on the
+value, where before both agreed on garbage);
+test/typer_errors.til terr399_agg_field (one rejection; count 251 ->
+252). The clone spelling and `returns ref` accessor shapes are pinned
+by the same positive test.

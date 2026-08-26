@@ -1678,3 +1678,15 @@ terr396_ctor := proc() {
     bx := Terr396Box(p = terr391_s.c_str)
     if bx.p == 0 { println("z") }
 }
+
+// #399: the aggregate FIELD of a borrowed element, returned by value,
+// shares heap that dies with the container -- a hoist copies the
+// pointers, not the bytes behind them, so this is rejected the way #286
+// rejects returning the element itself. The clone spelling is pinned by
+// test/ref.til's bp399_agg_clone.
+Terr399S := struct { t := "x" }
+terr399_agg_field := func() returns Str {
+    mut ss := Vec(Terr399S).new()
+    ss.push(own Terr399S(t = format("he", "llo")))
+    return ss[0].t
+}

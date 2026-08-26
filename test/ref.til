@@ -556,3 +556,48 @@ test_borrow_root_callee_deposit_generic := test() {
     bp398_via_generic(s)
     assert_eq(I64, s.held.n, 2)
 }
+
+# --- #399: a field read through a borrow, in return position ---
+#
+# The garbager's return-site delete exclusion is textual, so the ref
+# temp in the operand was protected but not the container it points
+# into: `return ps[0].v` freed ps first and read the element after --
+# heap-use-after-free, and the constfolder baked the garbage into BOTH
+# backends so they agreed on it. The reads below now happen before the
+# deletes (hoisted by the desugarer), and both backends must agree on
+# the true values.
+
+Bp399P := struct { v := 0 }
+
+bp399_direct := func() returns I64 {
+    mut ps := Vec(Bp399P).new()
+    ps.push(own Bp399P(v = 7))
+    return ps[0].v
+}
+
+test_return_field_through_elem_borrow := test() {
+    assert_eq(I64, bp399_direct(), 7)
+}
+
+bp399_via_ref := func() returns I64 {
+    mut ps := Vec(Bp399P).new()
+    ps.push(own Bp399P(v = 7))
+    ref mut p : Bp399P = ps[0]
+    p.v = p.v + 1
+    return p.v
+}
+
+# The clone spelling for an aggregate field stays the sanctioned exit
+# (the raw `return ss[0].t` is rejected -- terr399_agg_field).
+Bp399S := struct { t := "x" }
+
+bp399_agg_clone := func() returns Str {
+    mut ss := Vec(Bp399S).new()
+    ss.push(own Bp399S(t = format("he", "llo")))
+    return ss[0].t.clone()
+}
+
+test_return_field_through_ref_binding := test() {
+    assert_eq(I64, bp399_via_ref(), 8)
+    assert_eq(Str, bp399_agg_clone(), "hello")
+}
