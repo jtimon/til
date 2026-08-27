@@ -8457,13 +8457,14 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
 // A scalar op call like `a.mul(b)` reaches ext_function_dispatch as the flat
 // name "U32_mul". Rather than dlsym'ing the ext.c symbol (a slow libffi round
 // trip) we compute the result directly on the operands' raw bytes, matching the
-// exact C semantics in src/c/ext.c: modular wrapping at the type width and
-// signed-vs-unsigned shifts. This is the interpreter half of the core_func
+// exact C semantics in src/c/ext.c: modular wrapping at the type width,
+// signed-vs-unsigned shifts, and direct scalar conversions. This is the
+// interpreter half of the core_func
 // ISA -- once src/core's scalar ops migrate ext_func -> core_func and their
 // ext.c symbols are deleted, this is the ONLY path. It is already live for the
 // ext_func ops, so the whole suite (interpret + both-mode compare) proves it
-// matches ext.c. div/mod (zero-guarded), the to_* conversions, cmp and clone
-// are NOT handled here and keep dispatching to their ext.c symbols.
+// matches ext.c. div/mod (zero-guarded), cmp, clone, and conversions other
+// than to_uptr are NOT handled here and keep dispatching to ext.c symbols.
 
 // Category of a scalar type name: "u" unsigned int, "i" signed int, "f" F32;
 // "" for anything that is not one of the nine numeric primitives.
@@ -8702,6 +8703,13 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
     // scalar_step_cell holds the shared read-compute-writeback.
     if op_str == "inc" { scalar_step_cell(scope, e, type_str, 1, ctx); return true }
     if op_str == "dec" { scalar_step_cell(scope, e, type_str, -1, ctx); return true }
+
+    if op_str == "to_uptr" {
+        ref mut arg : Expr = e.children[1]
+        av : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
+        scalar_write_raw(ctx.target_uptr_pname, result, raw_to_u64(scalar_type, av, ctx).cast(I64))
+        return true
+    }
 
     if scalar_is_binop(op_str) {
         ref mut ae : Expr = e.children[1]

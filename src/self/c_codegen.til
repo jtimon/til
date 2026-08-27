@@ -3806,7 +3806,11 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 // param width still happens at the call boundary (C
                 // conversion / the USIZE_REF / UPTR_REF boxing).
                 core_ret_c := inline_call_ret_ctype(e, flat, ctx)
-                if core_op == "bnot" {
+                if core_op == "to_uptr" {
+                    f.write("((").write(core_ret_c).write(")(")
+                    emit_deref(f, e.children[1], depth, ctx)
+                    f.write("))")
+                } else if core_op == "bnot" {
                     f.write("((")
                     f.write(core_ret_c)
                     f.write(")(~(")
