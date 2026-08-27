@@ -90,12 +90,11 @@ your worktree on master").
 The training prior pushes toward unsolicited "improvements" that
 sound like good engineering hygiene: renaming a branch to match the
 new task, splitting one commit into two, adding a follow-up TODO,
-"cleaning up" surrounding code, switching to a `Doc:` prefix because
-the diff is doc-heavy, picking a "better" file name, putting work on
-a new branch because the previous one "feels done". DO NOT DO ANY OF
-THIS. Each is an extra step that is not "the action the user
-specified"; they look harmless individually and add up to a session
-of constant surprises the user has to undo.
+"cleaning up" surrounding code, picking a "better" file name, putting
+work on a new branch because the previous one "feels done". DO NOT DO
+ANY OF THIS. Each is an extra step that is not "the action the user
+specified"; they look harmless individually and add up to a session of
+constant surprises the user has to undo.
 
 Specifically forbidden without an explicit user instruction:
 
@@ -107,9 +106,9 @@ Specifically forbidden without an explicit user instruction:
 - Splitting one logical change into multiple commits when the user
   asked for one commit; splitting your own commit and your own
   follow-up onto separate branches.
-- Renaming or moving a file, or changing a commit-message prefix,
-  because you think it "fits the convention better". The prefix
-  follows from the diff content, not from how the work feels.
+- Renaming or moving a file because you think it "fits the convention
+  better". Commit prefixes follow the mechanical path rule under
+  Commits, not how the work feels.
 - Adding files to the commit that the user did not touch and did not
   ask you to touch ("while I'm here let me also fix...").
 - "Polishing" surrounding code, removing comments you think are
@@ -126,12 +125,10 @@ If you catch yourself about to do one of these because it would be
 literal instruction beats your judgment about hygiene, and this rule
 loses to nothing -- not to "the resulting state is nicer", not to
 "the previous task is done so the branch is technically free", not to
-"the commit touches code AND doc so I should be precise about the
-prefix", nor any other inferred improvement. The user has read the
-system prompt and CLAUDE.md and has decided what the right shape is;
-your only job is to execute it. If you genuinely think a deviation is
-warranted, ask in plain chat BEFORE acting -- do not
-commit-and-explain after.
+any other inferred improvement. The user has read the system prompt
+and CLAUDE.md and has decided what the right shape is; your only job is
+to execute it. If you genuinely think a deviation is warranted, ask in
+plain chat BEFORE acting -- do not commit-and-explain after.
 
 ### No Litigation
 
@@ -631,14 +628,23 @@ translating existing code that uses leading underscores (eg the
   remote sessions and local worktree sessions. Leaving them dirty is
   not acceptable -- the working tree must be clean after the commit,
   otherwise the stop hook will block the session.
-- Use `make test` before every commit; when only documentation or
-  issue tracking files changed, run `make summary` instead
-  (`make doc` may also be relevant). Prefix documentation-only
-  commits with "Doc: " (e.g. "Doc: Update issue #105 progress").
-  Doc-only is judged from the commit's CURRENT diff, source files
-  only (regenerated boot/ churn does not make a commit "code"), and
-  is re-judged every time the diff changes -- see the rebase section
-  for the absorbed-upstream trap.
+- DOC-ONLY IS DETERMINED BY THE CHANGED NON-GENERATED FILE PATHS, NOT
+  BY WHETHER THE EDIT IS PROSE. A commit is documentation-only only
+  when every surviving non-generated change is in documentation or
+  issue tracking (for example `doc/**`, `issues/**`, or a repository
+  Markdown/Org instruction file). Any surviving change to program,
+  test, build, or configuration files makes it non-doc-only -- even a
+  comment-only, docstring-only, or whitespace-only change. Therefore a
+  comment-only edit to `src/self/interpreter.til` is NOT doc-only.
+  Regenerated `boot/**` churn is ignored for this classification; it
+  does not turn a documentation commit into code or a source commit
+  into documentation. Classify the commit's CURRENT diff and classify
+  it again whenever a rebase changes that diff.
+- Use `make test` before every commit. When the path rule above says
+  the commit is documentation-only, run `make summary` instead
+  (`make doc` may also be relevant) and prefix the subject with
+  "Doc: " (e.g. "Doc: Update issue #105 progress"). Otherwise do NOT
+  use the "Doc: " prefix.
 - Always squash a feature branch into a single commit before pushing.
   Multiple commits on one branch are only justified when squashing
   isn't possible in self.org terms -- e.g. a preparation + use pair
@@ -819,18 +825,13 @@ conflicts; a clean rebase needs no soft-reset on remote sessions.
 After ANY rebase that dropped commits or absorbed hunks as
 already-upstream (git says "patch contents already upstream", or a
 conflict resolution kept master's side), re-read what actually
-SURVIVED in each remaining commit (`git show --stat`, then the source
-diff) and re-derive its subject prefix from that remaining diff -- the
-prefix follows from the diff content (see No Random "Adjustments"),
-and the diff may have changed out from under the message. The common
-trap: a code commit whose source hunks all landed on master via other
-merges rebases down to issue/doc edits plus regenerated boot/ churn --
-that is now a doc-only commit and MUST be renamed "Doc: " before
-pushing, or the merging computer spends a full merge-bottleneck cycle
-(suite + regen) on documentation. This re-derivation is not the
-forbidden unilateral prefix "adjustment": the rename follows a
-mechanical rule on the surviving diff, not a judgment call on a mixed
-one.
+SURVIVED in each remaining commit (`git show --stat`, then the diff)
+and reapply the DOC-ONLY path rule under Commits. A code commit whose
+program/test/build/config hunks all landed upstream may now be only
+documentation plus regenerated `boot/**` and therefore require a
+"Doc: " prefix. A prose-only change that survives in a source file is
+still NOT doc-only. This is mechanical reclassification of the current
+diff, not a prefix adjustment by taste.
 
 "Commit, rebase, soft-reset, continue" is a checkpoint and rebase
 workflow, not permission to stop or leave the work uncommitted. After
