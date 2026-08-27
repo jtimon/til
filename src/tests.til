@@ -1698,6 +1698,10 @@ main := proc(args: ..Str) {
     // (21 of them in til's own output the day the splice landed).
     add_count(tests, "vecs_no_uncalled_checked_get", "build", "Vec__I64_get(", 0,
         format(til_bin, " translate -c gen/c/vv_cg.c test/vecs.til '&&' cat gen/c/vv_cg.c"))
+    // USize-to-UPtr widening in container byte arithmetic is a native cast,
+    // not an out-of-line call at every generated Vec/Array/Map access.
+    add_count(tests, "vecs_no_to_uptr_call", "build", "U64_to_uptr(", 0,
+        format(til_bin, " translate -c gen/c/vv_up.c test/vecs.til '&&' cat gen/c/vv_up.c"))
     add_count(tests, "hello_funcs_are_tu_local", "build", "static void println(Array__Str * parts)", 2,
         format(til_bin, " translate -c gen/c/hs_st.c examples/hello_script.til '&&' cat gen/c/hs_st.c"))
     // The GENERATED families join the audit too: a dyn wrapper exists
