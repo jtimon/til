@@ -2405,7 +2405,7 @@ priv process_throw_catch_in_body := proc(
             if stmt.children.len() == 1 {
                 ref throw_t : Type = stmt.til_type()
                 mut tn := ""
-                if throw_t.is(Type.Unknown).not().and(throw_t.is(Type.None).not()) {
+                if throw_t.is(Type.Unknown).or(throw_t.is(Type.None)).not() {
                     tn = type_to_name(throw_t)
                 }
                 if tn.len() == 0 {
@@ -2707,9 +2707,9 @@ process_throw_catch_in_func_body := proc(
     has_body_throw_catch := subtree_has_throw_catch(body)
     has_fdef_throws := fdef_throws.len() > 0
     has_body_bang := subtree_has_bang(body)
-    if has_body_throw_catch.not()
-        .and(has_fdef_throws.not())
-        .and(has_body_bang.not()) { return }
+    if has_body_throw_catch
+        .or(has_fdef_throws)
+        .or(has_body_bang).not() { return }
 
     // Pre-pass: annotate every Throw with its resolved type so the
     // body walk can read stmt.til_type() directly during rewriting.
@@ -3716,7 +3716,7 @@ priv StmtDesugarNeeds := struct {
 
 priv scan_stmt_desugar_needs := func(e: Expr, scope: TypeScope, mut n: StmtDesugarNeeds,
         av_on: Bool, va_on: Bool, kw_on: Bool, symbols: SymbolPool) {
-    if av_on.not().and(va_on.not()).and(kw_on.not()) { return }
+    if av_on.or(va_on).or(kw_on).not() { return }
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.StructDef) { return }
     if e.node_type.is(NodeType.EnumDef) { return }
@@ -3848,7 +3848,7 @@ priv build_kwargs_map_set := func(fcall: Expr, mut scope: TypeScope, kw_name: St
     mut out_val := val.clone()
     if val.node_type.is(NodeType.Ident).or(val.node_type.is(NodeType.FieldAccess)) {
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val.til_type().is_funcptr().not()).and(val.til_type().is(Type.Body).not()) {
+        if tname.len().gt(0).and(val.til_type().is_funcptr().or(val.til_type().is(Type.Body)).not()) {
             out_val = make_clone_call(tname, val.til_type(), val, val, ctx.symbols)
         }
     }
@@ -3950,7 +3950,7 @@ priv build_variadic_arg_value := func(val_in: Expr, scope: TypeScope, mut symbol
     if is_borrow_arg {
         tname := type_to_name(val_in.til_type())
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
+        if tname.len().gt(0).and(val_in.til_type().is_funcptr().or(val_in.til_type().is(Type.Body)).not()) {
             return make_clone_call(tname, val_in.til_type(), val_in, val_in, symbols)
         }
     }
@@ -4042,7 +4042,7 @@ priv build_builtin_vec_push := func(fcall: Expr, mut scope: TypeScope, elem_type
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.til_type())
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
+        if tname.len().gt(0).and(val_in.til_type().is_funcptr().or(val_in.til_type().is(Type.Body)).not()) {
             val = make_clone_call(tname, val_in.til_type(), val_in, val_in, ctx.symbols)
         }
     }
@@ -4227,7 +4227,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
 priv decl_tuple_typed_read_type := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { return "" }
     ref rhs : Expr = stmt.children[0]
-    if rhs.node_type.is(NodeType.FCall).not().or(rhs.children.len().eq(3).not()) { return "" }
+    if rhs.node_type.is(NodeType.FCall).and(rhs.children.len().eq(3)).not() { return "" }
     ref callee : Expr = rhs.children[0]
     switch callee.node_type {
     case .FieldAccess(m):
@@ -4581,7 +4581,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
         if has_array_vec {
             if desugar_array_vec_fcall(ctx, e, new_ch, scope) { return }
         }
-        if has_variadic.not().and(has_kwargs.not()) { return }
+        if has_variadic.or(has_kwargs).not() { return }
         fdef_o := fcall_callee_fdef(e, scope, ctx.symbols)
         if fdef_o.is_none() { return }
         ref fdef : Expr = fdef_o.unwrap()
@@ -4652,7 +4652,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
             }
             // One walk answers all three, resolving each call's callee
             // once instead of once per question (scan_stmt_desugar_needs).
-            if has_array_vec.not().or(has_variadic.not()).or(has_kwargs.not()) {
+            if has_array_vec.and(has_variadic).and(has_kwargs).not() {
                 mut needs := StmtDesugarNeeds()
                 scan_stmt_desugar_needs(stmt, scope, needs,
                     has_array_vec.not(), has_variadic.not(), has_kwargs.not(), ctx.symbols)
@@ -4672,7 +4672,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
     }
     has_desugar := has_set_lit.or(has_map_lit).or(has_array_vec).or(has_variadic).or(has_kwargs).or(has_tuple_read)
     do_hoist := owns_scope != 0
-    if has_desugar.not().and(do_hoist.not()).and(needs_delete.not()) {
+    if has_desugar.or(do_hoist).or(needs_delete).not() {
         return false
     }
 

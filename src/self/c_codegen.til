@@ -555,9 +555,9 @@ priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
         for i in 0..fd.sig.params.len() {
             ref p : Declaration = fd.sig.params[i]
             if p.name == name {
-                return p.own_type.is(OwnType.Own)
-                    .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).not())
-                    .and(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).not())
+                return p.own_type.is(OwnType.Own).and(
+                    func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+                    .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)).not())
             }
         }
         return false
@@ -1194,7 +1194,7 @@ priv fcall_return_ctype := func(fcall: Expr, mut ctx: Context) returns Str {
     // so struct-returning calls (like Array_new) keep their lookup.
     if callee_returns_dynamic(callee, ctx) {
         ref t : Type = fcall.til_type()
-        if t.is(Type.Unknown).not().and(t.is(Type.Dynamic).not()) {
+        if t.is(Type.Unknown).or(t.is(Type.Dynamic)).not() {
             return til_type_to_c(t)
         }
     }
@@ -1289,10 +1289,10 @@ priv own_value_arg_has_outer_ptr := func(e: Expr, mut ctx: Context) returns Bool
     switch e.node_type {
     case .Ident(id):
         if ctx.closure_emit_captures.has(id.ident_sym()) { return true }
-        return is_value_param(id.ident_name(ctx.symbols.names), ctx).not()
-            .and(is_stack_outer_param(id.ident_name(ctx.symbols.names), ctx).not())
-            .and(is_stack_local(id.ident_name(ctx.symbols.names), ctx).not())
-            .and(is_value_global(id.ident_name(ctx.symbols.names), ctx).not())
+        return is_value_param(id.ident_name(ctx.symbols.names), ctx)
+            .or(is_stack_outer_param(id.ident_name(ctx.symbols.names), ctx))
+            .or(is_stack_local(id.ident_name(ctx.symbols.names), ctx))
+            .or(is_value_global(id.ident_name(ctx.symbols.names), ctx)).not()
     case .FCall: return fcall_returns_c_value(e, ctx).not()
     case .FieldAccess: return builder_fa_is_ptr(e, ctx)
     case: return false
@@ -1369,9 +1369,9 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             } else {
                 emit_deref(f, arg, depth, ctx)
             }
-        } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
+        } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).or(callee_param_writes_back(callee_name, i - 1, ctx)).not()) {
             f.write("USIZE_REF(").emit_deref(arg, depth, ctx).write(")")
-        } else if callee_param_is_uptr(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
+        } else if callee_param_is_uptr(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).or(callee_param_writes_back(callee_name, i - 1, ctx)).not()) {
             f.write("UPTR_REF(").emit_deref(arg, depth, ctx).write(")")
         } else {
             own_arg := get_own_arg(e, i)
@@ -1400,8 +1400,8 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             ctx.builder_func.own_arg_travels_by_slot = type_name_travels_by_slot(cpt_name)
             if stack_outer_arg { emit_stack_outer_arg(f, arg, depth, ctx) }
             else {
-                emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).not())
-                    .and(delete_stack_outer.not()), ctx)
+                emit_as_ptr(f, arg, depth, own_arg.and(get_keep_outer_arg(e, i).or(
+                    delete_stack_outer).not()), ctx)
             }
             ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
             ctx.builder_func.own_arg_travels_by_slot = saved_slot_own
@@ -2794,8 +2794,8 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 // target uninitialized. Treat params like stack locals
                 // here so the deref-write path runs.
                 ref rname : Str = rhs_ident.ident_name(ctx.symbols.names)
-                if is_stack_local(rname, ctx).not()
-                    .and(is_current_func_param(rname, ctx).not()) { do_rebind = true }
+                if is_stack_local(rname, ctx)
+                    .or(is_current_func_param(rname, ctx)).not() { do_rebind = true }
             case:
             }
             if do_rebind {
@@ -3750,7 +3750,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             return f
         }
         if e.til_type().is_funcptr() {
-            if find_callee_fdef(ident.ident_name(ctx.symbols.names), ctx).is_some().and(ctx.closure_value_names.has(ident.ident_sym())).and(is_stack_local(ident.ident_name(ctx.symbols.names), ctx).not()).and(is_ref_local(ident.ident_name(ctx.symbols.names), ctx).not()).and(ctx.builder_func.ptr_locals.has(ident.ident_sym()).not()) {
+            if find_callee_fdef(ident.ident_name(ctx.symbols.names), ctx).is_some().and(ctx.closure_value_names.has(ident.ident_sym())).and(is_stack_local(ident.ident_name(ctx.symbols.names), ctx).or(is_ref_local(ident.ident_name(ctx.symbols.names), ctx)).or(ctx.builder_func.ptr_locals.has(ident.ident_sym())).not()) {
                 f.write("&")
                 f.write(closure_value_name(ident.ident_name(ctx.symbols.names)))
             } else {
@@ -3930,9 +3930,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                         } else {
                             emit_deref(f, e.children[i], depth, ctx)
                         }
-                    } else if callee_param_is_usize(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()).and(callee_param_writes_back(flat, i - 1, ctx).not()) {
+                    } else if callee_param_is_usize(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).or(callee_param_writes_back(flat, i - 1, ctx)).not()) {
                         f.write("USIZE_REF(").emit_deref(e.children[i], depth, ctx).write(")")
-                    } else if callee_param_is_uptr(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()).and(callee_param_writes_back(flat, i - 1, ctx).not()) {
+                    } else if callee_param_is_uptr(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).or(callee_param_writes_back(flat, i - 1, ctx)).not()) {
                         f.write("UPTR_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else {
                         own_arg := get_own_arg(e, i)
@@ -3953,8 +3953,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                         if stack_outer_arg { emit_stack_outer_arg(f, e.children[i], depth, ctx) }
                         else {
                             emit_as_ptr(f, e.children[i], depth,
-                                own_arg.and(get_keep_outer_arg(e, i).not())
-                                    .and(delete_stack_outer.not()), ctx)
+                                own_arg.and(get_keep_outer_arg(e, i).or(
+                                    delete_stack_outer).not()), ctx)
                         }
                         ctx.builder_func.force_heap_stack_lit_str_own = saved_force_heap
                         ctx.builder_func.own_arg_travels_by_slot = saved_slot_own3
@@ -5943,7 +5943,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
                     if enum_variant_payload_ref(def, fi.to_i32()) { continue }
                     dep_vt := enum_variant_type(def, fi.to_i32())
                     if dep_vt.len() > 0 {
-                        if is_primitive_type(dep_vt).not().and(is_funcsig_type(dep_vt, lp.ctx).not()) {
+                        if is_primitive_type(dep_vt).or(is_funcsig_type(dep_vt, lp.ctx)).not() {
                             if emitted.has(dep_vt).not() { deps_ok = false }
                         }
                     }
@@ -6204,9 +6204,9 @@ priv c_lib_collect_c_source_names := func(content: Str, mut names: Vec(Str), mut
         if line.starts_with("static ").or(line.starts_with("#")).or(line.starts_with("//")) { continue }
         // A non-static file-scope variable belongs to this library too. Skip
         // declarations and type definitions; they do not define linker symbols.
-        if line.ends_with(";").and(line.starts_with("extern ").not())
-            .and(line.starts_with("typedef ").not()).and(line.starts_with("struct ").not())
-            .and(line.starts_with("union ").not()).and(line.starts_with("enum ").not()) {
+        if line.ends_with(";").and(line.starts_with("extern ")
+            .or(line.starts_with("typedef ")).or(line.starts_with("struct "))
+            .or(line.starts_with("union ")).or(line.starts_with("enum ")).not()) {
             mut global_end := line.len() - 1
             eq := line.find("=")
             if eq >= 0 { global_end = eq.to_usize() }
@@ -6707,9 +6707,9 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, mut lp: LoadedProgram) {
             // -- `eq` and the variant constructors are ordinary namespace
             // members, so for every other enum this block wrote the
             // prototype a second time.
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not()
-                .and(lp_header_hides(dd.name.format("_eq"), lp.ctx).not())
-                .and(lp.ctx.builder_forward_declared.has(dd.name.format("_eq")).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx)
+                .or(lp_header_hides(dd.name.format("_eq"), lp.ctx))
+                .or(lp.ctx.builder_forward_declared.has(dd.name.format("_eq"))).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name)
             for hdr_vd : VariantDef in hdr_edd.variants {
@@ -6895,7 +6895,7 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context) {
 priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, index: USize, wrapper: Bool, ctx: Context) {
     if param.own_type.is(OwnType.Own) { f.write("own ") }
     if param.own_type.is(OwnType.Shallow) {
-        if wrapper.not().or(is_scalar_type_name(param.type_name()).not()) { f.write("shallow ") }
+        if wrapper.and(is_scalar_type_name(param.type_name())).not() { f.write("shallow ") }
     }
     if param.is_mut { f.write("mut ") }
     ii := index.to_i32()
@@ -7594,7 +7594,7 @@ priv emit_global_inits_prog := proc(f: File, prog: Expr, mut ctx: Context) {
         } else {
             // Throw lowering appends If checks after a top-level ?/! call.
             // They are part of global initialization, not ordinary test code.
-            if gs.node_type.is(NodeType.FCall).not().and(gs.node_type.is(NodeType.If).not()) { continue }
+            if gs.node_type.is(NodeType.FCall).or(gs.node_type.is(NodeType.If)).not() { continue }
         }
         emit_stmt(f, gs, 1, ctx)
     }
@@ -7887,8 +7887,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
                 ref dd : Declaration = decl_of(stmt)
                 // #326: only for the enums whose members the walk above
                 // SKIPPED -- see the same guard in the header emitter.
-                if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not()
-                    .and(lp.ctx.builder_forward_declared.has(dd.name.format("_eq")).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
+                if builder_ns_method_omitted(dd.name, "eq", lp.ctx)
+                    .or(lp.ctx.builder_forward_declared.has(dd.name.format("_eq"))).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
                 ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
                 ctor_ret := enum_ctor_ret_c(dd.name)
                 for shdr_vd : VariantDef in shdr_edd.variants {
@@ -7914,8 +7914,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
             case .Decl(dd):
             // #326: only for the enums whose members the walk above SKIPPED
             // -- see the same guard in the header emitter.
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not()
-                .and(lp.ctx.builder_forward_declared.has(dd.name.format("_eq")).not()) { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx)
+                .or(lp.ctx.builder_forward_declared.has(dd.name.format("_eq"))).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0], builder_static_prefix(lp.ctx)) }
             ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name)
             for shdr_vd : VariantDef in shdr_edd.variants {
@@ -8228,7 +8228,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                         // #269: no wrapper for abstract interface
                         // methods -- there is no C function behind them.
                         // ext_funcs on non-interface types are C-backed.
-                        if fd.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
+                        if fd.sig.func_type.is_ext().and(def_is_interface(def)).or(func_type_is_core(fd.sig.func_type)).not().and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
                             emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw0i), fd, lp.ctx)
                             emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw0i), "_dyn")
                         }
@@ -8255,7 +8255,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                     // #269: no wrapper for abstract interface methods --
                     // there is no C function behind them. ext_funcs on
                     // non-interface types are C-backed.
-                    if fd.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
+                    if fd.sig.func_type.is_ext().and(def_is_interface(def)).or(func_type_is_core(fd.sig.func_type)).not().and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
                         emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw1i), fd, lp.ctx)
                         emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw1i), "_dyn")
                     }
@@ -8284,7 +8284,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                         // #269: abstract interface methods have no
                         // _dyn wrapper closure to point at. ext_funcs
                         // on non-interface types are C-backed.
-                        if dfn_fd.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
+                        if dfn_fd.sig.func_type.is_ext().and(def_is_interface(def)).or(func_type_is_core(dfn_fd.sig.func_type)).not().and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
                             tlen := dd.name.len()
                             mlen := nsd_name.len()
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd_name).write("_dyn__til_closure;\n")
@@ -8312,7 +8312,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                     // #269: abstract interface methods have no _dyn
                     // wrapper closure to point at. ext_funcs on
                     // non-interface types are C-backed.
-                    if dfn_fd2.sig.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.sig.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
+                    if dfn_fd2.sig.func_type.is_ext().and(def_is_interface(def)).or(func_type_is_core(dfn_fd2.sig.func_type)).not().and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
                         tlen := dd.name.len()
                         mlen := nsd2_name.len()
                         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd2_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd2_name).write("_dyn__til_closure;\n")
@@ -9927,8 +9927,8 @@ builder_prepare_emit := proc(mut lp: LoadedProgram) {
     // After the emit inventory: the used-ctype walk asks the same gates
     // (omission, variant ctors, dyn targets, collection elem types) the
     // emitters will, and those answer from the inventory just filled.
-    lp.ctx.builder_prog_closed_world = lp.cur_mode.is_library.not()
-        .and(lp.cur_mode.decls_only.not()).and(lp.link_c_paths.len().eq(0))
+    lp.ctx.builder_prog_closed_world = lp.cur_mode.is_library.or(lp.cur_mode.decls_only).not()
+        .and(lp.link_c_paths.len().eq(0))
     builder_fill_used_ctypes(lp)
     for bmu_path : Str in lp.unit_paths() {
         builder_mark_body_decls(lp.ctx.imported[bmu_path].ast, lp.ctx)
@@ -9938,7 +9938,7 @@ builder_prepare_emit := proc(mut lp: LoadedProgram) {
 
 priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: LoadedProgram) returns I32 {
     is_lib := mode.is_library
-    lp.ctx.builder_static_ok = is_lib.not().and(mode.decls_only.not()).and(lp.link_c_paths.len().eq(0))
+    lp.ctx.builder_static_ok = is_lib.or(mode.decls_only).not().and(lp.link_c_paths.len().eq(0))
     lp.ctx.builder_forward_declared = Set(Str).new()
     f := File.new(c_output_path, true)
 
@@ -9952,7 +9952,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     }
     emit_lib_c_name_map(f, lp.ctx)
 
-    is_script := is_lib.not().and(mode.decls_only.not())
+    is_script := is_lib.or(mode.decls_only).not()
 
     // #326: the dyn/reflection inventory must be in place before the first
     // gated emission (the forward-declaration block).
@@ -10985,8 +10985,8 @@ priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Co
     // accessor shape, and the bounds-checked `v[i]` get. Both ask the
     // predicate the EMITTER asks -- the gate and the splice must agree on
     // the same shape, or one of them is wrong about what exists.
-    if builder_is_inline_accessor(member, flat_in, ctx).not()
-        .and(builder_is_inline_checked_get(flat_in, ctx).not()) { return false }
+    if builder_is_inline_accessor(member, flat_in, ctx)
+        .or(builder_is_inline_checked_get(flat_in, ctx)).not() { return false }
     // Ask the generated dispatch per METHOD, as the auto-size and
     // variant-ctor gates do. "dyn_fn appears somewhere" is true of every
     // program importing std/dyn_array, whose `dyn_fn(elem_type, "clone")`

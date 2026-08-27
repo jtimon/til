@@ -1573,7 +1573,7 @@ priv eval_precomputed_sequence := proc(mut scope: Scope, mut e: Expr, data: Prec
     seq_name := til_type_name(data.til_type)
     is_vec := seq_name.eq("Vec").or(seq_name.starts_with("Vec__"))
     is_array := seq_name.eq("Array").or(seq_name.starts_with("Array__"))
-    if is_vec.not().and(is_array.not()) { panic("precomputed sequence has non-sequence type: ", seq_name) }
+    if is_vec.or(is_array).not() { panic("precomputed sequence has non-sequence type: ", seq_name) }
     if e.children.len() > data.capacity { panic("precomputed sequence count exceeds capacity") }
     if is_array.and(e.children.len() != data.capacity) { panic("precomputed Array count differs from capacity") }
 
@@ -2045,8 +2045,8 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         // (#302 raw allocations) keep the block-transfer paths below.
         mut prim_value_type := hb_type(source_hb).clone()
         if hb_type(source_hb).is(Type.Dynamic) { prim_value_type = decl_type.clone() }
-        if source_hb.own_type.is(OwnType.Shallow).not().and(hb_type(source_hb).is(Type.Dynamic).not()) { prim_value_type = Type.Unknown }
-        if raw_type_is_prim(prim_value_type, ctx).and(decl_type.is(Type.Dynamic).not()).and(dd.own_type.is(OwnType.Own).not()) {
+        if source_hb.own_type.is(OwnType.Shallow).or(hb_type(source_hb).is(Type.Dynamic)).not() { prim_value_type = Type.Unknown }
+        if raw_type_is_prim(prim_value_type, ctx).and(decl_type.is(Type.Dynamic).or(dd.own_type.is(OwnType.Own)).not()) {
             mut prim_src : Dynamic = source_raw
             if hb_type(source_hb).is(Type.Dynamic) { prim_src = deref(source_raw) }
             mut w : Dynamic = scalar_word_load(prim_value_type, prim_src, ctx)
@@ -2059,8 +2059,8 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         // Every path below copies the POINTEE instead -- one byte for an I8 --
         // leaving `p` aimed at a one-byte clone, so offset 0 read correctly
         // and every later offset read zero (#357).
-        if decl_type.is(Type.Dynamic).and(hb_type(source_hb).is(Type.Dynamic).not())
-            .and(source_hb.own_type.is(OwnType.Shallow).not())
+        if decl_type.is(Type.Dynamic).and(hb_type(source_hb).is(Type.Dynamic).or(
+            source_hb.own_type.is(OwnType.Shallow)).not())
             .and(hb_type(source_hb).is(Type.Primitive)) {
             scope_set_heap_owned(scope, dd.name, source_raw, bind_type_w, dd.own_type, ctx, false, true, true)
             return
@@ -2353,7 +2353,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     new_raw = raw_coerce_value(new_raw, raw_result_source_type(new_info), hb_type(assign_hb), ctx, assign_hb.own_type)
                 }
             }
-            if raw_type_is_prim(hb_type(assign_hb), ctx).and(assign_hb.is_raw_alloc.not()).and(stmt.til_type().is(Type.Dynamic).not()) {
+            if raw_type_is_prim(hb_type(assign_hb), ctx).and(assign_hb.is_raw_alloc.or(stmt.til_type().is(Type.Dynamic)).not()) {
                 // Primitive assignment writes the scalar into the existing
                 // block in place (C's x = v) -- for a ref/borrowed binding
                 // or an owned closure capture the block IS the target storage,
@@ -3115,7 +3115,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                     flat_str = sn.concat3("_", fn_name.field_access_name(ctx.symbols.names))
                 } else {
                     tn := til_type_name_c(callee_expr.children[0].til_type())
-                    if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
+                    if tn.eq("unknown").or(tn.eq("?")).or(tn.eq("Dynamic")).not() {
                         flat_str = tn.concat3("_", fn_name.field_access_name(ctx.symbols.names))
                     }
                 }
@@ -3208,7 +3208,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         ext_prim_result := raw_type_is_prim(ext_storage_type, ctx).or(ext_storage_type.is(Type.None))
         mut ext_raw : Dynamic = 0
         if ext_prim_result { ext_raw = dispatch_scratch_push() }
-        else if ext_result_is_ref.not().and(destination.is_null().not()).and(til_type_name_c(ext_result_type) == til_type_name_c(call_type)) {
+        else if ext_result_is_ref.or(destination.is_null()).not().and(til_type_name_c(ext_result_type) == til_type_name_c(call_type)) {
             ext_raw = destination
         } else {
             ext_raw = dispatch_result_alloc(ext_storage_type, ctx)
@@ -3428,7 +3428,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 // `Str(c_str = start, ...)` kept 'h' where the
                                 // address belonged, and every later read of
                                 // that field dereferenced 0x68 (#357).
-                                if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Own)).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
+                                if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Own)).and(source_hb.is_raw_alloc.or(arg_is_ref).not()) {
                                     ctor_prim_word : Dynamic = scalar_word_load(hb_type(source_hb), arg_raw, ctx)
                                     EvalHeap.heap_free(own arg_raw)
                                     arg_raw = ctor_prim_word
@@ -3549,7 +3549,7 @@ container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
         ref count_fl : FieldLayout = ctx_field_layout(struct_name, "count", ctx)
         ref cap_fl : FieldLayout = ctx_field_layout(struct_name, "cap", ctx)
         if data_fl.size.gt(0).and(count_fl.size.gt(0)).and(cap_fl.size.gt(0)) {
-            if data_fl.own_type.is(OwnType.Own).and(data_fl.struct_name.len().eq(0)).and(data_fl.is_enum.not()).and(data_fl.is_funcptr.not()) {
+            if data_fl.own_type.is(OwnType.Own).and(data_fl.struct_name.len().eq(0)).and(data_fl.is_enum.or(data_fl.is_funcptr).not()) {
                 start := sep.add(2).to_usize()
                 rest := struct_name.substr(start, struct_name.count.sub(start))
                 next_sep := rest.find("__")
@@ -4667,7 +4667,7 @@ scope_drop_owned_bindings := func(mut s: Scope) {
         // mode. Leave raw allocations to the interpreted free.
         if hb.is_raw_alloc { continue }
         mut owned_ptr : Dynamic = hb.ptr
-        if hb.is_static_callable.not().and(hb.payload_released.not()) { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
+        if hb.is_static_callable.or(hb.payload_released).not() { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
         EvalHeap.heap_free(own owned_ptr)
         hb.ptr = bits_word(0)
         hb.moved_out = true
@@ -4969,7 +4969,7 @@ priv interp_fa_namespace_def := func(mut scope: Scope, e: Expr, ctx: Context) re
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
     // returns "" for I64/U8/etc, fall back to til_type_name_c.
     tn := til_type_name_c(obj_expr.til_type())
-    if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
+    if tn.eq("unknown").or(tn.eq("?")).or(tn.eq("Dynamic")).not() {
         return interp_fa_namespace_def_with_name(scope, e, tn, false, ctx)
     }
     return Option(ref Expr).None
@@ -8654,7 +8654,7 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
     // names (Str_*, Vec_*, Map_*, ...) before any allocation.
     if name.len() == 0 { return false }
     ref c0 : I8 = name.unsafe_get(0)
-    if (c0 == 'U').not().and((c0 == 'I').not()).and((c0 == 'F').not()) { return false }
+    if (c0 == 'U').or(c0 == 'I').or(c0 == 'F').not() { return false }
     us := name.find("_")
     if us < 0 { return false }
     u_pos : USize = us.to_usize()

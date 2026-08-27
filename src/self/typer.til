@@ -4,7 +4,7 @@ import("context")
 // Check if a FieldAccess/FieldAssign Expr accesses a namespace field.
 fa_is_ns := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if e.children.len() == 0 { return false }
-    if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) { return false }
+    if e.node_type.is(NodeType.FieldAccess).or(e.node_type.is(NodeType.FieldAssign)).not() { return false }
     ref obj : Expr = e.children[0]
     // Borrowed names only: this runs on every field access the typer
     // sees, and the owning til_type_name/Str.clone forms paid three
@@ -156,7 +156,7 @@ priv rewrite_til_type_arg := proc(mut scope: TypeScope, mut parent: Expr, arg_id
 // Look up the OwnType for the instance field of a FieldAccess/FieldAssign.
 fa_own_type := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow OwnType {
     if e.children.len() == 0 { return OwnType.Shallow }
-    if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) { return OwnType.Shallow }
+    if e.node_type.is(NodeType.FieldAccess).or(e.node_type.is(NodeType.FieldAssign)).not() { return OwnType.Shallow }
     ref obj : Expr = e.children[0]
     mut sn_o := expr_type_name_ref(obj)
     if sn_o.is_none() {
@@ -759,7 +759,7 @@ priv check_ref_local_null_init := proc(stmt: Expr, mut ctx: Context) {
 
 priv infer_func_ptr_field_call := proc(mut scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, in_func: I32, mut ctx: Context) returns Bool {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
-    if obj.til_type().is(Type.Struct).not().and(obj.til_type().is(Type.Enum).not()) { return false }
+    if obj.til_type().is(Type.Struct).or(obj.til_type().is(Type.Enum)).not() { return false }
     switch sdef.node_type {
     case .StructDef(fpf_sdd):
         fd_o := member_get(fpf_sdd.fields_index, fpf_sdd.fields, method)
@@ -934,7 +934,7 @@ priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fde
             // argument is an Option(ref T). (own/shallow params error above
             // on ownership grounds; this closes the remaining ref/plain
             // params.)
-            if pp2.own_type.is(OwnType.Own).not().and(pp2.own_type.is(OwnType.Shallow).not()) {
+            if pp2.own_type.is(OwnType.Own).or(pp2.own_type.is(OwnType.Shallow)).not() {
                 if arg.node_type.is_literal_null() {
                     if type_is_null_quarantine(declaration_resolved_type(pp2, scope, ctx.symbols)).not() {
                         arg.type_error(format("cannot pass a null pointer to typed parameter '", pp2.name, "'; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- pass an Option(ref T) instead (#321)"), ctx)
@@ -1580,7 +1580,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                             if is_str_va {
                                 ref vk_arg : Expr = e.children[ci + vk]
                                 if vk_arg.til_type().is(vptype).not() {
-                                    if vk_arg.til_type().is(Type.Dynamic).not().and(vk_arg.til_type().is(Type.Unknown).not()) {
+                                    if vk_arg.til_type().is(Type.Dynamic).or(vk_arg.til_type().is(Type.Unknown)).not() {
                                         arg_tname := type_to_name(vk_arg.til_type())
                                             if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
                                                 if type_has_to_str(scope, arg_tname, ctx.symbols) {
@@ -1840,7 +1840,7 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                         // comparison validate_fcall_arg uses -- a bare
                         // FuncPtr (e.g. a thunk wrapping a first-class lazy
                         // arg, #262) matches any named FuncPtrSig param.
-                        if arg.til_type().is(expected).not().and(funcptr_eq(arg.til_type(), expected).not()) {
+                        if arg.til_type().is(expected).or(funcptr_eq(arg.til_type(), expected)).not() {
                             e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": expected ", expected_name, ", got ", type_to_name(arg.til_type())), ctx)
                         }
                         ai++
@@ -4460,7 +4460,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                             if fd.default_expr().node_type.is_literal_null().not() {
                                 narrow_dynamic(fd.default_expr(), declared_type)
                             }
-                            if fd.default_expr().node_type.is(NodeType.Loc).not().and(default_inference_failed.not()) {
+                            if fd.default_expr().node_type.is(NodeType.Loc).or(default_inference_failed).not() {
                                 check_declared_value_type(fd.default_expr(), tc_fname, fd.default_expr(), declared_type, declared_name, fd.own_type, inner, ctx)
                             }
                         }
@@ -5302,7 +5302,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             pshallow := param.own_type.is(OwnType.Shallow)
             if pshallow {
                 is_scalar := is_primitive(pt)
-                if is_scalar.not().and(pt.is(Type.Struct).not()).and(pt.is(Type.Enum).not()) {
+                if is_scalar.or(pt.is(Type.Struct)).or(pt.is(Type.Enum)).not() {
                     expr.type_error(format("shallow parameter '", param.name, "' must be a scalar or struct type"), ctx)
                 }
                 if pown {
@@ -5388,7 +5388,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // FieldAccess(method) callee at this stage; the inject
         // matches by method name so the appended args end up at
         // the end of the eventual rewritten FCall.
-        if fdef.auto_generated.not().and(macro_is_template.not()) {
+        if fdef.auto_generated.or(macro_is_template).not() {
             // Issue #158-aligned: single per-body walk for all
             // throw/catch processing (replaces the previous chain
             // of desugar_bang + validate + lower + inject + fallback
@@ -5759,8 +5759,8 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, mut ctx: 
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
         ref tdef : Expr = stmt.children[0]
-        if tdef.node_type.is(NodeType.StructDef).not()
-            .and(tdef.node_type.is(NodeType.EnumDef).not()) { continue }
+        if tdef.node_type.is(NodeType.StructDef)
+            .or(tdef.node_type.is(NodeType.EnumDef)).not() { continue }
         mut owner_name := ""
         ref td_decl : Declaration = decl_of(stmt)
         owner_name = td_decl.name.clone()
@@ -6048,13 +6048,13 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
                 sf := scope.find_sym(rn.ident_sym())
                 switch sf {
                 case .Found(b):
-                    if b.own_type.is(OwnType.Ref).and(b.is_alias.not()).and(b.is_param.not()) {
+                    if b.own_type.is(OwnType.Ref).and(b.is_alias.or(b.is_param).not()) {
                         stmt.type_error("cannot return ref variable from non-ref function; use .clone() or 'returns ref'", ctx)
                     }
                         if b.own_type.is(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.is(OwnType.Own).not())) {
                             tname := type_to_name(stmt.til_type())
                             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
-                            if tname.len().gt(0).and(stmt.til_type().is_funcptr().not()).and(stmt.til_type().is(Type.Body).not()) {
+                            if tname.len().gt(0).and(stmt.til_type().is_funcptr().or(stmt.til_type().is(Type.Body)).not()) {
                                 mc := make_clone_call(tname, stmt.til_type(), stmt.children[0], stmt, ctx.symbols)
                                 stmt.children[0] = mc
                             }
@@ -6079,7 +6079,7 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
 priv infer_if_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, mut ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
     ref if_cond_t : Type = stmt.children[0].til_type()
-    if type_is_primitive(if_cond_t, Primitive.Bool).not().and(if_cond_t.is(Type.Unknown).not()) {
+    if type_is_primitive(if_cond_t, Primitive.Bool).or(if_cond_t.is(Type.Unknown)).not() {
         stmt.type_error("if condition must be Bool", ctx)
     }
     mut then_scope := TypeScope(
@@ -6340,7 +6340,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                         ref rhs_type : Type = rhs.til_type()
                         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig
                         // wildcard-aware family-equality.
-                        if rhs_type.is(fld_type).not().and(funcptr_eq(rhs_type, fld_type).not()) {
+                        if rhs_type.is(fld_type).or(funcptr_eq(rhs_type, fld_type)).not() {
                             if rhs_type.is(Type.Unknown).not() {
                                 if rhs_type.is(Type.Dynamic).not() {
                                     stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
@@ -6399,7 +6399,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                         }
                         if handled_lit2.not() {
                             ref rhs_type : Type = rhs.til_type()
-                            if rhs_type.is(nsd_type).not().and(funcptr_eq(rhs_type, nsd_type).not()) {
+                            if rhs_type.is(nsd_type).or(funcptr_eq(rhs_type, nsd_type)).not() {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
                                         stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
@@ -6425,7 +6425,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     ) {
         tname := type_to_name(rhs.til_type())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
-        if tname.len().gt(0).and(rhs.til_type().is_funcptr().not()).and(rhs.til_type().is(Type.Body).not()) {
+        if tname.len().gt(0).and(rhs.til_type().is_funcptr().or(rhs.til_type().is(Type.Body)).not()) {
             mc := make_clone_call(tname, rhs.til_type(), rhs, rhs, ctx.symbols)
             stmt.children[1] = mc
         }
@@ -6435,7 +6435,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
 priv infer_while_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, mut ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
     ref while_cond_t : Type = stmt.children[0].til_type()
-    if type_is_primitive(while_cond_t, Primitive.Bool).not().and(while_cond_t.is(Type.Unknown).not()) {
+    if type_is_primitive(while_cond_t, Primitive.Bool).or(while_cond_t.is(Type.Unknown)).not() {
         stmt.type_error(format("while condition must be Bool, got ", type_to_name(stmt.children[0].til_type())), ctx)
     }
     ref while_cond : Expr = stmt.children[0]
@@ -6584,7 +6584,7 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, annotated
         // for a FuncDef value.
         declared_name := sdecl.type_name()
         annot_is_funcdef := declared_name.eq("FunctionDef").or(declared_name.eq("FuncDef"))
-        if sdecl.til_type.is(Type.Unknown).not().and(annot_is_funcdef.not()).and(declared_is_funcptr.not()) {
+        if sdecl.til_type.is(Type.Unknown).or(annot_is_funcdef).or(declared_is_funcptr).not() {
             stmt.type_error(format("'", sdecl.name, "' declared as ", declared_name, " but value is FunctionDef"), ctx)
         }
         ref fdef : FunctionDef = funcdef_of(stmt.children[0])
@@ -6653,7 +6653,7 @@ priv ext_global_symbol_is_c_ident := func(symbol: Str) returns Bool {
         ref c : I8 = symbol.unsafe_get(i)
         alpha := c.gte('a').and(c.lte('z')).or(c.gte('A').and(c.lte('Z')))
         digit := c.gte('0').and(c.lte('9'))
-        if alpha.not().and(digit.not()).and(c.neq('_')) { return false }
+        if alpha.or(digit).not().and(c.neq('_')) { return false }
     }
     return true
 }
@@ -6698,9 +6698,9 @@ priv infer_ext_global_decl := proc(mut scope: TypeScope, mut decl: Declaration,
         if external_type.is(Type.Unknown) {
             at.type_error(format("ext_global has undefined type '", type_name, "'"), ctx)
             valid = false
-        } else if is_primitive(external_type).not()
-            .and(external_type.is(Type.Struct).not())
-            .and(external_type.is(Type.Enum).not()) {
+        } else if is_primitive(external_type)
+            .or(external_type.is(Type.Struct))
+            .or(external_type.is(Type.Enum)).not() {
             at.type_error(format("ext_global does not support type '", type_name,
                 "'; expected a primitive, struct, or enum C object type"), ctx)
             valid = false
@@ -6827,7 +6827,7 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
     // -- `ref mut rtype : Dynamic = ffi_type_ref(...)` in the interpreter's
     // FFI registration binds a 24-byte ffi_type by pointer, exactly as
     // intended -- so the word is the value and nothing is lost.
-    if declared.is(Type.Dynamic).and(own_type.is(OwnType.Ref).not()).and(own_type.is(OwnType.Own).not()) {
+    if declared.is(Type.Dynamic).and(own_type.is(OwnType.Ref).or(own_type.is(OwnType.Own)).not()) {
         val_name_o := expr_type_name_ref(val)
         if val_name_o.is_some().and(is_aggregate(val.til_type())) {
             ref val_name : Str = val_name_o.unwrap()
@@ -6849,12 +6849,12 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
             }
         }
     }
-    if can_implicit_usize_coerce(val.til_type(), declared, declared_name).not()
-        .and(val.til_type().is(declared).not())
+    if can_implicit_usize_coerce(val.til_type(), declared, declared_name)
+        .or(val.til_type().is(declared))
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
-        .and(funcptr_eq(val.til_type(), declared).not())
-        .and(val.til_type().is(Type.Dynamic).not())
-        .and(declared.is(Type.Dynamic).not()) {
+        .or(funcptr_eq(val.til_type(), declared))
+        .or(val.til_type().is(Type.Dynamic))
+        .or(declared.is(Type.Dynamic)).not() {
         at.type_error(format("'", name, "' declared as ", type_to_name(declared), " but value is ", type_to_name(val.til_type())), ctx)
     } else if is_aggregate(declared) {
         val_sname_o := expr_type_name_ref(val)
@@ -7058,10 +7058,10 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         if in_type_body.eq(0).and(raw_alloc_rhs).and(had_declared_type) {
             if sdecl.own_type.is(OwnType.Ref) {
                 stmt.type_error(format("raw allocation local '", sdecl.name, "' cannot be declared with 'ref'; locals are owned by default"), ctx)
-            } else if ctx.path.contains("/src/self/").not().and(ctx.path.starts_with("src/self/").not())
+            } else if ctx.path.contains("/src/self/").or(ctx.path.starts_with("src/self/")).not()
                 .and(stmt.til_type().is(Type.Dynamic))
-                .and(scope.active_type_name().contains("__").not())
-                .and(func_state.current_top_func_name.contains("__").not()) {
+                .and(scope.active_type_name().contains("__").or(
+                    func_state.current_top_func_name.contains("__")).not()) {
                 stmt.type_error(format("raw allocation local '", sdecl.name, "' must use a concrete type, not Dynamic"), ctx)
             }
         }
@@ -7246,7 +7246,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             // literal RHS (the builder lowers it to `*p = *new` for
             // structs and `*p = (Str){...}` for Str literals).
             if rhs_is_payload_binding(rhs, ctx.symbols) { decl_b.is_alias = true }
-            if expr_is_ref_decl_source(rhs, scope, ctx.symbols).not().and(raw_alloc_rhs.not()) {
+            if expr_is_ref_decl_source(rhs, scope, ctx.symbols).or(raw_alloc_rhs).not() {
                 stmt.type_error("'ref' declaration requires a ref-returning function, a ref/param variable, or a raw allocation", ctx)
             }
             // #344: remember WHAT this borrow aliases. A write through the
@@ -7285,13 +7285,13 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope, ctx.symbols).neq(0)).and(sdecl.name.starts_with("_steal_").not()) {
             stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
         }
-        if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.til_type().is_funcptr().not()).and(stmt.til_type().is(Type.Body).not()) {
+        if sdecl.own_type.is(OwnType.Ref).or(sdecl.is_mut).or(stmt.til_type().is_funcptr()).or(stmt.til_type().is(Type.Body)).not() {
             switch rhs.node_type {
             case .Ident(rhs_id2):
                 rb_o := scope.get_binding_sym(rhs_id2.ident_sym())
                 if rb_o.is_some() {
                     ref rb : TypeBinding = rb_o.unwrap()
-                    if rb.is_mut.not().and(rb.own_type.is(OwnType.Own).not()).and(rb.own_type.is(OwnType.Ref).not().or(rb.is_alias)).and(rb.is_param.not()) {
+                    if rb.is_mut.or(rb.own_type.is(OwnType.Own)).not().and(rb.own_type.is(OwnType.Ref).not().or(rb.is_alias)).and(rb.is_param.not()) {
                         sdecl.own_type = OwnType.Ref
                         decl_b.own_type = OwnType.Ref
                         decl_b.is_alias = true
@@ -7310,7 +7310,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 tname := type_to_name(clone_type)
                 // Issue #58 / #147 step 5: a FuncPtr/FuncPtrSig has no
                 // T_clone method; it's a plain 8-byte pointer.
-                if tname.len().gt(0).and(clone_type.is_funcptr().not()).and(clone_type.is(Type.Body).not()) {
+                if tname.len().gt(0).and(clone_type.is_funcptr().or(clone_type.is(Type.Body)).not()) {
                     mc := make_clone_call(tname, clone_type, rhs, stmt, ctx.symbols)
                     stmt.children[0] = mc
                 }
@@ -8663,9 +8663,9 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         }
         rhs.set_til_type(existing)
         stmt.set_til_type(existing)
-    } else if rhs.til_type().is(existing).not().and(rhs.til_type().is(Type.Unknown).not())
+    } else if rhs.til_type().is(existing).or(rhs.til_type().is(Type.Unknown))
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
-        .and(funcptr_eq(rhs.til_type(), existing).not()) {
+        .or(funcptr_eq(rhs.til_type(), existing)).not() {
         // Issue #244: a `_m_*` target is a synthesized match result temp; an
         // arm-type mismatch was already reported cleanly by infer_match_expr,
         // so don't also surface the internal temp name here.
@@ -8724,7 +8724,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         ) {
             tname := type_to_name(rhs.til_type())
             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
-            if tname.len().gt(0).and(rhs.til_type().is_funcptr().not()).and(rhs.til_type().is(Type.Body).not()) {
+            if tname.len().gt(0).and(rhs.til_type().is_funcptr().or(rhs.til_type().is(Type.Body)).not()) {
                 mc := make_clone_call(tname, rhs.til_type(), rhs, stmt, ctx.symbols)
                 stmt.children[0] = mc
             }
@@ -11904,7 +11904,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         // a second parameter to come from; anything else cannot move a
         // borrow across the call boundary.
         wants_dep := fdef_may_deposit(fd)
-        if wants_ret.not().and(wants_dep.not()) { return false }
+        if wants_ret.or(wants_dep).not() { return false }
         mut roots := Map(Str, RootBits).new()
         for pi in 0..fd.sig.params.len() {
             ref p : Declaration = fd.sig.params[pi]
@@ -12397,7 +12397,7 @@ priv infer_match_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32
         if has_t.not() {
             result_t = arm_t
             has_t = true
-        } else if reported.not().and(arm_t.is(Type.Unknown).not()).and(result_t.is(Type.Unknown).not()).and(arm_t.eq(result_t).not()) {
+        } else if reported.or(arm_t.is(Type.Unknown)).or(result_t.is(Type.Unknown)).or(arm_t.eq(result_t)).not() {
             expr.children[ci].type_error(format("match arms have incompatible types: '", type_to_name(result_t), "' vs '", type_to_name(arm_t), "'; all arms must yield the same type"), ctx)
             reported = true
         }
@@ -13453,7 +13453,7 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
     // covered above (same check switch uses); for any other subject, require an
     // explicit `case:` default. switch has no such requirement, so this is the
     // one place the two forms genuinely diverge.
-    if is_match.and(has_switch_enum_def.not()).and(has_default_case.not()) {
+    if is_match.and(has_switch_enum_def.or(has_default_case).not()) {
         stmt.type_error("non-exhaustive match; add a 'case:' default arm to cover the remaining values", ctx)
     }
 
@@ -14074,7 +14074,7 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
         return false
     }
     ref sdef : Expr = sdef_o.unwrap()
-    if struct_def_has_field(sdef, "keys").not().or(struct_def_has_field(sdef, "values").not()) {
+    if struct_def_has_field(sdef, "keys").and(struct_def_has_field(sdef, "values")).not() {
         stmt.type_error(format("type '", type_name, "' has no 'keys'/'values' fields (required for two-variable for-in)"), ctx)
         return false
     }

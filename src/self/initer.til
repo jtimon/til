@@ -605,7 +605,7 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
         generate_struct_cmp_method(sdef, sname, stmt.line, stmt.col, ctx.symbols)
     }
 
-    if has_eq.not().and(init_ns_has_func(sdef, "cmp").not()).and(struct_fields_support_generated_method(sdd, "eq", scope, ctx.symbols)) {
+    if has_eq.or(init_ns_has_func(sdef, "cmp")).not().and(struct_fields_support_generated_method(sdd, "eq", scope, ctx.symbols)) {
         generate_struct_eq_method(sdef, sname, stmt.line, stmt.col, ctx.symbols)
     }
 
@@ -2036,7 +2036,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                     ftype_resolved := type_from_name_init_name(ftype, scope, ctx.symbols)
                     if ftype_resolved.is_funcptr().or(ftype_resolved.is(Type.Body)) {
                         field_is_funcptr = true
-                    } else if o_is_prim.not().and(ftype.eq("Dynamic").not()) {
+                    } else if o_is_prim.or(ftype.eq("Dynamic")).not() {
                         o_nested_o := scope.get_struct(ftype, ctx.symbols)
                         if o_nested_o.is_some() {
                             ref o_nested : Expr = o_nested_o.unwrap()
@@ -3644,7 +3644,7 @@ priv init_synthesize_variadic_arrays := func(mut program: Expr, mut ctx: Context
     synth_vec := ctx.scope.get_struct("Vec", ctx.symbols).is_none()
     synth_set := ctx.scope.get_struct("Set", ctx.symbols).is_none()
     synth_map := ctx.scope.get_struct("Map", ctx.symbols).is_none()
-    if synth_array.not().and(synth_vec.not()).and(synth_set.not()).and(synth_map.not()) { return }
+    if synth_array.or(synth_vec).or(synth_set).or(synth_map).not() { return }
     for c : Expr in program.children {
         init_collect_variadic_arrays(ctx.scope, local_types, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map, ctx.symbols)
     }
@@ -3873,7 +3873,7 @@ init_refresh_interp_type_defs_from := func(program: Expr, start_idx: USize, mut 
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
         ref rhs : Expr = stmt.children[0]
-        if rhs.node_type.is(NodeType.StructDef).not().and(rhs.node_type.is(NodeType.EnumDef).not()) { continue }
+        if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)).not() { continue }
         ref dd : Declaration = decl_of(stmt)
         if ctx.interp_type_defs.has(dd.name).not() {
             panic(ctx.path, ": late type '", dd.name, "' has no interpreter registry cell")

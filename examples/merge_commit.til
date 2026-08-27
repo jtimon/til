@@ -101,7 +101,7 @@ trim_leading_whitespace := func(s: Str) returns Str {
     mut start : USize = 0
     while start.lt(s.len()) {
         c := s.substr(start, 1)
-        if c.eq(" ").not().and(c.eq("\n").not()).and(c.eq("\r").not()).and(c.eq("\t").not()) {
+        if c.eq(" ").or(c.eq("\n")).or(c.eq("\r")).or(c.eq("\t")).not() {
             break
         }
         start++
@@ -113,12 +113,12 @@ trim_quotes := func(s: Str) returns Str {
     mut start : USize = 0; mut end : USize = s.len()
     while start.lt(end) {
         c := s.substr(start, 1)
-        if c.eq("\"").not().and(c.eq("'").not()) { break }
+        if c.eq("\"").or(c.eq("'")).not() { break }
         start++
     }
     while end.gt(start) {
         c := s.substr(end.sub(1), 1)
-        if c.eq("\"").not().and(c.eq("'").not()) { break }
+        if c.eq("\"").or(c.eq("'")).not() { break }
         end--
     }
     return s.substr(start, end.sub(start)).clone()

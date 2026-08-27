@@ -624,7 +624,7 @@ namespace:
     // ref struct_def field). Same malloc'd-cell pattern as set_func_def
     // -- the cell is owned by the Map, the Expr lives in the AST.
     set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr, symbols: SymbolPool) {
-        if sdef.node_type.is(NodeType.StructDef).not().and(sdef.node_type.is(NodeType.EnumDef).not()) {
+        if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)).not() {
             panic("set_struct_def: expected struct or enum for ", name, ", got ", sdef.node_type.head_str(symbols.names))
         }
         mut cell : UPtr = malloc(UPtr.size().to_uptr())
@@ -1912,7 +1912,7 @@ ENUM_PAYLOAD_OFFSET : USize = 8
 size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
     host_usize := host_usize_pname()
     host_uptr := host_uptr_pname()
-    return ctx.target_usize_pname.eq(host_usize).not().or(ctx.target_uptr_pname.eq(host_uptr).not())
+    return ctx.target_usize_pname.eq(host_usize).and(ctx.target_uptr_pname.eq(host_uptr)).not()
 }
 
 constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {

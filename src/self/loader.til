@@ -1056,8 +1056,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     lp.mode_str = mode_str
 
     extract_link_info(lp)
-    lp.ctx.param_value_abi_ok = cur_mode.is_library.not()
-        .and(cur_mode.decls_only.not()).and(lp.link_c_paths.len().eq(0))
+    lp.ctx.param_value_abi_ok = cur_mode.is_library.or(cur_mode.decls_only).not()
+        .and(lp.link_c_paths.len().eq(0))
     return lp
 }
 
@@ -1252,7 +1252,7 @@ format_doc_for_help := func(doc: Str) returns Str {
     if meta.since.is_empty().not() { out.push_str("Since: "); out.push_str(meta.since); out.push_str("\n") }
     if meta.deprecated.is_empty().not() { out.push_str("Deprecated: "); out.push_str(meta.deprecated); out.push_str("\n") }
     if meta.group.is_empty().not() { out.push_str("Group: "); out.push_str(meta.group); out.push_str("\n") }
-    if out.is_empty().not().and(meta.body.is_empty().not()) { out.push_str("\n") }
+    if out.is_empty().or(meta.body.is_empty()).not() { out.push_str("\n") }
     out.push_str(meta.body)
     return out
 }
@@ -2871,7 +2871,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
         case .FuncDef: recursive_template = lazy_recursive_variadic_def(c, ctx.symbols)
         case:
         }
-        if inlined.not().and(recursive_template.not()) { expand_lazy_in_expr(c, scope, depth + 1, ctx) }
+        if inlined.or(recursive_template).not() { expand_lazy_in_expr(c, scope, depth + 1, ctx) }
     }
 }
 

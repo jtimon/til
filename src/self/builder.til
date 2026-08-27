@@ -340,7 +340,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         // --wrap=realloc"), so a mac target gets the CPU profile without
         // the allocation profile -- the same trade asan already makes.
         prof_mac := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
-        if asan.not().and(prof_mac.not()) {
+        if asan.or(prof_mac).not() {
             prof_flags = format(prof_flags, " -DTIL_PROF_ALLOC")
             prof_link_flags = " -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc"
         }
@@ -1466,7 +1466,7 @@ priv build_doc_catalog := func(lp: LoadedProgram) returns DocCatalog {
 priv append_doc_properties := func(mut out: Str, e: DocEntry, include_group: Bool, include_id: Bool) {
     has_group := include_group.and(e.group.is_empty().not())
     has_id := include_id.and(e.id.is_empty().not())
-    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(has_group).or(has_id) {
+    if e.since.is_empty().and(e.deprecated.is_empty()).not().or(has_group).or(has_id) {
         out.push_str(":PROPERTIES:\n")
         if has_id {
             out.push_str(":CUSTOM_ID: "); out.push_str(e.id); out.push_str("\n")
@@ -1500,7 +1500,7 @@ priv append_doc_unit_entry := func(mut out: Str, e: DocEntry) {
     out.push_str(e.name)
     out.push_str("\n")
     append_doc_properties(out, e, true, true)
-    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(e.group.is_empty().not()).or(e.id.is_empty().not()) {
+    if e.since.is_empty().and(e.deprecated.is_empty()).and(e.group.is_empty()).and(e.id.is_empty()).not() {
         out.push_str("\n")
     }
     if e.body.is_empty().not() {
@@ -1600,7 +1600,7 @@ priv doc_index_collect_groups := func(catalog: DocCatalog) returns Vec(Str) {
     doc_index_add_group_if_present(groups, catalog, "CLI")
     doc_index_add_group_if_present(groups, catalog, "Vendor bindings")
     for e : DocEntry in catalog.entries {
-        if e.group.is_empty().not().and(doc_index_has_group(groups, e.group).not()) {
+        if e.group.is_empty().or(doc_index_has_group(groups, e.group)).not() {
             groups.push(own e.group.clone())
         }
     }
@@ -1921,7 +1921,7 @@ priv verify_doc_html_body_renderer := func() {
 
 priv append_doc_html_meta := func(mut out: Str, e: DocEntry, include_group: Bool) {
     has_group := include_group.and(e.group.is_empty().not())
-    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(has_group) {
+    if e.since.is_empty().and(e.deprecated.is_empty()).not().or(has_group) {
         out.push_str("<dl class=\"meta\">")
         if has_group {
             out.push_str("<dt>Group</dt><dd>")

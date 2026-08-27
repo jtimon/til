@@ -792,8 +792,8 @@ priv jvm_collect_cells := proc(e: Expr, mut cells: Set(Str),
         }
         if raw_init {
             if raw_refs.has(dd.name).not() { raw_refs.add(own dd.name.clone()) }
-        } else if is_primitive(dd.til_type).and(dd.own_type.is(OwnType.Shallow).not())
-            .and(cells.has(dd.name).not()) {
+        } else if is_primitive(dd.til_type).and(dd.own_type.is(OwnType.Shallow).or(
+            cells.has(dd.name)).not()) {
             cells.add(own dd.name.clone())
         }
     case .FCall:

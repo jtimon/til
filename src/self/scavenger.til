@@ -374,7 +374,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         // Type enum and its Primitive payload.
         cr_is_macro := fdef.sig.func_type.is(FuncType.Macro)
         for p : Declaration in fdef.sig.params {
-            if p.til_type.is(Type.Unknown).not().and(cr_is_macro.not()) {
+            if p.til_type.is(Type.Unknown).or(cr_is_macro).not() {
                 vec_push_str(refs, p.type_name())
             }
         }
@@ -655,7 +655,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
             // hoisted Str temp; keep them unconditionally rather than
             // duplicating that indirection here.
             is_anon_lifted := d.name.starts_with("AnonStruct").or(d.name.starts_with("AnonEnum"))
-            if visited.has(d.name).not().and(is_anon_lifted.not()) {
+            if visited.has(d.name).or(is_anon_lifted).not() {
                 memset(ptr_add(pm, i), 1, 1)
                 vec_push_str(swept_names, d.name)
             }

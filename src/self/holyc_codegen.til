@@ -563,8 +563,8 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
                     return ""
                 }
                 aggregate_return_type = return_type_name
-            } else if holyc_scalar_type_name(return_type_name).not()
-                .or(fdef.sig.return_own_type.is(OwnType.Shallow).not()) {
+            } else if holyc_scalar_type_name(return_type_name)
+                .and(fdef.sig.return_own_type.is(OwnType.Shallow)).not() {
                 error = format("unsupported function return type '", fdef.sig.return_type, "'")
                 return ""
             } else {

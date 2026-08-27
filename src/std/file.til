@@ -185,7 +185,7 @@ namespace:
     /// UFCS: ~f.write("a").write("b").write("c")~. Panics unless opened
     /// for writing or update.
     write := proc(self: File, s: Str) returns ref File {
-        if self.is_write.not().and(self.is_update.not()) {
+        if self.is_write.or(self.is_update).not() {
             panic("File.write: file not opened for writing")
         }
         cfile_write_str(self.handle, s)

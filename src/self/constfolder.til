@@ -996,7 +996,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                     // or a not-yet-bound global. slot stays NULL and the guard
                     // below skips the known-value substitution.
                 }
-                if slot.is_null().not().and(ctx.constfolder_assigned.has(arg_id.ident_name(ctx.symbols.names)).not()) {
+                if slot.is_null().or(ctx.constfolder_assigned.has(arg_id.ident_name(ctx.symbols.names))).not() {
                     scoped_hb_o := scope_lookup_heap_binding(scope, arg_id.ident_name(ctx.symbols.names))
                     if scoped_hb_o.is_none() { panic("scoped known binding has no metadata: ", arg_id.ident_name(ctx.symbols.names)) }
                     ref scoped_hb : HeapBinding = scoped_hb_o.unwrap()
@@ -1013,7 +1013,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                             // word raw_to_expr's prim arm expects.
                             scoped_value_raw = scalar_word_load(hb_type(scoped_hb), scoped_raw, ctx)
                         }
-                        if scoped_is_ref.not().and(raw_type_is_prim(hb_type(scoped_hb), ctx).not()) {
+                        if scoped_is_ref.or(raw_type_is_prim(hb_type(scoped_hb), ctx)).not() {
                             add_known_call_arg(eval_scope, ec, scoped_raw, hb_type(scoped_hb), arg, i, ctx)
                             continue
                         }
@@ -1290,7 +1290,7 @@ priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, mut ctx: Co
     while k < body.children.len() {
         ref s : Expr = body.children[k]
         // Stop at the consumer: first use of va that is not a build stmt.
-        if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va, ctx.symbols).not()).and(is_va_array_decl(s).not()) {
+        if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va, ctx.symbols).or(is_va_array_decl(s)).not()) {
             break
         }
         if is_va_set(s, va, ctx.symbols) {
@@ -1372,7 +1372,7 @@ priv materialize_va := proc(mut scope: Scope, mut body: Expr, decl_idx: USize, v
         ref mut s : Expr = body.children[k]
         // Stop at the consumer: a statement using `va` that is not one of its
         // build statements (its Array.new decl or an Array.set on it).
-        if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va, ctx.symbols).not()).and(is_va_array_decl(s).not()) {
+        if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va, ctx.symbols).or(is_va_array_decl(s)).not()) {
             break
         }
         interp_va_build_stmt(scope, s, va, ek, ctx)
@@ -1717,9 +1717,9 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
             // Don't track a variable that is assigned somewhere: even if its
             // `mut` flag was cleared (e.g. by a redundant-mut pass), a
             // reassigned variable is not a compile-time constant.
-            if dd.is_mut.not()
-            .and(dd.own_type.is(OwnType.Ref).not())
-            .and(ctx.constfolder_assigned.has(dd.name).not())
+            if dd.is_mut
+            .or(dd.own_type.is(OwnType.Ref))
+            .or(ctx.constfolder_assigned.has(dd.name)).not()
             .and(child.children.len().gt(0)) {
                 track_literal_known_only(scope, dd.name, child.children[0], ctx)
             }
@@ -1736,7 +1736,7 @@ priv fold_subtree := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
             case .Decl(dd): vn = dd.name.clone()
             case:
             }
-            if vn.is_empty().not().and(va_name_in(va_done, vn).not()).and(va_elements_known(e, m, vn, ctx)) {
+            if vn.is_empty().or(va_name_in(va_done, vn)).not().and(va_elements_known(e, m, vn, ctx)) {
                 // The materialized array and hoisted element bindings are
                 // temporary inputs to this fold, not globals. Keep them in a
                 // child scope so its cache-owned values can be reclaimed
@@ -1885,7 +1885,7 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, mut ctx: 
                 mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                 write_ptr(raw, rhs)
                 scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
-            } else if dd.is_mut.not().and(dd.own_type.is(OwnType.Ref).not()) {
+            } else if dd.is_mut.or(dd.own_type.is(OwnType.Ref)).not() {
                 // Issue #191: register literal global constants so macro
                 // bodies that read them can fold. Only literals register;
                 // complex expressions need full interpreter support. The

@@ -1641,7 +1641,7 @@ usage := proc() {
     println("")
     println("Aliases:")
     for c : Command in commands() {
-        if c.alias_of.is_empty().not().and(c.is_path.not()) {
+        if c.alias_of.is_empty().or(c.is_path).not() {
             println(format("  ", pad(c.name, 22), "Alias for ", c.alias_of))
         }
     }

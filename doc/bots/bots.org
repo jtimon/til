@@ -609,6 +609,17 @@ collision, rename the binding to something descriptive instead. When
 translating existing code that uses leading underscores (eg the
 ~_nv~/~_b~ style), drop the underscore on the way through.
 
+## Boolean Expressions
+
+Use De Morgan's laws instead of calling ~not()~ on every operand of the same
+Boolean operation. Prefer ~a.or(b).not()~ over
+~a.not().and(b.not())~, and prefer ~a.and(b).not()~ over
+~a.not().or(b.not())~. Extend the opposite operation across longer chains and
+apply the rewrite to an all-negated subgroup when the surrounding expression
+also has non-negated operands. This preserves operand order while removing
+redundant negations. Postfix ~!~ is unrelated in til: it means panic on throw,
+not Boolean negation.
+
 ## Commits
 
 - Always include ALL modified files. When boot files are regenerated,

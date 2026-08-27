@@ -93,7 +93,7 @@ priv theme_valid_color := func(value: Str) returns Bool {
 }
 
 priv theme_comment_is_single_line := func(value: Str) returns Bool {
-    return value.contains("\n").not().and(value.contains("\r").not())
+    return value.contains("\n").or(value.contains("\r")).not()
 }
 
 priv theme_add_color := func(call: Expr, index: USize, name: Str,

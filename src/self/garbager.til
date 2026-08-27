@@ -1559,7 +1559,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // lookup_func would, without their binding probe.
         bfp := one.shl(bsym.to_u64().band(63))
         if scope.local_struct_def_fp(bsym, bfp).is_some() { continue }
-        if scope.local_func_def_fp_sym(bsym, bfp).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
+        if scope.local_func_def_fp_sym(bsym, bfp).is_some().and(b.type.is_funcptr().or(b.type.is(Type.Body)).not()) { continue }
 
         // One name->bit resolution per binding; every per-statement
         // question below is then a bit test.
@@ -2985,7 +2985,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // preserves the frame storage. Pointer-transfer adapters consume a
         // boxed copy only on the path that actually transfers ownership.
         // Callables and other unnamed types still stand down.
-        if is_aggregate(local.type).not().and(local.type.is(Type.Primitive).not()) { continue }
+        if is_aggregate(local.type).or(local.type.is(Type.Primitive)).not() { continue }
         if type_to_name(local.type).len() == 0 { continue }
         if local.own_transfer >= body.children.len().to_i64() { continue }
         // #302 stage 3: the DATAFLOW decides whether a graft is needed,
@@ -3187,7 +3187,7 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
             case:
             }
         }
-        if consumed.not().and(is_mac.not()).and(is_aggregate(e.til_type())).and(fcall_returns_own(e, scope, ctx.symbols)) {
+        if consumed.or(is_mac).not().and(is_aggregate(e.til_type())).and(fcall_returns_own(e, scope, ctx.symbols)) {
             tn := type_to_name(e.til_type())
             if tn.len() > 0 {
                 // ICE, not a diagnostic: an owned temp the hoister missed
@@ -3414,7 +3414,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
             switch rhs.node_type {
             case .FuncDef(fd):
                 if fd.sig.func_type.is_bodyless() { return }
-                if dtype.is_funcptr().not().and(dtype.is(Type.Body).not()) { return }
+                if dtype.is_funcptr().or(dtype.is(Type.Body)).not() { return }
             case:
             }
         }
@@ -3627,7 +3627,7 @@ priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: Typ
     // Before centralization, a rejected program had run ownership checks for
     // nested bodies as they finished typing, but never reached the program-root
     // destruction call. Preserve that diagnostic boundary in validation mode.
-    if insert.not().and(derive_decls.not()) { return false }
+    if insert.or(derive_decls).not() { return false }
 
     mut stack_own_params := Set(Str).new()
     switch fdef_o {

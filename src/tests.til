@@ -417,7 +417,7 @@ check_handwritten_doc_links := proc() {
     if org_source_has_heading(anchor_fixture, "Missing heading") {
         panic("Org heading anchor regression: missing heading found")
     }
-    if org_source_has_id(anchor_fixture, "custom-anchor").not().or(org_source_has_id(anchor_fixture, "org-id").not()) {
+    if org_source_has_id(anchor_fixture, "custom-anchor").and(org_source_has_id(anchor_fixture, "org-id")).not() {
         panic("Org ID anchor regression: existing ID not found")
     }
     if org_source_has_id(anchor_fixture, "missing-id") {
@@ -430,7 +430,7 @@ check_handwritten_doc_links := proc() {
     while pos < listing.len() {
         line_end := doc_test_line_end(listing, pos)
         path := listing.substr(pos, line_end - pos).trim()
-        if path.is_empty().not().and(path.starts_with("doc/gen/").not()) {
+        if path.is_empty().or(path.starts_with("doc/gen/")).not() {
             source := File.readfile(path)
             check_org_file_links(path, source)
         }
@@ -657,7 +657,7 @@ priv collect_default_c_sources := func(cmd: Str, mut out: Vec(Str)) {
             continue
         }
         if tok.ends_with(".til") {
-            if compiles.and(overridden.not()).and(retargeted.not()) {
+            if compiles.and(overridden.or(retargeted).not()) {
                 out.push(own tok.clone())
             }
             // One .til per invocation: what follows it is arguments.
@@ -3088,13 +3088,13 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "stroke=\"#0072B2\" stroke-width=\"2\" stroke-dasharray").eq(0).not().or(
-       count_matches(plot_svg, "stroke=\"#CC79A7\" stroke-width=\"2\" stroke-dasharray").eq(1).not()) {
+    if count_matches(plot_svg, "stroke=\"#0072B2\" stroke-width=\"2\" stroke-dasharray").eq(0).and(
+       count_matches(plot_svg, "stroke=\"#CC79A7\" stroke-width=\"2\" stroke-dasharray").eq(1)).not() {
         println("FAIL: plot.til should keep left-axis series solid and dash right-axis series")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "x1=\"66\"").eq(5).not().or(count_matches(plot_svg, "x2=\"734\"").eq(5).not()) {
+    if count_matches(plot_svg, "x1=\"66\"").eq(5).and(count_matches(plot_svg, "x2=\"734\"").eq(5)).not() {
         println("FAIL: plot.til should draw five outward tick marks per Y axis")
         plot_ok = 0
         fail = 1

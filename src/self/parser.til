@@ -434,7 +434,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     mut args := Vec(Str).new()
     mut arg_refs := Vec(Bool).new()
     mut argi := 0
-    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         if argi > 0 { mangled = format(mangled, "_") }
         // #320: `Name(ref X)` -- a ref-qualified type argument. Mangles as
         // `Name__ref_X` (the init inline-hoist produces the same name from
@@ -479,7 +479,7 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     // Parse parameter types: [mut] Type, [mut] Type, ...
     mut ptypes := Vec(Str).new()
     mut pmuts := Vec(Bool).new()
-    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
         if check(p, TokenType.KwConst) {
@@ -564,7 +564,7 @@ priv parse_block := proc(mut p: Parser) returns Expr {
 priv parse_capture_list := func(mut p: Parser) returns Vec(Declaration) {
     expect_token(p, TokenType.LBracket)
     mut caps := Vec(Declaration).new()
-    while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RBracket).or(check(p, TokenType.Eof)).not() {
         mut own_type := OwnType.Ref
         if check(p, TokenType.KwShallow).or(check(p, TokenType.KwOwn)) {
             if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
@@ -614,7 +614,7 @@ priv parse_generic_params := proc(mut p: Parser) returns Vec(Declaration) {
     mut gparams := Vec(Declaration).new()
     if check(p, TokenType.Lt).not() { return gparams }
     advance(p) // consume '<'
-    while check(p, TokenType.Gt).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.Gt).or(check(p, TokenType.Eof)).not() {
         gpname := expect_text(p, TokenType.Ident)
         mut gp := Declaration(is_mut = false, own_type = OwnType.Ref)
         gp.name = gpname.clone()
@@ -685,7 +685,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
 
     expect_token(p, TokenType.LParen)
 
-    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         mut own_type := OwnType.Ref
         if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
         if check(p, TokenType.KwOwn) { advance(p); own_type = OwnType.Own }
@@ -776,7 +776,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, param_decl.type_name()))
             has_default = true
         }
-        if fd.sig.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
+        if fd.sig.variadic_index.neq(-1).and(is_variadic.or(is_kwargs).or(has_default).not()) {
             parse_fail(p, peek_line(p), peek_col(p), "positional param not allowed after variadic")
         }
         // Variadic and kwargs may coexist (Python-style *args + **kwargs);
@@ -854,7 +854,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LParen)
         ref mut sfd : FunctionDef = funcdef_of(def)
         mut pi : USize = 0
-        while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+        while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
             pn := expect_text(p, TokenType.Ident)
             if pi >= sfd.sig.params.len() {
                 parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.sig.params.len().to_str(), ")")
@@ -881,7 +881,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         // returns Bool` names a lazy funcsig type. The loader lowers it to the
         // thunk signature `func(_Fn_ret_Bool, _Fn_ret_Bool) returns Bool` and
         // wraps args at calls through a value of that type.
-        if ft.is_plain().not().and(ft.is_lazy().not()) {
+        if ft.is_plain().or(ft.is_lazy()).not() {
             parse_fail(p, kw_line, kw_col, "", func_type_name(ft), " requires a body")
         }
     }
@@ -1026,7 +1026,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     p.pending_doc = ""
 
     mut in_namespace := false
-    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
         if check(p, TokenType.DocComment) {
             drain_doc_comments(p)
             continue
@@ -1122,7 +1122,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
     saved_doc := p.pending_doc.clone()
     p.pending_doc = ""
 
-    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
         if check(p, TokenType.DocComment) {
             drain_doc_comments(p)
             continue
@@ -1218,7 +1218,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     // Issue #264 follow-up: next auto-assigned tag value (C-like -- an
     // explicit `= N` sets it, otherwise previous tag + 1, starting at 0).
     mut next_tag : I64 = 0
-    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
         if check(p, TokenType.DocComment) {
             drain_doc_comments(p)
             continue
@@ -1472,13 +1472,13 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
     expect_token(p, TokenType.LParen)
 
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
-    if check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+    if check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         call.children = Vec(Expr).with_capacity(CALL_INITIAL_CHILD_CAPACITY)
     }
     call.add_child(own callee)
 
     // parse arguments
-    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         if parse_named_arg(p, call) { continue }
         // Splat arg: ..expr  OR  rest-pattern marker `..` (followed by
         // a comma or the closing paren, no expression). Splat records the
@@ -1896,7 +1896,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             advance(p) // consume ':'
             e.add_child(own parse_expression(p))
             if check(p, TokenType.Comma) { advance(p) }
-            while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+            while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
                 e.add_child(own parse_expression(p))
                 expect_token(p, TokenType.Colon)
                 e.add_child(own parse_expression(p))
@@ -1907,7 +1907,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             e = Expr.new(NodeType.Literal(Literal.SetLit), t_line, t_col)
             e.add_child(own first)
             if check(p, TokenType.Comma) { advance(p) }
-            while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+            while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
                 e.add_child(own parse_expression(p))
                 if check(p, TokenType.Comma) { advance(p) }
             }
@@ -1931,7 +1931,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         mut node := Expr.new(NodeType.Match(MatchData()), t_line, t_col)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
-        while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
             mut cn := parse_case_head(p)
             // Arm body is a single value-expression, wrapped in a Body so the
             // arm shape matches a switch Case (lets the typer reuse the switch
@@ -2148,7 +2148,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             mut def := Expr.new(NodeType.StructDef(StructDef()), t_line, t_col)
             expect_token(p, TokenType.LBrace)
             mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
-            while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+            while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
                 mut stmt := parse_statement(p)
                 switch stmt.node_type {
                 case .Decl(dd):
@@ -2207,7 +2207,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             saved := p.pos
             advance(p) // skip (
             mut is_fsf := true
-            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+            while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
                 if check(p, TokenType.Ident).not() { is_fsf = false; break }
                 advance(p)
                 if check(p, TokenType.Comma) { advance(p) }
@@ -2216,7 +2216,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 advance(p) // skip )
                 if check(p, TokenType.LBracket) {
                     advance(p)
-                    while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
+                    while check(p, TokenType.RBracket).or(check(p, TokenType.Eof)).not() {
                         advance(p)
                     }
                     if check(p, TokenType.RBracket) { advance(p) }
@@ -2526,10 +2526,10 @@ priv parse_switch := proc(mut p: Parser) returns Expr {
     mut node := Expr.new(NodeType.Switch, sw_line, sw_col)
     node.add_child(own parse_expression(p))
     expect_token(p, TokenType.LBrace)
-    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+    while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
         mut cn := parse_case_head(p)
         mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
-        while check(p, TokenType.KwCase).not().and(check(p, TokenType.RBrace).not()).and(check(p, TokenType.Eof).not()) {
+        while check(p, TokenType.KwCase).or(check(p, TokenType.RBrace)).or(check(p, TokenType.Eof)).not() {
             cb.add_child(own parse_statement(p))
         }
         cn.add_child(own cb)
@@ -2592,7 +2592,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     case .KwReturn:
         advance(p)
         mut ret := Expr.new(NodeType.Return, t_line, t_col)
-        if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()).and(check(p, TokenType.KwCase).not()) {
+        if check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).or(check(p, TokenType.KwCase)).not() {
             ret.add_child(own parse_expression(p))
         }
         return ret

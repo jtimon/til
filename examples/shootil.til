@@ -443,7 +443,7 @@ shootil_frame := proc() {
 
 main := proc() {
     shootil_setup()
-    while shootil_done.not().and(WindowShouldClose().not()) {
+    while shootil_done.or(WindowShouldClose()).not() {
         shootil_frame()
     }
     EnableCursor()

@@ -328,7 +328,7 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                 svg = format(svg, svg_text(lx, y.add(4), "end", 11, AXIS_COLOR, label))
                 tick++
             }
-            if left_unit.is_empty().not().and(units_after_values.not()) {
+            if left_unit.is_empty().or(units_after_values).not() {
                 svg = format(svg, svg_text(MARGIN_LEFT, MARGIN_TOP.sub(10),
                                           "middle", 12, AXIS_COLOR, left_unit))
             }
@@ -346,7 +346,7 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                 svg = format(svg, svg_text(rx, y.add(4), "start", 11, AXIS_COLOR, label))
                 tick++
             }
-            if right_unit.is_empty().not().and(units_after_values.not()) {
+            if right_unit.is_empty().or(units_after_values).not() {
                 svg = format(svg, svg_text(MARGIN_LEFT.add(CHART_W), MARGIN_TOP.sub(10),
                                           "middle", 12, AXIS_COLOR, right_unit))
             }

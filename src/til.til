@@ -524,7 +524,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                             current_has_lazy_def,
                             repl_has_full_state,
                             current_has_known_variadic_call)
-        commit_compiler_state := use_full_load.not().or(current_has_known_variadic_call.not()).or(repl_ast_updates_doc_cache(peek_ast, peek_symbols))
+        commit_compiler_state := use_full_load.and(current_has_known_variadic_call).not().or(repl_ast_updates_doc_cache(peek_ast, peek_symbols))
 
         // Auto-echo, tried in two shapes before giving up on the wrap.
         //
@@ -1105,9 +1105,9 @@ main := proc(args: ..Str) {
 
     // Tell the typer whether this command emits backend source. `interpret`, `ast`, and
     // `doc` stay in interpreter mode; every backend command compiles.
-    lp.ctx.compile_mode = cli.command.eq("interpret").not()
-        .and(cli.command.eq("ast").not())
-        .and(cli.command.eq("doc").not())
+    lp.ctx.compile_mode = cli.command.eq("interpret")
+        .or(cli.command.eq("ast"))
+        .or(cli.command.eq("doc")).not()
 
     // #170: all-or-nothing build cache. Placed between load_program and
     // prepare_program deliberately -- loading is what resolves the imports,

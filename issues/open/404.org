@@ -1,0 +1,26 @@
+# priority: low
+# category: optimizations
+** WIP #404 Canonicalize negated Boolean chains
+
+De Morgan's laws let a Boolean chain use one negation instead of negating
+every operand:
+
+#+begin_src til
+a.not().and(b.not()) == a.or(b).not()
+a.not().or(b.not()) == a.and(b).not()
+#+end_src
+
+The source spelling with one trailing ~not()~ gives later compiler phases less
+work. The builder or an earlier shared lowering could apply the same
+canonicalization so every backend benefits even when source code uses the
+expanded form. Preserve operand order and the existing strict evaluation of
+~Bool.and~ and ~Bool.or~.
+
+*** Progress
+
+- [X] Document the source-level rule for bots and refactor direct in-tree
+  opportunities.
+- [ ] Choose the earliest shared compiler phase where the rewrite is
+  semantics-preserving and benefits every backend.
+- [ ] Canonicalize negated ~and~ / ~or~ chains and add focused generated-code
+  coverage.

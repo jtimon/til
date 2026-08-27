@@ -34,6 +34,6 @@ v.push(own "ccc")
 check("vec len", v.len(), 3)
 ref e0 : Str = v.unsafe_get(0)
 ref e2 : Str = v.unsafe_get(2)
-if e0.eq("a").not().or(e2.eq("ccc").not()) { println("FAIL: vec stride"); exit(1) }
+if e0.eq("a").and(e2.eq("ccc")).not() { println("FAIL: vec stride"); exit(1) }
 
 println("usize64 sizes OK")

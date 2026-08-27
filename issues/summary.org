@@ -14,6 +14,8 @@
 * Optimizations
 ** Medium
 *** [[./open/397.org][#397]] A Type carries its Sym: Struct/Enum/Custom payloads become symbols
+** Low
+*** [[./open/404.org][#404]] Canonicalize negated Boolean chains
 * Features
 ** Medium
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing

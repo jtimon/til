@@ -527,7 +527,7 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
                 m++
             }
         }
-        if found_line_cmt.not().and(found_blk.not()) {
+        if found_line_cmt.or(found_blk).not() {
             comment_start = end
             comment_end = end
         }
@@ -846,7 +846,7 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
         name_set = true
         p = word_end
     }
-    if name_set.not().or(base_set.not()) { return false }
+    if name_set.and(base_set).not() { return false }
     mut base_off := base_first
     if base_off.add(7).lte(prev_end).and(range_eq_lit(line, base_off, base_off + 7, "struct ")) {
         base_off = base_off + 7
@@ -1790,8 +1790,8 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
             }
         }
         is_fragment := sys.and(looks_like_macro_fragment(line))
-        is_partial_user := sys.not().and(right.gt(0)).and(ends_with_term.not())
-            .and(next_starts_close.not()).and(is_comment_line.not())
+        is_partial_user := sys.not().and(right.gt(0)).and(
+            ends_with_term.or(next_starts_close).or(is_comment_line).not())
         if is_fragment.or(is_partial_user) {
             if carry.is_empty() {
                 carry = line.clone()
