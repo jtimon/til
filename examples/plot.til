@@ -358,7 +358,7 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                 if item.right_axis { axis_max = right_max }
                 svg = format(svg, svg_polyline(
                     build_points(rows, item, axis_max),
-                    item.color, item.right_axis.not()))
+                    item.color, item.right_axis))
             }
             si++
         }

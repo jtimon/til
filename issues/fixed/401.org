@@ -12,9 +12,9 @@ configurable axis rounding precision and moved unit labels horizontally above
 the axes. ~src/tests.til~ owns the special totals configuration and requests
 seconds for time and GB for memory. Totals uses three-digit axis precision and
 suffixes units on each tick (including fractional labels such as ~9.5 gb~).
-Dashed time lines remain distinguishable where independently scaled series
-coincide, while solid memory lines make small changes easier to follow. Both Y
-axes show five labelled positions with short outward tick marks.
+Solid time lines make their movement easy to follow, while dashed memory lines
+remain distinguishable where independently scaled series coincide. Both Y axes
+show five labelled positions with short outward tick marks.
 
 The suite now records ~peak_mem~, the maximum sampled sum of all active
 non-self process-tree RSS, alongside the existing per-phase peak sums. Missing

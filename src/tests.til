@@ -3079,9 +3079,14 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "stroke-dasharray").eq(1).not().or(
-       count_matches(plot_svg, "stroke=\"#0072B2\" stroke-width=\"2\" stroke-dasharray").eq(1).not()) {
-        println("FAIL: plot.til should dash only the selected left-axis series")
+    if count_matches(plot_svg, "stroke-dasharray") != 2 {
+        println("FAIL: plot.til should dash both selected right-axis series")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, "stroke=\"#0072B2\" stroke-width=\"2\" stroke-dasharray").eq(0).not().or(
+       count_matches(plot_svg, "stroke=\"#CC79A7\" stroke-width=\"2\" stroke-dasharray").eq(1).not()) {
+        println("FAIL: plot.til should keep left-axis series solid and dash right-axis series")
         plot_ok = 0
         fail = 1
     }
