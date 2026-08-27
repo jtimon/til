@@ -10,8 +10,9 @@ column names and receives each series' column, display label, and axis through
 ~--series~, with independent axis-unit and divisor options. A follow-up added
 configurable axis rounding precision and moved unit labels horizontally above
 the axes. ~src/tests.til~ owns the special totals configuration and requests
-seconds for time and GB for memory. Totals uses three-digit axis precision and
-suffixes units on each tick (including fractional labels such as ~9.5 gb~).
+seconds for time and GB for memory. Totals uses exact maxima from its selected
+ten rows and suffixes units on each tick (including fractional labels such as
+~9.5 gb~); other callers retain configurable rounded maxima.
 Solid time lines make their movement easy to follow, while dashed memory lines
 remain distinguishable where independently scaled series coincide. Both Y axes
 show five labelled positions with short outward tick marks.

@@ -6,7 +6,8 @@ mode cli
 // The first CSV column supplies X-axis labels. Each plotted numeric column is
 // selected with --series column:label:left|right. Series order determines
 // color. Axis units and divisors are optional. Axis precision controls how
-// aggressively maxima are rounded up; the default of 1 is deliberately coarse.
+// aggressively maxima are rounded up; 0 uses the exact maximum and the default
+// of 1 is deliberately coarse.
 // --units-after-values puts each unit after its tick instead of above the axis.
 
 import("../src/std/file")
@@ -237,6 +238,8 @@ round_axis_max := func(value: I64, precision: I64) returns I64 {
 }
 
 scaled_axis_max := func(value: I64, divisor: I64, precision: I64) returns I64 {
+    if value.lte(0) { return 1 }
+    if precision.eq(0) { return value }
     mut scaled := value.div(divisor)
     if value.mod(divisor).gt(0) { scaled++ }
     return round_axis_max(scaled, precision).mul(divisor)
@@ -246,7 +249,8 @@ format_scaled_value := func(value: I64, divisor: I64) returns Str {
     whole := value.div(divisor)
     remainder := value.mod(divisor)
     if remainder.eq(0) { return whole.to_str() }
-    hundredths := remainder.mul(100).div(divisor)
+    hundredths := remainder.mul(100).add(divisor.div(2)).div(divisor)
+    if hundredths.gte(100) { return whole.add(1).to_str() }
     if hundredths.eq(0) { return whole.to_str() }
     if hundredths.mod(10).eq(0) {
         return format(whole.to_str(), ".", hundredths.div(10).to_str())
@@ -502,8 +506,8 @@ main := proc(args: ..Str) {
             if i.add(1).eq(args.len()) { panic(__LOC__, "plot: --axis-precision needs a value") }
             i++
             axis_precision = args[i].to_i64()
-            if axis_precision.lte(0).or(axis_precision.gt(18)) {
-                panic(__LOC__, "plot: --axis-precision must be between 1 and 18")
+            if axis_precision.lt(0).or(axis_precision.gt(18)) {
+                panic(__LOC__, "plot: --axis-precision must be between 0 and 18")
             }
         } else if arg.starts_with("--") {
             panic(__LOC__, "plot: unknown option '", arg, "'")

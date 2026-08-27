@@ -13,7 +13,7 @@ RUNNER := "bin/test_runner"
 // otherwise all have to carry a flag none of them decides.
 mut REGEN := ""
 PLOT := "bin/plot"
-TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-divisor 1000000000 --axis-precision 3 --units-after-values --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right --series peak_mem:peak-mem:right"
+TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-divisor 1000000000 --axis-precision 0 --units-after-values --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right --series peak_mem:peak-mem:right"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
@@ -3032,7 +3032,7 @@ main := proc(args: ..Str) {
     File.writefile("tmp/_test_plot.csv", test_csv)
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0",
                " --left-unit widgets --left-divisor 1000",
-               " --right-unit gb --right-divisor 1000000000 --axis-precision 3",
+               " --right-unit gb --right-divisor 1000000000 --axis-precision 0",
                " --units-after-values",
                " --series requests:work:left --series heap_bytes:memory:right",
                " --series later:later:right"))
@@ -3068,7 +3068,7 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">6 widgets<") == 0 {
+    if count_matches(plot_svg, ">5.86 widgets<") == 0 {
         println("FAIL: plot.til missing suffixed left-axis unit")
         plot_ok = 0
         fail = 1
@@ -3099,8 +3099,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">24 widgets<").eq(0).or(count_matches(plot_svg, ">38 gb<").eq(0)) {
-        println("FAIL: plot.til did not apply axis divisors and precision")
+    if count_matches(plot_svg, ">23.46 widgets<").eq(0).or(count_matches(plot_svg, ">38 gb<").eq(0)) {
+        println("FAIL: plot.til did not apply axis divisors and exact maxima")
         plot_ok = 0
         fail = 1
     }
