@@ -269,8 +269,19 @@
   interpreter, C backend, and HolyC translation, and deliberately declares its
   outer struct before its inline dependency. TempleOS 5.03 compiled and ran it
   with ~TILTEST:PASS~; a self-checking guest probe verified every nested field.
-  Ref/managed fields, aggregate lifecycle, struct function interfaces, and
-  enums remain in the unchecked aggregate milestone.
+  Ref fields, aggregate equality, and enums remain in the unchecked aggregate
+  milestone.
+
+  The thirteenth slice adds managed Str fields and value-struct function ABI.
+  Generated recursive clone/delete helpers preserve nested aggregate ownership,
+  and field replacement initializes the new Str before deleting the old value.
+  Struct parameters use pointers and struct returns use caller-owned out
+  parameters, avoiding HolyC class-valued returns. The expanded shared
+  ~test/script_struct_runtime.til~ exercises dynamic managed-field construction,
+  function parameters, a non-folded struct return, clone independence, field
+  replacement, and recursive deletion. The interpreter, C backend, and HolyC
+  translation passed the shared test; TempleOS 5.03 compiled and ran the
+  generated output with ~TILTEST:PASS~.
 
 *** QEMU validation
 

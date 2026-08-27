@@ -11,6 +11,23 @@ StructPoint := struct {
     y := 0
 }
 
+StructNamedPoint := struct {
+    point := StructPoint()
+    name := ""
+}
+
+make_struct_named_point := func(name: Str) returns StructNamedPoint {
+    return StructNamedPoint(point=StructPoint(x=17, y=19), name=name.clone())
+}
+
+struct_named_point_score := func(named: StructNamedPoint) returns I64 {
+    return named.point.x + named.point.y + named.name.len().to_i64()
+}
+
+rename_struct_named_point := func(mut named: StructNamedPoint) {
+    named.name = "beta"
+}
+
 mut point := StructPoint(x=2, y=3)
 point.x = 7
 segment := StructSegment(
@@ -22,3 +39,16 @@ segment := StructSegment(
 println((point.x + point.y).to_str())
 println((segment.start.x + segment.finish.y).to_str())
 if segment.active { println("active") }
+
+mut source := Str.with_capacity(5)
+source.push_str("alpha")
+mut named := make_struct_named_point(source)
+copy := named.clone()
+rename_struct_named_point(named)
+println(copy.name)
+println(named.name)
+println(struct_named_point_score(copy).to_str())
+println(struct_named_point_score(named).to_str())
+own named.delete()
+own copy.delete()
+own source.delete()

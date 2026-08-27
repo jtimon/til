@@ -20,11 +20,94 @@ class StructPoint {
   I64 y;
 };
 
+U0 StructPoint_Clone(StructPoint *out, StructPoint *src)
+{
+  out->x = src->x;
+  out->y = src->y;
+}
+
+U0 StructPoint_Delete(StructPoint *self)
+{
+}
+
+class StructNamedPoint {
+  StructPoint point;
+  TilStr name;
+};
+
+U0 StructNamedPoint_Clone(StructNamedPoint *out, StructNamedPoint *src)
+{
+  StructPoint_Clone(&out->point, &src->point);
+  TilStrClone(&out->name, &src->name);
+}
+
+U0 StructNamedPoint_Delete(StructNamedPoint *self)
+{
+  StructPoint_Delete(&self->point);
+  TilStrDelete(&self->name, FALSE);
+}
+
 class StructSegment {
   StructPoint start;
   StructPoint finish;
   Bool active;
 };
+
+U0 StructSegment_Clone(StructSegment *out, StructSegment *src)
+{
+  StructPoint_Clone(&out->start, &src->start);
+  StructPoint_Clone(&out->finish, &src->finish);
+  out->active = src->active;
+}
+
+U0 StructSegment_Delete(StructSegment *self)
+{
+  StructPoint_Delete(&self->start);
+  StructPoint_Delete(&self->finish);
+}
+
+extern U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name);
+extern I64 struct_named_point_score(StructNamedPoint *named);
+extern U0 rename_struct_named_point(StructNamedPoint *named);
+
+U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name)
+{
+    I64 hoisted__I64_0 = 17;
+    I64 hoisted__I64_1 = 19;
+    StructNamedPoint hoisted__StructNamedPoint_2;
+    hoisted__StructNamedPoint_2.point.x = hoisted__I64_0;
+    hoisted__StructNamedPoint_2.point.y = hoisted__I64_1;
+    TilStrClone(&hoisted__StructNamedPoint_2.name, name);
+    {
+        StructNamedPoint return_value;
+        return_value.point.x = hoisted__StructNamedPoint_2.point.x;
+        return_value.point.y = hoisted__StructNamedPoint_2.point.y;
+        TilStrCopyValue(&return_value.name, &hoisted__StructNamedPoint_2.name);
+        return_out->point.x = return_value.point.x;
+        return_out->point.y = return_value.point.y;
+        TilStrCopyValue(&return_out->name, &return_value.name);
+        return;
+    }
+}
+
+I64 struct_named_point_score(StructNamedPoint *named)
+{
+    U64 hoisted__U64_0 = (&named->name)->count;
+    I64 hoisted__I64_1 = (named->point.x + named->point.y);
+    I64 hoisted__I64_2 = (hoisted__U64_0)(I64);
+    I64 hoisted__I64_3 = (hoisted__I64_1 + hoisted__I64_2);
+    return hoisted__I64_3;
+}
+
+U0 rename_struct_named_point(StructNamedPoint *named)
+{
+    {
+        TilStr replacement;
+        TilStrInitLit(&replacement, "beta", 4);
+        TilStrDelete(&named->name, FALSE);
+        TilStrCopyValue(&named->name, &replacement);
+    }
+}
 
 I64 TilMain()
 {
@@ -77,6 +160,59 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g0, hoisted__U64_g8, &hoisted__Str_g9);
         TilPrintln(&_va_Array_g0);
     }
+    U64 hoisted__U64_g26 = 5;
+    TilStr source;
+    TilStrWithCapacity(&source, hoisted__U64_g26);
+    TilStr hoisted__Str_g27;
+    TilStrInitLit(&hoisted__Str_g27, "alpha", 5);
+    TilStrPush(&source, &hoisted__Str_g27);
+    TilStrDelete(&hoisted__Str_g27, FALSE);
+    StructNamedPoint named;
+    make_struct_named_point(&named, &source);
+    StructNamedPoint copy;
+    StructNamedPoint_Clone(&copy, &named);
+    rename_struct_named_point(&named);
+    U64 hoisted__U64_g28 = 1;
+    TilStrArray _va_Array_g3;
+    TilStrArrayNew(&_va_Array_g3, hoisted__U64_g28);
+    I64 _va_Array_g3_ek = 0;
+    U64 hoisted__U64_g29 = 0;
+    TilStr hoisted__Str_g30;
+    TilStrClone(&hoisted__Str_g30, &copy.name);
+    TilStrArraySet(&_va_Array_g3, hoisted__U64_g29, &hoisted__Str_g30);
+    TilPrintln(&_va_Array_g3);
+    U64 hoisted__U64_g31 = 1;
+    TilStrArray _va_Array_g4;
+    TilStrArrayNew(&_va_Array_g4, hoisted__U64_g31);
+    I64 _va_Array_g4_ek = 0;
+    U64 hoisted__U64_g32 = 0;
+    TilStr hoisted__Str_g33;
+    TilStrClone(&hoisted__Str_g33, &named.name);
+    TilStrArraySet(&_va_Array_g4, hoisted__U64_g32, &hoisted__Str_g33);
+    TilPrintln(&_va_Array_g4);
+    U64 hoisted__U64_g34 = 1;
+    TilStrArray _va_Array_g5;
+    TilStrArrayNew(&_va_Array_g5, hoisted__U64_g34);
+    I64 _va_Array_g5_ek = 0;
+    I64 hoisted__I64_g35 = struct_named_point_score(&copy);
+    U64 hoisted__U64_g36 = 0;
+    TilStr hoisted__Str_g37;
+    TilStrFromI64(&hoisted__Str_g37, hoisted__I64_g35);
+    TilStrArraySet(&_va_Array_g5, hoisted__U64_g36, &hoisted__Str_g37);
+    TilPrintln(&_va_Array_g5);
+    U64 hoisted__U64_g38 = 1;
+    TilStrArray _va_Array_g6;
+    TilStrArrayNew(&_va_Array_g6, hoisted__U64_g38);
+    I64 _va_Array_g6_ek = 0;
+    I64 hoisted__I64_g39 = struct_named_point_score(&named);
+    U64 hoisted__U64_g40 = 0;
+    TilStr hoisted__Str_g41;
+    TilStrFromI64(&hoisted__Str_g41, hoisted__I64_g39);
+    TilStrArraySet(&_va_Array_g6, hoisted__U64_g40, &hoisted__Str_g41);
+    TilPrintln(&_va_Array_g6);
+    StructNamedPoint_Delete(&named);
+    StructNamedPoint_Delete(&copy);
+    TilStrDelete(&source, FALSE);
     return 0;
 }
 
