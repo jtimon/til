@@ -1183,6 +1183,7 @@ typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Set__Str user_functions;
     Set__Str str_return_functions;
+    Set__Str struct_names;
     Bool needs_i64_div;
     Bool needs_i64_mod;
 } priv___src_self_holyc_codegen_til__HolyCEmitState;
@@ -1193,6 +1194,7 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Set__Str str_names;
     Set__Str str_pointer_names;
     Set__Str str_array_names;
+    Map__Str_Str struct_types;
 } priv___src_self_holyc_codegen_til__HolyCLocalState;
 
 

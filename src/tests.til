@@ -1166,6 +1166,8 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos -c gen/c/templeos_dynamic_free.HC test/script_dynamic_free.til '&&' cat gen/c/templeos_dynamic_free.HC"))
     add_single(tests, "holyc_shared_str_runtime_translate", "build", 0, "test/templeos_str_runtime.expected",
         format(til_bin, " translate --target=templeos -c gen/c/templeos_str_runtime.HC test/script_str_runtime.til '&&' cat gen/c/templeos_str_runtime.HC"))
+    add_single(tests, "holyc_shared_struct_runtime_translate", "build", 0, "test/templeos_struct_runtime.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/templeos_struct_runtime.HC test/script_struct_runtime.til '&&' cat gen/c/templeos_struct_runtime.HC"))
     add_single(tests, "holyc_rejects_continue", "build", 1, "test/holyc_continue.expected",
         format(til_bin, " translate --target=templeos -c gen/c/holyc_continue.HC test/holyc_continue.til"))
     add_single(tests, "holyc_rejects_f64", "build", 1, "test/holyc_f64.expected",
@@ -2743,6 +2745,11 @@ main := proc(args: ..Str) {
     // views, mutation, integer conversion, counted output, and explicit delete.
     add_cli_pair(tests, "script_str_runtime", "test/script_str_runtime.til",
         "", 0, format(exp, "script_str_runtime.expected"), til_bin, asan_flag)
+
+    // Shared POD struct semantics used by HolyC: nested inline definitions,
+    // constructor defaults/named args, scalar field mutation, and nested reads.
+    add_cli_pair(tests, "script_struct_runtime", "test/script_struct_runtime.til",
+        "", 0, format(exp, "script_struct_runtime.expected"), til_bin, asan_flag)
 
     // #357 family at script scope: a Dynamic GLOBAL taking a pointer keeps
     // the address. The declaration used to gain a second star (`void **x`)

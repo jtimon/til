@@ -1,0 +1,24 @@
+mode script
+
+StructSegment := struct {
+    start := StructPoint()
+    finish := StructPoint()
+    active := false
+}
+
+StructPoint := struct {
+    x := 0
+    y := 0
+}
+
+mut point := StructPoint(x=2, y=3)
+point.x = 7
+segment := StructSegment(
+    start=StructPoint(x=5, y=7),
+    finish=StructPoint(x=11, y=13),
+    active=true
+)
+
+println((point.x + point.y).to_str())
+println((segment.start.x + segment.finish.y).to_str())
+if segment.active { println("active") }

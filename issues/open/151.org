@@ -260,6 +260,18 @@
   the self-checking guest probe also verified that print consumes the array,
   moved element temporaries are empty, and cloned source strings remain owned.
 
+  The twelfth slice starts general aggregates with POD/value structs. HolyC
+  ~class~ definitions are emitted in stable inline-field dependency order,
+  independent of source declaration order. Constructor calls recursively
+  initialize caller-owned destinations, including nested constructors, without
+  class returns or compound literals; scalar fields support nested reads and
+  direct assignment. ~test/script_struct_runtime.til~ is shared by the
+  interpreter, C backend, and HolyC translation, and deliberately declares its
+  outer struct before its inline dependency. TempleOS 5.03 compiled and ran it
+  with ~TILTEST:PASS~; a self-checking guest probe verified every nested field.
+  Ref/managed fields, aggregate lifecycle, struct function interfaces, and
+  enums remain in the unchecked aggregate milestone.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI

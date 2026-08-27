@@ -10,6 +10,7 @@ import("../std/file")
 priv HolyCEmitState := struct {
     user_functions := Set(Str).new()
     str_return_functions := Set(Str).new()
+    struct_names := Set(Str).new()
     needs_i64_div := false
     needs_i64_mod := false
 }
@@ -19,6 +20,7 @@ priv HolyCLocalState := struct {
     str_names := Set(Str).new()
     str_pointer_names := Set(Str).new()
     str_array_names := Set(Str).new()
+    struct_types := Map(Str, Str).new()
 }
 
 priv holyc_direct_call_name := func(e: Expr, ctx: Context) returns Str {
@@ -63,7 +65,8 @@ priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState
     return HolyCLocalState(pointer_types = locals.pointer_types.clone(),
         str_names = locals.str_names.clone(),
         str_pointer_names = locals.str_pointer_names.clone(),
-        str_array_names = locals.str_array_names.clone())
+        str_array_names = locals.str_array_names.clone(),
+        struct_types = locals.struct_types.clone())
 }
 
 // Post-escape byte count for source-form string literals. HolyC receives the
@@ -273,6 +276,110 @@ priv holyc_str_array_init := func(dest: Str, e: Expr, ctx: Context,
     return format("TilStrArrayNew(&", dest, ", ", cap, ")")
 }
 
+priv holyc_field_path := func(e: Expr, ctx: Context, mut error: Str) returns Str {
+    switch e.node_type {
+    case .Ident(id): return Str.clone(id.ident_name(ctx.symbols.names))
+    case .FieldAccess(fa):
+        if e.children.len() != 1 {
+            error = "invalid field access"
+            return ""
+        }
+        base := holyc_field_path(e.children[0], ctx, error)
+        return format(base, ".", fa.field_access_name(ctx.symbols.names))
+    case:
+        error = format("unsupported field base '", node_name(e.node_type), "'")
+        return ""
+    }
+}
+
+priv holyc_struct_copy := func(type_name: Str, dest: Str, src: Str, depth: USize,
+    ctx: Context, state: HolyCEmitState, mut error: Str) returns Str {
+    def_o := ctx.scope.get_struct(type_name, ctx.symbols)
+    if def_o.is_none() {
+        error = format("missing struct definition '", type_name, "'")
+        return ""
+    }
+    ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sdef):
+        mut out := ""
+        prefix := holyc_indent(depth)
+        for i in 0..sdef.fields.len() {
+            ref field : Declaration = sdef.field_at(i)
+            ref field_name : Str = sdef.field_name_at(i)
+            field_type := holyc_storage_type_name(field.type_name())
+            field_dest := format(dest, ".", field_name)
+            field_src := format(src, ".", field_name)
+            if holyc_scalar_type_name(field_type) {
+                out = format(out, prefix, field_dest, " = ", field_src, ";\n")
+            } else if state.struct_names.has(field_type) {
+                out = format(out, holyc_struct_copy(field_type, field_dest, field_src,
+                    depth, ctx, state, error))
+            } else {
+                error = format("unsupported field '", type_name, ".", field_name,
+                    "' of type '", field.type_name(), "'")
+                return ""
+            }
+        }
+        return out
+    case:
+        error = format("'", type_name, "' is not a struct")
+        return ""
+    }
+}
+
+priv holyc_struct_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
+    ctx: Context, mut state: HolyCEmitState, locals: HolyCLocalState,
+    mut error: Str) returns Str {
+    if e.node_type.is(NodeType.Ident).or(e.node_type.is(NodeType.FieldAccess)) {
+        src := holyc_field_path(e, ctx, error)
+        return holyc_struct_copy(type_name, dest, src, depth, ctx, state, error)
+    }
+    if e.node_type.is(NodeType.FCall).not().or(holyc_direct_call_name(e, ctx) != type_name) {
+        error = format("unsupported initializer for struct '", type_name, "'")
+        return ""
+    }
+    def_o := ctx.scope.get_struct(type_name, ctx.symbols)
+    if def_o.is_none() {
+        error = format("missing struct definition '", type_name, "'")
+        return ""
+    }
+    ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sdef):
+        if e.children.len() != sdef.fields.len() + 1 {
+            error = format("invalid constructor call '", type_name, "'")
+            return ""
+        }
+        mut out := ""
+        prefix := holyc_indent(depth)
+        for i in 0..sdef.fields.len() {
+            ref field : Declaration = sdef.field_at(i)
+            ref field_name : Str = sdef.field_name_at(i)
+            field_type := holyc_storage_type_name(field.type_name())
+            field_dest := format(dest, ".", field_name)
+            ref value : Expr = e.children[i + 1]
+            if holyc_scalar_type_name(field_type) {
+                value_code := holyc_expr(value, ctx, state, locals, error)
+                if error.len() > 0 { return "" }
+                out = format(out, prefix, field_dest, " = ", value_code, ";\n")
+            } else if state.struct_names.has(field_type) {
+                out = format(out, holyc_struct_init(field_type, field_dest, value,
+                    depth, ctx, state, locals, error))
+                if error.len() > 0 { return "" }
+            } else {
+                error = format("unsupported field '", type_name, ".", field_name,
+                    "' of type '", field.type_name(), "'")
+                return ""
+            }
+        }
+        return out
+    case:
+        error = format("'", type_name, "' is not a struct")
+        return ""
+    }
+}
+
 priv holyc_narrow_wrap := func(value: Str, owner: Str) returns Str {
     switch owner {
     case "U8":  return format("((", value, ") & 255)")
@@ -324,13 +431,15 @@ priv holyc_prepare_state := func(program: Expr, mut state: HolyCEmitState) {
     for stmt : Expr in program.children {
         switch stmt.node_type {
         case .Decl(decl):
-            if stmt.children.len().eq(1).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
-                state.user_functions.add(own decl.name.clone())
+            if stmt.children.len() == 1 {
                 switch stmt.children[0].node_type {
                 case .FuncDef(fdef):
+                    state.user_functions.add(own decl.name.clone())
                     if holyc_storage_type_name(fdef.sig.return_type) == "Str" {
                         state.str_return_functions.add(own decl.name.clone())
                     }
+                case .StructDef:
+                    state.struct_names.add(own decl.name.clone())
                 case:
                 }
             }
@@ -418,6 +527,8 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             return holyc_checked_load(name, type_name)
         }
         return Str.clone(name)
+    case .FieldAccess:
+        return holyc_field_path(e, ctx, error)
     case .FCall:
         if e.children.len() == 0 {
             error = "call has no callee"
@@ -733,6 +844,14 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: B
                 error = "nested functions are not supported yet"
                 return ""
             }
+            if stmt.children[0].node_type.is(NodeType.StructDef) {
+                if top_level {
+                    i++
+                    continue
+                }
+                error = "nested struct definitions are not supported yet"
+                return ""
+            }
             decl_type := holyc_storage_type_name(decl.type_name())
             if decl_type == "Str" {
                 value := holyc_str_init(decl.name, stmt.children[0], ctx, state, locals, error)
@@ -746,6 +865,12 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: B
                 out = format(out, prefix, "TilStrArray ", decl.name, ";\n",
                     prefix, value, ";\n")
                 locals.str_array_names.add(own decl.name.clone())
+            } else if state.struct_names.has(decl_type) {
+                value := holyc_struct_init(decl_type, decl.name, stmt.children[0],
+                    depth, ctx, state, locals, error)
+                if error.len() > 0 { return "" }
+                out = format(out, prefix, decl_type, " ", decl.name, ";\n", value)
+                locals.struct_types.set(decl.name, own decl_type)
             } else {
                 pointer_type := holyc_decl_pointer_type(decl, stmt.children[0], ctx.symbols)
                 if pointer_type.len() > 0 {
@@ -803,6 +928,20 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: B
                 if error.len() > 0 { return "" }
                 out = format(out, prefix, assign.name, " = ", value, ";\n")
             }
+        case .FieldAssign(field_assign):
+            if stmt.children.len() != 2 {
+                error = "invalid field assignment"
+                return ""
+            }
+            field_type := holyc_storage_type_name(til_type_name_c(stmt.children[1].til_type()))
+            if holyc_scalar_type_name(field_type).not() {
+                error = format("unsupported assignment to field '", field_assign.name, "'")
+                return ""
+            }
+            base := holyc_field_path(stmt.children[0], ctx, error)
+            value := holyc_expr(stmt.children[1], ctx, state, locals, error)
+            if error.len() > 0 { return "" }
+            out = format(out, prefix, base, ".", field_assign.name, " = ", value, ";\n")
         case .FCall:
             value := holyc_expr(stmt, ctx, state, locals, error)
             if error.len() > 0 { return "" }
@@ -875,6 +1014,72 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool, str_return: B
         i++
     }
     return out
+}
+
+priv holyc_struct_field_ctype := func(owner: Str, field_name: Str,
+    field: Declaration, state: HolyCEmitState, mut error: Str) returns Str {
+    if field.own_type.is(OwnType.Ref) {
+        error = format("ref field '", owner, ".", field_name, "' is not supported yet")
+        return ""
+    }
+    field_type := holyc_storage_type_name(field.type_name())
+    if holyc_scalar_type_name(field_type).or(state.struct_names.has(field_type)) {
+        return field_type
+    }
+    error = format("unsupported field '", owner, ".", field_name,
+        "' of type '", field.type_name(), "'")
+    return ""
+}
+
+priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitState,
+    mut output: Str, mut error: Str) {
+    mut emitted := Set(Str).new()
+    mut remaining := state.struct_names.len()
+    while remaining > 0 {
+        mut progress := false
+        for unit : ProgramUnit in lp.units {
+            ref program : Expr = lp.ctx.imported[unit.path].ast
+            for stmt : Expr in program.children {
+                if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().neq(1)) { continue }
+                ref decl : Declaration = decl_of(stmt)
+                if state.struct_names.has(decl.name).not().or(emitted.has(decl.name)) { continue }
+                ref def : Expr = stmt.children[0]
+                switch def.node_type {
+                case .StructDef(sdef):
+                    if sdef.is_interface {
+                        error = format("interface '", decl.name, "' is not supported yet")
+                        return
+                    }
+                    mut deps_ready := true
+                    for i in 0..sdef.fields.len() {
+                        ref field : Declaration = sdef.field_at(i)
+                        field_type := holyc_storage_type_name(field.type_name())
+                        if state.struct_names.has(field_type).and(emitted.has(field_type).not()) {
+                            deps_ready = false
+                        }
+                    }
+                    if deps_ready.not() { continue }
+                    output = format(output, "class ", decl.name, " {\n")
+                    for i in 0..sdef.fields.len() {
+                        ref field : Declaration = sdef.field_at(i)
+                        ref field_name : Str = sdef.field_name_at(i)
+                        ctype := holyc_struct_field_ctype(decl.name, field_name, field, state, error)
+                        if error.len() > 0 { return }
+                        output = format(output, "  ", ctype, " ", field_name, ";\n")
+                    }
+                    output = format(output, "};\n\n")
+                    emitted.add(own decl.name.clone())
+                    remaining--
+                    progress = true
+                case:
+                }
+            }
+        }
+        if progress.not() {
+            error = "cyclic inline struct dependency"
+            return
+        }
+    }
 }
 
 priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
@@ -962,12 +1167,16 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         holyc_prepare_state(program, state)
     }
     mut validation_error := ""
+    mut structs := ""
+    holyc_append_struct_outputs(lp, state, structs, validation_error)
     mut prototypes := ""
     mut definitions := ""
-    for unit : ProgramUnit in lp.units {
-        ref program : Expr = lp.ctx.imported[unit.path].ast
-        holyc_append_function_outputs(program, lp.ctx, state, prototypes, definitions, validation_error)
-        if validation_error.len() > 0 { break }
+    if validation_error.len() == 0 {
+        for unit : ProgramUnit in lp.units {
+            ref program : Expr = lp.ctx.imported[unit.path].ast
+            holyc_append_function_outputs(program, lp.ctx, state, prototypes, definitions, validation_error)
+            if validation_error.len() > 0 { break }
+        }
     }
     if prototypes.len() > 0 { prototypes = format(prototypes, "\n") }
     mut body := ""
@@ -986,6 +1195,7 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
 
     f := File.new(output_path, true)
     f.write(holyc_runtime_prelude())
+    f.write(structs)
     if state.needs_i64_div {
         f.write("I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
     }

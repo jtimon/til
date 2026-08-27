@@ -1,0 +1,83 @@
+extern U8 *TilMAlloc(U64 count);
+extern U8 *TilCAlloc(U64 nmemb,U64 size);
+extern U8 *TilReAlloc(U8 *ptr,U64 count);
+extern U0 TilFree(U8 *ptr);
+extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);
+extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);
+extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);
+extern I32 TilMemCmp(U8 *a,U8 *b,U64 count);
+extern U0 TilRawWrite(U8 *data,U64 count);
+extern U0 TilPanic(U8 *data,U64 count);
+extern U0 TilNullDeref();
+extern U8 *TilCheckPtr(U8 *ptr);
+extern U8 *TilDeref(U8 **slot);
+extern U0 TilWritePtr(U8 *slot,U8 *value);
+
+#include "/Home/Ext.HC"
+
+class StructPoint {
+  I64 x;
+  I64 y;
+};
+
+class StructSegment {
+  StructPoint start;
+  StructPoint finish;
+  Bool active;
+};
+
+I64 TilMain()
+{
+    I64 hoisted__I64_g10 = 2;
+    I64 hoisted__I64_g11 = 3;
+    StructPoint point;
+    point.x = hoisted__I64_g10;
+    point.y = hoisted__I64_g11;
+    I64 hoisted__I64_g12 = 7;
+    point.x = hoisted__I64_g12;
+    I64 hoisted__I64_g13 = 5;
+    I64 hoisted__I64_g14 = 7;
+    I64 hoisted__I64_g15 = 11;
+    I64 hoisted__I64_g16 = 13;
+    Bool hoisted__Bool_g17 = TRUE;
+    StructSegment segment;
+    segment.start.x = hoisted__I64_g13;
+    segment.start.y = hoisted__I64_g14;
+    segment.finish.x = hoisted__I64_g15;
+    segment.finish.y = hoisted__I64_g16;
+    segment.active = hoisted__Bool_g17;
+    U32 hoisted__U32_g18 = 1;
+    TilStrArray _va_Array_g1;
+    TilStrArrayNew(&_va_Array_g1, hoisted__U32_g18);
+    I64 _va_Array_g1_ek = 0;
+    I64 hoisted__I64_g19 = (point.x + point.y);
+    U32 hoisted__U32_g20 = 0;
+    TilStr hoisted__Str_g21;
+    TilStrFromI64(&hoisted__Str_g21, hoisted__I64_g19);
+    TilStrArraySet(&_va_Array_g1, hoisted__U32_g20, &hoisted__Str_g21);
+    TilPrintln(&_va_Array_g1);
+    U32 hoisted__U32_g22 = 1;
+    TilStrArray _va_Array_g2;
+    TilStrArrayNew(&_va_Array_g2, hoisted__U32_g22);
+    I64 _va_Array_g2_ek = 0;
+    I64 hoisted__I64_g23 = (segment.start.x + segment.finish.y);
+    U32 hoisted__U32_g24 = 0;
+    TilStr hoisted__Str_g25;
+    TilStrFromI64(&hoisted__Str_g25, hoisted__I64_g23);
+    TilStrArraySet(&_va_Array_g2, hoisted__U32_g24, &hoisted__Str_g25);
+    TilPrintln(&_va_Array_g2);
+    if (segment.active) {
+        U32 hoisted__U32_g7 = 1;
+        TilStrArray _va_Array_g0;
+        TilStrArrayNew(&_va_Array_g0, hoisted__U32_g7);
+        I64 _va_Array_g0_ek = 0;
+        U32 hoisted__U32_g8 = 0;
+        TilStr hoisted__Str_g9;
+        TilStrInitLit(&hoisted__Str_g9, "active", 6);
+        TilStrArraySet(&_va_Array_g0, hoisted__U32_g8, &hoisted__Str_g9);
+        TilPrintln(&_va_Array_g0);
+    }
+    return 0;
+}
+
+TilMain;
