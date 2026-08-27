@@ -313,6 +313,13 @@ InterpSession := struct {
     // that matched only because USize was U32; target-dependent USize makes the
     // width mismatch a hard type error on 64-bit.
     user_argc : USize = 0
+    // Every accepted REPL turn retains its LoadedProgram because persistent
+    // HeapBindings borrow Context-interned Type blocks, callables borrow AST
+    // FuncDefs, and cloned Context-owned scopes keep those same borrowed type
+    // pointers. Massif puts this retention at ~730 MB for test/repl_help.til;
+    // reclaiming superseded snapshots requires retargeting ALL three borrower
+    // classes into the replacement Context, not just checking whether the user
+    // turn declared a binding (that shortcut is a heap-use-after-free).
     retained_programs := Vec(DynPtrBox).new()
     // Set by the REPL driver. Copied onto each turn's Context by
     // interp_session_prepare_context so h_exit can unwind a failing turn
