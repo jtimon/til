@@ -207,3 +207,27 @@ This does not pretend that all core code is already separately compilable.
 Program-specific generic, lifecycle, reflection, and closure helpers remain in
 the artifact namespace. Concrete core/std partitions can reuse this ABI and
 loader model once the emitter has a real partition for them.
+
+*** Follow-up: concrete shared core leaf (2026-08-27)
+
+Generated dynamic libraries now also depend on ~libtilcore-<abi>~, using the
+same revision/target/USize/ASAN identity and atomic publication as ~libtilrt~.
+The initial fixed core ABI contains allocation-free Str query/comparison
+operations plus primitive/Dynamic size and delete helpers. These are emitted
+from their existing Til definitions: ~TIL_CORE_ONLY~ builds the shared image,
+while ~TIL_SHARED_CORE~ removes the duplicate definitions from each generated
+shared object.
+
+The core image compiles hidden, function/data-sectioned code and exports only
+the fixed core ABI; its generated library constructor is disabled, so building
+it from a library's generated C cannot run or expose that library's globals.
+Public C headers omit the internal shared-core prototypes, preserving header
+composition despite each public library retaining its own C type namespace.
+Static archives keep weak self-contained copies of the leaf functions, so they
+still require no transitive static-link argument and compatible archives select
+one definition.
+
+Generic instantiations, aggregate lifecycle code, reflection, closure tables,
+mutable core globals, and allocating/string-producing core functions remain
+artifact-local. Moving any of those needs a canonical type/global/literal
+partition rather than broadening this leaf ABI by name alone.

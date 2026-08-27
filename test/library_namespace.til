@@ -43,6 +43,11 @@ main := proc() {
     if runtime_alias_a != runtime_alias_b { panic("libraries do not share one versioned runtime namespace") }
     require_contains(runtime_alias_a, "til_tilrt_x2d")
     require_absent(runtime_alias_a, "til_library_x5fnamespace")
+    core_alias_a := line_starting_with(fwd_a, "#define Str_cmp ")
+    core_alias_b := line_starting_with(fwd_b, "#define Str_cmp ")
+    if core_alias_a != core_alias_b { panic("libraries do not share one versioned core namespace") }
+    require_contains(core_alias_a, "til_tilcore_x2d")
+    require_absent(core_alias_a, "til_library_x5fnamespace")
     if py_a.contains("USize").or(py_b.contains("USize")) {
         panic("generated Python binding contains unresolved USize")
     }
@@ -74,6 +79,8 @@ main := proc() {
     require_contains(py_a, "('scalar', ctypes.c_longlong)")
     require_contains(py_a, "_runtime_name = 'libtilrt-")
     require_contains(py_b, "_runtime_name = 'libtilrt-")
+    require_contains(py_a, "_core_name = 'libtilcore-")
+    require_contains(py_b, "_core_name = 'libtilcore-")
     require_contains(py_a, "('borrowed', ctypes.POINTER(ctypes.c_longlong))")
     require_contains(py_a, "('size', ctypes.c_ulonglong)")
     require_contains(py_a, "('ptr', ctypes.c_ulonglong)")

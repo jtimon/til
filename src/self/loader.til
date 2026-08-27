@@ -199,6 +199,12 @@ namespace:
     runtime_shared_basename := func(self: LoadedProgram) returns Str {
         return format("lib", self.runtime_stem(), shared_lib_extension(self.target))
     }
+    core_stem := func(self: LoadedProgram) returns Str {
+        return format("tilcore-", self.runtime_abi_id())
+    }
+    core_shared_basename := func(self: LoadedProgram) returns Str {
+        return format("lib", self.core_stem(), shared_lib_extension(self.target))
+    }
     // Every unit path a pass should walk: the core units first, unless this
     // program skips core, then the program's own units.
     //

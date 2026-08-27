@@ -1799,6 +1799,16 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     }
     if is_library {
         seed_library_roots(lp, worklist)
+        for shared_core_name : Str in builder_shared_core_source_names() {
+            dot := shared_core_name.find(".")
+            if dot >= 0 {
+                dot_u := dot.to_usize()
+                push_qn(worklist, shared_core_name.substr(0, dot_u),
+                    shared_core_name.substr(dot_u + 1, shared_core_name.len().sub(dot_u) - 1))
+            } else {
+                vec_push_str(worklist, shared_core_name)
+            }
+        }
     } else if is_cli {
         vec_push_str(worklist, "main")
         // The generated CLI entry wrapper parses typed argv into main()'s

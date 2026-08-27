@@ -5559,6 +5559,22 @@ priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
 // library's exported ABI.
 
 
+priv begin_shared_core_definition := func(f: File, name: Str, ctx: Context) returns Bool {
+    if ctx.builder_core_c_prefix.len() == 0 { return false }
+    if ctx.builder_core_c_names.has(name) {
+        f.write("#if !defined(TIL_SHARED_CORE) || defined(TIL_CORE_ONLY)\n")
+        f.write("#ifdef TIL_CORE_ONLY\nTIL_CORE_EXPORT\n")
+        f.write("#else\n__attribute__((weak))\n#endif\n")
+    } else {
+        f.write("#ifndef TIL_CORE_ONLY\n")
+    }
+    return true
+}
+
+priv end_shared_core_definition := proc(f: File, partitioned: Bool) {
+    if partitioned { f.write("#endif\n") }
+}
+
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, mut lp: LoadedProgram) {
     mut is_auto_size := false
     ref fd : FunctionDef = funcdef_of(fdef)
@@ -5569,6 +5585,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: 
     if fdef.children.len() == 0 { return }
     if builder_ns_method_omitted(name, dd_name, lp.ctx) { return }
     full_name := name.concat3("_", dd_name)
+    partitioned := begin_shared_core_definition(f, full_name, lp.ctx)
     // Issue #309: on a width-mismatched target (`--usize=32` or a narrower
     // cross-compile target), emit the auto-generated size method as C
     // `sizeof(ctype)` instead of the host-width literal the interpreter baked,
@@ -5580,10 +5597,12 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: 
         // Return type is USize; its resolved scalar C name is the target pname
         // ("U32"/"U64"), matching how the forward decl resolves it.
         f.write(lp.ctx.target_usize_pname).write(" ").write(full_name).write("(void) {\n    return sizeof(").write(name).write(");\n}\n\n")
+        end_shared_core_definition(f, partitioned)
         return
     }
     emit_func_def(f, full_name, fdef, mode, false, lp)
     f.write("\n")
+    end_shared_core_definition(f, partitioned)
 }
 
 priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, mode: Mode, mut lp: LoadedProgram) {
@@ -6221,6 +6240,7 @@ priv emit_lib_c_name_map := proc(f: File, ctx: Context) {
     for name : Str in ctx.builder_lib_c_names {
         f.write("#define ").write(name).write(" ")
         if ctx.builder_runtime_c_names.has(name) { f.write(ctx.builder_runtime_c_prefix) }
+        else if ctx.builder_core_c_names.has(name) { f.write(ctx.builder_core_c_prefix) }
         else { f.write(ctx.builder_lib_c_prefix) }
         f.write(name).write("\n")
     }
@@ -6266,6 +6286,13 @@ priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_n
     if lp.uses_shared_runtime() {
         lp.ctx.builder_runtime_c_prefix = c_lib_prefix(lp.runtime_stem())
         lp.ctx.builder_runtime_c_names = runtime_seen
+        lp.ctx.builder_core_c_prefix = c_lib_prefix(lp.core_stem())
+        mut core_names := Set(Str).new()
+        for source_name : Str in builder_shared_core_source_names() {
+            c_name := source_name.replace(".", "_")
+            if seen.has(c_name) { core_names.add(own c_name) }
+        }
+        lp.ctx.builder_core_c_names = core_names
     }
 
     f := File.new(fwd_path, true)
@@ -6289,6 +6316,7 @@ priv builder_static_prefix := func(ctx: Context) returns Str {
 // complement of builder_func_is_tu_local / builder_global_static_prefix,
 // which is why it names both boundary pairs.
 priv lp_header_hides := func(name: Str, ctx: Context) returns Bool {
+    if ctx.builder_public_header.and(ctx.builder_core_c_names.has(name)) { return true }
     if ctx.builder_static_ok { return false }
     if ctx.builder_prog_closed_world.not() { return false }
     if name.eq("main").or(name.eq("Str_clone")) { return false }
@@ -6336,6 +6364,8 @@ priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, mut ctx: 
     ret := func_return_ctype(fd, ctx)
     call_name := closure_call_name(name)
     value_name := closure_value_name(name)
+    partitioned := ctx.builder_core_c_prefix.len() > 0
+    if partitioned { f.write("#ifndef TIL_CORE_ONLY\n") }
     f.write("static ").write(ret).write(" ").write(call_name).write("(void *_til_env")
     if fd.sig.params.len() > 0 {
         f.write(", ")
@@ -6343,6 +6373,7 @@ priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, mut ctx: 
     }
     f.write(");\n")
     f.write("static TilClosure ").write(value_name).write(";\n")
+    if partitioned { f.write("#endif\n") }
 }
 
 priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, mut ctx: Context) {
@@ -6754,6 +6785,7 @@ build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I3
 
 priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     lp.ctx.builder_static_ok = false
+    lp.ctx.builder_public_header = true
     lp.ctx.builder_forward_declared = Set(Str).new()
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
@@ -6769,6 +6801,7 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     emit_header_global_decls_lp(f, lp)
     f.write("#include \"ext.h\"\n\n")
     emit_lib_c_name_unmap(f, lp.ctx)
+    lp.ctx.builder_public_header = false
     return 0
 }
 
@@ -7277,6 +7310,15 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
         f.write("        break\n")
         f.write("if _runtime is None:\n")
         f.write("    raise OSError('could not find ' + _runtime_name)\n")
+        f.write("_core_name = '").write(lp.core_shared_basename()).write("'\n")
+        f.write("_core = None\n")
+        f.write("for _path in _candidates:\n")
+        f.write("    _core_path = os.path.join(os.path.dirname(_path), _core_name)\n")
+        f.write("    if os.path.exists(_core_path):\n")
+        f.write("        _core = ctypes.CDLL(_core_path)\n")
+        f.write("        break\n")
+        f.write("if _core is None:\n")
+        f.write("    raise OSError('could not find ' + _core_name)\n")
     }
     f.write("_lib = None\n")
     f.write("for _path in _candidates:\n")
@@ -9502,22 +9544,34 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
     case .StructDef:
         emit_struct_funcs(f, dd.name, rhs, mode, lp)
     case .EnumDef:
+        partitioned_enum := begin_shared_core_definition(f, dd.name, lp.ctx)
         emit_enum_def(f, dd.name, rhs, mode, lp)
         f.write("\n")
+        end_shared_core_definition(f, partitioned_enum)
     case .FuncDef(fd):
         if builder_is_type_gen_macro_def(rhs) { return }
         if fd.sig.func_type.is_bodyless() { return }
         if rhs.children.len() == 0 { return }
         if lp.ctx.builder_omitted_core_funcs.has(dd.name) { return }
+        partitioned_func := begin_shared_core_definition(f, func_to_c(dd.name), lp.ctx)
         emit_func_def(f, dd.name, rhs, mode, false, lp)
-        if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
+        if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) {
+            partitioned := lp.ctx.builder_core_c_prefix.len() > 0
+            if partitioned { f.write("#ifndef TIL_CORE_ONLY\n") }
+            emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx)
+            if partitioned { f.write("#endif\n") }
+        }
         f.write("\n")
+        end_shared_core_definition(f, partitioned_func)
     case:
     }
 }
 
 priv emit_function_bodies := proc(f: File, mode: Mode, mut lp: LoadedProgram) {
+    partitioned := lp.ctx.builder_core_c_prefix.len() > 0
+    if partitioned { f.write("#ifndef TIL_CORE_ONLY\n") }
     emit_capturing_closures_lp(f, lp)
+    if partitioned { f.write("#endif\n") }
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
@@ -9889,6 +9943,13 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     f := File.new(c_output_path, true)
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")
+    if lp.ctx.builder_core_c_prefix.len() > 0 {
+        f.write("#if defined(TIL_CORE_ONLY) && defined(_WIN32)\n")
+        f.write("#define TIL_CORE_EXPORT __declspec(dllexport)\n")
+        f.write("#elif defined(TIL_CORE_ONLY)\n")
+        f.write("#define TIL_CORE_EXPORT __attribute__((visibility(\"default\")))\n")
+        f.write("#else\n#define TIL_CORE_EXPORT\n#endif\n\n")
+    }
     emit_lib_c_name_map(f, lp.ctx)
 
     is_script := is_lib.not().and(mode.decls_only.not())
@@ -9944,6 +10005,8 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
 
     f.write("#define TIL_CAP_LIT ((USize)0 - (USize)1)\n")
     f.write("#define TIL_CAP_VIEW ((USize)0 - (USize)2)\n")
+    partitioned_output := lp.ctx.builder_core_c_prefix.len() > 0
+    if partitioned_output { f.write("#ifndef TIL_CORE_ONLY\n") }
     if print_single_kept {
         f.write(pp_st).write("void print_single(Str *s) {\n")
         f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
@@ -9962,8 +10025,10 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     emit_precomputed_sequence_templates(f, lp)
 
     emit_global_declarations(f, lp)
+    if partitioned_output { f.write("#endif\n") }
     emit_function_bodies(f, mode, lp)
 
+    if partitioned_output { f.write("#ifndef TIL_CORE_ONLY\n") }
     emit_dyn_call_bodies(f, lp)
     // #326: each family is emitted only when the surviving AST names it.
     // dyn_fn's per-method `_dyn` wrappers and closure values exist solely
@@ -10002,7 +10067,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     if run_tests.not() {
         if is_script.not() {
             if is_lib {
-                if lp.ctx.script_globals.len() > 0 { emit_lib_init(f, lp) }
+                if lp.ctx.script_globals.len() > 0 {
+                    emit_lib_init(f, lp)
+                }
             }
         }
     }
@@ -10013,6 +10080,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
             }
         }
     }
+    if partitioned_output { f.write("#endif\n") }
     builder_reset_func_scratch(lp.ctx)
     return 0
 }
@@ -10079,7 +10147,8 @@ priv c_count_identifiers := func(src: Str, mut counts: Map(Str, USize)) {
 // The name a library name-map line renames, or "" when the line is not
 // one. The map is `#define <name> <prefix><name>`, one per exported
 // symbol. Returns a VIEW into `line`.
-priv c_lib_alias_name := func(line: Str, lib_prefix: Str, runtime_prefix: Str) returns Str {
+priv c_lib_alias_name := func(line: Str, lib_prefix: Str, runtime_prefix: Str,
+        core_prefix: Str) returns Str {
     if lib_prefix.len() == 0 { return "" }
     if line.starts_with("#define ").not() { return "" }
     rest := line.substr(8, line.len() - 8)
@@ -10090,6 +10159,7 @@ priv c_lib_alias_name := func(line: Str, lib_prefix: Str, runtime_prefix: Str) r
     tail := rest.substr(tail_at, rest.len() - tail_at)
     mut prefix := lib_prefix
     if runtime_prefix.len() > 0 { if tail.starts_with(runtime_prefix) { prefix = runtime_prefix } }
+    if core_prefix.len() > 0 { if tail.starts_with(core_prefix) { prefix = core_prefix } }
     if tail.len() != prefix.len() + name.len() { return "" }
     if tail.starts_with(prefix).not() { return "" }
     if tail.substr(prefix.len(), name.len()).eq(name).not() { return "" }
@@ -10128,7 +10198,8 @@ priv c_dead_macro_prefix := func(src: Str, name: Str, mut dead: Vec(Str)) return
     return true
 }
 
-priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str, runtime_prefix: Str) {
+priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str,
+        runtime_prefix: Str, core_prefix: Str) {
     src := File.readfile(c_path)
     mut dead_macros := Vec(Str).new()
     mut any := c_dead_macro_prefix(src, "TIL_BOX", dead_macros)
@@ -10153,7 +10224,7 @@ priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str, runtime_prefix: S
                 if line.starts_with(dm) { keep = false }
             }
             if keep {
-                alias := c_lib_alias_name(line, lib_prefix, runtime_prefix)
+                alias := c_lib_alias_name(line, lib_prefix, runtime_prefix, core_prefix)
                 if alias.len() > 0 {
                     if counts[alias] <= 1 { keep = false }
                 }
@@ -10182,7 +10253,7 @@ c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path
         result = build(lp.cur_mode, lp.run_tests, c_path, lp)
         if result == 0 {
             c_drop_dead_defines(c_path, lp.ctx.builder_lib_c_prefix,
-                lp.ctx.builder_runtime_c_prefix)
+                lp.ctx.builder_runtime_c_prefix, lp.ctx.builder_core_c_prefix)
         }
     }
     if result.eq(0).and(do_lib) {

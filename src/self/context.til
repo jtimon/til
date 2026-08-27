@@ -1148,6 +1148,50 @@ EvalState := struct {
     cached_str_name := ""
 }
 
+// Fixed concrete core ABI shared by generated dynamic libraries. Keep this
+// list to leaf operations whose emitted bodies depend only on primitive/Str
+// layout and ext.c; generic, reflection, closure and mutable-global code stays
+// in each artifact. Names use source qualification; c_codegen flattens '.'.
+builder_shared_core_source_names := func() returns Vec(Str) {
+    mut names := Vec(Str).new()
+    names.push(own "Str.len")
+    names.push(own "Str.unsafe_get")
+    names.push(own "Str.cmp")
+    names.push(own "Str.eq")
+    names.push(own "Str.contains")
+    names.push(own "Str.starts_with")
+    names.push(own "Str.ends_with")
+    names.push(own "Str.is_empty")
+    names.push(own "Str.find")
+    names.push(own "Str.rfind")
+    names.push(own "Bool.size")
+    names.push(own "Bool.delete")
+    names.push(own "Dynamic.size")
+    names.push(own "Dynamic.delete")
+    names.push(own "U8.size")
+    names.push(own "U8.delete")
+    names.push(own "I8.size")
+    names.push(own "I8.delete")
+    names.push(own "U16.size")
+    names.push(own "U16.delete")
+    names.push(own "I16.size")
+    names.push(own "I16.delete")
+    names.push(own "U32.size")
+    names.push(own "U32.delete")
+    names.push(own "I32.size")
+    names.push(own "I32.delete")
+    names.push(own "U64.size")
+    names.push(own "U64.delete")
+    names.push(own "I64.size")
+    names.push(own "I64.delete")
+    names.push(own "F32.size")
+    names.push(own "F32.delete")
+    names.push(own "F64.size")
+    names.push(own "F64.delete")
+    names.push(own "usize_to_uptr")
+    return names
+}
+
 Context := struct {
     mode := Mode()
     path := ""
@@ -1520,6 +1564,9 @@ Context := struct {
     // names use this versioned prefix; generated and link_c names stay local.
     builder_runtime_c_prefix := ""
     builder_runtime_c_names := Set(Str).new()
+    builder_core_c_prefix := ""
+    builder_core_c_names := Set(Str).new()
+    builder_public_header := false
     // #326: does any emitted statement write a Str THROUGH a pointer? Only
     // those three shapes call TIL_LIT_GUARD, and the pool -- with its
     // `#define` -- is emitted long before any body, so the answer has to

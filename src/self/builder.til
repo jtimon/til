@@ -33,10 +33,22 @@ priv runtime_dependency_args := func(target: Target, shared_path: Str, import_pa
     }
 }
 
+priv core_gc_link_args := func(target: Target) returns Str {
+    switch target {
+    case .WindowsX64, .WindowsX86:
+        return " -Wl,--gc-sections,--exclude-all-symbols"
+    case .MacosX64, .MacosArm64:
+        return " -Wl,-dead_strip"
+    case:
+        return " -Wl,--gc-sections"
+    }
+}
+
 priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         user_c_path: Str, link_flags: Str, include_flags: Str, target: Target,
         cc_override: Str, asan: Bool, usize64: Bool, shared_runtime: Bool,
-        runtime_stem: Str, runtime_basename: Str) returns I32 {
+        runtime_stem: Str, runtime_basename: Str, core_stem: Str,
+        core_basename: Str) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -86,6 +98,9 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     mut ext_obj := format("gen/lib/", lib_name, "_ext.o")
     mut runtime_shared_path := ""
     mut runtime_import_path := ""
+    mut core_shared_path := ""
+    mut core_import_path := ""
+    mut shared_obj_path := obj_path.clone()
     if shared_runtime {
         runtime_shared_path = format("gen/lib/", runtime_basename)
         runtime_import_path = format("gen/lib/lib", runtime_stem, ".dll.a")
@@ -118,6 +133,50 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
             File.rename(runtime_import_tmp, runtime_import_path)
         }
         File.rename(runtime_shared_tmp, runtime_shared_path)
+
+        core_shared_path = format("gen/lib/", core_basename)
+        core_import_path = format("gen/lib/lib", core_stem, ".dll.a")
+        core_obj_tmp := format("gen/lib/", core_stem, ".o", pid_suffix)
+        core_shared_tmp := format(core_shared_path, pid_suffix)
+        core_import_tmp := format(core_import_path, pid_suffix)
+        cmd = compiler.format(extra, werr, asan_flags, usize_flags,
+            " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections",
+            " -DTIL_CORE_ONLY -I", ext_dir, " -c ", c_path, " -o ", core_obj_tmp)
+        result = system_cmd(cmd)
+        if result != 0 {
+            println("error: shared core compilation failed")
+            return 1
+        }
+        core_identity_args := runtime_link_identity_args(target, core_basename, core_import_tmp)
+        core_runtime_dependency := runtime_dependency_args(target,
+            runtime_shared_path, runtime_import_path)
+        cmd = compiler.format(extra, asan_flags, target_link_extra_args(target),
+            " -shared -o ", core_shared_tmp, " ", core_obj_tmp,
+            core_runtime_dependency, core_identity_args, core_gc_link_args(target),
+            " ", target_system_libs(target))
+        result = system_cmd(cmd)
+        if result != 0 {
+            File.remove(core_obj_tmp)
+            File.remove(core_import_tmp)
+            println("error: shared core creation failed")
+            return 1
+        }
+        core_obj := format("gen/lib/", core_stem, ".o")
+        File.rename(core_obj_tmp, core_obj)
+        if target.is(Target.WindowsX64).or(target.is(Target.WindowsX86)) {
+            File.rename(core_import_tmp, core_import_path)
+        }
+        File.rename(core_shared_tmp, core_shared_path)
+
+        shared_obj_path = format("gen/lib/", lib_name, "_shared.o")
+        cmd = compiler.format(extra, werr, asan_flags, usize_flags,
+            " -fPIC -DTIL_SHARED_CORE -I", ext_dir,
+            " -c ", c_path, " -o ", shared_obj_path)
+        result = system_cmd(cmd)
+        if result != 0 {
+            println("error: shared-library object compilation failed")
+            return 1
+        }
     } else {
         cmd = compiler.format(extra, werr, asan_flags, usize_flags,
             " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
@@ -157,11 +216,13 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     // Mach-O objects with "unknown file type". No -Werror here, so the
     // compile-only flags inside extra are harmless on this link line.
     mut runtime_dependency := format(" ", ext_obj)
+    mut core_dependency := ""
     if shared_runtime {
         runtime_dependency = runtime_dependency_args(target, runtime_shared_path, runtime_import_path)
+        core_dependency = runtime_dependency_args(target, core_shared_path, core_import_path)
     }
     cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path,
-        " ", obj_path, runtime_dependency, user_objs, lf)
+        " ", shared_obj_path, core_dependency, runtime_dependency, user_objs, lf)
     result = system_cmd(cmd)
     if result != 0 {
         println("error: shared library creation failed")
@@ -697,7 +758,8 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
             lp.link_c_paths, lp.link_flags, lp.include_flags, target,
             cc_override, asan, usize64, lp.uses_shared_runtime(),
-            lp.runtime_stem(), lp.runtime_shared_basename())
+            lp.runtime_stem(), lp.runtime_shared_basename(),
+            lp.core_stem(), lp.core_shared_basename())
     }
     return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize64)
 }
@@ -883,6 +945,7 @@ cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target:
         println(format("Generated: gen/lib/lib", paths.name, ".a"))
         if lp.uses_shared_runtime() {
             println(format("Generated: gen/lib/", lp.runtime_shared_basename()))
+            println(format("Generated: gen/lib/", lp.core_shared_basename()))
         }
     }
     return result
@@ -1029,10 +1092,15 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         til_dst := format(support_root(install_prefix), "/lib/", paths.name, ".til")
         py_dst := format(support_root(install_prefix), "/lib/", paths.name, ".py")
         runtime_dst := format(install_prefix, "/lib/", lp.runtime_shared_basename())
+        core_dst := format(install_prefix, "/lib/", lp.core_shared_basename())
 
         if lp.uses_shared_runtime() {
             result = install_file(format("gen/lib/", lp.runtime_shared_basename()),
                 runtime_dst, "install shared til runtime")
+            if result == 0 {
+                result = install_file(format("gen/lib/", lp.core_shared_basename()),
+                    core_dst, "install shared til core")
+            }
         }
         if result == 0 { result = install_file(format("gen/lib/lib", paths.name, shared_lib_extension(target)), so_dst, "install shared library") }
         if result == 0 { result = install_file(format("gen/lib/lib", paths.name, ".a"), a_dst, "install static library") }
@@ -1046,6 +1114,7 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
             print_install_success(til_dst)
             print_install_success(py_dst)
             if lp.uses_shared_runtime() { print_install_success(runtime_dst) }
+            if lp.uses_shared_runtime() { print_install_success(core_dst) }
         }
         return result
     }

@@ -107,12 +107,17 @@ main := proc() returns I64 {
     require(format(PREFIX, "/lib/libinstalled_lib", shared_ext))
     require(format(PREFIX, "/lib/til/lib/installed_lib.py"))
     mut runtime_count : USize = 0
+    mut core_count : USize = 0
     for installed_name : Str in Dir.list(format(PREFIX, "/lib")) {
         if installed_name.starts_with("libtilrt-").and(installed_name.ends_with(shared_ext)) {
             runtime_count++
         }
+        if installed_name.starts_with("libtilcore-").and(installed_name.ends_with(shared_ext)) {
+            core_count++
+        }
     }
     if runtime_count != 1 { panic("library install produced ", runtime_count.to_str(), " shared runtimes") }
+    if core_count != 1 { panic("library install produced ", core_count.to_str(), " shared cores") }
     py := Cmd.new("python3", "-c",
         "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77")
     py.cwd(WORK)

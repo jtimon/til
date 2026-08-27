@@ -1910,6 +1910,9 @@ typedef struct Context {
     Vec__Str builder_lib_c_names;
     Str builder_runtime_c_prefix;
     Set__Str builder_runtime_c_names;
+    Str builder_core_c_prefix;
+    Set__Str builder_core_c_names;
+    Bool builder_public_header;
     Bool builder_lit_guard_used;
     Bool builder_cstr_used;
     Bool builder_closure_rt_used;
