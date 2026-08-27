@@ -12,6 +12,12 @@ separate tool: every green ~make test~ on the merger's machine records the
 ~make profile~ writing doc/selfhost_build.csv -- used to duplicate that
 per-commit series and was removed.)
 
+The chart's ~peak-mem~ series is different from the per-phase memory totals:
+it samples the summed RSS of active non-self test process trees at 10 Hz and
+records the suite's maximum concurrent memory pressure. The phase series sum
+each test's individual peak and therefore measure aggregate corpus cost, not
+simultaneous RAM use.
+
 This doc covers the other question: WHERE does the time actually go?
 
 ** Sample profile: where the time goes

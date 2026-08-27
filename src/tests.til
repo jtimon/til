@@ -13,10 +13,11 @@ RUNNER := "bin/test_runner"
 // otherwise all have to carry a flag none of them decides.
 mut REGEN := ""
 PLOT := "bin/plot"
-TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit mb --right-divisor 1000000 --axis-precision 2 --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right"
+TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-divisor 1000000000 --axis-precision 3 --units-after-values --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right --series peak_mem:peak-mem:right"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
+PEAK_MEM_SAMPLE_MS := 100
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -816,7 +817,8 @@ add_cli_pair := func(mut tests: Vec(Test), name: Str, file: Str,
 
 // --- Blind parallel runner ---
 
-run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64, mut suite_end_ms: I64) {
+run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,
+                        mut suite_end_ms: I64, mut suite_peak_mem: I64) {
     mut next : USize = 0
     mut active : USize = 0
 
@@ -840,8 +842,29 @@ run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64, mut suit
         si++
     }
 
-    // Poll loop
+    // Poll loop. Aggregate process-tree walks are materially heavier than a
+    // status check, so sample suite pressure at 10 Hz; each test_runner still
+    // samples its individual phase peaks at 100 Hz.
+    mut next_mem_sample_ms := 0
     while active > 0 {
+        now := clock_ms()
+        if now >= next_mem_sample_ms {
+            mut live_mem := 0
+            mut mi : USize = 0
+            while mi < j {
+                ref slot : Slot = slots[mi]
+                if slot.pid > 0 {
+                    ref t : Test = tests[slot.test_idx]
+                    if t.category != "self" {
+                        live_mem = live_mem + current_rss_bytes(slot.pid).cast(I64)
+                    }
+                }
+                mi++
+            }
+            if live_mem > suite_peak_mem { suite_peak_mem = live_mem }
+            next_mem_sample_ms = now + PEAK_MEM_SAMPLE_MS
+        }
+
         mut i : USize = 0
         while i < j {
             ref mut slot : Slot = slots[i]
@@ -1144,7 +1167,7 @@ main := proc(args: ..Str) {
     // per-binding decisions and destructor sites; the byte-exact compare
     // against test/gc_audit.expected turns any decision change into a
     // reviewable diff. Regeneration recipe in test/gc_audit.til's header.
-    add_single(tests, "gc_audit", "self", 0, "test/gc_audit.expected",
+    add_single(tests, "gc_audit", "build", 0, "test/gc_audit.expected",
         format("TIL_GC_AUDIT=test/gc_audit.til ", til_bin, " translate test/gc_audit.til"))
 
     // #151: Linux performs the frontend and emits HolyC; TempleOS is the
@@ -1271,9 +1294,8 @@ main := proc(args: ..Str) {
     // unused param spelling issue #86 defines. Each translates to its own
     // -c path so the three (and the `both` compile) never race on one file.
     //
-    // Category "build", NOT "self": self_ms/self_mem are the self-translate
-    // BENCHMARK, and they are plain SUMS over the category (self_mem adds
-    // each test's whole peak RSS). Any extra test filed under "self" lands
+    // Category "build", NOT "self": self_ms/self_mem are reserved for the
+    // self-translate BENCHMARK. Any extra test filed under "self" lands
     // in doc/totals.csv and img/totals.svg as a benchmark regression that
     // did not happen -- these three cost ~3 x 2s and ~3 x 1.1GB of peak RSS,
     // which is what made self_mem jump 11.8GB -> 15.1GB when they were first
@@ -2929,7 +2951,8 @@ main := proc(args: ..Str) {
         exit(1)
     }
     mut suite_end_ms := 0
-    run_all_parallel(tests, j, fail, suite_end_ms)
+    mut suite_peak_mem := 0
+    run_all_parallel(tests, j, fail, suite_end_ms, suite_peak_mem)
 
     // --- Accumulate totals ---
 
@@ -2999,14 +3022,16 @@ main := proc(args: ..Str) {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("sample,requests,heap_bytes,ignored", NL,
-        "alpha,10500,500000000,70", NL,
-        "beta,23456,950000000,90", NL)
+    test_csv := format("sample,requests,heap_bytes,ignored,later", NL,
+        "alpha,10500,5000000000,70", NL,
+        "beta,23456,38000000000,90,1000000000", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0",
                " --left-unit widgets --left-divisor 1000",
-               " --right-unit mb --right-divisor 1000000 --axis-precision 2",
-               " --series requests:work:left --series heap_bytes:memory:right"))
+               " --right-unit gb --right-divisor 1000000000 --axis-precision 3",
+               " --units-after-values",
+               " --series requests:work:left --series heap_bytes:memory:right",
+               " --series later:later:right"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
     mut plot_ok := 1
     if count_matches(plot_svg, "<svg") == 0 {
@@ -3014,8 +3039,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline") != 2 {
-        println("FAIL: plot.til expected 2 selected polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+    if count_matches(plot_svg, "<polyline") != 3 {
+        println("FAIL: plot.til expected 3 selected polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
     }
@@ -3039,13 +3064,13 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">widgets<") == 0 {
-        println("FAIL: plot.til missing configured left-axis unit")
+    if count_matches(plot_svg, ">6 widgets<") == 0 {
+        println("FAIL: plot.til missing suffixed left-axis unit")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">mb<") == 0 {
-        println("FAIL: plot.til missing configured right-axis unit")
+    if count_matches(plot_svg, ">9.5 gb<") == 0 {
+        println("FAIL: plot.til missing fractional suffixed right-axis unit")
         plot_ok = 0
         fail = 1
     }
@@ -3054,8 +3079,9 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "stroke-dasharray") != 1 {
-        println("FAIL: plot.til should dash only the selected right-axis series")
+    if count_matches(plot_svg, "stroke-dasharray").eq(1).not().or(
+       count_matches(plot_svg, "stroke=\"#0072B2\" stroke-width=\"2\" stroke-dasharray").eq(1).not()) {
+        println("FAIL: plot.til should dash only the selected left-axis series")
         plot_ok = 0
         fail = 1
     }
@@ -3064,7 +3090,7 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, ">23<").eq(0).or(count_matches(plot_svg, ">950<").eq(0)) {
+    if count_matches(plot_svg, ">24 widgets<").eq(0).or(count_matches(plot_svg, ">38 gb<").eq(0)) {
         println("FAIL: plot.til did not apply axis divisors and precision")
         plot_ok = 0
         fail = 1
@@ -3095,6 +3121,7 @@ main := proc(args: ..Str) {
     println("Build tests:  ", ms_to_str(build_ms))
     println("Self-translate: ", ms_to_str(self_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
+    println("Peak memory:  ", suite_peak_mem.to_str(), " bytes")
     println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
     println("")
 
@@ -3155,14 +3182,15 @@ main := proc(args: ..Str) {
             total_mem_run.to_str(), ",",
             total_mem_total.to_str(), ",",
             self_ms.to_str(), ",",
-            self_mem.to_str())
+            self_mem.to_str(), ",",
+            suite_peak_mem.to_str())
 
         totals_path := "doc/totals.csv"
-        // tests.til owns the header so the column set (incl self_ms / self_mem)
+        // tests.til owns the header so the column set (incl self / peak memory)
         // always matches the data and survives the merge's `git restore
         // doc/totals.csv`: the file is auto-generated and discarded, so the
         // header only persists if it is regenerated here.
-        header := "commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem"
+        header := "commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem,peak_mem"
         existing := File.readfile(totals_path)
         mut totals_content := format(header, NL)
         lines := existing.split(NL)

@@ -7,6 +7,7 @@ mode cli
 // selected with --series column:label:left|right. Series order determines
 // color. Axis units and divisors are optional. Axis precision controls how
 // aggressively maxima are rounded up; the default of 1 is deliberately coarse.
+// --units-after-values puts each unit after its tick instead of above the axis.
 
 import("../src/std/file")
 
@@ -46,7 +47,7 @@ qa := func(val: Str) returns Str {
 }
 
 series_color := func(index: USize) returns Str {
-    switch index.mod(9) {
+    switch index.mod(10) {
     case 0: return "#0072B2"
     case 1: return "#CC79A7"
     case 2: return "#D55E00"
@@ -55,7 +56,8 @@ series_color := func(index: USize) returns Str {
     case 5: return "#56B4E9"
     case 6: return "#E69F00"
     case 7: return "#C44E52"
-    case:   return "#8C564B"
+    case 8: return "#8C564B"
+    case:   return "#000000"
     }
 }
 
@@ -154,24 +156,25 @@ raw_series_value := func(row: Row, series: Series) returns I64 {
     return row.values[series.column_index].clone()
 }
 
-display_series_value := func(row: Row, series: Series,
-                             left_divisor: I64, right_divisor: I64) returns I64 {
-    val := raw_series_value(row, series)
-    if series.right_axis { return val.div(right_divisor) }
-    return val.div(left_divisor)
+series_value_available := func(row: Row, series: Series) returns Bool {
+    // Trailing columns added to a persisted CSV are absent from older rows.
+    return series.column_index.lt(row.values.len())
 }
 
-build_points := func(rows: Vec(Row), series: Series, y_max: I64,
-                     left_divisor: I64, right_divisor: I64) returns Str {
+build_points := func(rows: Vec(Row), series: Series, y_max: I64) returns Str {
     mut pts := ""
+    mut has_point := false
     mut i : USize = 0
     while i.lt(rows.len()) {
         ref row : Row = rows[i]
-        val := display_series_value(row, series, left_divisor, right_divisor)
-        x := x_px(i.to_i64(), rows.len().to_i64())
-        y := y_px(val, y_max)
-        if i.gt(0) { pts = format(pts, " ") }
-        pts = format(pts, x.to_str(), ",", y.to_str())
+        if series_value_available(row, series) {
+            val := raw_series_value(row, series)
+            x := x_px(i.to_i64(), rows.len().to_i64())
+            y := y_px(val, y_max)
+            if has_point { pts = format(pts, " ") }
+            pts = format(pts, x.to_str(), ",", y.to_str())
+            has_point = true
+        }
         i++
     }
     return pts
@@ -208,7 +211,9 @@ svg_polyline := func(points: Str, color: Str, dashed: Bool) returns Str {
 
 series_has_data := func(rows: Vec(Row), series: Series) returns Bool {
     for row : Row in rows {
-        if raw_series_value(row, series).gt(0) { return true }
+        if series_value_available(row, series) {
+            if raw_series_value(row, series).gt(0) { return true }
+        }
     }
     return false
 }
@@ -231,13 +236,43 @@ round_axis_max := func(value: I64, precision: I64) returns I64 {
     return value
 }
 
+scaled_axis_max := func(value: I64, divisor: I64, precision: I64) returns I64 {
+    mut scaled := value.div(divisor)
+    if value.mod(divisor).gt(0) { scaled++ }
+    return round_axis_max(scaled, precision).mul(divisor)
+}
+
+format_scaled_value := func(value: I64, divisor: I64) returns Str {
+    whole := value.div(divisor)
+    remainder := value.mod(divisor)
+    if remainder.eq(0) { return whole.to_str() }
+    hundredths := remainder.mul(100).div(divisor)
+    if hundredths.eq(0) { return whole.to_str() }
+    if hundredths.mod(10).eq(0) {
+        return format(whole.to_str(), ".", hundredths.div(10).to_str())
+    }
+    if hundredths.lt(10) {
+        return format(whole.to_str(), ".0", hundredths.to_str())
+    }
+    return format(whole.to_str(), ".", hundredths.to_str())
+}
+
+tick_label := func(value: I64, divisor: I64, unit: Str,
+                   units_after_values: Bool) returns Str {
+    label := format_scaled_value(value, divisor)
+    if units_after_values.and(unit.is_empty().not()) {
+        return format(label, " ", unit)
+    }
+    return label
+}
+
 series_legend_width := func(series: Series) returns I64 {
     return series.label.len().to_i64().mul(7).add(25)
 }
 
 generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                      right_unit: Str, left_divisor: I64, right_divisor: I64,
-                     axis_precision: I64,
+                     axis_precision: I64, units_after_values: Bool,
                      show_x_labels: Bool = true,
                      show_y_labels: Bool = true) returns Str {
     mut left_max := 0
@@ -246,18 +281,20 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
     mut has_right := false
     for row : Row in rows {
         for item : Series in series {
-            val := display_series_value(row, item, left_divisor, right_divisor)
-            if item.right_axis {
-                if val.gt(right_max) { right_max = val }
-                if raw_series_value(row, item).gt(0) { has_right = true }
-            } else {
-                if val.gt(left_max) { left_max = val }
-                if val.gt(0) { has_left = true }
+            if series_value_available(row, item) {
+                val := raw_series_value(row, item)
+                if item.right_axis {
+                    if val.gt(right_max) { right_max = val }
+                    if val.gt(0) { has_right = true }
+                } else {
+                    if val.gt(left_max) { left_max = val }
+                    if val.gt(0) { has_left = true }
+                }
             }
         }
     }
-    left_max = round_axis_max(left_max, axis_precision)
-    right_max = round_axis_max(right_max, axis_precision)
+    left_max = scaled_axis_max(left_max, left_divisor, axis_precision)
+    right_max = scaled_axis_max(right_max, right_divisor, axis_precision)
 
     mut svg := ""
     svg = format(svg, "<svg width=", qa(W.to_str()), " height=", qa(H.to_str()),
@@ -283,10 +320,11 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                 y := y_px(val, left_max)
                 svg = format(svg, svg_line(MARGIN_LEFT.sub(Y_TICK_LENGTH), y,
                                           MARGIN_LEFT, y, AXIS_COLOR))
-                svg = format(svg, svg_text(lx, y.add(4), "end", 11, AXIS_COLOR, val.to_str()))
+                label := tick_label(val, left_divisor, left_unit, units_after_values)
+                svg = format(svg, svg_text(lx, y.add(4), "end", 11, AXIS_COLOR, label))
                 tick++
             }
-            if left_unit.is_empty().not() {
+            if left_unit.is_empty().not().and(units_after_values.not()) {
                 svg = format(svg, svg_text(MARGIN_LEFT, MARGIN_TOP.sub(10),
                                           "middle", 12, AXIS_COLOR, left_unit))
             }
@@ -300,10 +338,11 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                 svg = format(svg, svg_line(MARGIN_LEFT.add(CHART_W), y,
                                           MARGIN_LEFT.add(CHART_W).add(Y_TICK_LENGTH),
                                           y, AXIS_COLOR))
-                svg = format(svg, svg_text(rx, y.add(4), "start", 11, AXIS_COLOR, val.to_str()))
+                label := tick_label(val, right_divisor, right_unit, units_after_values)
+                svg = format(svg, svg_text(rx, y.add(4), "start", 11, AXIS_COLOR, label))
                 tick++
             }
-            if right_unit.is_empty().not() {
+            if right_unit.is_empty().not().and(units_after_values.not()) {
                 svg = format(svg, svg_text(MARGIN_LEFT.add(CHART_W), MARGIN_TOP.sub(10),
                                           "middle", 12, AXIS_COLOR, right_unit))
             }
@@ -318,8 +357,8 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
                 mut axis_max := left_max
                 if item.right_axis { axis_max = right_max }
                 svg = format(svg, svg_polyline(
-                    build_points(rows, item, axis_max, left_divisor, right_divisor),
-                    item.color, item.right_axis))
+                    build_points(rows, item, axis_max),
+                    item.color, item.right_axis.not()))
             }
             si++
         }
@@ -331,10 +370,10 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
             si = 0
             while si.lt(series.len()) {
                 ref item : Series = series[si]
-                if series_has_data(rows, item) {
+                if series_has_data(rows, item).and(series_value_available(row, item)) {
                     mut axis_max := left_max
                     if item.right_axis { axis_max = right_max }
-                    y := y_px(display_series_value(row, item, left_divisor, right_divisor), axis_max)
+                    y := y_px(raw_series_value(row, item), axis_max)
                     svg = format(svg, svg_circle(x, y, 3, item.color))
                 }
                 si++
@@ -379,7 +418,8 @@ generate_svg := func(rows: Vec(Row), series: Vec(Series), left_unit: Str,
 plot_csv := proc(csv_path: Str, svg_path: Str, specs: Vec(Str),
                  left_unit: Str = "", right_unit: Str = "",
                  left_divisor: I64 = 1, right_divisor: I64 = 1,
-                 axis_precision: I64 = 1, last_n: I64 = 0,
+                 axis_precision: I64 = 1, units_after_values: Bool = false,
+                 last_n: I64 = 0,
                  show_x_labels: Bool = true, show_y_labels: Bool = true) {
     content := File.readfile(csv_path)
     headers := parse_headers(content)
@@ -404,7 +444,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, specs: Vec(Str),
     }
 
     svg := generate_svg(rows, series, left_unit, right_unit,
-                        left_divisor, right_divisor, axis_precision,
+                        left_divisor, right_divisor, axis_precision, units_after_values,
                         show_x_labels, show_y_labels)
     File.writefile(svg_path, svg)
 }
@@ -414,6 +454,7 @@ main := proc(args: ..Str) {
         println("usage: plot <csv_path> <svg_output_path> [last_n]",
                 " [--no-x-labels] [--left-unit unit] [--right-unit unit]",
                 " [--left-divisor n] [--right-divisor n] [--axis-precision n]",
+                " [--units-after-values]",
                 " --series column:label:left|right ...")
         exit(1)
     }
@@ -425,6 +466,7 @@ main := proc(args: ..Str) {
     mut left_divisor := 1
     mut right_divisor := 1
     mut axis_precision := 1
+    mut units_after_values := false
     mut last_n := 0
     mut show_x := true
     mut i : USize = 2
@@ -432,6 +474,8 @@ main := proc(args: ..Str) {
         ref arg : Str = args[i]
         if arg.eq("--no-x-labels") {
             show_x = false
+        } else if arg.eq("--units-after-values") {
+            units_after_values = true
         } else if arg.eq("--series") {
             if i.add(1).eq(args.len()) { panic(__LOC__, "plot: --series needs a value") }
             i++
@@ -470,6 +514,6 @@ main := proc(args: ..Str) {
     }
     if specs.len().eq(0) { panic(__LOC__, "plot: at least one --series is required") }
     plot_csv(csv_path, svg_path, specs, left_unit, right_unit,
-             left_divisor, right_divisor, axis_precision, last_n,
+             left_divisor, right_divisor, axis_precision, units_after_values, last_n,
              show_x_labels=show_x)
 }
