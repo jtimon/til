@@ -85,6 +85,13 @@ til_type_name := func(t: Type) returns Str {
     case .Enum(s):       return s.clone()
     case .Custom(s):     return s.clone()
     case .FuncPtrSig(s): return s.clone()
+    // #397 step 3: runtime Types are Str-shaped (the marshalling edge
+    // resolves), so a Sym twin here is a COMPILER caller reading a
+    // spelling through the runtime introspection surface. Those sites
+    // use type_name_of (src/self/context.til). Loud beats "" flowing on
+    // as a plausible "unnamed type".
+    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+        panic("til_type_name: Sym-form Type reached the runtime introspection surface; compiler sites read through type_name_of (#397)")
     case: return ""
     }
 }
@@ -98,7 +105,10 @@ type_name_storage_kind := func(type_name: Str) returns USize {
 }
 
 type_storage_kind := func(t: Type) returns USize {
-    if t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig)).or(t.is(Type.Body)) { return ELEM_FN }
+    // #397 step 3: the FuncPtrSigSym twin classifies exactly like the Str
+    // form it stands in for. A tag check needs no SymbolPool, so core can
+    // answer for the twin even though only the compiler builds one.
+    if t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig)).or(t.is(Type.FuncPtrSigSym)).or(t.is(Type.Body)) { return ELEM_FN }
     if t.is(Type.Primitive).or(t.is(Type.Dynamic)) { return ELEM_POD }
     return type_name_storage_kind(dyn_type_to_str(t))
 }

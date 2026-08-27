@@ -247,7 +247,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
     // its body still names the unbound `T`, so a lambda lifted out of it
     // would be typed as an ordinary function against an undefined type.
     // The concrete monomorphizations get their lambdas lifted instead.
-    if init_func_is_generic(e) { return }
+    if init_func_is_generic(e, ctx.symbols.names) { return }
     switch e.node_type {
     case .FuncDef(lift_fd_check):
         if lift_fd_check.captures.len().gt(0).and(lift_fd_check.closure_name.len().eq(0)) {
@@ -261,7 +261,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
             mut is_template_lift := mtg_ret_lift
             if is_template_lift.not() {
                 for tmp_param_lift : Declaration in lift_fd_check.sig.params {
-                    if tmp_param_lift.type_name() == "Type" {
+                    if tmp_param_lift.type_name_res(ctx.symbols.names) == "Type" {
                         is_template_lift = true
                     }
                 }
@@ -402,8 +402,8 @@ priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, mut scope: Typ
             b_o := scope.get_binding_sym(idn.ident_sym())
             if b_o.is_some() {
                 ref b : TypeBinding = b_o.unwrap()
-                tn := til_type_name(b.type)
-                if tn.len() > 0 { func_state.lowering_param_types.set(nm, own tn) }
+                ref tn : Str = til_type_name_res(b.type, ctx.symbols.names)
+                if tn.len() > 0 { func_state.lowering_param_types.set(nm, own tn.clone()) }
             }
         }
     case:
@@ -477,7 +477,7 @@ priv guess_local_type := func(scope: TypeScope, e: Expr, var_name: Str, symbols:
         switch e.node_type {
         case .Decl(dn):
             if dn.name == var_name {
-                if dn.til_type.is(Type.Unknown).not() { return dn.type_name() }
+                if dn.til_type.is(Type.Unknown).not() { return dn.type_name_res(symbols.names).clone() }
                 if e.children.len() > 0 {
                     ref rhs : Expr = e.children[0]
                     switch rhs.node_type {
@@ -559,7 +559,7 @@ priv seed_local_type_from_stmt := func(mut scope: TypeScope, ctx: Context, stmt:
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     switch stmt.node_type {
     case .Decl(dd):
-        mut tn := dd.type_name()
+        mut tn := dd.type_name_res(ctx.symbols.names).clone()
         if tn.len().eq(0).and(stmt.children.len().gt(0)) {
             ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
@@ -847,7 +847,7 @@ priv annotate_throw_types_in := proc(ctx: Context, mut e: Expr, root_body: Expr)
                                 case .Decl(dd):
                                     if dd.name == idn.ident_name(ctx.symbols.names) {
                                         if dd.til_type.is(Type.Unknown).not() {
-                                            tn = dd.type_name()
+                                            tn = dd.type_name_res(ctx.symbols.names).clone()
                                         } else if prior_stmt.children.len() > 0 {
                                             switch prior_stmt.children[0].node_type {
                                             case .FCall:
@@ -1140,7 +1140,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     // installs the metadata a STATIC throw type can safely publish; until
     // then no source template is extended -- the concrete declarations
     // synthesized from it take the ordinary throw path.
-    if init_stmt_is_generic_source(e) {
+    if init_stmt_is_generic_source(e, ctx.symbols.names) {
         // A source with a STATIC throw type publishes its metadata under
         // the SOURCE name, because a caller's throw lowering runs before
         // inference has a monomorphized name to key on. Extending the
@@ -1173,7 +1173,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
         // Never recurse into an unresolved template body.
         return
     }
-    if init_func_is_generic(e) { return }
+    if init_func_is_generic(e, ctx.symbols.names) { return }
     // Register Decl(name) -> FuncDef in the global throws map.
     if e.node_type.is(NodeType.Decl) {
         if e.children.len() > 0 {
@@ -1431,7 +1431,7 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
         fd_o := member_get(sd.fields_index, sd.fields, field_name)
         if fd_o.is_some() {
             ref fd : Declaration = fd_o.unwrap()
-            return fd.type_name()
+            return fd.type_name_res(ctx.symbols.names).clone()
         }
     case:
     }
@@ -1534,7 +1534,7 @@ priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, met
         mut derived := Vec(Str).new()
         for p : Declaration in fd.sig.params {
             if p.name.starts_with("_err_").and(p.name.eq("_err_kind").not()) {
-                if p.til_type.is(Type.Unknown).not() { derived.push(own p.type_name()) }
+                if p.til_type.is(Type.Unknown).not() { derived.push(own p.type_name_res(ctx.symbols.names).clone()) }
             }
         }
         if derived.len() > 0 {
@@ -1657,7 +1657,7 @@ priv fcall_callee_is_dependent_throw_generic := func(ctx: Context, e: Expr) retu
         fd_o := ctx.scope.lookup_func_by_sym(cn.ident_sym(), ctx.symbols)
         if fd_o.is_none() { return false }
         ref fd : Expr = fd_o.unwrap()
-        if init_func_is_generic(fd).not() { return false }
+        if init_func_is_generic(fd, ctx.symbols.names).not() { return false }
         return generic_source_throws_depend_on_type(fd)
     case:
     }
@@ -2406,7 +2406,7 @@ priv process_throw_catch_in_body := proc(
                 ref throw_t : Type = stmt.til_type()
                 mut tn := ""
                 if throw_t.is(Type.Unknown).not().and(throw_t.is(Type.None).not()) {
-                    tn = type_to_name(throw_t)
+                    tn = type_to_name(throw_t, ctx.symbols).clone()
                 }
                 if tn.len() == 0 {
                     tn = throw_type_name_for_with_body(ctx, stmt.children[0], root_body)
@@ -2421,7 +2421,7 @@ priv process_throw_catch_in_body := proc(
                             case .Decl(dd):
                                 if dd.name == idn.ident_name(ctx.symbols.names) {
                                     if dd.til_type.is(Type.Unknown).not() {
-                                        tn = dd.type_name()
+                                        tn = dd.type_name_res(ctx.symbols.names).clone()
                                     } else if prior_stmt.children.len() > 0 {
                                         switch prior_stmt.children[0].node_type {
                                         case .FCall:
@@ -2487,7 +2487,7 @@ priv process_throw_catch_in_body := proc(
                                 prior_dd.used = true
                                 if tn.len() == 0 {
                                     if prior_dd.til_type.is(Type.Unknown).not() {
-                                        tn = prior_dd.type_name()
+                                        tn = prior_dd.type_name_res(ctx.symbols.names).clone()
                                     } else if prior_stmt.children.len() > 0 {
                                         ref prior_rhs : Expr = prior_stmt.children[0]
                                         switch prior_rhs.node_type {
@@ -3398,7 +3398,7 @@ priv expr_has_unguarded_break := func(e: Expr) returns Bool {
 switch_is_clike := func(stmt: Expr, sw_expr: Expr, is_match: Bool, enum_def_o: Option(ref Expr), symbols: SymbolPool) returns Bool {
     if is_match { return false }
     ref sw_type : Type = sw_expr.til_type()
-    sw_sname := til_type_name(sw_type)
+    ref sw_sname : Str = til_type_name_res(sw_type, symbols.names)
     mut is_enum := false
     mut is_bool := false
     if sw_type.is(Type.Enum) {
@@ -3838,7 +3838,7 @@ priv build_kwargs_map_set := func(fcall: Expr, mut scope: TypeScope, kw_name: St
     mut key_lit := Expr.new(NodeType.Literal(Literal.Str(key_name)), fcall.line, fcall.col)
     set_call.add_child(own key_lit)
 
-    tname := type_to_name(val.til_type())
+    ref tname : Str = type_to_name(val.til_type(), ctx.symbols)
     mut type_lit := Expr.new(NodeType.Literal(Literal.Str(tname.clone())), fcall.line, fcall.col)
     set_call.add_child(own type_lit)
 
@@ -3948,7 +3948,7 @@ priv build_variadic_arg_value := func(val_in: Expr, scope: TypeScope, mut symbol
         is_borrow_arg = true
     }
     if is_borrow_arg {
-        tname := type_to_name(val_in.til_type())
+        ref tname : Str = type_to_name(val_in.til_type(), symbols)
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
         if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
             return make_clone_call(tname, val_in.til_type(), val_in, val_in, symbols)
@@ -4040,7 +4040,7 @@ priv build_builtin_vec_push := func(fcall: Expr, mut scope: TypeScope, elem_type
     ref val_in : Expr = fcall.children[j + 2]
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
-        tname := type_to_name(val_in.til_type())
+        ref tname : Str = type_to_name(val_in.til_type(), ctx.symbols)
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
         if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
             val = make_clone_call(tname, val_in.til_type(), val_in, val_in, ctx.symbols)
@@ -4243,7 +4243,7 @@ priv decl_tuple_typed_read_type := func(stmt: Expr, scope: TypeScope, symbols: S
         return ""
     }
     ref dd : Declaration = decl_of(stmt)
-    declared := dd.type_name()
+    ref declared : Str = dd.type_name_res(symbols.names)
     if declared.len() == 0 { return "" }
     // Same spelling the push side records: desugar_dynamic_variadic_call
     // stores resolve_type_alias_for_name(type of the argument).
@@ -4297,7 +4297,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     ref first : Expr = set_lit.children[0]
-    elem_type := type_to_name(first.til_type())
+    ref elem_type : Str = type_to_name(first.til_type(), ctx.symbols)
     if elem_type.len() == 0 {
         first.type_error("set literal: cannot determine element type", ctx)
         return false
@@ -4309,7 +4309,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 
     for j in 1..set_lit.children.len() {
         ref v : Expr = set_lit.children[j]
-        vt := type_to_name(v.til_type())
+        ref vt : Str = type_to_name(v.til_type(), ctx.symbols)
         if vt.len().eq(0).or(vt.eq(elem_type).not()) {
             v.type_error("set literal: all elements must be the same type", ctx)
         }
@@ -4366,8 +4366,8 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 
     ref first_key : Expr = map_lit.children[0]
     ref first_val : Expr = map_lit.children[1]
-    key_type := type_to_name(first_key.til_type())
-    val_type := type_to_name(first_val.til_type())
+    ref key_type : Str = type_to_name(first_key.til_type(), ctx.symbols)
+    ref val_type : Str = type_to_name(first_val.til_type(), ctx.symbols)
 
     if key_type.len() == 0 {
         first_key.type_error("map literal: cannot determine key type", ctx)
@@ -4385,13 +4385,13 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     for j in 2..map_lit.children.len() {
         if j % 2 == 0 {
             ref k : Expr = map_lit.children[j]
-            kt := type_to_name(k.til_type())
+            ref kt : Str = type_to_name(k.til_type(), ctx.symbols)
             if kt.len().eq(0).or(kt.eq(key_type).not()) {
                 k.type_error("map literal: all keys must be the same type", ctx)
             }
         } else {
             ref v : Expr = map_lit.children[j]
-            vt := type_to_name(v.til_type())
+            ref vt : Str = type_to_name(v.til_type(), ctx.symbols)
             if vt.len().eq(0).or(vt.eq(val_type).not()) {
                 v.type_error("map literal: all values must be the same type", ctx)
             }
@@ -4508,7 +4508,7 @@ priv desugar_dynamic_variadic_call := func(mut ctx: Context, mut e: Expr, mut ne
         mut pc_self := Expr.new(ident_node(ctx.symbols.intern(va_name)), e.line, e.col)
         pc_self.set_til_type(Type.Struct("Tuple"))
         pc.add_child(own pc_self)
-        mut tn := resolve_type_alias_for_name(scope, type_to_name(arg.til_type()), ctx.symbols).clone()
+        mut tn := resolve_type_alias_for_name(scope, type_to_name(arg.til_type(), ctx.symbols), ctx.symbols).clone()
         // An argument that IS a Dynamic contributes a raw word; so does one
         // whose type never resolved -- in a dynamic block "a word, no type"
         // is the meaning of not knowing, not a guess.
@@ -4539,7 +4539,7 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     ref fd : FunctionDef = funcdef_of(fdef)
     vi := fd.sig.variadic_index + 1
     vc := fcall_variadic_count(e, fd.sig.params.len(), fd.sig.kwargs_index >= 0)
-    elem_type := fd.sig.params[fd.sig.variadic_index.to_usize()].type_name()
+    ref elem_type : Str = fd.sig.params[fd.sig.variadic_index.to_usize()].type_name_res(ctx.symbols.names)
     variadic_own := fd.sig.params[fd.sig.variadic_index.to_usize()].own_type.is(OwnType.Own)
     if variadic_carrier_type_name(scope, elem_type, ctx.symbols) == "Tuple" {
         desugar_dynamic_variadic_call(ctx, e, new_ch, scope, vi, vc, variadic_own)
@@ -4664,7 +4664,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
         if needs_delete.not().and(stmt.node_type.is(NodeType.FieldAssign)) {
             if field_assign_needs_delete(stmt, scope, ctx.symbols) {
                 ref fa_rhs : Expr = stmt.children[1]
-                if type_to_name(fa_rhs.til_type()).len() > 0 {
+                if type_to_name(fa_rhs.til_type(), ctx.symbols).len() > 0 {
                     needs_delete = true
                 }
             }
@@ -4738,7 +4738,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
 
 priv postfold_arg_is_struct_ctor := func(arg: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if arg.node_type.is(NodeType.FCall).not().or(arg.children.len() == 0) { return false }
-    type_name_o := expr_type_name_ref(arg)
+    type_name_o := type_name_of(arg.til_type(), symbols)
     if type_name_o.is_none() { return false }
     ref type_name : Str = type_name_o.unwrap()
     switch arg.children[0].node_type {
@@ -4882,7 +4882,7 @@ priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_c
     if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
         if field_assign_needs_delete(stmt, scope, ctx.symbols) {
             ref rhs : Expr = stmt.children[1]
-            if type_to_name(rhs.til_type()).len() > 0 {
+            if type_to_name(rhs.til_type(), ctx.symbols).len() > 0 {
                 switch stmt.node_type {
                 case .FieldAssign(fad):
                     fad.save_old_delete = true
@@ -4917,7 +4917,7 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
         a.set_til_type(ab.type)
         call.add_child(own a)
         call.add_child(own stmt.children[0].clone())
-        tname := type_to_name(ab.type)
+        ref tname : Str = type_to_name(ab.type, ctx.symbols)
         sz_call := make_ns_call(tname, "size", usize_type(scope, ctx), stmt, ctx.symbols)
         // Issue #210: only use swap_replace for Str so the builder can
         // emit the explicit delete-copy-free pattern (unblocking
@@ -5051,7 +5051,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     // be force-expanded against the temp.
     if is_macro_call(expr, ctx) { return }
 
-    expr_sname_o := expr_type_name_ref(expr)
+    expr_sname_o := type_name_of(expr.til_type(), ctx.symbols)
     mut is_dyn_call := false
     mut is_array_vec := false
     mut is_ctor_call := false
@@ -5275,7 +5275,7 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     // that owns heap cannot be saved by a copy (the pointers come along,
     // the bytes behind them die) -- infer_return_stmt rejects those.
     if is_aggregate(rhs.til_type()) {
-        agg_tn := type_to_name(rhs.til_type())
+        ref agg_tn : Str = type_to_name(rhs.til_type(), ctx.symbols)
         if agg_tn.len() == 0 { return }
         if init_delete_is_noop(agg_tn, scope, ctx.symbols).not() { return }
     }

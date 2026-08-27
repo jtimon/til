@@ -345,7 +345,54 @@ namespace:
         case .FuncPtr: return "Fn"
         case .Body: return "Body"
         case .Dynamic: return "Dynamic"
+        // #397 step 3: this is the RUNTIME spelling accessor -- user
+        // programs call it on reflected Declarations, which carry Str-form
+        // Types because the marshalling edge resolves. A Sym twin here
+        // means a COMPILER site read a spelling through the runtime
+        // surface; those sites call type_name_res(names) below, which can
+        // resolve the twin. Loud beats an empty string that flows on as a
+        // plausible "no type".
+        case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+            panic("Declaration.type_name: Sym-form Type reached the runtime spelling accessor; compiler sites read through type_name_res (#397)")
         case: return ""
+        }
+    }
+    // #397 step 3: the compiler-side spelling reader. Same answers as
+    // type_name for every form, and BORROWED: a payload arm returns a ref
+    // into the Declaration, a Sym twin a ref into the pool's names vector
+    // (passed as a Vec like ident_name's, so core needs no SymbolPool
+    // type), and a fixed spelling a ref to the NAME_* singletons above --
+    // no clone per query anywhere. A caller that stores the result clones
+    // at its own site, which is where the cost belongs.
+    type_name_res := func(self: Declaration, names: Vec(Str)) returns ref Str {
+        switch self.til_type {
+        case .Struct(name): return name
+        case .Enum(name): return name
+        case .Custom(name): return name
+        case .FuncPtrSig(name): return name
+        case .StructSym(s_sym):      return names.unsafe_get(s_sym.cast(USize) - 1)
+        case .EnumSym(e_sym):        return names.unsafe_get(e_sym.cast(USize) - 1)
+        case .CustomSym(c_sym):      return names.unsafe_get(c_sym.cast(USize) - 1)
+        case .FuncPtrSigSym(f_sym):  return names.unsafe_get(f_sym.cast(USize) - 1)
+        case .Primitive(Primitive.I8): return NAME_I8
+        case .Primitive(Primitive.U8): return NAME_U8
+        case .Primitive(Primitive.I16): return NAME_I16
+        case .Primitive(Primitive.U16): return NAME_U16
+        case .Primitive(Primitive.I32): return NAME_I32
+        case .Primitive(Primitive.U32): return NAME_U32
+        case .Primitive(Primitive.I64): return NAME_I64
+        case .Primitive(Primitive.U64): return NAME_U64
+        case .Primitive(Primitive.F32): return NAME_F32
+        case .Primitive(Primitive.F64): return NAME_F64
+        case .Primitive(Primitive.Bool): return NAME_BOOL
+        case .None: return NAME_NONE
+        case .StructDef: return NAME_STRUCTDEF
+        case .EnumDef: return NAME_ENUMDEF
+        case .FuncDef: return NAME_FUNCTIONDEF
+        case .FuncPtr: return NAME_FN
+        case .Body: return NAME_BODY
+        case .Dynamic: return NAME_DYNAMIC
+        case: return NAME_EMPTY
         }
     }
     /// The default-value expression, borrowed. PANICS on None: callers
@@ -982,6 +1029,32 @@ TYPE_STRUCTDEF : Type = Type.Struct("StructDef")
 TYPE_ENUMDEF : Type = Type.Struct("EnumDef")
 TYPE_MAP : Type = Type.Struct("Map")
 TYPE_SET : Type = Type.Struct("Set")
+
+// #397: shared Str values for the FIXED type spellings, the same move the
+// TYPE_* singletons above make for Type values: the ref-returning spelling
+// readers (Declaration.type_name_res here, til_type_name_res and
+// type_to_name in the compiler) return a ref to these instead of cloning a
+// fresh Str per query. NAME_EMPTY is the shared "no name" answer, so the
+// nameless arms need no allocation either.
+NAME_I8 : Str = "I8"
+NAME_U8 : Str = "U8"
+NAME_I16 : Str = "I16"
+NAME_U16 : Str = "U16"
+NAME_I32 : Str = "I32"
+NAME_U32 : Str = "U32"
+NAME_I64 : Str = "I64"
+NAME_U64 : Str = "U64"
+NAME_F32 : Str = "F32"
+NAME_F64 : Str = "F64"
+NAME_BOOL : Str = "Bool"
+NAME_NONE : Str = "None"
+NAME_STRUCTDEF : Str = "StructDef"
+NAME_ENUMDEF : Str = "EnumDef"
+NAME_FUNCTIONDEF : Str = "FunctionDef"
+NAME_FN : Str = "Fn"
+NAME_BODY : Str = "Body"
+NAME_DYNAMIC : Str = "Dynamic"
+NAME_EMPTY : Str = ""
 
 /// AST node kind. Each variant carries an optional payload (struct, string, bool).
 NodeType := enum {

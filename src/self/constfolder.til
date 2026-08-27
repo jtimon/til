@@ -60,7 +60,9 @@ priv collect_target_idents := proc(e: Expr, mut names: Set(Str), symbols: Vec(St
 
 priv constfolder_type_is_aggregate := func(t: Type, ctx: Context) returns Bool {
     mut resolved := t.clone()
-    name := til_type_name(t)
+    mut name := ""
+    cta_name_o := type_name_of(t, ctx.symbols)
+    if cta_name_o.is_some() { name = Str.clone(cta_name_o.unwrap()) }
     cname := til_type_name_c(t)
     if name.eq("USize").or(name.eq("UPtr"))
     .or(name.eq(ctx.target_usize_pname)).or(name.eq(ctx.target_uptr_pname))
@@ -1527,7 +1529,7 @@ priv normalize_stack_decl_deletes := func(mut e: Expr, i: USize, symbols: Symbol
     case .Decl(dd): dname = dd.name.clone()
     case:
     }
-    tname := type_to_name(decl.til_type())
+    ref tname : Str = type_to_name(decl.til_type(), symbols)
     if tname.len() == 0 { return }
     for k in i + 1..e.children.len() {
         ref mut stmt : Expr = e.children[k]

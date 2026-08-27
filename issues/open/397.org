@@ -106,10 +106,71 @@ over:
    [plain commits]
 
 3. Producers flip: infer/parse/init sites that build Type.Struct(name)
-   build Type.StructSym(symbols.intern(name)) instead. Emitted C
-   changes (different tags in Type literals); "Two-pass: " commits.
-   The interpreter's layout tables pick up the new variants' sizes in
-   the same commits.
+   build Type.StructSym(symbols.intern(name)) instead. One family per
+   slice, each suite-green on master before the next.
+
+   DONE, slice 1 -- the FuncPtrSig family (all 12 producers, in typer/
+   parser/initer/loader/context). Chosen first because it is the one
+   family fully closed inside src/self: core's own producers
+   (declaration_type_from_name, the TYPE_* singletons) serve runtime
+   reflection and never build a FuncPtrSig. What the slice established,
+   which the remaining families inherit:
+
+   - The RUNTIME Type surface stays Str-shaped. User programs match
+     .FuncPtrSig(name) and have no pool, so the twins live only inside
+     the compiler process; write_runtime_type resolves a twin back to
+     the Str form at the marshalling edge. Consequence: emitted C for
+     user programs did not change ("Two-pass:" was not needed --
+     the plain three-pass build and the corpus eqcheck passed), and
+     emit_dyn_type_to_str_body's "?" fallthrough stays dead.
+   - The three runtime spelling accessors (Declaration.type_name,
+     til_type_name, expr_type_name_ref) now PANIC on a twin, and every
+     compiler call site moved to a both-forms reader: type_name_res
+     (Declaration method taking the pool's names Vec, ident_name-style),
+     til_type_name_res / type_name_of / type_to_name(+pool) in the
+     compiler. ~350 call sites swept; the sweep is done ONCE, so the
+     remaining families only flip producers against already-migrated
+     readers.
+   - Tag-check sites moved to type_is_funcsig / is_funcptr (twins
+     included). The class to grep for when flipping the next family:
+     `case .FuncPtr, .FuncPtrSig, .Body`-style TAG LISTS. Two silent
+     traps of that class were only caught by the C compiler and ASAN
+     respectively: til_type_to_c's default arm emitted I64 for a twin
+     (a FuncSig-typed GLOBAL emitted as I64 -- caught by -Werror), and
+     the interpreter's heap_drop/clone/move arms missed the twin, so
+     closure envs bound to FuncPtrSigSym-typed locals leaked (caught
+     only by the ASAN pass; the plain suite was green).
+   - Diagnostic scaffolding warning: a `loc: Str = __LOC__` default
+     parameter on the panicking accessors located every caller during
+     the sweep, but it CANNOT ship -- the constfolder rebuilds macro
+     calls without filling defaults, so the extra parameter broke
+     arity at interpretation time (OutOfBounds in eval args).
+   - REBASE HAZARD, and the reason a green pre-rebase suite proves
+     nothing here: master keeps adding callers of the very readers this
+     migration retires, and they auto-merge CLEANLY. Two classes, and
+     only one is caught by the compiler. A new `type_to_name(t)` fails
+     the build (the signature grew a pool). A new `.type_name()`,
+     `til_type_name(t)` or `expr_type_name_ref(e)` compiles FINE and
+     panics at runtime only if a twin reaches it -- so the guard is to
+     re-grep for all four after every rebase, not to trust the build.
+     Six such callers arrived in one 10-commit rebase (2 + 4).
+   - The #170 cache does not key on the compiler mid-migration state:
+     manual debug builds poisoned it and three tests "failed" on stale
+     cached successes. `make clean && make test` is the arbiter; it
+     passed 470/470.
+
+   Still owed by the remaining families (Struct/Enum/Custom):
+   - is_type_metatype answers the "is this the Type metatype" question
+     with `case: false` for the twins -- correct for FuncPtrSigSym,
+     WRONG for a future StructSym/EnumSym/CustomSym naming "Type".
+     Must gain twin arms (or route through type_sym) in the slice that
+     flips those families.
+   - constfolder_type_is_aggregate's final `case .Struct, .Enum` tag
+     arms; write_runtime_type's remaining panic arms; make_til_type_expr
+     (needs the payload spelling once Struct/Enum/Custom flip);
+     til_type_name_c's payload-carrying Custom arm.
+   - The interpreter's layout tables pick up those variants' sizes in
+     the same slices.
 
 4. Retirement: when nothing constructs the Str forms, reject them in
    a transitional commit (panic in the accessors' Str arms naming this

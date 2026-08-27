@@ -39,13 +39,13 @@ priv interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
 priv field_nested_def := func(dd: Declaration, ctx: Context) returns Option(ref Expr) {
     resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if is_primitive(resolved) { return Option(ref Expr).None }
-    return lookup_interp_type_def(resolved_type_name(resolved), ctx)
+    return lookup_interp_type_def(resolved_type_name(resolved, ctx.symbols.names), ctx)
 }
 
 priv decl_is_funcsig := func(dd: Declaration, ctx: Context) returns Bool {
     resolved := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
     if type_is_callable_storage(resolved) { return true }
-    tdef_o := lookup_interp_type_def(resolved_type_name(resolved), ctx)
+    tdef_o := lookup_interp_type_def(resolved_type_name(resolved, ctx.symbols.names), ctx)
     if tdef_o.is_none() { return false }
     ref tdef : Expr = tdef_o.unwrap()
     if tdef.node_type.is(NodeType.FuncDef) {
@@ -59,7 +59,7 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
         if decl_is_funcsig(dd, ctx) { return false }
-        if dd.type_name() == "Str" { return false }
+        if dd.type_name_res(ctx.symbols.names) == "Str" { return false }
         fsd_o := field_nested_def(dd, ctx)
         if fsd_o.is_some() {
             ref fsd : Expr = fsd_o.unwrap()
@@ -150,7 +150,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
             foff := hc_fl.offset
             cfi = cfi + 1
-            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope, ctx.symbols))
+            ftype := resolved_type_name(declaration_resolved_type(dd, ctx.scope, ctx.symbols), ctx.symbols.names).clone()
             nested_def_o := field_nested_def(dd, ctx)
             if dd.own_type.is(OwnType.Own) {
                 if decl_is_funcsig(dd, ctx) {
@@ -917,7 +917,7 @@ priv raw_result_move_into := proc(shallow t: Type, mut dst: Dynamic, src: Dynami
     case .Enum(name):
         if return_is_ref { size = Dynamic.size() }
         else { size = dispatch_enum_size(name, ctx) }
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: size = Dynamic.size()
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body: size = Dynamic.size()
     case .Custom(name):
         raw_result_move_into(type_from_name_init_name(name, ctx.scope, ctx.symbols), dst, src, return_is_ref, ctx)
         return
@@ -940,7 +940,7 @@ priv raw_result_drop_nested := proc(shallow t: Type, mut raw: Dynamic, return_is
         if return_is_ref.not() { heap_drop_struct(name, raw, ctx) }
     case .Enum(name):
         if return_is_ref.not() { heap_drop_enum(name, raw, ctx) }
-    case .FuncPtr, .FuncPtrSig, .Body:
+    case .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body:
         heap_drop_by_type(t, raw, ctx)
     case .Custom(name):
         raw_result_drop_nested(type_from_name_init_name(name, ctx.scope, ctx.symbols), raw, return_is_ref, ctx)
@@ -1055,7 +1055,7 @@ priv raw_type_size := func(shallow t: Type, ctx: Context) returns USize {
         return size
     case .Struct(name): return ctx_total_size(name, ctx)
     case .Enum(name): return dispatch_enum_size(name, ctx)
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return Dynamic.size()
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body: return Dynamic.size()
     case .Custom(name): return raw_type_size(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
     case:
         panic("cannot size raw type ", til_type_name_c(t))
@@ -1114,13 +1114,14 @@ priv raw_arg_pointer := func(raw: Dynamic, info: RawResultInfo, ctx: Context) re
     // slot so raw-memory builtins get a real address.
     if info.is_word { return word_ring_slot(value_type, raw, ctx) }
     switch value_type {
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return deref(raw)
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body: return deref(raw)
     case .Custom(name):
         alias_type := type_from_name_init_name(name, ctx.scope, ctx.symbols)
         switch alias_type {
         case .Dynamic: return deref(raw)
         case .FuncPtr: return deref(raw)
         case .FuncPtrSig: return deref(raw)
+        case .FuncPtrSigSym: return deref(raw)
         case .Body: return deref(raw)
         case:
         }
@@ -1309,7 +1310,7 @@ priv context_return_take := func(mut ctx: Context) returns Dynamic {
 }
 
 priv field_access_sname := func(e: Expr, mut fallback: Str, symbols: SymbolPool) returns ref Str {
-    sname_o := expr_type_name_ref(e.children[0])
+    sname_o := type_name_of(e.children[0].til_type(), symbols)
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
         return sname
@@ -1458,7 +1459,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
-        if (fdecl.type_name() == "USize").or(fdecl.type_name() == "UPtr") {
+        if (fdecl.type_name_res(ctx.symbols.names) == "USize").or(fdecl.type_name_res(ctx.symbols.names) == "UPtr") {
             mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
             if (sname == ctx.eval.cached_str_name).and(fa.field_access_name(ctx.symbols.names) == "cap").and(fl.size == 4) {
                 field_type = Type.Primitive(Primitive.I32)
@@ -1558,11 +1559,19 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
     case .FuncPtrSig(name):
         variant = "FuncPtrSig"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
-    // #397: no producer builds a Sym twin yet, so marshalling one means
-    // a step-3 site flipped without teaching this path how to write a
-    // Sym payload into the runtime Type. Fail loudly rather than
-    // marshal a Type whose payload silently reads as garbage.
-    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+    // #397 step 3: a Sym twin marshals as the STR form it stands in for --
+    // the runtime Type surface stays Str-shaped, because user programs
+    // match .FuncPtrSig(name) and have no SymbolPool to resolve a Sym
+    // with. The twins exist only inside the compiler process; this is the
+    // edge where they leave it, so this is where the spelling comes back.
+    case .FuncPtrSigSym(fps_sym):
+        variant = "FuncPtrSig"
+        ref fps_name : Str = ctx.symbols.resolve(fps_sym)
+        dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), fps_name.c_str, fps_name.count, ctx)
+    // The remaining three twins still have no producer; a marshalling hit
+    // means a family flipped without teaching this path. Fail loudly
+    // rather than write a payload that silently reads as garbage.
+    case .StructSym, .EnumSym, .CustomSym:
         panic("interp: Type Sym variant reached raw marshalling before #397 step 3 taught it the payload")
     case .Body: variant = "Body"
     }
@@ -1570,7 +1579,7 @@ priv write_runtime_type := func(mut result: Dynamic, shallow t: Type, ctx: Conte
 }
 
 priv eval_precomputed_sequence := proc(mut scope: Scope, mut e: Expr, data: PrecomputedSequenceData, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic) returns Dynamic {
-    seq_name := til_type_name(data.til_type)
+    ref seq_name : Str = til_type_name_res(data.til_type, ctx.symbols.names)
     is_vec := seq_name.eq("Vec").or(seq_name.starts_with("Vec__"))
     is_array := seq_name.eq("Array").or(seq_name.starts_with("Array__"))
     if is_vec.not().and(is_array.not()) { panic("precomputed sequence has non-sequence type: ", seq_name) }
@@ -1925,7 +1934,7 @@ priv eval_switch := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     // labels are constant expressions and evaluate directly.
     is_enum_subj := stmt.children[0].til_type().is(Type.Enum)
     mut enum_def_o := Option(ref Expr).None
-    sname_o := expr_type_name_ref(stmt.children[0])
+    sname_o := type_name_of(stmt.children[0].til_type(), ctx.symbols)
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
         enum_def_o = lookup_type_def_helper(sname, scope, ctx)
@@ -2004,7 +2013,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
     }
     ref rhs_type : Type = raw_result_source_type(rhs_info)
     mut decl_type := rhs_type.clone()
-    declared_name := dd.type_name()
+    ref declared_name : Str = dd.type_name_res(ctx.symbols.names)
     if dd.til_type.is(Type.Unknown).not() { decl_type = declaration_resolved_type(dd, ctx.scope, ctx.symbols) }
     if decl_type.is(Type.Body).and(rhs_type.is(Type.Enum)) { decl_type = rhs_type.clone() }
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -2422,7 +2431,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 }
             }
             if interp_fa_namespace_def(scope, stmt, ctx).is_some() {
-                mut sname_o := expr_type_name_ref(stmt.children[0])
+                mut sname_o := type_name_of(stmt.children[0].til_type(), ctx.symbols)
                 if sname_o.is_none() {
                     switch stmt.children[0].node_type {
                     case .Ident(oi): sname_o = safe_ref(oi.ident_name(ctx.symbols.names))
@@ -2506,7 +2515,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                                     base = ptr_add(base, step_off)
                                 }
                                 cur_sdef_o = field_nested_def(step_fd, ctx)
-                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols))
+                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols), ctx.symbols.names).clone()
                             }
                         }
                     case:
@@ -2765,7 +2774,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     // over-reads on the word load).
                     own_src_w : Dynamic = scalar_word_load(hb_type(source_hb), owned_raw, ctx)
                     EvalHeap.heap_free(own owned_raw)
-                    owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.type_name(), ctx), ctx)
+                    owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.type_name_res(ctx.symbols.names), ctx), ctx)
                 } else {
                     owned_raw = raw_coerce_value(owned_raw, hb_type(source_hb), bind_type, ctx, param.own_type)
                 }
@@ -2787,7 +2796,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         // width (a narrow clone bound under a wider type
                         // over-reads on the word load).
                         src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
-                        widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.type_name(), ctx)
+                        widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.type_name_res(ctx.symbols.names), ctx)
                         scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type_w, param.own_type, ctx)
                     } else {
                         mut converted : Dynamic = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
@@ -2862,7 +2871,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     // compiled build read 2. Copy the scalar instead.
                     if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
                         src_w : Dynamic = scalar_word_load(arg_source_type, arg_raw, ctx)
-                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.type_name(), ctx), ctx)
+                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.type_name_res(ctx.symbols.names), ctx), ctx)
                     } else {
                         borrowed = true
                     }
@@ -3074,7 +3083,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 ref fn_name : FieldAccessData = fieldaccess_of(callee_expr)
                 enum_dispatch_shape2 := call_type.is(Type.Enum).or(fn_name.field_access_name(ctx.symbols.names) == "is")
                 if enum_dispatch_shape2 {
-                    parent_sname_o := expr_type_name_ref(callee_expr.children[0])
+                    parent_sname_o := type_name_of(callee_expr.children[0].til_type(), ctx.symbols)
                     if parent_sname_o.is_some() {
                         ref parent_sname : Str = parent_sname_o.unwrap()
                         // REM: an unbound parent_sname -- or one bound to a VALUE,
@@ -3106,7 +3115,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                     }
                 }
                 mut flat_str := Str.clone(fn_name.field_access_name(ctx.symbols.names))
-                sn_o := expr_type_name_ref(callee_expr.children[0])
+                sn_o := type_name_of(callee_expr.children[0].til_type(), ctx.symbols)
                 // til_type_name returns "" for primitives. For ext_func
                 // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
                 // `I64_sub(0, 1)`), fall back to til_type_name_c.
@@ -3459,7 +3468,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             arg_is_ref = false
                             arg_is_place = false
                         }
-                        arg_raw = raw_widen_numeric(arg_raw, arg_source_type, fdd.type_name(), ctx)
+                        arg_raw = raw_widen_numeric(arg_raw, arg_source_type, fdd.type_name_res(ctx.symbols.names), ctx)
                         ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
                         mut arg_is_null := false
                         switch arg.node_type {
@@ -4313,7 +4322,7 @@ priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Co
     case .FuncPtr:
         ref mut stored_callable : Dynamic = deref(ptr)
         if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
-    case .FuncPtrSig:
+    case .FuncPtrSig, .FuncPtrSigSym:
         ref mut stored_callable2 : Dynamic = deref(ptr)
         if stored_callable2.is_null().not() { callable_storage_free(stored_callable2) }
     case .Body:
@@ -4356,7 +4365,7 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
         ref stored_callable : Dynamic = deref(ptr)
         if stored_callable.is_null().not() { write_ptr(dst, callable_storage_clone(stored_callable)) }
         return dst
-    case .FuncPtrSig:
+    case .FuncPtrSig, .FuncPtrSigSym:
         mut dst2 : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         ref stored_callable2 : Dynamic = deref(ptr)
         if stored_callable2.is_null().not() { write_ptr(dst2, callable_storage_clone(stored_callable2)) }
@@ -4413,7 +4422,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         owned_src4 : Dynamic = src
         EvalHeap.heap_free(own owned_src4)
         return true
-    case .FuncPtrSig:
+    case .FuncPtrSig, .FuncPtrSigSym:
         ref mut old_callable2 : Dynamic = deref(dst)
         if old_callable2.is_null().not() { callable_storage_free(old_callable2) }
         ref moved_callable2 : Dynamic = deref(src)
@@ -4577,6 +4586,11 @@ interp_intern_type := func(shallow t: Type, mut ctx: Context) returns Dynamic {
     case .Enum(name): return intern_named(ctx.interned_types.enums, name, t)
     case .Custom(name): return intern_named(ctx.interned_types.customs, name, t)
     case .FuncPtrSig(name): return intern_named(ctx.interned_types.funcsigs, name, t)
+    // #397 step 3: the Sym twin keys the same name-keyed cache by its
+    // resolved spelling, so a Str-form and a Sym-form of the same sig share
+    // one slot; the stored Type keeps the form it arrived in, since every
+    // reader downstream accepts both.
+    case .FuncPtrSigSym(sym): return intern_named(ctx.interned_types.funcsigs, ctx.symbols.resolve(sym), t)
     case .Primitive(p): return intern_slot(ctx.interned_types.prims, intern_prim_index(p), t)
     case: return intern_slot(ctx.interned_types.simples, intern_simple_index(t), t)
     }
@@ -4957,7 +4971,7 @@ priv interp_fa_namespace_def_with_name := func(mut scope: Scope, e: Expr, sname:
 
 priv interp_fa_namespace_def := func(mut scope: Scope, e: Expr, ctx: Context) returns Option(ref Expr) {
     ref obj_expr : Expr = e.children[0]
-    sname_o := expr_type_name_ref(obj_expr)
+    sname_o := type_name_of(obj_expr.til_type(), ctx.symbols)
     if sname_o.is_some() {
         ref sname : Str = sname_o.unwrap()
         return interp_fa_namespace_def_with_name(scope, e, sname, false, ctx)
@@ -5943,7 +5957,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         // stride and CLI parsing resolve the width
                         // themselves (elem_size_for_type/parse_cli_arg
                         // both handle USize/UPtr).
-                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.sig.params[vi.to_usize()].type_name(), lp.ctx.symbols).clone()
+                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.sig.params[vi.to_usize()].type_name_res(lp.ctx.symbols.names), lp.ctx.symbols).clone()
                         arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
                         va_array_binding_o := lp.ctx.scope.get_binding_name(format("Array__", va_elem), lp.ctx.symbols)
                         if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
@@ -5951,7 +5965,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
                         argi = argi + va_count.to_i32()
                     } else {
-                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.type_name(), lp.ctx)
+                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.type_name_res(lp.ctx.symbols.names), lp.ctx)
                         scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols), lp.ctx), param.own_type, lp.ctx)
                         argi++
                     }
@@ -6440,7 +6454,7 @@ dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
         size = ctx_total_size(name, ctx)
     case .Enum(name):
         size = dispatch_enum_size(name, ctx)
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body:
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .FuncPtrSigSym, .Body:
         size = Dynamic.size()
     case .Custom(name):
         return dispatch_result_alloc(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
@@ -6850,7 +6864,7 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
         exit(1)
     }
     ref fd : Declaration = sd.field_at(idx)
-    str_copy_into(r, fd.type_name(), ctx)
+    str_copy_into(r, fd.type_name_res(ctx.symbols.names), ctx)
     return true
 }
 
@@ -7024,7 +7038,7 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
         exit(1)
     }
     ref pd : Declaration = fd.sig.params[idx]
-    str_copy_into(r, pd.type_name(), ctx)
+    str_copy_into(r, pd.type_name_res(ctx.symbols.names), ctx)
     return true
 }
 
@@ -7361,7 +7375,7 @@ priv shallow_ffi_type := func(type_name: Str, mut ctx: Context) returns ref ffi_
 priv field_ffi_type := func(dd: Declaration, mut ctx: Context) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
-    t_o := known_ffi_type(dd.type_name(), ctx)
+    t_o := known_ffi_type(dd.type_name_res(ctx.symbols.names), ctx)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_sint64")
 }
@@ -7743,7 +7757,7 @@ priv h_get_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     mut gp_off : USize = ENUM_PAYLOAD_OFFSET
     mut gp_is_niche := false
     mut gp_def_o := Option(ref Expr).None
-    gp_tname_o := expr_type_name_ref(e.children[1])
+    gp_tname_o := type_name_of(e.children[1].til_type(), ctx.symbols)
     if gp_tname_o.is_some() {
         ref gp_tname : Str = gp_tname_o.unwrap()
         gp_def_o = lookup_interp_type_def(gp_tname, ctx)
@@ -8224,7 +8238,7 @@ priv interp_c_str_arg_shape := func(arg_expr: Expr, symbols: SymbolPool) returns
     }
 }
 
-priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: USize) returns Bool {
+priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: USize, names: Vec(Str)) returns Bool {
     ref ext_slot : Dynamic = scope_get(scope, name)?
     catch (knf: KeyNotFound) { return false }
     ref ext_def : Expr = callable_raw_func_def(ext_slot)
@@ -8232,7 +8246,7 @@ priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: U
     case .FuncDef(fd):
         if arg_index >= fd.sig.params.len() { return false }
         ref p : Declaration = fd.sig.params[arg_index]
-        if p.type_name().eq("I8").not() { return false }
+        if p.type_name_res(names).eq("I8").not() { return false }
         return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
     case:
         return false
@@ -8262,7 +8276,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     for i in 0..nargs {
         ref mut arg_expr : Expr = e.children[i + 1]
         mut arg_info := raw_result_info_new()
-        if interp_c_str_arg_shape(arg_expr, ctx.symbols).and(interp_ext_c_string_param(scope, name, i)) {
+        if interp_c_str_arg_shape(arg_expr, ctx.symbols).and(interp_ext_c_string_param(scope, name, i, ctx.symbols.names)) {
             ctx.eval.interp_cstr_arg = true
         }
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
@@ -8785,7 +8799,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
         ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
         dynamic_slot = declaration_resolved_type(pk, ctx.scope, ctx.symbols).is(Type.Dynamic)
         if pk.own_type.is(OwnType.Shallow) {
-            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.type_name(), ctx))
+            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.type_name_res(ctx.symbols.names), ctx))
             has_shallow = true
         } else {
             write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))

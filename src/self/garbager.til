@@ -330,8 +330,8 @@ priv gc_audit_dump := proc(ctx: Context, body: Expr, locals: Vec(LocalInfo)) {
         " locals=", shown.to_str())
     for local : LocalInfo in locals {
         if gc_audit_local_is_noise(local) { continue }
-        mut tname := type_to_name(local.type)
-        if tname.len() == 0 { tname = til_type_name(local.type) }
+        mut tname := type_to_name(local.type, ctx.symbols).clone()
+        if tname.len() == 0 { tname = til_type_name_res(local.type, ctx.symbols.names).clone() }
         println("GC-AUDIT local ", gc_audit_name(local.name, names, counts),
             " type=", tname,
             " decl=", local.decl_index.to_str(),
@@ -1295,8 +1295,8 @@ priv rhs_depends_on_var := func(rhs: Expr, vname: Str, target_bit: I64, facts: B
 // unconditionally -- non-Str values have no view representation, their
 // contents always own, and for them the elision is a real leak fix
 // (Context_clone via load_program; the #256 own-field move).
-priv clone_arg_may_be_view := func(local: LocalInfo) returns Bool {
-    return type_to_name(local.type) == "Str"
+priv clone_arg_may_be_view := func(local: LocalInfo, symbols: SymbolPool) returns Bool {
+    return type_to_name(local.type, symbols) == "Str"
 }
 
 // A def RHS that provably yields an owning-or-static Str value:
@@ -1724,7 +1724,7 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope, symbols: Sym
     case .Ident, .FieldAccess:
     case: return ""
     }
-    ename_o := expr_type_name_ref(e)
+    ename_o := type_name_of(e.til_type(), symbols)
     if ename_o.is_none() { return "" }
     ref ename : Str = ename_o.unwrap()
     mut vname := ""
@@ -1861,7 +1861,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         switch stmt.node_type {
         case .Decl(dd):
             if stmt.children.len() > 0 {
-                if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow(scope, dd.type_name(), symbols)) {
+                if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow(scope, dd.type_name_res(symbols.names), symbols)) {
                     collect_call_ref_return_edges(stmt.children[0], body_last, edges, scope, symbols)
                 }
             }
@@ -2366,7 +2366,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 // shape -- and it makes Return a CFG leaf (a stage-3
                 // precondition) that the builder emits without the per-shape
                 // `{ T _ret = <expr>; <deletes>; return _ret; }` wrapper.
-                if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+                if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
                     del_o := gc_make_delete(local, stmt, ctx.symbols)
                     if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
                 } else if local.is_heap {
@@ -2499,7 +2499,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
         st = root_flow[li.mul(root_stmts).add(stmt_idx)]
         if st.eq(FLOW_OWNED).not() { continue }
         if local.last_use.gte(stmt_idx.to_i64()).or(local.last_use.eq(-1)) {
-            if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+            if local.raw_alloc.not().and(type_to_name(local.type, symbols).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
@@ -2554,7 +2554,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             if local.own_transfer.eq(stmt_idx.to_i64()).and(heap_local_is_callable(local)) { continue }
             if local.is_heap.and(is_aggregate(local.type)) {
                 if local.own_transfer == stmt_idx.to_i64() {
-                    if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+                    if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
                         // Decl(field = local) where the receiving Shallow
                         // field value-copies the inner struct: the field's
                         // own destructor frees the inner data, but nothing
@@ -2584,7 +2584,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             // interpreter gains nothing from the rewrite -- it is a pure
             // C-perf optimization -- so interp mode keeps the exact
             // clone+delete roundtrip instead.
-            mut clone_to_move_ok := clone_arg_may_be_view(local).not()
+            mut clone_to_move_ok := clone_arg_may_be_view(local, ctx.symbols).not()
             if clone_to_move_ok.not().and(ctx.compile_mode) {
                 clone_to_move_ok = str_clone_to_move_provably_safe(local.name, preceding, ctx.symbols)
             }
@@ -2686,7 +2686,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
                     }
                 }
             }
-            if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+            if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
@@ -2695,7 +2695,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             }
         }
         if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i64())) {
-            if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+            if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
@@ -2775,7 +2775,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
                     ad.save_old_delete = true
                     stmt.set_til_type(local.type.clone())
                 } else {
-                    if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+                    if local.raw_alloc.not().and(type_to_name(local.type, symbols).len().gt(0)) {
                         del_o := gc_make_delete(local, stmt, symbols)
                         if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
                     } else if local.is_heap {
@@ -2806,7 +2806,7 @@ priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr,
     // local is a bare heap block (free, never a deep delete); everything
     // else typed goes through gc_make_delete.
     mut del_o := Option(Expr).None
-    if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+    if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
         del_o = gc_make_delete(local, src, ctx.symbols)
     } else if local.is_heap {
         del_o = Option(Expr).Some(make_free_call(local.name, local.type, src, ctx.symbols))
@@ -2986,7 +2986,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // boxed copy only on the path that actually transfers ownership.
         // Callables and other unnamed types still stand down.
         if is_aggregate(local.type).not().and(local.type.is(Type.Primitive).not()) { continue }
-        if type_to_name(local.type).len() == 0 { continue }
+        if type_to_name(local.type, ctx.symbols).len() == 0 { continue }
         if local.own_transfer >= body.children.len().to_i64() { continue }
         // #302 stage 3: the DATAFLOW decides whether a graft is needed,
         // for every container kind. Mixed at exit means some path leaves
@@ -3167,7 +3167,7 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
         // call nor its args survive to codegen. Ordinary calls consume
         // exactly their own-arg slots.
         mut is_ctor := false
-        ctor_name_o := expr_type_name_ref(e)
+        ctor_name_o := type_name_of(e.til_type(), ctx.symbols)
         if ctor_name_o.is_some().and(e.children.len().gt(0)) {
             ref ctor_name : Str = ctor_name_o.unwrap()
             switch e.children[0].node_type {
@@ -3188,7 +3188,7 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
             }
         }
         if consumed.not().and(is_mac.not()).and(is_aggregate(e.til_type())).and(fcall_returns_own(e, scope, ctx.symbols)) {
-            tn := type_to_name(e.til_type())
+            ref tn : Str = type_to_name(e.til_type(), ctx.symbols)
             if tn.len() > 0 {
                 // ICE, not a diagnostic: an owned temp the hoister missed
                 // is invisible to the asap pass and leaks silently -- the
@@ -3450,10 +3450,13 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
                 if rhs_fd.captures.len() > 0 { scope.set_func_def_name(dd.name, rhs2, ctx.symbols) }
             case:
             }
-            if scope.lookup_func_name(dd.name, ctx.symbols).is_none().and(dtype.is(Type.FuncPtrSig)) {
-                sig_o := scope.lookup_func_name(til_type_name(dtype), ctx.symbols)
-                if sig_o.is_some().and(sig_o.unwrap().children.len().eq(0)) {
-                    scope.set_func_def_name(dd.name, sig_o.unwrap(), ctx.symbols)
+            if scope.lookup_func_name(dd.name, ctx.symbols).is_none().and(type_is_funcsig(dtype)) {
+                dsig_name_o := type_name_of(dtype, ctx.symbols)
+                if dsig_name_o.is_some() {
+                    sig_o := scope.lookup_func_name(dsig_name_o.unwrap(), ctx.symbols)
+                    if sig_o.is_some().and(sig_o.unwrap().children.len().eq(0)) {
+                        scope.set_func_def_name(dd.name, sig_o.unwrap(), ctx.symbols)
+                    }
                 }
             }
         }
@@ -3465,7 +3468,7 @@ priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut sco
     for i in 0..fd.sig.params.len() {
         ref param : Declaration = fd.sig.params[i]
         if i.to_i32() == fd.sig.variadic_index {
-            va_type := Type.Struct(variadic_carrier_type_name(scope, param.type_name(), ctx.symbols))
+            va_type := Type.Struct(variadic_carrier_type_name(scope, param.type_name_res(ctx.symbols.names), ctx.symbols))
             scope.set(param.name, va_type, param.is_mut, ctx.path, line, col,
                 true, param.own_type, ctx.symbols)
             continue
@@ -3478,8 +3481,10 @@ priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut sco
         ptype := declaration_resolved_type(param, scope, ctx.symbols)
         scope.set(param.name, ptype, param.is_mut, ctx.path, line, col,
             true, param.own_type, ctx.symbols)
-        if ptype.is(Type.FuncPtrSig) {
-            sig_o := scope.lookup_func_name(til_type_name(ptype), ctx.symbols)
+        if type_is_funcsig(ptype) {
+            gsig_name_o := type_name_of(ptype, ctx.symbols)
+            if gsig_name_o.is_none() { continue }
+            sig_o := scope.lookup_func_name(gsig_name_o.unwrap(), ctx.symbols)
             if sig_o.is_some().and(sig_o.unwrap().children.len().eq(0)) {
                 scope.set_func_def_name(param.name, sig_o.unwrap(), ctx.symbols)
             }

@@ -8,7 +8,7 @@ priv scav_fa_is_ns := func(e: Expr, symbols: SymbolPool) returns Bool {
     ref obj : Expr = e.children[0]
     switch obj.node_type {
     case .Ident(id):
-        obj_type_name_o := expr_type_name_ref(obj)
+        obj_type_name_o := type_name_of(obj.til_type(), symbols)
         if obj_type_name_o.is_some() {
             ref obj_type_name : Str = obj_type_name_o.unwrap()
             if obj_type_name.eq("StructDef").or(obj_type_name.eq("EnumDef")) {
@@ -146,7 +146,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
     switch e.node_type {
     case .FCall(cr_fcd):
         if cr_fcd.swap_replace.and(e.children.len().gte(2)) {
-            swap_tname_o := expr_type_name_ref(e.children[1])
+            swap_tname_o := type_name_of(e.children[1].til_type(), symbols)
             if swap_tname_o.is_some() {
                 ref swap_tname : Str = swap_tname_o.unwrap()
                 if swap_tname.eq("Str") {
@@ -170,7 +170,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
     switch e.node_type {
     case .Assign(dr_ad):
         if dr_ad.save_old_delete.and(e.children.len().gt(0)) {
-            dr_tn_o := expr_type_name_ref(e.children[0])
+            dr_tn_o := type_name_of(e.children[0].til_type(), symbols)
             if dr_tn_o.is_some() {
                 ref dr_tn : Str = dr_tn_o.unwrap()
                 vec_push_str(refs, dr_tn)
@@ -179,7 +179,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         }
     case .FieldAssign(dr_fad):
         if dr_fad.save_old_delete.and(e.children.len().gt(1)) {
-            dr_tn2_o := expr_type_name_ref(e.children[1])
+            dr_tn2_o := type_name_of(e.children[1].til_type(), symbols)
             if dr_tn2_o.is_some() {
                 ref dr_tn2 : Str = dr_tn2_o.unwrap()
                 vec_push_str(refs, dr_tn2)
@@ -195,9 +195,11 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         // A runtime callable value carries its FuncSig in the type payload.
         // The signature declaration must survive even when only the value's
         // name appears in executable code.
-        if e.til_type().is(Type.FuncPtrSig) {
-            sig_name := til_type_name(e.til_type())
-            if sig_name.len() > 0 { vec_push_str(refs, sig_name) }
+        if type_is_funcsig(e.til_type()) {
+            cr_sig_name_o := type_name_of(e.til_type(), symbols)
+            if cr_sig_name_o.is_some().and(cr_sig_name_o.unwrap().len() > 0) {
+                vec_push_str(refs, cr_sig_name_o.unwrap())
+            }
         }
     case .Literal(Literal.Str(cr_lit)):
         // #326: a Str LITERAL is how a type name enters the runtime. Every
@@ -228,7 +230,9 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
     case .PrecomputedSequence(data):
         // The C emitter conjures Sequence.clone(&static_template), so there
         // is no FCall child from which reachability could discover it.
-        seq_name := til_type_name(data.til_type)
+        seq_name_o := type_name_of(data.til_type, symbols)
+        if seq_name_o.is_none() { panic("precomputed sequence has unnamed type") }
+        ref seq_name : Str = seq_name_o.unwrap()
         if seq_name.len() == 0 { panic("precomputed sequence has unnamed type") }
         vec_push_str(refs, seq_name)
         push_qn(refs, seq_name, "clone")
@@ -307,7 +311,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
                         // `USize := U64` shadows the core alias the
                         // typer actually resolved `v.len()` through.
                         if e.children.len() >= 3 {
-                            assert_type_name = resolved_type_name(e.children[2].til_type())
+                            assert_type_name = resolved_type_name(e.children[2].til_type(), symbols.names).clone()
                         }
                         if assert_type_name.len() == 0 {
                             switch e.children[1].node_type {
@@ -375,7 +379,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         cr_is_macro := fdef.sig.func_type.is(FuncType.Macro)
         for p : Declaration in fdef.sig.params {
             if p.til_type.is(Type.Unknown).not().and(cr_is_macro.not()) {
-                vec_push_str(refs, p.type_name())
+                vec_push_str(refs, p.type_name_res(symbols.names))
             }
         }
         if fdef.sig.variadic_index >= 0 {
@@ -419,7 +423,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         }
     case .Decl(decl):
         if decl.til_type.is(Type.Unknown).not() {
-            vec_push_str(refs, decl.type_name())
+            vec_push_str(refs, decl.type_name_res(symbols.names))
         }
     case:
     }
@@ -440,7 +444,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
             // The field's declared type stays -- that one is the struct's
             // layout, not a default.
             if cr_fd.til_type.is(Type.Unknown).not() {
-                vec_push_str(refs, cr_fd.type_name())
+                vec_push_str(refs, cr_fd.type_name_res(symbols.names))
             }
         }
     case:
@@ -821,7 +825,7 @@ priv match_trivial_delete := func(stmt: Expr, scope: TypeScope, symbols: SymbolP
 // The type whose `delete` a `<Type>.delete(...)` callee names.
 priv mtd_recv_type_name := func(callee: Expr, symbols: SymbolPool) returns Str {
     if callee.children.len() == 0 { return "" }
-    mtd_o := expr_type_name_ref(callee.children[0])
+    mtd_o := type_name_of(callee.children[0].til_type(), symbols)
     if mtd_o.is_some() { return mtd_o.unwrap().borrowed_view() }
     switch callee.children[0].node_type {
     case .Ident(mtd_id): return mtd_id.ident_name(symbols.names).borrowed_view()
@@ -956,7 +960,7 @@ priv dce_noop_delete_call := func(e: Expr, scope: TypeScope, symbols: SymbolPool
         return false
     }
     if dnc_callee.children.len() == 0 { return false }
-    dnc_tn_o := expr_type_name_ref(dnc_callee.children[0])
+    dnc_tn_o := type_name_of(dnc_callee.children[0].til_type(), symbols)
     if dnc_tn_o.is_some() {
         return init_delete_is_noop(dnc_tn_o.unwrap(), scope, symbols)
     }
@@ -996,7 +1000,7 @@ priv dce_callee_fdef := func(e: Expr, scope: TypeScope, symbols: SymbolPool) ret
         return scope.lookup_func_symbol_name(dcd_id.ident_name(symbols.names), symbols)
     case .FieldAccess(dcd_fa):
         if dcd_callee.children.len() == 0 { return Option(ref Expr).None }
-        dcd_tn_o := expr_type_name_ref(dcd_callee.children[0])
+        dcd_tn_o := type_name_of(dcd_callee.children[0].til_type(), symbols)
         if dcd_tn_o.is_some() {
             return dce_ns_member_fdef(dcd_tn_o.unwrap(), dcd_fa.field_access_name(symbols.names), scope, symbols)
         }
@@ -1112,7 +1116,7 @@ priv dce_pod_clone_call := func(e: Expr, scope: TypeScope, symbols: SymbolPool) 
     }
     if dpc_is_clone.not() { return false }
     if dpc_callee.children.len() == 0 { return false }
-    dpc_tn_o := expr_type_name_ref(dpc_callee.children[0])
+    dpc_tn_o := type_name_of(dpc_callee.children[0].til_type(), symbols)
     if dpc_tn_o.is_some() { return is_pod_type_for_clone(dpc_tn_o.unwrap(), scope, symbols) }
     switch dpc_callee.children[0].node_type {
     case .Ident(dpc_id): return is_pod_type_for_clone(dpc_id.ident_name(symbols.names), scope, symbols)
@@ -1575,8 +1579,8 @@ priv seed_cli_main_arg_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) 
             case .FuncDef(fdef):
                 mut pi : I32 = 0
                 for p : Declaration in fdef.sig.params {
-                    seed_cli_arg_helpers(p.type_name(), worklist)
-                    if pi == fdef.sig.variadic_index { push_qn(worklist, p.type_name(), "delete") }
+                    seed_cli_arg_helpers(p.type_name_res(lp.ctx.symbols.names), worklist)
+                    if pi == fdef.sig.variadic_index { push_qn(worklist, p.type_name_res(lp.ctx.symbols.names), "delete") }
                     pi++
                 }
             case:
@@ -1940,7 +1944,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         // see collect_refs. Only the field's type is, because
                         // that is the struct's layout.
                         if bfs_fd.til_type.is(Type.Unknown).not() {
-                            vec_push_str(worklist, bfs_fd.type_name())
+                            vec_push_str(worklist, bfs_fd.type_name_res(lp.ctx.symbols.names))
                         }
                     }
                 case .EnumDef(bfs_edd):
@@ -1970,7 +1974,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         // see collect_refs. Only the field's type is, because
                         // that is the struct's layout.
                         if bfs_fd2.til_type.is(Type.Unknown).not() {
-                            vec_push_str(worklist, bfs_fd2.type_name())
+                            vec_push_str(worklist, bfs_fd2.type_name_res(lp.ctx.symbols.names))
                         }
                     }
                 case .EnumDef(bfs_edd2):

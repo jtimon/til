@@ -219,6 +219,26 @@ type_sym := func(t: Type, mut symbols: SymbolPool) returns Sym {
 // from the Type, a Sym payload from the pool's names vector -- so callers
 // keep whatever lifetime discipline they already had with
 // expr_type_name_ref / til_type_name.
+// #397 step 3: the spelling of a name-carrying Type across both payload
+// forms -- til_type_name's compiler-side replacement (that one is the
+// runtime introspection surface and panics on a Sym twin). BORROWED: a
+// payload ref, a pool-names ref, or NAME_EMPTY for nameless variants, so
+// call sites keep their emptiness checks and no query clones. A caller
+// that stores the result clones at its own site.
+til_type_name_res := func(t: Type, names: Vec(Str)) returns ref Str {
+    switch t {
+    case .Struct(s):     return s
+    case .Enum(s):       return s
+    case .Custom(s):     return s
+    case .FuncPtrSig(s): return s
+    case .StructSym(s_sym):      return names.unsafe_get(s_sym.cast(USize) - 1)
+    case .EnumSym(e_sym):        return names.unsafe_get(e_sym.cast(USize) - 1)
+    case .CustomSym(c_sym):      return names.unsafe_get(c_sym.cast(USize) - 1)
+    case .FuncPtrSigSym(f_sym):  return names.unsafe_get(f_sym.cast(USize) - 1)
+    case: return NAME_EMPTY
+    }
+}
+
 type_name_of := func(t: Type, symbols: SymbolPool) returns Option(ref Str) {
     switch t {
     case .Struct(s):     return safe_ref(s)
@@ -765,7 +785,7 @@ type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding, symbols: Sy
 // each call is rewritten to that copy with the type-args dropped.
 // Issue #328 moved it here from initer.til: initer, desugarer and typer
 // all need ONE source-classification rule.
-init_func_is_generic := func(rhs: Expr) returns Bool {
+init_func_is_generic := func(rhs: Expr, names: Vec(Str)) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd):
         gok := fd.sig.func_type.is_plain()
@@ -777,7 +797,10 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
         // never used to type anything, e.g. til_type_name_c) is NOT a
         // generic and must be left untouched.
         for p : Declaration in fd.sig.params {
-            if p.type_name().eq("Type").not() { continue }
+            // #397 step 3: asked via the in-place metatype predicate --
+            // type_name() panics on a Sym twin, and a FuncPtrSigSym param
+            // is correctly "not Type" here anyway.
+            if is_type_metatype(p.til_type).not() { continue }
             tname := p.name
             // Directly (`v: T`, `returns T`), or as a SEGMENT of a
             // generated instance name: the parser mangles an annotation
@@ -788,7 +811,7 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
             // an undefined type and `T` an unused parameter.
             if type_name_mentions_param(fd.sig.return_type, tname) { return true }
             for q : Declaration in fd.sig.params {
-                if type_name_mentions_param(q.type_name(), tname) { return true }
+                if type_name_mentions_param(q.type_name_res(names), tname) { return true }
             }
         }
         return false
@@ -801,10 +824,10 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
 // template -- a `name := func(T: Type, ...)` decl whose body still names
 // its unbound type parameters? Retained through typing, never typed or
 // emitted itself.
-init_stmt_is_generic_source := func(stmt: Expr) returns Bool {
+init_stmt_is_generic_source := func(stmt: Expr, names: Vec(Str)) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     if stmt.children.len() == 0 { return false }
-    return init_func_is_generic(stmt.children[0])
+    return init_func_is_generic(stmt.children[0], names)
 }
 
 // Issue #328: does `name` mention the type parameter `pname` as a whole
@@ -833,7 +856,10 @@ generic_source_throws_depend_on_type := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd):
         for p : Declaration in fd.sig.params {
-            if p.type_name().eq("Type").not() { continue }
+            // #397 step 3: asked via the in-place metatype predicate --
+            // type_name() panics on a Sym twin, and a FuncPtrSigSym param
+            // is correctly "not Type" here anyway.
+            if is_type_metatype(p.til_type).not() { continue }
             for t : Str in fd.sig.throw_types {
                 if type_name_mentions_param(t, p.name) { return true }
             }
@@ -1770,22 +1796,22 @@ WIDTH_ALIAS_NAMES := array(Str, "USize", "UPtr")
 // rather than a source spelling: a generic body monomorphized on `T` emits
 // `<this name>_<method>`, and the source ident at the call site may be an
 // alias the typer already resolved (or one the file shadows).
-resolved_type_name := func(t: Type) returns Str {
-    name := til_type_name(t)
+resolved_type_name := func(t: Type, names: Vec(Str)) returns ref Str {
+    ref name : Str = til_type_name_res(t, names)
     if name.len() > 0 { return name }
     switch t {
-    case .Primitive(Primitive.I8): return "I8"
-    case .Primitive(Primitive.U8): return "U8"
-    case .Primitive(Primitive.I16): return "I16"
-    case .Primitive(Primitive.U16): return "U16"
-    case .Primitive(Primitive.I32): return "I32"
-    case .Primitive(Primitive.U32): return "U32"
-    case .Primitive(Primitive.I64): return "I64"
-    case .Primitive(Primitive.U64): return "U64"
-    case .Primitive(Primitive.F32): return "F32"
-    case .Primitive(Primitive.F64): return "F64"
-    case .Primitive(Primitive.Bool): return "Bool"
-    case: return ""
+    case .Primitive(Primitive.I8): return NAME_I8
+    case .Primitive(Primitive.U8): return NAME_U8
+    case .Primitive(Primitive.I16): return NAME_I16
+    case .Primitive(Primitive.U16): return NAME_U16
+    case .Primitive(Primitive.I32): return NAME_I32
+    case .Primitive(Primitive.U32): return NAME_U32
+    case .Primitive(Primitive.I64): return NAME_I64
+    case .Primitive(Primitive.U64): return NAME_U64
+    case .Primitive(Primitive.F32): return NAME_F32
+    case .Primitive(Primitive.F64): return NAME_F64
+    case .Primitive(Primitive.Bool): return NAME_BOOL
+    case: return NAME_EMPTY
     }
 }
 
@@ -2084,13 +2110,16 @@ is_type_metatype := func(t: Type) returns Bool {
 // `Type.FuncPtr` and `Type.FuncPtrSig("X")` as distinct because the
 // tags AND payloads differ; this helper restores the wildcard semantic
 // the migration needs while preserving the FuncSig name on the type itself.
-funcptr_eq := func(a: Type, b: Type) returns Bool {
+funcptr_eq := func(a: Type, b: Type, symbols: SymbolPool) returns Bool {
     if a.is_funcptr().not() { return false }
     if b.is_funcptr().not() { return false }
-    an := til_type_name(a)
-    bn := til_type_name(b)
-    if an.is_empty().or(bn.is_empty()) { return true }
-    return an == bn
+    // #397 step 3: read the sig names through the both-forms accessor --
+    // til_type_name is the runtime surface and panics on a Sym twin.
+    an_o := type_name_of(a, symbols)
+    bn_o := type_name_of(b, symbols)
+    if an_o.is_none().or(bn_o.is_none()) { return true }
+    if an_o.unwrap().is_empty().or(bn_o.unwrap().is_empty()) { return true }
+    return an_o.unwrap() == bn_o.unwrap()
 }
 
 type_is_callable_storage := func(t: Type) returns Bool {
@@ -2162,10 +2191,10 @@ func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool
         // #392: a ..Dynamic parameter's carrier is Tuple, not Array__Dynamic
         // (which may ALSO exist); the outer-storage answer must name the
         // struct the collector is actually built as.
-        if resolve_type_alias_for_name(scope, p.type_name(), symbols) == "Dynamic" {
+        if resolve_type_alias_for_name(scope, p.type_name_res(symbols.names), symbols) == "Dynamic" {
             return scope.get_struct("Tuple", symbols).is_some()
         }
-        arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name(), symbols))
+        arr_name := "Array__".format(resolve_type_alias_for_name(scope, p.type_name_res(symbols.names), symbols))
         return scope.get_struct(arr_name, symbols).is_some()
     }
     if i.to_i32() == fd.sig.kwargs_index { return scope.get_struct("KwargsMap", symbols).is_some() }
@@ -2201,9 +2230,12 @@ type_from_name_init_name := func(name: Str, scope: TypeScope, symbols: SymbolPoo
         // register_funcsig_alias_for_stmt). Declaration now has one type
         // field, so this resolution must carry the alias name itself.
         if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
-            return Type.FuncPtrSig(name.clone())
+            // #397 step 3: the binding was fetched by this name through the
+            // pool, so the name is interned -- must_sym, not intern, because
+            // this func borrows the pool immutably.
+            return Type.FuncPtrSigSym(must_sym(name, symbols))
         }
-        if b.is_func_decl.and(b.type.is(Type.FuncPtrSig)) { return b.type.clone() }
+        if b.is_func_decl.and(type_is_funcsig(b.type)) { return b.type.clone() }
     }
     sdef_o := scope.get_struct(name, symbols)
     if sdef_o.is_some() {
@@ -2301,7 +2333,7 @@ init_delete_is_noop := func(type_name: Str, scope: TypeScope, symbols: SymbolPoo
         for idn_fd : Declaration in idn_sd.fields {
             if idn_fd.own_type.is(OwnType.Ref) { continue }
             if idn_fd.own_type.is(OwnType.Own) { return false }
-            if init_delete_is_noop(idn_fd.type_name(), scope, symbols).not() { return false }
+            if init_delete_is_noop(idn_fd.type_name_res(symbols.names), scope, symbols).not() { return false }
         }
         return true
     case .EnumDef(idn_ed):
@@ -2330,7 +2362,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope, symbols: SymbolP
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { continue }
-            ftn := fd.type_name()
+            ref ftn : Str = fd.type_name_res(symbols.names)
             if is_pod_type_for_clone(ftn, scope, symbols).not() { return false }
         }
         return true
@@ -2719,7 +2751,7 @@ enum_ref_payload_ctor_arg := func(e: Expr, scope: TypeScope, symbols: SymbolPool
         }
         vname = Str.clone(fa.field_access_name(symbols.names))
     case .Ident(cid):
-        ename_o := expr_type_name_ref(e)
+        ename_o := type_name_of(e.til_type(), symbols)
         if ename_o.is_none() { return Option(ref Expr).None }
         ename = ename_o.unwrap().clone()
         prefix := format(ename, "_")
@@ -3098,7 +3130,27 @@ is_primitive := func(t: Type) returns Bool {
 // Callers asking "is this a function pointer at all?" use this helper
 // so callsites work transparently across both shapes.
 is_funcptr := func(t: Type) returns Bool {
-    return t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig))
+    return t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig)).or(t.is(Type.FuncPtrSigSym))
+}
+
+// #397 step 3: the Sym for a name that is PROVABLY already interned --
+// because the caller just fetched a binding/struct by that name through the
+// pool, so a miss here is a broken invariant, not an expected state. For
+// construction sites whose enclosing func borrows the pool immutably;
+// sites with a mut pool in reach intern directly.
+must_sym := func(name: Str, symbols: SymbolPool) returns Sym {
+    sym_o := symbols.lookup(name)
+    if sym_o.is_none() { panic("must_sym: '", name, "' is not interned; the caller's invariant (name came FROM the pool) is broken") }
+    return sym_o.unwrap()
+}
+
+// #397 step 3: "does this type name a specific FuncSig?", answered across
+// both payload forms. Every `t.is(Type.FuncPtrSig)` site in the compiler
+// asks THIS question, not "is the payload a Str" -- so they all route here,
+// where the Sym twin joins the answer. (Tag checks need no pool: the twins
+// are declared in core's Type enum, so `.is` sees them anywhere.)
+type_is_funcsig := func(t: Type) returns Bool {
+    return t.is(Type.FuncPtrSig).or(t.is(Type.FuncPtrSigSym))
 }
 
 // Compound aggregate type: user-defined struct or enum that the codegen
@@ -3142,7 +3194,7 @@ resolve_direct_fcall := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool)
         if callee.children.len() == 0 { return Option(ref Expr).None }
         ref recv : Expr = callee.children[0]
         mut sdef_o := Option(ref Expr).None
-        recv_name_o := expr_type_name_ref(recv)
+        recv_name_o := type_name_of(recv.til_type(), symbols)
         if recv_name_o.is_some() {
             sdef_o = scope.get_struct(recv_name_o.unwrap(), symbols)
         } else {

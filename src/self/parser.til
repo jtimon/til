@@ -302,7 +302,7 @@ priv anon_decl_key := func(dname: Str, d: Declaration, symbols: SymbolPool) retu
     // default-value tree, so present-vs-absent yields distinct keys.
     mut dv_key := "-"
     if d.default_value.is_some() { dv_key = d.default_expr().to_str_with_symbols(symbols.names) }
-    return format(dname, ":", d.type_name(), ":", mut_tag, own_tag, ":",
+    return format(dname, ":", d.type_name_res(symbols.names), ":", mut_tag, own_tag, ":",
         dv_key, ";")
 }
 
@@ -765,7 +765,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         if param_decl.til_type.is(Type.FuncPtr) {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
             if syn_name.len() > 0 {
-                param_decl.til_type = Type.FuncPtrSig(syn_name)
+                param_decl.til_type = Type.FuncPtrSigSym(p.symbols.intern(syn_name))
             }
         }
 
@@ -773,7 +773,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut has_default := false
         if check(p, TokenType.Eq) {
             advance(p)
-            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, param_decl.type_name()))
+            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, param_decl.type_name_res(p.symbols.names)))
             has_default = true
         }
         if fd.sig.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
@@ -2830,6 +2830,12 @@ expr_type_name_ref := func(e: Expr) returns Option(ref Str) {
     case .Enum(s):       return safe_ref(s)
     case .Custom(s):     return safe_ref(s)
     case .FuncPtrSig(s): return safe_ref(s)
+    // #397 step 3: this func has no pool to resolve a Sym twin with, so a
+    // twin here names a caller that must move to type_name_of(e.til_type(),
+    // symbols). Loud beats None: for the Str forms this func answered
+    // Some(name), so None for a twin would silently change a probe's answer.
+    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+        panic("expr_type_name_ref: Sym-form Type; this caller must read through type_name_of (#397)")
     case: return Option(ref Str).None
     }
 }
