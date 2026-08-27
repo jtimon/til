@@ -14,15 +14,15 @@ DynArray := struct {
 namespace:
     priv new_type_name_kind := func(elem_type: Str, elem_kind: USize, cap: USize) returns DynArray {
         if elem_kind == ELEM_FN {
-            return DynArray(data = calloc(cap, 8), cap = cap,
+            return DynArray(data = calloc(cap.to_uptr(), 8), cap = cap,
                          elem_size = 8, elem_kind = ELEM_FN)
         }
         elem_size : USize = dyn_size_of(elem_type)
         if elem_kind == ELEM_POD {
-            return DynArray(data = calloc(cap, elem_size), cap = cap,
+            return DynArray(data = calloc(cap.to_uptr(), elem_size.to_uptr()), cap = cap,
                          elem_size = elem_size, elem_kind = ELEM_POD)
         }
-        return DynArray(data = calloc(cap, elem_size), cap = cap,
+        return DynArray(data = calloc(cap.to_uptr(), elem_size.to_uptr()), cap = cap,
                      elem_size = elem_size, elem_kind = ELEM_BOXED,
                      elem_clone = dyn_fn(elem_type, "clone"),
                      elem_delete = dyn_fn(elem_type, "delete"))
@@ -44,7 +44,7 @@ namespace:
     /// Unchecked ref to the element at index ~i~. Caller guarantees
     /// ~i < self.cap~; the unchecked core that ~get~ wraps (issue #284).
     unsafe_get := func(self: DynArray, i: USize) returns ref Dynamic {
-        return ptr_add(self.data, i.mul(self.elem_size))
+        return ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr()))
     }
 
     /// Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
@@ -67,7 +67,7 @@ namespace:
             til_closure_slot_take(self.unsafe_get(i), val)
             return
         }
-        memcpy(self.unsafe_get(i), val, self.elem_size)
+        memcpy(self.unsafe_get(i), val, self.elem_size.to_uptr())
         free(own val)
     }
 
@@ -95,11 +95,11 @@ namespace:
     delete := func(own self: DynArray, call_free: Bool = true) {
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.cap {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+                self.elem_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())), false)
             }
         } else if self.elem_kind == ELEM_FN {
             for i in 0..self.cap {
-                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size)))
+                til_closure_slot_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
             }
         }
         free(own self.data)
@@ -109,20 +109,20 @@ namespace:
     /// Clone every element of ~self~ into ~dst~ starting at element index
     /// ~dst_index~. ~dst~ must have room for self.cap elements from there.
     priv clone_into := func(self: DynArray, mut dst: Dynamic, dst_index: USize) {
-        base := dst_index.mul(self.elem_size)
+        base := dst_index.to_uptr().mul(self.elem_size.to_uptr())
         if self.elem_kind == ELEM_POD {
-            memcpy(ptr_add(dst, base), self.data, self.cap.mul(self.elem_size))
+            memcpy(ptr_add(dst, base), self.data, self.cap.to_uptr().mul(self.elem_size.to_uptr()))
             return
         }
         for i in 0..self.cap {
-            off := base.add(i.mul(self.elem_size))
+            off := base.add(i.to_uptr().mul(self.elem_size.to_uptr()))
             if self.elem_kind == ELEM_BOXED {
-                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                memcpy(ptr_add(dst, off), cloned, self.elem_size)
+                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
+                memcpy(ptr_add(dst, off), cloned, self.elem_size.to_uptr())
                 free(own cloned)
             } else {
-                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                memcpy(ptr_add(dst, off), cloned_fn, self.elem_size)
+                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
+                memcpy(ptr_add(dst, off), cloned_fn, self.elem_size.to_uptr())
                 free(own cloned_fn)
             }
         }
@@ -138,7 +138,7 @@ namespace:
             panic("DynArray.concat: incompatible arrays")
         }
         total : USize = self.cap.add(other.cap)
-        mut new_data : U8 = malloc(total.mul(self.elem_size))
+        mut new_data : U8 = malloc(total.to_uptr().mul(self.elem_size.to_uptr()))
         self.clone_into(new_data, 0)
         other.clone_into(new_data, self.cap)
         return DynArray(data = new_data, cap = total,
@@ -157,21 +157,21 @@ namespace:
     }
 
     clone := func(self: DynArray) returns DynArray {
-        mut new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        mut new_data : U8 = malloc(self.cap.to_uptr().mul(self.elem_size.to_uptr()))
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.cap {
-                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
+                memcpy(ptr_add(new_data, i.to_uptr().mul(self.elem_size.to_uptr())), cloned, self.elem_size.to_uptr())
                 free(own cloned)
             }
         } else if self.elem_kind == ELEM_FN {
             for i in 0..self.cap {
-                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned_fn, self.elem_size)
+                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
+                memcpy(ptr_add(new_data, i.to_uptr().mul(self.elem_size.to_uptr())), cloned_fn, self.elem_size.to_uptr())
                 free(own cloned_fn)
             }
         } else {
-            memcpy(new_data, self.data, self.cap.mul(self.elem_size))
+            memcpy(new_data, self.data, self.cap.to_uptr().mul(self.elem_size.to_uptr()))
         }
         return DynArray(data = new_data, cap = self.cap,
                      elem_size = self.elem_size, elem_kind = self.elem_kind,

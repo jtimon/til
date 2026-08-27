@@ -34,7 +34,7 @@ namespace:
     with_capacity := func(T: Type, n: USize) returns DynSet {
         mut s := DynSet.new(T)
         if n > s.cap {
-            s.data = realloc(own s.data, n.mul(s.elem_size))
+            s.data = realloc(own s.data, n.to_uptr().mul(s.elem_size.to_uptr()))
             s.cap = n
         }
         return s
@@ -47,7 +47,7 @@ namespace:
     clear := func(mut self: DynSet) {
         for i in 0..self.count {
             self.elem_delete(
-                      ptr_add(self.data, i.mul(self.elem_size)), false)
+                      ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())), false)
         }
         self.count = 0
     }
@@ -59,7 +59,7 @@ namespace:
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
             c : I64 = self.elem_cmp(
-                          ptr_add(self.data, mid.mul(self.elem_size)), val)
+                          ptr_add(self.data, mid.to_uptr().mul(self.elem_size.to_uptr())), val)
             if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
@@ -78,7 +78,7 @@ namespace:
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
             c : I64 = self.elem_cmp(
-                          ptr_add(self.data, mid.mul(self.elem_size)), val)
+                          ptr_add(self.data, mid.to_uptr().mul(self.elem_size.to_uptr())), val)
             if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
@@ -93,13 +93,13 @@ namespace:
                 // cap 0 (lazy-empty) doubles to 0; seed the first grow to 1.
                 mut new_cap := self.cap * 2
                 if self.cap == 0 { new_cap = 1 }
-                self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+                self.data = realloc(own self.data, new_cap.to_uptr().mul(self.elem_size.to_uptr()))
                 self.cap = new_cap
             }
-            memmove(ptr_add(self.data, lo.add(1).mul(self.elem_size)),
-                    ptr_add(self.data, lo.mul(self.elem_size)),
-                    self.count.sub(lo).mul(self.elem_size))
-            memcpy(ptr_add(self.data, lo.mul(self.elem_size)), val, self.elem_size)
+            memmove(ptr_add(self.data, lo.add(1).to_uptr().mul(self.elem_size.to_uptr())),
+                    ptr_add(self.data, lo.to_uptr().mul(self.elem_size.to_uptr())),
+                    self.count.sub(lo).to_uptr().mul(self.elem_size.to_uptr()))
+            memcpy(ptr_add(self.data, lo.to_uptr().mul(self.elem_size.to_uptr())), val, self.elem_size.to_uptr())
             free(own val)
             self.count = self.count + 1
         }
@@ -114,21 +114,21 @@ namespace:
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
             c : I64 = self.elem_cmp(
-                          ptr_add(self.data, mid.mul(self.elem_size)), val)
+                          ptr_add(self.data, mid.to_uptr().mul(self.elem_size.to_uptr())), val)
             if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
                 else {
                     self.elem_delete(
-                        ptr_add(self.data, mid.mul(self.elem_size)), false)
+                        ptr_add(self.data, mid.to_uptr().mul(self.elem_size.to_uptr())), false)
                     tail := self.count.sub(mid).sub(1)
                     if tail > 0 {
-                        memmove(ptr_add(self.data, mid.mul(self.elem_size)),
-                                ptr_add(self.data, mid.add(1).mul(self.elem_size)),
-                                tail.mul(self.elem_size))
+                        memmove(ptr_add(self.data, mid.to_uptr().mul(self.elem_size.to_uptr())),
+                                ptr_add(self.data, mid.add(1).to_uptr().mul(self.elem_size.to_uptr())),
+                                tail.to_uptr().mul(self.elem_size.to_uptr()))
                     }
                     self.count = self.count - 1
-                    memset(ptr_add(self.data, self.count.mul(self.elem_size)), 0, self.elem_size)
+                    memset(ptr_add(self.data, self.count.to_uptr().mul(self.elem_size.to_uptr())), 0, self.elem_size.to_uptr())
                     return true
                 }
             }
@@ -149,11 +149,11 @@ namespace:
                        elem_clone = self.elem_clone, elem_delete = self.elem_delete,
                        elem_cmp = self.elem_cmp)
         }
-        mut new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        mut new_data : U8 = malloc(self.cap.to_uptr().mul(self.elem_size.to_uptr()))
         for i in 0..self.count {
             cloned : Dynamic = self.elem_clone(
-                         ptr_add(self.data, i.mul(self.elem_size)))
-            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                         ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
+            memcpy(ptr_add(new_data, i.to_uptr().mul(self.elem_size.to_uptr())), cloned, self.elem_size.to_uptr())
             free(own cloned)
         }
         return DynSet(data = new_data, count = self.count, cap = self.cap,

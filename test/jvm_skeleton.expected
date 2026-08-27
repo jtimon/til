@@ -9,17 +9,17 @@ public final class Main {
 
     public static void main(String[] args) {
         // examples/hello_script.til:4
-        int v_p_hoisted_x5f_x5fU32_x5fg7 = (int) (1L);
+        long v_p_hoisted_x5f_x5fU64_x5fg7 = Long.parseUnsignedLong("1");
         // examples/hello_script.til:4
-        S_p_Array_x5f_x5fStr v_p__x5fva_x5fArray_x5fg0 = Functions.f_p_Array_x5f_x5fStr_x5fnew(v_p_hoisted_x5f_x5fU32_x5fg7);
+        S_p_Array_x5f_x5fStr v_p__x5fva_x5fArray_x5fg0 = Functions.f_p_Array_x5f_x5fStr_x5fnew(v_p_hoisted_x5f_x5fU64_x5fg7);
         // examples/hello_script.til:4
         TilRuntime.I64Slot v_p__x5fva_x5fArray_x5fg0_x5fek = new TilRuntime.I64Cell(0L);
         // examples/hello_script.til:4
-        int v_p_hoisted_x5f_x5fU32_x5fg8 = (int) (0L);
+        long v_p_hoisted_x5f_x5fU64_x5fg8 = Long.parseUnsignedLong("0");
         // examples/hello_script.til:4
         TilRuntime.Str v_p_hoisted_x5f_x5fStr_x5fg9 = TilRuntime.literalStr(new byte[] {(byte) 0x48, (byte) 0x65, (byte) 0x6c, (byte) 0x6c, (byte) 0x6f, (byte) 0x20, (byte) 0x57, (byte) 0x6f, (byte) 0x72, (byte) 0x6c, (byte) 0x64, (byte) 0x21});
         // examples/hello_script.til:4
-        Functions.f_p_Array_x5f_x5fStr_x5fset(v_p__x5fva_x5fArray_x5fg0, v_p_hoisted_x5f_x5fU32_x5fg8, v_p_hoisted_x5f_x5fStr_x5fg9, v_p__x5fva_x5fArray_x5fg0_x5fek);
+        Functions.f_p_Array_x5f_x5fStr_x5fset(v_p__x5fva_x5fArray_x5fg0, v_p_hoisted_x5f_x5fU64_x5fg8, v_p_hoisted_x5f_x5fStr_x5fg9, v_p__x5fva_x5fArray_x5fg0_x5fek);
         // examples/hello_script.til:4
         TilRuntime.println(v_p__x5fva_x5fArray_x5fg0);
     }

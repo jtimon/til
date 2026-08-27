@@ -18,10 +18,10 @@ namespace:
         }
         sz : USize = dyn_size_of(elem_type)
         if elem_kind == ELEM_POD {
-            return DynVec(data = malloc(sz), cap = 1,
+            return DynVec(data = malloc(sz.to_uptr()), cap = 1,
                        elem_size = sz, elem_kind = ELEM_POD)
         }
-        return DynVec(data = malloc(sz), cap = 1,
+        return DynVec(data = malloc(sz.to_uptr()), cap = 1,
                     elem_size = sz, elem_kind = ELEM_BOXED,
                     elem_clone = dyn_fn(elem_type, "clone"),
                     elem_delete = dyn_fn(elem_type, "delete"))
@@ -46,7 +46,7 @@ namespace:
     with_capacity := func(T: Type, n: USize) returns DynVec {
         mut v := DynVec.new(T)
         if n > v.cap {
-            v.data = realloc(own v.data, n.mul(v.elem_size))
+            v.data = realloc(own v.data, n.to_uptr().mul(v.elem_size.to_uptr()))
             v.cap = n
         }
         return v
@@ -62,7 +62,7 @@ namespace:
                      elem_delete: DeleteFn, n: USize) returns DynVec {
         mut c : USize = 1
         if n > 0 { c = n }
-        return DynVec(data = malloc(c.mul(elem_size)), cap = c,
+        return DynVec(data = malloc(c.to_uptr().mul(elem_size.to_uptr())), cap = c,
                     elem_size = elem_size, elem_kind = elem_kind,
                     elem_clone = elem_clone, elem_delete = elem_delete)
     }
@@ -74,11 +74,11 @@ namespace:
     clear := func(mut self: DynVec) {
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+                self.elem_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())), false)
             }
         } else if self.elem_kind == ELEM_FN {
             for i in 0..self.count {
-                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size)))
+                til_closure_slot_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
             }
         }
         self.count = 0
@@ -92,26 +92,26 @@ namespace:
         n := self.count
         mut i : USize = 0
         while i < n {
-            ref mark : Bool = ptr_add(marks, i)
+            ref mark : Bool = ptr_add(marks, i.to_uptr())
             if mark {
-                ref mut slot : Dynamic = ptr_add(self.data, i.mul(self.elem_size))
+                ref mut slot : Dynamic = ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr()))
                 if self.elem_kind == ELEM_BOXED {
                     self.elem_delete(slot, false)
                 } else if self.elem_kind == ELEM_FN {
                     til_closure_slot_delete(slot)
                 }
-                memset(slot, 0, self.elem_size)
+                memset(slot, 0, self.elem_size.to_uptr())
             }
             i++
         }
         mut w : USize = 0
         mut r : USize = 0
         while r < n {
-            ref mark : Bool = ptr_add(marks, r)
+            ref mark : Bool = ptr_add(marks, r.to_uptr())
             if mark.not() {
                 if w != r {
-                    memcpy(ptr_add(self.data, w.mul(self.elem_size)),
-                           ptr_add(self.data, r.mul(self.elem_size)), self.elem_size)
+                    memcpy(ptr_add(self.data, w.to_uptr().mul(self.elem_size.to_uptr())),
+                           ptr_add(self.data, r.to_uptr().mul(self.elem_size.to_uptr())), self.elem_size.to_uptr())
                 }
                 w++
             }
@@ -125,17 +125,17 @@ namespace:
     push := func(mut self: DynVec, own val: Dynamic) {
         if self.count == self.cap {
             new_cap := self.cap * 2
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(self.elem_size.to_uptr()))
             self.cap = new_cap
         }
         // Move the callable box into the slot; the interpreter's owning
         // Dynamic parameter must not reclaim the transferred box on return.
         if self.elem_kind == ELEM_FN {
-            til_closure_slot_take(ptr_add(self.data, self.count.mul(self.elem_size)), val)
+            til_closure_slot_take(ptr_add(self.data, self.count.to_uptr().mul(self.elem_size.to_uptr())), val)
             self.count = self.count + 1
             return
         }
-        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), val, self.elem_size)
+        memcpy(ptr_add(self.data, self.count.to_uptr().mul(self.elem_size.to_uptr())), val, self.elem_size.to_uptr())
         free(own val)
         self.count = self.count + 1
     }
@@ -155,10 +155,10 @@ namespace:
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(self.elem_size.to_uptr()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), other.data, other.count.mul(self.elem_size))
+        memcpy(ptr_add(self.data, self.count.to_uptr().mul(self.elem_size.to_uptr())), other.data, other.count.to_uptr().mul(self.elem_size.to_uptr()))
         self.count = needed
         other.count = 0
     }
@@ -175,11 +175,11 @@ namespace:
         }
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+                self.elem_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())), false)
             }
         } else if self.elem_kind == ELEM_FN {
             for i in 0..self.count {
-                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size)))
+                til_closure_slot_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
             }
         }
         needed := other.count
@@ -188,11 +188,11 @@ namespace:
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(self.elem_size.to_uptr()))
             self.cap = new_cap
         }
         if needed > 0 {
-            memcpy(self.data, other.data, needed.mul(self.elem_size))
+            memcpy(self.data, other.data, needed.to_uptr().mul(self.elem_size.to_uptr()))
         }
         self.count = needed
         other.count = 0
@@ -211,7 +211,7 @@ namespace:
     /// ~i < self.count~; bypasses get's throwing bounds check. for-in
     /// and the DynMap binary search use this directly (issue #284/#287).
     unsafe_get := func(self: DynVec, i: USize) returns ref Dynamic {
-        return ptr_add(self.data, i.mul(self.elem_size))
+        return ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr()))
     }
 
     /// Return a reference to the element at index ~i~. Throws
@@ -236,8 +236,8 @@ namespace:
             self.count = last
             return til_closure_slot_pop(self.unsafe_get(last))
         }
-        mut out : U8 = malloc(self.elem_size)
-        memcpy(out, ptr_add(self.data, last.mul(self.elem_size)), self.elem_size)
+        mut out : U8 = malloc(self.elem_size.to_uptr())
+        memcpy(out, ptr_add(self.data, last.to_uptr().mul(self.elem_size.to_uptr())), self.elem_size.to_uptr())
         self.count = last
         return out
     }
@@ -255,10 +255,10 @@ namespace:
         }
         tail := self.count.sub(i).sub(1)
         if tail > 0 {
-            memmove(self.unsafe_get(i), self.unsafe_get(i.add(1)), tail.mul(self.elem_size))
+            memmove(self.unsafe_get(i), self.unsafe_get(i.add(1)), tail.to_uptr().mul(self.elem_size.to_uptr()))
         }
         self.count = self.count - 1
-        memset(self.unsafe_get(self.count), 0, self.elem_size)
+        memset(self.unsafe_get(self.count), 0, self.elem_size.to_uptr())
     }
 
     /// Drop the elements from index ~n~ to the end and set count to ~n~
@@ -270,11 +270,11 @@ namespace:
         }
         if self.elem_kind == ELEM_BOXED {
             for i in n..self.count {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+                self.elem_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())), false)
             }
         } else if self.elem_kind == ELEM_FN {
             for i in n..self.count {
-                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size)))
+                til_closure_slot_delete(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
             }
         }
         self.count = n
@@ -290,13 +290,13 @@ namespace:
         if n > 0 {
             prefix_cap = n
         }
-        mut prefix_data : U8 = malloc(prefix_cap.mul(self.elem_size))
+        mut prefix_data : U8 = malloc(prefix_cap.to_uptr().mul(self.elem_size.to_uptr()))
         if n > 0 {
-            memcpy(prefix_data, self.data, n.mul(self.elem_size))
+            memcpy(prefix_data, self.data, n.to_uptr().mul(self.elem_size.to_uptr()))
         }
         tail_count := self.count - n
         if tail_count > 0 {
-            memmove(self.data, ptr_add(self.data, n.mul(self.elem_size)), tail_count.mul(self.elem_size))
+            memmove(self.data, ptr_add(self.data, n.to_uptr().mul(self.elem_size.to_uptr())), tail_count.to_uptr().mul(self.elem_size.to_uptr()))
         }
         self.count = tail_count
         return DynVec(data = prefix_data, count = n, cap = prefix_cap,
@@ -326,7 +326,7 @@ namespace:
             til_closure_slot_take(self.unsafe_get(i), val)
             return
         }
-        memcpy(self.unsafe_get(i), val, self.elem_size)
+        memcpy(self.unsafe_get(i), val, self.elem_size.to_uptr())
         free(own val)
     }
 
@@ -364,11 +364,11 @@ namespace:
         }
         if self.count == self.cap {
             new_cap := self.cap * 2
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(self.elem_size.to_uptr()))
             self.cap = new_cap
         }
-        adopt_from(ptr_add(self.data, self.count.mul(self.elem_size)),
-                   ptr_add(src.data, i.mul(src.elem_size)), self.elem_size)
+        adopt_from(ptr_add(self.data, self.count.to_uptr().mul(self.elem_size.to_uptr())),
+                   ptr_add(src.data, i.to_uptr().mul(src.elem_size.to_uptr())), self.elem_size.to_uptr())
         self.count = self.count + 1
     }
 
@@ -382,21 +382,21 @@ namespace:
 
     /// Deep-copy the DynVec and all its elements via elem_clone.
     clone := func(self: DynVec) returns DynVec {
-        mut new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        mut new_data : U8 = malloc(self.cap.to_uptr().mul(self.elem_size.to_uptr()))
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
-                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
+                memcpy(ptr_add(new_data, i.to_uptr().mul(self.elem_size.to_uptr())), cloned, self.elem_size.to_uptr())
                 free(own cloned)
             }
         } else if self.elem_kind == ELEM_FN {
             for i in 0..self.count {
-                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned_fn, self.elem_size)
+                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.to_uptr().mul(self.elem_size.to_uptr())))
+                memcpy(ptr_add(new_data, i.to_uptr().mul(self.elem_size.to_uptr())), cloned_fn, self.elem_size.to_uptr())
                 free(own cloned_fn)
             }
         } else {
-            memcpy(new_data, self.data, self.count.mul(self.elem_size))
+            memcpy(new_data, self.data, self.count.to_uptr().mul(self.elem_size.to_uptr()))
         }
         return DynVec(data = new_data, count = self.count, cap = self.cap,
                    elem_size = self.elem_size, elem_kind = self.elem_kind,

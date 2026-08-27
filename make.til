@@ -618,10 +618,8 @@ build_tests := proc(mut b: Build) {
     build_program(b, "tests", "src/tests.til", "bin/tests")
 }
 
-/// The --usize=64 opt-out (issue #309): the suite runs at the default
-/// U32 container width, so the wide width needs its own pass,
-/// interpreted and compiled, including the compile-time interpreter's
-/// folding at the opposite width under ASAN.
+/// The explicit --usize=64 regression (issue #309), interpreted and compiled,
+/// including compile-time interpreter folding under ASAN.
 check_usize64 := proc(mut b: Build) {
     if b.begin("check_usize64").not() { return }
     build_til(b)
@@ -1545,7 +1543,7 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = "test_repl_help", go = run_test_repl_help,
         about = "Run the REPL help() smoke test"))
     out.push(own Command(name = "check_usize64", go = check_usize64,
-        about = "Run the --usize=64 opt-out regression"))
+        about = "Run the explicit --usize=64 regression"))
     out.push(own Command(name = "check_clang", go = check_clang,
         about = "Check the emitted C compiles clean under clang"))
     out.push(own Command(name = "build_win", go = build_win,

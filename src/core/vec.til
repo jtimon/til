@@ -32,7 +32,7 @@ namespace:
     /// no allocation (the grow sites seed cap 0->1 on the first insert).
     with_capacity := func(n: USize) returns Vec(T) {
         if n == 0 { return Vec(T)(cap = 0) }
-        return Vec(T)(data = malloc(n.mul(T.size())), cap = n)
+        return Vec(T)(data = malloc(n.to_uptr().mul(T.size().to_uptr())), cap = n)
     }
 
     len := func(self: Vec(T)) returns USize { return self.count }
@@ -41,7 +41,7 @@ namespace:
     /// storage and element-type metadata so the Vec can be reused.
     clear := func(mut self: Vec(T)) {
         for i in 0..self.count {
-            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
+            T.delete(own ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), false)
         }
         self.count = 0
     }
@@ -55,20 +55,20 @@ namespace:
         n := self.count
         mut i : USize = 0
         while i < n {
-            ref mark : Bool = ptr_add(marks, i)
+            ref mark : Bool = ptr_add(marks, i.to_uptr())
             if mark {
-                T.delete(own ptr_add(self.data, i.mul(T.size())), false)
-                memset(ptr_add(self.data, i.mul(T.size())), 0, T.size())
+                T.delete(own ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), false)
+                memset(ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), 0, T.size().to_uptr())
             }
             i++
         }
         mut w : USize = 0
         mut r : USize = 0
         while r < n {
-            ref mark : Bool = ptr_add(marks, r)
+            ref mark : Bool = ptr_add(marks, r.to_uptr())
             if mark.not() {
                 if w != r {
-                    memcpy(ptr_add(self.data, w.mul(T.size())), ptr_add(self.data, r.mul(T.size())), T.size())
+                    memcpy(ptr_add(self.data, w.to_uptr().mul(T.size().to_uptr())), ptr_add(self.data, r.to_uptr().mul(T.size().to_uptr())), T.size().to_uptr())
                 }
                 w++
             }
@@ -85,10 +85,10 @@ namespace:
             // realloc(NULL, n) behaves as malloc(n).
             mut new_cap := self.cap * 2
             if self.cap == 0 { new_cap = 1 }
-            self.data = realloc(own self.data, new_cap.mul(T.size()))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(T.size().to_uptr()))
             self.cap = new_cap
         }
-        adopt(T, ptr_add(self.data, self.count.mul(T.size())), own val)
+        adopt(T, ptr_add(self.data, self.count.to_uptr().mul(T.size().to_uptr())), own val)
         self.count = self.count + 1
     }
 
@@ -105,10 +105,10 @@ namespace:
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
-            self.data = realloc(own self.data, new_cap.mul(T.size()))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(T.size().to_uptr()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(T.size())), other.data, other.count.mul(T.size()))
+        memcpy(ptr_add(self.data, self.count.to_uptr().mul(T.size().to_uptr())), other.data, other.count.to_uptr().mul(T.size().to_uptr()))
         self.count = needed
         other.count = 0
     }
@@ -128,8 +128,8 @@ namespace:
         // which for an `own U8` field is a one-byte box that the header
         // copy immediately overwrites -- an allocation, a free, and a
         // leak if the free is forgotten (ASAN caught 488 of them).
-        mut out : Vec(T) = malloc(Vec(T).size())
-        adopt_from(out, self, Vec(T).size())
+        mut out : Vec(T) = malloc(Vec(T).size().to_uptr())
+        adopt_from(out, self, Vec(T).size().to_uptr())
         return out
     }
 
@@ -146,10 +146,10 @@ namespace:
     /// buffer that now belongs to someone else.
     move_to := func(own self: Vec(T), mut dest: Vec(T)) {
         for i in 0..dest.count {
-            T.delete(own ptr_add(dest.data, i.mul(T.size())), false)
+            T.delete(own ptr_add(dest.data, i.to_uptr().mul(T.size().to_uptr())), false)
         }
         free(own dest.data)
-        adopt_from(dest, self, Vec(T).size())
+        adopt_from(dest, self, Vec(T).size().to_uptr())
     }
 
     /// Take ~other~'s contents, dropping whatever self held. OTHER is
@@ -167,7 +167,7 @@ namespace:
     /// directly because its ~_fi < len()~ termination test already
     /// proves the index in bounds (issue #284).
     unsafe_get := func(self: Vec(T), i: USize) returns ref T {
-        return ptr_add(self.data, i.mul(T.size()))
+        return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
     }
 
     /// Return a reference to the element at index ~i~. Throws
@@ -195,8 +195,8 @@ namespace:
             panic("Vec.pop: empty vec")
         }
         last := self.count - 1
-        mut out : T = malloc(T.size())
-        adopt_from(out, ptr_add(self.data, last.mul(T.size())), T.size())
+        mut out : T = malloc(T.size().to_uptr())
+        adopt_from(out, ptr_add(self.data, last.to_uptr().mul(T.size().to_uptr())), T.size().to_uptr())
         self.count = last
         return out
     }
@@ -209,10 +209,10 @@ namespace:
         T.delete(own self.unsafe_get(i), false)
         tail := self.count.sub(i).sub(1)
         if tail > 0 {
-            memmove(self.unsafe_get(i), self.unsafe_get(i.add(1)), tail.mul(T.size()))
+            memmove(self.unsafe_get(i), self.unsafe_get(i.add(1)), tail.to_uptr().mul(T.size().to_uptr()))
         }
         self.count = self.count - 1
-        memset(self.unsafe_get(self.count), 0, T.size())
+        memset(self.unsafe_get(self.count), 0, T.size().to_uptr())
     }
 
     /// Split off the first ~n~ elements into a new Vec. Panics if ~n~
@@ -225,16 +225,16 @@ namespace:
         if n > 0 {
             prefix_cap = n
         }
-        mut prefix_data : U8 = malloc(prefix_cap.mul(T.size()))
+        mut prefix_data : U8 = malloc(prefix_cap.to_uptr().mul(T.size().to_uptr()))
         if n > 0 {
-            memcpy(prefix_data, self.data, n.mul(T.size()))
+            memcpy(prefix_data, self.data, n.to_uptr().mul(T.size().to_uptr()))
         }
         tail_count := self.count - n
         if tail_count > 0 {
-            memmove(self.data, ptr_add(self.data, n.mul(T.size())), tail_count.mul(T.size()))
+            memmove(self.data, ptr_add(self.data, n.to_uptr().mul(T.size().to_uptr())), tail_count.to_uptr().mul(T.size().to_uptr()))
         }
         if n > 0 {
-            memset(ptr_add(self.data, tail_count.mul(T.size())), 0, n.mul(T.size()))
+            memset(ptr_add(self.data, tail_count.to_uptr().mul(T.size().to_uptr())), 0, n.to_uptr().mul(T.size().to_uptr()))
         }
         self.count = tail_count
         return Vec(T)(data = prefix_data, count = n, cap = prefix_cap)
@@ -249,7 +249,7 @@ namespace:
             panic("Vec.truncate: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         for i in n..self.count {
-            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
+            T.delete(own ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), false)
         }
         self.count = n
     }
@@ -282,11 +282,11 @@ namespace:
         if self.count == self.cap {
             mut new_cap := self.cap * 2
             if self.cap == 0 { new_cap = 1 }
-            self.data = realloc(own self.data, new_cap.mul(T.size()))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(T.size().to_uptr()))
             self.cap = new_cap
         }
-        adopt_from(ptr_add(self.data, self.count.mul(T.size())),
-                   ptr_add(src.data, i.mul(T.size())), T.size())
+        adopt_from(ptr_add(self.data, self.count.to_uptr().mul(T.size().to_uptr())),
+                   ptr_add(src.data, i.to_uptr().mul(T.size().to_uptr())), T.size().to_uptr())
         self.count = self.count + 1
     }
 
@@ -302,11 +302,11 @@ namespace:
     clone := func(self: Vec(T)) returns Vec(T) {
         // A lazy-empty source clones to another lazy-empty Vec (no malloc(0)).
         if self.cap == 0 { return Vec(T)(cap = 0) }
-        mut new_data : U8 = malloc(self.cap.mul(T.size()))
+        mut new_data : U8 = malloc(self.cap.to_uptr().mul(T.size().to_uptr()))
         for i in 0..self.count {
-            ref src : T = ptr_add(self.data, i.mul(T.size()))
+            ref src : T = ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
             mut cloned : T = T.clone(src)
-            adopt(T, ptr_add(new_data, i.mul(T.size())), own cloned)
+            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
         }
         return Vec(T)(data = new_data, count = self.count, cap = self.cap)
     }

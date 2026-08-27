@@ -744,8 +744,8 @@ usage := proc() {
     println("")
     println("Options:")
     println("  --target=<name>  Select a target, including the portable JVM target.")
-    println("  --usize=64  Opt into U64 container index/size widths (default is U32,")
-    println("              which saves memory; UPtr always follows pointer width).")
+    println("  --usize=32|64  Override the target-native USize container width;")
+    println("              UPtr always follows pointer width.")
     println("  --force-rebuild  For translate/build/run: regenerate even when the")
     println("              existing output is already newer than every source it")
     println("              was built from (that check otherwise skips the work).")
@@ -791,9 +791,8 @@ CliArgs := struct {
     prof := false
     // #170: bypass the up-to-date check and always translate + compile.
     force_rebuild := false
-    // #309: --usize overrides the USize container-width alias. 0 = follow the
-    // source default (U32); 32 pins U32; 64 opts back into U64 even on a
-    // 64-bit host (UPtr always stays pointer-width).
+    // #309: --usize overrides the target-native USize alias. 0 follows the
+    // target pointer width; 32/64 force that width independently of UPtr.
     usize_bits : I64 = 0
     // #154: unused-import type errors, on by default;
     // --check-unused-imports=false disables for one invocation.
@@ -906,8 +905,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.cc_set = true
             cli.path_idx++
         } else if flag.starts_with("--usize=") {
-            // #309: force the USize container-width alias. 32 = U32 even on a
-            // 64-bit host (UPtr stays pointer-width); 64 = the current default.
+            // #309: force the USize width independently of UPtr.
             uval := flag.strip_prefix("--usize=")
             if uval == "32" {
                 cli.usize_bits = 32

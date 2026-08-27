@@ -402,12 +402,12 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             capacity := container_capacity(sname, raw, ctx)
             if count > capacity { panic("precomputed sequence count exceeds capacity: ", sname) }
             ref data_fl : FieldLayout = ctx_field_layout(sname, "data", ctx)
-            ref stored_data : Dynamic = deref(ptr_add(raw, data_fl.offset))
+            ref stored_data : Dynamic = deref(ptr_add(raw, data_fl.offset.to_uptr()))
             if count.gt(0).and(stored_data.is_null()) { panic("precomputed sequence has null live storage: ", sname) }
             elem_size := container_elem_size(elem_name, ctx)
             mut elements := Vec(Expr).new()
             for i in 0..count {
-                ref elem_addr : Dynamic = ptr_add(stored_data, i.mul(elem_size))
+                ref elem_addr : Dynamic = ptr_add(stored_data, i.to_uptr().mul(elem_size.to_uptr()))
                 mut elem_raw : Dynamic = elem_addr
                 if raw_type_is_prim(elem_type, ctx) { elem_raw = scalar_word_load(elem_type, elem_addr, ctx) }
                 elem_o := raw_to_expr(elem_raw, elem_type, src, ctx)

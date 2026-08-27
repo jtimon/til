@@ -129,11 +129,9 @@ test_vec_subscript_assign_oob := test() {
 test_vec_size := test() {
     assert_eq(USize, I64.size(), 8)
     assert_eq(USize, U8.size(), 1)
-    // #309: USize defaults to U32, so Str = ptr(8)+count(4)+cap(4) = 16 and
-    // Vec = ptr(8)+count(4)+cap(4) = 16 (24 each under --usize=64).
-    assert_eq(USize, Str.size(), 16)
+    assert_eq(USize, Str.size(), 24)
     assert_eq(USize, Bool.size(), 1)
-    assert_eq(USize, Vec(Str).size(), 16)
+    assert_eq(USize, Vec(Str).size(), 24)
 }
 
 test_vec_dynamic := test() {
@@ -143,10 +141,10 @@ test_vec_dynamic := test() {
     // is(a, b) check verifies stored bytes really differ (ASAN's
     // malloc returns zeroed/uniform bytes, which would otherwise
     // make uninitialized buffers compare equal).
-    mut p1 : U8 = malloc(Dynamic.size().cast(U64))
-    mut p2 : U8 = malloc(Dynamic.size().cast(U64))
-    memset(p1, 170, Dynamic.size().cast(U64))
-    memset(p2, 187, Dynamic.size().cast(U64))
+    mut p1 : U8 = malloc(Dynamic.size().to_uptr())
+    mut p2 : U8 = malloc(Dynamic.size().to_uptr())
+    memset(p1, 170, Dynamic.size().to_uptr())
+    memset(p2, 187, Dynamic.size().to_uptr())
     v.push(own p1)
     v.push(own p2)
 

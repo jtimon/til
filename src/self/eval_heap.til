@@ -78,7 +78,7 @@ namespace:
     heap_alloc := func(size: USize) returns Dynamic {
         mut sz := size
         if sz == 0 { sz = 1 }
-        p : U8 = calloc(1, sz)
+        p : U8 = calloc(1, sz.to_uptr())
         if p.is_null() { panic("EvalHeap.heap_alloc: allocation failed") }
         return p
     }
@@ -100,10 +100,10 @@ namespace:
     // pointer is read/written exactly like the C backend would. ---
 
     set_bytes := func(mut ptr: Dynamic, src: Dynamic, n: USize) {
-        memcpy(ptr, src, n)
+        memcpy(ptr, src, n.to_uptr())
     }
     get_bytes := func(ptr: Dynamic, mut dst: Dynamic, n: USize) {
-        memcpy(dst, ptr, n)
+        memcpy(dst, ptr, n.to_uptr())
     }
 
     set_i64 := func(mut ptr: Dynamic, val: I64) { write_i64(ptr, val) }

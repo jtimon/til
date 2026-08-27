@@ -3,14 +3,14 @@ mode script
 // Issue #309 regression, COMPILE-ONLY. Built with --usize=64, the emitted
 // structs use U64 container widths (via ext.h -DTIL_USIZE64), and the size
 // intrinsics (X.size() / dyn_size_of) emit C sizeof on a width-mismatched
-// target, so they report that wide width. Str = ptr(8)+count(8)+cap(8) = 24
-// (16 at the U32 default); Vec = ptr(8)+count(8)+cap(8) = 24.
+// target, so they report that wide width. On a 64-bit pointer target,
+// Str = ptr(8)+count(8)+cap(8) = 24; Vec has the same layout.
 //
 // This file is driven ONLY as a compiled binary by the Makefile check_usize64
 // target -- NOT interpreted: the compile-time interpreter manipulates the
-// compiler's own HOST-resident structs (the compiler is U32 now), so X.size()
-// is the host width (16) under the interpreter. Asserting 24 therefore only
-// holds for compiled code.
+// compiler's own HOST-resident structs, so X.size() is the host width under
+// the interpreter. The target-layout assertion therefore belongs in compiled
+// code.
 
 check := proc(label: Str, got: USize, want: USize) {
     if got.neq(want) {

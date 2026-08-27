@@ -1343,13 +1343,13 @@ main := proc(args: ..Str) {
         "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", 1,
         format(til_bin, " translate -c gen/c/aggregate_own_escape.c test/structs.til '&&' cat gen/c/aggregate_own_escape.c"))
     add_count(tests, "funcsig_own_param_pointer_abi", "build",
-        "static USize consume_owned_box346(ReturnBox346 * box)", 2,
+        "static U64 consume_owned_box346(ReturnBox346 * box)", 2,
         format(til_bin, " translate -c gen/c/aggregate_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/aggregate_param_funcsig.c"))
     add_count(tests, "funcsig_own_primitive_param_value_abi", "build",
         "static I64 consume_owned_i64(I64 value)", 2,
         format(til_bin, " translate -c gen/c/primitive_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/primitive_param_funcsig.c"))
     add_count(tests, "closure_own_param_pointer_abi", "build",
-        "static USize closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 * box)", 1,
+        "static U64 closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 * box)", 1,
         format(til_bin, " translate -c gen/c/aggregate_param_closure.c test/closures.til '&&' cat gen/c/aggregate_param_closure.c"))
     add_count(tests, "self_method_own_param_pointer_abi", "build",
         "static void Expr_add_child(Expr * self, Expr * child)", 2,
@@ -1358,7 +1358,7 @@ main := proc(args: ..Str) {
         "static void Vec__Expr_push(Vec__Expr * self, Expr * val)", 2,
         "cat boot/til.c")
     add_count(tests, "self_scalar_own_param_value_abi", "build",
-        "static void Vec__USize_push(Vec__USize * self, USize val)", 2,
+        "static void Vec__USize_push(Vec__USize * self, U64 val)", 2,
         "cat boot/til.c")
     add_count(tests, "self_scalar_own_param_no_boxes", "build",
         "U32 *_oa = malloc(TIL_BOX(U32))", 0,

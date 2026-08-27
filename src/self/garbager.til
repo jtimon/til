@@ -26,9 +26,9 @@ import("../std/sys")
 priv LocalInfo := struct {
     name := ""
     type := Type.Unknown
-    decl_index : I32 = 0
-    last_use : I32 = 0
-    own_transfer : I32 = -1
+    decl_index : I64 = 0
+    last_use : I64 = 0
+    own_transfer : I64 = -1
     // #302 stage 3: "some statement of this body transfers this name",
     // recorded once at collection time and NEVER cleared -- unlike
     // own_transfer, which check_use_after_own_transfer resets to -1 for
@@ -791,7 +791,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
             ref local : LocalInfo = locals[li]
             for s in 0..stmts {
                 if entry_state.eq(FLOW_UNINIT).and(local.decl_index.gte(0))
-                    .and(s.to_i32().lte(local.decl_index)) {
+                    .and(s.to_i64().lte(local.decl_index)) {
                     table[li.mul(stmts).add(s)] = FLOW_UNINIT
                 } else {
                     table[li.mul(stmts).add(s)] = FLOW_OWNED
@@ -827,7 +827,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                 if local.has_transfer.not() {
                     // Cannot leave Owned: the only question is whether
                     // its Decl has run.
-                    if cur.eq(FLOW_UNINIT).and(s.to_i32().gte(local.decl_index)) { cur = FLOW_OWNED }
+                    if cur.eq(FLOW_UNINIT).and(s.to_i64().gte(local.decl_index)) { cur = FLOW_OWNED }
                     continue
                 }
                 ref sstmt : Expr = body.children[s]
@@ -890,7 +890,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
             } else {
                 for s in 0..stmts {
                     if reachable[s].not() { continue }
-                    if entry.eq(FLOW_UNINIT).and(s.to_i32().lte(local.decl_index)) {
+                    if entry.eq(FLOW_UNINIT).and(s.to_i64().lte(local.decl_index)) {
                         table[li.mul(stmts).add(s)] = FLOW_UNINIT
                     } else {
                         table[li.mul(stmts).add(s)] = FLOW_OWNED
@@ -1565,13 +1565,13 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // question below is then a bit test.
         bbit := fact_bit_req(fi, b.name)
 
-        mut decl_idx : I32 = -1
+        mut decl_idx : I64 = -1
         for j in 0..body.children.len() {
             ref s : Expr = body.children[j]
             switch s.node_type {
             case .Decl(dd):
                 if dd.name == b.name {
-                    decl_idx = j.to_i32()
+                    decl_idx = j.to_i64()
                     break
                 }
             case:
@@ -1580,14 +1580,14 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         if decl_idx == -1 {
             for j in 0..body.children.len() {
                 if fact_bit_test(facts.decls, j.mul(facts.words), bbit) {
-                    decl_idx = j.to_i32()
+                    decl_idx = j.to_i64()
                     break
                 }
             }
         }
 
-        mut last_use : I32 = -1
-        mut own_transfer : I32 = -1
+        mut last_use : I64 = -1
+        mut own_transfer : I64 = -1
         mut scan_from : USize = 0
         if decl_idx >= 0 {
             scan_from = decl_idx.add(1).to_usize()
@@ -1596,11 +1596,11 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             if facts.directives.unsafe_get(j) { continue }
             fbase := j.mul(facts.words)
             if fact_bit_test(facts.uses, fbase, bbit) {
-                last_use = j.to_i32()
+                last_use = j.to_i64()
             }
             if own_transfer == -1 {
                 if fact_bit_test(facts.transfers, fbase, bbit) {
-                    own_transfer = j.to_i32()
+                    own_transfer = j.to_i64()
                 }
             }
         }
@@ -1787,10 +1787,10 @@ priv GcBorrowEdge := struct {
     // "" for a body-end edge (rule 1); otherwise the borrower binding
     // whose current last_use joins the reach.
     borrower := ""
-    fixed_reach : I32 = -1
+    fixed_reach : I64 = -1
 }
 
-priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrower: Str, fixed_reach: I32) {
+priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrower: Str, fixed_reach: I64) {
     mut e := GcBorrowEdge(fixed_reach = fixed_reach)
     e.owner = owner.clone()
     e.borrower = borrower.clone()
@@ -1799,7 +1799,7 @@ priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrow
 
 // Rule 4's collector: walk a statement subtree adding a body-end edge
 // for every local borrowed into an enum ref payload.
-priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
+priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I64, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
     // Tag-only pre-gate: borrow_src constructs and returns a Str, so
     // calling it per NODE paid a build+delete on every miss. Only a
     // two-child FCall can be a variant ctor (borrow_src re-checks).
@@ -1817,7 +1817,7 @@ priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: 
 // An ordinary call can carry a borrow through its return just as an enum
 // constructor does. Its settled #344 summary identifies the actual arguments
 // whose roots must survive the returned value.
-priv collect_call_ref_return_edges := func(e: Expr, body_last: I32, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
+priv collect_call_ref_return_edges := func(e: Expr, body_last: I64, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
     if e.node_type.is(NodeType.FCall) {
         fd_o := fcall_callee_fdef(e, scope, symbols)
         if fd_o.is_some() {
@@ -1853,7 +1853,7 @@ priv collect_call_ref_return_edges := func(e: Expr, body_last: I32, mut edges: V
 
 priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
-    body_last := body.children.len().sub(1).to_i32()
+    body_last := body.children.len().sub(1).to_i64()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
     // anywhere in the statement subtree.
     for stmt : Expr in body.children {
@@ -1904,12 +1904,12 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
             case .FuncDef(fd):
                 for cap : Declaration in fd.captures {
                     if cap.own_type.is(OwnType.Ref).not() { continue }
-                    gc_add_borrow_edge(edges, cap.name, dd_name, i.to_i32())
+                    gc_add_borrow_edge(edges, cap.name, dd_name, i.to_i64())
                 }
             case .BodyValue(bd):
                 for cap : Declaration in bd.captures {
                     if cap.own_type.is(OwnType.Ref).not() { continue }
-                    gc_add_borrow_edge(edges, cap.name, dd_name, i.to_i32())
+                    gc_add_borrow_edge(edges, cap.name, dd_name, i.to_i64())
                 }
             case:
             }
@@ -1918,14 +1918,14 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         // Rule 3: the ref's reach = its last textual use after the decl
         // (at least the decl itself); the borrower term joins the ref's
         // own extended last_use during propagation.
-        mut ref_last : I32 = -1
+        mut ref_last : I64 = -1
         ddbit := fact_bit_req(fi, dd_name)
         for j in i.add(1)..body.children.len() {
             if fact_bit_test(facts.uses, j.mul(facts.words), ddbit) {
-                ref_last = j.to_i32()
+                ref_last = j.to_i64()
             }
         }
-        if ref_last == -1 { ref_last = i.to_i32() }
+        if ref_last == -1 { ref_last = i.to_i64() }
         ref mut rhs : Expr = stmt.children[0]
         switch rhs.node_type {
         case .Ident(src_name):
@@ -2055,12 +2055,12 @@ priv extend_hoist_view_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo),
                 }
             }
         }
-        mut view_last : I32 = -1
+        mut view_last : I64 = -1
         for j in 0..body.children.len() {
             if facts.directives.unsafe_get(j) { continue }
             // Any tainted binding used here? One row intersection
             // replaces the per-tainted-name probes.
-            if fact_row_intersects(facts.uses, j.mul(facts.words), tmask, facts.words) { view_last = j.to_i32() }
+            if fact_row_intersects(facts.uses, j.mul(facts.words), tmask, facts.words) { view_last = j.to_i64() }
         }
         if view_last >= 0 { gc_add_borrow_edge(edges, local.name, "", view_last) }
     }
@@ -2170,7 +2170,7 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
             // cleanup on the surviving paths: suppressing the error
             // alone LEAKED (the index model's transfer stand-down left
             // the fall-through with no delete, verified 2026-07-11).
-            if gc_flow_owned_at_stmt(body, local, scope, ctx, local.last_use) {
+            if gc_flow_owned_at_stmt(body, local, scope, ctx, local.last_use.to_i32()) {
                 // A shallow-field transfer consumes the inner value but not
                 // its heap wrapper. Preserve that transfer-path cleanup before
                 // clearing the transfer record for the surviving paths.
@@ -2427,7 +2427,7 @@ priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), 
         mut st : U8 = FLOW_UNREACHED
         st = root_flow[li.mul(root_stmts).add(stmt_idx)]
         if st.eq(FLOW_OWNED).not() { continue }
-        if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
+        if local.last_use.gte(stmt_idx.to_i64()).or(local.last_use.eq(-1)) {
             live_vec.push(own local.clone())
         }
     }
@@ -2498,7 +2498,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
         mut st : U8 = FLOW_UNREACHED
         st = root_flow[li.mul(root_stmts).add(stmt_idx)]
         if st.eq(FLOW_OWNED).not() { continue }
-        if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
+        if local.last_use.gte(stmt_idx.to_i64()).or(local.last_use.eq(-1)) {
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
@@ -2551,9 +2551,9 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             // use-after-free the builder was masking with its swap_freed
             // defusing set). No wrapper free: a callable local IS the
             // pointer, there is no separate box to release.
-            if local.own_transfer.eq(stmt_idx.to_i32()).and(heap_local_is_callable(local)) { continue }
+            if local.own_transfer.eq(stmt_idx.to_i64()).and(heap_local_is_callable(local)) { continue }
             if local.is_heap.and(is_aggregate(local.type)) {
-                if local.own_transfer == stmt_idx.to_i32() {
+                if local.own_transfer == stmt_idx.to_i64() {
                     if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                         // Decl(field = local) where the receiving Shallow
                         // field value-copies the inner struct: the field's
@@ -2572,7 +2572,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             }
             continue
         }
-        if local.last_use == stmt_idx.to_i32() {
+        if local.last_use == stmt_idx.to_i64() {
             // #258: Str clone-args move only under provable ownership; any
             // other aggregate moves unconditionally (no view representation).
             // The Str move is additionally COMPILE-ONLY: it pairs a bare
@@ -2694,7 +2694,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
                 new_ch.push(own del)
             }
         }
-        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
+        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i64())) {
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
@@ -2987,7 +2987,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // Callables and other unnamed types still stand down.
         if is_aggregate(local.type).not().and(local.type.is(Type.Primitive).not()) { continue }
         if type_to_name(local.type).len() == 0 { continue }
-        if local.own_transfer >= body.children.len().to_i32() { continue }
+        if local.own_transfer >= body.children.len().to_i64() { continue }
         // #302 stage 3: the DATAFLOW decides whether a graft is needed,
         // for every container kind. Mixed at exit means some path leaves
         // the local still owned while another moved it -- exactly the

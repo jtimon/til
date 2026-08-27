@@ -24,7 +24,7 @@ TemplVec := struct<T: Type> {
 
 namespace:
     new := func() returns TemplVec(T) {
-        return TemplVec(T)(data = malloc(T.size().cast(U64)), cap = 1)
+        return TemplVec(T)(data = malloc(T.size().to_uptr()), cap = 1)
     }
 
     len := func(self: TemplVec(T)) returns USize { return self.count }
@@ -32,13 +32,13 @@ namespace:
     push := func(mut self: TemplVec(T), own val: T) {
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)
-            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(T.size().to_uptr()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), val, T.size().cast(U64))
+        memcpy(ptr_add(self.data, self.count.to_uptr().mul(T.size().to_uptr())), val, T.size().to_uptr())
         // Ownership moved into the buffer: zero `val` so its scope-end
         // auto-delete is a no-op (same trick as Vec.push_take).
-        memset(val, 0, T.size().cast(U64))
+        memset(val, 0, T.size().to_uptr())
         self.count = self.count.add(1)
     }
 
@@ -46,7 +46,7 @@ namespace:
         if i.gte(self.count) {
             throw OutOfBounds()
         }
-        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+        return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
     }
 
     // Drop the existing element via T.delete, then overwrite. For POD
@@ -55,14 +55,14 @@ namespace:
         if i.gte(self.count) {
             panic("TemplVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
-        T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
-        memcpy(ptr_add(self.data, i.mul(T.size()).cast(U64)), val, T.size().cast(U64))
-        memset(val, 0, T.size().cast(U64))
+        T.delete(own ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), false)
+        memcpy(ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), val, T.size().to_uptr())
+        memset(val, 0, T.size().to_uptr())
     }
 
     clear := func(mut self: TemplVec(T)) {
         for i in 0..self.count {
-            T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+            T.delete(own ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), false)
         }
         self.count = 0
     }
@@ -74,9 +74,9 @@ namespace:
     }
 
     clone := func(self: TemplVec(T)) returns TemplVec(T) {
-        mut new_data : U8 = malloc(self.cap.mul(T.size()).cast(U64))
+        mut new_data : U8 = malloc(self.cap.to_uptr().mul(T.size().to_uptr()))
         for i in 0..self.count {
-            ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
+            ref src : T = ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
             mut cloned : T = src.clone()
             // Ownership of cloned's heap (if any) MOVES into the buffer.
             // Spelled with core's adopt_from rather than a hand-rolled
@@ -84,7 +84,7 @@ namespace:
             // bare memcpy of a managed aggregate's bytes is the shape #275
             // bans, since nothing at that node says whether the source is
             // giving the pointers up or keeping them.
-            adopt_from(ptr_add(new_data, i.mul(T.size()).cast(U64)), to_ptr(cloned), T.size().cast(U64))
+            adopt_from(ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), to_ptr(cloned), T.size().to_uptr())
         }
         return TemplVec(T)(data = new_data, count = self.count, cap = self.cap)
     }

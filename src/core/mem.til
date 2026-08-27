@@ -73,7 +73,7 @@ swap_bytes := func(mut a: Dynamic, mut b: Dynamic, size: UPtr) {
 /// and nothing double-frees. Ownership of a's old contents continues in
 /// b and vice versa; both bindings' scheduled deletes stay correct.
 swap := func(T: Type, mut a: T, mut b: T) {
-    swap_bytes(a, b, T.size())
+    swap_bytes(a, b, T.size().to_uptr())
 }
 
 /// Move src into dest -- what a move means everywhere else (#302):
@@ -84,7 +84,7 @@ swap := func(T: Type, mut a: T, mut b: T) {
 /// garbager's scheduled deep delete of src reclaims exactly that old
 /// value plus the box. No explicit delete or free anywhere.
 move := func(T: Type, mut dest: T, own src: T) {
-    swap_bytes(dest, src, T.size())
+    swap_bytes(dest, src, T.size().to_uptr())
 }
 
 /// Adopt src into UNINITIALIZED storage (#302 stage 4): dest is a raw
@@ -107,7 +107,7 @@ move := func(T: Type, mut dest: T, own src: T) {
 /// and the guard that saves it -- ~if (v->cap != TIL_CAP_LIT) free(v);~
 /// -- is emitted only because the call site knows the type.
 adopt := func(T: Type, mut dest: Dynamic, own src: T) {
-    memcpy(dest, src, T.size())
+    memcpy(dest, src, T.size().to_uptr())
     free(own src)
 }
 

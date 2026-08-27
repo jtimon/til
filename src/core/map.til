@@ -91,20 +91,20 @@ namespace:
                 // realloc(NULL, n) behaves as malloc(n).
                 mut new_cap : USize = self.keys.cap * 2
                 if self.keys.cap == 0 { new_cap = 1 }
-                self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()))
-                self.values.data = realloc(own self.values.data, new_cap.mul(V.size()))
+                self.keys.data = realloc(own self.keys.data, new_cap.to_uptr().mul(K.size().to_uptr()))
+                self.values.data = realloc(own self.values.data, new_cap.to_uptr().mul(V.size().to_uptr()))
                 self.keys.cap = new_cap
                 self.values.cap = new_cap
             }
-            memmove(ptr_add(self.keys.data, lo.add(1).mul(K.size())),
-                    ptr_add(self.keys.data, lo.mul(K.size())),
-                    self.keys.count.sub(lo).mul(K.size()))
-            memmove(ptr_add(self.values.data, lo.add(1).mul(V.size())),
-                    ptr_add(self.values.data, lo.mul(V.size())),
-                    self.values.count.sub(lo).mul(V.size()))
+            memmove(ptr_add(self.keys.data, lo.add(1).to_uptr().mul(K.size().to_uptr())),
+                    ptr_add(self.keys.data, lo.to_uptr().mul(K.size().to_uptr())),
+                    self.keys.count.sub(lo).to_uptr().mul(K.size().to_uptr()))
+            memmove(ptr_add(self.values.data, lo.add(1).to_uptr().mul(V.size().to_uptr())),
+                    ptr_add(self.values.data, lo.to_uptr().mul(V.size().to_uptr())),
+                    self.values.count.sub(lo).to_uptr().mul(V.size().to_uptr()))
             mut cloned_key : K = K.clone(key)
-            adopt(K, ptr_add(self.keys.data, lo.mul(K.size())), own cloned_key)
-            adopt(V, ptr_add(self.values.data, lo.mul(V.size())), own val)
+            adopt(K, ptr_add(self.keys.data, lo.to_uptr().mul(K.size().to_uptr())), own cloned_key)
+            adopt(V, ptr_add(self.values.data, lo.to_uptr().mul(V.size().to_uptr())), own val)
             self.keys.count = self.keys.count + 1
             self.values.count = self.values.count + 1
         }

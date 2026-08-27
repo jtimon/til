@@ -187,6 +187,8 @@ namespace:
     to_i32 := ext_func(shallow val: U32) returns shallow I32 {}
     to_u32 := ext_func(shallow val: U32) returns shallow U32 {}
     to_u64 := ext_func(shallow val: U32) returns shallow U64 {}
+    to_usize := ext_func(shallow val: U32) returns shallow USize {}
+    to_uptr := func(val: U32) returns UPtr { return val.cast(UPtr) }
     to_f32 := ext_func(shallow val: U32) returns shallow F32 {}
     /// Convert to decimal string representation.
     to_str := func(val: U32) returns Str {
@@ -274,6 +276,7 @@ namespace:
     to_i64 := ext_func(shallow val: U64) returns shallow I64 {}
     to_u64 := ext_func(shallow val: U64) returns shallow U64 {}
     to_usize := ext_func(shallow val: U64) returns shallow USize {}
+    to_uptr := func(val: U64) returns UPtr { return val.cast(UPtr) }
     to_f32 := ext_func(shallow val: U64) returns shallow F32 {}
     to_f64 := ext_func(shallow val: U64) returns shallow F64 {}
     /// Convert to decimal string representation.
@@ -851,14 +854,10 @@ IntegerOverflow := struct {
     msg: Str = ""
 }
 
-// USize is the container-width unsigned integer alias used by all collection
-// types for indices, lengths, capacities, and sizes. Issue #309: it defaults
-// to U32 -- container fields stay 32-bit even on a 64-bit host, halving
-// their size/index/count/cap footprint -- while UPtr keeps full pointer
-// width. This source alias is the single source of truth for the width (read
-// per build via find_alias_rhs_in_ast); `til --usize=64` retargets it back to
-// U64 for the opt-out, and the loader forces U32 on 32-bit targets anyway.
-USize := U32
+// USize is the target-width unsigned integer used by collection APIs for
+// indices, lengths, capacities, and sizes. Its source alias stays U64; the
+// loader retargets it to U32 for 32-bit targets before typecheck/codegen.
+USize := U64
 
 /// UPtr is the target-native unsigned integer for raw pointer arithmetic,
 /// address calculations, and byte counts that must match pointer width.

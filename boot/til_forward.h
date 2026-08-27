@@ -1,4 +1,5 @@
 #pragma once
+#define TIL_USIZE64 1
 #include "ext.h"
 
 typedef struct TilClosure TilClosure;
@@ -1006,9 +1007,9 @@ typedef struct Vec__I32 {
 typedef struct priv___src_self_garbager_til__LocalInfo {
     Str name;
     Type type;
-    I32 decl_index;
-    I32 last_use;
-    I32 own_transfer;
+    I64 decl_index;
+    I64 last_use;
+    I64 own_transfer;
     Bool has_transfer;
     Bool skip_scope_delete;
     Bool is_heap;
@@ -1044,7 +1045,7 @@ typedef struct priv___src_self_garbager_til__BodyFacts {
 typedef struct priv___src_self_garbager_til__GcBorrowEdge {
     Str owner;
     Str borrower;
-    I32 fixed_reach;
+    I64 fixed_reach;
 } priv___src_self_garbager_til__GcBorrowEdge;
 
 

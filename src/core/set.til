@@ -29,7 +29,7 @@ namespace:
     /// doubling. n=0 behaves like new(): lazy-empty, no allocation.
     with_capacity := func(n: USize) returns Set(T) {
         if n == 0 { return Set(T)(cap = 0) }
-        return Set(T)(data = malloc(n.mul(T.size())), cap = n)
+        return Set(T)(data = malloc(n.to_uptr().mul(T.size().to_uptr())), cap = n)
     }
 
     len := func(self: Set(T)) returns USize { return self.count }
@@ -37,7 +37,7 @@ namespace:
     /// Drop all live elements but keep the allocated storage so the Set can be reused.
     clear := func(mut self: Set(T)) {
         for i in 0..self.count {
-            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
+            T.delete(own ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr())), false)
         }
         self.count = 0
     }
@@ -48,7 +48,7 @@ namespace:
         mut hi := self.count
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
-            ref cur : T = ptr_add(self.data, mid.mul(T.size()))
+            ref cur : T = ptr_add(self.data, mid.to_uptr().mul(T.size().to_uptr()))
             c : I64 = T.cmp(cur, val)
             if c < 0 { lo = mid + 1 }
             else {
@@ -67,7 +67,7 @@ namespace:
         mut found := false
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
-            ref cur : T = ptr_add(self.data, mid.mul(T.size()))
+            ref cur : T = ptr_add(self.data, mid.to_uptr().mul(T.size().to_uptr()))
             c : I64 = T.cmp(cur, val)
             if c < 0 { lo = mid + 1 }
             else {
@@ -89,13 +89,13 @@ namespace:
                 // to 1. realloc(NULL, n) behaves as malloc(n).
                 mut new_cap := self.cap * 2
                 if self.cap == 0 { new_cap = 1 }
-                self.data = realloc(own self.data, new_cap.mul(T.size()))
+                self.data = realloc(own self.data, new_cap.to_uptr().mul(T.size().to_uptr()))
                 self.cap = new_cap
             }
-            memmove(ptr_add(self.data, lo.add(1).mul(T.size())),
-                    ptr_add(self.data, lo.mul(T.size())),
-                    self.count.sub(lo).mul(T.size()))
-            adopt(T, ptr_add(self.data, lo.mul(T.size())), own val)
+            memmove(ptr_add(self.data, lo.add(1).to_uptr().mul(T.size().to_uptr())),
+                    ptr_add(self.data, lo.to_uptr().mul(T.size().to_uptr())),
+                    self.count.sub(lo).to_uptr().mul(T.size().to_uptr()))
+            adopt(T, ptr_add(self.data, lo.to_uptr().mul(T.size().to_uptr())), own val)
             self.count = self.count + 1
         }
     }
@@ -109,21 +109,21 @@ namespace:
         mut hi := self.count
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
-            ref cur : T = ptr_add(self.data, mid.mul(T.size()))
+            ref cur : T = ptr_add(self.data, mid.to_uptr().mul(T.size().to_uptr()))
             c : I64 = T.cmp(cur, val)
             if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
                 else {
-                    T.delete(own ptr_add(self.data, mid.mul(T.size())), false)
+                    T.delete(own ptr_add(self.data, mid.to_uptr().mul(T.size().to_uptr())), false)
                     tail := self.count.sub(mid).sub(1)
                     if tail > 0 {
-                        memmove(ptr_add(self.data, mid.mul(T.size())),
-                                ptr_add(self.data, mid.add(1).mul(T.size())),
-                                tail.mul(T.size()))
+                        memmove(ptr_add(self.data, mid.to_uptr().mul(T.size().to_uptr())),
+                                ptr_add(self.data, mid.add(1).to_uptr().mul(T.size().to_uptr())),
+                                tail.to_uptr().mul(T.size().to_uptr()))
                     }
                     self.count = self.count - 1
-                    memset(ptr_add(self.data, self.count.mul(T.size())), 0, T.size())
+                    memset(ptr_add(self.data, self.count.to_uptr().mul(T.size().to_uptr())), 0, T.size().to_uptr())
                     return true
                 }
             }
@@ -141,11 +141,11 @@ namespace:
         // A lazy-empty source clones to another lazy-empty Set (no
         // malloc(0)), mirroring Vec.clone.
         if self.cap == 0 { return Set(T)(cap = 0) }
-        mut new_data : U8 = malloc(self.cap.mul(T.size()))
+        mut new_data : U8 = malloc(self.cap.to_uptr().mul(T.size().to_uptr()))
         for i in 0..self.count {
-            ref src : T = ptr_add(self.data, i.mul(T.size()))
+            ref src : T = ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
             mut cloned : T = T.clone(src)
-            adopt(T, ptr_add(new_data, i.mul(T.size())), own cloned)
+            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
         }
         return Set(T)(data = new_data, count = self.count, cap = self.cap)
     }

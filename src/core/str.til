@@ -563,7 +563,7 @@ digit_value := func(ch: I8) returns I64 {
 // c-string length (strlen).  Can't bind libc's strlen directly: til's
 // generated C #includes <string.h>, so libc's `size_t strlen(const
 // char *)` is in scope and an ext_func declaration clashes on the
-// return type (USize is U32, size_t is unsigned long).  The byte loop
+// return type (USize is target-width, size_t is platform-specific). The byte loop
 // sidesteps that and keeps the C primitive surface free of the
 // typedef-bridge wrapper.
 // Faithful float parse (C strtof). Top-level so the interpreter's dispatch

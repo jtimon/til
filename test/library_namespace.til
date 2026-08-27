@@ -75,7 +75,7 @@ main := proc() {
     require_contains(py_a, "_runtime_name = 'libtilrt-")
     require_contains(py_b, "_runtime_name = 'libtilrt-")
     require_contains(py_a, "('borrowed', ctypes.POINTER(ctypes.c_longlong))")
-    require_contains(py_a, "('size', ctypes.c_uint)")
+    require_contains(py_a, "('size', ctypes.c_ulonglong)")
     require_contains(py_a, "('ptr', ctypes.c_ulonglong)")
     require_contains(py_a, "library_namespace_a_point.argtypes = [BindingPoint]")
     require_contains(py_a, "library_namespace_a_point.restype = BindingPoint")

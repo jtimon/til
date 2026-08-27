@@ -102,15 +102,9 @@ target_uptr_name := func(target: Target) returns Str {
     return "U64"
 }
 
-// USize is the container-width unsigned integer used by container APIs
-// (lengths, capacities, indices, element sizes). Issue #309: it defaults to
-// U32 -- container fields stay 32-bit even on a 64-bit host, halving their
-// footprint, while UPtr keeps pointer width. The SOURCE alias
-// (src/core/numbers.til: `USize := U32`) is the source of truth, read per
-// build via find_alias_rhs_in_ast, and `til --usize=64` overrides it. This
-// helper is only the fallback target_int_alias_name uses when the source
-// alias can't be read (compiling core.til standalone); it returns the
-// pointer-width value, which the source read supersedes for every real build.
+// USize is the target-width unsigned integer used by container APIs
+// (lengths, capacities, indices, element sizes), mirroring UPtr's
+// target-width selection for raw pointer arithmetic.
 target_usize_name := func(target: Target) returns Str {
     if target_is_32bit(target) { return "U32" }
     return "U64"

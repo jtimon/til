@@ -843,14 +843,14 @@ priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fde
         while pi < fdef_data.sig.params.len() {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
-                if pi.to_i32() == fvi {
+                if pi.to_i64() == fvi.cast(I64) {
                     ci = ci + fvc
                     pi++
                     continue
                 }
             }
             if fkwi >= 0 {
-                if pi.to_i32() == fkwi {
+                if pi.to_i64() == fkwi.cast(I64) {
                     ci = ci + fkc
                     pi++
                     continue
@@ -968,14 +968,14 @@ priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionD
     while pi < fdef_data.sig.params.len() {
         if ci >= e.children.len() { break }
         if fvi >= 0 {
-            if pi.to_i32() == fvi {
+            if pi.to_i64() == fvi.cast(I64) {
                 ci = ci + fvc
                 pi++
                 continue
             }
         }
         if fkwi >= 0 {
-            if pi.to_i32() == fkwi {
+            if pi.to_i64() == fkwi.cast(I64) {
                 ci = ci + fkc
                 pi++
                 continue
@@ -1486,7 +1486,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 }
             }
             if fkwi >= 0 {
-                if pi.to_i32() == fkwi {
+                if pi.to_i64() == fkwi.cast(I64) {
                     ci = ci + fkc
                     pi++
                     continue
@@ -1601,7 +1601,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 }
             }
             if fkwi >= 0 {
-                if pi.to_i32() == fkwi {
+                if pi.to_i64() == fkwi.cast(I64) {
                     ci = ci + fkc
                     pi++
                     continue
@@ -4807,7 +4807,9 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, symbols: Symb
     if fdef.sig.return_type.len() > 0 {
         return_type_name := fdef.sig.return_type.clone()
         ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name, symbols)
-        if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize", symbols).eq(resolve_type_alias(scope, "UPtr", symbols)).not()).not() { fdef.sig.return_type = resolved_return_type }
+        widths_differ := resolve_type_alias(scope, "USize", symbols).eq(resolve_type_alias(scope, "UPtr", symbols)).not()
+        preserve_size_alias := is_uptr_name(return_type_name).or(is_usize_name(return_type_name).and(widths_differ))
+        if preserve_size_alias.not() { fdef.sig.return_type = resolved_return_type }
         // Issue #223 step 2: forbid redundant 'shallow' on a primitive
         // funcptr return. COMMENTED OUT during rollout (see infer_func_def_expr).
         // NOTE: infer_func_sig_expr is a func with no ctx, so enabling this
@@ -4826,11 +4828,11 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, symbols: Symb
     for mut param : Declaration in fdef.sig.params {
         ptype_name := param.type_name()
         ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name, symbols)
-        // Keep USize/UPtr as their alias name ONLY when the two widths
-        // actually differ (a --usize=32 / 32-bit build): there the coercion
-        // must recognize size vs pointer params. When they are equal (the
-        // default), resolve to the primitive as before -- byte-identical.
-        if is_usize_name(ptype_name).or(is_uptr_name(ptype_name)).and(resolve_type_alias(scope, "USize", symbols).eq(resolve_type_alias(scope, "UPtr", symbols)).not()).not() {
+        // UPtr coercion depends on retaining its source spelling even when it
+        // matches native USize. USize only needs its alias when widths differ.
+        widths_differ := resolve_type_alias(scope, "USize", symbols).eq(resolve_type_alias(scope, "UPtr", symbols)).not()
+        preserve_size_alias := is_uptr_name(ptype_name).or(is_usize_name(ptype_name).and(widths_differ))
+        if preserve_size_alias.not() {
             param.til_type = declaration_type_from_name(resolved_ptype)
         }
         // Issue #58 / #147 step 5: if the param's type resolves to a
@@ -5229,7 +5231,9 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         if fdef.sig.return_type.len() > 0 {
             return_type_name := fdef.sig.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name, ctx.symbols)
-            if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize", ctx.symbols).eq(resolve_type_alias(scope, "UPtr", ctx.symbols)).not()).not() { fdef.sig.return_type = resolved_return_type }
+            widths_differ := resolve_type_alias(scope, "USize", ctx.symbols).eq(resolve_type_alias(scope, "UPtr", ctx.symbols)).not()
+            preserve_size_alias := is_uptr_name(return_type_name).or(is_usize_name(return_type_name).and(widths_differ))
+            if preserve_size_alias.not() { fdef.sig.return_type = resolved_return_type }
             check_priv_type_name(expr, resolved_return_type, scope, func_scope, ctx)
             // Issue #223 step 2: an explicit 'shallow' on a primitive return is
             // redundant (auto-shallow handles it). Reject it. Test the parser's
@@ -5271,11 +5275,11 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             }
             ptype_name := param.type_name()
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name, ctx.symbols)
-            // Keep USize/UPtr as their alias name ONLY when the two widths
-            // actually differ (a --usize=32 / 32-bit build): there the coercion
-            // must recognize size vs pointer params. When they are equal (the
-            // default), resolve to the primitive as before -- byte-identical.
-            if is_usize_name(ptype_name).or(is_uptr_name(ptype_name)).and(resolve_type_alias(scope, "USize", ctx.symbols).eq(resolve_type_alias(scope, "UPtr", ctx.symbols)).not()).not() {
+            // UPtr coercion depends on retaining its source spelling even when
+            // it matches native USize. USize only needs its alias when widths differ.
+            widths_differ := resolve_type_alias(scope, "USize", ctx.symbols).eq(resolve_type_alias(scope, "UPtr", ctx.symbols)).not()
+            preserve_size_alias := is_uptr_name(ptype_name).or(is_usize_name(ptype_name).and(widths_differ))
+            if preserve_size_alias.not() {
                 param.til_type = declaration_type_from_name(resolved_ptype)
             }
             ptn := param.type_name()
@@ -9217,12 +9221,12 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                     case .Ident(an):
                                         if an.ident_name(symbols.names).eq(var_name).not() { continue }
                                         // Resolve the receiving field.
-                                        mut fd_idx : I32 = -1
+                                        mut fd_idx : I64 = -1
                                         if field_name.is_empty() {
                                             // Positional: arg position ci-1 maps to field index.
-                                            fd_idx = ci.sub(1).to_i32()
+                                            fd_idx = ci.sub(1).to_i64()
                                         } else if tsv_sdd.fields_index.has(field_name) {
-                                            fd_idx = tsv_sdd.fields_index[field_name].to_i32()
+                                            fd_idx = tsv_sdd.fields_index[field_name].to_i64()
                                         }
                                         if fd_idx < 0 { continue }
                                         if fd_idx.to_usize() >= tsv_sdd.fields.len() { continue }
@@ -12136,10 +12140,10 @@ priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
     }
 }
 
-priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns I32 {
+priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns I64 {
     for csi in 0..coverage.sub_names.len() {
         ref n : Str = coverage.sub_names[csi]
-        if n == variant_name { return csi.to_i32() }
+        if n == variant_name { return csi.to_i64() }
     }
     return -1
 }

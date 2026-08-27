@@ -1204,11 +1204,11 @@ namespace:
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
-            self.children.data = realloc(own self.children.data, new_cap.mul(Expr.size()))
+            self.children.data = realloc(own self.children.data, new_cap.to_uptr().mul(Expr.size().to_uptr()))
             self.children.cap = new_cap
         }
-        memcpy(ptr_add(self.children.data, self.children.count.mul(Expr.size())),
-            other.children.data, other.children.count.mul(Expr.size()))
+        memcpy(ptr_add(self.children.data, self.children.count.to_uptr().mul(Expr.size().to_uptr())),
+            other.children.data, other.children.count.to_uptr().mul(Expr.size().to_uptr()))
         self.children.count = needed
         other.children.count = 0
         // Free other's source buffer before nulling: the bytes were

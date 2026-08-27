@@ -85,7 +85,7 @@ priv check_c_string_terminator := func(s_base: Dynamic, ctx: Context) {
     if s.c_str.is_null() {
         panic("Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first")
     }
-    ref b : I8 = ptr_add(s.c_str, str_count_at(s_base, ctx).cast(U64))
+    ref b : I8 = ptr_add(s.c_str, str_count_at(s_base, ctx).to_uptr())
     if b != 0 {
         panic("Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first")
     }
@@ -111,9 +111,9 @@ priv clone_str_storage_into := func(mut dst: Dynamic, src: Dynamic, ctx: Context
     if str_has_owned_storage(src, ctx).not() { return }
     cnt := str_count_at(src, ctx)
     cap := str_cap_at(src, ctx)
-    mut copy : I8 = malloc(cap.add(1).cast(U64))
-    if cnt.gt(0) { memcpy(copy, s.c_str, cnt.cast(U64)) }
-    memset(ptr_add(copy, cnt.cast(U64)), 0, 1)
+    mut copy : I8 = malloc(cap.add(1).to_uptr())
+    if cnt.gt(0) { memcpy(copy, s.c_str, cnt.to_uptr()) }
+    memset(ptr_add(copy, cnt.to_uptr()), 0, 1)
     write_ptr(dst, copy)
     str_write_count_cap(dst, cnt, cap, ctx)
 }
@@ -366,7 +366,7 @@ priv enum_clone_str_payload := func(mut data: Dynamic, ctx: Context) {
 // payload ownership metadata; value bytes stay raw.
 priv heap_clone_enum := func(enum_name: Str, data: Dynamic, data_size: USize, ctx: Context) returns Dynamic {
     mut pdata : Dynamic = EvalHeap.heap_alloc(data_size)
-    memcpy(pdata, data, data_size.cast(U64))
+    memcpy(pdata, data, data_size.to_uptr())
     enum_payload_deep_clone(enum_name, pdata, ctx)
     return pdata
 }
@@ -3393,9 +3393,9 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                                     str_write_count_cap(arg_raw, 0, CAP_VIEW, ctx)
                                                 } else {
                                                     ref source_str : Str = to_ptr(source_ptr)
-                                                    mut copy : I8 = malloc(cnt.add(1).cast(U64))
-                                                    memcpy(copy, source_str.c_str, cnt.cast(U64))
-                                                    memset(ptr_add(copy, cnt.cast(U64)), 0, 1)
+                                                    mut copy : I8 = malloc(cnt.add(1).to_uptr())
+                                                    memcpy(copy, source_str.c_str, cnt.to_uptr())
+                                                    memset(ptr_add(copy, cnt.to_uptr()), 0, 1)
                                                     write_ptr(arg_raw, copy)
                                                     str_write_count_cap(arg_raw, cnt, cnt, ctx)
                                                 }
@@ -3721,7 +3721,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
         if children_fl.size.eq(0).or(children_fl.struct_name.len().eq(0)) {
             panic("struct_deep_free Expr missing children layout")
         }
-        heap_drop_struct(children_fl.struct_name, ptr_add(data, children_fl.offset.cast(U64)), ctx)
+        heap_drop_struct(children_fl.struct_name, ptr_add(data, children_fl.offset.to_uptr()), ctx)
         return
     }
     if struct_name == "Tuple" {
@@ -3773,8 +3773,8 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
             continue
         }
         if fl.is_str {
-            ref s : Str = ptr_add(data, foff.cast(U64))
-            if str_owns_c_str(ptr_add(data, foff.cast(U64)), ctx) {
+            ref s : Str = ptr_add(data, foff.to_uptr())
+            if str_owns_c_str(ptr_add(data, foff.to_uptr()), ctx) {
                 if s.c_str.is_null().not() { free(own s.c_str) }
             }
             continue
@@ -3789,7 +3789,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
             continue
         }
         if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
-            heap_drop_struct(fl.struct_name, ptr_add(data, foff.cast(U64)), ctx)
+            heap_drop_struct(fl.struct_name, ptr_add(data, foff.to_uptr()), ctx)
         }
     }
     if struct_name == "DynVec" {
@@ -4323,7 +4323,7 @@ priv primitive_heap_clone := func(prim: Primitive, ptr: Dynamic) returns Dynamic
     mut al : USize = 0
     builtin_primitive_size_align(prim, sz, al)
     mut dst : Dynamic = EvalHeap.heap_alloc(sz)
-    memcpy(dst, ptr, sz.cast(U64))
+    memcpy(dst, ptr, sz.to_uptr())
     return dst
 }
 
@@ -4379,13 +4379,13 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         mut sz : USize = 0
         mut al : USize = 0
         builtin_primitive_size_align(prim, sz, al)
-        memcpy(dst, src, sz.cast(U64))
+        memcpy(dst, src, sz.to_uptr())
         owned_src : Dynamic = src
         EvalHeap.heap_free(own owned_src)
         return true
     case .Struct(sname):
         if drop_old { heap_drop_struct(sname, dst, ctx) }
-        memcpy(dst, src, ctx_total_size(sname, ctx).cast(U64))
+        memcpy(dst, src, ctx_total_size(sname, ctx).to_uptr())
         owned_src2 : Dynamic = src
         EvalHeap.heap_free(own owned_src2)
         return true
@@ -4393,7 +4393,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         if drop_old { heap_drop_enum(ename, dst, ctx) }
         mut total : USize = ctx_total_size(ename, ctx)
         if total < 8 { total = 8 }
-        memcpy(dst, src, total.cast(U64))
+        memcpy(dst, src, total.to_uptr())
         owned_src3 : Dynamic = src
         EvalHeap.heap_free(own owned_src3)
         return true
@@ -4698,7 +4698,7 @@ scope_free := func(own s: Scope) {
         EvalHeap.heap_free(own slot)
     }
     own s.heap_aliases.delete(false)
-    memset(s.heap_aliases, 0, Map(Str, Str).size().cast(U64))
+    memset(s.heap_aliases, 0, Map(Str, Str).size().to_uptr())
     // The binding map owns metadata and keys, not nested program payloads.
     own s.heap_bindings.delete(false)
     memset(s.heap_bindings, 0, Map(Str, HeapBinding).size())
@@ -5206,10 +5206,10 @@ interpreter_free_ns := func(mut ctx: Context) {
 priv str_write_count_cap := func(mut inst_data: Dynamic, count_val: USize, cap_val: USize, ctx: Context) {
     ref count_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "count", ctx)
     ref cap_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "cap", ctx)
-    if count_fl.size == 4 { write_u32(ptr_add(inst_data, count_fl.offset), count_val.to_u32()) }
-    else { write_u64(ptr_add(inst_data, count_fl.offset), count_val.to_u64()) }
-    if cap_fl.size == 4 { write_u32(ptr_add(inst_data, cap_fl.offset), cap_val.to_u32()) }
-    else { write_u64(ptr_add(inst_data, cap_fl.offset), cap_val.to_u64()) }
+    if count_fl.size == 4 { write_u32(ptr_add(inst_data, count_fl.offset.to_uptr()), count_val.to_u32()) }
+    else { write_u64(ptr_add(inst_data, count_fl.offset.to_uptr()), count_val.to_u64()) }
+    if cap_fl.size == 4 { write_u32(ptr_add(inst_data, cap_fl.offset.to_uptr()), cap_val.to_u32()) }
+    else { write_u64(ptr_add(inst_data, cap_fl.offset.to_uptr()), cap_val.to_u64()) }
 }
 
 // #192/#309: the byte width at which a Str's USize field (count/cap) must be
@@ -5263,7 +5263,7 @@ str_count_at := func(str_base: Dynamic, ctx: Context) returns USize {
 // the neighbouring field / out-of-bounds bytes. Mirrors read_field's USize
 // branch.
 priv str_usize_field_at := func(str_base: Dynamic, offset: USize, size: USize) returns USize {
-    ref p : Dynamic = ptr_add(str_base, offset)
+    ref p : Dynamic = ptr_add(str_base, offset.to_uptr())
     // #192: SIGN-extend the narrow field. cap carries the CAP_VIEW/CAP_LIT
     // sentinels (host -2/-1 = 0xFF..FE/FF); a U32 target stores only their low
     // 32 bits (0xFFFFFFFE/FF). I32.to_usize sign-extends ((USize)(int32)) so
@@ -5285,7 +5285,7 @@ priv find_field_decl := func(struct_def: Expr, fname: Str) returns Option(ref De
 
 
 read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, ctx: Context) returns Dynamic {
-    ref ptr : Dynamic = ptr_add(inst_data, field_offset)
+    ref ptr : Dynamic = ptr_add(inst_data, field_offset.to_uptr())
     if decl_is_funcsig(dd, ctx) {
         ref stored_callable : Dynamic = deref(ptr)
         mut result : Dynamic = dispatch_result_alloc(dd.til_type, ctx)
@@ -7476,7 +7476,7 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
                             ref fdecl : Declaration = fdecl_o.unwrap()
                             if decl_is_funcsig(fdecl, ctx) {
                                 ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
-                                ref mut slot : Dynamic = ptr_add(base, fl.offset.cast(U64))
+                                ref mut slot : Dynamic = ptr_add(base, fl.offset.to_uptr())
                                 ref mut stored : Dynamic = deref(slot)
                                 if stored.is_null().not() { callable_storage_free(stored) }
                                 write_ptr(slot, bits_word(0))

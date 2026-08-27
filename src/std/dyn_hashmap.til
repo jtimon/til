@@ -198,13 +198,13 @@ namespace:
             head_val : I64 = head2.clone()
             self.nexts.push(own head_val)
             self.hashes.push(own h.clone())
-            mut cloned_key : U8 = malloc(self.keys.elem_size)
+            mut cloned_key : U8 = malloc(self.keys.elem_size.to_uptr())
             if self.keys.elem_kind == ELEM_BOXED {
                 key_copy : Dynamic = self.keys.elem_clone(key)
-                memcpy(cloned_key, key_copy, self.keys.elem_size)
+                memcpy(cloned_key, key_copy, self.keys.elem_size.to_uptr())
                 free(own key_copy)
             } else {
-                memcpy(cloned_key, key, self.keys.elem_size)
+                memcpy(cloned_key, key, self.keys.elem_size.to_uptr())
             }
             self.keys.push(own cloned_key)
             self.values.push(own val)
@@ -273,8 +273,8 @@ namespace:
         if found.not() { return false }
 
         idx_u : USize = entry.to_usize()
-        keys_off : USize = idx_u * self.keys.elem_size
-        values_off : USize = idx_u * self.values.elem_size
+        keys_off : UPtr = idx_u.to_uptr().mul(self.keys.elem_size.to_uptr())
+        values_off : UPtr = idx_u.to_uptr().mul(self.values.elem_size.to_uptr())
 
         self.keys.elem_delete(ptr_add(self.keys.data, keys_off), false)
         if self.values.elem_kind == ELEM_FN {
@@ -312,12 +312,12 @@ namespace:
                 }
             }
 
-            last_keys_off : USize = last_u * self.keys.elem_size
-            last_values_off : USize = last_u * self.values.elem_size
+            last_keys_off : UPtr = last_u.to_uptr().mul(self.keys.elem_size.to_uptr())
+            last_values_off : UPtr = last_u.to_uptr().mul(self.values.elem_size.to_uptr())
             memcpy(ptr_add(self.keys.data, keys_off),
-                   ptr_add(self.keys.data, last_keys_off), self.keys.elem_size)
+                   ptr_add(self.keys.data, last_keys_off), self.keys.elem_size.to_uptr())
             memcpy(ptr_add(self.values.data, values_off),
-                   ptr_add(self.values.data, last_values_off), self.values.elem_size)
+                   ptr_add(self.values.data, last_values_off), self.values.elem_size.to_uptr())
             ref last_nxt : I64 = self.nexts.unsafe_get(last_u)
             self.nexts.unsafe_set(idx_u, own last_nxt.clone())
             ref last_hh : U64 = self.hashes.unsafe_get(last_u)

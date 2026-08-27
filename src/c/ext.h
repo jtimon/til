@@ -35,17 +35,18 @@ typedef float F32;
 // the same shape as f32_word/word_f32.
 typedef double F64;
 typedef bool Bool;
-// container sizes (count, cap, elem_size) and raw pointer/byte widths.
-// UPtr always follows the C pointer width (real pointer arithmetic needs
-// it). USize defaults to U32 (issue #309): container index/count/cap/size
-// fields stay 32-bit even on a 64-bit host, so containers are smaller while
-// UPtr keeps pointer width. `til --usize=64` passes -DTIL_USIZE64 to cc for
-// the opt-out (U64 container fields, matching the source alias the compiler
-// used at typecheck/constfold).
-#if defined(TIL_USIZE64)
-typedef U64 USize;
-#else
+// Container sizes and raw pointer/byte widths follow the target pointer width
+// unless --usize explicitly overrides the container width.
+#if defined(TIL_USIZE32) && defined(TIL_USIZE64)
+#error "TIL_USIZE32 and TIL_USIZE64 are mutually exclusive"
+#elif defined(TIL_USIZE32)
 typedef U32 USize;
+#elif defined(TIL_USIZE64)
+typedef U64 USize;
+#elif UINTPTR_MAX == 0xffffffff
+typedef U32 USize;
+#else
+typedef U64 USize;
 #endif
 #if UINTPTR_MAX == 0xffffffff
 typedef U32 UPtr;
@@ -54,10 +55,8 @@ typedef U64 UPtr;
 #endif
 typedef struct Str Str;
 
-// During the USize migration, generated code should box size arguments using
-// the alias-facing ABI rather than the source expression's numeric type.
-// USIZE_REF spells the box with the USize typedef name (rather than a hardwired
-// U32) so it widens with the typedef once it goes target-driven.
+// Generated code boxes size arguments through the alias-facing ABI rather than
+// the source expression's numeric type, so USize follows the target typedef.
 #define USIZE_REF(x) ((void *)&(USize){(USize)(x)})
 #define UPTR_REF(x) ((void *)&(UPtr){(UPtr)(x)})
 
@@ -173,6 +172,7 @@ I64 U32_to_i64(U32 a);
 I32 U32_to_i32(U32 a);
 U32 U32_to_u32(U32 a);
 U64 U32_to_u64(U32 a);
+USize U32_to_usize(U32 a);
 F32 U32_to_f32(U32 a);
 U32 U32_from_i64_ext(const I64 *a);
 

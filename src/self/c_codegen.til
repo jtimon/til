@@ -6736,7 +6736,10 @@ build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I3
     lp.ctx.builder_forward_declared = Set(Str).new()
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
-    f.write("#pragma once\n#include \"ext.h\"\n\n")
+    f.write("#pragma once\n")
+    if lp.ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
+    else { f.write("#define TIL_USIZE64 1\n") }
+    f.write("#include \"ext.h\"\n\n")
     if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)
     emit_funcsig_typedefs_lp(f, lp)
@@ -6751,6 +6754,8 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n")
+    if lp.ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
+    else { f.write("#define TIL_USIZE64 1\n") }
     emit_lib_c_name_map(f, lp.ctx)
     f.write("#include \"ext.h\"\n\n")
     if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
@@ -7724,6 +7729,8 @@ priv builder_program_declares := func(name: Str, lp: LoadedProgram) returns Bool
 }
 
 priv emit_monolithic_header_lp := proc(f: File, mut lp: LoadedProgram) {
+    if lp.ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
+    else { f.write("#define TIL_USIZE64 1\n") }
     f.write("#include \"ext.h\"\n\n")
     if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)
@@ -9931,8 +9938,8 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
         f.write("#define TIL_CSTR(s) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, \"panic: Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first\\n\"); exit(1); } _cs->c_str; })\n")
     }
 
-    f.write("#define TIL_CAP_LIT ((USize)-1)\n")
-    f.write("#define TIL_CAP_VIEW ((USize)-2)\n")
+    f.write("#define TIL_CAP_LIT ((USize)0 - (USize)1)\n")
+    f.write("#define TIL_CAP_VIEW ((USize)0 - (USize)2)\n")
     if print_single_kept {
         f.write(pp_st).write("void print_single(Str *s) {\n")
         f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")

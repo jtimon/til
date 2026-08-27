@@ -54,7 +54,7 @@ test_kwargs_map_overwrite := test() {
     ref s : USize = dm.size_at("v")
     assert_eq(Str, v, "two")
     assert_eq(Str, t, "Str")
-    assert_eq(USize, s, 16)
+    assert_eq(USize, s, Str.size())
 }
 
 Foo := struct {
@@ -194,7 +194,7 @@ test_dyn_size_of := test() {
 
     assert_eq(USize, sz_i64, 8)
     assert_eq(USize, sz_u8, 1)
-    assert_eq(USize, sz_str, 16)
+    assert_eq(USize, sz_str, Str.size())
     assert_eq(USize, sz_dynamic, Dynamic.size())
 
     elem_type : Str = "I64"
@@ -223,7 +223,7 @@ priv runtime_size_list := func(names: Array(Str)) returns Str {
 
 test_dyn_size_of_runtime_name := test() {
     names := array(Str, "Dynamic", "I64", "Str", "U8")
-    assert_eq(Str, runtime_size_list(names), "8,8,16,1,")
+    assert_eq(Str, runtime_size_list(names), "8,8,24,1,")
 }
 
 TypeNameStruct := struct {
@@ -295,4 +295,3 @@ test_zero_is_dynamic_null := test() {
     assert(to_ptr(buf).is_null().not())
     free(own buf)
 }
-

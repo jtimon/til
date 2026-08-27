@@ -62,9 +62,9 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     if asan {
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
     }
-    // --usize=64 (issue #309): opt back into U64 container fields in the
-    // emitted C (U32 is the default). No flag needed for the U32 default.
-    mut usize_flags := ""
+    // Pin the emitted C ABI to the loader-stamped USize width. Explicit flags
+    // also cover --usize overrides that differ from the target pointer width.
+    mut usize_flags := " -DTIL_USIZE32"
     if usize64 { usize_flags = " -DTIL_USIZE64" }
 
     // Extract directory from ext_c_path for -I flag
@@ -285,12 +285,9 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         }
     }
 
-    // --usize=64 (issue #309): -DTIL_USIZE64 makes ext.h typedef USize as
-    // U64 (opting out of the U32 default), so the emitted program's container
-    // fields match the U64 layout the compiler used at typecheck/constfold.
-    // The generated .c and ext.c are compiled in one cc invocation below, so
-    // a single define covers both. The U32 default needs no flag.
-    mut usize_flags := ""
+    // Pin the emitted C ABI to the loader-stamped USize width. The generated
+    // .c and ext.c are compiled in one invocation, so one define covers both.
+    mut usize_flags := " -DTIL_USIZE32"
     if usize64 { usize_flags = " -DTIL_USIZE64" }
 
     // Extract directory from ext_c_path for -I flag
@@ -693,10 +690,9 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
         println("error: HolyC output must be compiled and run inside TempleOS; use 'translate --target=templeos'")
         return 1
     }
-    // --usize=64 (issue #309): pass -DTIL_USIZE64 to cc so the emitted C's
-    // container widths match the U64 alias width used at typecheck/constfold
-    // (the opt-out from the U32 default; the default needs no flag).
-    usize64 := lp.usize_override_bits.eq(64)
+    // Keep ext.h's USize typedef in lockstep with the loader-stamped target
+    // alias used by typecheck, layout, constfold, and interpretation.
+    usize64 := lp.ctx.target_usize_pname == "U64"
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
             lp.link_c_paths, lp.link_flags, lp.include_flags, target,

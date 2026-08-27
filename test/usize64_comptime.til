@@ -1,10 +1,10 @@
 mode script
 
 // Issue #309 regression: the COMPILE-TIME interpreter (constfolder) must fold
-// core Str VIEW operations correctly at a wide --usize=64 target on this (now
-// U32) 64-bit host -- the REVERSE width divergence from the U32 default.
+// core Str VIEW operations correctly at an explicit --usize=64 target,
+// including when the running compiler has a different host width.
 // substr/find/replace build CAP_VIEW views; the interpreter lays Str out at
-// the HOST width (ctx.struct_layouts, 16 bytes on the U32 compiler) yet writes
+// the HOST width (ctx.struct_layouts) yet writes
 // USize scalars -- including the CAP_VIEW/CAP_LIT ownership sentinels -- at the
 // TARGET width. str_usize_read_width reads exactly the low target-width bytes
 // (capped at the host slot) and sign-extends so both host- and target-written

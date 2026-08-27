@@ -897,15 +897,31 @@ priv jvm_collect_return_cells := proc(e: Expr, mut cells: Set(Str),
         for child : Expr in e.children { jvm_collect_return_cells(child, cells, lp) }
 }
 
-priv jvm_collect_cell_types := proc(e: Expr, mut cell_types: Map(Str, Str)) {
+priv jvm_collect_cell_types := proc(e: Expr, mut cell_types: Map(Str, Str), lp: LoadedProgram) {
     switch e.node_type {
     case .Decl(dd):
-        if is_primitive(dd.til_type) {
-            cell_types.set(dd.name, own dd.type_name())
+        resolved := declaration_resolved_type(dd, lp.ctx.scope, lp.ctx.symbols)
+        if is_primitive(resolved) {
+            cell_types.set(dd.name, own jvm_scalar_name(resolved))
+        }
+    case .FuncDef(fd):
+        for capture : Declaration in fd.captures {
+            resolved := declaration_resolved_type(capture, lp.ctx.scope, lp.ctx.symbols)
+            if is_primitive(resolved) { cell_types.set(capture.name, own jvm_scalar_name(resolved)) }
+        }
+    case .CaptureBlock(cbd):
+        for capture : Declaration in cbd.captures {
+            resolved := declaration_resolved_type(capture, lp.ctx.scope, lp.ctx.symbols)
+            if is_primitive(resolved) { cell_types.set(capture.name, own jvm_scalar_name(resolved)) }
+        }
+    case .BodyValue(cbd):
+        for capture : Declaration in cbd.captures {
+            resolved := declaration_resolved_type(capture, lp.ctx.scope, lp.ctx.symbols)
+            if is_primitive(resolved) { cell_types.set(capture.name, own jvm_scalar_name(resolved)) }
         }
     case:
     }
-    for child : Expr in e.children { jvm_collect_cell_types(child, cell_types) }
+    for child : Expr in e.children { jvm_collect_cell_types(child, cell_types, lp) }
 }
 
 priv jvm_fcall_returns_cell := func(e: Expr, lp: LoadedProgram) returns Bool {
@@ -1328,13 +1344,16 @@ priv jvm_emit_closure := proc(e: Expr, fd: FunctionDef,
             ref param : Declaration = fd.sig.params[i]
             if i > 0 { params = format(params, ", ") }
             params = format(params, jvm_var_name(param.name))
+            resolved := declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols)
+            if is_primitive(resolved) {
+                state.cell_types.set(param.name, own jvm_scalar_name(resolved))
+            }
             if jvm_param_needs_cell(fd, i) {
                 state.cells.add(own param.name.clone())
-                state.cell_types.set(param.name, own param.type_name())
             }
         }
         jvm_collect_cells(e.children[0], state.cells, state.raw_refs, lp)
-        jvm_collect_cell_types(e.children[0], state.cell_types)
+        jvm_collect_cell_types(e.children[0], state.cell_types, lp)
         body := jvm_emit_body(e.children[0], 1, state, lp)
         state.cells = saved_cells
         state.cell_types = saved_cell_types
@@ -1711,7 +1730,12 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
             if function_value.len() > 0 { return function_value }
             mut out := jvm_var_name(name)
             if state.raw_refs.has(name) { return out }
-            if state.cells.has(name) { out = jvm_cell_read_name(state.cell_types[name], out) }
+            if state.cells.has(name) {
+                if state.cell_types.has(name).not() {
+                    panic("JVM cell missing type: ", name, " at ", e.line.to_str(), ":", e.col.to_str())
+                }
+                out = jvm_cell_read_name(state.cell_types[name], out)
+            }
             return out
         case .FieldAccess(fa):
             if e.children.len() != 1 { return jvm_fail_expr(e, "field access shape", state, lp.ctx.symbols.names) }
@@ -2015,8 +2039,11 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
             ref param : Declaration = fd.sig.params[i]
             if i > 0 { params = format(params, ", ") }
             pt := jvm_signature_param_type(fd, i, lp)
+            resolved := declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols)
+            if is_primitive(resolved) {
+                state.cell_types.set(param.name, own jvm_scalar_name(resolved))
+            }
             if jvm_param_needs_cell(fd, i) {
-                state.cell_types.set(param.name, own param.type_name())
                 if state.cells.has(param.name).not() {
                     state.cells.add(own param.name.clone())
                 }
@@ -2026,7 +2053,7 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
             }
             params = format(params, pt, " ", jvm_var_name(param.name))
         }
-        jvm_collect_cell_types(fexpr.children[0], state.cell_types)
+        jvm_collect_cell_types(fexpr.children[0], state.cell_types, lp)
         jvm_collect_cells(fexpr.children[0], state.cells, state.raw_refs, lp)
         if state.return_cell { jvm_collect_return_cells(fexpr.children[0], state.cells, lp) }
         out := format(jvm_source_comment(decl, state, depth), jvm_indent(depth),
@@ -2340,11 +2367,11 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
                 jvm_fail_expr(fexpr, "main parameters/return value in Stage D", state, lp.ctx.symbols.names)
             }
             jvm_collect_cells(fexpr.children[0], state.cells, state.raw_refs, lp)
-            jvm_collect_cell_types(fexpr.children[0], state.cell_types)
+            jvm_collect_cell_types(fexpr.children[0], state.cell_types, lp)
             main_body = jvm_emit_body(fexpr.children[0], 2, state, lp)
         } else {
             jvm_collect_cells(iu.ast, state.cells, state.raw_refs, lp)
-            jvm_collect_cell_types(iu.ast, state.cell_types)
+            jvm_collect_cell_types(iu.ast, state.cell_types, lp)
             for stmt : Expr in iu.ast.children {
                 mut is_definition := false
                 switch stmt.node_type {

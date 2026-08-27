@@ -273,7 +273,7 @@ TyperFuncState := struct {
 
 TypeScope := struct {
     bindings := Map(Sym, TypeBinding).new()
-    target_usize_pname := "U32"
+    target_usize_pname := "U64"
     target_uptr_pname := "U64"
     // Issue #147/#292: Sym -> FuncDef Expr ptr (stored as Dynamic since
     // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
@@ -605,7 +605,7 @@ namespace:
             ref mut b : TypeBinding = b_o.unwrap()
             b.func_type = func_def_type(fdef)
         }
-        mut cell : UPtr = malloc(UPtr.size())
+        mut cell : UPtr = malloc(UPtr.size().to_uptr())
         write_ptr(cell, fdef)
         sym := sym_o.unwrap()
         self.func_defs.set(sym, own cell)
@@ -614,7 +614,7 @@ namespace:
     set_func_symbol_name := func(mut self: TypeScope, name: Str, fdef: Expr, mut symbols: SymbolPool) {
         sym := symbols.intern(name)
         if self.bindings.has(sym) { return }
-        mut cell : UPtr = malloc(UPtr.size())
+        mut cell : UPtr = malloc(UPtr.size().to_uptr())
         write_ptr(cell, fdef)
         self.func_defs.set(sym, own cell)
         self.func_defs_filt = self.func_defs_filt.bor(sym_fingerprint(sym))
@@ -627,7 +627,7 @@ namespace:
         if sdef.node_type.is(NodeType.StructDef).not().and(sdef.node_type.is(NodeType.EnumDef).not()) {
             panic("set_struct_def: expected struct or enum for ", name, ", got ", sdef.node_type.head_str(symbols.names))
         }
-        mut cell : UPtr = malloc(UPtr.size())
+        mut cell : UPtr = malloc(UPtr.size().to_uptr())
         write_ptr(cell, sdef)
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { panic("set_struct_def: binding name is not interned: ", name) }
@@ -1156,7 +1156,7 @@ Context := struct {
     // The raw-bytes runtime heap (rstil's EvalHeap), threaded through Context
     // since Context already flows everywhere eval runs.
     eval_heap := EvalHeap.new()
-    target_usize_pname := "U32"
+    target_usize_pname := "U64"
     target_uptr_pname := "U64"
     // Target USize width in bytes, kept in lockstep with target_usize_pname
     // (context_register_target_int_alias_types). A SCALAR mirror of the pname
@@ -1165,7 +1165,7 @@ Context := struct {
     // Str: that path also runs during Context teardown, where the owned
     // target_usize_pname field is freed before the interned runtime tables whose
     // delete calls it -- reading it there is a heap-use-after-free (#309).
-    target_usize_bytes : USize = 4
+    target_usize_bytes : USize = 8
     anon_type_counter : I64 = 0
     // Issue #54: true when the program is headed for the C backend
     // (build/run/translate/install/test) rather than the interpreter.
@@ -3312,7 +3312,7 @@ priv qname_part_cmp := func(key: Str, off: USize, part: Str) returns I64 {
     avail := key.len().sub(off)
     mut m := avail
     if part.len() < m { m = part.len() }
-    c := memcmp(ptr_add(key.c_str, off), part.c_str, m)
+    c := memcmp(ptr_add(key.c_str, off.to_uptr()), part.c_str, m.to_uptr())
     if c < 0 { return -1 }
     if c > 0 { return 1 }
     // Common prefix equal: the key running out first orders before the
@@ -3358,7 +3358,7 @@ qname_in_set := func(s: Set(Str), a: Str, sep: Str, b: Str) returns Bool {
     mut hi : USize = s.count
     while lo < hi {
         mid : USize = lo.add(hi.sub(lo) / 2)
-        ref cur : Str = ptr_add(s.data, mid.mul(Str.size()))
+        ref cur : Str = ptr_add(s.data, mid.to_uptr().mul(Str.size().to_uptr()))
         c := qname_cmp(cur, a, sep, b)
         if c < 0 { lo = mid + 1 }
         else {

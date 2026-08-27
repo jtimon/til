@@ -55,18 +55,18 @@ fnv1a := func(data: Dynamic, n: USize) returns U64 {
     mut h : U64 = FNV_OFFSET
     mut i : USize = 0
     while n - i >= FNV_UNROLL {
-        ref b0 : U8 = ptr_add(data, i)
+        ref b0 : U8 = ptr_add(data, i.to_uptr())
         h = h.bxor(b0.cast(U64)).mul(FNV_PRIME)
-        ref b1 : U8 = ptr_add(data, i + 1)
+        ref b1 : U8 = ptr_add(data, (i + 1).to_uptr())
         h = h.bxor(b1.cast(U64)).mul(FNV_PRIME)
-        ref b2 : U8 = ptr_add(data, i + 2)
+        ref b2 : U8 = ptr_add(data, (i + 2).to_uptr())
         h = h.bxor(b2.cast(U64)).mul(FNV_PRIME)
-        ref b3 : U8 = ptr_add(data, i + 3)
+        ref b3 : U8 = ptr_add(data, (i + 3).to_uptr())
         h = h.bxor(b3.cast(U64)).mul(FNV_PRIME)
         i = i + FNV_UNROLL
     }
     while i < n {
-        ref b : U8 = ptr_add(data, i)
+        ref b : U8 = ptr_add(data, i.to_uptr())
         h = h.bxor(b.cast(U64)).mul(FNV_PRIME)
         i++
     }
@@ -97,7 +97,7 @@ hash_str := func(s: Str) returns U64 {
 djb2 := func(data: Dynamic, n: USize) returns U64 {
     mut h : U64 = 5381
     for i in 0..n {
-        ref b : U8 = ptr_add(data, i)
+        ref b : U8 = ptr_add(data, i.to_uptr())
         h = h.mul(33).add(b.cast(U64))
     }
     return h
@@ -113,7 +113,7 @@ djb2 := func(data: Dynamic, n: USize) returns U64 {
 knuth_bytes := func(data: Dynamic, n: USize) returns U64 {
     mut h : U64 = 0
     for i in 0..n {
-        ref b : U8 = ptr_add(data, i)
+        ref b : U8 = ptr_add(data, i.to_uptr())
         h = h.bxor(b.cast(U64)).mul(KNUTH_MULT)
     }
     return h

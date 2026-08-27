@@ -33,14 +33,14 @@ extern I64 twice(I64 n);
 
 I64 twice(I64 n)
 {
-    U32 hoisted__U32_0 = 1;
+    U64 hoisted__U64_0 = 1;
     TilStrArray _va_Array_0;
-    TilStrArrayNew(&_va_Array_0, hoisted__U32_0);
+    TilStrArrayNew(&_va_Array_0, hoisted__U64_0);
     I64 _va_Array_0_ek = 0;
-    U32 hoisted__U32_1 = 0;
+    U64 hoisted__U64_1 = 0;
     TilStr hoisted__Str_twice_2;
     TilStrInitLit(&hoisted__Str_twice_2, "Inside nested twice", 19);
-    TilStrArraySet(&_va_Array_0, hoisted__U32_1, &hoisted__Str_twice_2);
+    TilStrArraySet(&_va_Array_0, hoisted__U64_1, &hoisted__Str_twice_2);
     TilPrintln(&_va_Array_0);
     I64 hoisted__I64_3 = 2;
     I64 hoisted__I64_4 = (n * hoisted__I64_3);
@@ -285,14 +285,14 @@ I64 TilMain()
         while (TRUE) {
         }
     }
-    U32 hoisted__U32_g79 = 1;
+    U64 hoisted__U64_g79 = 1;
     TilStrArray _va_Array_g0;
-    TilStrArrayNew(&_va_Array_g0, hoisted__U32_g79);
+    TilStrArrayNew(&_va_Array_g0, hoisted__U64_g79);
     I64 _va_Array_g0_ek = 0;
-    U32 hoisted__U32_g80 = 0;
+    U64 hoisted__U64_g80 = 0;
     TilStr hoisted__Str_g81;
     TilStrInitLit(&hoisted__Str_g81, "Scalar checks passed", 20);
-    TilStrArraySet(&_va_Array_g0, hoisted__U32_g80, &hoisted__Str_g81);
+    TilStrArraySet(&_va_Array_g0, hoisted__U64_g80, &hoisted__Str_g81);
     TilPrintln(&_va_Array_g0);
     return 0;
 }

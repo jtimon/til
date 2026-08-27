@@ -631,15 +631,15 @@ priv scav_cleanup_target := func(stmt: Expr, symbols: SymbolPool) returns Str {
 // generic templates; the sweep is just the other producer of it.
 scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool, mut swept_names: Vec(Str), ctx: Context) {
     pn := program.children.len()
-    mut pm : U8 = malloc(pn)
-    memset(pm, 0, pn)
+    mut pm : U8 = malloc(pn.to_uptr())
+    memset(pm, 0, pn.to_uptr())
     mut swept := Set(Str).new()
     for i in 0..pn {
         ref stmt : Expr = program.children[i]
         if is_def(stmt).not().and(sweep_values.and(scav_is_value_decl(stmt, ctx)).or(scav_value_decl_sweepable(stmt, ctx))) {
             ref vd : Declaration = decl_of(stmt)
             if visited.has(vd.name).not() {
-                memset(ptr_add(pm, i), 1, 1)
+                memset(ptr_add(pm, i.to_uptr()), 1, 1)
                 swept.add(own vd.name.clone())
                 vec_push_str(swept_names, vd.name)
             }
