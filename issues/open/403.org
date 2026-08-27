@@ -1,0 +1,159 @@
+# priority: low
+# category: experiments
+** WIP #403 Reconsider default types for unconstrained numeric literals
+
+til currently defaults unconstrained integer literals to ~I64~ and fractional
+or exponent literals to ~F32~. Contextual typing already permits declarations
+such as ~mut i: USize = 0~, but explicit ~USize~ annotations and conversions
+recur around collection lengths and indices.
+
+Determine whether the defaults remain the best language design in retrospect.
+In particular, evaluate defaulting non-negative integer literals to ~USize~,
+negative integer literals to ~I64~, and exactly representable or in-range
+floating-point literals to ~F32~. Keep contextual inference distinct from the
+fallback chosen only when no expected type constrains a literal.
+
+Research and audit:
+
+- Trace literal parsing, inference, coercion, range checking, and C emission.
+- Count and classify explicit ~USize~ initializers, index/range conversions, and
+  ~0..collection.len()~ loops; distinguish real default friction from missing
+  collection iteration support.
+- Compare defaults and their rationale in C/C++, Rust, Go, Zig, Swift, Odin,
+  and ML-family languages.
+- Evaluate portability: ~USize~ follows the target pointer width by default
+  (U64 on common 64-bit targets, U32 on 32-bit targets), but can be overridden.
+- Evaluate signed arithmetic, subtraction, sentinels, APIs expecting ~I64~,
+  generic code, literal overflow, source compatibility, and generated C warnings.
+- Decide whether range typing or collection ~for-in~ support solves the common
+  cases without changing the global literal fallback.
+- If a change is justified, specify migration and regression tests before
+  implementation.
+
+*** Findings
+
+**** Current implementation
+
+- ~LiteralNumData~ stores source text and an initially unknown type
+  (~src/core/ast.til:574-603~). The parser folds a leading minus followed by a
+  number into the same literal node (~src/self/parser.til:1743-1757~), so a
+  sign-dependent rule is implementable but would make the sign part of fallback
+  type selection.
+- An unconstrained integer reports ~I64~ and an unconstrained fractional or
+  exponent literal reports ~F32~ (~src/core/ast.til:1239-1255~ and
+  ~src/self/typer.til:12002-12029~). Generic inference uses the same ~I64~ /
+  ~F32~ defaults when all evidence is literal-only
+  (~src/self/typer.til:3393-3407,3555-3569~).
+- A numeric literal adopts the expected numeric type at typed declarations,
+  arguments, returns, assignments, fields, constructors, and collection
+  elements, with a range check for the narrow integer types. Non-literal
+  numeric values otherwise require exact primitive types; only parameters
+  spelled ~USize~ or ~UPtr~ retain a special integral coercion
+  (~src/self/typer.til:1290-1359,6870-6971,8764-8870~).
+- ~0..v.len()~ is already context-sensitive. If exactly one range bound is a
+  literal, the other bound determines the element type, so the zero becomes
+  ~USize~ rather than retaining its fallback ~I64~
+  (~src/self/typer.til:13530-13569~). Collection ~for-in~ also already derives
+  its hidden counter type from ~len()~ and validates that ~get()~ accepts that
+  type (~src/self/typer.til:13676-13849~).
+- ~USize~ and ~UPtr~ now follow target width by default: U64 on 64-bit targets
+  and U32 on 32-bit targets (~src/self/targets.til:84-110~,
+  ~src/core/numbers.til:857-870~, and ~src/c/ext.h:38-55~). ~I64~ always emits
+  as C ~long long~, while ~F32~ and ~F64~ emit as ~float~ and ~double~.
+
+**** Corpus audit
+
+A textual audit of tracked ~*.til~ files found:
+
+- 497 declaration-shaped occurrences spelling ~USize = 0~, 447 of them
+  mutable. These are real evidence that count/index accumulators need an annotation under local
+  initializer-only inference, although typed struct fields and API state would
+  need to retain their type regardless of the fallback.
+- 741 declaration-shaped occurrences using an inferred non-negative integer
+  initializer, versus 30 using a negative initializer. A sign-based flip therefore
+  changes a larger and much less size-specific population than the annotation
+  population it can shorten. Tests and examples account for most of these
+  matches, but source includes status values, guards, counters, audio rates,
+  byte values, and ordinary arithmetic as well as indices.
+- About 150 ~0..collection.len()~ loops. They are not default-type friction:
+  range inference already makes their counters the collection's index type.
+  Many use the index for parallel collections, mutation, positions, or adjacent
+  elements. Value-only cases can use collection ~for-in~ today; cases needing
+  both value and position would benefit from indexed/enumerated iteration, not
+  a global literal-default change.
+
+**** Other languages
+
+The common designs consistently avoid "non-negative means unsigned size":
+
+- C and C++ choose ~int~, then wider signed types for an unsuffixed decimal
+  integer; unsigned appears only when the base/value/type suffix requires it.
+  An unsuffixed floating literal is ~double~.
+- Rust keeps unsuffixed literals inferable from context, then defaults an
+  under-constrained integer to signed ~i32~ and a float to ~f64~. A range such
+  as ~0..slice.len()~ gets ~usize~ from context rather than from zero itself.
+- Go keeps numeric constants untyped and exact until a concrete value is
+  required; ~i := 0~ defaults to signed, machine-sized ~int~, and an untyped
+  float defaults to ~float64~. Its collection lengths and ordinary indices use
+  ~int~, avoiding a signed/unsigned split.
+- Swift defaults integer literals to signed, machine-sized ~Int~ and floating
+  literals to ~Double~. Odin similarly uses untyped constants but defaults an
+  inferred integer variable to signed ~int~ and explicitly recommends ~int~
+  unless a sized or unsigned type is required.
+- Zig leaves literals as ~comptime_int~ / ~comptime_float~ and requires result
+  context before producing a runtime number. ~usize~ is selected by a length,
+  index, or destination context, not merely because a literal is positive.
+- Java, C#, and ML-family languages likewise favor a signed ordinary integer
+  fallback. C# may choose an unsigned type only after a positive value no
+  longer fits the earlier signed candidates; it does not type every positive
+  literal as unsigned.
+
+References:
+
+- https://doc.rust-lang.org/reference/expressions/literal-expr.html
+- https://go.dev/ref/spec#Constants
+- https://ziglang.org/documentation/master/#Primitive-Types
+- https://odin-lang.org/docs/overview/#constants-and-values
+
+*** Retrospective recommendation
+
+Keep ~I64~ as the single unconstrained integer fallback. It was not a bad
+decision, and matching ~USize~'s width on a common 64-bit target is not enough
+reason to replace a signed semantic default with a size-domain type.
+
+A sign-dependent ~USize~ / ~I64~ split has several undesirable consequences:
+
+- Changing ~1~ to ~-1~ changes the inferred type, target layout, generic
+  specialization, and available methods rather than only the value.
+- ~0 - 1~ becomes unsigned underflow while the textually equivalent ~-1~ is
+  signed. Mixed-sign expressions and literal ranges acquire different endpoint
+  types, and operand order can affect whether contextual narrowing succeeds.
+- An inferred field such as ~n := 0~ becomes target-width and therefore changes
+  layout between 32-bit and 64-bit builds. Today its fixed ~I64~ layout is
+  target-independent.
+- Most positive numbers are not sizes. Status codes, differences, coordinates,
+  arithmetic temporaries, enum-like values, and sentinels all benefit from a
+  signed domain even when their initializer happens to be non-negative.
+- til already solves the high-frequency range case in the narrowest place, by
+  propagating the other bound's type. Collection iteration should similarly
+  solve remaining loop ergonomics locally.
+
+The explicit ~mut i: USize = 0~ spelling is therefore useful information: the
+binding belongs to the collection-size domain. Where it is repetitive, prefer
+direct collection ~for-in~ now and consider indexed/enumerated collection
+iteration separately. Do not make every positive literal pay for that syntax.
+
+Float fallback is a separate decision. til already chooses ~F32~ for every
+unconstrained fractional/exponent literal, not only values that fit. Do not use
+"fits" or "exactly representable" to choose between ~F32~ and ~F64~: almost all
+decimal fractions are inexact in both, and value-dependent typing would make a
+small literal edit alter expression compatibility, field layout, and generic
+specialization. If til remains F32-oriented, keep a fixed ~F32~ fallback. If it
+now wants the precision-first general-purpose convention after adding complete
+~F64~ support, make one explicit global flip to ~F64~; that is more defensible
+than a fit-based split and should be evaluated independently.
+
+Before any default change, fix literal validation itself: ~literal_in_range~
+currently accepts all ~I64~, ~F32~, and ~F64~ text without checking range, and
+checks ~U64~ by first parsing through ~I64~. A broader default must not turn
+overflow or precision loss into a parser/runtime panic or silent infinity.
