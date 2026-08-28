@@ -6766,14 +6766,28 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
     f.write("\n")
 }
 
+// The header's USize width pin is a DEFAULT, not a command: it exists so a
+// flag-less compile (the boot compile of the checked-in artifacts passes no
+// -D) reproduces the width this header was generated at, and it must YIELD
+// to an explicit -DTIL_USIZE32/-DTIL_USIZE64 from the driver. ext.c includes
+// boot/til_forward.h unconditionally, so when the driver cross-compiles it
+// for a 32-bit target with -DTIL_USIZE32, an unguarded pin left BOTH macros
+// defined and ext.h's mutual-exclusion #error broke every 32-bit-target job
+// (linux-x86/arm32/riscv32, windows cross).
+priv emit_usize_width_pin := proc(f: File, ctx: Context) {
+    f.write("#if !defined(TIL_USIZE32) && !defined(TIL_USIZE64)\n")
+    if ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
+    else { f.write("#define TIL_USIZE64 1\n") }
+    f.write("#endif\n")
+}
+
 build_forward_header_lp := proc(fwd_path: Str, mut lp: LoadedProgram) returns I32 {
     lp.ctx.builder_static_ok = false
     lp.ctx.builder_forward_declared = Set(Str).new()
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n")
-    if lp.ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
-    else { f.write("#define TIL_USIZE64 1\n") }
+    emit_usize_width_pin(f, lp.ctx)
     f.write("#include \"ext.h\"\n\n")
     if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)
@@ -6790,8 +6804,7 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n")
-    if lp.ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
-    else { f.write("#define TIL_USIZE64 1\n") }
+    emit_usize_width_pin(f, lp.ctx)
     emit_lib_c_name_map(f, lp.ctx)
     f.write("#include \"ext.h\"\n\n")
     if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
@@ -7775,8 +7788,7 @@ priv builder_program_declares := func(name: Str, lp: LoadedProgram) returns Bool
 }
 
 priv emit_monolithic_header_lp := proc(f: File, mut lp: LoadedProgram) {
-    if lp.ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
-    else { f.write("#define TIL_USIZE64 1\n") }
+    emit_usize_width_pin(f, lp.ctx)
     f.write("#include \"ext.h\"\n\n")
     if lp.ctx.builder_closure_rt_used { emit_closure_runtime_types(f) }
     emit_header_forward_decls_lp(f, lp)

@@ -1,5 +1,7 @@
 #pragma once
+#if !defined(TIL_USIZE32) && !defined(TIL_USIZE64)
 #define TIL_USIZE64 1
+#endif
 #include "ext.h"
 
 typedef struct TilClosure TilClosure;
