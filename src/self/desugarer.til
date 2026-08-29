@@ -2189,6 +2189,7 @@ priv process_throw_catch_in_body := proc(
     // (possibly wrapped), avoiding the 1->2->...->n realloc churn per body.
     mut new_ch := Vec(Expr).with_capacity(old.len())
     mut seen_throwing := false
+    mut group_resume_at : USize = 0
 
     for j in 0..old.len() {
         ref mut stmt : Expr = old[j]
@@ -2196,18 +2197,37 @@ priv process_throw_catch_in_body := proc(
         stmt_col := stmt.col
         seed_local_type_from_stmt(scope, ctx, stmt)
 
+        // The grouping step below consumes statements j..stop; entries the
+        // guard already swallowed are skipped here on the following
+        // iterations (til's range-for cannot jump).
+        if j < group_resume_at { continue }
+
         // Once a prior statement may have set _err_kind, the rest of the
-        // body runs only on the no-error path. Group ALL remaining
+        // body runs only on the no-error path. Group the remaining
         // statements into ONE `if _err_kind == 0` guard, then recurse to
         // lower any throws/bangs inside it. Wrapping each statement in its
         // own guard -- the old behavior -- put every post-throw local in a
         // separate block scope, so a local declared after a guarded throw
         // was undefined in the following statement. A `catch` is exempt: it
         // runs ON the error (`_err_kind != 0`) and is lowered by step 6, so
-        // grouping it under `_err_kind == 0` would wrongly skip it.
+        // grouping it under `_err_kind == 0` would wrongly skip it -- and
+        // that exemption must hold for a LATER catch too, not only one
+        // immediately after the throwing statement: the group stops at the
+        // next statement-level catch, which (with everything after it)
+        // resumes normal processing outside the guard. Consuming it into
+        // the group -- the old behavior -- nested its `if _err_kind == tag`
+        // check under `if _err_kind == 0`, a contradiction that silently
+        // skipped the catch AND the whole rest of the body on the error
+        // path (test_between_catch_still_runs's shape passed vacuously).
         if seen_throwing.and(stmt.node_type.is(NodeType.Catch).not()) {
-            mut rest := Expr.new(NodeType.Body, stmt_line, stmt_col)
+            mut stop := old.len()
             for k in j..old.len() {
+                if stop.eq(old.len()).and(old[k].node_type.is(NodeType.Catch)) {
+                    stop = k
+                }
+            }
+            mut rest := Expr.new(NodeType.Body, stmt_line, stmt_col)
+            for k in j..stop {
                 rest.add_child(own old[k].clone())
             }
             process_throw_catch_in_body(scope, ctx, rest, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
@@ -2218,7 +2238,9 @@ priv process_throw_catch_in_body := proc(
             guard.add_child(own guard_cond)
             guard.add_child(own rest)
             new_ch.push(own guard)
-            break
+            if stop.eq(old.len()) { break }
+            group_resume_at = stop
+            continue
         }
 
         // Skip nested Decls whose RHS is a FuncDef/StructDef/EnumDef.

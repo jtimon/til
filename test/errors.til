@@ -213,6 +213,33 @@ test_bug34_between_success := test() {
     assert(between_ran)
 }
 
+// The two bug34 between-tests above used to pass VACUOUSLY: the guard
+// group that skips post-throw statements on the error path consumed the
+// later catch too, nesting its `if _err_kind == tag` under
+// `if _err_kind == 0` -- so on the error path the catch, the asserts,
+// and everything after were silently skipped and the test counted as
+// green. This helper routes the outcome through its return value: if the
+// group ever swallows the catch again, the `return` is swallowed with it
+// and the function falls through to its fallback return (0), which the
+// asserts below cannot mistake for success.
+priv bug34_between_probe := func(should_throw: Bool) returns I64 {
+    mut caught := 0
+    mut between := 0
+    bug34_maybe_throw(should_throw)?
+    between = 1
+    catch (err: Bug34Error) {
+        caught = 10
+    }
+    return caught.add(between)
+}
+
+test_bug34_between_not_vacuous := test() {
+    // error path: catch ran, between skipped
+    assert_eq(I64, bug34_between_probe(true), 10)
+    // success path: between ran, catch skipped
+    assert_eq(I64, bug34_between_probe(false), 1)
+}
+
 // ==========================================================
 // Multi-catch tests
 // ==========================================================

@@ -37,3 +37,16 @@ if v.len() > 1 {
     ref nested : I64 = v[1]
     println(nested.to_str())
 }
+
+// A statement BETWEEN the throwing call and its catch. The catch still
+// runs on the error and the between statement is skipped; the guard
+// group used to consume the catch too, which at top level crashed the
+// compiler ("unreachable: expected StructDef or EnumDef") and inside a
+// func body silently skipped the catch and everything after it.
+mut r : I64 = -1
+mut between := false
+r = v.get(9)?
+between = true
+catch (e: OutOfBounds) { r = 42 }
+println(r.to_str())
+println(between.to_str())
