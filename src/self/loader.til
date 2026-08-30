@@ -372,10 +372,12 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         // 2b) Init FFI for the interpreter used by constfolder.
         // Scan per-file ASTs directly to avoid merged-AST cloning.
         ffi_reset(lp.ctx)
+        runtime_ext_path := realpath_str(lp.ext_c_path)
+        runtime_src_prefix := runtime_ext_path.strip_suffix("c/ext.c")
         for upath : Str in lp.unit_paths() {
             ref iu : ImportUnit = lp.ctx.imported[upath]
             ffi_init_struct_defs_append(iu.ast, lp.ctx)
-            ffi_init_scan_program(iu.ast, lp.ctx)
+            ffi_init_scan_program(iu.ast, lp.ctx, realpath_str(upath).starts_with(runtime_src_prefix))
         }
         // Mark FFI loaded so ext_dispatch_ffi will dispatch the entries we
         // just registered. Built-in ext_funcs (I64_add etc.) are statically
@@ -451,10 +453,12 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
         interpreter_init_ns(lp.ctx, global, delta)
 
         ffi_reset(lp.ctx)
+        runtime_ext_path := realpath_str(lp.ext_c_path)
+        runtime_src_prefix := runtime_ext_path.strip_suffix("c/ext.c")
         for upath : Str in lp.unit_paths() {
             ref iu6 : ImportUnit = lp.ctx.imported[upath]
             ffi_init_struct_defs_append(iu6.ast, lp.ctx)
-            ffi_init_scan_program(iu6.ast, lp.ctx)
+            ffi_init_scan_program(iu6.ast, lp.ctx, realpath_str(upath).starts_with(runtime_src_prefix))
         }
         ffi_init_struct_defs_append(delta, lp.ctx)
         ffi_init_scan_program(delta, lp.ctx)

@@ -499,8 +499,10 @@ build_vendor := proc(mut b: Build) {
 // of a dependency graph -- explicit edges, laziness, and one run per
 // invocation -- without a scheduler to build first.
 
-/// bin/til, and the committed C it regenerates. The single-pass build:
-/// HEAD's compiler translates the current sources.
+/// bin/til, and the committed C it regenerates. The compiler uses compact
+/// U32 container metadata internally; programs it builds remain target-width
+/// by default because --usize=32 applies only while compiling src/til.til.
+/// The single-pass build: HEAD's compiler translates the current sources.
 build_til := proc(mut b: Build) {
     if b.begin("til").not() { return }
     require_boot()
@@ -508,7 +510,7 @@ build_til := proc(mut b: Build) {
     mut inputs := compiler_sources()
     inputs.push(own BOOT.clone())
     if needs_rebuild(TIL, inputs).not() { return }
-    run(BOOT, "build", "-o", TIL, "src/til.til")
+    run(BOOT, "build", "--usize=32", "-o", TIL, "src/til.til")
     regenerate_boot()
 }
 
@@ -528,7 +530,7 @@ build_two_pass := proc(mut b: Build) {
     // wrote exactly that binary -- so without the flag pass 2 does nothing
     // and regenerate_boot commits pass 1's output, which is the OLD emitter
     // applied to the new source. Silent, and the whole point of the target.
-    run(TIL, "build", "--force-rebuild", "-o", TIL, "src/til.til")
+    run(TIL, "build", "--usize=32", "--force-rebuild", "-o", TIL, "src/til.til")
     regenerate_boot()
 }
 
@@ -546,7 +548,7 @@ build_asan := proc(mut b: Build) {
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     if needs_rebuild(ASAN, inputs).not() { return }
-    run(TIL, "build", "--asan", "-o", ASAN, "src/til.til")
+    run(TIL, "build", "--usize=32", "--asan", "-o", ASAN, "src/til.til")
 }
 
 /// The gdb build: the one link of the compiler that does not go
@@ -747,7 +749,7 @@ run_test_two_pass := proc(mut b: Build) {
     // Deliberately not build_asan: pass 2 replaced bin/til after the
     // mtime check that step would make, and this ASAN compiler has to
     // come from the self-applied one.
-    run(TIL, "build", "--asan", "-o", ASAN, "src/til.til")
+    run(TIL, "build", "--usize=32", "--asan", "-o", ASAN, "src/til.til")
     b.begin("asan")
     check_usize64(b)
     check_clang(b)
@@ -796,7 +798,7 @@ run_summary := proc(mut b: Build) {
 run_install := proc(mut b: Build) {
     if b.begin("install").not() { return }
     build_til(b)
-    run(TIL, "install", "src/til.til")
+    run(TIL, "install", "--usize=32", "src/til.til")
 }
 
 /// Regenerate the in-tree FFI bindings from the C headers. MANUAL, and
@@ -1249,7 +1251,7 @@ build_win_host := proc(mut b: Build) {
     inputs.push(own LIBFFI_WIN64_LIB.clone())
     inputs.push(own NNG_WIN_LIB.clone())
     if needs_rebuild("bin/til.exe", inputs).not() { return }
-    run(TIL, "build", "--target=windows-x64", "-o", "bin/til.exe", "src/til.til")
+    run(TIL, "build", "--target=windows-x64", "--usize=32", "-o", "bin/til.exe", "src/til.til")
 }
 
 // --- macOS cross ---

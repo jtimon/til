@@ -50,7 +50,7 @@ ensure_prof_bin := proc() returns Bool {
     }
     println("building ", PROF_BIN, " with --prof (one-time, slow: instruments every function) ...")
     start := clock_ms()
-    cmd := format(TIL_BIN, " build --prof -o ", PROF_BIN, " ", COMPILER_SRC, " > ", BUILD_LOG, " 2>&1")
+    cmd := format(TIL_BIN, " build --usize=32 --prof -o ", PROF_BIN, " ", COMPILER_SRC, " > ", BUILD_LOG, " 2>&1")
     status := wait_cmd(spawn_cmd(cmd))
     if status.neq(0) {
         println("FAIL: --prof build exited ", status.to_str(), " (see ", BUILD_LOG, ")")

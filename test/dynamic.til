@@ -223,7 +223,9 @@ priv runtime_size_list := func(names: Array(Str)) returns Str {
 
 test_dyn_size_of_runtime_name := test() {
     names := array(Str, "Dynamic", "I64", "Str", "U8")
-    assert_eq(Str, runtime_size_list(names), "8,8,24,1,")
+    expected := format(Dynamic.size().to_str(), ",", I64.size().to_str(), ",",
+        Str.size().to_str(), ",", U8.size().to_str(), ",")
+    assert_eq(Str, runtime_size_list(names), expected)
 }
 
 TypeNameStruct := struct {

@@ -1072,7 +1072,7 @@ main := proc(args: ..Str) {
     // makes the row test what it says it tests.
     add_single(tests, "self_translate", "self", 0, "",
         format("rm -f tmp/self_det.c tmp/self_det_forward.h",
-            " '&&' ", til_bin, " translate -c tmp/self_det.c src/til.til",
+            " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det.c src/til.til",
             " '&&' cmp tmp/self_det.c boot/til.c",
             " '&&' cmp tmp/self_det_forward.h boot/til_forward.h"))
 
@@ -1358,7 +1358,7 @@ main := proc(args: ..Str) {
         "static void Vec__Expr_push(Vec__Expr * self, Expr * val)", 2,
         "cat boot/til.c")
     add_count(tests, "self_scalar_own_param_value_abi", "build",
-        "static void Vec__USize_push(Vec__USize * self, U64 val)", 2,
+        "static void Vec__USize_push(Vec__USize * self, USize val)", 2,
         "cat boot/til.c")
     add_count(tests, "self_scalar_own_param_no_boxes", "build",
         "U32 *_oa = malloc(TIL_BOX(U32))", 0,
@@ -1702,6 +1702,10 @@ main := proc(args: ..Str) {
     // not an out-of-line call at every generated Vec/Array/Map access.
     add_count(tests, "vecs_no_to_uptr_call", "build", "U64_to_uptr(", 0,
         format(til_bin, " translate -c gen/c/vv_up.c test/vecs.til '&&' cat gen/c/vv_up.c"))
+    // The self-compiler keeps compact U32 collection metadata even though
+    // programs it compiles remain target-width (U64 on this host) by default.
+    add_count(tests, "self_compiler_usize32", "build", "#define TIL_USIZE32 1", 1,
+        "cat boot/til_forward.h")
     add_count(tests, "hello_funcs_are_tu_local", "build", "static void println(Array__Str * parts)", 2,
         format(til_bin, " translate -c gen/c/hs_st.c examples/hello_script.til '&&' cat gen/c/hs_st.c"))
     // The GENERATED families join the audit too: a dyn wrapper exists
@@ -1895,7 +1899,7 @@ main := proc(args: ..Str) {
     add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern USize CAP_LIT;", 1,
         "cat gen/til/til_forward.h")
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
-        format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
+        format(til_bin, " translate --usize=32 -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,
         format(til_bin, " translate -c gen/c/first_class_fd.c test/first_class.til '&&' cat gen/c/first_class_fd.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,

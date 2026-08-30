@@ -36,7 +36,7 @@ main := proc() returns I64 {
     File.remove_tree(WORK)
     mkdir_p(WORK)
 
-    install := Cmd.new("bin/til", "install", format("--prefix=", PREFIX), "src/til.til")
+    install := Cmd.new("bin/til", "install", "--usize=32", format("--prefix=", PREFIX), "src/til.til")
     install.run_checked()
 
     // The binary, and every source tree an installed compiler needs to

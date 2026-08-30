@@ -579,7 +579,11 @@ priv write_enum_flat := func(mut data: Dynamic, enum_name: Str, etag: I64, mut p
 }
 
 priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
-    return raw_type_size(type_from_name_init_name(type_name, ctx.scope, ctx.symbols), ctx)
+    t := type_from_name_init_name(type_name, ctx.scope, ctx.symbols)
+    switch t {
+    case .Enum(name): return ctx_total_size(name, ctx)
+    case: return raw_type_size(t, ctx)
+    }
 }
 
 // Parse a single CLI argument string into raw storage of the named type. Kept in
@@ -1453,13 +1457,16 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             exit(1)
         }
         ref fdecl : Declaration = fdecl_o.unwrap()
-        info.source_type_p = to_ptr(interp_intern_type(declaration_resolved_type(fdecl, ctx.scope, ctx.symbols), ctx))
+        field_resolved_type := declaration_resolved_type(fdecl, ctx.scope, ctx.symbols)
+        info.source_type_p = to_ptr(interp_intern_type(field_resolved_type, ctx))
         info.is_ref = decl_is_funcsig(fdecl, ctx).not()
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
-        if (fdecl.type_name() == "USize").or(fdecl.type_name() == "UPtr") {
-            mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
+        // Generic instantiation may have replaced the USize/UPtr spelling
+        // with its target primitive, so select the storage width by layout.
+        if raw_type_is_prim(field_resolved_type, ctx) {
+            mut field_type := field_word_type(field_resolved_type, fl.size, ctx)
             if (sname == ctx.eval.cached_str_name).and(fa.field_access_name(ctx.symbols.names) == "cap").and(fl.size == 4) {
                 field_type = Type.Primitive(Primitive.I32)
             }
@@ -1470,7 +1477,9 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             ref base : Dynamic = base_o.unwrap()
             if cstr_arg { check_c_string_terminator(base, ctx) }
             if info.is_ref {
-                if fdecl.own_type.is(OwnType.Shallow).not() { return deref(ptr_add(base, fl.offset)) }
+                if fdecl.own_type.is(OwnType.Shallow).not() {
+                    return deref(ptr_add(base, fl.offset))
+                }
                 return ptr_add(base, fl.offset)
             }
             return read_field(base, fdecl, fl.offset, fl.size, ctx)
@@ -2344,7 +2353,9 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     // inline / clone the aggregate; the target keeps its
                     // storage.
                     if raw_type_is_prim(hb_type(assign_hb), ctx) {
-                        new_raw = scalar_word_load(hb_type(assign_hb), new_raw, ctx)
+                        ref new_source_type : Type = raw_result_source_type(new_info)
+                        new_raw = scalar_word_load(new_source_type, new_raw, ctx)
+                        new_raw = raw_coerce_value(new_raw, new_source_type, hb_type(assign_hb), ctx, assign_hb.own_type)
                     } else {
                         copied : Dynamic = heap_clone_by_type(hb_type(assign_hb), new_raw, assign_hb.ctx)
                         new_raw = copied
@@ -2860,7 +2871,12 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     // read 0 for `n` because take_prefix zeroes
                     // self.count before building its result, while the
                     // compiled build read 2. Copy the scalar instead.
-                    if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
+                    source_width_differs := til_type_name_c(arg_source_type) != til_type_name_c(bind_type)
+                    if param.is_mut.not().and(source_width_differs)
+                    .and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
+                        src_w : Dynamic = scalar_word_load(arg_source_type, arg_raw, ctx)
+                        arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.type_name(), ctx), ctx)
+                    } else if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
                         src_w : Dynamic = scalar_word_load(arg_source_type, arg_raw, ctx)
                         arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.type_name(), ctx), ctx)
                     } else {
@@ -5613,10 +5629,12 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     empty := Expr.new(NodeType.Body, 0, 0)
     ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
     if ffi_rc.eq(0).not() { return ffi_rc }
+    runtime_ext_path := realpath_str(lp.ext_c_path)
+    runtime_src_prefix := runtime_ext_path.strip_suffix("c/ext.c")
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         ffi_init_struct_defs_append(iu.ast, lp.ctx)
-        ffi_init_scan_program(iu.ast, lp.ctx)
+        ffi_init_scan_program(iu.ast, lp.ctx, realpath_str(upath).starts_with(runtime_src_prefix))
     }
 
     // Refresh definition pointers and namespace state against this turn's AST.
@@ -6060,7 +6078,7 @@ FFIEntry := struct {
     // A void ext function has no return type: a real absent state.
     return_type := Option(ref Str).None
     nparam : USize = 0
-    // #321/#324: these four are raw C allocations the entry OWNS -- they
+    // #321/#324: these six are raw C allocations the entry OWNS -- they
     // wore `ref` labels while ffi_cleanup hand-freed them, the exact hole
     // #324 tracks. With `own`, the map's ordinary value drain reclaims
     // them (ffi_cleanup, the re-register path). The U8 label is the
@@ -6070,8 +6088,12 @@ FFIEntry := struct {
     // (a real absence; delete no-ops on null).
     own param_shallows : U8 = 0
     own param_dynamics : U8 = 0
+    param_types := Vec(Str).new()
+    own param_mutables : U8 = 0
+    own param_owns : U8 = 0
     return_is_shallow := false
     return_is_ref := false
+    host_layout := false
     own cif : ffi_cif
     own arg_types : U8 = 0
 namespace:
@@ -6093,6 +6115,10 @@ namespace:
         memcpy(atypes, self.arg_types, alloc_np.mul(8))
         mut pdynamics : Dynamic = malloc(alloc_np)
         memcpy(pdynamics, self.param_dynamics, alloc_np)
+        mut pmutables : Dynamic = malloc(alloc_np)
+        memcpy(pmutables, self.param_mutables, alloc_np)
+        mut powns : Dynamic = malloc(alloc_np)
+        memcpy(powns, self.param_owns, alloc_np)
         mut pshallows : Dynamic = 0
         if self.param_shallows.is_null().not() {
             pshallows = malloc(np)
@@ -6102,9 +6128,12 @@ namespace:
         memcpy(cif, self.cif, ffi_cif.size())
         mut entry := FFIEntry(fn = self.fn, cif = cif, arg_types = atypes,
             param_shallows = pshallows, param_dynamics = pdynamics,
+            param_types = self.param_types.clone(),
+            param_mutables = pmutables, param_owns = powns,
             return_type = self.return_type, nparam = np,
             return_is_shallow = self.return_is_shallow,
-            return_is_ref = self.return_is_ref)
+            return_is_ref = self.return_is_ref,
+            host_layout = self.host_layout)
         // Patch AFTER the ctor adopts the buffers, and through the entry's
         // own fields: stashing the bare local into the cif first would add
         // a garbager borrow edge (FieldAssign to a ref field pins the
@@ -6308,7 +6337,9 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     if til_built_with_asan() { san = " -fsanitize=address -fno-omit-frame-pointer" }
     // -fsigned-char: same plain-char-is-signed contract as every other
     // til compile (see ext.h's I8 note; issue #25).
-    cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, " -I", ext_dir,
+    mut usize_define := " -DTIL_USIZE64"
+    if host_usize_pname() == "U32" { usize_define = " -DTIL_USIZE32" }
+    cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, usize_define, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,
         " ", user_c_path, lf)
@@ -6366,7 +6397,8 @@ priv uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
     return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "UPtr", ctx.symbols))
 }
 
-priv usize_ffi_type := func(ctx: Context) returns ref ffi_type {
+priv usize_ffi_type := func(ctx: Context, host_layout: Bool) returns ref ffi_type {
+    if host_layout { return unsigned_ffi_type_for_name(host_usize_pname()) }
     return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "USize", ctx.symbols))
 }
 
@@ -6676,7 +6708,11 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
             interp_error(e, format("dyn_size_of: unknown type ", type_name), ctx)
             exit(1)
         }
-        sz = get_elem_size(s, type_name, e, ctx)
+        if size_intrinsics_use_sizeof(ctx) {
+            sz = elem_size_for_type(type_name, ctx)
+        } else {
+            sz = get_elem_size(s, type_name, e, ctx)
+        }
     }
     // The result is a USize, so it must be written at the TARGET USize
     // width -- one arm per width rather than a 4-else-8 assumption, and a
@@ -7318,7 +7354,7 @@ priv h_cfile_open := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Co
 // is neither a known primitive nor a registered struct.  Shared by
 // shallow_ffi_type and field_ffi_type, which differ only in the
 // fallback they pick for an unknown type.
-priv known_ffi_type := func(type_name: Str, mut ctx: Context) returns Option(ref ffi_type) {
+priv known_ffi_type := func(type_name: Str, mut ctx: Context, host_layout: Bool) returns Option(ref ffi_type) {
     switch type_name {
     case "I64":   return safe_ref(ffi_type_ref("ffi_type_sint64"))
     case "U8":    return safe_ref(ffi_type_ref("ffi_type_uint8"))
@@ -7328,7 +7364,7 @@ priv known_ffi_type := func(type_name: Str, mut ctx: Context) returns Option(ref
     case "I32":   return safe_ref(ffi_type_ref("ffi_type_sint32"))
     case "U32":   return safe_ref(ffi_type_ref("ffi_type_uint32"))
     case "U64":   return safe_ref(ffi_type_ref("ffi_type_uint64"))
-    case "USize": return safe_ref(usize_ffi_type(ctx))
+    case "USize": return safe_ref(usize_ffi_type(ctx, host_layout))
     case "UPtr":  return safe_ref(uptr_ffi_type(ctx))
     case "F32":   return safe_ref(ffi_type_ref("ffi_type_float"))
     case "F64":   return safe_ref(ffi_type_ref("ffi_type_double"))
@@ -7344,7 +7380,7 @@ priv known_ffi_type := func(type_name: Str, mut ctx: Context) returns Option(ref
     }
     if ctx.ffi.struct_defs.has(type_name) {
         ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
-        return safe_ref(build_struct_ffi_type(box.ptr, ctx))
+        return safe_ref(build_struct_ffi_type(box.ptr, ctx, host_layout))
     }
     return Option(ref ffi_type).None
 }
@@ -7352,21 +7388,21 @@ priv known_ffi_type := func(type_name: Str, mut ctx: Context) returns Option(ref
 // type_name -> ffi_type. Inverse mapping in ffi_shallow_type_info; keep
 // the two in sync if a new shallow primitive type lands.  Unknown
 // types are passed as opaque pointers.
-priv shallow_ffi_type := func(type_name: Str, mut ctx: Context) returns ref ffi_type {
-    t_o := known_ffi_type(type_name, ctx)
+priv shallow_ffi_type := func(type_name: Str, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+    t_o := known_ffi_type(type_name, ctx, host_layout)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_pointer")
 }
 
-priv field_ffi_type := func(dd: Declaration, mut ctx: Context) returns ref ffi_type {
+priv field_ffi_type := func(dd: Declaration, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
-    t_o := known_ffi_type(dd.type_name(), ctx)
+    t_o := known_ffi_type(dd.type_name(), ctx, host_layout)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_sint64")
 }
 
-priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context) returns ref ffi_type {
+priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
     if ctx.ffi.type_cache_inited.not() {
         ctx.ffi.type_cache = Vec(FFITypePtrBox).new()
         ctx.ffi.type_cache_inited = true
@@ -7377,7 +7413,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context) returns r
         mut elements : Dynamic = malloc(nfields.add(1) * Dynamic.size())
         mut i : USize = 0
         for fd : Declaration in bsf_sdd.fields {
-            ref ft : ffi_type = field_ffi_type(fd, ctx)
+            ref ft : ffi_type = field_ffi_type(fd, ctx, host_layout)
             // The elements array holds ffi_type POINTERS; the old memcpy
             // copied the pointed struct's first 8 bytes (its size field)
             // instead, so libffi walked (ffi_type*)1-style garbage.
@@ -8121,7 +8157,7 @@ priv enum_method_dispatch := proc(method: Str, mut scope: Scope, enum_def: Expr,
     return false
 }
 
-priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Dynamic, ctx: Context) returns Bool {
+priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Dynamic, ctx: Context, host_layout: Bool) returns Bool {
     switch rtype {
     case "I64": memcpy(result, p, I64.size()); return true
     case "U8":  memcpy(result, p, U8.size()); return true
@@ -8132,8 +8168,12 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Dynamic, ctx:
     case "U32": memcpy(result, p, U32.size()); return true
     case "U64": memcpy(result, p, U64.size()); return true
     case "USize":
-        ref usize_name : Str = resolve_type_alias(ctx.scope, "USize", ctx.symbols)
-        memcpy(result, p, unsigned_prim_width_for_name(usize_name))
+        mut source_name := resolve_type_alias(ctx.scope, "USize", ctx.symbols).clone()
+        if host_layout { source_name = host_usize_pname().clone() }
+        source_type := type_from_name_init_name(source_name, ctx.scope, ctx.symbols)
+        target_type := type_from_name_init_name("USize", ctx.scope, ctx.symbols)
+        word : Dynamic = scalar_word_load(source_type, p, ctx)
+        scalar_word_store(target_type, result, raw_coerce_value(word, source_type, target_type, ctx), ctx)
         return true
     case "UPtr":
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr", ctx.symbols)
@@ -8149,6 +8189,122 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Dynamic, ctx:
     case:
     }
     return false
+}
+
+priv ffi_copy_width_field := func(struct_name: Str, type_name: Str, field_name: Str, src: Dynamic,
+                                  src_host: Bool, mut dst: Dynamic, dst_host: Bool,
+                                  ctx: Context) {
+    mut src_name := resolve_type_alias(ctx.scope, type_name, ctx.symbols).clone()
+    mut dst_name := src_name.clone()
+    if type_name == "USize" {
+        if src_host { src_name = host_usize_pname().clone() }
+        if dst_host { dst_name = host_usize_pname().clone() }
+    } else if type_name == "UPtr" {
+        if src_host { src_name = host_uptr_pname().clone() }
+        if dst_host { dst_name = host_uptr_pname().clone() }
+    }
+    src_width := unsigned_prim_width_for_name(src_name)
+    dst_width := unsigned_prim_width_for_name(dst_name)
+    mut bits : U64 = 0
+    if src_width == 4 {
+        ref value32 : U32 = to_ptr(src)
+        bits = value32.to_u64()
+    } else {
+        ref value64 : U64 = to_ptr(src)
+        bits = value64
+    }
+    if (struct_name == "Str").and(type_name == "USize").and(field_name == "cap") {
+        mut src_max := U64.bnot(0)
+        mut dst_max := src_max
+        if src_width == 4 { src_max = U32.bnot(0).to_u64() }
+        if dst_width == 4 { dst_max = U32.bnot(0).to_u64() }
+        if bits >= src_max - 1 { bits = dst_max - (src_max - bits) }
+    }
+    if dst_width == 4 { write_u32(dst, bits.to_u32()) }
+    else { write_u64(dst, bits) }
+}
+
+priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Bool,
+                                     mut dst: Dynamic, dst_host: Bool, mut ctx: Context) {
+    ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
+    ref def : Expr = box.ptr
+    switch def.node_type {
+    case .StructDef(sd):
+        ref mut src_type : ffi_type = build_struct_ffi_type(def, ctx, src_host)
+        ref mut dst_type : ffi_type = build_struct_ffi_type(def, ctx, dst_host)
+        nfields := sd.fields.len()
+        mut src_offsets : Dynamic = malloc(nfields.mul(8))
+        mut dst_offsets : Dynamic = malloc(nfields.mul(8))
+        ref mut src_offsets_arg : USize = to_ptr(src_offsets)
+        ref mut dst_offsets_arg : USize = to_ptr(dst_offsets)
+        if ffi_get_struct_offsets(ffi_host_default_abi(), src_type, src_offsets_arg) != FFI_OK {
+            panic("libffi cannot compute source layout for ", type_name)
+        }
+        if ffi_get_struct_offsets(ffi_host_default_abi(), dst_type, dst_offsets_arg) != FFI_OK {
+            panic("libffi cannot compute destination layout for ", type_name)
+        }
+        for i in 0..nfields {
+            ref src_offset : U64 = ptr_add(src_offsets, i.mul(8))
+            ref dst_offset : U64 = ptr_add(dst_offsets, i.mul(8))
+            ref fd : Declaration = sd.fields[i]
+            ref src_field : Dynamic = ptr_add(src, src_offset.to_usize())
+            ref mut dst_field : Dynamic = ptr_add(dst, dst_offset.to_usize())
+            if fd.own_type.is(OwnType.Shallow).not() {
+                memcpy(dst_field, src_field, Dynamic.size())
+            } else if fd.type_name().eq("USize").or(fd.type_name().eq("UPtr")) {
+                ffi_copy_width_field(type_name, fd.type_name(), fd.name, src_field, src_host, dst_field, dst_host, ctx)
+            } else {
+                ref field_type : ffi_type = field_ffi_type(fd, ctx, src_host)
+                if field_type.type == FFI_TYPE_STRUCT.to_u16() {
+                    ffi_marshal_struct_into(fd.type_name(), src_field, src_host, dst_field, dst_host, ctx)
+                } else {
+                    memcpy(dst_field, src_field, field_type.size.to_usize())
+                }
+            }
+        }
+        free(own src_offsets)
+        free(own dst_offsets)
+    case:
+        panic("FFI aggregate is not a struct: ", type_name)
+    }
+}
+
+priv ffi_marshal_struct := proc(type_name: Str, src: Dynamic, src_host: Bool,
+                                dst_host: Bool, mut ctx: Context) returns Dynamic {
+    ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
+    ref mut dst_type : ffi_type = build_struct_ffi_type(box.ptr, ctx, dst_host)
+    switch box.ptr.node_type {
+    case .StructDef(sd):
+        mut offsets : Dynamic = malloc(sd.fields.len().mul(8))
+        ref mut offsets_arg : USize = to_ptr(offsets)
+        if ffi_get_struct_offsets(ffi_host_default_abi(), dst_type, offsets_arg) != FFI_OK {
+            panic("libffi cannot size destination layout for ", type_name)
+        }
+        free(own offsets)
+    case: panic("FFI aggregate is not a struct: ", type_name)
+    }
+    mut dst : Dynamic = calloc(1, dst_type.size.to_usize())
+    ffi_marshal_struct_into(type_name, src, src_host, dst, dst_host, ctx)
+    return dst
+}
+
+priv ffi_clear_struct_ownership := proc(type_name: Str, mut data: Dynamic, mut ctx: Context) {
+    ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
+    switch box.ptr.node_type {
+    case .StructDef(sd):
+        for fd : Declaration in sd.fields {
+            ref fl : FieldLayout = ctx_field_layout(type_name, fd.name, ctx)
+            if fd.own_type.is(OwnType.Own) {
+                write_ptr(ptr_add(data, fl.offset), bits_word(0))
+            } else if fd.own_type.is(OwnType.Shallow).and(ctx.ffi.struct_defs.has(fd.type_name())) {
+                ref field_type : ffi_type = field_ffi_type(fd, ctx, true)
+                if field_type.type == FFI_TYPE_STRUCT.to_u16() {
+                    ffi_clear_struct_ownership(fd.type_name(), ptr_add(data, fl.offset), ctx)
+                }
+            }
+        }
+    case: panic("FFI aggregate is not a struct: ", type_name)
+    }
 }
 
 // Look up the StructDef Expr for fe's shallow-struct return type, or
@@ -8258,6 +8414,8 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     // Keep each raw result alive until ffi_call finishes because arg_ptrs may
     // point directly into aggregate storage.
     mut arg_raws : UPtr = malloc(alloc_n.mul(UPtr.size()).mul(2))
+    mut marshaled_args : UPtr = calloc(alloc_n, UPtr.size())
+    mut marshal_sources : UPtr = calloc(alloc_n, UPtr.size())
 
     for i in 0..nargs {
         ref mut arg_expr : Expr = e.children[i + 1]
@@ -8267,11 +8425,23 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         }
         arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
         ctx.eval.interp_cstr_arg = false
-        arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
+        mut arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
         arg_raw_off := i.mul(16)
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(8)), arg_info.is_ref)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(9)), arg_pointer.ptr_eq(arg_raw))
+        if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)).and(i.lt(fe.param_types.len())) {
+            ref param_type : Str = fe.param_types[i]
+            ref param_ffi_type : ffi_type = shallow_ffi_type(param_type, ctx, false)
+            if param_ffi_type.type == FFI_TYPE_STRUCT.to_u16() {
+                ref param_own : Bool = ptr_add(fe.param_owns, i)
+                write_ptr(ptr_add(marshal_sources, i.mul(8)), arg_pointer)
+                marshaled : Dynamic = ffi_marshal_struct(param_type, arg_pointer, true, false, ctx)
+                write_ptr(ptr_add(marshaled_args, i.mul(8)), marshaled)
+                if param_own { ffi_clear_struct_ownership(param_type, arg_pointer, ctx) }
+                arg_pointer = marshaled
+            }
+        }
         arg_is_callable := heap_type_is_callable(raw_result_source_type(arg_info))
         mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam))
@@ -8348,11 +8518,18 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
 
     // raw: 16-byte buffer for return value
     mut raw : Dynamic = calloc(1, 16)
+    mut shallow_struct_raw : Dynamic = 0
     if ret_sdef_o.is_some() {
         ref ret_sdef : Expr = ret_sdef_o.unwrap()
         switch ret_sdef.node_type {
         case .StructDef:
-            ffi_call(fe.cif, fe.fn, result, arg_ptrs)
+            if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
+                shallow_struct_raw = ffi_marshal_struct(fe.return_type.unwrap(), result, true, false, ctx)
+                ffi_call(fe.cif, fe.fn, shallow_struct_raw, arg_ptrs)
+                ffi_marshal_struct_into(fe.return_type.unwrap(), shallow_struct_raw, false, result, true, ctx)
+            } else {
+                ffi_call(fe.cif, fe.fn, result, arg_ptrs)
+            }
         case:
             ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
         }
@@ -8364,13 +8541,18 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     if fe.return_type.is_none() {
     } else if ret_sdef_o.is_some() {
     } else if fe.return_is_shallow {
-        if ffi_decode_scalar(fe.return_type.unwrap(), to_ptr(raw), result, ctx).not() {
+        if ffi_decode_scalar(fe.return_type.unwrap(), to_ptr(raw), result, ctx, fe.host_layout).not() {
             panic("unsupported shallow FFI return type: ", fe.return_type.unwrap())
         }
     } else {
         ref rtype : Str = fe.return_type.unwrap()
         ref raw_ptr : Dynamic = deref(raw)
-        if rtype == "Str" {
+        if rtype.eq("Str").and(fe.host_layout.not()).and(size_intrinsics_use_sizeof(ctx)) {
+            if fe.return_is_ref { panic("cross-width FFI cannot borrow aggregate return: Str") }
+            ffi_marshal_struct_into(rtype, raw_ptr, false, result, true, ctx)
+            mut owned_raw_ptr : Dynamic = raw_ptr
+            free(own owned_raw_ptr)
+        } else if rtype == "Str" {
             ref sp : ExtStr = raw_ptr
             // A `returns ref Str` borrows the C buffer; copy it into independent
             // owned raw Str storage.
@@ -8395,7 +8577,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             write_ptr(result, raw_ptr)
         } else if fe.return_is_ref {
             write_ptr(result, raw_ptr)
-        } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx) {
+        } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx, fe.host_layout) {
             // A non-shallow `returns <scalar>` (C signature `T *f(...)`) hands
             // back an OWNED malloc'd buffer holding the value. ffi_decode_scalar
             // copied the scalar into `result`, so the buffer is ours to reclaim
@@ -8413,15 +8595,35 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             // does not free a buffer the runtime never malloc'd (ext_libc:
             // getenv returns a pointer into libc's environ).
             if fe.return_is_ref {
+                if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
+                    panic("cross-width FFI cannot borrow aggregate return: ", fe.return_type.unwrap())
+                }
                 write_ptr(result, raw_ptr)
             } else {
-                memcpy(result, raw_ptr, ctx_total_size(fe.return_type.unwrap(), ctx))
+                if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
+                    ffi_marshal_struct_into(fe.return_type.unwrap(), raw_ptr, false, result, true, ctx)
+                } else {
+                    memcpy(result, raw_ptr, ctx_total_size(fe.return_type.unwrap(), ctx))
+                }
                 mut owned_struct_wrapper : Dynamic = raw_ptr
                 EvalHeap.heap_free(own owned_struct_wrapper)
             }
         } else {
             panic("unsupported FFI return type: ", fe.return_type.unwrap())
         }
+    }
+    for i in 0..nargs {
+        mut marshaled : Dynamic = 0
+        marshaled = deref(ptr_add(marshaled_args, i.mul(8)))
+        if marshaled.is_null() { continue }
+        ref param_own : Bool = ptr_add(fe.param_owns, i)
+        ref param_mutable : Bool = ptr_add(fe.param_mutables, i)
+        if param_mutable.and(param_own.not()) {
+            mut source : Dynamic = 0
+            source = deref(ptr_add(marshal_sources, i.mul(8)))
+            ffi_marshal_struct_into(fe.param_types[i], marshaled, false, source, true, ctx)
+        }
+        free(own marshaled)
     }
     for i in 0..nargs {
         ref bf : Bool = ptr_add(boxed_flags, i)
@@ -8446,10 +8648,13 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         }
     }
     free(own arg_raws)
+    free(own marshaled_args)
+    free(own marshal_sources)
     free(own boxed_flags)
     free(own args)
     free(own arg_ptrs)
     free(own raw)
+    free(own shallow_struct_raw)
     return true
 }
 
@@ -8464,7 +8669,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
 // ext.c symbols are deleted, this is the ONLY path. It is already live for the
 // ext_func ops, so the whole suite (interpret + both-mode compare) proves it
 // matches ext.c. div/mod (zero-guarded), cmp, clone, and conversions other
-// than to_uptr are NOT handled here and keep dispatching to ext.c symbols.
+// than to_uptr/to_usize are NOT handled here and keep dispatching to ext.c.
 
 // Category of a scalar type name: "u" unsigned int, "i" signed int, "f" F32;
 // "" for anything that is not one of the nine numeric primitives.
@@ -8704,10 +8909,12 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
     if op_str == "inc" { scalar_step_cell(scope, e, type_str, 1, ctx); return true }
     if op_str == "dec" { scalar_step_cell(scope, e, type_str, -1, ctx); return true }
 
-    if op_str == "to_uptr" {
+    if op_str.eq("to_uptr").or(op_str.eq("to_usize")) {
         ref mut arg : Expr = e.children[1]
         av : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
-        scalar_write_raw(ctx.target_uptr_pname, result, raw_to_u64(scalar_type, av, ctx).cast(I64))
+        mut target_name := ctx.target_uptr_pname.clone()
+        if op_str == "to_usize" { target_name = ctx.target_usize_pname.clone() }
+        scalar_write_raw(target_name, result, raw_to_u64(scalar_type, av, ctx).cast(I64))
         return true
     }
 
@@ -8778,7 +8985,7 @@ priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut
     if enum_core_is_eval(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
-priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) {
+priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     np := fd.sig.params.len()
     mut alloc_np := np
@@ -8786,14 +8993,21 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     // Build ffi_type* array (each element is a pointer = 8 bytes)
     mut atypes : Dynamic = malloc(alloc_np.mul(8))
     pdynamics : Dynamic = calloc(alloc_np, 1)
+    mut pmutables : Dynamic = calloc(alloc_np, 1)
+    powns : Dynamic = calloc(alloc_np, 1)
+    mut ptypes := Vec(Str).new()
     mut pshallows : Dynamic = 0
     mut has_shallow := false
     for k in 0..np {
         ref pk : Declaration = fd.sig.params[k]
         ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
         dynamic_slot = declaration_resolved_type(pk, ctx.scope, ctx.symbols).is(Type.Dynamic)
+        write_bool(ptr_add(pmutables, k), pk.is_mut)
+        ref mut own_slot : Bool = ptr_add(powns, k)
+        own_slot = pk.own_type.is(OwnType.Own)
+        ptypes.push(own pk.type_name().clone())
         if pk.own_type.is(OwnType.Shallow) {
-            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.type_name(), ctx))
+            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.type_name(), ctx, host_layout))
             has_shallow = true
         } else {
             write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))
@@ -8819,7 +9033,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
     if ret_type_o.is_some() {
         if ret_shallow {
-            rtype = to_ptr(shallow_ffi_type(ret_type_o.unwrap(), ctx))
+            rtype = to_ptr(shallow_ffi_type(ret_type_o.unwrap(), ctx, host_layout))
         } else {
             rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
         }
@@ -8840,25 +9054,29 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
         // Drop the entry instead and leave the name unregistered. Calling
         // it then fails loudly at the call site (see ext_dispatch_ffi's
         // caller), naming the function the program actually used.
-        // Same four allocations ffi_cleanup reclaims for a live entry.
+        // Same six raw allocations ffi_cleanup reclaims for a live entry.
         free(own pshallows)
         free(own pdynamics)
+        free(own pmutables)
+        free(own powns)
         free(own atypes)
         free(own cif)
         return
     }
 
-    // Build the entry; the four allocations transfer into its `own` fields.
+    // Build the entry; the six raw allocations transfer into its `own` fields.
     // All four ride the CTOR call: an `own U8 = 0` field default would
     // otherwise materialize as a malloc'd one-byte box that the island's
     // raw field-writes overwrite without a drain -- 2 leaked bytes per
     // entry, found by ASAN the moment the fields stopped being `ref`.
     mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes,
-        param_shallows = pshallows, param_dynamics = pdynamics)
+        param_shallows = pshallows, param_dynamics = pdynamics,
+        param_types = ptypes, param_mutables = pmutables, param_owns = powns)
     entry.return_type = ret_type_o
     entry.nparam = np
     entry.return_is_shallow = ret_shallow
     entry.return_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
+    entry.host_layout = host_layout
 
     // Store in ctx.ffi.entries. Map.set borrows the key and deep-clones it
     // internally (ELEM_BOXED), so `name` can be passed directly; the
@@ -8875,7 +9093,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
     // Re-registering a name overwrites its FFIEntry. Map.set's overwrite
     // path does NOT run the typed value delete, so drop the old entry
     // explicitly first: remove's value drop runs FFIEntry.delete, whose
-    // `own` fields free the four raw allocations. The manual quad-free
+    // `own` fields free the six raw allocations. The old manual frees
     // this replaces was #324's hole (own-passing ref fields).
     if ctx.ffi.entries.has(name) { ctx.ffi.entries.remove(name) }
     mut val : FFIEntry = malloc(FFIEntry.size())
@@ -8888,7 +9106,17 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, mut ctx: Context) 
 }
 
 
-ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
+priv ffi_resolve := func(name: Str, runtime_decl: Bool, mut host_layout: Bool) returns ref U8 {
+    ref user_fn : U8 = ffi_user_symbol(name)
+    if user_fn.is_null().not() {
+        host_layout = true
+        return user_fn
+    }
+    host_layout = runtime_decl
+    return ffi_global_symbol(name)
+}
+
+ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Bool = false) {
     if ctx.ffi.entries_inited.not() {
         ctx.ffi.entries = Map(Str, FFIEntry).new()
         ctx.ffi.entries_inited = true
@@ -8905,9 +9133,10 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
                     if fd.sig.func_type.is_ext() {
                         switch stmt.node_type {
                         case .Decl(dname):
-                            ref fn_ptr : U8 = ffi_dlsym(dname.name)
+                            mut host_layout := false
+                            ref fn_ptr : U8 = ffi_resolve(dname.name, runtime_decl, host_layout)
                             if fn_ptr.is_null().not() {
-                                ffi_register(dname.name, fn_ptr, fdef, ctx)
+                                ffi_register(dname.name, fn_ptr, fdef, host_layout, ctx)
                             }
                         case:
                         }
@@ -8934,9 +9163,10 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
                     }
                     if fd_func_type.is_ext() {
                         flat_name := sdd.name.concat3("_", sdd_data.member_name_at(cur_ni))
-                        ref fn_ptr : U8 = ffi_dlsym(flat_name)
+                        mut host_layout := false
+                        ref fn_ptr : U8 = ffi_resolve(flat_name, runtime_decl, host_layout)
                         if fn_ptr.is_null().not() {
-                            ffi_register(flat_name, fn_ptr, fdef, ctx)
+                            ffi_register(flat_name, fn_ptr, fdef, host_layout, ctx)
                         }
                     } else if fd_func_type.is_plain() {
                         // Scan function body for nested ext_func/ext_proc.
@@ -8951,9 +9181,10 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context) {
                                 case .FuncDef(ifd):
                                     if ifd.sig.func_type.is_ext() {
                                         ref iname : Declaration = decl_of(inner)
-                                        ref ifn : U8 = ffi_dlsym(iname.name)
+                                        mut host_layout := false
+                                        ref ifn : U8 = ffi_resolve(iname.name, runtime_decl, host_layout)
                                         if ifn.is_null().not() {
-                                            ffi_register(iname.name, ifn, idef, ctx)
+                                            ffi_register(iname.name, ifn, idef, host_layout, ctx)
                                         }
                                     }
                                 case:
@@ -8987,8 +9218,8 @@ ffi_cleanup := proc(mut ctx: Context) {
     if ctx.ffi.loaded { ffi_close_user_so() }
     if ctx.ffi.entries_inited {
         // The reset's drain runs FFIEntry.delete per entry, whose `own`
-        // fields free the four raw allocations -- the manual per-entry
-        // quad-free this replaces was #324's hole and, with owned fields,
+        // fields free the six raw allocations -- the manual per-entry
+        // frees this replaces were #324's hole and, with owned fields,
         // a double free (ASAN caught it via Map delete -> FFIEntry_delete).
         ctx.ffi.entries = Map(Str, FFIEntry).new()
         ctx.ffi.struct_defs = Map(Str, ExprPtrBox).new()
