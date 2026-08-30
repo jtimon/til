@@ -620,8 +620,9 @@ build_tests := proc(mut b: Build) {
     build_program(b, "tests", "src/tests.til", "bin/tests")
 }
 
-/// The explicit --usize=64 regression (issue #309), interpreted and compiled,
-/// including compile-time interpreter folding under ASAN.
+/// Explicit USize-width regressions (issue #309), interpreted and compiled,
+/// including compile-time interpreter folding and cross-width self-translation
+/// under ASAN.
 check_usize64 := proc(mut b: Build) {
     if b.begin("check_usize64").not() { return }
     build_til(b)
@@ -634,6 +635,8 @@ check_usize64 := proc(mut b: Build) {
     run("tmp/usize64_sizes")
     run(ASAN, "build", "--usize=64", "-o", "tmp/usize64_comptime", "test/usize64_comptime.til")
     run("tmp/usize64_comptime")
+    run(TIL, "build", "--asan", "--usize=32", "-o", "tmp/til_usize32_asan", "src/til.til")
+    run("tmp/til_usize32_asan", "translate", "--force-rebuild", "-c", "tmp/til_usize32_to_64.c", "src/til.til")
 }
 
 /// The emitted C must compile clean under gcc AND clang: the local
