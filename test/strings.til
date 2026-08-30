@@ -160,6 +160,10 @@ test_to_i64 := test() {
     assert_eq(I64, "123456".to_i64(), 123456)
     assert_eq(I64, "-7".to_i64(), -7)
     assert_eq(I64, "-100".to_i64(), -100)
+    assert_eq(I64, "9223372036854775807".to_i64(), I64.MAX)
+    assert_eq(I64, "-9223372036854775808".to_i64(), I64.MIN)
+    assert_eq(Str, "18446744073709551615".to_u64().to_str(), "18446744073709551615")
+    assert_eq(Str, "0xffffffffffffffff".to_u64().to_str(), "18446744073709551615")
 }
 
 test_to_u8 := test() {

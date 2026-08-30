@@ -3940,14 +3940,13 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
 }
 
 // A bare numeric literal stored into a typed container takes the element
-// type when it fits, so the backend emits it at the element's width instead
-// of the literal's default I64. Both the set and push desugars need it.
+// type, so the backend emits it at the element's width instead of the
+// literal's default I64. The typer validates it against that final type.
+// Both the set and push desugars need the stamp.
 priv narrow_literal_to_elem := func(mut val: Expr, elem_t: Type) {
     switch val.node_type {
-    case .Literal(Literal.Num(lit_str)):
-        if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
-            val.set_til_type(elem_t)
-        }
+    case .Literal(Literal.Num):
+        if is_numeric_type(elem_t) { val.set_til_type(elem_t) }
     case:
     }
 }

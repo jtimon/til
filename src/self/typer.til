@@ -1322,11 +1322,8 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     if arg.til_type().is(Type.Dynamic) { return }
     if arg.til_type().is(Type.Unknown) { return }
     switch arg.node_type {
-    case .Literal(Literal.Num(lit_str)):
+    case .Literal(Literal.Num):
         if is_numeric_type(ptype) {
-            if literal_in_range(lit_str.literal_num_text(), ptype).not() {
-                arg.type_error(format("integer literal ", Str.clone(lit_str.literal_num_text()), " out of range for ", type_to_name(ptype)), ctx)
-            }
             arg.set_til_type(ptype)
             return
         }
@@ -5826,17 +5823,14 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, mut ctx: 
 // Fires for a direct Literal.Num return expression (including negative
 // literals like -1, which the parser now produces as a single literal);
 // any other expression is left as-is.
-priv narrow_return_literal := proc(mut scope: TypeScope, mut rv: Expr, mut ctx: Context) {
+priv narrow_return_literal := func(mut scope: TypeScope, mut rv: Expr, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
     ref return_type_name : Str = func_state.typer_return_type_name
     if return_type_name.len() == 0 { return }
     rt := type_from_name(return_type_name, scope, ctx)
     if is_numeric_type(rt).not() { return }
     switch rv.node_type {
-    case .Literal(Literal.Num(lit_str)):
-        if literal_in_range(lit_str.literal_num_text(), rt).not() {
-            rv.type_error(format("integer literal ", Str.clone(lit_str.literal_num_text()), " out of range for ", type_to_name(rt)), ctx)
-        }
+    case .Literal(Literal.Num):
         rv.set_til_type(rt)
     case:
     }
@@ -6326,11 +6320,8 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                     }
                     mut handled_lit := false
                     switch rhs.node_type {
-                    case .Literal(Literal.Num(lit_str)):
+                    case .Literal(Literal.Num):
                         if is_numeric_type(fld_type) {
-                            if literal_in_range(lit_str.literal_num_text(), fld_type).not() {
-                                rhs.type_error(format("integer literal out of range for field '", fname, "'"), ctx)
-                            }
                             rhs.set_til_type(fld_type.clone())
                             handled_lit = true
                         }
@@ -6387,11 +6378,8 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                         mark_callable_field_transfer(stmt, nsd_type, ctx.symbols.names)
                         mut handled_lit2 := false
                         switch rhs.node_type {
-                        case .Literal(Literal.Num(lit_str)):
+                        case .Literal(Literal.Num):
                             if is_numeric_type(nsd_type) {
-                                if literal_in_range(lit_str.literal_num_text(), nsd_type).not() {
-                                    rhs.type_error(format("integer literal out of range for field '", fname, "'"), ctx)
-                                }
                                 rhs.set_til_type(nsd_type.clone())
                                 handled_lit2 = true
                             }
@@ -6927,13 +6915,6 @@ priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, in_fun
                 val.set_til_type(declared)
             }
         } else if val.node_type.is_literal_num().and(is_numeric_type(declared).or(declared.is(Type.Dynamic))) {
-            switch val.node_type {
-            case .Literal(Literal.Num(lit_str)):
-                if is_numeric_type(declared).and(literal_in_range(lit_str.literal_num_text(), declared).not()) {
-                    val.type_error(format("integer literal ", Str.clone(lit_str.literal_num_text()), " out of range for ", type_to_name(declared)), ctx)
-                }
-            case:
-            }
             val.set_til_type(declared)
         } else if val.node_type.is_literal_null().and(sdecl.own_type.is(OwnType.Ref).not()) {
             stmt.type_error("null can only be assigned to 'ref' declarations", ctx)
@@ -8160,6 +8141,43 @@ normalize_scope_bindings := func(mut scope: TypeScope, symbols: SymbolPool) {
 // Moved into the typer module so the parser stays dumb and the lift
 // happens during the typer phase rather than as its own #158 pass.
 
+// Validate literals after inference has selected their FINAL contextual
+// types. Checking while descending is too early: an F64 parameter, return,
+// field, or enclosing expression may not have narrowed a literal yet. Keeping
+// the check here also gives nested and unconstrained literals the same rule.
+priv validate_numeric_literal_ranges := proc(mut e: Expr, mut ctx: Context) {
+    switch e.node_type {
+    case .Literal(Literal.Num(num)):
+        ref final_type : Type = e.til_type()
+        if is_numeric_type(final_type).and(literal_in_range(num.literal_num_text(), final_type).not()) {
+            e.type_error(format("numeric literal ", Str.clone(num.literal_num_text()),
+                " out of range for ", type_to_name(final_type)), ctx)
+        }
+        return
+    case .StructDef(sd):
+        for mut field : Declaration in sd.fields {
+            if field.default_value.is_some() {
+                validate_numeric_literal_ranges(field.default_expr(), ctx)
+            }
+        }
+        for mut member : Declaration in sd.ns_decls {
+            if member.default_value.is_some() {
+                validate_numeric_literal_ranges(member.default_expr(), ctx)
+            }
+        }
+    case .EnumDef(ed):
+        for mut member : Declaration in ed.ns_decls {
+            if member.default_value.is_some() {
+                validate_numeric_literal_ranges(member.default_expr(), ctx)
+            }
+        }
+    case:
+    }
+    for mut child : Expr in e.children {
+        validate_numeric_literal_ranges(child, ctx)
+    }
+}
+
 priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
     ctx.errors = 0
     scope.typer_func = TyperFuncState()
@@ -8222,6 +8240,7 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     compute_ref_return_summaries(program, scope, ctx)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
+    validate_numeric_literal_ranges(program, ctx)
     // #328: every batch the body loop queued has been flushed onto this
     // unit. A leftover would silently land on the next unit typed.
     if ctx.generic_pending.children.len() > 0 {
@@ -8654,13 +8673,6 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         case:
         }
     } else if rhs.node_type.is_literal_num().and(is_numeric_type(existing)) {
-        switch rhs.node_type {
-        case .Literal(Literal.Num(lit_str)):
-            if literal_in_range(lit_str.literal_num_text(), existing).not() {
-                stmt.type_error(format("integer literal out of range for assignment to '", aname, "'"), ctx)
-            }
-        case:
-        }
         rhs.set_til_type(existing)
         stmt.set_til_type(existing)
     } else if rhs.til_type().is(existing).or(rhs.til_type().is(Type.Unknown))
@@ -8840,32 +8852,77 @@ priv can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) retur
     return false
 }
 
+priv literal_text_is_float := func(text: Str) returns Bool {
+    if text.starts_with("0x").or(text.starts_with("0X")) { return false }
+    if text.starts_with("-0x").or(text.starts_with("-0X")) { return false }
+    if text.starts_with("0b").or(text.starts_with("0B")) { return false }
+    if text.starts_with("-0b").or(text.starts_with("-0B")) { return false }
+    if text.starts_with("0o").or(text.starts_with("0O")) { return false }
+    if text.starts_with("-0o").or(text.starts_with("-0O")) { return false }
+    return text.contains(".").or(text.contains("e")).or(text.contains("E"))
+}
+
+priv integer_literal_fits := func(text: Str, positive_limit: U64, negative_limit: U64, allow_negative: Bool) returns Bool {
+    if literal_text_is_float(text) { return false }
+    if text.len() == 0 { return false }
+    mut pos : USize = 0
+    mut negative := false
+    if text.get(0) == '-' {
+        if allow_negative.not() { return false }
+        negative = true
+        pos = 1
+    }
+    if pos >= text.len() { return false }
+    mut base : U64 = 10
+    if text.get(pos).eq('0').and(pos.add(1).lt(text.len())) {
+        ref prefix : I8 = text.get(pos + 1)
+        if prefix.eq('x').or(prefix.eq('X')) {
+            base = 16
+            pos = pos + 2
+        } else if prefix.eq('b').or(prefix.eq('B')) {
+            base = 2
+            pos = pos + 2
+        } else if prefix.eq('o').or(prefix.eq('O')) {
+            base = 8
+            pos = pos + 2
+        }
+    }
+    if pos >= text.len() { return false }
+    mut limit := positive_limit
+    if negative { limit = negative_limit }
+    mut value : U64 = 0
+    mut any := false
+    for i in pos..text.len() {
+        ref ch : I8 = text.get(i)
+        if ch == '_' { continue }
+        digit_i := digit_value(ch)
+        if digit_i.lt(0) { return false }
+        digit := digit_i.cast(U64)
+        if digit >= base { return false }
+        if value > limit.sub(digit).div(base) { return false }
+        value = value.mul(base).add(digit)
+        any = true
+    }
+    return any
+}
+
 literal_in_range := func(val_str: Str, target: Type) returns Bool {
+    i64_max := I64.MAX.cast(U64)
     switch target {
-    case .Primitive(Primitive.I64): return true
-    case .Primitive(Primitive.F32): return true
-    case .Primitive(Primitive.F64): return true
-    case .Primitive(Primitive.U8):
-        val := val_str.to_i64()
-        return val.gte(0).and(val.lte(255))
-    case .Primitive(Primitive.I8):
-        val := val_str.to_i64()
-        return val.gte(-128).and(val.lte(127))
-    case .Primitive(Primitive.I16):
-        val := val_str.to_i64()
-        return val.gte(-32768).and(val.lte(32767))
-    case .Primitive(Primitive.U16):
-        val := val_str.to_i64()
-        return val.gte(0).and(val.lte(65535))
-    case .Primitive(Primitive.I32):
-        val := val_str.to_i64()
-        return val.gte(-2147483648).and(val.lte(2147483647))
-    case .Primitive(Primitive.U32):
-        val := val_str.to_i64()
-        return val.gte(0).and(val.lte(4294967295))
-    case .Primitive(Primitive.U64):
-        val := val_str.to_i64()
-        return val >= 0
+    case .Primitive(Primitive.I64): return integer_literal_fits(val_str, i64_max, i64_max.add(1), true)
+    case .Primitive(Primitive.U8):  return integer_literal_fits(val_str, 255, 0, false)
+    case .Primitive(Primitive.I8):  return integer_literal_fits(val_str, 127, 128, true)
+    case .Primitive(Primitive.I16): return integer_literal_fits(val_str, 32767, 32768, true)
+    case .Primitive(Primitive.U16): return integer_literal_fits(val_str, 65535, 0, false)
+    case .Primitive(Primitive.I32): return integer_literal_fits(val_str, 2147483647, 2147483648, true)
+    case .Primitive(Primitive.U32): return integer_literal_fits(val_str, 4294967295, 0, false)
+    case .Primitive(Primitive.U64): return integer_literal_fits(val_str, U64.MAX, 0, false)
+    case .Primitive(Primitive.F32):
+        val_f32 := val_str.to_f32()
+        return val_f32.gte(F32.MIN).and(val_f32.lte(F32.MAX))
+    case .Primitive(Primitive.F64):
+        val_f64 := val_str.to_f64()
+        return val_f64.gte(F64.MIN).and(val_f64.lte(F64.MAX))
     case: return true
     }
 }

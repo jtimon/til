@@ -283,6 +283,18 @@ test_op_increment_decrement := test() {
 
 // #264 follow-up: MIN / MAX namespace constants on the numeric types.
 test_numeric_min_max := test() {
+    literal_i64_max : I64 = 9223372036854775807
+    literal_i64_min : I64 = -9223372036854775808
+    literal_u64_max : U64 = 18446744073709551615
+    literal_u64_hex_max : U64 = 0xffffffffffffffff
+    literal_f32_max : F32 = 3.4028235e38
+    literal_f64_max : F64 = 1.7976931348623157e308
+    assert_eq(I64, literal_i64_max, I64.MAX)
+    assert_eq(I64, literal_i64_min, I64.MIN)
+    assert_eq(Str, literal_u64_max.to_str(), "18446744073709551615")
+    assert_eq(Str, literal_u64_hex_max.to_str(), "18446744073709551615")
+    expect(literal_f32_max.eq(F32.MAX), "F32 max literal")
+    expect(literal_f64_max.eq(F64.MAX), "F64 max literal")
     assert_eq(Str, U8.MIN.to_str(), "0")
     assert_eq(Str, U8.MAX.to_str(), "255")
     assert_eq(Str, U16.MAX.to_str(), "65535")

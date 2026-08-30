@@ -399,49 +399,17 @@ namespace:
     /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
     /// Bare digit runs are base-10. Panics on invalid input.
     to_i64 := func(self: Str) returns I64 {
-        // All byte access below is unchecked (unsafe_get); every index is
-        // kept < self.count by an explicit guard (the empty/no-digit panics,
-        // the `start.add(1).lt(self.count)` condition, and the loop bound).
-        if self.count == 0 { panic("Str.to_i64: empty string") }
-        mut start : USize = 0
         mut neg := false
-        ref first : I8 = self.unsafe_get(0)
-        if first == 45 {
-            neg = true
-            start = 1
+        magnitude := parse_integer_magnitude(self, "Str.to_i64", neg)
+        max_magnitude := I64.MAX.cast(U64)
+        if neg {
+            min_magnitude := max_magnitude + 1
+            if magnitude > min_magnitude { panic("Str.to_i64: out of range in '", self, "'") }
+            if magnitude == min_magnitude { return I64.MIN }
+            return 0 - magnitude.cast(I64)
         }
-        if start == self.count { panic("Str.to_i64: no digits") }
-        // Base prefix: 0x (hex), 0b (binary), 0o (octal).
-        mut base : I64 = 10
-        if self.unsafe_get(start).eq('0').and(start.add(1).lt(self.count)) {
-            ref pch : I8 = self.unsafe_get(start + 1)
-            if pch.eq('x').or(pch.eq('X')) {
-                base = 16
-                start = start + 2
-            } else if pch.eq('b').or(pch.eq('B')) {
-                base = 2
-                start = start + 2
-            } else if pch.eq('o').or(pch.eq('O')) {
-                base = 8
-                start = start + 2
-            }
-        }
-        if start == self.count { panic("Str.to_i64: no digits in '", self, "'") }
-        mut result := 0
-        mut any := false
-        for i in start..self.count {
-            ref ch : I8 = self.unsafe_get(i)
-            if ch == '_' { continue }
-            d := digit_value(ch)
-            if d.lt(0).or(d.gte(base)) {
-                panic("Str.to_i64: invalid char in '", self, "'")
-            }
-            result = result.mul(base) + d
-            any = true
-        }
-        if any.not() { panic("Str.to_i64: no digits in '", self, "'") }
-        if neg { return 0 - result }
-        return result
+        if magnitude > max_magnitude { panic("Str.to_i64: out of range in '", self, "'") }
+        return magnitude.cast(I64)
     }
 
     /// Parse as base-10 unsigned 8-bit integer.
@@ -474,14 +442,24 @@ namespace:
         return self.to_i64().to_u32()
     }
 
-    /// Parse as base-10 unsigned 64-bit integer.
+    /// Parse as an unsigned 64-bit integer, with the same base-prefix and
+    /// separator syntax as to_i64. A leading minus retains the historical
+    /// signed-parse-then-cast behavior.
     to_u64 := func(self: Str) returns U64 {
-        return self.to_i64()
+        mut neg := false
+        magnitude := parse_integer_magnitude(self, "Str.to_u64", neg)
+        if neg {
+            max_magnitude := I64.MAX.cast(U64) + 1
+            if magnitude > max_magnitude { panic("Str.to_u64: out of range in '", self, "'") }
+            if magnitude == max_magnitude { return I64.MIN.cast(U64) }
+            return (0 - magnitude.cast(I64)).cast(U64)
+        }
+        return magnitude
     }
 
     /// Parse as base-10 USize (collection sizes/indices).
     to_usize := func(self: Str) returns USize {
-        return self.to_i64().to_usize()
+        return self.to_u64().to_usize()
     }
 
     /// Parse as a floating-point number. Backed by C strtof: handles
@@ -558,6 +536,54 @@ digit_value := func(ch: I8) returns I64 {
     if v.gte(97).and(v.lte(102)) { return v.sub(97) + 10 }
     if v.gte(65).and(v.lte(70)) { return v.sub(65) + 10 }
     return -1
+}
+
+// Parse the sign, base prefix, separators, and magnitude without ever
+// overflowing signed arithmetic. The caller applies its own signed range;
+// this helper admits the full U64 domain needed by Str.to_u64 and literal
+// materialization. `neg` reports a consumed leading minus.
+priv parse_integer_magnitude := func(self: Str, method: Str, mut neg: Bool) returns U64 {
+    if self.count == 0 { panic(method, ": empty string") }
+    mut start : USize = 0
+    if self.unsafe_get(0) == '-' {
+        neg = true
+        start = 1
+    }
+    if start == self.count { panic(method, ": no digits") }
+    mut base : U64 = 10
+    if self.unsafe_get(start).eq('0').and(start.add(1).lt(self.count)) {
+        ref prefix : I8 = self.unsafe_get(start + 1)
+        if prefix.eq('x').or(prefix.eq('X')) {
+            base = 16
+            start = start + 2
+        } else if prefix.eq('b').or(prefix.eq('B')) {
+            base = 2
+            start = start + 2
+        } else if prefix.eq('o').or(prefix.eq('O')) {
+            base = 8
+            start = start + 2
+        }
+    }
+    if start == self.count { panic(method, ": no digits in '", self, "'") }
+    mut result : U64 = 0
+    mut any := false
+    for i in start..self.count {
+        ref ch : I8 = self.unsafe_get(i)
+        if ch == '_' { continue }
+        digit_i := digit_value(ch)
+        if digit_i.lt(0) {
+            panic(method, ": invalid char in '", self, "'")
+        }
+        digit := digit_i.cast(U64)
+        if digit >= base { panic(method, ": invalid char in '", self, "'") }
+        if result > U64.MAX.sub(digit).div(base) {
+            panic(method, ": out of range in '", self, "'")
+        }
+        result = result.mul(base).add(digit)
+        any = true
+    }
+    if any.not() { panic(method, ": no digits in '", self, "'") }
+    return result
 }
 
 // c-string length (strlen).  Can't bind libc's strlen directly: til's

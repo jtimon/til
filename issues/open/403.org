@@ -157,3 +157,14 @@ Before any default change, fix literal validation itself: ~literal_in_range~
 currently accepts all ~I64~, ~F32~, and ~F64~ text without checking range, and
 checks ~U64~ by first parsing through ~I64~. A broader default must not turn
 overflow or precision loss into a parser/runtime panic or silent infinity.
+
+*** Progress
+
+- [X] Validate every numeric literal once against its final contextual type;
+  accept exact integer boundaries, reject signed/unsigned overflow and negative
+  unsigned literals, and reject float overflow to infinity. Replace the
+  signed-overflowing parser used to materialize ~I64.MIN~ / ~U64.MAX~.
+- [ ] Decide the fixed unconstrained float fallback: keep ~F32~ or change all
+  unconstrained float literals to ~F64~.
+- [ ] Consider indexed/enumerated collection iteration separately from literal
+  defaults.
