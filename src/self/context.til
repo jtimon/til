@@ -1022,7 +1022,9 @@ FfiState := struct {
     entries_inited := false
     loaded := false
     struct_defs := Map(Str, ExprPtrBox).new()
-    type_cache := Vec(FFITypePtrBox).new()
+    // Per-context ABI layouts: host/target domain plus canonical type name.
+    // Target widths are fixed until ffi_reset clears this cache.
+    type_cache := Map(Str, FFITypePtrBox).new()
     type_cache_inited := false
 }
 

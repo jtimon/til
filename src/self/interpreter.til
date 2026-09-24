@@ -6151,9 +6151,13 @@ ExprPtrBox := struct {
 FFITypePtrBox := struct {
     // #324: the box OWNS its descriptor -- build_struct_ffi_type mallocs
     // it and cache teardown frees it. With `own` here (and on
-    // ffi_type.elements), resetting the cache Vec reclaims everything
+    // ffi_type.elements), resetting the cache map reclaims everything
     // through ordinary drains; the manual free loop is gone.
     own ptr : ffi_type
+    // libffi writes size_t offsets, independent of this compiler's USize.
+    // Descriptor size/alignment and these offsets form one cached layout.
+    own offsets : U64
+    layout_status : I32 = 0
 namespace:
     // Same REPL-clone story as FFIEntry.clone above: cloned boxes only
     // live to be drained (ffi_reset runs before use), but the clone must
@@ -6178,7 +6182,9 @@ namespace:
         st.alignment = src.alignment
         st.type = src.type
         st.elements = elements
-        return FFITypePtrBox(ptr = st)
+        mut offsets : Dynamic = calloc(n.add(1), U64.size())
+        memcpy(offsets, self.offsets, n.add(1).mul(U64.size()))
+        return FFITypePtrBox(ptr = st, offsets = offsets, layout_status = self.layout_status)
     }
 }
 
@@ -7354,7 +7360,7 @@ priv h_cfile_open := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Co
 // is neither a known primitive nor a registered struct.  Shared by
 // shallow_ffi_type and field_ffi_type, which differ only in the
 // fallback they pick for an unknown type.
-priv known_ffi_type := func(type_name: Str, mut ctx: Context, host_layout: Bool) returns Option(ref ffi_type) {
+priv known_ffi_type := proc(type_name: Str, mut ctx: Context, host_layout: Bool) returns Option(ref ffi_type) {
     switch type_name {
     case "I64":   return safe_ref(ffi_type_ref("ffi_type_sint64"))
     case "U8":    return safe_ref(ffi_type_ref("ffi_type_uint8"))
@@ -7379,8 +7385,7 @@ priv known_ffi_type := func(type_name: Str, mut ctx: Context, host_layout: Bool)
     case:
     }
     if ctx.ffi.struct_defs.has(type_name) {
-        ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
-        return safe_ref(build_struct_ffi_type(box.ptr, ctx, host_layout))
+        return safe_ref(build_struct_ffi_type(type_name, ctx, host_layout))
     }
     return Option(ref ffi_type).None
 }
@@ -7388,13 +7393,13 @@ priv known_ffi_type := func(type_name: Str, mut ctx: Context, host_layout: Bool)
 // type_name -> ffi_type. Inverse mapping in ffi_shallow_type_info; keep
 // the two in sync if a new shallow primitive type lands.  Unknown
 // types are passed as opaque pointers.
-priv shallow_ffi_type := func(type_name: Str, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+priv shallow_ffi_type := proc(type_name: Str, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
     t_o := known_ffi_type(type_name, ctx, host_layout)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_pointer")
 }
 
-priv field_ffi_type := func(dd: Declaration, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+priv field_ffi_type := proc(dd: Declaration, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
     t_o := known_ffi_type(dd.type_name(), ctx, host_layout)
@@ -7402,11 +7407,17 @@ priv field_ffi_type := func(dd: Declaration, mut ctx: Context, host_layout: Bool
     return ffi_type_ref("ffi_type_sint64")
 }
 
-priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bool) returns ref FFITypePtrBox {
     if ctx.ffi.type_cache_inited.not() {
-        ctx.ffi.type_cache = Vec(FFITypePtrBox).new()
+        ctx.ffi.type_cache = Map(Str, FFITypePtrBox).new()
         ctx.ffi.type_cache_inited = true
     }
+    mut domain := "target:"
+    if host_layout { domain = "host:" }
+    key := format(domain, type_name)
+    if ctx.ffi.type_cache.has(key) { return ctx.ffi.type_cache[key] }
+    ref def_box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
+    ref struct_def : Expr = def_box.ptr
     switch struct_def.node_type {
     case .StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
@@ -7431,13 +7442,23 @@ priv build_struct_ffi_type := func(struct_def: Expr, mut ctx: Context, host_layo
         st.alignment = 0
         st.type = FFI_TYPE_STRUCT.to_u16()
         st.elements = elements
-        box := FFITypePtrBox(ptr = st)
-        ctx.ffi.type_cache.push(own box)
-        ref cached : FFITypePtrBox = ctx.ffi.type_cache[ctx.ffi.type_cache.len() - 1]
-        return cached.ptr
+        // The extra slot also gives field-less structs a valid output buffer.
+        // Keep a rejected layout cached: registration already defers unsupported
+        // signatures until use; marshalling must report the layout failure.
+        mut offsets : Dynamic = calloc(nfields.add(1), U64.size())
+        ref mut offsets_arg : USize = to_ptr(offsets)
+        status := ffi_get_struct_offsets(ffi_host_default_abi(), st, offsets_arg)
+        box := FFITypePtrBox(ptr = st, offsets = offsets, layout_status = status)
+        ctx.ffi.type_cache.set(key, own box)
+        return ctx.ffi.type_cache[key]
     case:
         panic(__LOC__, "build_struct_ffi_type: node is not a StructDef")
     }
+}
+
+priv build_struct_ffi_type := proc(type_name: Str, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+    ref layout : FFITypePtrBox = ffi_struct_layout(type_name, ctx, host_layout)
+    return layout.ptr
 }
 
 priv h_free := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
@@ -8230,20 +8251,19 @@ priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Boo
     ref def : Expr = box.ptr
     switch def.node_type {
     case .StructDef(sd):
-        ref mut src_type : ffi_type = build_struct_ffi_type(def, ctx, src_host)
-        ref mut dst_type : ffi_type = build_struct_ffi_type(def, ctx, dst_host)
-        nfields := sd.fields.len()
-        mut src_offsets : Dynamic = malloc(nfields.mul(8))
-        mut dst_offsets : Dynamic = malloc(nfields.mul(8))
-        ref mut src_offsets_arg : USize = to_ptr(src_offsets)
-        ref mut dst_offsets_arg : USize = to_ptr(dst_offsets)
-        if ffi_get_struct_offsets(ffi_host_default_abi(), src_type, src_offsets_arg) != FFI_OK {
+        ref src_layout : FFITypePtrBox = ffi_struct_layout(type_name, ctx, src_host)
+        if src_layout.layout_status != FFI_OK {
             panic("libffi cannot compute source layout for ", type_name)
         }
-        if ffi_get_struct_offsets(ffi_host_default_abi(), dst_type, dst_offsets_arg) != FFI_OK {
+        // Map insertions can move the boxes, but their owned descriptor and
+        // offset allocations remain stable across nested layout lookups.
+        ref src_offsets : U64 = src_layout.offsets
+        ref dst_layout : FFITypePtrBox = ffi_struct_layout(type_name, ctx, dst_host)
+        if dst_layout.layout_status != FFI_OK {
             panic("libffi cannot compute destination layout for ", type_name)
         }
-        for i in 0..nfields {
+        ref dst_offsets : U64 = dst_layout.offsets
+        for i in 0..sd.fields.len() {
             ref src_offset : U64 = ptr_add(src_offsets, i.mul(8))
             ref dst_offset : U64 = ptr_add(dst_offsets, i.mul(8))
             ref fd : Declaration = sd.fields[i]
@@ -8262,8 +8282,6 @@ priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Boo
                 }
             }
         }
-        free(own src_offsets)
-        free(own dst_offsets)
     case:
         panic("FFI aggregate is not a struct: ", type_name)
     }
@@ -8271,19 +8289,11 @@ priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Boo
 
 priv ffi_marshal_struct := proc(type_name: Str, src: Dynamic, src_host: Bool,
                                 dst_host: Bool, mut ctx: Context) returns Dynamic {
-    ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
-    ref mut dst_type : ffi_type = build_struct_ffi_type(box.ptr, ctx, dst_host)
-    switch box.ptr.node_type {
-    case .StructDef(sd):
-        mut offsets : Dynamic = malloc(sd.fields.len().mul(8))
-        ref mut offsets_arg : USize = to_ptr(offsets)
-        if ffi_get_struct_offsets(ffi_host_default_abi(), dst_type, offsets_arg) != FFI_OK {
-            panic("libffi cannot size destination layout for ", type_name)
-        }
-        free(own offsets)
-    case: panic("FFI aggregate is not a struct: ", type_name)
+    ref layout : FFITypePtrBox = ffi_struct_layout(type_name, ctx, dst_host)
+    if layout.layout_status != FFI_OK {
+        panic("libffi cannot size destination layout for ", type_name)
     }
-    mut dst : Dynamic = calloc(1, dst_type.size.to_usize())
+    mut dst : Dynamic = calloc(1, layout.ptr.size.to_usize())
     ffi_marshal_struct_into(type_name, src, src_host, dst, dst_host, ctx)
     return dst
 }
@@ -9230,7 +9240,7 @@ ffi_cleanup := proc(mut ctx: Context) {
         // The reset's drain runs FFITypePtrBox.delete per entry, which owns
         // its descriptor, which owns its elements array -- the manual free
         // loop this replaces was #324's hole (own-passing ref fields).
-        ctx.ffi.type_cache = Vec(FFITypePtrBox).new()
+        ctx.ffi.type_cache = Map(Str, FFITypePtrBox).new()
         ctx.ffi.type_cache_inited = false
     }
 }

@@ -272,7 +272,7 @@ typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Map__U32_Str Map__U32_Str;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
-typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
+typedef struct Map__Str_FFITypePtrBox Map__Str_FFITypePtrBox;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
@@ -290,6 +290,7 @@ typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
+typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
@@ -811,13 +812,6 @@ typedef struct Map__U32_Str {
 } Map__U32_Str;
 
 
-typedef struct Vec__FFITypePtrBox {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__FFITypePtrBox;
-
-
 struct Option__Scope {
     Scope *data;
 };
@@ -894,6 +888,13 @@ typedef struct Vec__ExprPtrBox {
     USize count;
     USize cap;
 } Vec__ExprPtrBox;
+
+
+typedef struct Vec__FFITypePtrBox {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__FFITypePtrBox;
 
 
 typedef struct Vec__Mode {
@@ -1361,6 +1362,8 @@ typedef struct ExprPtrBox {
 
 typedef struct FFITypePtrBox {
     ffi_type *ptr;
+    U64 *offsets;
+    I32 layout_status;
 } FFITypePtrBox;
 
 
@@ -1706,6 +1709,12 @@ typedef struct Map__Str_ExprPtrBox {
 } Map__Str_ExprPtrBox;
 
 
+typedef struct Map__Str_FFITypePtrBox {
+    Vec__Str keys;
+    Vec__FFITypePtrBox values;
+} Map__Str_FFITypePtrBox;
+
+
 typedef struct Map__Str_Mode {
     Vec__Str keys;
     Vec__Mode values;
@@ -1833,7 +1842,7 @@ typedef struct FfiState {
     Bool entries_inited;
     Bool loaded;
     Map__Str_ExprPtrBox struct_defs;
-    Vec__FFITypePtrBox type_cache;
+    Map__Str_FFITypePtrBox type_cache;
     Bool type_cache_inited;
 } FfiState;
 
