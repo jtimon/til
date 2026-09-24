@@ -30,6 +30,15 @@ U0 StructPoint_Delete(StructPoint *self)
 {
 }
 
+Bool StructPoint_Eq(StructPoint *a, StructPoint *b)
+{
+  if (a->x != b->x)
+    return FALSE;
+  if (a->y != b->y)
+    return FALSE;
+  return TRUE;
+}
+
 class StructNamedPoint {
   StructPoint point;
   TilStr name;
@@ -45,6 +54,15 @@ U0 StructNamedPoint_Delete(StructNamedPoint *self)
 {
   StructPoint_Delete(&self->point);
   TilStrDelete(&self->name, FALSE);
+}
+
+Bool StructNamedPoint_Eq(StructNamedPoint *a, StructNamedPoint *b)
+{
+  if (!StructPoint_Eq(&a->point, &b->point))
+    return FALSE;
+  if (!TilStrEq(&a->name, &b->name))
+    return FALSE;
+  return TRUE;
 }
 
 class StructSegment {
@@ -64,6 +82,17 @@ U0 StructSegment_Delete(StructSegment *self)
 {
   StructPoint_Delete(&self->start);
   StructPoint_Delete(&self->finish);
+}
+
+Bool StructSegment_Eq(StructSegment *a, StructSegment *b)
+{
+  if (!StructPoint_Eq(&a->start, &b->start))
+    return FALSE;
+  if (!StructPoint_Eq(&a->finish, &b->finish))
+    return FALSE;
+  if (a->active != b->active)
+    return FALSE;
+  return TRUE;
 }
 
 extern U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name);
@@ -111,44 +140,44 @@ U0 rename_struct_named_point(StructNamedPoint *named)
 
 I64 TilMain()
 {
-    I64 hoisted__I64_g10 = 2;
-    I64 hoisted__I64_g11 = 3;
+    I64 hoisted__I64_g22 = 2;
+    I64 hoisted__I64_g23 = 3;
     StructPoint point;
-    point.x = hoisted__I64_g10;
-    point.y = hoisted__I64_g11;
-    I64 hoisted__I64_g12 = 7;
-    point.x = hoisted__I64_g12;
-    I64 hoisted__I64_g13 = 5;
-    I64 hoisted__I64_g14 = 7;
-    I64 hoisted__I64_g15 = 11;
-    I64 hoisted__I64_g16 = 13;
-    Bool hoisted__Bool_g17 = TRUE;
+    point.x = hoisted__I64_g22;
+    point.y = hoisted__I64_g23;
+    I64 hoisted__I64_g24 = 7;
+    point.x = hoisted__I64_g24;
+    I64 hoisted__I64_g25 = 5;
+    I64 hoisted__I64_g26 = 7;
+    I64 hoisted__I64_g27 = 11;
+    I64 hoisted__I64_g28 = 13;
+    Bool hoisted__Bool_g29 = TRUE;
     StructSegment segment;
-    segment.start.x = hoisted__I64_g13;
-    segment.start.y = hoisted__I64_g14;
-    segment.finish.x = hoisted__I64_g15;
-    segment.finish.y = hoisted__I64_g16;
-    segment.active = hoisted__Bool_g17;
-    U64 hoisted__U64_g18 = 1;
-    TilStrArray _va_Array_g1;
-    TilStrArrayNew(&_va_Array_g1, hoisted__U64_g18);
-    I64 _va_Array_g1_ek = 0;
-    I64 hoisted__I64_g19 = (point.x + point.y);
-    U64 hoisted__U64_g20 = 0;
-    TilStr hoisted__Str_g21;
-    TilStrFromI64(&hoisted__Str_g21, hoisted__I64_g19);
-    TilStrArraySet(&_va_Array_g1, hoisted__U64_g20, &hoisted__Str_g21);
-    TilPrintln(&_va_Array_g1);
-    U64 hoisted__U64_g22 = 1;
-    TilStrArray _va_Array_g2;
-    TilStrArrayNew(&_va_Array_g2, hoisted__U64_g22);
-    I64 _va_Array_g2_ek = 0;
-    I64 hoisted__I64_g23 = (segment.start.x + segment.finish.y);
-    U64 hoisted__U64_g24 = 0;
-    TilStr hoisted__Str_g25;
-    TilStrFromI64(&hoisted__Str_g25, hoisted__I64_g23);
-    TilStrArraySet(&_va_Array_g2, hoisted__U64_g24, &hoisted__Str_g25);
-    TilPrintln(&_va_Array_g2);
+    segment.start.x = hoisted__I64_g25;
+    segment.start.y = hoisted__I64_g26;
+    segment.finish.x = hoisted__I64_g27;
+    segment.finish.y = hoisted__I64_g28;
+    segment.active = hoisted__Bool_g29;
+    U64 hoisted__U64_g30 = 1;
+    TilStrArray _va_Array_g5;
+    TilStrArrayNew(&_va_Array_g5, hoisted__U64_g30);
+    I64 _va_Array_g5_ek = 0;
+    I64 hoisted__I64_g31 = (point.x + point.y);
+    U64 hoisted__U64_g32 = 0;
+    TilStr hoisted__Str_g33;
+    TilStrFromI64(&hoisted__Str_g33, hoisted__I64_g31);
+    TilStrArraySet(&_va_Array_g5, hoisted__U64_g32, &hoisted__Str_g33);
+    TilPrintln(&_va_Array_g5);
+    U64 hoisted__U64_g34 = 1;
+    TilStrArray _va_Array_g6;
+    TilStrArrayNew(&_va_Array_g6, hoisted__U64_g34);
+    I64 _va_Array_g6_ek = 0;
+    I64 hoisted__I64_g35 = (segment.start.x + segment.finish.y);
+    U64 hoisted__U64_g36 = 0;
+    TilStr hoisted__Str_g37;
+    TilStrFromI64(&hoisted__Str_g37, hoisted__I64_g35);
+    TilStrArraySet(&_va_Array_g6, hoisted__U64_g36, &hoisted__Str_g37);
+    TilPrintln(&_va_Array_g6);
     if (segment.active) {
         U64 hoisted__U64_g7 = 1;
         TilStrArray _va_Array_g0;
@@ -160,59 +189,112 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g0, hoisted__U64_g8, &hoisted__Str_g9);
         TilPrintln(&_va_Array_g0);
     }
-    U64 hoisted__U64_g26 = 5;
+    StructSegment segment_copy;
+    StructSegment_Clone(&segment_copy, &segment);
+    Bool hoisted__Bool_g38 = StructSegment_Eq(&segment, &segment_copy);
+    if (hoisted__Bool_g38) {
+        U64 hoisted__U64_g10 = 1;
+        TilStrArray _va_Array_g1;
+        TilStrArrayNew(&_va_Array_g1, hoisted__U64_g10);
+        I64 _va_Array_g1_ek = 0;
+        U64 hoisted__U64_g11 = 0;
+        TilStr hoisted__Str_g12;
+        TilStrInitLit(&hoisted__Str_g12, "segment equal", 13);
+        TilStrArraySet(&_va_Array_g1, hoisted__U64_g11, &hoisted__Str_g12);
+        TilPrintln(&_va_Array_g1);
+    }
+    I64 hoisted__I64_g39 = 14;
+    segment_copy.finish.y = hoisted__I64_g39;
+    Bool hoisted__Bool_g40 = (!StructSegment_Eq(&segment, &segment_copy));
+    if (hoisted__Bool_g40) {
+        U64 hoisted__U64_g13 = 1;
+        TilStrArray _va_Array_g2;
+        TilStrArrayNew(&_va_Array_g2, hoisted__U64_g13);
+        I64 _va_Array_g2_ek = 0;
+        U64 hoisted__U64_g14 = 0;
+        TilStr hoisted__Str_g15;
+        TilStrInitLit(&hoisted__Str_g15, "segment different", 17);
+        TilStrArraySet(&_va_Array_g2, hoisted__U64_g14, &hoisted__Str_g15);
+        TilPrintln(&_va_Array_g2);
+    }
+    U64 hoisted__U64_g41 = 5;
     TilStr source;
-    TilStrWithCapacity(&source, hoisted__U64_g26);
-    TilStr hoisted__Str_g27;
-    TilStrInitLit(&hoisted__Str_g27, "alpha", 5);
-    TilStrPush(&source, &hoisted__Str_g27);
-    TilStrDelete(&hoisted__Str_g27, FALSE);
+    TilStrWithCapacity(&source, hoisted__U64_g41);
+    TilStr hoisted__Str_g42;
+    TilStrInitLit(&hoisted__Str_g42, "alpha", 5);
+    TilStrPush(&source, &hoisted__Str_g42);
+    TilStrDelete(&hoisted__Str_g42, FALSE);
     StructNamedPoint named;
     make_struct_named_point(&named, &source);
     StructNamedPoint copy;
     StructNamedPoint_Clone(&copy, &named);
+    Bool hoisted__Bool_g43 = StructNamedPoint_Eq(&named, &copy);
+    if (hoisted__Bool_g43) {
+        U64 hoisted__U64_g16 = 1;
+        TilStrArray _va_Array_g3;
+        TilStrArrayNew(&_va_Array_g3, hoisted__U64_g16);
+        I64 _va_Array_g3_ek = 0;
+        U64 hoisted__U64_g17 = 0;
+        TilStr hoisted__Str_g18;
+        TilStrInitLit(&hoisted__Str_g18, "named equal", 11);
+        TilStrArraySet(&_va_Array_g3, hoisted__U64_g17, &hoisted__Str_g18);
+        TilPrintln(&_va_Array_g3);
+    }
     rename_struct_named_point(&named);
-    U64 hoisted__U64_g28 = 1;
-    TilStrArray _va_Array_g3;
-    TilStrArrayNew(&_va_Array_g3, hoisted__U64_g28);
-    I64 _va_Array_g3_ek = 0;
-    U64 hoisted__U64_g29 = 0;
-    TilStr hoisted__Str_g30;
-    TilStrClone(&hoisted__Str_g30, &copy.name);
-    TilStrArraySet(&_va_Array_g3, hoisted__U64_g29, &hoisted__Str_g30);
-    TilPrintln(&_va_Array_g3);
-    U64 hoisted__U64_g31 = 1;
-    TilStrArray _va_Array_g4;
-    TilStrArrayNew(&_va_Array_g4, hoisted__U64_g31);
-    I64 _va_Array_g4_ek = 0;
-    U64 hoisted__U64_g32 = 0;
-    TilStr hoisted__Str_g33;
-    TilStrClone(&hoisted__Str_g33, &named.name);
-    TilStrArraySet(&_va_Array_g4, hoisted__U64_g32, &hoisted__Str_g33);
-    TilPrintln(&_va_Array_g4);
-    U64 hoisted__U64_g34 = 1;
-    TilStrArray _va_Array_g5;
-    TilStrArrayNew(&_va_Array_g5, hoisted__U64_g34);
-    I64 _va_Array_g5_ek = 0;
-    I64 hoisted__I64_g35 = struct_named_point_score(&copy);
-    U64 hoisted__U64_g36 = 0;
-    TilStr hoisted__Str_g37;
-    TilStrFromI64(&hoisted__Str_g37, hoisted__I64_g35);
-    TilStrArraySet(&_va_Array_g5, hoisted__U64_g36, &hoisted__Str_g37);
-    TilPrintln(&_va_Array_g5);
-    U64 hoisted__U64_g38 = 1;
-    TilStrArray _va_Array_g6;
-    TilStrArrayNew(&_va_Array_g6, hoisted__U64_g38);
-    I64 _va_Array_g6_ek = 0;
-    I64 hoisted__I64_g39 = struct_named_point_score(&named);
-    U64 hoisted__U64_g40 = 0;
-    TilStr hoisted__Str_g41;
-    TilStrFromI64(&hoisted__Str_g41, hoisted__I64_g39);
-    TilStrArraySet(&_va_Array_g6, hoisted__U64_g40, &hoisted__Str_g41);
-    TilPrintln(&_va_Array_g6);
+    Bool hoisted__Bool_g44 = (!StructNamedPoint_Eq(&named, &copy));
+    if (hoisted__Bool_g44) {
+        U64 hoisted__U64_g19 = 1;
+        TilStrArray _va_Array_g4;
+        TilStrArrayNew(&_va_Array_g4, hoisted__U64_g19);
+        I64 _va_Array_g4_ek = 0;
+        U64 hoisted__U64_g20 = 0;
+        TilStr hoisted__Str_g21;
+        TilStrInitLit(&hoisted__Str_g21, "named different", 15);
+        TilStrArraySet(&_va_Array_g4, hoisted__U64_g20, &hoisted__Str_g21);
+        TilPrintln(&_va_Array_g4);
+    }
+    U64 hoisted__U64_g45 = 1;
+    TilStrArray _va_Array_g7;
+    TilStrArrayNew(&_va_Array_g7, hoisted__U64_g45);
+    I64 _va_Array_g7_ek = 0;
+    U64 hoisted__U64_g46 = 0;
+    TilStr hoisted__Str_g47;
+    TilStrClone(&hoisted__Str_g47, &copy.name);
+    TilStrArraySet(&_va_Array_g7, hoisted__U64_g46, &hoisted__Str_g47);
+    TilPrintln(&_va_Array_g7);
+    U64 hoisted__U64_g48 = 1;
+    TilStrArray _va_Array_g8;
+    TilStrArrayNew(&_va_Array_g8, hoisted__U64_g48);
+    I64 _va_Array_g8_ek = 0;
+    U64 hoisted__U64_g49 = 0;
+    TilStr hoisted__Str_g50;
+    TilStrClone(&hoisted__Str_g50, &named.name);
+    TilStrArraySet(&_va_Array_g8, hoisted__U64_g49, &hoisted__Str_g50);
+    TilPrintln(&_va_Array_g8);
+    U64 hoisted__U64_g51 = 1;
+    TilStrArray _va_Array_g9;
+    TilStrArrayNew(&_va_Array_g9, hoisted__U64_g51);
+    I64 _va_Array_g9_ek = 0;
+    I64 hoisted__I64_g52 = struct_named_point_score(&copy);
+    U64 hoisted__U64_g53 = 0;
+    TilStr hoisted__Str_g54;
+    TilStrFromI64(&hoisted__Str_g54, hoisted__I64_g52);
+    TilStrArraySet(&_va_Array_g9, hoisted__U64_g53, &hoisted__Str_g54);
+    TilPrintln(&_va_Array_g9);
+    U64 hoisted__U64_g55 = 1;
+    TilStrArray _va_Array_g10;
+    TilStrArrayNew(&_va_Array_g10, hoisted__U64_g55);
+    I64 _va_Array_g10_ek = 0;
+    I64 hoisted__I64_g56 = struct_named_point_score(&named);
+    U64 hoisted__U64_g57 = 0;
+    TilStr hoisted__Str_g58;
+    TilStrFromI64(&hoisted__Str_g58, hoisted__I64_g56);
+    TilStrArraySet(&_va_Array_g10, hoisted__U64_g57, &hoisted__Str_g58);
+    TilPrintln(&_va_Array_g10);
     StructNamedPoint_Delete(&named);
     StructNamedPoint_Delete(&copy);
     TilStrDelete(&source, FALSE);
+    StructSegment_Delete(&segment_copy);
     return 0;
 }
 

@@ -1,6 +1,10 @@
 10
 18
 active
+segment equal
+segment different
+named equal
+named different
 alpha
 beta
 41

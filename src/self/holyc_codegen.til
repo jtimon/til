@@ -184,6 +184,55 @@ priv holyc_struct_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
     return ""
 }
 
+priv holyc_struct_method_is_generated := func(type_name: Str, method: Str,
+    ctx: Context) returns Bool {
+    def_o := ctx.scope.get_struct(type_name, ctx.symbols)
+    if def_o.is_none() { return false }
+    ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sdef):
+        if sdef.ns_index.has(method).not() { return false }
+        ref method_decl : Declaration = sdef.member_at(sdef.ns_index[method])
+        if method_decl.default_value.is_none() { return false }
+        switch method_decl.default_expr().node_type {
+        case .FuncDef(fdef): return fdef.auto_generated
+        case: return false
+        }
+    case:
+        return false
+    }
+}
+
+priv holyc_struct_eq_supported := func(type_name: Str, ctx: Context,
+    state: HolyCEmitState) returns Bool {
+    def_o := ctx.scope.get_struct(type_name, ctx.symbols)
+    if def_o.is_none() { return false }
+    ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sdef):
+        mut has_generated_comparison := false
+        if sdef.ns_index.has("eq") {
+            if holyc_struct_method_is_generated(type_name, "eq", ctx).not() { return false }
+            has_generated_comparison = true
+        }
+        if sdef.ns_index.has("cmp") {
+            if holyc_struct_method_is_generated(type_name, "cmp", ctx).not() { return false }
+            has_generated_comparison = true
+        }
+        if has_generated_comparison.not() { return false }
+        for field : Declaration in sdef.fields {
+            field_type := holyc_storage_type_name(field.type_name())
+            if holyc_scalar_type_name(field_type).or(field_type.eq("Str")) { continue }
+            if state.struct_names.has(field_type)
+                .and(holyc_struct_eq_supported(field_type, ctx, state)) { continue }
+            return false
+        }
+        return true
+    case:
+        return false
+    }
+}
+
 priv holyc_call_args := func(e: Expr, start: USize, ctx: Context,
     mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
     mut args := ""
@@ -698,6 +747,23 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 return ""
             }
             if state.struct_names.has(owner) {
+                if method.eq("eq").or(method.eq("neq")) {
+                    if e.children.len() != 3 { error = format("invalid ", owner, ".", method, " call"); return "" }
+                    if holyc_struct_eq_supported(owner, ctx, state).not() {
+                        error = format("custom or unsupported equality for struct '", owner, "'")
+                        return ""
+                    }
+                    if method.eq("neq")
+                        .and(holyc_struct_method_is_generated(owner, method, ctx).not()) {
+                        error = format("custom or unsupported equality for struct '", owner, "'")
+                        return ""
+                    }
+                    left := holyc_struct_ref(e.children[1], ctx, locals, error)
+                    right := holyc_struct_ref(e.children[2], ctx, locals, error)
+                    mut value := format(owner, "_Eq(", left, ", ", right, ")")
+                    if method == "neq" { value = format("(!", value, ")") }
+                    return value
+                }
                 if method == "delete" {
                     if e.children.len() != 3 { error = format("invalid ", owner, ".delete call"); return "" }
                     value := holyc_struct_ref(e.children[1], ctx, locals, error)
@@ -1261,6 +1327,26 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
                         }
                     }
                     output = format(output, "}\n\n")
+                    if holyc_struct_eq_supported(decl.name, lp.ctx, state) {
+                        output = format(output, "Bool ", decl.name, "_Eq(", decl.name,
+                            " *a, ", decl.name, " *b)\n{\n")
+                        for i in 0..sdef.fields.len() {
+                            ref field : Declaration = sdef.field_at(i)
+                            ref field_name : Str = sdef.field_name_at(i)
+                            field_type := holyc_storage_type_name(field.type_name())
+                            if holyc_scalar_type_name(field_type) {
+                                output = format(output, "  if (a->", field_name, " != b->",
+                                    field_name, ")\n    return FALSE;\n")
+                            } else if field_type == "Str" {
+                                output = format(output, "  if (!TilStrEq(&a->", field_name,
+                                    ", &b->", field_name, "))\n    return FALSE;\n")
+                            } else if state.struct_names.has(field_type) {
+                                output = format(output, "  if (!", field_type, "_Eq(&a->",
+                                    field_name, ", &b->", field_name, "))\n    return FALSE;\n")
+                            }
+                        }
+                        output = format(output, "  return TRUE;\n}\n\n")
+                    }
                     emitted.add(own decl.name.clone())
                     remaining--
                     progress = true

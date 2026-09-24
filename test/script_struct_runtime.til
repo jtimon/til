@@ -39,12 +39,18 @@ segment := StructSegment(
 println((point.x + point.y).to_str())
 println((segment.start.x + segment.finish.y).to_str())
 if segment.active { println("active") }
+mut segment_copy := segment.clone()
+if segment.eq(segment_copy) { println("segment equal") }
+segment_copy.finish.y = 14
+if segment.neq(segment_copy) { println("segment different") }
 
 mut source := Str.with_capacity(5)
 source.push_str("alpha")
 mut named := make_struct_named_point(source)
 copy := named.clone()
+if named.eq(copy) { println("named equal") }
 rename_struct_named_point(named)
+if named.neq(copy) { println("named different") }
 println(copy.name)
 println(named.name)
 println(struct_named_point_score(copy).to_str())
@@ -52,3 +58,4 @@ println(struct_named_point_score(named).to_str())
 own named.delete()
 own copy.delete()
 own source.delete()
+own segment_copy.delete()

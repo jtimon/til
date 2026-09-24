@@ -269,8 +269,7 @@
   interpreter, C backend, and HolyC translation, and deliberately declares its
   outer struct before its inline dependency. TempleOS 5.03 compiled and ran it
   with ~TILTEST:PASS~; a self-checking guest probe verified every nested field.
-  Ref fields, aggregate equality, and enums remain in the unchecked aggregate
-  milestone.
+  Ref fields and enums remain in the unchecked aggregate milestone.
 
   The thirteenth slice adds managed Str fields and value-struct function ABI.
   Generated recursive clone/delete helpers preserve nested aggregate ownership,
@@ -282,6 +281,16 @@
   replacement, and recursive deletion. The interpreter, C backend, and HolyC
   translation passed the shared test; TempleOS 5.03 compiled and ran the
   generated output with ~TILTEST:PASS~.
+
+  The fourteenth slice adds recursive value-struct equality for the frontend's
+  generated field-wise comparison methods. HolyC ~Type_Eq~ helpers short-circuit
+  over scalar fields, use ~TilStrEq~ for managed strings, and recurse through
+  nested structs; ~eq~ and ~neq~ calls pass caller-owned values by pointer.
+  Custom ~eq~ or ~cmp~ methods remain explicit unsupported shapes rather than
+  being silently replaced with structural semantics. The expanded shared
+  ~test/script_struct_runtime.til~ covers equal and unequal nested POD and
+  managed structs on the interpreter and C backend. TempleOS 5.03 compiled and
+  ran the same generated program with ~TILTEST:PASS~.
 
 *** QEMU validation
 
