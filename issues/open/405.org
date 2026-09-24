@@ -1,0 +1,44 @@
+# priority: low
+# category: optimizations
+** OPEN #405 Avoid owning Array(Str) and formatting allocations in panic
+
+Keep the current panic implementation for the shared-core work in #90. This
+is a potential later optimization, not a prerequisite for sharing its current
+concrete Array(Str), formatting, and printing dependencies.
+
+Currently ~panic(parts: ..Str, loc: Str = __LOC__)~ in ~src/core/exit.til~
+formats the message with ~format(..parts)~, prints it with ~println~, and
+exits with status 1. Variadic calls construct a Til Array(Str), bringing its
+generated allocation and lifecycle helpers into even a single-message error
+path such as ~Str.get~ or ~Str.push_str~.
+
+Explore lowering panic calls to a borrowed sequence of string references and
+a count. For a fixed argument list, the compiler could emit a temporary C
+stack array of pointers to canonical Str values. A shared panic routine would
+print the location, prefix, each counted string, and newline directly, then
+exit. This would avoid the owning Til Array(Str) and concatenated-message
+allocations; evaluating message expressions may still allocate.
+
+For example, ~panic("invalid number: '", input, "'")~ could pass three
+borrowed string references rather than construct an owning collection and
+concatenate its contents. The source-level panic interface would stay intact.
+
+Requirements to investigate and verify:
+
+- Preserve argument evaluation order and lifetimes, including temporary
+  strings, empty argument lists, and splatted calls such as ~panic(..parts)~.
+- Preserve exact output bytes, stdout destination, newline, exit status, and
+  call-site/default or explicitly supplied location.
+- Use string counts rather than NUL termination, preserving views and
+  embedded NUL bytes.
+- Preserve interpreter, REPL, and compile-time panic behavior and noreturn
+  knowledge; a native exit routine must not bypass their existing handling.
+- Keep the internal boundary versioned with the runtime/core ABI and verify
+  composed libraries and supported native targets.
+- Add failure-path regressions and inspect generated code to establish that
+  panic packaging and formatting allocations are actually removed.
+
+Tradeoff: this introduces panic-specific lowering and an internal calling
+convention in place of reuse of ordinary variadic collection machinery.
+Choose the exact internal interface when implementing; no new public API,
+generated artifact, or dependency is required by this proposal.
