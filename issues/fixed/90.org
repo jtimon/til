@@ -255,3 +255,27 @@ emitted bodies depend on generated collection support.
 type, global, and allocating-function aliases. Its static/shared C and Til
 consumers execute clone, trim, C-string view, suffix view, and byte-allocation
 paths across the common core.
+
+*** Follow-up: shared variadic panic dependency group (2026-09-24)
+
+The existing panic implementation depended on artifact-local Array(Str)
+construction, insertion, cloning, and deletion, plus format and println.
+Even a single-message panic in Str.get or Str.push_str therefore prevented
+those functions from moving into the shared core.
+
+The fixed core partition now includes the canonical Array(Str) layout and
+the required methods, adopt(Str), Str.size, format, panic, println, and its
+print_single/print_flush output helpers. The latter are emitted directly by
+c_codegen and now use the same definition partition as Til-source functions.
+Str.get, Str.push_str, concat3, and Str.replace join this dependency group.
+Definitions still come from the existing Til sources; other generic
+specializations remain artifact-local. Static archives retain weak copies.
+Panic keeps its current variadic allocation, output, location, and exit
+behavior; the alternative borrowed C-array optimization is tracked in #405.
+
+The library_namespace regression checks canonical aliases and composed
+static/shared consumers, exercises formatting and replacement, and verifies
+exit status 1 and stdout diagnostics for out-of-bounds Str.get, both
+Str.push_str failures, and an explicit-location multipart panic. The install
+regression exercises formatting and panic through an installed Python binding
+from outside the repository.

@@ -1152,9 +1152,9 @@ EvalState := struct {
 
 // Fixed concrete core ABI shared by generated dynamic libraries. Keep this
 // list to canonical types, immutable globals, and functions whose emitted
-// bodies depend only on primitive/Str layout, this list, and ext.c. Generic,
-// reflection, closure and mutable-global code stays in each artifact. Names
-// use source qualification; c_codegen flattens '.'.
+// bodies depend only on the concrete layouts here, this list, and ext.c.
+// Other generic, reflection, closure and mutable-global code stays in each
+// artifact. Names use source qualification; c_codegen flattens '.'.
 builder_shared_core_source_names := func() returns Vec(Str) {
     mut names := Vec(Str).new()
     names.push(own "Str")
@@ -1183,6 +1183,27 @@ builder_shared_core_source_names := func() returns Vec(Str) {
     names.push(own "Str.strip_prefix")
     names.push(own "Str.strip_suffix")
     names.push(own "Str.from_byte")
+    // The existing variadic panic/format/println implementation and its
+    // concrete collection dependencies form one shared group with push_str.
+    names.push(own "Array__Str")
+    names.push(own "Array__Str.new")
+    names.push(own "Array__Str.len")
+    names.push(own "Array__Str.unsafe_get")
+    names.push(own "Array__Str.unsafe_set")
+    names.push(own "Array__Str.set")
+    names.push(own "Array__Str.clone")
+    names.push(own "Array__Str.delete")
+    names.push(own "adopt__Str")
+    names.push(own "Str.size")
+    names.push(own "Str.get")
+    names.push(own "Str.push_str")
+    names.push(own "Str.replace")
+    names.push(own "concat3")
+    names.push(own "format")
+    names.push(own "panic")
+    names.push(own "println")
+    names.push(own "print_single")
+    names.push(own "print_flush")
     names.push(own "Bool.size")
     names.push(own "Bool.delete")
     names.push(own "Dynamic.size")

@@ -1,7 +1,11 @@
 #include "library_namespace_a.h"
 #include "library_namespace_b.h"
+#include <stdlib.h>
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc == 2) {
+        return (int)til_library_x5fnamespace_x5fa__library_namespace_a_core_failure(atoi(argv[1]));
+    }
     if (til_library_x5fnamespace_x5fa__library_namespace_a_value() != 21) return 1;
     if (til_library_x5fnamespace_x5fb__library_namespace_b_value() != 42) return 2;
     if (til_library_x5fnamespace_x5fa__library_namespace_a_link_value() != 21) return 3;

@@ -101,7 +101,29 @@ library_namespace_a_string_default := func(value: Str = "a\"b\\c") returns I64 {
 library_namespace_a_core_string := func() returns I64 {
     source := " alpha "
     text := source.clone()
-    return text.trim().len().to_i64()
+    joined := concat3("<", text.trim(), ">")
+    replaced := joined.replace("alpha", "omega")
+    result := format(replaced.strip_prefix("<").strip_suffix(">"), "")
+    if result.get(0) != 'o' { return -1 }
+    return result.len().to_i64()
+}
+
+library_namespace_a_core_failure := func(kind: I64) returns I64 {
+    if kind == 1 {
+        text := "x"
+        return text.get(kind.to_usize()).cast(I64)
+    }
+    if kind == 2 {
+        mut text := Str.with_capacity(kind.to_usize())
+        text.push_str("overflow")
+        return text.len().to_i64()
+    }
+    if kind == 3 {
+        mut text := "literal"
+        text.push_str("x")
+        return text.len().to_i64()
+    }
+    panic("left", "/", "right", loc = "namespace-test")
 }
 
 library_namespace_a_throwing := func(value: I64) returns I64 throws BindingError {

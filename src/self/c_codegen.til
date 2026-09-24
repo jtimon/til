@@ -10086,19 +10086,23 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     f.write("#define TIL_CAP_LIT ((USize)0 - (USize)1)\n")
     f.write("#define TIL_CAP_VIEW ((USize)0 - (USize)2)\n")
     partitioned_output := lp.ctx.builder_core_c_prefix.len() > 0
-    if partitioned_output { f.write("#ifndef TIL_CORE_ONLY\n") }
     if print_single_kept {
+        partitioned_print := begin_shared_core_definition(f, "print_single", lp.ctx)
         f.write(pp_st).write("void print_single(Str *s) {\n")
         f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
         f.write("}\n")
+        end_shared_core_definition(f, partitioned_print)
     }
     if print_flush_kept {
+        partitioned_flush := begin_shared_core_definition(f, "print_flush", lp.ctx)
         f.write(pp_st).write("void print_flush() {\n")
         f.write("    putchar('\\n');\n")
         f.write("}\n")
+        end_shared_core_definition(f, partitioned_flush)
     }
     f.write("\n")
 
+    if partitioned_output { f.write("#ifndef TIL_CORE_ONLY\n") }
     builder_register_str_lits(lp)
     builder_emit_str_lit_pool(f, lp.ctx)
     builder_emit_loc_region(f, lp.ctx)

@@ -21,6 +21,27 @@ line_starting_with := func(text: Str, prefix: Str) returns Str {
     return ""
 }
 
+check_core_failures := proc(executable: Str) {
+    for kind in 1..5 {
+        cmd := Cmd.new(executable, kind.to_str())
+        cmd.capture()
+        if cmd.run() != 1 { panic("shared core failure did not exit with status 1") }
+        if cmd.err().len() != 0 { panic("shared core panic changed output stream: ", cmd.err()) }
+        output := cmd.out()
+        if kind == 4 {
+            if output != "namespace-test: panic: left/right\n" { panic("shared panic output mismatch: ", output) }
+        } else {
+            require_contains(output, "src/core/str.til:")
+            mut message := "Str.get: index out of bounds"
+            if kind == 2 { message = "Str.push_str: capacity exceeded" }
+            if kind == 3 { message = "Str.push_str: cannot mutate a string view or literal" }
+            if output.ends_with(format(": panic: ", message, "\n")).not() {
+                panic("shared core panic output mismatch: ", output)
+            }
+        }
+    }
+}
+
 main := proc() {
     til_bin := "bin/til"
     build_a := Cmd.new(til_bin, "build", "test/library_namespace_a.til")
@@ -60,6 +81,15 @@ main := proc() {
     core_clone_b := line_starting_with(fwd_b, "#define Str_clone ")
     if core_clone_a != core_clone_b { panic("libraries do not share allocating Str functions") }
     require_contains(core_clone_a, "til_tilcore_x2d")
+    for core_name : Str in array(Str, "Array__Str", "Array__Str_new", "Array__Str_delete",
+            "Array__Str_clone", "adopt__Str", "panic", "format", "println", "print_single",
+            "print_flush", "Str_get", "Str_push_str", "Str_replace", "concat3") {
+        prefix := format("#define ", core_name, " ")
+        alias_a := line_starting_with(fwd_a, prefix)
+        alias_b := line_starting_with(fwd_b, prefix)
+        if alias_a != alias_b { panic("inconsistent shared core symbol: ", core_name) }
+        require_contains(alias_a, "til_tilcore_x2d")
+    }
     if py_a.contains("USize").or(py_b.contains("USize")) {
         panic("generated Python binding contains unresolved USize")
     }
@@ -124,11 +154,13 @@ main := proc() {
         "gen/lib/liblibrary_namespace_a.a", "gen/lib/liblibrary_namespace_b.a",
         "-lm", "-o", "tmp/library_namespace_static").run_checked()
     Cmd.new("tmp/library_namespace_static").run_checked()
+    check_core_failures("tmp/library_namespace_static")
 
     Cmd.new("cc", "-Werror", "-fsigned-char", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
         "-Lgen/lib", "-llibrary_namespace_a", "-llibrary_namespace_b",
         "-Wl,-rpath,gen/lib", "-lm", "-o", "tmp/library_namespace_shared").run_checked()
     Cmd.new("tmp/library_namespace_shared").run_checked()
+    check_core_failures("tmp/library_namespace_shared")
 
     consumer := Cmd.new("bin/til", "run", "-c", "gen/c/library_namespace_consumer.c",
                         "test/library_namespace_consumer.til")

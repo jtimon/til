@@ -97,7 +97,9 @@ main := proc() returns I64 {
     // it, and the installed Python binding finds both from outside the repo.
     File.writefile(format(WORK, "/installed_lib.til"), format(
         "mode lib\n\n",
-        "installed_value := func() returns I64 { return 77 }\n"))
+        "installed_value := func() returns I64 { return 77 }\n",
+        "installed_format := func() returns I64 { return format(\"hello\", \"!\").replace(\"!\", \"\").len().to_i64() }\n",
+        "installed_failure := func() { panic(\"installed\", \" core panic\", loc = \"installed-test\") }\n"))
     lib_install := Cmd.new(installed_til, "install", "--prefix=../install_test", "installed_lib.til")
     lib_install.cwd(WORK)
     lib_install.run_checked()
@@ -119,9 +121,18 @@ main := proc() returns I64 {
     if runtime_count != 1 { panic("library install produced ", runtime_count.to_str(), " shared runtimes") }
     if core_count != 1 { panic("library install produced ", core_count.to_str(), " shared cores") }
     py := Cmd.new("python3", "-c",
-        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77")
+        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77; assert installed_lib.installed_format() == 5")
     py.cwd(WORK)
     py.run_checked()
+    py_failure := Cmd.new("python3", "-c",
+        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; installed_lib.installed_failure()")
+    py_failure.cwd(WORK)
+    py_failure.capture()
+    if py_failure.run() != 1 { panic("installed shared panic did not exit with status 1") }
+    if py_failure.out() != "installed-test: panic: installed core panic\n" {
+        panic("installed shared panic output mismatch: ", py_failure.out())
+    }
+    if py_failure.err().len() != 0 { panic("installed shared panic wrote stderr: ", py_failure.err()) }
 
     // The gui leg (issue #348): mode gui from OUTSIDE the repo, both
     // backends, deliberately windowless (like test/gui_interp.til --
