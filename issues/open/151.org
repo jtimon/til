@@ -269,7 +269,7 @@
   interpreter, C backend, and HolyC translation, and deliberately declares its
   outer struct before its inline dependency. TempleOS 5.03 compiled and ran it
   with ~TILTEST:PASS~; a self-checking guest probe verified every nested field.
-  Ref fields and enums remain in the unchecked aggregate milestone.
+  Ref fields and payload-bearing enums remain in the unchecked aggregate milestone.
 
   The thirteenth slice adds managed Str fields and value-struct function ABI.
   Generated recursive clone/delete helpers preserve nested aggregate ownership,
@@ -291,6 +291,25 @@
   ~test/script_struct_runtime.til~ covers equal and unequal nested POD and
   managed structs on the interpreter and C backend. TempleOS 5.03 compiled and
   ran the same generated program with ~TILTEST:PASS~.
+
+  The fifteenth slice adds payload-free enums as values of their resolved
+  U8/U16/U32/U64 tag type, including explicit discriminants, variant values,
+  parameters/returns, ~is~, ~eq~/~neq~, and generated clone/delete operations.
+  Enum switches evaluate the subject once and compare full-width tags inside
+  a one-iteration block, preserving multi-pattern cases, defaults, and nesting.
+  Native HolyC switches reject sparse tag ranges (the guest reported
+  ~switch range error~ for tags 7 and 4294967303), so this lowering does not
+  depend on HolyC's dense jump-table range. Payload enums and custom methods
+  are rejected explicitly.
+
+  The shared ~test/script_struct_runtime.til~ covers all four tag widths,
+  inferred width, U32_MAX, U64 tags with identical low 32 bits, mutation,
+  non-folded function returns, and single-evaluation/nested switches. Its
+  U32_MAX case also exposed and fixes a shared interpreter tag-reader bug:
+  four-byte unsigned discriminants were sign-extended through I32 instead of
+  read as U32. Interpreter and C outputs match. TempleOS 5.03 under QEMU TCG
+  compiled the same generated program with ~ExeFile2~, produced the complete
+  expected output over debugcon, and reported ~TILTEST:PASS~.
 
 *** QEMU validation
 

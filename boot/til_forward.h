@@ -1190,6 +1190,8 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str user_return_types;
     Set__Str str_return_functions;
     Set__Str struct_names;
+    Map__Str_Str enum_types;
+    USize switch_id;
     Bool needs_i64_div;
     Bool needs_i64_mod;
 } priv___src_self_holyc_codegen_til__HolyCEmitState;

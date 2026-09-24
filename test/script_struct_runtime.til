@@ -59,3 +59,81 @@ own named.delete()
 own copy.delete()
 own source.delete()
 own segment_copy.delete()
+
+Signal := enum(U16) { Cold = 7, Warm = 12, Hot }
+signal_next := func(signal: Signal) returns Signal {
+    switch signal {
+    case .Cold: return Signal.Warm
+    case .Warm: return Signal.Hot
+    case .Hot: return Signal.Cold
+    }
+}
+mut signal := Signal.Cold
+mut turns := 0
+while turns < 3 {
+    switch signal {
+    case .Cold: println("cold")
+    case .Warm, .Hot: println("warm or hot")
+    }
+    if signal.is(Signal.Warm) { println("is warm") }
+    if signal.eq(Signal.Hot) { println("equals hot") }
+    if signal.neq(Signal.Cold) { println("not cold") }
+    signal = signal_next(signal)
+    turns++
+}
+switch signal {
+case .Hot: println("unexpected hot")
+case: println("default cold")
+}
+
+WideSignal := enum(U64) { Low = 7, Other = 8, High = 4294967303 }
+wide_from_signal := func(signal: Signal) returns WideSignal {
+    if signal.is(Signal.Cold) { return WideSignal.High }
+    return WideSignal.Low
+}
+wide := wide_from_signal(signal)
+if wide.is(WideSignal.High) { println("wide high") }
+if wide.neq(WideSignal.Low) { println("wide distinct") }
+switch wide {
+case .Low: println("unexpected low")
+case .High: println("wide switch")
+case: println("unexpected wide tag")
+}
+
+SmallSignal := enum(U8) { Low = 0, High = 255 }
+small_from_signal := func(signal: Signal) returns SmallSignal {
+    if signal.is(Signal.Cold) { return SmallSignal.High }
+    return SmallSignal.Low
+}
+small := small_from_signal(signal)
+if small.eq(SmallSignal.High) { println("small high") }
+
+DefaultSignal := enum { First, Second }
+default_from_signal := func(signal: Signal) returns DefaultSignal {
+    if signal.is(Signal.Cold) { return DefaultSignal.Second }
+    return DefaultSignal.First
+}
+default_signal := default_from_signal(signal)
+if default_signal.is(DefaultSignal.Second) { println("default second") }
+
+MediumSignal := enum(U32) { Low = 0, High = 4294967295 }
+medium_from_signal := func(signal: Signal) returns MediumSignal {
+    if signal.is(Signal.Cold) { return MediumSignal.High }
+    return MediumSignal.Low
+}
+medium := medium_from_signal(signal)
+if medium.is(MediumSignal.High) { println("medium high") }
+
+counted_signal := func(mut point: StructPoint) returns Signal {
+    point.x = point.x + 1
+    return Signal.Warm
+}
+switch counted_signal(point) {
+case .Warm:
+    switch signal {
+    case .Cold: println("nested cold")
+    case: println("unexpected nested tag")
+    }
+case: println("unexpected counted tag")
+}
+if point.x == 8 { println("evaluated once") }

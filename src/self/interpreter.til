@@ -404,8 +404,8 @@ enum_data_tag_key := func(data: Dynamic, enum_def: Expr) returns I64 {
     if tag_w == 1 { ref t : U8 = data; return t.to_i64() }
     if tag_w == 2 { ref t : U16 = data; return t.to_i64() }
     if tag_w == 8 { ref t : I64 = data; return t.clone() }
-    ref t : I32 = data
-    return t.cast(I64)
+    ref t : U32 = data
+    return t.to_i64()
 }
 
 // #321 step 2: "this variant carries no payload" is a real, expected

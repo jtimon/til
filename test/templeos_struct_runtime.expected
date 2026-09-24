@@ -98,6 +98,12 @@ Bool StructSegment_Eq(StructSegment *a, StructSegment *b)
 extern U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name);
 extern I64 struct_named_point_score(StructNamedPoint *named);
 extern U0 rename_struct_named_point(StructNamedPoint *named);
+extern U16 signal_next(U16 signal);
+extern U64 wide_from_signal(U16 signal);
+extern U8 small_from_signal(U16 signal);
+extern U8 default_from_signal(U16 signal);
+extern U32 medium_from_signal(U16 signal);
+extern U16 counted_signal(StructPoint *point);
 
 U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name)
 {
@@ -138,46 +144,106 @@ U0 rename_struct_named_point(StructNamedPoint *named)
     }
 }
 
+U16 signal_next(U16 signal)
+{
+    do {
+        U16 enum_switch_0 = signal;
+        if ((enum_switch_0 == 7)) {
+            return 12;
+            break;
+        }
+        if ((enum_switch_0 == 12)) {
+            return 13;
+            break;
+        }
+        return 7;
+    } while (FALSE);
+}
+
+U64 wide_from_signal(U16 signal)
+{
+    Bool hoisted__Bool_0 = (signal == 7);
+    if (hoisted__Bool_0) {
+        return 4294967303;
+    }
+    return 7;
+}
+
+U8 small_from_signal(U16 signal)
+{
+    Bool hoisted__Bool_0 = (signal == 7);
+    if (hoisted__Bool_0) {
+        return 255;
+    }
+    return 0;
+}
+
+U8 default_from_signal(U16 signal)
+{
+    Bool hoisted__Bool_0 = (signal == 7);
+    if (hoisted__Bool_0) {
+        return 1;
+    }
+    return 0;
+}
+
+U32 medium_from_signal(U16 signal)
+{
+    Bool hoisted__Bool_0 = (signal == 7);
+    if (hoisted__Bool_0) {
+        return 4294967295;
+    }
+    return 0;
+}
+
+U16 counted_signal(StructPoint *point)
+{
+    I64 hoisted__I64_0 = 1;
+    I64 hoisted__I64_1 = (point->x + hoisted__I64_0);
+    point->x = hoisted__I64_1;
+    return 12;
+}
+
 I64 TilMain()
 {
-    I64 hoisted__I64_g22 = 2;
-    I64 hoisted__I64_g23 = 3;
+    I64 hoisted__I64_g86 = 2;
+    I64 hoisted__I64_g87 = 3;
     StructPoint point;
-    point.x = hoisted__I64_g22;
-    point.y = hoisted__I64_g23;
-    I64 hoisted__I64_g24 = 7;
-    point.x = hoisted__I64_g24;
-    I64 hoisted__I64_g25 = 5;
-    I64 hoisted__I64_g26 = 7;
-    I64 hoisted__I64_g27 = 11;
-    I64 hoisted__I64_g28 = 13;
-    Bool hoisted__Bool_g29 = TRUE;
+    point.x = hoisted__I64_g86;
+    point.y = hoisted__I64_g87;
+    I64 hoisted__I64_g88 = 7;
+    point.x = hoisted__I64_g88;
+    I64 hoisted__I64_g89 = 5;
+    I64 hoisted__I64_g90 = 7;
+    I64 hoisted__I64_g91 = 11;
+    I64 hoisted__I64_g92 = 13;
+    Bool hoisted__Bool_g93 = TRUE;
     StructSegment segment;
-    segment.start.x = hoisted__I64_g25;
-    segment.start.y = hoisted__I64_g26;
-    segment.finish.x = hoisted__I64_g27;
-    segment.finish.y = hoisted__I64_g28;
-    segment.active = hoisted__Bool_g29;
-    U64 hoisted__U64_g30 = 1;
-    TilStrArray _va_Array_g5;
-    TilStrArrayNew(&_va_Array_g5, hoisted__U64_g30);
-    I64 _va_Array_g5_ek = 0;
-    I64 hoisted__I64_g31 = (point.x + point.y);
-    U64 hoisted__U64_g32 = 0;
-    TilStr hoisted__Str_g33;
-    TilStrFromI64(&hoisted__Str_g33, hoisted__I64_g31);
-    TilStrArraySet(&_va_Array_g5, hoisted__U64_g32, &hoisted__Str_g33);
-    TilPrintln(&_va_Array_g5);
-    U64 hoisted__U64_g34 = 1;
-    TilStrArray _va_Array_g6;
-    TilStrArrayNew(&_va_Array_g6, hoisted__U64_g34);
-    I64 _va_Array_g6_ek = 0;
-    I64 hoisted__I64_g35 = (segment.start.x + segment.finish.y);
-    U64 hoisted__U64_g36 = 0;
-    TilStr hoisted__Str_g37;
-    TilStrFromI64(&hoisted__Str_g37, hoisted__I64_g35);
-    TilStrArraySet(&_va_Array_g6, hoisted__U64_g36, &hoisted__Str_g37);
-    TilPrintln(&_va_Array_g6);
+    segment.start.x = hoisted__I64_g89;
+    segment.start.y = hoisted__I64_g90;
+    segment.finish.x = hoisted__I64_g91;
+    segment.finish.y = hoisted__I64_g92;
+    segment.active = hoisted__Bool_g93;
+    U64 hoisted__U64_g94 = 1;
+    TilStrArray _va_Array_g24;
+    TilStrArrayNew(&_va_Array_g24, hoisted__U64_g94);
+    I64 _va_Array_g24_ek = 0;
+    I64 hoisted__I64_g95 = (point.x + point.y);
+    U64 hoisted__U64_g96 = 0;
+    TilStr hoisted__Str_g97;
+    TilStrFromI64(&hoisted__Str_g97, hoisted__I64_g95);
+    TilStrArraySet(&_va_Array_g24, hoisted__U64_g96, &hoisted__Str_g97);
+    TilPrintln(&_va_Array_g24);
+    U64 hoisted__U64_g98 = 1;
+    TilStrArray _va_Array_g25;
+    TilStrArrayNew(&_va_Array_g25, hoisted__U64_g98);
+    I64 _va_Array_g25_ek = 0;
+    I64 hoisted__I64_g99 = (segment.start.x + segment.finish.y);
+    U64 hoisted__U64_g100 = 0;
+    TilStr hoisted__Str_g101;
+    TilStrFromI64(&hoisted__Str_g101, hoisted__I64_g99);
+    TilStrArraySet(&_va_Array_g25, hoisted__U64_g100, &hoisted__Str_g101);
+    TilPrintln(&_va_Array_g25);
     if (segment.active) {
         U64 hoisted__U64_g7 = 1;
         TilStrArray _va_Array_g0;
@@ -191,8 +257,8 @@ I64 TilMain()
     }
     StructSegment segment_copy;
     StructSegment_Clone(&segment_copy, &segment);
-    Bool hoisted__Bool_g38 = StructSegment_Eq(&segment, &segment_copy);
-    if (hoisted__Bool_g38) {
+    Bool hoisted__Bool_g102 = StructSegment_Eq(&segment, &segment_copy);
+    if (hoisted__Bool_g102) {
         U64 hoisted__U64_g10 = 1;
         TilStrArray _va_Array_g1;
         TilStrArrayNew(&_va_Array_g1, hoisted__U64_g10);
@@ -203,10 +269,10 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g1, hoisted__U64_g11, &hoisted__Str_g12);
         TilPrintln(&_va_Array_g1);
     }
-    I64 hoisted__I64_g39 = 14;
-    segment_copy.finish.y = hoisted__I64_g39;
-    Bool hoisted__Bool_g40 = (!StructSegment_Eq(&segment, &segment_copy));
-    if (hoisted__Bool_g40) {
+    I64 hoisted__I64_g103 = 14;
+    segment_copy.finish.y = hoisted__I64_g103;
+    Bool hoisted__Bool_g104 = (!StructSegment_Eq(&segment, &segment_copy));
+    if (hoisted__Bool_g104) {
         U64 hoisted__U64_g13 = 1;
         TilStrArray _va_Array_g2;
         TilStrArrayNew(&_va_Array_g2, hoisted__U64_g13);
@@ -217,19 +283,19 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g2, hoisted__U64_g14, &hoisted__Str_g15);
         TilPrintln(&_va_Array_g2);
     }
-    U64 hoisted__U64_g41 = 5;
+    U64 hoisted__U64_g105 = 5;
     TilStr source;
-    TilStrWithCapacity(&source, hoisted__U64_g41);
-    TilStr hoisted__Str_g42;
-    TilStrInitLit(&hoisted__Str_g42, "alpha", 5);
-    TilStrPush(&source, &hoisted__Str_g42);
-    TilStrDelete(&hoisted__Str_g42, FALSE);
+    TilStrWithCapacity(&source, hoisted__U64_g105);
+    TilStr hoisted__Str_g106;
+    TilStrInitLit(&hoisted__Str_g106, "alpha", 5);
+    TilStrPush(&source, &hoisted__Str_g106);
+    TilStrDelete(&hoisted__Str_g106, FALSE);
     StructNamedPoint named;
     make_struct_named_point(&named, &source);
     StructNamedPoint copy;
     StructNamedPoint_Clone(&copy, &named);
-    Bool hoisted__Bool_g43 = StructNamedPoint_Eq(&named, &copy);
-    if (hoisted__Bool_g43) {
+    Bool hoisted__Bool_g107 = StructNamedPoint_Eq(&named, &copy);
+    if (hoisted__Bool_g107) {
         U64 hoisted__U64_g16 = 1;
         TilStrArray _va_Array_g3;
         TilStrArrayNew(&_va_Array_g3, hoisted__U64_g16);
@@ -241,8 +307,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g3);
     }
     rename_struct_named_point(&named);
-    Bool hoisted__Bool_g44 = (!StructNamedPoint_Eq(&named, &copy));
-    if (hoisted__Bool_g44) {
+    Bool hoisted__Bool_g108 = (!StructNamedPoint_Eq(&named, &copy));
+    if (hoisted__Bool_g108) {
         U64 hoisted__U64_g19 = 1;
         TilStrArray _va_Array_g4;
         TilStrArrayNew(&_va_Array_g4, hoisted__U64_g19);
@@ -253,48 +319,298 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g4, hoisted__U64_g20, &hoisted__Str_g21);
         TilPrintln(&_va_Array_g4);
     }
-    U64 hoisted__U64_g45 = 1;
-    TilStrArray _va_Array_g7;
-    TilStrArrayNew(&_va_Array_g7, hoisted__U64_g45);
-    I64 _va_Array_g7_ek = 0;
-    U64 hoisted__U64_g46 = 0;
-    TilStr hoisted__Str_g47;
-    TilStrClone(&hoisted__Str_g47, &copy.name);
-    TilStrArraySet(&_va_Array_g7, hoisted__U64_g46, &hoisted__Str_g47);
-    TilPrintln(&_va_Array_g7);
-    U64 hoisted__U64_g48 = 1;
-    TilStrArray _va_Array_g8;
-    TilStrArrayNew(&_va_Array_g8, hoisted__U64_g48);
-    I64 _va_Array_g8_ek = 0;
-    U64 hoisted__U64_g49 = 0;
-    TilStr hoisted__Str_g50;
-    TilStrClone(&hoisted__Str_g50, &named.name);
-    TilStrArraySet(&_va_Array_g8, hoisted__U64_g49, &hoisted__Str_g50);
-    TilPrintln(&_va_Array_g8);
-    U64 hoisted__U64_g51 = 1;
-    TilStrArray _va_Array_g9;
-    TilStrArrayNew(&_va_Array_g9, hoisted__U64_g51);
-    I64 _va_Array_g9_ek = 0;
-    I64 hoisted__I64_g52 = struct_named_point_score(&copy);
-    U64 hoisted__U64_g53 = 0;
-    TilStr hoisted__Str_g54;
-    TilStrFromI64(&hoisted__Str_g54, hoisted__I64_g52);
-    TilStrArraySet(&_va_Array_g9, hoisted__U64_g53, &hoisted__Str_g54);
-    TilPrintln(&_va_Array_g9);
-    U64 hoisted__U64_g55 = 1;
-    TilStrArray _va_Array_g10;
-    TilStrArrayNew(&_va_Array_g10, hoisted__U64_g55);
-    I64 _va_Array_g10_ek = 0;
-    I64 hoisted__I64_g56 = struct_named_point_score(&named);
-    U64 hoisted__U64_g57 = 0;
-    TilStr hoisted__Str_g58;
-    TilStrFromI64(&hoisted__Str_g58, hoisted__I64_g56);
-    TilStrArraySet(&_va_Array_g10, hoisted__U64_g57, &hoisted__Str_g58);
-    TilPrintln(&_va_Array_g10);
+    U64 hoisted__U64_g109 = 1;
+    TilStrArray _va_Array_g26;
+    TilStrArrayNew(&_va_Array_g26, hoisted__U64_g109);
+    I64 _va_Array_g26_ek = 0;
+    U64 hoisted__U64_g110 = 0;
+    TilStr hoisted__Str_g111;
+    TilStrClone(&hoisted__Str_g111, &copy.name);
+    TilStrArraySet(&_va_Array_g26, hoisted__U64_g110, &hoisted__Str_g111);
+    TilPrintln(&_va_Array_g26);
+    U64 hoisted__U64_g112 = 1;
+    TilStrArray _va_Array_g27;
+    TilStrArrayNew(&_va_Array_g27, hoisted__U64_g112);
+    I64 _va_Array_g27_ek = 0;
+    U64 hoisted__U64_g113 = 0;
+    TilStr hoisted__Str_g114;
+    TilStrClone(&hoisted__Str_g114, &named.name);
+    TilStrArraySet(&_va_Array_g27, hoisted__U64_g113, &hoisted__Str_g114);
+    TilPrintln(&_va_Array_g27);
+    U64 hoisted__U64_g115 = 1;
+    TilStrArray _va_Array_g28;
+    TilStrArrayNew(&_va_Array_g28, hoisted__U64_g115);
+    I64 _va_Array_g28_ek = 0;
+    I64 hoisted__I64_g116 = struct_named_point_score(&copy);
+    U64 hoisted__U64_g117 = 0;
+    TilStr hoisted__Str_g118;
+    TilStrFromI64(&hoisted__Str_g118, hoisted__I64_g116);
+    TilStrArraySet(&_va_Array_g28, hoisted__U64_g117, &hoisted__Str_g118);
+    TilPrintln(&_va_Array_g28);
+    U64 hoisted__U64_g119 = 1;
+    TilStrArray _va_Array_g29;
+    TilStrArrayNew(&_va_Array_g29, hoisted__U64_g119);
+    I64 _va_Array_g29_ek = 0;
+    I64 hoisted__I64_g120 = struct_named_point_score(&named);
+    U64 hoisted__U64_g121 = 0;
+    TilStr hoisted__Str_g122;
+    TilStrFromI64(&hoisted__Str_g122, hoisted__I64_g120);
+    TilStrArraySet(&_va_Array_g29, hoisted__U64_g121, &hoisted__Str_g122);
+    TilPrintln(&_va_Array_g29);
     StructNamedPoint_Delete(&named);
     StructNamedPoint_Delete(&copy);
     TilStrDelete(&source, FALSE);
     StructSegment_Delete(&segment_copy);
+    U16 signal = 7;
+    I64 turns = 0;
+    while (TRUE) {
+        I64 hoisted__I64_g38 = 3;
+        Bool _wcond_Bool_g22 = (turns < hoisted__I64_g38);
+        if (_wcond_Bool_g22) {
+        } else {
+            break;
+        }
+        do {
+            U16 enum_switch_1 = signal;
+            if ((enum_switch_1 == 7)) {
+                U64 hoisted__U64_g23 = 1;
+                TilStrArray _va_Array_g5;
+                TilStrArrayNew(&_va_Array_g5, hoisted__U64_g23);
+                I64 _va_Array_g5_ek = 0;
+                U64 hoisted__U64_g24 = 0;
+                TilStr hoisted__Str_g25;
+                TilStrInitLit(&hoisted__Str_g25, "cold", 4);
+                TilStrArraySet(&_va_Array_g5, hoisted__U64_g24, &hoisted__Str_g25);
+                TilPrintln(&_va_Array_g5);
+                break;
+            }
+            U64 hoisted__U64_g26 = 1;
+            TilStrArray _va_Array_g6;
+            TilStrArrayNew(&_va_Array_g6, hoisted__U64_g26);
+            I64 _va_Array_g6_ek = 0;
+            U64 hoisted__U64_g27 = 0;
+            TilStr hoisted__Str_g28;
+            TilStrInitLit(&hoisted__Str_g28, "warm or hot", 11);
+            TilStrArraySet(&_va_Array_g6, hoisted__U64_g27, &hoisted__Str_g28);
+            TilPrintln(&_va_Array_g6);
+        } while (FALSE);
+        Bool hoisted__Bool_g39 = (signal == 12);
+        if (hoisted__Bool_g39) {
+            U64 hoisted__U64_g29 = 1;
+            TilStrArray _va_Array_g7;
+            TilStrArrayNew(&_va_Array_g7, hoisted__U64_g29);
+            I64 _va_Array_g7_ek = 0;
+            U64 hoisted__U64_g30 = 0;
+            TilStr hoisted__Str_g31;
+            TilStrInitLit(&hoisted__Str_g31, "is warm", 7);
+            TilStrArraySet(&_va_Array_g7, hoisted__U64_g30, &hoisted__Str_g31);
+            TilPrintln(&_va_Array_g7);
+        }
+        Bool hoisted__Bool_g40 = (signal == 13);
+        if (hoisted__Bool_g40) {
+            U64 hoisted__U64_g32 = 1;
+            TilStrArray _va_Array_g8;
+            TilStrArrayNew(&_va_Array_g8, hoisted__U64_g32);
+            I64 _va_Array_g8_ek = 0;
+            U64 hoisted__U64_g33 = 0;
+            TilStr hoisted__Str_g34;
+            TilStrInitLit(&hoisted__Str_g34, "equals hot", 10);
+            TilStrArraySet(&_va_Array_g8, hoisted__U64_g33, &hoisted__Str_g34);
+            TilPrintln(&_va_Array_g8);
+        }
+        Bool hoisted__Bool_g41 = (signal != 7);
+        if (hoisted__Bool_g41) {
+            U64 hoisted__U64_g35 = 1;
+            TilStrArray _va_Array_g9;
+            TilStrArrayNew(&_va_Array_g9, hoisted__U64_g35);
+            I64 _va_Array_g9_ek = 0;
+            U64 hoisted__U64_g36 = 0;
+            TilStr hoisted__Str_g37;
+            TilStrInitLit(&hoisted__Str_g37, "not cold", 8);
+            TilStrArraySet(&_va_Array_g9, hoisted__U64_g36, &hoisted__Str_g37);
+            TilPrintln(&_va_Array_g9);
+        }
+        signal = signal_next(signal);
+        (++turns);
+    }
+    do {
+        U16 enum_switch_2 = signal;
+        if ((enum_switch_2 == 13)) {
+            U64 hoisted__U64_g42 = 1;
+            TilStrArray _va_Array_g10;
+            TilStrArrayNew(&_va_Array_g10, hoisted__U64_g42);
+            I64 _va_Array_g10_ek = 0;
+            U64 hoisted__U64_g43 = 0;
+            TilStr hoisted__Str_g44;
+            TilStrInitLit(&hoisted__Str_g44, "unexpected hot", 14);
+            TilStrArraySet(&_va_Array_g10, hoisted__U64_g43, &hoisted__Str_g44);
+            TilPrintln(&_va_Array_g10);
+            break;
+        }
+        U64 hoisted__U64_g45 = 1;
+        TilStrArray _va_Array_g11;
+        TilStrArrayNew(&_va_Array_g11, hoisted__U64_g45);
+        I64 _va_Array_g11_ek = 0;
+        U64 hoisted__U64_g46 = 0;
+        TilStr hoisted__Str_g47;
+        TilStrInitLit(&hoisted__Str_g47, "default cold", 12);
+        TilStrArraySet(&_va_Array_g11, hoisted__U64_g46, &hoisted__Str_g47);
+        TilPrintln(&_va_Array_g11);
+    } while (FALSE);
+    U64 wide = wide_from_signal(signal);
+    Bool hoisted__Bool_g123 = (wide == 4294967303);
+    if (hoisted__Bool_g123) {
+        U64 hoisted__U64_g48 = 1;
+        TilStrArray _va_Array_g12;
+        TilStrArrayNew(&_va_Array_g12, hoisted__U64_g48);
+        I64 _va_Array_g12_ek = 0;
+        U64 hoisted__U64_g49 = 0;
+        TilStr hoisted__Str_g50;
+        TilStrInitLit(&hoisted__Str_g50, "wide high", 9);
+        TilStrArraySet(&_va_Array_g12, hoisted__U64_g49, &hoisted__Str_g50);
+        TilPrintln(&_va_Array_g12);
+    }
+    Bool hoisted__Bool_g124 = (wide != 7);
+    if (hoisted__Bool_g124) {
+        U64 hoisted__U64_g51 = 1;
+        TilStrArray _va_Array_g13;
+        TilStrArrayNew(&_va_Array_g13, hoisted__U64_g51);
+        I64 _va_Array_g13_ek = 0;
+        U64 hoisted__U64_g52 = 0;
+        TilStr hoisted__Str_g53;
+        TilStrInitLit(&hoisted__Str_g53, "wide distinct", 13);
+        TilStrArraySet(&_va_Array_g13, hoisted__U64_g52, &hoisted__Str_g53);
+        TilPrintln(&_va_Array_g13);
+    }
+    do {
+        U64 enum_switch_3 = wide;
+        if ((enum_switch_3 == 7)) {
+            U64 hoisted__U64_g54 = 1;
+            TilStrArray _va_Array_g14;
+            TilStrArrayNew(&_va_Array_g14, hoisted__U64_g54);
+            I64 _va_Array_g14_ek = 0;
+            U64 hoisted__U64_g55 = 0;
+            TilStr hoisted__Str_g56;
+            TilStrInitLit(&hoisted__Str_g56, "unexpected low", 14);
+            TilStrArraySet(&_va_Array_g14, hoisted__U64_g55, &hoisted__Str_g56);
+            TilPrintln(&_va_Array_g14);
+            break;
+        }
+        if ((enum_switch_3 == 4294967303)) {
+            U64 hoisted__U64_g57 = 1;
+            TilStrArray _va_Array_g15;
+            TilStrArrayNew(&_va_Array_g15, hoisted__U64_g57);
+            I64 _va_Array_g15_ek = 0;
+            U64 hoisted__U64_g58 = 0;
+            TilStr hoisted__Str_g59;
+            TilStrInitLit(&hoisted__Str_g59, "wide switch", 11);
+            TilStrArraySet(&_va_Array_g15, hoisted__U64_g58, &hoisted__Str_g59);
+            TilPrintln(&_va_Array_g15);
+            break;
+        }
+        U64 hoisted__U64_g60 = 1;
+        TilStrArray _va_Array_g16;
+        TilStrArrayNew(&_va_Array_g16, hoisted__U64_g60);
+        I64 _va_Array_g16_ek = 0;
+        U64 hoisted__U64_g61 = 0;
+        TilStr hoisted__Str_g62;
+        TilStrInitLit(&hoisted__Str_g62, "unexpected wide tag", 19);
+        TilStrArraySet(&_va_Array_g16, hoisted__U64_g61, &hoisted__Str_g62);
+        TilPrintln(&_va_Array_g16);
+    } while (FALSE);
+    U8 small = small_from_signal(signal);
+    Bool hoisted__Bool_g125 = (small == 255);
+    if (hoisted__Bool_g125) {
+        U64 hoisted__U64_g63 = 1;
+        TilStrArray _va_Array_g17;
+        TilStrArrayNew(&_va_Array_g17, hoisted__U64_g63);
+        I64 _va_Array_g17_ek = 0;
+        U64 hoisted__U64_g64 = 0;
+        TilStr hoisted__Str_g65;
+        TilStrInitLit(&hoisted__Str_g65, "small high", 10);
+        TilStrArraySet(&_va_Array_g17, hoisted__U64_g64, &hoisted__Str_g65);
+        TilPrintln(&_va_Array_g17);
+    }
+    U8 default_signal = default_from_signal(signal);
+    Bool hoisted__Bool_g126 = (default_signal == 1);
+    if (hoisted__Bool_g126) {
+        U64 hoisted__U64_g66 = 1;
+        TilStrArray _va_Array_g18;
+        TilStrArrayNew(&_va_Array_g18, hoisted__U64_g66);
+        I64 _va_Array_g18_ek = 0;
+        U64 hoisted__U64_g67 = 0;
+        TilStr hoisted__Str_g68;
+        TilStrInitLit(&hoisted__Str_g68, "default second", 14);
+        TilStrArraySet(&_va_Array_g18, hoisted__U64_g67, &hoisted__Str_g68);
+        TilPrintln(&_va_Array_g18);
+    }
+    U32 medium = medium_from_signal(signal);
+    Bool hoisted__Bool_g127 = (medium == 4294967295);
+    if (hoisted__Bool_g127) {
+        U64 hoisted__U64_g69 = 1;
+        TilStrArray _va_Array_g19;
+        TilStrArrayNew(&_va_Array_g19, hoisted__U64_g69);
+        I64 _va_Array_g19_ek = 0;
+        U64 hoisted__U64_g70 = 0;
+        TilStr hoisted__Str_g71;
+        TilStrInitLit(&hoisted__Str_g71, "medium high", 11);
+        TilStrArraySet(&_va_Array_g19, hoisted__U64_g70, &hoisted__Str_g71);
+        TilPrintln(&_va_Array_g19);
+    }
+    {
+        U16 hoisted__Signal_g81 = counted_signal(&point);
+        Bool hoisted__Bool_g82 = (hoisted__Signal_g81 == 12);
+        hoisted__Signal_g81;
+        if (hoisted__Bool_g82) {
+            do {
+                U16 enum_switch_4 = signal;
+                if ((enum_switch_4 == 7)) {
+                    U64 hoisted__U64_g72 = 1;
+                    TilStrArray _va_Array_g20;
+                    TilStrArrayNew(&_va_Array_g20, hoisted__U64_g72);
+                    I64 _va_Array_g20_ek = 0;
+                    U64 hoisted__U64_g73 = 0;
+                    TilStr hoisted__Str_g74;
+                    TilStrInitLit(&hoisted__Str_g74, "nested cold", 11);
+                    TilStrArraySet(&_va_Array_g20, hoisted__U64_g73, &hoisted__Str_g74);
+                    TilPrintln(&_va_Array_g20);
+                    break;
+                }
+                U64 hoisted__U64_g75 = 1;
+                TilStrArray _va_Array_g21;
+                TilStrArrayNew(&_va_Array_g21, hoisted__U64_g75);
+                I64 _va_Array_g21_ek = 0;
+                U64 hoisted__U64_g76 = 0;
+                TilStr hoisted__Str_g77;
+                TilStrInitLit(&hoisted__Str_g77, "unexpected nested tag", 21);
+                TilStrArraySet(&_va_Array_g21, hoisted__U64_g76, &hoisted__Str_g77);
+                TilPrintln(&_va_Array_g21);
+            } while (FALSE);
+        } else {
+            U64 hoisted__U64_g78 = 1;
+            TilStrArray _va_Array_g22;
+            TilStrArrayNew(&_va_Array_g22, hoisted__U64_g78);
+            I64 _va_Array_g22_ek = 0;
+            U64 hoisted__U64_g79 = 0;
+            TilStr hoisted__Str_g80;
+            TilStrInitLit(&hoisted__Str_g80, "unexpected counted tag", 22);
+            TilStrArraySet(&_va_Array_g22, hoisted__U64_g79, &hoisted__Str_g80);
+            TilPrintln(&_va_Array_g22);
+        }
+    }
+    I64 hoisted__I64_g128 = 8;
+    Bool hoisted__Bool_g129 = (point.x == hoisted__I64_g128);
+    if (hoisted__Bool_g129) {
+        U64 hoisted__U64_g83 = 1;
+        TilStrArray _va_Array_g23;
+        TilStrArrayNew(&_va_Array_g23, hoisted__U64_g83);
+        I64 _va_Array_g23_ek = 0;
+        U64 hoisted__U64_g84 = 0;
+        TilStr hoisted__Str_g85;
+        TilStrInitLit(&hoisted__Str_g85, "evaluated once", 14);
+        TilStrArraySet(&_va_Array_g23, hoisted__U64_g84, &hoisted__Str_g85);
+        TilPrintln(&_va_Array_g23);
+    }
     return 0;
 }
 
