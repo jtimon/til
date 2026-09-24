@@ -166,5 +166,14 @@ overflow or precision loss into a parser/runtime panic or silent infinity.
   signed-overflowing parser used to materialize ~I64.MIN~ / ~U64.MAX~.
 - [ ] Decide the fixed unconstrained float fallback: keep ~F32~ or change all
   unconstrained float literals to ~F64~.
-- [ ] Consider indexed/enumerated collection iteration separately from literal
-  defaults.
+- [X] Add indexed collection iteration: ~for i, value in collection~ and
+  ~for i, mut value in collection~. The immutable zero-based index has the
+  collection's ~len()~/~get()~ index type; values retain single-binding loop
+  borrowing and mutation semantics. Maps keep their existing key/value form.
+  The iterable is evaluated once and ~continue~ advances the hidden counter
+  without changing the visible index. Str binds byte indices and bytes.
+  Regressions: ~test/loops.til~ covers Vec/Array/Str, mutation, empty/nested
+  loops, break/continue, ignored bindings, and a custom I32-indexed collection
+  with a counted iterable expression. ~test/typer_errors.til~ covers immutable
+  indices, mismatched index annotations, and mutation through a read-only
+  collection borrow. Clean full suite: 478/478 passed.

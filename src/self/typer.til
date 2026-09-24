@@ -13730,11 +13730,26 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
     return true
 }
 
-priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, mut ctx: Context) returns Bool {
+priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, mut ctx: Context, iter_inferred: Bool = false) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut iter : Expr = stmt.children[0]
 
-    infer_expr(scope, iter, in_func, ctx)
+    // Two-binding dispatch has already inferred the iterable to distinguish
+    // maps from indexed collections. Do not desugar that expression twice.
+    if iter_inferred.not() { infer_expr(scope, iter, in_func, ctx) }
+
+    mut index_name := ""
+    switch stmt.node_type {
+    case .ForIn(fid):
+        if fid.name2.len() > 0 {
+            index_name = fid.name.clone()
+            if fid.is_mut {
+                stmt.type_error("for i, value in collection: the index binding cannot be 'mut'", ctx)
+            }
+        }
+    case:
+        UNREACHABLE("expected ForIn, got ", stmt.node_type.head_str(ctx.symbols.names))
+    }
 
     mut type_name := ""
     if is_aggregate(iter.til_type()) {
@@ -13793,7 +13808,11 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     stmt_tname_o := expr_type_name_ref(stmt)
     if stmt_tname_o.is_some() {
         ref stmt_tname : Str = stmt_tname_o.unwrap()
-        elem_type = stmt_tname.clone()
+        if index_name.len() == 0 {
+            elem_type = stmt_tname.clone()
+        } else if type_from_name(stmt_tname, scope, ctx) != type_from_name(idx_type, scope, ctx) {
+            stmt.type_error(format("index binding type must match collection index type '", idx_type, "'"), ctx)
+        }
     }
     mut get_returns_ref := false
     mut get_throws := false
@@ -13863,8 +13882,13 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     mut forin_is_mut := false
     switch stmt.node_type {
     case .ForIn(forin_data_c):
-        var_name = forin_data_c.name.clone()
-        forin_is_mut = forin_data_c.is_mut
+        if index_name.len() > 0 {
+            var_name = forin_data_c.name2.clone()
+            forin_is_mut = forin_data_c.is_mut2
+        } else {
+            var_name = forin_data_c.name.clone()
+            forin_is_mut = forin_data_c.is_mut
+        }
     case:
         UNREACHABLE("expected ForIn, got ", stmt.node_type.head_str(ctx.symbols.names))
         return false
@@ -13938,6 +13962,15 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     while_node.add_child(own cond_call)
 
     mut wbody := Expr.new(NodeType.Body, line, col)
+
+    // Copy the current position, never borrow the counter: it advances before
+    // the user body so continue works, while the visible index stays unchanged.
+    // An ignored position needs no binding (in particular for `for _, _`).
+    if index_name.len().gt(0).and(index_name.neq("_")) {
+        mut index_decl := Expr.new(NodeType.Decl(decl_typed(name = index_name, type_name = idx_type)), line, col)
+        index_decl.add_child(own Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col))
+        wbody.add_child(own index_decl)
+    }
 
     mut forin_own := OwnType.Shallow
     if get_returns_ref { forin_own = OwnType.Ref }
@@ -14090,27 +14123,8 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
         return false
     }
 
-    // The key of a two-variable for-in cannot be `mut`: mutating a key in
-    // place breaks the map's key ordering (Map/DynMap binary search) and
-    // bucket placement (HashMap), so a later get/has/set would silently
-    // miss. Values may be mutated (`for k, mut v`); keys may not. Flag it
-    // and continue as a non-mut key so the rest of typing stays sane.
-    if forin_is_mut {
-        stmt.type_error("for k, v in map: the key binding cannot be 'mut' -- mutating a key in place breaks the map's key ordering; drop 'mut' on the key (use 'for k, mut v' to mutate values)", ctx)
-        forin_is_mut = false
-    }
-
     ref mut iter : Expr = stmt.children[0]
     infer_expr(scope, iter, in_func, ctx)
-
-    // `for [mut] k, mut v in map` mutates the map's keys/values through
-    // the element refs, so the map's `mut` is justified -- mark its root
-    // binding written so check_unused_mut_locals doesn't later flag a
-    // `mut map` whose only writer is this loop.
-    if forin_is_mut.or(forin_is_mut2) {
-        mark_written_through(scope, iter, ctx.symbols)
-        check_write_roots_mut(scope, stmt, iter, "mutate the entries of this map", ctx)
-    }
 
     mut type_name := ""
     if is_aggregate(iter.til_type()) {
@@ -14132,8 +14146,18 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
     }
     ref sdef : Expr = sdef_o.unwrap()
     if struct_def_has_field(sdef, "keys").and(struct_def_has_field(sdef, "values")).not() {
-        stmt.type_error(format("type '", type_name, "' has no 'keys'/'values' fields (required for two-variable for-in)"), ctx)
-        return false
+        return desugar_for_in_collection_stmt(scope, body, stmt_idx, in_func, ctx, true)
+    }
+
+    // Map keys remain immutable; a sequence's first binding is instead its
+    // immutable position, handled by the collection lowering above.
+    if forin_is_mut {
+        stmt.type_error("for k, v in map: the key binding cannot be 'mut' -- mutating a key in place breaks the map's key ordering; drop 'mut' on the key (use 'for k, mut v' to mutate values)", ctx)
+        forin_is_mut = false
+    }
+    if forin_is_mut2 {
+        mark_written_through(scope, iter, ctx.symbols)
+        check_write_roots_mut(scope, stmt, iter, "mutate the entries of this map", ctx)
     }
 
     ref for_body : Expr = stmt.children[1]

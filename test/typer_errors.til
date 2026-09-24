@@ -1703,3 +1703,20 @@ terr399_agg_field := func() returns Str {
     ss.push(own Terr399S(t = format("he", "llo")))
     return ss[0].t
 }
+
+// #403: indexed collection loops expose an immutable position and retain
+// the ordinary collection mutability requirements for element writes.
+terr403_values := vec(I64, 10, 20)
+for mut terr403_i, value in terr403_values {
+    println(terr403_i.to_str(), value.to_str())
+}
+for terr403_j, value in terr403_values {
+    terr403_j = 1
+    println(terr403_j.to_str(), value.to_str())
+}
+terr403_immutable_collection := func(values: Vec(I64)) {
+    for _, mut value in values { value = value + 1 }
+}
+for terr403_k : I8, value in terr403_values {
+    println(terr403_k.to_str(), value.to_str())
+}

@@ -36,6 +36,87 @@ test_for_in_array := test() {
     assert_eq(I64, sum, 15)
 }
 
+test_for_index_value := test() {
+    values := vec(I64, 10, 20, 30, 40)
+    mut visited : USize = 0
+    for i, value in values {
+        assert_eq(USize, i, visited)
+        assert_eq(I64, value, values[i])
+        visited++
+        if i == 1 { continue }
+        if i == 2 { break }
+    }
+    assert_eq(USize, visited, 3)
+
+    fixed := array(I64, 10, 20, 30)
+    mut total := 0
+    for i : USize, value in fixed {
+        total = total + i.to_i64() + value
+    }
+    assert_eq(I64, total, 63)
+}
+
+test_for_index_mut_value := test() {
+    mut values := vec(I64, 10, 20, 30)
+    for i, mut value in values { value = value + i.to_i64() }
+    assert_eq(I64, values[0], 10)
+    assert_eq(I64, values[1], 21)
+    assert_eq(I64, values[2], 32)
+
+    mut fixed := array(I64, 1, 2)
+    for _, mut value in fixed { value = value * 10 }
+    assert_eq(I64, fixed[0], 10)
+    assert_eq(I64, fixed[1], 20)
+}
+
+test_for_index_str_empty_nested := test() {
+    // UTF-8 bytes for e-acute followed by x: indices address bytes, not runes.
+    text := "\xc3\xa9x"
+    mut visited : USize = 0
+    for i, byte in text {
+        assert_eq(USize, i, visited)
+        assert_eq(I8, byte, text[i])
+        visited++
+    }
+    assert_eq(USize, visited, 3)
+    empty := Vec(I64).new()
+    for _, _ in empty { panic("empty indexed iteration ran") }
+
+    outer := array(I64, 1, 2)
+    inner := array(I64, 3, 4)
+    mut sum := 0
+    for i, a in outer {
+        for j, b in inner { sum = sum + a * b + i.to_i64() + j.to_i64() }
+    }
+    assert_eq(I64, sum, 25)
+}
+
+IndexedI32Collection := struct {
+    count : I32 = 3
+namespace:
+    len := func(self: IndexedI32Collection) returns I32 { return self.count }
+    get := func(self: IndexedI32Collection, i: I32) returns I64 {
+        return i.cast(I64) * self.count.cast(I64)
+    }
+}
+
+indexed_collection_once := func(mut calls: I64) returns IndexedI32Collection {
+    calls++
+    return IndexedI32Collection()
+}
+
+test_for_index_custom_once := test() {
+    mut calls := 0
+    mut count : I32 = 0
+    for i, value in indexed_collection_once(calls) {
+        assert_eq(I32, i, count)
+        assert_eq(I64, value, i.cast(I64) * 3)
+        count++
+    }
+    assert_eq(I32, count, 3)
+    assert_eq(I64, calls, 1)
+}
+
 test_for_in_break := test() {
     mut count := 0
     for _c in "abcdef" {

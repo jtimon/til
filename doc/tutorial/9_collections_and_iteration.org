@@ -54,6 +54,22 @@ for n : I64 in numbers {
 The element type is usually inferred, so ~for n in numbers~ is equivalent.
 ~break~ and ~continue~ work as they do in range loops.
 
+Two bindings give the zero-based index followed by the element:
+
+#+begin_src til :doctest
+mut values := vec(I64, 10, 20, 30)
+for i, mut value in values {
+    value = value + i.to_i64()
+}
+assert_eq(I64, values[2], 32)
+#+end_src
+
+The index is immutable and uses the collection's ~len()~/~get()~ index type
+(~USize~ for arrays, vectors, and strings). The value has the same borrowing
+and ~mut~ behavior as single-binding iteration. Use ~_~ to ignore either
+binding. The collection expression is evaluated once. String iteration binds
+a byte index and an ~I8~ byte, not a Unicode character index.
+
 ** Maps
 
 A map literal infers its key and value types:
