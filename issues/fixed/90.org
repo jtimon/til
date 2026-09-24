@@ -231,3 +231,27 @@ Generic instantiations, aggregate lifecycle code, reflection, closure tables,
 mutable core globals, and allocating/string-producing core functions remain
 artifact-local. Moving any of those needs a canonical type/global/literal
 partition rather than broadening this leaf ABI by name alone.
+
+*** Follow-up: canonical Str ownership (2026-08-30)
+
+The shared core now owns the versioned C ~Str~ layout and the immutable
+~CAP_LIT~ / ~CAP_VIEW~ data symbols. Compatible public headers map ~Str~ to
+the same core name and guard its definition with that versioned identity, so
+two independent headers compose around one canonical layout. Shared library
+objects declare the CAP globals from ~libtilcore~; core-only output exports
+them, while static archives retain weak self-contained definitions.
+
+Shared-core function bodies no longer resolve their literals through an
+artifact's private ~_til_str_lits~ pool. Their literals stay inline with the
+owning core function, making core-only output independent of the generating
+library. This permits the concrete allocation/view family -- ~with_capacity~,
+~from_c_str~, ~clone~, ~to_str~, ~delete~, ~borrowed_view~, ~substr~,
+~trim_start~, ~trim~, ~get_char~, ~strip_prefix~, ~strip_suffix~,
+~from_byte~, and ~c_str_len~ -- to join the existing query functions.
+Panic/variadic/generic string operations remain artifact-local because their
+emitted bodies depend on generated collection support.
+
+~test/library_namespace.til~ verifies that both libraries use identical core
+type, global, and allocating-function aliases. Its static/shared C and Til
+consumers execute clone, trim, C-string view, suffix view, and byte-allocation
+paths across the common core.

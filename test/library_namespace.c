@@ -19,5 +19,7 @@ int main(void) {
     if (til_library_x5fnamespace_x5fa__library_namespace_a_point_state.scalar != 20) return 13;
     til_library_x5fnamespace_x5fa__library_namespace_a_point_state.scalar = 24;
     if (til_library_x5fnamespace_x5fa__library_namespace_a_point_state.scalar != 24) return 14;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_core_string() != 5) return 15;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_core_string() != 3) return 16;
     return 0;
 }

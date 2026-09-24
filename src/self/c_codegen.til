@@ -1818,6 +1818,9 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
     case .Decl(dd):
         if e.children.len().gt(0) {
             ref rhs : Expr = e.children[0]
+            if rhs.node_type.is(NodeType.FuncDef).and(ctx.builder_core_c_names.has(func_to_c(dd.name))) {
+                return
+            }
             switch rhs.node_type {
             case .Literal(Literal.Str(s)):
                 // #326: only a HOISTED immutable literal consumes its pool
@@ -1851,8 +1854,13 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                 // the AST children this walk recurses through, so their
                 // literals -- loc statics included -- were never
                 // registered and always fell back to inline emission.
+                mut rsl_ns_i : USize = 0
                 for ns_d : Declaration in sd.ns_decls {
+                    cur_rsl_ns_i := rsl_ns_i
+                    rsl_ns_i = rsl_ns_i + 1
                     if ns_d.default_value.is_some() {
+                        core_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_rsl_ns_i))
+                        if ctx.builder_core_c_names.has(core_name) { continue }
                         builder_register_str_lits_for_expr(ns_d.default_expr(), ctx)
                     }
                 }
@@ -1864,8 +1872,13 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                     }
                     builder_register_str_lit(ctx, "")
                 }
+                mut rsl_ens_i : USize = 0
                 for ens_d : Declaration in ed.ns_decls {
+                    cur_rsl_ens_i := rsl_ens_i
+                    rsl_ens_i = rsl_ens_i + 1
                     if ens_d.default_value.is_some() {
+                        core_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_rsl_ens_i))
+                        if ctx.builder_core_c_names.has(core_name) { continue }
                         builder_register_str_lits_for_expr(ens_d.default_expr(), ctx)
                     }
                 }
@@ -3341,8 +3354,12 @@ priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: C
     return f
 }
 
+priv builder_uses_artifact_str_lit_pool := func(s: Str, ctx: Context) returns Bool {
+    return ctx.builder_emitting_shared_core.not().and(ctx.builder_str_lit_symbols.has(s))
+}
+
 priv emit_str_lit_expr := proc(f: File, s: Str, mut ctx: Context) {
-    if ctx.builder_str_lit_symbols.has(s) {
+    if builder_uses_artifact_str_lit_pool(s, ctx) {
         ref sym : Str = ctx.builder_str_lit_symbols[s]
         f.write("&").write(sym)
         return
@@ -3392,7 +3409,7 @@ priv emit_str_lit_temp_expr := proc(f: File, s: Str, ctx: Context) {
     // #326: the pool element is the same CAP_LIT value, and every own-payload
     // consumer gates its free on `cap != TIL_CAP_LIT` -- the pool address is
     // exactly as safe as the stack compound literal it replaces.
-    if ctx.builder_str_lit_symbols.has(s) {
+    if builder_uses_artifact_str_lit_pool(s, ctx) {
         f.write("&").write(ctx.builder_str_lit_symbols[s])
         return
     }
@@ -4057,7 +4074,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             ref method_arg : Expr = e.children[2]
             switch method_arg.node_type {
             case .Literal(Literal.Str(ms)):
-                if ctx.builder_str_lit_symbols.has(ms) {
+                if builder_uses_artifact_str_lit_pool(ms, ctx) {
                     f.write("&").write(ctx.builder_str_lit_symbols[ms])
                 } else {
                     f.write("&(Str){.c_str=(void*)\"")
@@ -4733,7 +4750,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
             // #326: the pool element IS this value -- reading it dedups the
             // inline compound-literal copy and consumes the entry the
             // registration walk created (36 of them had no reader left).
-            if ctx.builder_str_lit_symbols.has(s) {
+            if builder_uses_artifact_str_lit_pool(s, ctx) {
                 f.write(ctx.builder_str_lit_symbols[s])
             } else {
                 f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
@@ -5503,6 +5520,21 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
     f.write("} ").write(name).write(";\n\n")
 }
 
+// A canonical core type is spelled identically in every compatible public
+// library header. Guard its body with the versioned core namespace so two
+// independently generated headers can define that one layout together.
+priv begin_shared_core_type_definition := func(f: File, name: Str, ctx: Context) returns Bool {
+    if ctx.builder_core_c_prefix.len() == 0 { return false }
+    if ctx.builder_core_c_names.has(name).not() { return false }
+    guard := format(ctx.builder_core_c_prefix, name, "_DEFINED")
+    f.write("#ifndef ").write(guard).write("\n#define ").write(guard).write("\n")
+    return true
+}
+
+priv end_shared_core_type_definition := proc(f: File, guarded: Bool) {
+    if guarded { f.write("#endif\n") }
+}
+
 // #326: true when `type_name.member` is an accessor the builder splices at
 // EVERY direct call site, so its out-of-line definition would have no
 // caller. builder_is_inline_accessor keys on the CALLEE's shape (len /
@@ -5575,6 +5607,25 @@ priv end_shared_core_definition := proc(f: File, partitioned: Bool) {
     if partitioned { f.write("#endif\n") }
 }
 
+// A shared object needs a declaration for core-owned data after its local
+// definition is removed. Functions already get that declaration from the
+// forward-declaration pass; globals have no separate pass in the generated C.
+priv begin_shared_core_global_definition := func(f: File, name: Str, ctype: Str,
+        pointer_storage: Bool, ctx: Context) returns Bool {
+    if ctx.builder_core_c_prefix.len() == 0 { return false }
+    if ctx.builder_core_c_names.has(name) {
+        f.write("#if defined(TIL_SHARED_CORE) && !defined(TIL_CORE_ONLY)\nextern ")
+            .write(ctype).write(" ")
+        if pointer_storage { f.write("*") }
+        f.write(name).write(";\n#else\n")
+        f.write("#ifdef TIL_CORE_ONLY\nTIL_CORE_EXPORT\n")
+        f.write("#else\n__attribute__((weak))\n#endif\n")
+    } else {
+        f.write("#ifndef TIL_CORE_ONLY\n")
+    }
+    return true
+}
+
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, mut lp: LoadedProgram) {
     mut is_auto_size := false
     ref fd : FunctionDef = funcdef_of(fdef)
@@ -5600,7 +5651,10 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: 
         end_shared_core_definition(f, partitioned)
         return
     }
+    saved_emitting_shared_core := lp.ctx.builder_emitting_shared_core
+    lp.ctx.builder_emitting_shared_core = lp.ctx.builder_core_c_names.has(full_name)
     emit_func_def(f, full_name, fdef, mode, false, lp)
+    lp.ctx.builder_emitting_shared_core = saved_emitting_shared_core
     f.write("\n")
     end_shared_core_definition(f, partitioned)
 }
@@ -5953,12 +6007,14 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
                 UNREACHABLE("unexpected ", def.node_type.head_str(lp.ctx.symbols.names))
             }
             if deps_ok.not() { continue }
+            core_type := begin_shared_core_type_definition(f, sdecl.name, lp.ctx)
             if def.node_type.is(NodeType.StructDef) {
                 emit_struct_typedef(f, sdecl.name, def, emitted_tags)
                 f.write("\n")
             } else {
                 emit_enum_struct_body(f, sdecl.name, def, lp.ctx)
             }
+            end_shared_core_type_definition(f, core_type)
             emitted.add(own sdecl.name.clone())
             mut t_val := true
             done[ei] = t_val
@@ -5973,12 +6029,14 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
                 ref stmt : Expr = deref(ptr2)
                 ref sdecl : Declaration = decl_of(stmt)
                 ref def : Expr = stmt.children[0]
+                core_type := begin_shared_core_type_definition(f, sdecl.name, lp.ctx)
                 if def.node_type.is(NodeType.StructDef) {
                     emit_struct_typedef(f, sdecl.name, def, emitted_tags)
                     f.write("\n")
                 } else {
                     emit_enum_struct_body(f, sdecl.name, def, lp.ctx)
                 }
+                end_shared_core_type_definition(f, core_type)
                 emitted.add(own sdecl.name.clone())
             }
             break
@@ -9338,10 +9396,13 @@ priv emit_global_declaration := proc(f: File, stmt: Expr, mentioned: Set(Sym), m
         ctx.script_globals.add(own ctx.symbols.intern(dd.name))
         return
     }
+    pointer_storage := global_is_pointer_storage(stmt, dd, ctx.symbols)
+    partitioned := begin_shared_core_global_definition(f, dd.name, ctype, pointer_storage, ctx)
     f.write(builder_global_static_prefix(dd.name, ctx)).write(ctype).write(" ")
-    if global_is_pointer_storage(stmt, dd, ctx.symbols) {
+    if pointer_storage {
         f.write("*").write(dd.name).write(";\n")
         ctx.ref_globals.add(own ctx.symbols.intern(dd.name))
+        end_shared_core_definition(f, partitioned)
         return
     }
     f.write(dd.name)
@@ -9351,6 +9412,7 @@ priv emit_global_declaration := proc(f: File, stmt: Expr, mentioned: Set(Sym), m
     }
     f.write(";\n")
     ctx.script_globals.add(own ctx.symbols.intern(dd.name))
+    end_shared_core_definition(f, partitioned)
 }
 
 priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
@@ -9401,12 +9463,15 @@ priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr, mut ctx: Context) 
                 f.write("extern ").write(external_global_ctype(dd, ctx)).write(" ").write(dd.external_symbol).write(";\n")
                 continue
             }
-            f.write(ns_data_ctype(dd, ctx)).write(" ").write(flat)
+            data_ctype := ns_data_ctype(dd, ctx)
+            partitioned := begin_shared_core_global_definition(f, flat, data_ctype, false, ctx)
+            f.write(data_ctype).write(" ").write(flat)
             if expr_has_c_static_initializer(dd.default_expr(), ctx) {
                 f.write(" = ")
                 emit_c_static_initializer(f, dd.default_expr(), ctx)
             }
             f.write(";\n")
+            end_shared_core_definition(f, partitioned)
         }
     case:
     }
@@ -9566,7 +9631,10 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
         if rhs.children.len() == 0 { return }
         if lp.ctx.builder_omitted_core_funcs.has(dd.name) { return }
         partitioned_func := begin_shared_core_definition(f, func_to_c(dd.name), lp.ctx)
+        saved_emitting_shared_core := lp.ctx.builder_emitting_shared_core
+        lp.ctx.builder_emitting_shared_core = lp.ctx.builder_core_c_names.has(func_to_c(dd.name))
         emit_func_def(f, dd.name, rhs, mode, false, lp)
+        lp.ctx.builder_emitting_shared_core = saved_emitting_shared_core
         if lp.ctx.closure_value_names.has(lp.ctx.symbols.intern(dd.name)) {
             partitioned := lp.ctx.builder_core_c_prefix.len() > 0
             if partitioned { f.write("#ifndef TIL_CORE_ONLY\n") }
@@ -10035,9 +10103,8 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     builder_emit_str_lit_pool(f, lp.ctx)
     builder_emit_loc_region(f, lp.ctx)
     emit_precomputed_sequence_templates(f, lp)
-
-    emit_global_declarations(f, lp)
     if partitioned_output { f.write("#endif\n") }
+    emit_global_declarations(f, lp)
     emit_function_bodies(f, mode, lp)
 
     if partitioned_output { f.write("#ifndef TIL_CORE_ONLY\n") }

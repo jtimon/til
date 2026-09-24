@@ -48,6 +48,18 @@ main := proc() {
     if core_alias_a != core_alias_b { panic("libraries do not share one versioned core namespace") }
     require_contains(core_alias_a, "til_tilcore_x2d")
     require_absent(core_alias_a, "til_library_x5fnamespace")
+    core_str_a := line_starting_with(fwd_a, "#define Str ")
+    core_str_b := line_starting_with(fwd_b, "#define Str ")
+    if core_str_a != core_str_b { panic("libraries do not share one canonical Str type") }
+    require_contains(core_str_a, "til_tilcore_x2d")
+    core_cap_a := line_starting_with(fwd_a, "#define CAP_VIEW ")
+    core_cap_b := line_starting_with(fwd_b, "#define CAP_VIEW ")
+    if core_cap_a != core_cap_b { panic("libraries do not share canonical Str globals") }
+    require_contains(core_cap_a, "til_tilcore_x2d")
+    core_clone_a := line_starting_with(fwd_a, "#define Str_clone ")
+    core_clone_b := line_starting_with(fwd_b, "#define Str_clone ")
+    if core_clone_a != core_clone_b { panic("libraries do not share allocating Str functions") }
+    require_contains(core_clone_a, "til_tilcore_x2d")
     if py_a.contains("USize").or(py_b.contains("USize")) {
         panic("generated Python binding contains unresolved USize")
     }

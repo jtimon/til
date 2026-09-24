@@ -98,6 +98,12 @@ library_namespace_a_string_default := func(value: Str = "a\"b\\c") returns I64 {
     return value.len().to_i64()
 }
 
+library_namespace_a_core_string := func() returns I64 {
+    source := " alpha "
+    text := source.clone()
+    return text.trim().len().to_i64()
+}
+
 library_namespace_a_throwing := func(value: I64) returns I64 throws BindingError {
     if value < 0 { throw BindingError() }
     return value

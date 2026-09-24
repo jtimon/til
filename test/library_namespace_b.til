@@ -14,3 +14,10 @@ library_namespace_b_value := func() returns I64 {
 library_namespace_b_link_value := func() returns I64 {
     return library_link_helper(22)
 }
+
+library_namespace_b_core_string := func() returns I64 {
+    byte := Str.from_byte(98)
+    text := "beta"
+    view := Str.from_c_str(text.c_str)
+    return byte.len().to_i64() + view.strip_suffix("ta").len().to_i64()
+}
