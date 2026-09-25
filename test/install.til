@@ -98,6 +98,7 @@ main := proc() returns I64 {
     File.writefile(format(WORK, "/installed_lib.til"), format(
         "mode lib\n\n",
         "installed_value := func() returns I64 { return 77 }\n",
+        "installed_parse := func(value: Dynamic) returns U64 { return Str.from_c_str(value).to_u64() }\n",
         "installed_format := func() returns I64 { return format(\"hello\", \"!\").replace(\"!\", \"\").len().to_i64() }\n",
         "installed_failure := func() { panic(\"installed\", \" core panic\", loc = \"installed-test\") }\n"))
     lib_install := Cmd.new(installed_til, "install", "--prefix=../install_test", "installed_lib.til")
@@ -120,8 +121,16 @@ main := proc() returns I64 {
     }
     if runtime_count != 1 { panic("library install produced ", runtime_count.to_str(), " shared runtimes") }
     if core_count != 1 { panic("library install produced ", core_count.to_str(), " shared cores") }
+    installed_forward := File.readfile(format(WORK, "/gen/til/installed_lib_forward.h"))
+    mut canonical_parser := false
+    for line : Str in installed_forward.split("\n") {
+        if line.starts_with("#define priv__").and(line.ends_with("__str_parse_integer_magnitude")) {
+            canonical_parser = line.contains(" til_tilcore_x2d")
+        }
+    }
+    if canonical_parser.not() { panic("installed private numeric parser has no canonical core name") }
     py := Cmd.new("python3", "-c",
-        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77; assert installed_lib.installed_format() == 5")
+        "import sys, ctypes; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77; assert installed_lib.installed_format() == 5; assert installed_lib.installed_parse(ctypes.c_char_p(b'18446744073709551615')) == 18446744073709551615")
     py.cwd(WORK)
     py.run_checked()
     py_failure := Cmd.new("python3", "-c",

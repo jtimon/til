@@ -21,3 +21,11 @@ library_namespace_b_core_string := func() returns I64 {
     view := Str.from_c_str(text.c_str)
     return byte.len().to_i64() + view.strip_suffix("ta").len().to_i64()
 }
+
+library_namespace_b_parse_u64 := func(value: Dynamic) returns U64 {
+    return Str.from_c_str(value).to_u64()
+}
+
+library_namespace_b_parse_f64 := func(value: Dynamic, length: USize) returns F64 {
+    return Str.from_c_str(value).substr(0, length).to_f64()
+}

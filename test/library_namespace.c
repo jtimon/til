@@ -3,6 +3,14 @@
 #include <stdlib.h>
 
 int main(int argc, char **argv) {
+    if (argc == 3) {
+        if (argv[1][0] == 'u') {
+            til_library_x5fnamespace_x5fb__library_namespace_b_parse_u64(argv[2]);
+        } else {
+            til_library_x5fnamespace_x5fa__library_namespace_a_parse_i64(argv[2]);
+        }
+        return 0;
+    }
     if (argc == 2) {
         return (int)til_library_x5fnamespace_x5fa__library_namespace_a_core_failure(atoi(argv[1]));
     }
@@ -25,5 +33,17 @@ int main(int argc, char **argv) {
     if (til_library_x5fnamespace_x5fa__library_namespace_a_point_state.scalar != 24) return 14;
     if (til_library_x5fnamespace_x5fa__library_namespace_a_core_string() != 5) return 15;
     if (til_library_x5fnamespace_x5fb__library_namespace_b_core_string() != 3) return 16;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_parse_i64("-9223372036854775808") != (-9223372036854775807LL - 1)) return 17;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_parse_i64("9223372036854775807") != 9223372036854775807LL) return 18;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_parse_i64("-0x2_a") != -42) return 19;
+    if (!til_library_x5fnamespace_x5fa__library_namespace_a_parse_narrow("0b10_1010")) return 20;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_parse_i64("0o52") != 42) return 21;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_parse_u64("18446744073709551615") != 18446744073709551615ULL) return 22;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_parse_u64("-1") != 18446744073709551615ULL) return 23;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_parse_u64("-9223372036854775808") != 9223372036854775808ULL) return 24;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_parse_f32("1_250.5tail", 7) != 1250.5f) return 25;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_parse_f32("1.25tail", 4) != 1.25f) return 26;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_parse_f64("1_250.5tail", 7) != 1250.5) return 27;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_parse_f64("1.25e2tail", 6) != 125.0) return 28;
     return 0;
 }

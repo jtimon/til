@@ -279,3 +279,27 @@ exit status 1 and stdout diagnostics for out-of-bounds Str.get, both
 Str.push_str failures, and an explicit-location multipart panic. The install
 regression exercises formatting and panic through an installed Python binding
 from outside the repository.
+
+*** Follow-up: shared numeric Str parsing (2026-09-25)
+
+The versioned core now also owns the signed, unsigned, narrow integer, USize,
+and floating-point Str conversion bodies. Their integer parsing dependencies
+include digit_value, the immutable I64/U64 limit globals, and the existing
+private parse_integer_magnitude function. The private helper's source C name
+includes its file path, which differs between checkout and installed builds;
+the library namespace map resolves that declaration to a stable versioned
+core symbol. No duplicate parsing implementation or new generated artifact
+is introduced.
+
+Installed paths containing punctuation (for example the hyphen in a worktree
+name) also exposed invalid C hoisted-temp identifiers inside that private
+helper. The existing private-name encoder now sanitizes such paths when
+naming their generated temporaries while normal source paths retain their
+previous output and self-translation stability.
+
+The library_namespace regression checks canonical symbols, signed and U64
+boundaries, base prefixes, digit separators, narrow conversions, floating
+parsing with views, and exact stdout diagnostics on invalid or out-of-range
+values in both static and shared consumers. The install regression verifies
+the canonical helper alias and parses U64.MAX through an installed Python
+binding outside the checkout.

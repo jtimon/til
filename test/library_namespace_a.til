@@ -130,6 +130,24 @@ library_namespace_a_core_failure := func(kind: I64) returns I64 {
     panic("left", "/", "right", loc = "namespace-test")
 }
 
+// C supplies the bytes at runtime so the constfolder cannot replace parsing
+// with a literal and accidentally leave the shared implementation untested.
+library_namespace_a_parse_i64 := func(value: Dynamic) returns I64 {
+    return Str.from_c_str(value).to_i64()
+}
+
+library_namespace_a_parse_narrow := func(value: Dynamic) returns Bool {
+    text := Str.from_c_str(value)
+    return text.to_i8().eq(42).and(text.to_u8().eq(42))
+        .and(text.to_i16().eq(42)).and(text.to_u16().eq(42))
+        .and(text.to_i32().eq(42)).and(text.to_u32().eq(42))
+        .and(text.to_usize().eq(42))
+}
+
+library_namespace_a_parse_f32 := func(value: Dynamic, length: USize) returns F32 {
+    return Str.from_c_str(value).substr(0, length).to_f32()
+}
+
 library_namespace_a_throwing := func(value: I64) returns I64 throws BindingError {
     if value < 0 { throw BindingError() }
     return value

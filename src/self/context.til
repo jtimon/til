@@ -1188,6 +1188,21 @@ builder_shared_core_source_names := func() returns Vec(Str) {
     names.push(own "Str.strip_prefix")
     names.push(own "Str.strip_suffix")
     names.push(own "Str.from_byte")
+    names.push(own "Str.to_i64")
+    names.push(own "Str.to_u64")
+    names.push(own "Str.to_i8")
+    names.push(own "Str.to_u8")
+    names.push(own "Str.to_i16")
+    names.push(own "Str.to_u16")
+    names.push(own "Str.to_i32")
+    names.push(own "Str.to_u32")
+    names.push(own "Str.to_usize")
+    names.push(own "Str.to_f32")
+    names.push(own "Str.to_f64")
+    names.push(own "digit_value")
+    names.push(own "I64.MIN")
+    names.push(own "I64.MAX")
+    names.push(own "U64.MAX")
     // The existing variadic panic/format/println implementation and its
     // concrete collection dependencies form one shared group with push_str.
     names.push(own "Array__Str")
@@ -1611,7 +1626,9 @@ Context := struct {
     builder_runtime_c_prefix := ""
     builder_runtime_c_names := Set(Str).new()
     builder_core_c_prefix := ""
-    builder_core_c_names := Set(Str).new()
+    // Emitted identifier -> canonical core identifier. Private source names
+    // include the checkout/install path; their shared ABI names must not.
+    builder_core_c_names := Map(Str, Str).new()
     // Shared-core function bodies own their literals. They must not resolve
     // through the generated library's private `_til_str_lits` object, which
     // is deliberately absent from the TIL_CORE_ONLY translation unit.
@@ -1739,16 +1756,28 @@ synth_suffix_unique := func(ctx: Context, n: Str) returns Str {
 // the definition mints: spelling it out cost 8.7MB of generated C. So
 // privs are named `<unit>_<orig_name>` instead, where <unit> is the path
 // with the `src/` prefix, the `.til` suffix and the separators removed
-// (`src/self/loader.til` -> `self_loader`). That is an injective encoding
-// of the path, so it discriminates units exactly as the mangling did, at
-// a third of the length. Non-privs keep their own name, which has to be
-// unique already or the C would not link.
+// (`src/self/loader.til` -> `self_loader`). Installed compiler paths may
+// contain punctuation other than '/', so use the private-name encoder for
+// those paths while retaining the established spelling for ordinary units.
+// Non-privs keep their own name, which has to be unique already or the C
+// would not link.
 synth_owner_name := func(path: Str, name: Str, orig_name: Str) returns Str {
     if orig_name.len() == 0 { return name.clone() }
     mut tag := path.clone()
     if tag.starts_with("./") { tag = tag.strip_prefix("./").clone() }
     if tag.starts_with("src/") { tag = tag.strip_prefix("src/").clone() }
     if tag.ends_with(".til") { tag = tag.strip_suffix(".til").clone() }
+    for i in 0..tag.len() {
+        ref c : I8 = tag.unsafe_get(i)
+        alnum := c.gte('a').and(c.lte('z'))
+            .or(c.gte('A').and(c.lte('Z')))
+            .or(c.gte('0').and(c.lte('9')))
+        if alnum.or(c.eq('/')).or(c.eq('_')).not() {
+            encoded := priv_c_name(tag, orig_name)
+            sep := encoded.rfind("__").to_usize()
+            return format(encoded.substr(6, sep - 6), "_", orig_name)
+        }
+    }
     return format(tag.replace("/", "_"), "_", orig_name)
 }
 

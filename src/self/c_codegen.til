@@ -6297,10 +6297,12 @@ priv emit_lib_c_name_map := proc(f: File, ctx: Context) {
     if ctx.builder_lib_c_prefix.len() == 0 { return }
     for name : Str in ctx.builder_lib_c_names {
         f.write("#define ").write(name).write(" ")
-        if ctx.builder_runtime_c_names.has(name) { f.write(ctx.builder_runtime_c_prefix) }
-        else if ctx.builder_core_c_names.has(name) { f.write(ctx.builder_core_c_prefix) }
-        else { f.write(ctx.builder_lib_c_prefix) }
-        f.write(name).write("\n")
+        if ctx.builder_runtime_c_names.has(name) { f.write(ctx.builder_runtime_c_prefix).write(name) }
+        else if ctx.builder_core_c_names.has(name) {
+            f.write(ctx.builder_core_c_prefix).write(ctx.builder_core_c_names[name])
+        }
+        else { f.write(ctx.builder_lib_c_prefix).write(name) }
+        f.write("\n")
     }
     f.write("\n")
 }
@@ -6345,10 +6347,23 @@ priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_n
         lp.ctx.builder_runtime_c_prefix = c_lib_prefix(lp.runtime_stem())
         lp.ctx.builder_runtime_c_names = runtime_seen
         lp.ctx.builder_core_c_prefix = c_lib_prefix(lp.core_stem())
-        mut core_names := Set(Str).new()
+        mut core_names := Map(Str, Str).new()
         for source_name : Str in builder_shared_core_source_names() {
             c_name := source_name.replace(".", "_")
-            if seen.has(c_name) { core_names.add(own c_name) }
+            if seen.has(c_name) { core_names.set(c_name, own c_name.clone()) }
+        }
+        // Numeric parsers reach this private helper transitively. Resolve its
+        // actual declaration rather than baking priv_c_name's path into the
+        // ABI: installed and checkout compilers must share the same symbol.
+        for unit : ProgramUnit in lp.core_units {
+            if unit.path.ends_with("/core/str.til").not() { continue }
+            for stmt : Expr in lp.ctx.imported[unit.path].ast.children {
+                if is_func_decl(stmt).not() { continue }
+                ref dd : Declaration = decl_of(stmt)
+                if dd.is_priv.and(dd.orig_name.eq("parse_integer_magnitude")) {
+                    core_names.set(func_to_c(dd.name), own "str_parse_integer_magnitude")
+                }
+            }
         }
         lp.ctx.builder_core_c_names = core_names
     }
