@@ -184,6 +184,12 @@ library_widths_cursor_advance_native := ext_proc() {}
 library_widths_cursor_second_native := ext_proc() returns shallow USize {}
 library_widths_cursor_advance := proc() { library_widths_cursor_advance_native() }
 library_widths_cursor_second := proc() returns USize { return library_widths_cursor_second_native() }
+library_widths_pool_borrow_native := ext_proc() returns ref BindingWidths {}
+library_widths_pool_reuse_native := ext_proc() {}
+library_widths_pool_host_native := ext_proc() returns ref U8 {}
+library_widths_pool_borrow := proc() returns ref BindingWidths { return library_widths_pool_borrow_native() }
+library_widths_pool_reuse := proc() { library_widths_pool_reuse_native() }
+library_widths_pool_host := proc() returns ref U8 { return library_widths_pool_host_native() }
 mut library_nested_widths := BindingNestedWidths(inner = BindingWidths())
 mut library_borrowed_text := "foreign text"
 

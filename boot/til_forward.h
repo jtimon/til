@@ -262,6 +262,7 @@ typedef struct ImportUnit ImportUnit;
 typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct FfiState FfiState;
 typedef struct InternedTypes InternedTypes;
+typedef struct ForeignPlace ForeignPlace;
 typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
@@ -273,7 +274,8 @@ typedef struct Map__U32_Str Map__U32_Str;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Map__Str_FFITypePtrBox Map__Str_FFITypePtrBox;
-typedef struct Map__UPtr_call_Vec_Str Map__UPtr_call_Vec_Str;
+typedef struct Vec__UPtr Vec__UPtr;
+typedef struct Map__UPtr_ForeignPlace Map__UPtr_ForeignPlace;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
@@ -292,12 +294,12 @@ typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
-typedef struct Vec__UPtr Vec__UPtr;
-typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
+typedef struct Vec__ForeignPlace Vec__ForeignPlace;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
 typedef struct Vec__StructLayout Vec__StructLayout;
+typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
 typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
@@ -817,6 +819,13 @@ typedef struct Map__U32_Str {
 } Map__U32_Str;
 
 
+typedef struct Vec__UPtr {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__UPtr;
+
+
 struct Option__Scope {
     Scope *data;
 };
@@ -902,18 +911,11 @@ typedef struct Vec__FFITypePtrBox {
 } Vec__FFITypePtrBox;
 
 
-typedef struct Vec__UPtr {
+typedef struct Vec__ForeignPlace {
     U8 *data;
     USize count;
     USize cap;
-} Vec__UPtr;
-
-
-typedef struct Vec__call_Vec_Str {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__call_Vec_Str;
+} Vec__ForeignPlace;
 
 
 typedef struct Vec__Mode {
@@ -942,6 +944,13 @@ typedef struct Vec__StructLayout {
     USize count;
     USize cap;
 } Vec__StructLayout;
+
+
+typedef struct Vec__call_Vec_Str {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__call_Vec_Str;
 
 
 struct Option__ref_Mode {
@@ -1695,6 +1704,13 @@ typedef struct InternedTypes {
 } InternedTypes;
 
 
+typedef struct ForeignPlace {
+    Vec__Str names;
+    Vec__UPtr roots;
+    U8 *state;
+} ForeignPlace;
+
+
 typedef struct Map__U32_TypeBinding {
     Vec__U32 keys;
     Vec__TypeBinding values;
@@ -1719,10 +1735,10 @@ typedef struct Map__Str_FFITypePtrBox {
 } Map__Str_FFITypePtrBox;
 
 
-typedef struct Map__UPtr_call_Vec_Str {
+typedef struct Map__UPtr_ForeignPlace {
     Vec__UPtr keys;
-    Vec__call_Vec_Str values;
-} Map__UPtr_call_Vec_Str;
+    Vec__ForeignPlace values;
+} Map__UPtr_ForeignPlace;
 
 
 typedef struct Map__Str_Mode {
@@ -1821,6 +1837,7 @@ typedef struct HeapBinding {
     Bool payload_released;
     Option__ref_U8 ext_slot;
     Bool ext_target_layout;
+    UPtr foreign_root;
 } HeapBinding;
 
 
@@ -1888,7 +1905,7 @@ typedef struct EvalState {
     Bool eval_aborted;
     Bool repl_session;
     Option__Scope ns_fields;
-    Map__UPtr_call_Vec_Str foreign_places;
+    Map__UPtr_ForeignPlace foreign_places;
     Str cached_str_name;
 } EvalState;
 

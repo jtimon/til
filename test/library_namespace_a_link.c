@@ -17,3 +17,25 @@ void library_widths_cursor_advance_native(void) {
 USize library_widths_cursor_second_native(void) {
     return library_widths_cursor->second;
 }
+
+// A C-managed one-slot pool releases a borrowed target-layout object and
+// immediately reuses the same address for raw host-layout bytes. Unlike
+// malloc/free reuse this is deterministic under ASAN and on every host.
+static union {
+    BindingWidths target;
+    U8 host[sizeof(BindingWidths)];
+} library_widths_pool;
+
+BindingWidths *library_widths_pool_borrow_native(void) {
+    library_widths_pool.target = (BindingWidths){.first = 101, .second = 203, .marker = 307};
+    return &library_widths_pool.target;
+}
+
+void library_widths_pool_reuse_native(void) {
+    // The caller has ended its ref scope. Its old target object is no longer
+    // live; the next borrowed pointer names the same bytes as a raw buffer.
+}
+
+U8 *library_widths_pool_host_native(void) {
+    return library_widths_pool.host;
+}

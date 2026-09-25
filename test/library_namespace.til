@@ -253,7 +253,7 @@ main := proc() {
     // Borrowed foreign places survive a cloned Context and rebuilt FFI cache
     // on each REPL turn; their address must still name the library's storage.
     File.writefile("tmp/library_namespace_repl_input",
-        "lib := import(\"gen/til/library_namespace_a\")\nref w := lib.library_widths_ref()\nlib.library_set_widths(307)\nprintln(format(\"foreign-repl=\", w.second.to_str()))\nref t := lib.library_text_ref()\nlib.library_set_text()\nprintln(format(\"foreign-text=\", t))\n")
+        "lib := import(\"gen/til/library_namespace_a\")\nref w := lib.library_widths_ref()\nlib.library_set_widths(307)\nprintln(format(\"foreign-repl=\", w.second.to_str()))\nref t := lib.library_text_ref()\nlib.library_set_text()\nprintln(format(\"foreign-text=\", t))\nWidths := lib.BindingWidths\n{\nref value : Widths = lib.library_widths_pool_borrow()\nref alias : Widths = value\nprintln(format(\"pool-foreign=\", alias.second.to_str()))\n}\nlib.library_widths_pool_reuse()\n{\nref mut raw : U8 = lib.library_widths_pool_host()\nwrite_u32(raw, 111)\nwrite_u32(ptr_add(raw, 4), 222)\nwrite_u64(ptr_add(raw, 8), 333)\nref view : Widths = ptr_add(raw, 0)\nprintln(format(\"pool-host=\", view.second.to_str()))\n}\n{\nprintln(format(\"pool-temporary=\", lib.library_widths_pool_borrow().second.to_str()))\nlib.library_widths_pool_reuse()\nref mut raw : U8 = lib.library_widths_pool_host()\nwrite_u32(raw, 111)\nwrite_u32(ptr_add(raw, 4), 444)\nwrite_u64(ptr_add(raw, 8), 555)\nref view : Widths = ptr_add(raw, 0)\nprintln(format(\"pool-host-temporary=\", view.second.to_str()))\n}\n")
     repl := Cmd.new("sh", "-c", "bin/til < tmp/library_namespace_repl_input")
     repl.env("LIBRARY_PATH", "gen/lib")
     repl.env("LD_LIBRARY_PATH", "gen/lib")
@@ -263,6 +263,10 @@ main := proc() {
     output := format(repl.out(), repl.err())
     require_contains(output, "foreign-repl=307")
     require_contains(output, "foreign-text=changed abroad")
+    require_contains(output, "pool-foreign=203")
+    require_contains(output, "pool-host=222")
+    require_contains(output, "pool-temporary=203")
+    require_contains(output, "pool-host-temporary=444")
     require_absent(output, "panic:")
     require_absent(output, "error:")
 }

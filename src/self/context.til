@@ -1087,6 +1087,24 @@ namespace:
     }
 }
 
+// An address is foreign only while a til borrow (or an in-flight FFI result)
+// reaches it. Nested inline/ref fields retain their foreign layout through
+// the live roots that exposed them, without keeping freed addresses active.
+ForeignPlace := struct {
+    names := Vec(Str).new()
+    roots := Vec(UPtr).new()
+    // The count and transient flag live in a stable allocation: scope_free
+    // holds only a borrowed Context, yet must end a borrow when its binding
+    // dies. Clones duplicate the state, never share its owner.
+    own state : U8
+namespace:
+    clone := func(self: ForeignPlace) returns ForeignPlace {
+        mut state : U8 = malloc(8)
+        memcpy(state, self.state, 8)
+        return ForeignPlace(names = self.names.clone(), roots = self.roots.clone(), state = state)
+    }
+}
+
 EvalState := struct {
     has_return := false
     has_break := false
@@ -1143,7 +1161,7 @@ EvalState := struct {
     // first inline field can share an address, so keep every target-layout
     // type viewed there. The bytes remain owned by the library. Aliases and
     // Dynamic pointers keep their address, so all views consult the same entry.
-    foreign_places := Map(UPtr, Vec(Str)).new()
+    foreign_places := Map(UPtr, ForeignPlace).new()
     // #177 interpreter cache for the canonical Str type name, populated by
     // populate_cached_aggregate_defs / interpreter_init_ns and read by raw
     // allocation, field-layout, and argv construction paths. #321: now an
