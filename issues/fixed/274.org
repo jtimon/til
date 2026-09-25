@@ -19,6 +19,11 @@ Primitive pointer fields are read through ordinary ref locals so their
 methods receive the pointee value rather than its address. Recursive
 values use ordinary recursive method calls; this does not introduce graph
 identity or cycle-printing semantics.
+For example, if ~a.next = safe_ref(b)~ and ~b.next = safe_ref(a)~,
+generated ~a.to_str()~ recurses indefinitely. Generated ~eq~ can do the
+same when comparing cyclic graphs whose fields keep matching. Types that
+intentionally permit cycles need explicit methods with their own stopping
+or identity rules.
 
 The borrowed-string regression also exposed an interpreter assignment
 bug: replacing an aggregate owner's allocation invalidated ref fields
