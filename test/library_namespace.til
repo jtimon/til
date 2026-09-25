@@ -108,7 +108,10 @@ main := proc() {
             "print_flush", "Str_get", "Str_push_str", "Str_replace", "concat3",
             "Str_to_i64", "Str_to_u64", "Str_to_i8", "Str_to_u8", "Str_to_i16", "Str_to_u16",
             "Str_to_i32", "Str_to_u32", "Str_to_usize", "Str_to_f32", "Str_to_f64",
-            "digit_value", "I64_MIN", "I64_MAX", "U64_MAX") {
+            "digit_value", "I64_MIN", "I64_MAX", "U64_MAX",
+            "Vec__Str", "Vec__Str_new", "Vec__Str_with_capacity", "Vec__Str_size",
+            "Vec__Str_len", "Vec__Str_unsafe_get", "Vec__Str_get", "Vec__Str_push",
+            "Vec__Str_clear", "Vec__Str_delete", "Vec__Str_clone", "Str_split", "join") {
         prefix := format("#define ", core_name, " ")
         alias_a := line_starting_with(fwd_a, prefix)
         alias_b := line_starting_with(fwd_b, prefix)
@@ -150,6 +153,8 @@ main := proc() {
     require_absent(til_a, "binding__Array__I64")
 
     require_contains(py_a, "('scalar', ctypes.c_longlong)")
+    require_contains(py_a, "class Vec__Str(ctypes.Structure):")
+    require_contains(py_b, "class Vec__Str(ctypes.Structure):")
     require_contains(py_a, "_runtime_name = 'libtilrt-")
     require_contains(py_b, "_runtime_name = 'libtilrt-")
     require_contains(py_a, "_core_name = 'libtilcore-")

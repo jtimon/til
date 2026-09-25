@@ -29,3 +29,20 @@ library_namespace_b_parse_u64 := func(value: Dynamic) returns U64 {
 library_namespace_b_parse_f64 := func(value: Dynamic, length: USize) returns F64 {
     return Str.from_c_str(value).substr(0, length).to_f64()
 }
+
+library_namespace_b_join_parts := func(parts: Vec(Str), separator: Str) returns Str {
+    return join(parts, separator)
+}
+
+library_namespace_b_join_count := func(text: Dynamic, delim: Dynamic, separator: Dynamic) returns I64 {
+    parts := Str.from_c_str(text).split(Str.from_c_str(delim))
+    return join(parts, Str.from_c_str(separator)).len().to_i64()
+}
+
+library_namespace_b_append_part := func(mut parts: Vec(Str), value: Str) {
+    parts.push(own value.clone())
+}
+
+library_namespace_b_consume_parts := func(own parts: Vec(Str)) returns USize {
+    return parts.len()
+}

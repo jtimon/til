@@ -303,3 +303,31 @@ parsing with views, and exact stdout diagnostics on invalid or out-of-range
 values in both static and shared consumers. The install regression verifies
 the canonical helper alias and parses U64.MAX through an installed Python
 binding outside the checkout.
+
+*** Follow-up: shared Vec(Str), split, and join (2026-09-25)
+
+The versioned core now owns the concrete Vec(Str) layout and the methods
+needed to construct, read, push, clone, and delete its contents. Str.split and
+join use that same shared type and implementations; other Vec specializations
+remain library-local. A folded empty Vec(Str) in Str.split formerly cloned an
+artifact-private precomputed template. The emitter now materializes an empty
+zero-capacity value within a shared-core body, without exporting or duplicating
+any generated template; other precomputed templates remain artifact-local.
+
+The Python binding derives the Vec(Str) ctypes layout from its existing
+synthesized core StructDef, including when an exported function uses that type
+but its declaration is absent from the library's own units. The interpreter
+FFI must also convert the backing Str array when crossing USize widths, not
+just the Vec header: the installed library uses 24-byte Str elements while
+the USize32-built interpreter uses 16-byte elements. The conversion copies
+each element at its own ABI stride and transfers only the element buffer's
+ownership; the nested string data retains its existing ownership. Borrowed,
+mutable, and owned FFI arguments release their respective converted buffers
+or boxes after the call.
+
+The library_namespace regression checks static and shared C consumers,
+generated Python bindings, compiled and interpreted Til consumers passing a
+Vec(Str) between two libraries, and mutable/owned vector arguments. The
+install regression exercises split/join through the installed Python binding.
+The interpreted consumer also runs under ASAN to verify no invalid frees or
+leaked conversion buffers.

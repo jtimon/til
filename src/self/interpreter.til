@@ -132,6 +132,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         // Normalize the wrapper, then clone its payload by the normal host
         // ownership walk. The temporary only borrows the payload pointers.
         cloned : Dynamic = heap_clone(struct_name, dst_data, ctx)
+        if struct_name == "Vec__Str" { ffi_release_vec_str_buffer(dst_data, true, ctx) }
         EvalHeap.heap_free(own dst_data)
         return cloned
     }
@@ -3807,6 +3808,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
         ffi_copy_struct_into(struct_name, data, false, local, true, ctx)
         heap_drop_struct(struct_name, local, ctx)
         EvalHeap.heap_free(own local)
+        if struct_name == "Vec__Str" { ffi_release_vec_str_buffer(data, false, ctx) }
         return
     }
     if struct_name == "Str" {
@@ -8351,10 +8353,51 @@ priv ffi_copy_width_field := func(struct_name: Str, type_name: Str, field_name: 
     else { write_u64(dst, bits) }
 }
 
+// The Vec(Str) header crosses the USize-width FFI boundary as a struct, but
+// its `data` pointer names an array of Str values whose STRIDE also changes.
+// A header-only conversion leaves the interpreter indexing foreign 24-byte
+// Strs at its own 16-byte stride (or the inverse), then freeing garbage.
+priv ffi_vec_str_field_slot := func(header: Dynamic, field_name: Str,
+        host_layout: Bool, ctx: Context) returns Dynamic {
+    ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Vec__Str"].ptr)
+    ref index : USize = sd.fields_index[field_name]
+    ref layout : FFITypePtrBox = ffi_cached_layout("Vec__Str", ctx, host_layout)
+    ref offset : U64 = ptr_add(layout.offsets, index.mul(8))
+    return ptr_add(header, offset.to_uptr())
+}
+
+priv ffi_vec_str_usize_field := func(header: Dynamic, field_name: Str,
+        host_layout: Bool, ctx: Context) returns USize {
+    ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Vec__Str"].ptr)
+    ref index : USize = sd.fields_index[field_name]
+    ref layout : FFITypePtrBox = ffi_cached_layout("Vec__Str", ctx, host_layout)
+    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.mul(8)))
+    slot : Dynamic = ffi_vec_str_field_slot(header, field_name, host_layout, ctx)
+    if field_type.size == 4 { ref n : U32 = to_ptr(slot); return n.to_usize() }
+    if field_type.size == 8 { ref n : U64 = to_ptr(slot); return n.to_usize() }
+    panic("FFI Vec(Str) has invalid USize field width")
+}
+
+// Free only the vector's outer element buffer: its Str c_str pointers have
+// been transferred to the converted buffer (or are still borrowed there).
+priv ffi_release_vec_str_buffer := func(header: Dynamic, host_layout: Bool, ctx: Context) {
+    mut slot : Dynamic = ffi_vec_str_field_slot(header, "data", host_layout, ctx)
+    ref buffer : Dynamic = deref(slot)
+    if buffer.is_null().not() {
+        mut owned_buffer : Dynamic = buffer
+        free(own owned_buffer)
+        write_ptr(slot, bits_word(0))
+    }
+}
+
 priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Bool,
                                      mut dst: Dynamic, dst_host: Bool, mut ctx: Context) {
     build_struct_ffi_type(type_name, ctx, src_host)
     build_struct_ffi_type(type_name, ctx, dst_host)
+    if type_name == "Vec__Str" {
+        build_struct_ffi_type("Str", ctx, src_host)
+        build_struct_ffi_type("Str", ctx, dst_host)
+    }
     ffi_copy_struct_into(type_name, src, src_host, dst, dst_host, ctx)
 }
 
@@ -8393,6 +8436,25 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
                 } else {
                     memcpy(dst_field, src_field, field_type.size.to_usize())
                 }
+            }
+        }
+        if type_name.eq("Vec__Str").and(src_host.neq(dst_host)) {
+            ref data : Dynamic = deref(ffi_vec_str_field_slot(src, "data", src_host, ctx))
+            count := ffi_vec_str_usize_field(src, "count", src_host, ctx)
+            cap := ffi_vec_str_usize_field(src, "cap", src_host, ctx)
+            if count > cap { panic("FFI Vec(Str) count exceeds capacity") }
+            if data.is_null() {
+                if cap != 0 { panic("FFI Vec(Str) has capacity without data") }
+            } else {
+                ref src_str : FFITypePtrBox = ffi_cached_layout("Str", ctx, src_host)
+                ref dst_str : FFITypePtrBox = ffi_cached_layout("Str", ctx, dst_host)
+                mut converted : Dynamic = calloc(cap.to_uptr(), dst_str.ptr.size.to_uptr())
+                for i in 0..count {
+                    ref src_elem : Dynamic = ptr_add(data, i.to_uptr().mul(src_str.ptr.size.to_uptr()))
+                    ref mut dst_elem : Dynamic = ptr_add(converted, i.to_uptr().mul(dst_str.ptr.size.to_uptr()))
+                    ffi_copy_struct_into("Str", src_elem, src_host, dst_elem, dst_host, ctx)
+                }
+                write_ptr(ffi_vec_str_field_slot(dst, "data", dst_host, ctx), converted)
             }
         }
     case:
@@ -8604,7 +8666,15 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                     marshaled = ffi_marshal_struct(param_type, arg_pointer, source_host, fe.host_layout, ctx)
                 }
                 write_ptr(ptr_add(marshaled_args, i.mul(8)), marshaled)
-                if param_own { ffi_clear_struct_ownership(param_type, arg_pointer, ctx) }
+                if param_own {
+                    // The callee takes the converted Vec(Str) buffer and its
+                    // elements. Drop only the old-stride source buffer; the
+                    // element c_str pointers now belong to the converted one.
+                    if param_type == "Vec__Str" {
+                        ffi_release_vec_str_buffer(arg_pointer, source_host, ctx)
+                    }
+                    ffi_clear_struct_ownership(param_type, arg_pointer, ctx)
+                }
                 arg_pointer = marshaled
             }
         }
@@ -8693,6 +8763,9 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                 shallow_struct_raw = ffi_marshal_struct(fe.return_type.unwrap(), result, true, false, ctx)
                 ffi_call(fe.cif, fe.fn, shallow_struct_raw, arg_ptrs)
                 ffi_marshal_struct_into(fe.return_type.unwrap(), shallow_struct_raw, false, result, true, ctx)
+                if fe.return_type.unwrap() == "Vec__Str" {
+                    ffi_release_vec_str_buffer(shallow_struct_raw, false, ctx)
+                }
             } else {
                 ffi_call(fe.cif, fe.fn, result, arg_ptrs)
             }
@@ -8762,6 +8835,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         } else if ctx.ffi.struct_defs.has(fe.return_type.unwrap()) {
             if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
                 ffi_marshal_struct_into(fe.return_type.unwrap(), raw_ptr, false, result, true, ctx)
+                if rtype == "Vec__Str" { ffi_release_vec_str_buffer(raw_ptr, false, ctx) }
             } else {
                 memcpy(result, raw_ptr, ctx_total_size(fe.return_type.unwrap(), ctx))
             }
@@ -8780,6 +8854,9 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         if param_mutable.and(param_own.not()) {
             mut source : Dynamic = 0
             source = deref(ptr_add(marshal_sources, i.mul(8)))
+            if fe.param_types[i] == "Vec__Str" {
+                ffi_release_vec_str_buffer(source, ffi_place_is_foreign(source, ctx).not(), ctx)
+            }
             ffi_marshal_struct_into(fe.param_types[i], marshaled, fe.host_layout, source, ffi_place_is_foreign(source, ctx).not(), ctx)
         }
     }
@@ -8793,7 +8870,19 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             ref earlier : Dynamic = deref(ptr_add(marshaled_args, prior.mul(8)))
             if earlier.ptr_eq(marshaled) { shared = true; break }
         }
-        if shared.not() { free(own marshaled) }
+        if shared.not() {
+            ref param_own : Bool = ptr_add(fe.param_owns, i)
+            if fe.param_types[i] == "Vec__Str" {
+                // An owned Vec(Str)'s converted outer box is consumed by
+                // the callee; borrowed/mutable ones belong to this call.
+                if param_own.not() {
+                    ffi_release_vec_str_buffer(marshaled, fe.host_layout, ctx)
+                    free(own marshaled)
+                }
+            } else {
+                free(own marshaled)
+            }
+        }
     }
     for i in 0..nargs {
         ref bf : Bool = ptr_add(boxed_flags, i)
@@ -8810,7 +8899,19 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         mut owned_arg_raw : Dynamic = arg_raw
         ref arg_is_ref : Bool = ptr_add(arg_raws, arg_raw_off.add(8))
         ref raw_was_passed : Bool = ptr_add(arg_raws, arg_raw_off.add(9))
-        if (name == "memcpy").and(i == 1).and(arg_is_ref.not()).and(raw_was_passed) {
+        mut release_moved_wrapper := false
+        if i < fe.param_types.len() {
+            ref param_own : Bool = ptr_add(fe.param_owns, i)
+            ref marshaled : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
+            release_moved_wrapper = param_own.and(fe.param_types[i] == "Vec__Str")
+                .and(marshaled.is_null().not()).and(arg_is_ref)
+        }
+        if release_moved_wrapper {
+            // The converted outer box was consumed by the callee. The source
+            // binding was moved and its raw result is a ref (so raw_result_drop
+            // would skip it), but its now-empty host wrapper is still ours.
+            EvalHeap.heap_free(own owned_arg_raw)
+        } else if (name == "memcpy").and(i == 1).and(arg_is_ref.not()).and(raw_was_passed) {
             // memcpy transferred the temporary aggregate's nested ownership.
             raw_block_free(owned_arg_raw)
         } else {

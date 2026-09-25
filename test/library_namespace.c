@@ -45,5 +45,12 @@ int main(int argc, char **argv) {
     if (til_library_x5fnamespace_x5fa__library_namespace_a_parse_f32("1.25tail", 4) != 1.25f) return 26;
     if (til_library_x5fnamespace_x5fb__library_namespace_b_parse_f64("1_250.5tail", 7) != 1250.5) return 27;
     if (til_library_x5fnamespace_x5fb__library_namespace_b_parse_f64("1.25e2tail", 6) != 125.0) return 28;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_split_count("alpha|beta|gamma", "|") != 3) return 29;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_split_count("a||b", "|") != 3) return 30;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_split_count("short", "longer") != 1) return 31;
+    if (til_library_x5fnamespace_x5fa__library_namespace_a_split_count("short", "") != 1) return 32;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_join_count("alpha|beta|gamma", "|", ":") != 16) return 33;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_join_count("a||b", "|", "-") != 4) return 34;
+    if (til_library_x5fnamespace_x5fb__library_namespace_b_join_count("", "|", "-") != 0) return 35;
     return 0;
 }

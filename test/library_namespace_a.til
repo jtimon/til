@@ -148,6 +148,15 @@ library_namespace_a_parse_f32 := func(value: Dynamic, length: USize) returns F32
     return Str.from_c_str(value).substr(0, length).to_f32()
 }
 
+library_namespace_a_split_count := func(text: Dynamic, delim: Dynamic) returns I64 {
+    parts := Str.from_c_str(text).split(Str.from_c_str(delim))
+    return parts.len().to_i64()
+}
+
+library_namespace_a_split_parts := func(text: Dynamic, delim: Dynamic) returns Vec(Str) {
+    return Str.from_c_str(text).split(Str.from_c_str(delim))
+}
+
 library_namespace_a_throwing := func(value: I64) returns I64 throws BindingError {
     if value < 0 { throw BindingError() }
     return value
