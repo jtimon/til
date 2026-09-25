@@ -102,5 +102,13 @@ main := proc() returns I64 {
     if library_widths_alias_read(widths, alias) != 317 { return 59 }
     if library_namespace_a_origin_ref.size != 29 { return 60 }
     if library_namespace_a_origin_ref.scalar != library_namespace_a_origin.scalar { return 61 }
+    if library_widths_cursor.second != 317 { return 62 }
+    library_widths_cursor_advance()
+    if library_widths_cursor.first != 239 { return 63 }
+    if library_widths_cursor.second != 241 { return 64 }
+    if library_widths_cursor.marker != 251 { return 65 }
+    library_widths_cursor.second = 257
+    if library_widths_cursor_second() != 257 { return 66 }
+    if library_widths.second != 317 { return 67 }
     return 0
 }

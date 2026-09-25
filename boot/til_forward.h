@@ -1820,6 +1820,7 @@ typedef struct HeapBinding {
     Bool is_raw_alloc;
     Bool payload_released;
     Option__ref_U8 ext_slot;
+    Bool ext_target_layout;
 } HeapBinding;
 
 

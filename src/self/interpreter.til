@@ -302,6 +302,10 @@ HeapBinding := struct {
     // through the variable on every use, and the two must agree. None for
     // every other binding.
     ext_slot := Option(ref U8).None
+    // The pointer variable lives in a prebuilt target-layout library. A
+    // re-pointed aggregate must be registered at its new address before the
+    // interpreter reads or writes fields through this binding.
+    ext_target_layout := false
 }
 
 Scope := struct {
@@ -1362,6 +1366,19 @@ priv ffi_borrow_place := proc(type_name: Str, data: Dynamic, mut ctx: Context) {
     ffi_borrow_place_walk(type_name, data, visited, ctx)
 }
 
+priv ffi_refresh_external_place := proc(hb: HeapBinding, mut ctx: Context) {
+    if hb.ext_target_layout.not() { return }
+    ref place : Dynamic = to_ptr(hb.ptr)
+    type_name := resolved_type_name(hb_type(hb))
+    address := word_bits(place).cast(UPtr)
+    if ctx.eval.foreign_places.has(address) {
+        for known : Str in ctx.eval.foreign_places[address] {
+            if known == type_name { return }
+        }
+    }
+    ffi_borrow_place(type_name, place, ctx)
+}
+
 priv ffi_remember_place := func(type_name: Str, data: Dynamic, mut ctx: Context) {
     address := word_bits(data).cast(UPtr)
     if ctx.eval.foreign_places.has(address).not() {
@@ -1404,7 +1421,10 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, mut visited: S
 // evaluating or copying its intermediate aggregates.
 priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context) returns Option(ref Dynamic) {
     switch obj.node_type {
-    case .Ident: return resolve_field_assign_base(scope, obj, ctx.symbols)
+    case .Ident(id):
+        hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
+        if hb_o.is_some() { ffi_refresh_external_place(hb_o.unwrap(), ctx) }
+        return resolve_field_assign_base(scope, obj, ctx.symbols)
     case .FieldAccess(fa):
         // Aggregate namespace data is stable storage in ns_fields, so a
         // chained read such as `Point.origin.x` can borrow that value as its
@@ -1829,6 +1849,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name(ctx.symbols.names))
         if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name(ctx.symbols.names)) }
         ref hb : HeapBinding = hb_o.unwrap()
+        ffi_refresh_external_place(hb, ctx)
         if hb_type(hb).is(Type.Dynamic).not().or(expr_type.is(Type.Dynamic)) {
             info.source_type_p = hb.til_type_p
         }
@@ -2080,6 +2101,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
                 OwnType.Ref, ctx, false, true)
             ref mut ext_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name).unwrap()
             ext_hb.ext_slot = Option(ref U8).Some(address)
+            ext_hb.ext_target_layout = host_layout.not()
             return
         }
         if host_layout.not() { ffi_borrow_place(resolved_type_name(external_type), address, ctx) }
@@ -2098,6 +2120,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         source_hb_o = scope_lookup_heap_binding(scope, rhs_ident.ident_name(ctx.symbols.names))
         if source_hb_o.is_none() { panic("declaration source not found: ", rhs_ident.ident_name(ctx.symbols.names)) }
         ref source_hb : HeapBinding = source_hb_o.unwrap()
+        ffi_refresh_external_place(source_hb, ctx)
         rhs_info.source_type_p = source_hb.til_type_p
         if hb_type(source_hb).is(Type.Dynamic).and(rhs.til_type().is(Type.Dynamic).not()) {
             rhs_info.source_type_p = to_ptr(interp_intern_type(rhs.til_type(), ctx))
@@ -2433,6 +2456,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             mut assign_hb_o := scope_lookup_heap_binding(scope, ad.name)
             if assign_hb_o.is_none() { panic("assignment binding not found: ", ad.name) }
             ref mut assign_hb : HeapBinding = assign_hb_o.unwrap()
+            ffi_refresh_external_place(assign_hb, ctx)
             mut new_raw : Dynamic = 0
             if stmt.til_type().is(Type.Dynamic).and(rhs.node_type.is(NodeType.Ident)) {
                 switch rhs.node_type {

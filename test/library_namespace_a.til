@@ -151,6 +151,12 @@ namespace:
 }
 
 mut library_widths := BindingWidths()
+mut library_widths_other := BindingWidths(first = 239, second = 241, marker = 251)
+ref mut library_widths_cursor : BindingWidths = library_widths
+library_widths_cursor_advance_native := ext_proc() {}
+library_widths_cursor_second_native := ext_proc() returns shallow USize {}
+library_widths_cursor_advance := proc() { library_widths_cursor_advance_native() }
+library_widths_cursor_second := proc() returns USize { return library_widths_cursor_second_native() }
 mut library_nested_widths := BindingNestedWidths(inner = BindingWidths())
 mut library_borrowed_text := "foreign text"
 
