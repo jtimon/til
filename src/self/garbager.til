@@ -3531,10 +3531,8 @@ priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_n
         parent = safe_ref(parent), current_type_name = type_name.clone())
     switch type_def.node_type {
     case .StructDef(sd):
-        mut field_idx : USize = 0
-        for mut field : Declaration in sd.fields {
+        for field_idx, mut field in sd.fields {
             ref field_name : Str = sd.field_name_at(field_idx)
-            field_idx++
             if field.default_value.is_some() {
                 garbager_walk_expr(ctx, field.default_expr(), type_scope, insert)
             }

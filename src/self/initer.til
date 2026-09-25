@@ -313,8 +313,7 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
 
     ref sdd : StructDef = structdef_of(struct_def)
     field_count = sdd.fields.len()
-    mut idx : USize = 0
-    for fd : Declaration in sdd.fields {
+    for idx, fd in sdd.fields {
         ref ts_fname : Str = sdd.field_name_at(idx)
         if idx > 0 {
             mut sep := Expr.new(NodeType.Literal(Literal.Str(", ")), line, col)
@@ -330,7 +329,6 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
             mut to_str_call := make_method_call_fcall(own field, "to_str", line, col, symbols)
             fmt_call.add_child(own to_str_call)
         }
-        idx++
     }
 
     mut suffix := Expr.new(NodeType.Literal(Literal.Str(")")), line, col)

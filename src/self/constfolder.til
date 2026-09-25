@@ -444,11 +444,9 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             // sl.fields is positionally parallel to sfd.fields, so each
             // field's layout row comes from its position -- no name probe.
             ref rte_sl : StructLayout = ctx.struct_layouts[sname]
-            mut fi : USize = 0
-            for fd : Declaration in sfd.fields {
+            for fi, fd in sfd.fields {
                 if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)).or(is_funcptr(fd.til_type)) { return Option(Expr).None }
                 ref fl : FieldLayout = rte_sl.fields.unsafe_get(fi)
-                fi = fi + 1
                 ref field_addr : Dynamic = ptr_add(raw, fl.offset)
                 mut field_raw : Dynamic = field_addr
                 if raw_type_is_prim(fd.til_type, ctx) { field_raw = scalar_word_load(field_word_type(fd.til_type, fl.size, ctx), field_addr, ctx) }

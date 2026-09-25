@@ -747,18 +747,15 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
     }
     is_body := e.node_type.is(NodeType.Body)
     real_n := dyn_call_real_arg_count(e, symbols)
-    mut idx : USize = 0
-    for c : Expr in e.children {
+    for idx, c in e.children {
         if idx >= real_n { break }
         if is_body {
             target := match_trivial_delete(c, scope, symbols)
             if target.len().gt(0).and(candidates.has(target)) {
-                idx++
                 continue
             }
         }
         collect_body_refs(c, refs, candidates, scope, symbols)
-        idx++
     }
 }
 

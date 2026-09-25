@@ -520,9 +520,8 @@ join := func(parts: Vec(Str), sep: Str) returns Str {
     }
     total = total.add(sep.len().mul(parts.len() - 1))
     mut out := Str.with_capacity(total)
-    for i in 0..parts.len() {
+    for i, p in parts {
         if i > 0 { out.push_str(sep) }
-        ref p : Str = parts[i]
         out.push_str(p)
     }
     return out
