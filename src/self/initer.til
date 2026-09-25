@@ -1538,7 +1538,7 @@ priv register_top_level_value_for_stmt := func(mut ctx: Context, mut stmt: Expr,
                     rhs.children.clear()
                     rhs.set_til_type(external_type.clone())
                     scope.set(ext_decl.name, external_type, ext_decl.is_mut, ctx.path,
-                        stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
+                        stmt.line, stmt.col, false, ext_decl.own_type, ctx.symbols)
                     ref mut ext_binding : TypeBinding = scope.get_binding_name(ext_decl.name, ctx.symbols).unwrap()
                     ext_binding.is_priv = ext_decl.is_priv
                     ext_binding.orig_name = ext_decl.orig_name.clone()

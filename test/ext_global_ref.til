@@ -1,0 +1,26 @@
+mode script
+link_c("test/ext_global_ref_link.c")
+
+// A `ref` ext_global binds a C POINTER variable. The til name borrows the
+// pointee THROUGH the variable, so what C points it at later is what til
+// reads next: the borrow follows the re-point instead of freezing the
+// address it saw at the declaration. `ref mut` writes through it.
+RefPoint := ext_struct {
+    x : I64 = 0
+    y : I64 = 0
+}
+
+ext_global_ref_advance := ext_proc() {}
+// ext_proc, not ext_func: the reader must run after the write below, never
+// fold at compile time.
+ext_global_ref_slot_b_value := ext_proc() returns shallow I64 {}
+
+ref mut cursor : I64 = ext_global(I64, "ext_global_ref_cursor")
+ref point : RefPoint = ext_global(RefPoint, "ext_global_ref_point")
+
+println(cursor.to_str())
+ext_global_ref_advance()
+println(cursor.to_str())
+cursor = 46
+println(ext_global_ref_slot_b_value().to_str())
+println(point.x.add(point.y).to_str())

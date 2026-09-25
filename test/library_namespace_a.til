@@ -53,6 +53,10 @@ mut library_namespace_a_state : I64 = 23
 library_namespace_a_origin : BindingPoint = BindingPoint(scalar=19, size=29, ptr=39)
 mut library_namespace_a_point_state : BindingPoint = BindingPoint(scalar=20, size=30, ptr=40)
 priv library_namespace_a_private_state : I64 = 101
+// A borrowed global is a C POINTER object (BindingPoint *): the generated
+// til binding must spell it `ref ... = ext_global(...)` and the Python one
+// a POINTER view, both reading through the pointer.
+ref library_namespace_a_origin_ref : BindingPoint = library_namespace_a_origin
 
 library_namespace_a_global_sum := func() returns I64 {
     return library_namespace_a_count + library_namespace_a_state

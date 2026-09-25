@@ -6723,8 +6723,11 @@ priv infer_ext_global_decl := proc(mut scope: TypeScope, mut decl: Declaration,
 
 priv bind_ext_global_decl := func(mut scope: TypeScope, decl: Declaration,
         external_type: Type, path: Str, line: U32, col: U32, mut ctx: Context) {
+    // The declaration's own qualifier is the binding's: a `ref` ext_global
+    // names a C POINTER object and borrows its pointee through it, anything
+    // else names the C object itself.
     scope.set(decl.name, external_type, decl.is_mut, path, line, col, false,
-        OwnType.Shallow, ctx.symbols)
+        decl.own_type, ctx.symbols)
     ref mut binding : TypeBinding = scope.get_binding_name(decl.name, ctx.symbols).unwrap()
     binding.mut_explicit = decl.is_mut
     binding.is_priv = decl.is_priv

@@ -40,5 +40,7 @@ main := proc() returns I64 {
     if library_namespace_a_point_state.scalar != 24 { return 25 }
     if library_namespace_a_core_string() != 5 { return 26 }
     if library_namespace_b_core_string() != 3 { return 27 }
+    if library_namespace_a_origin_ref.size != 29 { return 28 }
+    if library_namespace_a_origin_ref.scalar != library_namespace_a_origin.scalar { return 29 }
     return 0
 }
