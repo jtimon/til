@@ -287,6 +287,13 @@ HeapBinding := struct {
     // script-scope binding (`Vec.delete(v, false)` -- drop the innards,
     // leave the box), which is what the compiled backend emits too.
     payload_released := false
+    // The C POINTER variable a `ref` ext_global binds. The binding borrows
+    // that variable's pointee, and scope_lookup_heap_binding re-loads ptr
+    // from the slot on every lookup, so a C-side re-point made after the
+    // declaration is what til reads next -- the compiled backend reads
+    // through the variable on every use, and the two must agree. None for
+    // every other binding.
+    ext_slot := Option(ref U8).None
 }
 
 Scope := struct {
@@ -1989,6 +1996,18 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         ref address : U8 = ffi_dlsym(dd.external_symbol)
         if address.is_null() { panic("external global symbol not found: ", dd.external_symbol) }
         external_type := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
+        if dd.own_type.is(OwnType.Ref) {
+            // The C object is a POINTER: borrow what it points at now, and
+            // keep the variable itself (ext_slot) so every later lookup
+            // follows a re-point.
+            mut pointee : Dynamic = address
+            pointee = deref(address)
+            scope_set_heap_owned(scope, dd.name, pointee, interp_intern_type(external_type, ctx),
+                OwnType.Ref, ctx, false, true)
+            ref mut ext_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name).unwrap()
+            ext_hb.ext_slot = Option(ref U8).Some(address)
+            return
+        }
         scope_set_heap_owned(scope, dd.name, address, interp_intern_type(external_type, ctx),
             OwnType.Shallow, ctx, false, true)
         return
@@ -4155,13 +4174,20 @@ scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref He
     ref mut cur : Scope = s
     mut walking := true
     while walking {
-        ref b : HeapBinding = cur.heap_bindings.get(name)?
+        ref mut b : HeapBinding = cur.heap_bindings.get(name)?
         catch (e: KeyNotFound) {
             switch cur.parent {
             case .Some(p): cur = p
             case .None: walking = false
             }
             continue
+        }
+        switch b.ext_slot {
+        case .Some(slot):
+            // A `ref` ext_global: re-load the C pointer so the borrow
+            // follows a re-point made after the declaration.
+            b.ptr = to_ptr(deref(slot))
+        case .None:
         }
         return safe_ref(b)
     }

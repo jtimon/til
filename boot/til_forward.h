@@ -383,6 +383,7 @@ typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpret
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
+typedef struct Option__ref_U8 Option__ref_U8;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
@@ -1299,21 +1300,6 @@ typedef struct InterpCallableBox {
 } InterpCallableBox;
 
 
-typedef struct HeapBinding {
-    U8 *ptr;
-    U8 *til_type_p;
-    OwnType own_type;
-    Context *ctx;
-    Bool is_local;
-    Bool is_borrowed;
-    Bool is_erased_dynamic;
-    Bool is_static_callable;
-    Bool moved_out;
-    Bool is_raw_alloc;
-    Bool payload_released;
-} HeapBinding;
-
-
 typedef struct priv___src_self_interpreter_til__RawResultInfo {
     U8 *source_type_p;
     Bool is_ref;
@@ -1368,6 +1354,10 @@ typedef struct FFITypePtrBox {
     I32 layout_status;
 } FFITypePtrBox;
 
+
+struct Option__ref_U8 {
+    U8 *data;
+};
 
 struct Option__ref_HeapBinding {
     HeapBinding *data;
@@ -1797,6 +1787,22 @@ typedef struct priv___src_self_theme_codegen_til__ThemeSpec {
 typedef struct DocCatalog {
     Vec__DocEntry entries;
 } DocCatalog;
+
+
+typedef struct HeapBinding {
+    U8 *ptr;
+    U8 *til_type_p;
+    OwnType own_type;
+    Context *ctx;
+    Bool is_local;
+    Bool is_borrowed;
+    Bool is_erased_dynamic;
+    Bool is_static_callable;
+    Bool moved_out;
+    Bool is_raw_alloc;
+    Bool payload_released;
+    Option__ref_U8 ext_slot;
+} HeapBinding;
 
 
 typedef struct InterpSession {

@@ -2784,8 +2784,8 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             // memory the caller owns, which may be a heap box -- and stamping
             // CAP_LIT on it makes Str_delete skip freeing that box (a leak).
             if rhs.node_type.is_literal_str() {
-                f.write("TIL_LIT_GUARD(").write(aname).write("); ")
-                f.write("*").write(aname).write(" = (Str){.c_str = (void *)\"")
+                f.write("TIL_LIT_GUARD(").write(acname).write("); ")
+                f.write("*").write(acname).write(" = (Str){.c_str = (void *)\"")
                 switch rhs.node_type {
                 case .Literal(Literal.Str(lit_s)):
                     f.write(lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(lit_s))
@@ -2812,7 +2812,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             case:
             }
             if do_rebind {
-                f.write(aname).write(" = ")
+                f.write(acname).write(" = ")
                 emit_as_ptr(f, rhs, depth, false, ctx)
                 f.write(";\n"); return
             }
@@ -2833,7 +2833,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 f.write(acname).write(" = _new; }\n")
             } else {
                 lit_owns_box := assign_str_lit_needs_own_box(aname, ctype, rhs, ctx)
-                f.write("{ ").write(ctype).write(" *_old = ").write(aname).write("; ").write(aname).write(" = ")
+                f.write("{ ").write(ctype).write(" *_old = ").write(acname).write("; ").write(acname).write(" = ")
                 if ctype.eq("Str").and(rhs.node_type.is_literal_str()) {
                     switch rhs.node_type {
                     case .Literal(Literal.Str(lit_s)):
@@ -2871,13 +2871,13 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 // verified, latent because every fixture's payload was a
                 // folded literal whose delete does nothing.
                 if ad.save_old_delete {
-                    f.write("; ").write(ctype).write("_delete(").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
+                    f.write("; ").write(ctype).write("_delete(").write(acname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
                 } else {
                     f.write("; ")
                 }
-                f.write("*").write(aname).write(" = _new; }\n")
+                f.write("*").write(acname).write(" = _new; }\n")
             } else {
-                f.write("*").write(aname).write(" = ")
+                f.write("*").write(acname).write(" = ")
                 mut is_ref_rhs := false
                 switch rhs.node_type {
                 case .Ident(rid):
@@ -2900,9 +2900,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
             .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.til_type().is(Type.Enum))) {
                 if rhs.node_type.is(NodeType.FCall).and(fcall_returns_c_value(rhs, ctx)) {
-                    f.write("*").write(aname).write(" = ")
+                    f.write("*").write(acname).write(" = ")
                 } else {
-                    f.write(aname).write(" = ")
+                    f.write(acname).write(" = ")
                 }
                 // Same shared-literal hazard as the save_old_delete branch
                 // above: this arm rebinds the pointer with no `_old` dance.
@@ -2917,9 +2917,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 }
                 if emitted_box.not() { emit_expr(f, rhs, depth, ctx) }
             } else if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
-                f.write(aname).write(" = "); emit_expr(f, rhs, depth, ctx)
+                f.write(acname).write(" = "); emit_expr(f, rhs, depth, ctx)
             } else {
-                f.write("*").write(aname).write(" = "); emit_deref(f, rhs, depth, ctx)
+                f.write("*").write(acname).write(" = "); emit_deref(f, rhs, depth, ctx)
             }
             f.write(";\n")
         }
@@ -6795,7 +6795,9 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
                 if lp_header_hides(dd.name, lp.ctx).not() {
                     ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), lp.ctx)
                     if dd.external_symbol.len() > 0 {
-                        f.write("extern ").write(external_global_ctype(dd, lp.ctx)).write(" ").write(dd.external_symbol).write(";\n")
+                        f.write("extern ").write(external_global_ctype(dd, lp.ctx))
+                        if dd.own_type.is(OwnType.Ref) { f.write(" *") } else { f.write(" ") }
+                        f.write(dd.external_symbol).write(";\n")
                     } else if dd.own_type.is(OwnType.Ref) {
                         f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
                     } else {
@@ -7106,7 +7108,7 @@ priv emit_binding_funcsig := proc(f: File, name: Str, fd: FunctionDef, ctx: Cont
 }
 
 priv binding_global_representable := func(d: Declaration, value_type: Type) returns Bool {
-    if d.own_type.is(OwnType.Shallow).not() { return false }
+    if d.own_type.is(OwnType.Shallow).or(d.own_type.is(OwnType.Ref)).not() { return false }
     return is_primitive(value_type).or(value_type.is(Type.Struct)).or(value_type.is(Type.Enum))
 }
 
@@ -7119,9 +7121,18 @@ priv emit_binding_global := proc(f: File, indent: Str, api_name: Str,
         source_name: Str, d: Declaration, value_type: Type, ctx: Context, lib_name: Str) {
     if binding_global_representable(d, value_type).not() { return }
     f.write(indent)
-    if d.is_mut { f.write("mut ") }
-    f.write(api_name).write(" := ext_global(")
-    f.write(binding_type_name(d.type_name(), ctx)).write(", \"")
+    type_name := binding_type_name(d.type_name(), ctx)
+    if d.own_type.is(OwnType.Ref) {
+        // A borrowed global is a C POINTER object; only the `ref` form of
+        // ext_global reads through it.
+        f.write("ref ")
+        if d.is_mut { f.write("mut ") }
+        f.write(api_name).write(" : ").write(type_name).write(" = ext_global(")
+    } else {
+        if d.is_mut { f.write("mut ") }
+        f.write(api_name).write(" := ext_global(")
+    }
+    f.write(type_name).write(", \"")
     f.write(binding_global_symbol(d, lib_name, source_name)).write("\")\n")
 }
 
@@ -7269,6 +7280,10 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
             if stmt2.node_type.is(NodeType.Decl).not().or(stmt2.children.len().eq(0)) { continue }
             ref dd2 : Declaration = decl_of(stmt2)
             if dd2.is_priv.or(lp.ctx.type_gen_synths.has(dd2.name)) { continue }
+            // A `ref` global BORROWS the named value: it is a pointer object
+            // of its own, already bound above as `ref ... = ext_global(...)`,
+            // not an alias of the name.
+            if dd2.own_type.is(OwnType.Ref) { continue }
             switch stmt2.children[0].node_type {
             case .Ident(aid):
                 target := Str.clone(aid.ident_name(lp.ctx.symbols.names))
@@ -7354,7 +7369,11 @@ priv emit_python_lib_symbol := proc(f: File, lib_name: Str, name: Str) {
 priv emit_python_global := proc(f: File, api_name: Str, source_name: Str,
         d: Declaration, value_type: Type, ctx: Context, lib_name: Str) {
     if binding_global_representable(d, value_type).not() { return }
-    f.write(api_name).write(" = ").write(type_name_to_ctypes_value(d.type_name(), ctx))
+    f.write(api_name).write(" = ")
+    // A borrowed global is a C POINTER object: the live view is a POINTER,
+    // read through .contents.
+    if d.own_type.is(OwnType.Ref) { f.write(type_name_to_ctypes_pointer(d.type_name(), ctx)) }
+    else { f.write(type_name_to_ctypes_value(d.type_name(), ctx)) }
     f.write(".in_dll(_lib, \"").write(binding_global_symbol(d, lib_name, source_name)).write("\")\n")
 }
 
@@ -7615,6 +7634,9 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             if stmt2.node_type.is(NodeType.Decl).not().or(stmt2.children.len().eq(0)) { continue }
             ref dd2 : Declaration = decl_of(stmt2)
             if dd2.is_priv.or(lp.ctx.type_gen_synths.has(dd2.name)).or(lp.ctx.generic_func_synth_names.has(dd2.name)) { continue }
+            // Same as the til binding: a `ref` global is a POINTER view of
+            // its own (in_dll above), not an alias of the name it borrows.
+            if dd2.own_type.is(OwnType.Ref) { continue }
             ref rhs2 : Expr = stmt2.children[0]
             switch rhs2.node_type {
             case .FuncDef:
@@ -9392,7 +9414,16 @@ priv emit_global_declaration := proc(f: File, stmt: Expr, mentioned: Set(Sym), m
     ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), dd.type_name(), ctx)
     if dd.external_symbol.len() > 0 {
         ctx.builder_external_globals.set(dd.name, own dd.external_symbol.clone())
-        f.write("extern ").write(external_global_ctype(dd, ctx)).write(" ").write(dd.external_symbol).write(";\n")
+        f.write("extern ").write(external_global_ctype(dd, ctx))
+        if dd.own_type.is(OwnType.Ref) {
+            // The C object is a POINTER: a `ref` ext_global borrows through
+            // it, so its uses read like any other ref global's (DEREF, ->)
+            // and see whatever C points the variable at by then.
+            f.write(" *").write(dd.external_symbol).write(";\n")
+            ctx.ref_globals.add(own ctx.symbols.intern(dd.name))
+            return
+        }
+        f.write(" ").write(dd.external_symbol).write(";\n")
         ctx.script_globals.add(own ctx.symbols.intern(dd.name))
         return
     }

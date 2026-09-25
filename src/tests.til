@@ -2787,6 +2787,13 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_struct_runtime", "test/script_struct_runtime.til",
         "", 0, format(exp, "script_struct_runtime.expected"), til_bin, asan_flag)
 
+    // A `ref` ext_global binds a C POINTER variable and borrows through it:
+    // the compiled program reads the variable on every use and the
+    // interpreter re-loads it on every lookup, so a C-side re-point after
+    // the declaration is seen by both, and `ref mut` writes through.
+    add_cli_pair(tests, "ext_global_ref", "test/ext_global_ref.til",
+        "", 0, format(exp, "ext_global_ref.expected"), til_bin, asan_flag)
+
     // #357 family at script scope: a Dynamic GLOBAL taking a pointer keeps
     // the address. The declaration used to gain a second star (`void **x`)
     // and, once that was fixed, the init declared a shadowing local instead

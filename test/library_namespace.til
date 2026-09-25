@@ -109,6 +109,7 @@ main := proc() {
     require_contains(til_a, "mut library_namespace_a_point_state := ext_global(BindingPoint, \"til_library_x5fnamespace_x5fa__library_namespace_a_point_state\")")
     require_contains(til_a, "COUNT := ext_global(I64, \"til_library_x5fnamespace_x5fa__BindingPoint_COUNT\")")
     require_contains(til_a, "mut STATE := ext_global(I64, \"til_library_x5fnamespace_x5fa__BindingPoint_STATE\")")
+    require_contains(til_a, "ref library_namespace_a_origin_ref : BindingPoint = ext_global(BindingPoint, \"til_library_x5fnamespace_x5fa__library_namespace_a_origin_ref\")")
     require_contains(til_a, "value: I64 = BindingPoint.COUNT")
     require_contains(til_a, "value: Str = \"a\\\"b\\\\c\"")
     require_contains(til_a, "throws BindingError")
@@ -137,12 +138,13 @@ main := proc() {
     require_contains(py_a, "library_namespace_a_value_alias = library_namespace_a_value")
     require_contains(py_a, "library_namespace_a_count = ctypes.c_longlong.in_dll")
     require_contains(py_a, "BindingPoint_STATE = ctypes.c_longlong.in_dll")
+    require_contains(py_a, "library_namespace_a_origin_ref = ctypes.POINTER(BindingPoint).in_dll")
     require_absent(py_a, "ctypes.POINTER(ctypes.c_void_p)")
     require_absent(py_a, "library_namespace_a_private_value")
     require_absent(py_a, "library_namespace_a_private_state")
     require_absent(py_a, "BindingPoint_HIDDEN_STATE")
 
-    py_check := "import sys; sys.path.insert(0, 'gen/til'); import library_namespace_a as a; assert a.library_namespace_a_count.value == 17; assert a.library_namespace_a_state.value == 23; assert a.BindingPoint_COUNT.value == 5; assert a.BindingPoint_STATE.value == 6; assert a.library_namespace_a_origin.scalar == 19; assert a.library_namespace_a_point_state.scalar == 20; assert not hasattr(a, 'library_namespace_a_private_state'); assert not hasattr(a, 'BindingPoint_HIDDEN_STATE'); assert a.BindingTag_TAG_Empty == 3; assert a.BindingTag_TAG_Number == 7; tag = a.BindingTag(); tag.tag = a.BindingTag_TAG_Empty; assert tag.tag == 3; assert a.library_namespace_a_global_sum() == 51; a.library_namespace_a_state.value = 30; a.BindingPoint_STATE.value = 8; a.library_namespace_a_point_state.scalar = 24; assert a.library_namespace_a_global_sum() == 60; assert a.library_namespace_a_point_state.scalar == 24"
+    py_check := "import sys; sys.path.insert(0, 'gen/til'); import library_namespace_a as a; assert a.library_namespace_a_count.value == 17; assert a.library_namespace_a_state.value == 23; assert a.BindingPoint_COUNT.value == 5; assert a.BindingPoint_STATE.value == 6; assert a.library_namespace_a_origin.scalar == 19; assert a.library_namespace_a_point_state.scalar == 20; assert not hasattr(a, 'library_namespace_a_private_state'); assert not hasattr(a, 'BindingPoint_HIDDEN_STATE'); assert a.BindingTag_TAG_Empty == 3; assert a.BindingTag_TAG_Number == 7; tag = a.BindingTag(); tag.tag = a.BindingTag_TAG_Empty; assert tag.tag == 3; assert a.library_namespace_a_global_sum() == 51; a.library_namespace_a_state.value = 30; a.BindingPoint_STATE.value = 8; a.library_namespace_a_point_state.scalar = 24; assert a.library_namespace_a_global_sum() == 60; assert a.library_namespace_a_point_state.scalar == 24; assert a.library_namespace_a_origin_ref.contents.scalar == 19; assert a.library_namespace_a_origin_ref.contents.size == 29"
     Cmd.new("python3", "-c", py_check).run_checked()
 
     // -fsigned-char: this consumer is the one C compile in the suite that

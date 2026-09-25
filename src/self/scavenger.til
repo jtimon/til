@@ -1964,6 +1964,16 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 }
             } else {
                 if scav_is_type_gen_template(decl.children[0]).not() {
+                    // The decl's DECLARED type is an edge of its own: the
+                    // emitted definition spells it (`RefPoint *point;`), and
+                    // an ext_global's initializer -- rewritten to Null by the
+                    // typer -- names nothing else. collect_refs pushes it for
+                    // a Decl NODE; the walk below starts at the initializer.
+                    switch decl.node_type {
+                    case .Decl(bfs_dd):
+                        if bfs_dd.til_type.is(Type.Unknown).not() { vec_push_str(worklist, bfs_dd.type_name()) }
+                    case:
+                    }
                     collect_refs(decl.children[0], worklist, lp.ctx.symbols)
                 }
             }
@@ -1994,6 +2004,12 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 }
             } else {
                 if scav_is_type_gen_template(decl.children[0]).not() {
+                    // Same declared-type edge as the user-unit branch above.
+                    switch decl.node_type {
+                    case .Decl(bfs_dd2):
+                        if bfs_dd2.til_type.is(Type.Unknown).not() { vec_push_str(worklist, bfs_dd2.type_name()) }
+                    case:
+                    }
                     collect_refs(decl.children[0], worklist, lp.ctx.symbols)
                 }
             }

@@ -159,6 +159,22 @@ the same storage through ~ctypes.in_dll~, so mutation is shared across C, Til,
 and Python consumers. A non-~mut~ declaration is read-only to Til even when the
 underlying C object itself is writable.
 
+A ~ref~ declaration binds a C POINTER object. The Til name borrows the
+pointee through that pointer, so whatever C points the variable at later is
+what Til reads next:
+
+#+begin_src til
+ref cursor : I64 = ext_global(I64, "library_cursor")           // I64 *library_cursor
+ref mut point : Point = ext_global(Point, "library_point")     // Point *library_point
+#+end_src
+
+Compiled code declares ~extern T *symbol;~ and reads through it on every use;
+the interpreter keeps the variable's address and re-loads the pointer on every
+lookup, so the two backends agree even when C re-points the variable after the
+declaration. ~ref mut~ writes through the pointer. Generated library bindings
+spell a library's own ~ref~ globals this way, and the Python binding exposes
+them as ~ctypes.POINTER(T).in_dll~ views read through ~.contents~.
+
 ** Passing a Str to a C string parameter
 
 A til ~Str~ is ~{c_str, count, cap}~ -- length-counted, like a Go
