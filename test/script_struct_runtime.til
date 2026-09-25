@@ -68,20 +68,20 @@ signal_next := func(signal: Signal) returns Signal {
     case .Hot: return Signal.Cold
     }
 }
-mut signal := Signal.Cold
+mut current_signal := Signal.Cold
 mut turns := 0
 while turns < 3 {
-    switch signal {
+    switch current_signal {
     case .Cold: println("cold")
     case .Warm, .Hot: println("warm or hot")
     }
-    if signal.is(Signal.Warm) { println("is warm") }
-    if signal.eq(Signal.Hot) { println("equals hot") }
-    if signal.neq(Signal.Cold) { println("not cold") }
-    signal = signal_next(signal)
+    if current_signal.is(Signal.Warm) { println("is warm") }
+    if current_signal.eq(Signal.Hot) { println("equals hot") }
+    if current_signal.neq(Signal.Cold) { println("not cold") }
+    current_signal = signal_next(current_signal)
     turns++
 }
-switch signal {
+switch current_signal {
 case .Hot: println("unexpected hot")
 case: println("default cold")
 }
@@ -91,7 +91,7 @@ wide_from_signal := func(signal: Signal) returns WideSignal {
     if signal.is(Signal.Cold) { return WideSignal.High }
     return WideSignal.Low
 }
-wide := wide_from_signal(signal)
+wide := wide_from_signal(current_signal)
 if wide.is(WideSignal.High) { println("wide high") }
 if wide.neq(WideSignal.Low) { println("wide distinct") }
 switch wide {
@@ -105,7 +105,7 @@ small_from_signal := func(signal: Signal) returns SmallSignal {
     if signal.is(Signal.Cold) { return SmallSignal.High }
     return SmallSignal.Low
 }
-small := small_from_signal(signal)
+small := small_from_signal(current_signal)
 if small.eq(SmallSignal.High) { println("small high") }
 
 DefaultSignal := enum { First, Second }
@@ -113,7 +113,7 @@ default_from_signal := func(signal: Signal) returns DefaultSignal {
     if signal.is(Signal.Cold) { return DefaultSignal.Second }
     return DefaultSignal.First
 }
-default_signal := default_from_signal(signal)
+default_signal := default_from_signal(current_signal)
 if default_signal.is(DefaultSignal.Second) { println("default second") }
 
 MediumSignal := enum(U32) { Low = 0, High = 4294967295 }
@@ -121,7 +121,7 @@ medium_from_signal := func(signal: Signal) returns MediumSignal {
     if signal.is(Signal.Cold) { return MediumSignal.High }
     return MediumSignal.Low
 }
-medium := medium_from_signal(signal)
+medium := medium_from_signal(current_signal)
 if medium.is(MediumSignal.High) { println("medium high") }
 
 counted_signal := func(mut point: StructPoint) returns Signal {
@@ -130,7 +130,7 @@ counted_signal := func(mut point: StructPoint) returns Signal {
 }
 switch counted_signal(point) {
 case .Warm:
-    switch signal {
+    switch current_signal {
     case .Cold: println("nested cold")
     case: println("unexpected nested tag")
     }

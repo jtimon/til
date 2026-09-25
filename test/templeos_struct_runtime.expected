@@ -361,7 +361,7 @@ I64 TilMain()
     StructNamedPoint_Delete(&copy);
     TilStrDelete(&source, FALSE);
     StructSegment_Delete(&segment_copy);
-    U16 signal = 7;
+    U16 current_signal = 7;
     I64 turns = 0;
     while (TRUE) {
         I64 hoisted__I64_g38 = 3;
@@ -371,7 +371,7 @@ I64 TilMain()
             break;
         }
         do {
-            U16 enum_switch_1 = signal;
+            U16 enum_switch_1 = current_signal;
             if ((enum_switch_1 == 7)) {
                 U64 hoisted__U64_g23 = 1;
                 TilStrArray _va_Array_g5;
@@ -394,7 +394,7 @@ I64 TilMain()
             TilStrArraySet(&_va_Array_g6, hoisted__U64_g27, &hoisted__Str_g28);
             TilPrintln(&_va_Array_g6);
         } while (FALSE);
-        Bool hoisted__Bool_g39 = (signal == 12);
+        Bool hoisted__Bool_g39 = (current_signal == 12);
         if (hoisted__Bool_g39) {
             U64 hoisted__U64_g29 = 1;
             TilStrArray _va_Array_g7;
@@ -406,7 +406,7 @@ I64 TilMain()
             TilStrArraySet(&_va_Array_g7, hoisted__U64_g30, &hoisted__Str_g31);
             TilPrintln(&_va_Array_g7);
         }
-        Bool hoisted__Bool_g40 = (signal == 13);
+        Bool hoisted__Bool_g40 = (current_signal == 13);
         if (hoisted__Bool_g40) {
             U64 hoisted__U64_g32 = 1;
             TilStrArray _va_Array_g8;
@@ -418,7 +418,7 @@ I64 TilMain()
             TilStrArraySet(&_va_Array_g8, hoisted__U64_g33, &hoisted__Str_g34);
             TilPrintln(&_va_Array_g8);
         }
-        Bool hoisted__Bool_g41 = (signal != 7);
+        Bool hoisted__Bool_g41 = (current_signal != 7);
         if (hoisted__Bool_g41) {
             U64 hoisted__U64_g35 = 1;
             TilStrArray _va_Array_g9;
@@ -430,11 +430,11 @@ I64 TilMain()
             TilStrArraySet(&_va_Array_g9, hoisted__U64_g36, &hoisted__Str_g37);
             TilPrintln(&_va_Array_g9);
         }
-        signal = signal_next(signal);
+        current_signal = signal_next(current_signal);
         (++turns);
     }
     do {
-        U16 enum_switch_2 = signal;
+        U16 enum_switch_2 = current_signal;
         if ((enum_switch_2 == 13)) {
             U64 hoisted__U64_g42 = 1;
             TilStrArray _va_Array_g10;
@@ -457,7 +457,7 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g11, hoisted__U64_g46, &hoisted__Str_g47);
         TilPrintln(&_va_Array_g11);
     } while (FALSE);
-    U64 wide = wide_from_signal(signal);
+    U64 wide = wide_from_signal(current_signal);
     Bool hoisted__Bool_g123 = (wide == 4294967303);
     if (hoisted__Bool_g123) {
         U64 hoisted__U64_g48 = 1;
@@ -518,7 +518,7 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g16, hoisted__U64_g61, &hoisted__Str_g62);
         TilPrintln(&_va_Array_g16);
     } while (FALSE);
-    U8 small = small_from_signal(signal);
+    U8 small = small_from_signal(current_signal);
     Bool hoisted__Bool_g125 = (small == 255);
     if (hoisted__Bool_g125) {
         U64 hoisted__U64_g63 = 1;
@@ -531,7 +531,7 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g17, hoisted__U64_g64, &hoisted__Str_g65);
         TilPrintln(&_va_Array_g17);
     }
-    U8 default_signal = default_from_signal(signal);
+    U8 default_signal = default_from_signal(current_signal);
     Bool hoisted__Bool_g126 = (default_signal == 1);
     if (hoisted__Bool_g126) {
         U64 hoisted__U64_g66 = 1;
@@ -544,7 +544,7 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g18, hoisted__U64_g67, &hoisted__Str_g68);
         TilPrintln(&_va_Array_g18);
     }
-    U32 medium = medium_from_signal(signal);
+    U32 medium = medium_from_signal(current_signal);
     Bool hoisted__Bool_g127 = (medium == 4294967295);
     if (hoisted__Bool_g127) {
         U64 hoisted__U64_g69 = 1;
@@ -563,7 +563,7 @@ I64 TilMain()
         hoisted__Signal_g81;
         if (hoisted__Bool_g82) {
             do {
-                U16 enum_switch_4 = signal;
+                U16 enum_switch_4 = current_signal;
                 if ((enum_switch_4 == 7)) {
                     U64 hoisted__U64_g72 = 1;
                     TilStrArray _va_Array_g20;
