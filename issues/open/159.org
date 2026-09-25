@@ -1,56 +1,90 @@
 # priority: low
 # category: features
-** OPEN #159 Show the til logo as a single character in the REPL prompt
+** OPEN #159 Show the til logo as a single glyph in tilminal's prompt
 
-We have ~img/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
-   by [[file:../../examples/svg2ttf.til][examples/svg2ttf.til]]) with the logo mapped to codepoint
-   ~'T'~ (0x54).  The goal: replace the REPL prompt's ~til[mode]>~
-   (in ~src/til.til~ ~repl_read_line~) with ~<logo>[mode]>~ where
-   ~<logo>~ is the single glyph rendered from ~til_logo.ttf~.
+*** Decision
 
-   Barriers:
+Implement the logo prompt only in
+[[file:../../examples/tilminal.til][examples/tilminal.til]], where we control rendering.
+The terminal CLI ~til repl~ keeps its textual ~til[mode]>~ prompt
+and ~til[mode]...~ continuation prompt. This issue remains open for
+the tilminal implementation; this re-analysis does not implement it.
 
-   - The REPL is a terminal-only CLI.  A terminal renders whatever
-     font the user has configured; it cannot pick up an arbitrary
-     TTF file from the repo.  To see the logo there, the user (or
-     an install step) has to copy ~img/til_logo.ttf~ into a
-     system font directory (~~/.local/share/fonts~ on Linux)
-     and the terminal has to actually use that font, or a fallback
-     chain that reaches it.  This is out of our control.
+Use the existing ~img/til_logo.ttf~, generated from
+~img/logo-transparent.svg~ by
+[[file:../../examples/svg2ttf.til][examples/svg2ttf.til]]. Tilminal can load it directly with
+raylib's ~LoadFontEx~ and draw the logo with ~DrawTextEx~, using its
+normal font for the rest of the prompt and input. The logo is mapped
+to ASCII ~T~ (0x54); that mapping works when explicitly selecting the
+logo font for this glyph alone. No private-use mapping, system font
+registration, terminal configuration, or environment variable is
+needed for this approach.
 
-   - A safer substitute is a Unicode codepoint that has broad font
-     support, but there is none that matches the logo.  A Private
-     Use Area codepoint (e.g. ~U+E000~) would need our TTF installed
-     anyway; without it, terminals render the tofu box.
+*** Re-analysis of the original terminal REPL proposal
 
-   - ~CLAUDE.md~ requires plain ASCII everywhere in source files,
-     so we cannot embed a non-ASCII codepoint directly in the prompt
-     string even if we wanted to.  It would have to be built up with
-     ~Str.from_byte~ calls, which is doable but intentionally ugly.
+The original goal was a single logo glyph in ordinary ~til repl~,
+independent of tilminal. Several details have changed or needed
+correction:
 
-   - ~mode gui~ would let us draw the glyph for real via raylib's
-     ~LoadFontEx~ + ~DrawTextEx~, but the REPL in ~src/til.til~ is
-     ~mode cli~ and has no event loop.  Lifting it into a raylib
-     window is a separate project.
+- Prompt construction is now centralized in ~src/til.til~'s
+  ~repl_prompt~, shared by interactive and redirected input paths.
+  The interactive editor in ~src/self/repl_editor.til~ owns redraws.
+  Its ~editor_render~ measures and clips the prompt in bytes, assuming
+  one byte per screen column. A UTF-8 logo would require correct
+  display-width accounting and clipping without splitting its bytes,
+  including narrow-terminal redraw tests.
+- General Unicode string support is not a prerequisite for emitting
+  one fixed glyph. Its UTF-8 bytes can be constructed using existing
+  ~Str.from_byte~ calls while keeping source code ASCII-only. Waiting
+  for Unicode support would not solve font selection or detection.
+- The existing ~T~ mapping is unsuitable for terminal fallback:
+  ordinary fonts already contain ~T~, while prioritizing our logo
+  font could replace ordinary capital Ts too. A private-use codepoint
+  such as ~U+E000~ would avoid replacing a normal letter, but would
+  still need the terminal to select our font. Private-use assignments
+  can collide with icons in other fonts.
+- Font installation could be automated by ~make install~; asking
+  users to install it manually is not inherently necessary. For
+  example, the default Linux install could put the font under
+  ~/usr/local/share/fonts/til/~ and refresh the fontconfig cache;
+  Windows could register the font through its platform facilities.
+  These were possibilities discussed, not approved installation
+  changes for this issue.
 
-   Possible paths forward:
+*** Why installation checks cannot guarantee a textual fallback
 
-   1. Keep the terminal REPL; opt in via an env var (e.g.
-      ~TIL_FANCY_PROMPT=1~) that emits the Private Use Area
-      codepoint through ~Str.from_byte~.  Document the font
-      install step.  Users without the font see a box; everyone
-      else sees the logo.  Low effort, limited reach.
+An installed font and a font selected by the terminal are different
+things. Some terminals discover system fallback fonts automatically;
+others need explicit configuration. Another font may already supply
+the private-use character, and a running terminal may need restarting
+before discovering a newly installed font.
 
-   2. Ship a small [[file:../../examples/tilminal.til][examples/tilminal.til]]-hosted REPL that
-      loads ~img/til_logo.ttf~ via raylib and draws the prompt
-      glyph plus user input.  Higher effort but no install step.
-      A natural follow-up to [[file:../../examples/tilminal.til][examples/tilminal.til]].
+The font can also genuinely be absent when running a copied binary
+or a development build. Over SSH, installing the font on the remote
+machine does not install it on the client that renders the terminal.
+Thus SSH is not the only complication, and installing til does not
+prove the rendering terminal has selected the logo font.
 
-   3. Wait until til grows Unicode string support, pick a Private
-      Use Area codepoint, and ship the font as a first-class asset
-      that the build step installs (or that ~cargo install~-style
-      tooling handles).  Cleanest but gated on several prior
-      pieces.
+Checking installation could support best-effort automatic enabling,
+but there is no portable terminal query that proves our intended
+glyph will be rendered. Emitting it cannot reliably detect a missing
+glyph box or an unrelated icon and substitute ~til~ afterward.
 
-   Until one of these lands the REPL prompt stays ~til[mode]>~.
+An explicit opt-in such as ~TIL_FANCY_PROMPT=1~ was considered, with
+terminal-specific configuration where needed (for example, kitty's
+~symbol_map U+E000 TIL Logo~). This would put setup on the user,
+including Windows users, and was rejected. Do not add that setting
+or pursue automatic terminal selection as part of this issue.
 
+*** Tilminal scope
+
+Tilminal is currently a raylib GUI that runs shell commands through
+~sh -lc~ and draws a ~$ ~ prompt. It is not a terminal emulator or a
+persistent til REPL. Drawing its prompt logo is independent of adding
+either capability; this decision does not require moving ~til repl~
+into a GUI or implementing a tilminal-hosted REPL.
+
+The implementation should load the existing logo asset directly,
+draw the one glyph beside the normal prompt/input text, and verify
+its sizing and spacing in the window. Direct rendering avoids the
+terminal font-selection and fallback-detection problems above.
