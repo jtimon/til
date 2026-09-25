@@ -8215,6 +8215,18 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     ctx.errors = 0
     scope.typer_func = TyperFuncState()
     context_enter_file(ctx, path)
+    // Check the source-level top level, before lambda/throw lowering appends
+    // generated statements. Imports supply declarations, but executable
+    // statements in this file violate its own mode even when imported from
+    // an executable entrypoint.
+    if ctx.mode.decls_only {
+        for stmt : Expr in program.children {
+            if stmt.node_type.is(NodeType.Decl).not()
+                .and(import_path_for_stmt(stmt, path, ctx.symbols).len().eq(0)) {
+                stmt.type_error("mode allows declarations and imports only", ctx)
+            }
+        }
+    }
     // #328: the late-generic queue is per unit. It should already be
     // empty (every flush drains it), but a stale entry would be appended
     // to the WRONG unit, so clear it here and check it drained at exit.

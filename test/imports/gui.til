@@ -1,0 +1,2 @@
+mode lib
+unrelated_gui := func() returns I64 { return 7 }

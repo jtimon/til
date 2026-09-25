@@ -1,0 +1,2 @@
+mode loading_decls
+answer := func() returns I64 { return 42 }

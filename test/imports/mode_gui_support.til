@@ -1,0 +1,3 @@
+mode lib
+import("../../src/modes/gui")
+gui_window_open := proc() { init_window(1, 1, "test") }

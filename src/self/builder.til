@@ -247,8 +247,16 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     return 0
 }
 
-priv is_gui_auto_import := func(auto_import: Str) returns Bool {
-    return auto_import.eq("gui").or(auto_import.eq("src/modes/gui")).or(auto_import.ends_with("/gui"))
+// The module, not the spelling of an auto_import, determines GUI linking.
+// A user mode may import gui through another support file, and an unrelated
+// support file named gui must not turn a wasm program into an HTML build.
+priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
+    root := lp.ext_c_path.strip_suffix("/src/c/ext.c")
+    gui_path := realpath_str(format(root, "/src/modes/gui.til"))
+    for unit_path : Str in lp.unit_paths() {
+        if realpath_str(unit_path) == gui_path { return true }
+    }
+    return false
 }
 
 // Resolve the archive paths in a target-data flag string (issue #348).
@@ -281,7 +289,7 @@ priv resolve_target_archives := proc(flags: Str, ext_c_path: Str) returns Str {
     return out
 }
 
-priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool, usize64: Bool) returns I32 {
+priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, has_gui: Bool, asan: Bool, prof: Bool, usize64: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -289,7 +297,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if lf.len() == 0 { lf = "" }
     if ifl.len() == 0 { ifl = "" }
 
-    wasm_gui := target.is(Target.Wasm32).and(is_gui_auto_import(mode_auto_import))
+    wasm_gui := target.is(Target.Wasm32).and(has_gui)
     mut compiler := cc_override
     if compiler.len() == 0 {
         if wasm_gui { compiler = "emcc" }
@@ -475,8 +483,8 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if wasm_gui { lf = "" }
 
     // Per-target system + ffi + (gui) link flags. Tables in
-    // src/self/targets.til. mode_auto_import points at gui iff the program
-    // declared mode gui.
+    // src/self/targets.til. Include them when gui.til was actually loaded,
+    // whether by a built-in mode, a custom support module, or an import.
     sys_libs := target_system_libs(target)
     // Per-target libffi archives exist only where a matching host built
     // them (the Makefile keeps stable-path copies on native mac and
@@ -502,7 +510,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         ffi_lib = ""
     }
     mut gui_part := ""
-    if is_gui_auto_import(mode_auto_import) {
+    if has_gui {
         gui_part = format(" ", resolve_target_archives(target_gui_libs(target), ext_c_path))
     }
 
@@ -594,7 +602,7 @@ priv BuildPaths := struct {
     do_lib := false
 }
 
-priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {
+priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {
     mut paths := BuildPaths()
 
     last_slash := lp.path.rfind("/")
@@ -639,7 +647,7 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     mut c_path := format("gen/til/", name, source_ext)
     if custom_c.len() > 0 { c_path = custom_c.clone() }
     mut ext := executable_extension(target)
-    if target.is(Target.Wasm32).and(is_gui_auto_import(lp.cur_mode.auto_import)) { ext = ".html" }
+    if target.is(Target.Wasm32).and(loads_gui_module(lp)) { ext = ".html" }
     mut bin_path := format("bin/", name, ext)
     if custom_bin.len() > 0 { bin_path = custom_bin.clone() }
 
@@ -761,7 +769,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
             lp.runtime_stem(), lp.runtime_shared_basename(),
             lp.core_stem(), lp.core_shared_basename())
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize64)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64)
 }
 
 cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target) returns I32 {

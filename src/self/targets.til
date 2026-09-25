@@ -306,8 +306,8 @@ target_ffi_build_hint := func(target: Target) returns Str {
     return ""
 }
 
-// raylib + tinyfd + windowing-system libs for `mode gui`. Builder appends
-// these only when the program declared mode gui. A proc because the macOS
+// raylib + tinyfd + windowing-system libs when src/modes/gui.til is loaded.
+// Builder checks the resolved import graph. A proc because the macOS
 // case is host-aware (macos_is_cross). Empty on targets where GUI
 // cross-builds don't exist yet.
 target_gui_libs := proc(target: Target) returns Str {

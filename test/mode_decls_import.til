@@ -1,0 +1,3 @@
+mode script
+import("imports/mode_decls_only_bad")
+println(answer())

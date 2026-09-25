@@ -1,0 +1,2 @@
+mode loading_gui
+main := proc() { gui_window_open() }

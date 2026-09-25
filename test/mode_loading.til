@@ -34,6 +34,47 @@ check_mode_loading := proc(compiler: Str, root: Str, command: Str,
     }
 }
 
+check_mode_policy := proc(compiler: Str, root: Str, command: Str,
+    source: Str, expected: Str, succeeds: Bool) {
+    cmd := Cmd.new(compiler, command,
+        format("--extra-modes=", root, "/test/imports/mode_definitions.til"))
+    cmd.cwd(root)
+    if command == "translate" {
+        cmd.args("-c", format(root, "/gen/c/", source.strip_suffix(".til"), ".c"))
+    }
+    cmd.arg(format("test/", source))
+    cmd.capture()
+    status := cmd.run()
+    output := format(cmd.out(), cmd.err())
+    if succeeds {
+        if status != 0 { panic("mode policy ", source, " failed: ", output) }
+    } else {
+        if status == 0 || output.contains(expected).not() {
+            panic("mode policy ", source, " missing diagnostic: ", output)
+        }
+    }
+}
+
+check_gui_link := proc(compiler: Str, root: Str, source: Str, has_gui: Bool) {
+    cmd := Cmd.new(compiler, "build", "--target=wasm32", "--cc=echo",
+        format("--extra-modes=", root, "/test/imports/mode_definitions.til"))
+    cmd.cwd(root)
+    cmd.args("-c", format("gen/c/", source.strip_suffix(".til"), ".c"),
+        format("test/", source))
+    cmd.capture()
+    status := cmd.run()
+    output := format(cmd.out(), cmd.err())
+    if status != 0 { panic("GUI target ", source, " failed: ", output) }
+    if output.contains("-sSINGLE_FILE") != has_gui {
+        panic("GUI target flags for ", source, ": ", output)
+    }
+    mut ext := ".wasm"
+    if has_gui { ext = ".html" }
+    if output.contains(format("bin/", source.strip_suffix(".til"), ext)).not() {
+        panic("GUI output extension for ", source, ": ", output)
+    }
+}
+
 main := proc(args: ..Str) {
     root := realpath_str(".")
     compiler := realpath_str(args[0])
@@ -52,5 +93,14 @@ main := proc(args: ..Str) {
         check_mode_loading(compiler, root, command, "mode_loading_app.til",
             "is not a 'mode mode' file", false, asan)
     }
+    for command : Str in array(Str, "interpret", "translate") {
+        check_mode_policy(compiler, root, command, "mode_decls_only_bad.til",
+            "mode allows declarations and imports only", false)
+        check_mode_policy(compiler, root, command, "mode_decls_import.til",
+            "mode allows declarations and imports only", false)
+        check_mode_policy(compiler, root, command, "mode_decls_only_valid.til", "", true)
+    }
+    check_gui_link(compiler, root, "mode_gui_composed.til", true)
+    check_gui_link(compiler, root, "mode_gui_name_only.til", false)
     println("mode loading passed")
 }

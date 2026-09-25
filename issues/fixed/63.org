@@ -1,6 +1,24 @@
 # priority: low
 # category: features
-** WIP #63 User-defined modes
+** FIXED #63 User-defined modes
+
+*** Post-mortem
+
+The original issue described a hardcoded mode table, which was replaced
+by user-defined ~Mode(...)~ files in ~8cd7f3bff~. Remaining loader gaps
+left mode-file imports and imported files' support incomplete; those were
+fixed in the earlier #63 loader change. The last missing policy was
+~decls_only~: it shaped generated code but never rejected executable
+top-level statements. The GUI builder also inferred GUI dependencies from
+the support filename, so custom modes importing the GUI module indirectly
+missed target libraries and unrelated files named ~gui~ selected them.
+
+The typer now checks each file's source-level statements under its own
+~decls_only~ policy. The builder checks the resolved unit graph for
+~src/modes/gui.til~ when selecting target GUI libraries and WASM HTML
+output. Regression test ~mode_loading~ covers interpreter/translator
+agreement, imported declaration-only files, custom GUI support imports,
+and the unrelated-filename case.
 
 *** Current implementation
 
@@ -50,10 +68,10 @@ definitions through the existing ~--extra-modes~ option.
   mode names rather than silently ignoring or overwriting them.
 - [X] Add dependency-free regressions for imports, per-file support,
   resolution from another working directory, cycles, and diagnostics.
-- [ ] Verify declaration-only enforcement and document the actual policy
+- [X] Verify declaration-only enforcement and document the actual policy
   contract, including interpreter/compiler agreement.
-- [ ] Review GUI dependency selection, which still recognizes support
-  path spellings rather than actual imported dependencies.
+- [X] Select GUI dependencies from the resolved import graph instead of
+  mode support path spellings.
 
 Loader regressions live in ~test/mode_loading.til~, registered as
 ~mode_loading~ in the suite. They exercise both interpretation and compiled
@@ -61,7 +79,7 @@ execution from a different working directory, cyclic mode definitions,
 repeated mode-file flags, implicit support cycles, shared support
 initialization, legacy path resolution, and missing/conflicting definitions.
 
-*** Boundary still to settle
+*** Scope boundary
 
 ~needs_main~ selects the compiler's existing entry contract; it does not
 define an arbitrary entry signature. ~theme~ has a compiler-owned output

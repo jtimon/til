@@ -1,0 +1,2 @@
+mode loading_decls
+println("unexpected top-level statement")

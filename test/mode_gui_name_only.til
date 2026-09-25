@@ -1,0 +1,2 @@
+mode loading_name_only
+main := proc() { println(unrelated_gui()) }

@@ -167,6 +167,12 @@ with combinations of these behaviors: require ~main~, restrict the file to
 declarations, build a library, enforce purity, run tests, enable debug prints,
 or automatically import a support file.
 
+~decls_only = true~ rejects executable statements at the top level of
+each file selecting that mode, including imported files; declarations and
+imports remain allowed. It does not restrict the bodies of declared funcs
+or procs. ~is_library = true~ selects library artifacts, independently of
+this top-level rule. ~needs_main = true~ uses Til's built-in ~main~ contract.
+
 [[file:../../examples/custom_modes.til][examples/custom_modes.til]] defines
 four modes that each import a different messaging prelude:
 
@@ -205,6 +211,10 @@ files. Explicit imports and mode support share the same dependency graph, so
 a support module reached by both routes is loaded and initialized only once.
 To reuse facilities, define another ~Mode(...)~ and let its support module
 import the existing support modules. There is no mode inheritance.
+If a custom support module imports Til's ~src/modes/gui~ module, the build
+also selects the GUI target libraries and (for WASM) an HTML output, just as
+~mode gui~ does. An unrelated support file named ~gui~ does not enable those
+dependencies.
 
 See [[file:../concepts/modes.org][the mode reference]] for a concise list of
 the built-in modes.

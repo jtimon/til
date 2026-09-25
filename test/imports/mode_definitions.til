@@ -5,3 +5,6 @@ loading_entry := Mode(auto_import = "mode_support")
 // Existing compiler-root and entrypoint-relative spellings remain valid.
 loading_legacy_root := Mode(auto_import = "test/imports/mode_support")
 loading_legacy_entry := Mode(auto_import = "imports/mode_support")
+loading_decls := Mode(decls_only = true)
+loading_gui := Mode(needs_main = true, auto_import = "mode_gui_support")
+loading_name_only := Mode(needs_main = true, auto_import = "gui")
