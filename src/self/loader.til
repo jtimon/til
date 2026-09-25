@@ -4236,7 +4236,12 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     return 0
 }
 
-finish_init_and_type_program := proc(mut lp: LoadedProgram) {
+// Returns the errors the garbager raised (#407): its ownership checks run in
+// this pass on a program that typed cleanly, so a use after an ownership
+// transfer is found HERE, and a caller that dropped the count went on to run
+// or emit the program the diagnostic just rejected.
+finish_init_and_type_program := proc(mut lp: LoadedProgram) returns I32 {
+    errors_before_garbager := lp.ctx.errors
     // Asap-destruction phase. Walks every imported file post-order,
     // rebuilding per-body scopes from the typed AST and inserting all
     // Type.delete() / free() calls in one phase (#158 / #204 step 3b).
@@ -4247,13 +4252,13 @@ finish_init_and_type_program := proc(mut lp: LoadedProgram) {
     // path drains again in interp_session_free.
     constfolder_clear_known(lp.ctx)
     scope_pool_drain()
+    return lp.ctx.errors - errors_before_garbager
 }
 
 init_and_type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
     type_errors := type_program_errors(lp, run_tests)
     if type_errors > 0 { return type_errors }
-    finish_init_and_type_program(lp)
-    return 0
+    return finish_init_and_type_program(lp)
 }
 
 init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
@@ -4294,7 +4299,8 @@ repl_finish_prepare_program := proc(mut lp: LoadedProgram) {
 repl_init_cached_program := proc(mut lp: LoadedProgram) returns I32 {
     type_errors := type_program_errors(lp, false)
     if type_errors > 0 { return type_errors }
-    finish_init_and_type_program(lp)
+    garbager_errors := finish_init_and_type_program(lp)
+    if garbager_errors > 0 { return garbager_errors }
     // The cached empty REPL base must keep core/user definitions alive for
     // later deltas; full prepare would scavenge them as unused in the empty
     // root and leave scope.func_defs pointing at deleted AST nodes.
@@ -4334,8 +4340,10 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
     if body_pre_passes(lp.ctx, delta, lp.ctx.scope, 1, 0) {
         reregister_repl_scope_defs(delta, lp.ctx.scope, lp.ctx.symbols)
     }
+    // #407: the delta's ownership checks run here; see finish_init_and_type_program.
+    errors_before_garbager := lp.ctx.errors
     garbager_destroy_body(lp.ctx, delta, lp.ctx.scope)
-    return 0
+    return lp.ctx.errors - errors_before_garbager
 }
 
 repl_prepare_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) {

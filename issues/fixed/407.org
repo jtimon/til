@@ -1,0 +1,80 @@
+# priority: high
+# category: bugs
+** FIXED #407 Garbager insert-pass errors are printed but ignored on otherwise clean programs
+
+*** Post-mortem
+
+Root cause: the garbager's ownership checks run in two places. On a
+program whose typing already failed, ~type_program_errors~ runs them in
+validate mode and adds what they raise to the type-error count. On a
+program that typed cleanly they run inside ~garbager_destroy~, the pass
+that inserts the deletes -- and ~finish_init_and_type_program~, which
+calls it, returned nothing, so every caller treated the program as
+accepted. ~type_error~ still printed the diagnostic and bumped
+~ctx.errors~; nothing read the bump. The REPL's delta path
+(~repl_type_delta_program~ -> ~garbager_destroy_body~) had the same hole
+and returned a literal 0.
+
+Fix: ~finish_init_and_type_program~ and ~repl_type_delta_program~ now
+return the growth of ~ctx.errors~ across the garbager pass.
+~init_and_type_program_errors~ returns it (so ~init_and_type_program~
+prints "N type error(s) found" and exits 1 for every command that goes
+through ~prepare_program~ or ~doc~), ~repl_init_cached_program~ returns it, and the
+REPL's loud full-load turn moved its ~finish_init_and_type_program~ call
+up into the typecheck branch so a nonzero count drops the turn like any
+type error instead of running it.
+
+Fallout: none beyond the negative tests themselves. Translating every
+program under test/ and examples/ with master's compiler, exactly three
+exited 0 while printing an ~error:~ line -- test/capture_block_own_error.til,
+test/loop_transfer_error.til, and the new regression -- and their count
+rows only look at the diagnostic, so they pass unchanged. The first two
+simply exit 1 now, as they always should have.
+
+Regression test: ~use_after_transfer~ (~_i~ and ~_r~ via add_cli_pair)
+runs test/use_after_transfer_error.til on both backends and pins exit 1
+plus test/use_after_transfer_error.expected, the diagnostic and nothing
+after it -- before the fix the ~_r~ row exited 0 and printed "ab" and the
+freed buffer.
+
+*** Summary
+
+An error the garbager raises while inserting deletes -- for example "use
+of 'x' after ownership transfer" -- is printed, and then compilation
+carries on as if nothing happened. ~type_program_errors~
+(src/self/loader.til) only consults the garbager when typing ALREADY
+failed (~garbager_validate~, the ~type_errors > 0~ branch); on a clean
+typing run ~finish_init_and_type_program~ calls ~garbager_destroy~ and
+never looks at ~ctx.errors~ afterwards, and ~init_and_type_program_errors~
+returns 0.
+
+Reproduced on master (1b84be8):
+
+  mode script
+
+  eat := proc(own s: Str) {
+      println(s)
+  }
+
+  doomed := format("a", "b")
+  eat(own doomed)
+  println(doomed)
+
+~til build~ prints
+
+  tmp/uat209.til:9:9: error: use of 'doomed' after ownership transfer
+  tmp/uat209.til:8:1: note: ownership transferred here
+    help: pass a clone instead: own doomed.clone()
+
+then exits 0 and writes the binary, which prints "ab" and then the freed
+buffer (garbage bytes) and exits 0 -- a use-after-free shipped from a
+program the compiler itself diagnosed. The interpreter path prints the
+same error and still runs the program.
+
+Found while fixing #209. Fix direction: after ~garbager_destroy~, compare
+~ctx.errors~ with its value before the pass and fail the build (and the
+interpret/test paths) on any increase, the same way ~type_errors~ does.
+Expect fallout: any test or example that currently only "passes" because
+its garbager error is ignored will start failing and has to be fixed at
+its source, not re-silenced. Regression: a negative test in the suite for
+the program above (build must exit non-zero and not produce a binary).

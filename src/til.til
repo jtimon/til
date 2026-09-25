@@ -645,6 +645,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
                 typer_errs = typed_heap.load_errors
             } else if use_full_load {
                 typer_errs = repl_typecheck(typed_heap)
+                if typer_errs == 0 { typer_errs = finish_init_and_type_program(typed_heap) }
             } else {
                 mut delta_source2 := ""
                 delta_source2 = delta_source2.format("mode ", mode_str, "\n")
@@ -665,7 +666,6 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
             }
             if typer_errs == 0 {
                 if use_full_load {
-                    finish_init_and_type_program(typed_heap)
                     repl_finish_prepare_program(typed_heap)
                     turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, init_docs_this_turn, doc_init_line, turn_aborted)
                 } else {

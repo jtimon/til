@@ -1,0 +1,16 @@
+mode script
+
+// Negative test (issue #407): the use after an ownership transfer below is
+// the garbager's diagnostic, raised while it inserts deletes -- after a
+// clean typing pass. The error used to be printed and then ignored: `til
+// build` exited 0 and wrote a binary that printed "ab" and then the freed
+// buffer, and `til interpret` ran the program too. Both backends must refuse
+// it before running anything.
+
+eat := proc(own s: Str) {
+    println(s)
+}
+
+doomed := format("a", "b")
+eat(own doomed)
+println(doomed)
