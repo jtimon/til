@@ -1250,9 +1250,9 @@ namespace:
             // every consumer treat it as an integer -- the constfolder then
             // converted the literal's own text and died with
             // "Str.to_i64: invalid char in '1.5'", pointing into src/core with
-            // no user file or line. F32 is til's only float type.
+            // no user file or line. The unconstrained float default is F64.
             if nd.til_type.is(Type.Unknown) {
-                if nd.is_float() { return TYPE_F32 }
+                if nd.is_float() { return TYPE_F64 }
                 return TYPE_I64
             }
             return nd.til_type

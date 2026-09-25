@@ -574,7 +574,7 @@ static Str Str_with_capacity(U64 n) {
     memset(buf, hoisted__I32_4, hoisted__U64_5);
     Str hoisted__Str_Str_with_capacity_6 = {0};
     hoisted__Str_Str_with_capacity_6.c_str = buf;
-    hoisted__Str_Str_with_capacity_6.count = 0;
+    hoisted__Str_Str_with_capacity_6.count = 0ULL;
     hoisted__Str_Str_with_capacity_6.cap = n;
     { Str _ret = hoisted__Str_Str_with_capacity_6; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
@@ -813,7 +813,7 @@ static Vec__Str Vec__Str_clone(Vec__Str * self) {
         Vec__Str hoisted__Vec__Str_0 = {0};
         hoisted__Vec__Str_0.data = NULL;
         hoisted__Vec__Str_0.count = 0ULL;
-        hoisted__Vec__Str_0.cap = 0;
+        hoisted__Vec__Str_0.cap = 0ULL;
         return hoisted__Vec__Str_0;
     }
     U64 hoisted__U64_14 = Str_size();
@@ -1881,7 +1881,7 @@ static Vec__I64 Vec__I64_clone(Vec__I64 * self) {
         Vec__I64 hoisted__Vec__I64_0 = {0};
         hoisted__Vec__I64_0.data = NULL;
         hoisted__Vec__I64_0.count = 0ULL;
-        hoisted__Vec__I64_0.cap = 0;
+        hoisted__Vec__I64_0.cap = 0ULL;
         return hoisted__Vec__I64_0;
     }
     U64 hoisted__U64_15 = ((U64)(self->cap));
@@ -1954,7 +1954,7 @@ static Vec__CfNestedValues Vec__CfNestedValues_clone(Vec__CfNestedValues * self)
         Vec__CfNestedValues hoisted__Vec__CfNestedValues_0 = {0};
         hoisted__Vec__CfNestedValues_0.data = NULL;
         hoisted__Vec__CfNestedValues_0.count = 0ULL;
-        hoisted__Vec__CfNestedValues_0.cap = 0;
+        hoisted__Vec__CfNestedValues_0.cap = 0ULL;
         return hoisted__Vec__CfNestedValues_0;
     }
     U64 hoisted__U64_14 = CfNestedValues_size();

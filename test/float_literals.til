@@ -6,8 +6,8 @@ mode test
 // inside src/core with no user file or line.
 //
 // The default lives in Expr.til_type, which answers for an un-narrowed
-// Literal.Num. It follows the text now: fractional or exponent forms are F32
-// (til's only float type), everything else I64. A literal that DOES narrow
+// Literal.Num. It follows the text now: fractional or exponent forms are F64,
+// everything else I64. A literal that DOES narrow
 // from a declaration, parameter or field type is unaffected -- its til_type is
 // already set, so the default never applies.
 //
@@ -16,19 +16,21 @@ mode test
 
 takes_f32 := func(x: F32) returns F32 { return x }
 
-test_bare_float_literal_is_f32 := test() {
+test_bare_float_literal_is_f64 := test() {
     f := 1.5
-    assert_eq(F32, f, 1.5)
+    assert_eq(F64, f, 1.5)
+    large := 1.0e100
+    assert_eq(F64, large, 1.0e100)
 }
 
 test_float_literal_arithmetic := test() {
-    assert_eq(F32, 1.5 + 2.25, 3.75)
-    assert_eq(F32, 7.5 / 2.0, 3.75)
+    assert_eq(F64, 1.5 + 2.25, 3.75)
+    assert_eq(F64, 7.5 / 2.0, 3.75)
 }
 
 test_exponent_literal_is_float := test() {
     e := 3.5e2
-    assert_eq(F32, e, 350.0)
+    assert_eq(F64, e, 350.0)
 }
 
 // The text decides, so integers keep defaulting to I64 -- including a hex
@@ -45,6 +47,8 @@ test_context_narrowing_unaffected := test() {
     a : F32 = 1.5
     assert_eq(F32, a, 1.5)
     assert_eq(F32, takes_f32(2.5), 2.5)
+    left : F32 = 1.5
+    assert_eq(F32, left + 2.25, 3.75)
     b : I64 = 7
     assert_eq(I64, b, 7)
 }
@@ -54,8 +58,23 @@ Point := struct {
     y := 3
 }
 
+CompactPoint := struct {
+    x : F32 = 0
+    y : F32 = 0
+}
+
+CompactHolder := struct {
+    point : CompactPoint = CompactPoint()
+}
+
 test_struct_field_default_follows_text := test() {
     p := Point()
-    assert_eq(F32, p.x, 2.5)
+    assert_eq(F64, p.x, 2.5)
     assert_eq(I64, p.y, 3)
+}
+
+test_f32_constructor_literals_keep_field_width := test() {
+    nested := CompactHolder(point = CompactPoint(x = 1.5, y = 2.5))
+    assert_eq(F32, nested.point.x, 1.5)
+    assert_eq(F32, nested.point.y, 2.5)
 }

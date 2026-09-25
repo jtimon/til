@@ -27,8 +27,8 @@ to avoid re-discovering the same things.
 - ~&&~ / ~||~ and the equivalent ~.and()~ / ~.or()~ forms short-circuit.
 
 ** til float literals
-- Fractional and exponent literals such as ~0.5~ and ~1.5e3~ default to F32.
-- A typed context can select F64 instead: ~precise : F64 = 0.5~.
+- Fractional and exponent literals such as ~0.5~ and ~1.5e3~ default to F64.
+- A typed context can select F32 instead: ~compact : F32 = 0.5~.
 
 ** Struct fields and mutation
 - Struct fields CAN be mutated: ~camera.position.x = new_x~ works.

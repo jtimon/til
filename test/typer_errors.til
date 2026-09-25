@@ -773,7 +773,7 @@ terr_conv_ret_fn()                                   // return type
 
 // #403: every literal is checked once against its final contextual type.
 // Integer boundaries are exact; floats may round normally but may not become
-// infinity. The bare float exercises the unconstrained F32 default.
+// infinity. The bare float exercises the unconstrained F64 default.
 terr_lit_i64_pos : I64 = 9223372036854775808
 terr_lit_i64_neg : I64 = -9223372036854775809
 terr_lit_u64_pos : U64 = 18446744073709551616
@@ -782,7 +782,8 @@ terr_lit_f32_pos : F32 = 3.5e38
 terr_lit_f32_neg : F32 = -3.5e38
 terr_lit_f64_pos : F64 = 1.8e308
 terr_lit_f64_neg : F64 = -1.8e308
-terr_lit_f32_default := 1.0e100
+terr_lit_f32_context : F32 = 1.0e100
+terr_lit_f64_default := 1.0e309
 
 // #302: transferring ownership inside a loop, of a binding declared
 // outside the loop -- the second iteration would move an already-moved

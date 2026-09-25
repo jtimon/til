@@ -1190,6 +1190,16 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
         // captured variables' types in codegen. Infer capturing closures
         // here too so `n.add(1)` etc. resolve against the live scope.
         ref mut ci : Expr = e.children[i]
+        // A field's declared numeric type is the context for a direct
+        // literal, including nested constructors (Vector3(x = 1.0)). The C
+        // backend converts a mismatched initializer implicitly, but the
+        // interpreter writes the literal's typed bytes into the field slot.
+        // Without this stamp the F64 fallback writes eight bytes into an
+        // F32 field and corrupts the following fields.
+        if ci.node_type.is_literal_num() {
+            field_numeric_type := declaration_resolved_type(ctor_sdd.field_at(i - 1), scope, ctx.symbols)
+            if is_numeric_type(field_numeric_type) { ci.set_til_type(field_numeric_type) }
+        }
         mut needs_infer := ci.til_type().is(Type.Unknown)
         switch ci.node_type {
         case .FuncDef(ci_fd): if ci_fd.captures.len() > 0 { needs_infer = true }
@@ -3417,7 +3427,7 @@ priv generic_expected_evidence := func(e: Expr, gfd: FunctionDef, pname: Str, ct
 // call-site compatibility rules (no interface conformance, no USize
 // coercion, no wildcard funcptr match, no integer widening, #224).
 // Numeric literals are SOFT: they narrow against hard evidence when there
-// is any, and otherwise pick the documented I64 / F32 default. Dynamic,
+// is any, and otherwise pick the documented I64 / F64 default. Dynamic,
 // Unknown and null establish nothing at all. The destination's annotation
 // (generic_expected_evidence) sits between the two: consulted when the
 // arguments' hard evidence is silent, and it beats the literal defaults --
@@ -3581,8 +3591,8 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         if chosen.len() == 0 {
             if soft_num.has(tp.name) {
                 // Literal-only: the documented defaults. A fractional or
-                // exponent literal anywhere in the group picks F32.
-                if soft_float.has(tp.name) { chosen = "F32" } else { chosen = "I64" }
+                // exponent literal anywhere in the group picks F64.
+                if soft_float.has(tp.name) { chosen = "F64" } else { chosen = "I64" }
             }
         }
         if chosen.len() == 0 {
@@ -12117,14 +12127,12 @@ priv infer_literal_expr := func(mut expr: Expr) {
             // is a float and must not become one: `f := 1.5` used to be typed
             // I64 and then blew up converting its own text, with
             // "Str.to_i64: invalid char in '1.5'" pointing into src/core -- no
-            // user file, no line. F32 is the only float til has.
+            // user file, no line. F64 is the unconstrained float default.
             //
-            // This cannot change any working program: the default only applies
-            // where no type was inferred, and an I64 literal with fractional
-            // text always panicked, in both backends. Literals that DO have a
-            // context type keep it -- is_numeric_type is already true for them.
+            // Literals that DO have a context type keep it -- is_numeric_type
+            // is already true for them.
             if num_data.is_float() {
-                expr.set_til_type(Type.Primitive(Primitive.F32))
+                expr.set_til_type(Type.Primitive(Primitive.F64))
             } else {
                 expr.set_til_type(Type.Primitive(Primitive.I64))
             }

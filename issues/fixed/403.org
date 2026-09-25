@@ -1,11 +1,38 @@
 # priority: low
 # category: experiments
-** WIP #403 Reconsider default types for unconstrained numeric literals
+** FIXED #403 Reconsider default types for unconstrained numeric literals
 
-til currently defaults unconstrained integer literals to ~I64~ and fractional
-or exponent literals to ~F32~. Contextual typing already permits declarations
-such as ~mut i: USize = 0~, but explicit ~USize~ annotations and conversions
-recur around collection lengths and indices.
+*** Post-mortem
+
+The apparent need for unsigned size literals came from index/counter ergonomics,
+not an incorrect signed integer default. ~0..v.len()~ already takes the length
+type, and indexed collection ~for-in~ now exposes that index without a manual
+counter. We kept the fixed ~I64~ integer fallback. Fractional/exponent literals
+previously defaulted to ~F32~ even after ~F64~ became a complete primitive;
+they now default consistently to ~F64~ at the AST, declaration seeding, and
+generic literal-only inference sites. An explicit ~F32~ declaration, parameter,
+return, field, or numeric receiver still gives literals F32 context.
+
+The F64 flip exposed a constructor typing hole: a direct numeric argument to
+an F32 field had kept its unconstrained literal type, relying on the C
+backend's implicit narrowing. The interpreter instead copied eight F64 bytes
+into a four-byte F32 field; ~test/gui_interp.til~'s camera matrix caught it.
+Stamping each direct numeric constructor literal with its declared field type
+fixes both backends at the source. Earlier work also made literal range
+validation exact for integer widths and reject float overflow to infinity.
+
+Regressions: ~test/float_literals.til~ (F64 fallback, F32 context, nested F32
+constructor fields), ~test/first_class.til~ (generic F64 fallback and F32
+expected-type evidence), ~test/typer_errors.til~ (F32-context and bare-F64
+overflow), and ~test/gui_interp.til~ (F32 FFI struct layout). The full suite
+also builds the F32-based piano, guitar, music-modes, and gui examples and
+runs the tutorial's generated doctests.
+
+At the start of this investigation, til defaulted unconstrained integer
+literals to ~I64~ and fractional or exponent literals to ~F32~. Contextual
+typing already permitted declarations such as ~mut i: USize = 0~, but explicit
+~USize~ annotations and conversions recurred around collection lengths and
+indices.
 
 Determine whether the defaults remain the best language design in retrospect.
 In particular, evaluate defaulting non-negative integer literals to ~USize~,
@@ -32,7 +59,7 @@ Research and audit:
 
 *** Findings
 
-**** Current implementation
+**** Original implementation
 
 - ~LiteralNumData~ stores source text and an initially unknown type
   (~src/core/ast.til:574-603~). The parser folds a leading minus followed by a
@@ -143,20 +170,18 @@ binding belongs to the collection-size domain. Where it is repetitive, prefer
 direct collection ~for-in~ now and consider indexed/enumerated collection
 iteration separately. Do not make every positive literal pay for that syntax.
 
-Float fallback is a separate decision. til already chooses ~F32~ for every
+Float fallback was a separate decision. til chose ~F32~ for every
 unconstrained fractional/exponent literal, not only values that fit. Do not use
 "fits" or "exactly representable" to choose between ~F32~ and ~F64~: almost all
 decimal fractions are inexact in both, and value-dependent typing would make a
 small literal edit alter expression compatibility, field layout, and generic
-specialization. If til remains F32-oriented, keep a fixed ~F32~ fallback. If it
-now wants the precision-first general-purpose convention after adding complete
-~F64~ support, make one explicit global flip to ~F64~; that is more defensible
-than a fit-based split and should be evaluated independently.
+specialization. With complete ~F64~ support, we chose one fixed global fallback
+of ~F64~, rather than a fit-based split; explicit F32 contexts still select F32.
 
-Before any default change, fix literal validation itself: ~literal_in_range~
-currently accepts all ~I64~, ~F32~, and ~F64~ text without checking range, and
-checks ~U64~ by first parsing through ~I64~. A broader default must not turn
-overflow or precision loss into a parser/runtime panic or silent infinity.
+Before changing defaults, we fixed literal validation: the old
+~literal_in_range~ accepted all ~I64~, ~F32~, and ~F64~ text without checking
+range and checked ~U64~ by first parsing through ~I64~. The broader default
+must not turn overflow into a parser/runtime panic or silent infinity.
 
 *** Progress
 
@@ -164,8 +189,9 @@ overflow or precision loss into a parser/runtime panic or silent infinity.
   accept exact integer boundaries, reject signed/unsigned overflow and negative
   unsigned literals, and reject float overflow to infinity. Replace the
   signed-overflowing parser used to materialize ~I64.MIN~ / ~U64.MAX~.
-- [ ] Decide the fixed unconstrained float fallback: keep ~F32~ or change all
-  unconstrained float literals to ~F64~.
+- [X] Choose a fixed ~F64~ fallback for all unconstrained fractional and
+  exponent literals; keep contextual F32 typing and update affected tests,
+  tutorial examples, and the F32 constructor stamping rule.
 - [X] Add indexed collection iteration: ~for i, value in collection~ and
   ~for i, mut value in collection~. The immutable zero-based index has the
   collection's ~len()~/~get()~ index type; values retain single-binding loop

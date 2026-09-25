@@ -1721,7 +1721,7 @@ test_generic_infer_declared_name := test() {
 
 // #328 Task 7: literals. A typed operand fixes T and the literal narrows
 // against it (with the ordinary range check); with literals only, an
-// integer picks I64 and a fractional/exponent literal picks F32. Str and
+// integer picks I64 and a fractional/exponent literal picks F64. Str and
 // Bool literals are exact evidence on their own.
 gpick328 := func(T: Type, a: T, b: T) returns T {
     if a.eq(b) { return b }
@@ -1730,8 +1730,10 @@ gpick328 := func(T: Type, a: T, b: T) returns T {
 
 test_generic_infer_literals := test() {
     assert_eq(I64, gid(7), 7)
-    assert_eq(F32, gid(1.5), 1.5)
-    assert_eq(F32, gid(2e1), 20.0)
+    assert_eq(F64, gid(1.5), 1.5)
+    assert_eq(F64, gid(2e1), 20.0)
+    narrowed_float : F32 = gid(1.5)
+    assert_eq(F32, narrowed_float, 1.5)
     narrow : I32 = 5
     assert_eq(I32, gpick328(narrow, 3), 5)
     assert_eq(Str, gid("til"), "til")

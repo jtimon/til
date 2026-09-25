@@ -2363,8 +2363,8 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
         // narrow from). A fractional literal is a float: typing `f := 1.5` as
         // I64 made it blow up converting its own text, with
         // "Str.to_i64: invalid char in '1.5'" pointing into src/core -- no
-        // user file, no line. F32 is til's only float type.
-        if num_rhs.is_float() { out_type = Type.Primitive(Primitive.F32) }
+        // user file, no line. F64 is the unconstrained float default.
+        if num_rhs.is_float() { out_type = Type.Primitive(Primitive.F64) }
         else { out_type = Type.Primitive(Primitive.I64) }
         return true
     case .Literal(Literal.Bool):
