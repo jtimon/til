@@ -1,5 +1,5 @@
 # priority: medium
-# category: cleanups
+# category: backends
 ** OPEN #383 Coordinate alternative backend runtimes and conformance tests
 
 Several active backend efforts need one convention for native runtime

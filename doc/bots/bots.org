@@ -439,8 +439,8 @@ baseline.
   (e.g. `issues/open/189.org`). Each file starts with
   `# priority: high|medium|low`, then `# category: <cat>`, then
   `** OPEN #NNN Title`. Categories: bugs, cleanups, features,
-  optimizations, experiments, examples, deferred (or `unknown` if
-  none fit). Process is in `issues/process.org`; the counter is in
+  optimizations, backends, experiments, examples, deferred (or
+  `unknown` if none fit). Process is in `issues/process.org`; the counter is in
   `issues/NEXT_ISSUE.txt` (increment it manually). New issues go at
   the top of their priority, numbered from the counter. When work
   starts, change OPEN -> WIP in the title line.
@@ -499,20 +499,30 @@ a follow-up "is it done yet" check while something is still alive.
 Every extra in-flight command is an orphan the human has to
 hand-kill.
 
-The harness converts any foreground bash past ~120s into a background
-task and SAYS SO: the tool result reads `Command running in
-background with ID: <id>` instead of the command's output. `make`,
-`make clean && make test`, `make two_pass`, `make bin/til_asan`, and
-ASAN runs always cross 120s, so they always convert -- expected, not
-an error. The instant you see that message, END THE TURN: no further
-tool call -- not the next build, not a `git status`, not even reading
-the log. There is NO completion notification in this harness: at the
-next wake-up (user message or stop-hook poke) check the job's
-log/output file yourself; never wait passively. If a call instead
-returns a kill code (auto-background conversion or OOM), the output
-file still has whatever completed -- read it at the next wake-up and
-rerun if needed. A multi-build task is therefore several turns, one
-build per turn; never overlap builds to "save round trips".
+Timeout behavior depends on the harness. Read the actual tool result;
+a terminated command is not a background job.
+
+OpenCode's Bash tool defaults to 120000 ms (120 seconds), but its
+`timeout` parameter is configurable. For builds and full test suites,
+request a sufficiently long FOREGROUND timeout, for example 3600000 ms
+(one hour), rather than repeatedly killing the build at the default.
+If the tool reports termination after exceeding its timeout, inspect
+the captured log and confirm the command's processes have ended before
+retrying with a longer timeout. Continue verification and the requested
+commit workflow in the same turn once the terminated job is gone; a
+timeout alone is not a reason to leave completed work uncommitted or
+wait for the human to tell you to continue.
+
+Some harnesses instead auto-background a long foreground call and
+explicitly report `Command running in background with ID: <id>`.
+The instant you see that message, END THE TURN: no further tool call
+-- not the next build, not a `git status`, not even reading the log.
+For harnesses without completion notifications, at the next wake-up
+(user message or stop-hook poke) check the job's log/output and state
+yourself. Do not start another command while that job is still alive.
+If a call reports a kill code or OOM, read the captured log and verify
+termination before deciding what to rerun. Never overlap builds to
+"save round trips".
 
 NEVER run commands in the background. No exceptions -- this is the
 single most important operational rule on this machine. Backgrounded

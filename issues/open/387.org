@@ -1,5 +1,5 @@
 # priority: low
-# category: features
+# category: backends
 ** OPEN #387 Arduino target alongside hosted targets
 
 Add a path for building and running til programs on Arduino-supported boards.

@@ -1,5 +1,5 @@
 # priority: low
-# category: features
+# category: backends
 ** WIP #375 JVM backend alongside the C backend
 
 Add a backend that runs til programs on the Java Virtual Machine. The C

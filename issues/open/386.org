@@ -1,5 +1,5 @@
 # priority: low
-# category: features
+# category: backends
 ** OPEN #386 Lua backend alongside the C backend
 
 Add a backend that runs til programs in a Lua host by emitting Lua source.

@@ -1,5 +1,5 @@
 # priority: low
-# category: features
+# category: backends
 ** OPEN #385 Emacs Lisp backend alongside the C backend
 
 Add a backend that runs til programs inside Emacs by emitting Emacs Lisp.

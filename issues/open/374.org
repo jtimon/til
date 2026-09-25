@@ -1,5 +1,5 @@
 # priority: low
-# category: features
+# category: backends
 ** OPEN #374 BEAM backend alongside the C backend
 
 Add a backend that runs til programs on the BEAM virtual machine. The

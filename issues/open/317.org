@@ -1,5 +1,5 @@
 # priority: low
-# category: features
+# category: backends
 ** OPEN #317 MLIR backend alongside the C backend
 
 Add MLIR (Multi-Level Intermediate Representation, part of the LLVM

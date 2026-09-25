@@ -9,8 +9,6 @@
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
-** Medium
-*** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
 ** Low
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 * Optimizations
@@ -24,7 +22,6 @@
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
 *** [[./open/367.org][#367]] The NUL guarantee in the type: #343's route 2
 ** Low
-*** [[./open/151.org][#151]] TempleOS target
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
 *** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
@@ -36,14 +33,19 @@
 *** [[./open/310.org][#310]] expr_macro / str_macro: compile-time macros that emit AST or source
 *** [[./open/313.org][#313]] Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 *** [[./open/314.org][#314]] Pluggable custom allocators (arena / bump / fixed-buffer), like Zig and Odin
-*** [[./open/317.org][#317]] MLIR backend alongside the C backend
 *** [[./open/318.org][#318]] Portable SIMD vector type like Mojo's SIMD[dtype, width]
 *** [[./open/336.org][#336]] Element-wise cmp for the core containers, so Set(Vec(T)) etc. work
 *** [[./open/339.org][#339]] Add Ed25519, Ed448, and ECDSA/secp256r1 signature backends
 *** [[./open/370.org][#370]] til embeds in the lua/lisp sense: host program, guest til
+*** [[./open/384.org][#384]] Allow explicit inc/dec step arguments
+* Backends
+** Medium
+*** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
+** Low
+*** [[./open/151.org][#151]] TempleOS target
+*** [[./open/317.org][#317]] MLIR backend alongside the C backend
 *** [[./open/374.org][#374]] BEAM backend alongside the C backend
 *** [[./open/375.org][#375]] JVM backend alongside the C backend
-*** [[./open/384.org][#384]] Allow explicit inc/dec step arguments
 *** [[./open/385.org][#385]] Emacs Lisp backend alongside the C backend
 *** [[./open/386.org][#386]] Lua backend alongside the C backend
 *** [[./open/387.org][#387]] Arduino target alongside hosted targets

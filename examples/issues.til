@@ -66,7 +66,7 @@ known_priority := func(p: Str) returns Bool {
 known_category := func(c: Str) returns Bool {
     return match c {
     case "bugs", "cleanups", "features", "optimizations",
-         "experiments", "examples", "deferred", "unknown": true
+         "backends", "experiments", "examples", "deferred", "unknown": true
     case: false
     }
 }
@@ -134,7 +134,7 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
     if !known_category(category) {
         return format("!issues/open/", fname, ": unknown category '", category,
                       "' (expected bugs, cleanups, features, optimizations, ",
-                      "experiments, examples, deferred, or unknown)")
+                      "backends, experiments, examples, deferred, or unknown)")
     }
     if title.is_empty() {
         return format("!issues/open/", fname, ": missing '** ... #NNN' heading")
@@ -263,6 +263,7 @@ main := proc() {
     s = format(s, emit_category(entries, "cleanups", "Cleanups"))
     s = format(s, emit_category(entries, "optimizations", "Optimizations"))
     s = format(s, emit_category(entries, "features", "Features"))
+    s = format(s, emit_category(entries, "backends", "Backends"))
     s = format(s, emit_category(entries, "experiments", "Experiments"))
     s = format(s, emit_category(entries, "examples", "Examples"))
     s = format(s, emit_category(entries, "deferred", "Deferred"))
