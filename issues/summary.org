@@ -17,7 +17,6 @@
 ** Medium
 *** [[./open/397.org][#397]] A Type carries its Sym: Struct/Enum/Custom payloads become symbols
 ** Low
-*** [[./open/404.org][#404]] Simplify negated Boolean chains in source
 *** [[./open/405.org][#405]] Avoid owning Array(Str) and formatting allocations in panic
 * Features
 ** Medium

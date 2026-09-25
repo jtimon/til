@@ -1,6 +1,20 @@
 # priority: low
 # category: optimizations
-** WIP #404 Simplify negated Boolean chains in source
+** FIXED #404 Simplify negated Boolean chains in source
+
+*** Post-mortem
+
+Repeated per-operand ~not()~ calls made longer Boolean chains harder to read
+and added unnecessary negations. We documented the source-level De Morgan
+rule and rewrote direct occurrences, including longer chains and negated
+subgroups, preserving operand order and short-circuit evaluation. We kept
+~neq~ and ~!=~ as comparisons; replacing them with ~eq.not()~ obscured the
+intent rather than simplifying it.
+
+An automatic compiler rewrite would add its own work for a small, unmeasured
+benefit, so the fix stays in source. The existing ~test/operators.til~ and
+~test/lazy.til~ exercise Boolean evaluation; the source cleanup passed the
+full ~make clean && make test~ suite (478/478).
 
 De Morgan's laws let a Boolean chain use one negation instead of negating
 every operand:
