@@ -1,0 +1,61 @@
+# priority: low
+# category: examples
+** OPEN #408 tilminal: terminal emulator for standalone use and tiled
+
+Develop [[file:../../examples/tilminal.til][examples/tilminal.til]] into a terminal emulator that can
+run standalone and serve as the terminal component of
+[[./83.org][#83 tiled]]. Tiled combines an Emacs-like integrated environment with
+i3-style tiling; it should include tilminal rather than implement a
+second terminal emulator.
+
+*** Current state
+
+Tilminal is a raylib GUI with an ASCII input line and a list of output
+lines. It runs each command synchronously through ~sh -lc~, captures
+the output, and displays it with ~DrawText~. It does not maintain a
+persistent shell or provide a PTY, terminal screen model, or escape
+sequence handling. Interactive programs such as ~til repl~ need a
+real terminal session rather than this command-and-capture model.
+
+*** Terminal foundation
+
+- Persistent shell and child-process session through a PTY on POSIX;
+  use the corresponding ConPTY facilities for Windows support.
+- Event-driven input/output so running programs do not block the GUI.
+- Terminal screen grid, cursor state, escape-sequence parsing, text
+  attributes, scrolling, and resize propagation.
+- Keyboard input forwarding and UTF-8 rendering with cell-width
+  accounting, rather than treating every byte as a display column.
+- Keep terminal/session behavior reusable by tiled's panes as well
+  as the standalone window. Concrete interfaces and file layout are
+  implementation decisions to discuss when work starts.
+
+*** General inline graphics
+
+Investigate support for application-supplied inline graphics, so any
+program can display a logo or icon without requiring the user to
+install and select that application's font. Applications should be
+able to query support, transmit the image, and place it in a defined
+number of terminal cells, retaining textual output on unsupported
+terminals. This is a general terminal capability, not a special case
+for til or ~til repl~.
+
+Evaluate existing protocols, particularly kitty's graphics protocol,
+before designing a new one. Older downloadable-character protocols
+are another reference. Image placement is not the same as a Unicode
+text glyph: specify cursor behavior, redraws, scrolling, resizing,
+copy/selection semantics, and resource lifetime. Check how capability
+queries and image data behave through SSH and terminal multiplexers.
+This is a design goal to investigate, not a selected new protocol.
+
+If terminals share such a capability, programs can supply their own
+graphics to the actual renderer instead of guessing whether a local
+font installation will be used by it.
+
+*** Related example feature
+
+[[./159.org][#159]] covers drawing the til logo in tilminal's own prompt using
+the existing logo font directly. That small GUI feature does not
+require the full terminal foundation or a graphics protocol. The
+decision there to keep ordinary ~til repl~ prompts textual remains
+in place; this issue explores the more general terminal facility.

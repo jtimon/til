@@ -26,7 +26,6 @@
 ** Low
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
-*** [[./open/159.org][#159]] Show the til logo as a single glyph in tilminal's prompt
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
 *** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
@@ -56,6 +55,8 @@
 ** Low
 *** [[./open/24.org][#24]] Music theory examples: ongoing improvements
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
+*** [[./open/159.org][#159]] Show the til logo as a single glyph in tilminal's prompt
+*** [[./open/408.org][#408]] tilminal: terminal emulator for standalone use and tiled
 * Deferred
 ** High
 *** [[./open/378.org][#378]] Vendor browser WASM toolchain source instead of cloning emsdk

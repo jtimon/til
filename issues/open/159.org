@@ -1,5 +1,5 @@
 # priority: low
-# category: features
+# category: examples
 ** OPEN #159 Show the til logo as a single glyph in tilminal's prompt
 
 *** Decision
@@ -77,6 +77,9 @@ including Windows users, and was rejected. Do not add that setting
 or pursue automatic terminal selection as part of this issue.
 
 *** Tilminal scope
+
+This is a feature of the tilminal example, tracked generally in
+[[./408.org][#408]], rather than a feature of the til language or CLI.
 
 Tilminal is currently a raylib GUI that runs shell commands through
 ~sh -lc~ and draws a ~$ ~ prompt. It is not a terminal emulator or a

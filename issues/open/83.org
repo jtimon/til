@@ -26,6 +26,8 @@ Mode gui application. The TempleOS-inspired everything-in-one-app:
     side in one raylib window. Keyboard-driven, no mouse required.
 
 *** Terminal emulator
+    Depends on [[./408.org][#408 tilminal]], the standalone terminal emulator
+    that tiled will embed as its terminal component.
     Run shell commands, see output. Replaces tmux/terminal tabs.
     Combined with the window manager, this is the full desktop
     environment inside one til program.
@@ -37,4 +39,3 @@ Mode gui application. The TempleOS-inspired everything-in-one-app:
 *** Themes
     tiled uses ~mode theme~ ([[./84.org][#84]]) for its own color scheme. Gets
     theme support for free once [[./84.org][#84]] is implemented.
-
