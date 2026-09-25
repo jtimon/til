@@ -1720,3 +1720,26 @@ terr403_immutable_collection := func(values: Vec(I64)) {
 for terr403_k : I8, value in terr403_values {
     println(terr403_k.to_str(), value.to_str())
 }
+
+// A `ref` local bound by a throwing call is NULL on the error path: the
+// callee fell through to its fallback return. Inside a catch of its throw
+// type the binding is null for certain; after that catch it can be null
+// when the catch falls through. Both uses are rejected at the use site.
+// A use between the binding and the catch is fine (that stretch runs on
+// the no-error path only), and a catch that returns, throws or exits
+// keeps a later use legal -- test/errors.til's ref_get_or. In their own
+// functions: a top-level catch would also consume this unit's pending
+// top-level OutOfBounds and hide the "not in the throws clause" error
+// counted above.
+terr_refnull_inside := func() returns I64 {
+    arr := array(I64, 10, 20, 30)
+    ref a : I64 = arr.get(9)?
+    catch (err: OutOfBounds) { return a.clone() }
+    return 0
+}
+terr_refnull_after := func() returns I64 {
+    arr := array(I64, 10, 20, 30)
+    ref b : I64 = arr.get(9)?
+    catch (err: OutOfBounds) { }
+    return b.clone()
+}

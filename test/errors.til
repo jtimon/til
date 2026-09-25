@@ -240,6 +240,47 @@ test_bug34_between_not_vacuous := test() {
     assert_eq(I64, bug34_between_probe(false), 1)
 }
 
+// A `throw` inside a catch body runs AFTER the catch's _err_kind reset,
+// so it leaves the error pending exactly like a throw outside one, and
+// the statements after such a catch must not run on that path. They did:
+// `after_ran = true` executed and the function returned normally with
+// _err_kind already set to the re-thrown tag.
+RethrowOuter := struct {}
+
+rethrow_as_outer := func(should_throw: Bool, mut after_ran: Bool) throws RethrowOuter {
+    bug34_maybe_throw(should_throw)?
+    catch (err: Bug34Error) { throw RethrowOuter() }
+    after_ran = true
+}
+
+test_rethrow_in_catch_guards_rest := test() {
+    mut ran := false
+    mut caught := false
+    rethrow_as_outer(true, ran)?
+    catch (err: RethrowOuter) { caught = true }
+    assert(caught)
+    assert(ran.not())
+    rethrow_as_outer(false, ran)?
+    catch (err: RethrowOuter) { assert(false) }
+    assert(ran)
+}
+
+// A `ref` local bound by a throwing call, with a catch that diverges: the
+// binding is only ever read on the no-error path, so the later use is
+// legal. The rejected shapes (a use inside the catch, or after a catch
+// that falls through) are in test/typer_errors.til.
+ref_get_or := func(i: USize) returns I64 {
+    arr := array(I64, 10, 20, 30)
+    ref x : I64 = arr.get(i)?
+    catch (err: OutOfBounds) { return -1 }
+    return x.clone()
+}
+
+test_ref_binding_divergent_catch := test() {
+    assert_eq(I64, ref_get_or(1), 20)
+    assert_eq(I64, ref_get_or(9), -1)
+}
+
 // ==========================================================
 // Multi-catch tests
 // ==========================================================
@@ -719,11 +760,15 @@ test_i16_safe_mul_overflow := test() {
 // callers use arr.get(i)! to keep the panic-on-OOB behavior).
 // ==========================================================
 
+// The catch has to DIVERGE for `v` to be readable after it: on the error
+// path `v` is the callee's NULL fallback return, and the checker rejects a
+// use after a catch that falls through. assert(false) aborts at runtime
+// but assert is conditional, not noreturn; panic is.
 test_array_get_ok := test() {
     arr := array(I64, 10, 20, 30)
     ref v : I64 = arr.get(1)?
     catch (err: OutOfBounds) {
-        assert(false)
+        panic("unexpected OutOfBounds")
     }
     assert(v.eq(20))
 }

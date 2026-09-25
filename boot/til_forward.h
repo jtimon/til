@@ -335,8 +335,10 @@ typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_type
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__RootBits Vec__RootBits;
+typedef struct PendingRefBinding PendingRefBinding;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct Vec__I32 Vec__I32;
+typedef struct Vec__PendingRefBinding Vec__PendingRefBinding;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
@@ -1004,6 +1006,14 @@ typedef struct Vec__RootBits {
 } Vec__RootBits;
 
 
+typedef struct PendingRefBinding {
+    Str name;
+    Vec__Str throw_types;
+    U32 line;
+    U32 col;
+} PendingRefBinding;
+
+
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds {
     Bool array_vec;
     Bool variadic;
@@ -1016,6 +1026,13 @@ typedef struct Vec__I32 {
     USize count;
     USize cap;
 } Vec__I32;
+
+
+typedef struct Vec__PendingRefBinding {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__PendingRefBinding;
 
 
 typedef struct priv___src_self_garbager_til__LocalInfo {

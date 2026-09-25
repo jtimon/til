@@ -786,7 +786,7 @@ priv subtree_has_pending_throw := func(e: Expr) returns Bool {
         mut pending := false
         for c : Expr in e.children {
             if c.node_type.is(NodeType.Catch) {
-                pending = false
+                pending = subtree_has_pending_throw(c)
             } else if subtree_has_pending_throw(c) {
                 pending = true
             }
@@ -795,7 +795,14 @@ priv subtree_has_pending_throw := func(e: Expr) returns Bool {
     case .Throw:
         return true
     case .Catch:
-        // A catch resets _err_kind; on its own it leaves nothing pending.
+        // A catch resets _err_kind, so on its own it leaves nothing
+        // pending -- unless its body throws again (a re-throw, or a call
+        // that may throw): that runs AFTER the reset and sets _err_kind
+        // afresh, exactly like a throw outside a catch. Reporting false
+        // here regardless left the statements after such a catch
+        // unguarded: `catch (e: E) { throw F() }` followed by
+        // `after = 1; return after` returned 1 with _err_kind set to F.
+        if e.children.len() == 3 { return subtree_has_pending_throw(e.children[2]) }
         return false
     case .FCall(fcd):
         if fcd.does_throw { return true }
@@ -1994,6 +2001,192 @@ priv hoist_throwing_store_call := proc(
     return true
 }
 
+// A `ref` local bound by a `?`-throwing call (`ref x : T = a.get(i)?`),
+// waiting for the catches of its throw types. On the throw path the
+// callee's fallback return is NULL, so the binding is null wherever the
+// error path can reach it: inside a catch of one of its types, and after
+// such a catch when the catch falls through. Recorded at step 3c and
+// checked at step 6 of process_throw_catch_in_body.
+PendingRefBinding := struct {
+    name := ""
+    throw_types := Vec(Str).new()
+    line : U32 = 0
+    col : U32 = 0
+}
+
+// First use of local `name` inside `e`: an Ident read, an Assign to it,
+// or a FieldAssign through it (its object is an Ident child). Nested
+// definitions have their own scope and are not walked. The use site's
+// position comes back through line/col.
+priv find_ident_use := func(e: Expr, name: Str, symbols: SymbolPool, mut line: U32, mut col: U32) returns Bool {
+    switch e.node_type {
+    case .FuncDef, .StructDef, .EnumDef:
+        return false
+    case .Ident(idn):
+        if idn.ident_name(symbols.names) == name {
+            line = e.line
+            col = e.col
+            return true
+        }
+    case .Assign(ad):
+        if ad.name == name {
+            line = e.line
+            col = e.col
+            return true
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if find_ident_use(c, name, symbols, line, col) { return true }
+    }
+    return false
+}
+
+// True when a catch body never falls through to the statement after the
+// catch: it always returns, always re-throws, or always ends in a noreturn
+// call (exit / panic / a function the loader's seed_noreturn_chain
+// derived from them). A conditional throw does not count -- on the path
+// that does not throw, control falls through.
+//
+// The same shapes as stmt_always_diverges plus Throw, but read on the
+// PRE-lowering body at pre-infer time: afterwards a `throw` is an
+// `_err_kind = tag` assign, and stmt_always_diverges resolves a call
+// through the callee's Type.FuncDef stamp, which infer has not put there
+// yet. So a direct call is resolved by name here; the noreturn flag it
+// reads was seeded at load. While is delegated: its rule (a literal
+// `true` condition with no break targeting it) needs no call resolution.
+priv catch_body_diverges := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .Return, .Throw, .Continue, .Break:
+        // A loop jump leaves the catch's own statement list just as a
+        // return does: the statement after the catch is never reached.
+        return true
+    case .FCall:
+        if e.children.len() == 0 { return false }
+        switch e.children[0].node_type {
+        case .Ident(cn):
+            fd_o := scope.lookup_func_by_sym(cn.ident_sym(), symbols)
+            if fd_o.is_none() { return false }
+            switch fd_o.unwrap().node_type {
+            case .FuncDef(fd): return fd.noreturn
+            case: return false
+            }
+        case:
+            return false
+        }
+    case .Body:
+        for c : Expr in e.children {
+            if catch_body_diverges(c, scope, symbols) { return true }
+        }
+        return false
+    case .If:
+        if e.children.len() <= 2 { return false }
+        return catch_body_diverges(e.children[1], scope, symbols).and(catch_body_diverges(e.children[2], scope, symbols))
+    case .Switch:
+        // Every arm diverges, and no value can miss the arms: a `case:`
+        // wildcard covers everything, and a switch whose patterns are all
+        // variants (`.Some(p)` / `.None`) is exhaustive or else already a
+        // type error (enum_switch_missing_case). Only literal patterns
+        // (ints, strings) can be missed silently, so those need the
+        // wildcard -- stmt_always_diverges demands it unconditionally,
+        // which is right for the C emitter it also serves but wrongly
+        // fails the Option-walking catches in context.til here.
+        mut has_default := false
+        mut has_literal_pattern := false
+        for ci in 1..e.children.len() {
+            ref cn : Expr = e.children[ci]
+            if cn.children.len() == 1 { has_default = true }
+            for pi in 0..case_pattern_count(cn) {
+                if cn.children[pi].node_type.is(NodeType.Literal) { has_literal_pattern = true }
+            }
+            if catch_body_diverges(cn.children[cn.children.len() - 1], scope, symbols).not() { return false }
+        }
+        return has_default.or(has_literal_pattern.not())
+    case .While:
+        return stmt_always_diverges(e, scope, symbols)
+    case:
+        return false
+    }
+}
+
+// True when `e` tests local `name` for null: an `name.is_null()` call
+// anywhere in it. A binding tested that way is deliberately nullable --
+// the constfolder's scope_get lookups leave the ref NULL on a KeyNotFound
+// and branch on is_null() (a REM'd idiom) -- so its uses are the
+// programmer's responsibility, not the checker's. Nested definitions
+// have their own scope and are not walked.
+priv ident_null_checked := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .FuncDef, .StructDef, .EnumDef:
+        return false
+    case .FCall:
+        if e.children.len() > 0 {
+            ref callee : Expr = e.children[0]
+            switch callee.node_type {
+            case .FieldAccess(fad):
+                if fad.field_access_name(symbols.names).eq("is_null").and(callee.children.len().eq(1)) {
+                    switch callee.children[0].node_type {
+                    case .Ident(rid):
+                        if rid.ident_name(symbols.names) == name { return true }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if ident_null_checked(c, name, symbols) { return true }
+    }
+    return false
+}
+
+// Step 6 companion: `ctype` is being caught by `catch_stmt`, old index
+// `catch_idx` of the body whose original statements are `old_snapshot`.
+// For every pending ref binding that can throw `ctype`, the binding is
+// null inside this catch, and -- when the catch falls through -- after it
+// too; a use in either place is a type error at the use site, unless the
+// binding is tested with is_null() somewhere in that stretch (see
+// ident_null_checked). A use BETWEEN the binding and the catch is fine:
+// that stretch runs only on the no-error path (the `if _err_kind == 0`
+// group). The caught type is consumed from the binding either way, so a
+// binding with several throw types is checked once per catch and never
+// matches again once they are all caught.
+priv check_ref_bindings_at_catch := proc(
+    mut ctx: Context,
+    mut pending_refs: Vec(PendingRefBinding),
+    ctype: Str,
+    catch_stmt: Expr,
+    catch_diverges: Bool,
+    old_snapshot: Vec(Expr),
+    catch_idx: USize,
+    path: Str
+) {
+    for mut rb : PendingRefBinding in pending_refs {
+        if pending_remove_all_matching(rb.throw_types, ctype).not() { continue }
+        mut null_checked := ident_null_checked(catch_stmt.children[2], rb.name, ctx.symbols)
+        for k in catch_idx.add(1)..old_snapshot.len() {
+            if ident_null_checked(old_snapshot[k], rb.name, ctx.symbols) { null_checked = true }
+        }
+        if null_checked { continue }
+        mut use_line : U32 = 0
+        mut use_col : U32 = 0
+        if find_ident_use(catch_stmt.children[2], rb.name, ctx.symbols, use_line, use_col) {
+            type_error_at(path, use_line, use_col,
+                format("'", rb.name, "' is null inside this catch: the throwing call that binds it (line ", rb.line.to_str(), ") threw"), ctx)
+        }
+        if catch_diverges { continue }
+        for k in catch_idx.add(1)..old_snapshot.len() {
+            if find_ident_use(old_snapshot[k], rb.name, ctx.symbols, use_line, use_col) {
+                type_error_at(path, use_line, use_col,
+                    format("'", rb.name, "' can be null here: the throwing call that binds it (line ", rb.line.to_str(), ") may have thrown and the catch at line ", catch_stmt.line.to_str(), " falls through; return, throw or exit from that catch"), ctx)
+                break
+            }
+        }
+    }
+}
+
 // Walk stmt's expression tree hoisting nested bangs (not the
 // stmt-root bang). The stmt-root bang shape is handled by the
 // main per-stmt logic in process_throw_catch_in_body so it
@@ -2190,6 +2383,9 @@ priv process_throw_catch_in_body := proc(
     mut new_ch := Vec(Expr).with_capacity(old.len())
     mut seen_throwing := false
     mut group_resume_at : USize = 0
+    // `ref` locals bound by a throwing call at this level, each waiting
+    // for the catches of its throw types (see PendingRefBinding).
+    mut pending_refs := Vec(PendingRefBinding).new()
 
     for j in 0..old.len() {
         ref mut stmt : Expr = old[j]
@@ -2275,6 +2471,10 @@ priv process_throw_catch_in_body := proc(
         }
 
         // 2. Recurse into nested bodies (if / while / for / switch / catch arms).
+        // For a Catch, the two flags step 6 needs are read here, before the
+        // body is lowered (see the .Catch arm).
+        mut catch_diverges := false
+        mut catch_rethrows := false
         switch stmt.node_type {
         case .If:
             for ci in 1..stmt.children.len() {
@@ -2313,6 +2513,11 @@ priv process_throw_catch_in_body := proc(
         case .Catch:
             if stmt.children.len() == 3 {
                 ref mut cbody : Expr = stmt.children[2]
+                // Both read the body BEFORE it is lowered: after the
+                // recursion a `throw` is an `_err_kind = tag` assign that
+                // neither predicate can see.
+                catch_diverges = catch_body_diverges(cbody, scope, ctx.symbols)
+                catch_rethrows = subtree_has_pending_throw(cbody)
                 process_throw_catch_in_body(scope, ctx, cbody, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             }
         case:
@@ -2361,6 +2566,37 @@ priv process_throw_catch_in_body := proc(
         if stmt.node_type.is(NodeType.Assign).or(stmt.node_type.is(NodeType.FieldAssign)) {
             if stmt.children.len() > 0 {
                 hoisted_store = hoist_throwing_store_call(ctx, stmt, stmt.children.len() - 1, store_pre)
+            }
+        }
+
+        // 3c. `ref x : T = f()?`: a ref local bound by a throwing call.
+        // Nothing can be guarded here -- the binding has to exist on both
+        // paths -- so it is recorded for step 6, which rejects a use
+        // wherever the error path can reach it (see PendingRefBinding).
+        // Also before step 4, which clears does_throw. A bang (`!`)
+        // panics on the error path and never reaches a catch, so it is
+        // not recorded; step 3 has already turned its flag into does_throw,
+        // hence the root_bang_throws gate.
+        if stmt.node_type.is(NodeType.Decl).and(root_bang_throws.len().eq(0)).and(stmt.children.len().eq(1)) {
+            switch stmt.node_type {
+            case .Decl(dd_ref):
+                if dd_ref.own_type.is(OwnType.Ref) {
+                    ref rhs_ref : Expr = stmt.children[0]
+                    mut rhs_throws := false
+                    switch rhs_ref.node_type {
+                    case .FCall(fcd_ref): rhs_throws = fcd_ref.does_throw
+                    case:
+                    }
+                    if rhs_throws {
+                        key_ref := find_callee_throws_key(scope, ctx, rhs_ref, root_body)
+                        if key_ref.len() > 0 {
+                            mut rb := PendingRefBinding(name = dd_ref.name.clone(), line = stmt_line, col = stmt_col)
+                            rb.throw_types = ctx.throws_global[key_ref].clone()
+                            pending_refs.push(own rb)
+                        }
+                    }
+                }
+            case:
             }
         }
 
@@ -2603,9 +2839,15 @@ priv process_throw_catch_in_body := proc(
                             format("trying to catch '", ctype, "', but it is not among the thrown types"), ctx)
                     }
                     vec_str_push_uniq(types_to_declare, ctype)
+                    check_ref_bindings_at_catch(ctx, pending_refs, ctype, stmt, catch_diverges, old_snapshot, j, path)
                 }
                 new_ch.push(own lower_catch_node(ctx, stmt, Vec(Str).new()))
-                seen_throwing = false
+                // The catch resets _err_kind, so the statements after it
+                // run on both paths -- unless its body may throw again
+                // (a re-throw runs after the reset), in which case they
+                // go back under the `if _err_kind == 0` group like after
+                // any other throwing statement.
+                seen_throwing = catch_rethrows
                 continue
             } else {
                 type_error_at(path, stmt_line, stmt_col, "catch must have 3 parameters: variable, type, and body", ctx)
