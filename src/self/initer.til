@@ -205,18 +205,62 @@ priv generate_struct_cmp_method := func(mut struct_def: Expr, sname: Str, line: 
     scmp_sdd.push_member(own Declaration(name = "cmp", default_value = Option(Expr).Some(own fdef)))
 }
 
+// #274: missing value methods are also requested by the typer. Build the
+// same ordinary field calls; their bodies, not a second capability walk,
+// decide whether the operation is legal for own/ref fields.
+generate_requested_value_method := func(mut def: Expr, name: Str, method: Str, scope: TypeScope, mut symbols: SymbolPool) returns Bool {
+    if method.eq("eq").or(method.eq("to_str")).not() { return false }
+    if name == "Dynamic" { return false }
+    if def_ns_has(def, method) { return false }
+    switch def.node_type {
+    case .StructDef(sdd):
+        if sdd.c_tag.len().gt(0).or(sdd.is_interface) { return false }
+        if method == "eq" {
+            generate_struct_eq_method(def, name, def.line, def.col, symbols)
+        } else {
+            generate_struct_to_str_method(def, name, def.line, def.col, symbols)
+        }
+    case .EnumDef:
+        mut names := Vec(Str).new()
+        mut types := Vec(Str).new()
+        mut has_payloads := false
+        collect_enum_variants(def, names, types, has_payloads)
+        if method == "eq" {
+            generate_enum_eq_method(def, name, def.line, def.col, names, types, scope, symbols)
+        } else {
+            generate_enum_to_str_method(def, name, def.line, def.col, names, types, has_payloads, scope, symbols)
+        }
+    case: return false
+    }
+    return true
+}
+
+priv make_struct_value_field := func(receiver: Str, field_name: Str, fd: Declaration, index: USize, mut body: Expr, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
+    mut field := make_struct_field_access(receiver, field_name, line, col, symbols)
+    // A primitive own/ref FIELD is an address (#396). An ordinary ref
+    // local reads its pointee when passed to a by-value primitive method.
+    if fd.own_type.is(OwnType.Shallow).not().and(is_primitive(fd.til_type)) {
+        name := format("field_", receiver, "_", index.to_str())
+        mut binding := Expr.new(NodeType.Decl(decl_typed(name = name, type_name = fd.type_name(), own_type = OwnType.Ref)), line, col)
+        binding.add_child(own field)
+        body.add_child(own binding)
+        return Expr.new(ident_node(symbols.intern(name)), line, col)
+    }
+    return field
+}
+
 priv generate_struct_eq_method := func(mut struct_def: Expr, sname: Str, line: U32, col: U32, mut symbols: SymbolPool) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     mut field_count : USize = 0
     ref sdd : StructDef = structdef_of(struct_def)
     field_count = sdd.fields.len()
     mut eqr : USize = 0
-    for _ : Declaration in sdd.fields {
+    for fd : Declaration in sdd.fields {
         ref eq_fname : Str = sdd.field_name_at(eqr)
         eqr = eqr + 1
-        mut self_field := make_struct_field_access("self", eq_fname, line, col, symbols)
+        mut self_field := make_struct_value_field("self", eq_fname, fd, eqr, func_body, line, col, symbols)
         mut eq_call := make_method_call_fcall(own self_field, "eq", line, col, symbols)
-        mut other_field := make_struct_field_access("other", eq_fname, line, col, symbols)
+        mut other_field := make_struct_value_field("other", eq_fname, fd, eqr, func_body, line, col, symbols)
         eq_call.add_child(own other_field)
         mut not_call := make_method_call_fcall(own eq_call, "not", line, col, symbols)
 
@@ -278,7 +322,7 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
         }
         mut name_part := Expr.new(NodeType.Literal(Literal.Str(format(ts_fname, "="))), line, col)
         fmt_call.add_child(own name_part)
-        mut field := make_struct_field_access("self", ts_fname, line, col, symbols)
+        mut field := make_struct_value_field("self", ts_fname, fd, idx, func_body, line, col, symbols)
         type_name := fd.type_name()
         if type_name == "Str" {
             fmt_call.add_child(own field)

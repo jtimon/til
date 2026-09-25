@@ -16,7 +16,7 @@ The fix split the problem into capability-gated generation. Enum payload
   and supports the needed method. User-written namespace methods still win,
   and structs with ~own~ / ~ref~ fields are left to explicit methods for now.
   Deep generated support for those fields is tracked separately in
-  [[../open/274.org][#274]].
+  [[./274.org][#274]].
 
 Regression test: ~test/structs.til:test_generated_struct_eq_to_str~.
 
@@ -52,4 +52,4 @@ Progress:
   - [X] Struct field-wise ~eq~ generation.
   - [X] Struct literal-style ~to_str~ generation.
   - [X] Follow-up issue for own/ref deep generated ~eq~ / ~to_str~ support
-    ([[../open/274.org][#274]]).
+    ([[./274.org][#274]]).

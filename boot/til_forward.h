@@ -1488,6 +1488,7 @@ typedef struct FuncSig {
 typedef struct FunctionDef {
     FuncSig sig;
     Bool auto_generated;
+    Bool typed_on_demand;
     Bool is_enum_variant_ctor;
     Bool noreturn;
     Vec__Declaration captures;

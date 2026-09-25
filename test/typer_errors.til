@@ -230,9 +230,9 @@ dyn_bad := dyn_vec.get(0).add(35)
 
 // map literal: key type must implement cmp. #335 derives cmp for a
 // struct whose fields are all comparable, so this fixture needs a field
-// that disqualifies the derivation -- an `own` one, same rule eq and
-// to_str already follow.
-NoCmp := struct { own buf : Str = "" }
+// that disqualifies the derivation. Dynamic also has no to_str for the
+// requested generated body to call (#274).
+NoCmp := struct { buf : Dynamic = 0 }
 bad_map := {NoCmp(): "one"}
 
 // #380: provisional field inference may learn a generated method's return
@@ -244,7 +244,7 @@ BadGeneratedDefault := struct { text := NoCmp().to_str() }
 bad_set := {NoCmp(), NoCmp()}
 
 // Provisional return types used during field inference must not make
-// unsupported generated methods permanent. NoCmp's owned field disqualifies
+// unsupported generated methods permanent. NoCmp's Dynamic field disqualifies
 // cmp.
 ForwardUnsupportedGeneratedMethod := struct {
     comparison := NoCmp().cmp(NoCmp())

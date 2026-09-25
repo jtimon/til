@@ -2396,7 +2396,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "no value parameter mentions it", expected_count = 2),
         CountCheck(needle = "no named signature", expected_count = 1),
         CountCheck(needle = "conflicting evidence", expected_count = 2),
-        CountCheck(needle = "no method 'to_str' for type 'NoCmp'", expected_count = 1),
+        CountCheck(needle = "cannot call method 'to_str' on Dynamic value", expected_count = 1),
         CountCheck(needle = "literal element", expected_count = 3),
         CountCheck(needle = "splat of", expected_count = 8),
         CountCheck(needle = "memcpy duplicates", expected_count = 2),

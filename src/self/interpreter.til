@@ -2396,9 +2396,12 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     assign_hb.ptr = to_ptr(fresh_block)
                 }
                 else { scalar_word_store(hb_type(assign_hb), to_ptr(assign_hb.ptr), new_raw, ctx) }
-            } else if assign_hb.is_borrowed {
-                // Write THROUGH the borrow into the referent's storage. The
-                // old value's teardown follows save_old_delete exactly as the
+            } else if assign_hb.is_borrowed.or(is_aggregate(hb_type(assign_hb)).and(assign_hb.ptr.is_null().not())) {
+                // Keep an aggregate owner's storage stable too: ref fields
+                // can borrow it, so replacing the allocation dangles them.
+                // A moved-out owner has no storage and takes the new block
+                // below. Write THROUGH an existing slot, as compiled code does.
+                // The old value's teardown follows save_old_delete exactly as the
                 // owning path below does; without that the garbager's own
                 // delete and this drop both free it.
                 ref mut assign_data : Dynamic = to_ptr(assign_hb.ptr)

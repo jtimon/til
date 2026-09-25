@@ -81,3 +81,127 @@ test_own_field_enum_assign := test() {
     w.e = EnumF.B(42)
     assert(w.e.is(EnumF.B))
 }
+
+// #274: these are ordinary borrowed method calls through owned fields.
+// Equal contents in distinct allocations compare equal, and inspecting an
+// owned value must not consume it or its fields.
+test_generated_owned_value_methods := test() {
+    mut a := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    b := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    assert(a.eq(b))
+    assert_eq(Str, a.to_str(), "Line(start=Point(x=1, y=2), end=Point(x=3, y=4))")
+    a.end.y = 5
+    assert(a.eq(b).not())
+    assert_eq(I64, b.end.y, 4)
+    assert_eq(I64, a.end.y, 5)
+
+    first := OwnEnumW(e=EnumF.B(7))
+    second := OwnEnumW(e=EnumF.B(7))
+    assert(first.eq(second))
+    assert_eq(Str, first.to_str(), "OwnEnumW(e=B(7))")
+}
+
+BorrowedName := struct {
+    ref text : Str
+}
+
+BorrowedNumber := struct {
+    ref value : I64
+}
+
+test_generated_borrowed_number_methods := test() {
+    mut value := 7
+    other := 7
+    a := BorrowedNumber(value=value)
+    b := BorrowedNumber(value=other)
+    assert(a.eq(b))
+    assert_eq(Str, a.to_str(), "BorrowedNumber(value=7)")
+    value = 8
+    assert(a.eq(b).not())
+    assert_eq(I64, value, 8)
+    assert_eq(I64, other, 7)
+}
+
+OwnedName := struct {
+    own text : Str = ""
+}
+
+test_generated_borrowed_value_methods := test() {
+    mut text := Str.clone("hello")
+    other := Str.clone("hello")
+    a := BorrowedName(text=text)
+    b := BorrowedName(text=other)
+    assert(a.eq(b))
+    assert_eq(Str, a.to_str(), "BorrowedName(text=hello)")
+    text = "changed"
+    assert(a.eq(b).not())
+    assert_eq(Str, a.to_str(), "BorrowedName(text=changed)")
+    assert_eq(Str, text, "changed")
+    assert_eq(Str, other, "hello")
+
+    owned := OwnedName(text="owned")
+    same := OwnedName(text="owned")
+    assert(OwnedName.eq(owned, same))
+    assert_eq(Str, OwnedName.to_str(owned), "OwnedName(text=owned)")
+    assert_eq(Str, owned.text, "owned")
+}
+
+DeepNode := struct {
+    value := 0
+    next := Option(ref DeepNode).None
+}
+
+test_generated_recursive_value_methods := test() {
+    tail := DeepNode(value=2)
+    other_tail := DeepNode(value=2)
+    head := DeepNode(value=1, next=safe_ref(tail))
+    other_head := DeepNode(value=1, next=safe_ref(other_tail))
+    assert(head.eq(other_head))
+    assert_eq(Str, head.to_str(), "DeepNode(value=1, next=Some(DeepNode(value=2, next=None)))")
+    assert(head.eq(tail).not())
+    assert_eq(I64, tail.value, 2)
+    assert_eq(I64, other_tail.value, 2)
+}
+
+// A request before the definition must check the new body once, then let
+// the later namespace sweep reuse it. Field defaults also request methods
+// after their provisional field-only inference has finished.
+test_generated_forward_value_methods := test() {
+    a := ForwardOwned(text="forward")
+    b := ForwardOwned(text="forward")
+    assert(a.eq(b))
+    assert_eq(Str, a.to_str(), "ForwardOwned(text=forward)")
+    snapshot := DeepSnapshot()
+    assert_eq(Str, snapshot.text, "ForwardOwned(text=default)")
+}
+
+ForwardOwned := struct {
+    own text : Str = ""
+}
+
+deep_snapshot_text := func() returns Str {
+    value := ForwardOwned(text="default")
+    return value.to_str()
+}
+
+DeepSnapshot := struct {
+    text := deep_snapshot_text()
+}
+
+CustomOwned := struct {
+    own text : Str = ""
+namespace:
+    eq := func(a: CustomOwned, b: CustomOwned) returns Bool {
+        return a.text.len().eq(b.text.len())
+    }
+    to_str := func(self: CustomOwned) returns Str {
+        return format("custom:", self.text)
+    }
+}
+
+test_generated_value_methods_preserve_overrides := test() {
+    a := CustomOwned(text="one")
+    b := CustomOwned(text="two")
+    assert(a.eq(b))
+    assert_eq(Str, a.to_str(), "custom:one")
+}

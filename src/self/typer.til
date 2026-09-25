@@ -1994,6 +1994,20 @@ priv infer_provisional_generated_method := func(method: Str, receiver: Expr, mut
     return true
 }
 
+// Register before typing the body so recursive methods resolve ordinary
+// calls to their own signature. Unrequested methods never enter the AST.
+priv infer_requested_value_method := proc(mut def: Expr, name: Str, method: Str, mut ctx: Context) {
+    if ctx.infer_struct_fields_only { return }
+    if generate_requested_value_method(def, name, method, ctx.scope, ctx.symbols).not() { return }
+    ref mut body : Expr = def_ns_get(def, method).unwrap().default_expr()
+    ref mut generated : FunctionDef = funcdef_of(body)
+    generated.typed_on_demand = true
+    mut inner := TypeScope(parent = safe_ref(ctx.scope), current_type_name = name.clone())
+    infer_namespace_method_body(inner, body, name, method, ctx)
+    ref mut member : Declaration = def_ns_get(def, method).unwrap()
+    member.til_type = type_from_name(funcdef_of(body).sig.return_type, inner, ctx)
+}
+
 priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) returns Bool {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     ref mut fa : Expr = e.children[0]
@@ -2141,9 +2155,12 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
 
-        sdef1_o := scope.get_struct(type_name, ctx.symbols)
+        mut sdef1_o := scope.get_struct(type_name, ctx.symbols)
         mut nf1o := Option(ref Expr).None
-        if sdef1_o.is_some() { nf1o = find_namespace_func(sdef1_o.unwrap(), method, scope, ctx.symbols) }
+        if sdef1_o.is_some() {
+            infer_requested_value_method(sdef1_o.unwrap(), type_name, method, ctx)
+            nf1o = find_namespace_func(sdef1_o.unwrap(), method, scope, ctx.symbols)
+        }
         if nf1o.is_none() {
             if ctx.infer_struct_fields_only.and(sdef1_o.is_some()) {
                 ref provisional_def : Expr = sdef1_o.unwrap()
@@ -2221,9 +2238,12 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         return true
     }
     ref obj3_sname : Str = obj3_sname_o.unwrap()
-    sdef2_o := scope.get_struct(obj3_sname, ctx.symbols)
+    mut sdef2_o := scope.get_struct(obj3_sname, ctx.symbols)
     mut nf2o := Option(ref Expr).None
-    if sdef2_o.is_some() { nf2o = find_namespace_func(sdef2_o.unwrap(), method, scope, ctx.symbols) }
+    if sdef2_o.is_some() {
+        infer_requested_value_method(sdef2_o.unwrap(), obj3_sname, method, ctx)
+        nf2o = find_namespace_func(sdef2_o.unwrap(), method, scope, ctx.symbols)
+    }
     if nf2o.is_none() {
         e.type_error(format("no namespace function '", method, "'"), ctx)
         e.set_til_type(Type.Unknown)
@@ -4701,25 +4721,10 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
         tcbi = tcbi + 1
         if tc_bd.default_value.is_none() { continue }
         if tc_bd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
-        saved_ns_synth_owner := ctx.synth_owner.clone()
-        saved_ns_hoist := ctx.hoist_counter
-        saved_ns_va := ctx.va_counter
-        saved_ns_kw := ctx.kw_counter
-        saved_ns_coll := ctx.coll_counter
-        saved_ns_bang := ctx.bang_counter
-        ctx.synth_owner = format(inner.active_type_name(), "_", tc_bname)
-        ctx.hoist_counter = 0
-        ctx.va_counter = 0
-        ctx.kw_counter = 0
-        ctx.coll_counter = 0
-        ctx.bang_counter = 0
-        infer_func_def_expr(inner, tc_bd.default_expr(), "", ctx)
-        ctx.synth_owner = saved_ns_synth_owner
-        ctx.hoist_counter = saved_ns_hoist
-        ctx.va_counter = saved_ns_va
-        ctx.kw_counter = saved_ns_kw
-        ctx.coll_counter = saved_ns_coll
-        ctx.bang_counter = saved_ns_bang
+        // A requested generated method may already have been checked by a
+        // caller earlier in declaration order. Do not lower its body twice.
+        if funcdef_of(tc_bd.default_expr()).typed_on_demand { continue }
+        infer_namespace_method_body(inner, tc_bd.default_expr(), inner.active_type_name(), tc_bname, ctx)
     }
     // Static check: a hand-written `delete` must free (or transfer) every
     // `own` field, otherwise the auto-generated destructor chain through
@@ -4728,6 +4733,28 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     if expr.node_type.is(NodeType.StructDef) {
         check_user_delete_frees_own_fields(inner.active_type_name(), expr, ctx)
     }
+}
+
+priv infer_namespace_method_body := proc(mut scope: TypeScope, mut body: Expr, type_name: Str, method: Str, mut ctx: Context) {
+    saved_ns_synth_owner := ctx.synth_owner.clone()
+    saved_ns_hoist := ctx.hoist_counter
+    saved_ns_va := ctx.va_counter
+    saved_ns_kw := ctx.kw_counter
+    saved_ns_coll := ctx.coll_counter
+    saved_ns_bang := ctx.bang_counter
+    ctx.synth_owner = format(type_name, "_", method)
+    ctx.hoist_counter = 0
+    ctx.va_counter = 0
+    ctx.kw_counter = 0
+    ctx.coll_counter = 0
+    ctx.bang_counter = 0
+    infer_func_def_expr(scope, body, "", ctx)
+    ctx.synth_owner = saved_ns_synth_owner
+    ctx.hoist_counter = saved_ns_hoist
+    ctx.va_counter = saved_ns_va
+    ctx.kw_counter = saved_ns_kw
+    ctx.coll_counter = saved_ns_coll
+    ctx.bang_counter = saved_ns_bang
 }
 
 // Nested bodies own separate scopes, so only direct declarations contribute
@@ -6181,6 +6208,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
             }
             // Search namespace declarations from payload ns_decls
             if found.not() {
+                infer_requested_value_method(sdef, obj_sname, fname, ctx)
                 mut nsd_o := def_ns_get(sdef, fname)
                 if nsd_o.is_some() {
                     ref mut nsd : Declaration = nsd_o.unwrap()

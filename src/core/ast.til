@@ -415,6 +415,9 @@ FunctionDef := struct {
     // bodies so genuinely-unused priv members don't get masked by
     // boilerplate references.
     auto_generated := false
+    // #274: a requested generated method has already gone through the
+    // typer at its use site; the later namespace sweep must not lower it again.
+    typed_on_demand := false
     is_enum_variant_ctor := false
     // #303: true when calling this function never returns control to the
     // caller. Seeded on core exit (an ext_func whose libc binding is

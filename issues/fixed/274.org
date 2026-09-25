@@ -1,0 +1,50 @@
+# priority: low
+# category: features
+** FIXED #274 Generated eq/to_str should support own/ref fields deeply
+
+*** Post-mortem
+
+Struct generation rejected own/ref fields before the typer could check
+the ordinary field calls. It also rejected Option(ref T) fields, despite
+enum methods already comparing and printing borrowed payloads by value.
+
+Missing eq/to_str methods are now generated when requested by a call or
+namespace reference, using the existing struct/enum body builders. The
+normal typer validates those bodies. Registering the method before typing
+it permits recursive calls without a recursive eligibility walk, and a
+typed_on_demand marker prevents the later namespace sweep from lowering
+the same body again. Existing explicit methods retain precedence.
+
+Primitive pointer fields are read through ordinary ref locals so their
+methods receive the pointee value rather than its address. Recursive
+values use ordinary recursive method calls; this does not introduce graph
+identity or cycle-printing semantics.
+
+The borrowed-string regression also exposed an interpreter assignment
+bug: replacing an aggregate owner's allocation invalidated ref fields
+borrowing it. Assignment now updates existing aggregate storage in place,
+matching compiled code, while a moved-out owner receives fresh storage.
+
+Regression tests: test_generated_owned_value_methods,
+test_generated_borrowed_number_methods, test_generated_borrowed_value_methods,
+test_generated_recursive_value_methods, test_generated_forward_value_methods,
+and test_generated_value_methods_preserve_overrides in test/own_fields.til.
+BadGeneratedDefault in test/typer_errors.til now pins the normal typer's
+rejection of a generated call to a Dynamic field's nonexistent to_str.
+
+*** Original report
+
+Issue [[../fixed/102.org][#102]] added generated ~eq~ and literal-style
+  ~to_str~ for structs whose fields are all shallow and already support the
+  needed method. It deliberately omits generation for structs with ~own~ or
+  ~ref~ fields, because those need deeper ownership/lifetime decisions.
+
+  Follow-up goal:
+  - define whether generated ~eq~ compares owned/ref fields by value or by
+    identity
+  - define how generated ~to_str~ should print owned/ref fields without
+    creating lifetime or constfolder/builder inconsistencies
+  - update struct generation once those rules are clear
+
+  This should be treated as a separate feature from shallow value structs;
+  the interactions with constfolder and builder ownership are more complex.
