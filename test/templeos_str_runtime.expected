@@ -30,9 +30,9 @@ U0 str_runtime_middle(TilStr *return_out, TilStr *s)
     TilStrClone(&hoisted__Str_str_runtime_middle_3, &hoisted__Str_str_runtime_middle_2);
     TilStrDelete(&hoisted__Str_str_runtime_middle_2, FALSE);
     {
-        TilStr return_value;
-        TilStrCopyValue(&return_value, &hoisted__Str_str_runtime_middle_3);
-        TilStrCopyValue(return_out, &return_value);
+        TilStr return_value_0;
+        TilStrCopyValue(&return_value_0, &hoisted__Str_str_runtime_middle_3);
+        TilStrCopyValue(return_out, &return_value_0);
         TilStrPrepareReturn(return_out);
         return;
     }
@@ -41,7 +41,7 @@ U0 str_runtime_middle(TilStr *return_out, TilStr *s)
 I64 str_runtime_len(TilStr *s)
 {
     U64 hoisted__U64_0 = (s)->count;
-    I64 hoisted__I64_1 = (hoisted__U64_0)(I64);
+    I64 hoisted__I64_1 = ((hoisted__U64_0) + 0)(I64);
     return hoisted__I64_1;
 }
 
@@ -56,7 +56,7 @@ U0 str_runtime_push(TilStr *s)
 I64 str_runtime_consume(TilStr *s)
 {
     U64 hoisted__U64_0 = (s)->count;
-    I64 n = (hoisted__U64_0)(I64);
+    I64 n = ((hoisted__U64_0) + 0)(I64);
     TilStrDelete(s, FALSE);
     return n;
 }
@@ -108,7 +108,7 @@ I64 TilMain()
     TilStrArrayNew(&_va_Array_g2, hoisted__U64_g18);
     I64 _va_Array_g2_ek = 0;
     U64 hoisted__U64_g19 = (&out)->count;
-    I64 hoisted__I64_g20 = (hoisted__U64_g19)(I64);
+    I64 hoisted__I64_g20 = ((hoisted__U64_g19) + 0)(I64);
     U64 hoisted__U64_g21 = 0;
     TilStr hoisted__Str_g22;
     TilStrFromI64(&hoisted__Str_g22, hoisted__I64_g20);
@@ -126,10 +126,10 @@ I64 TilMain()
     TilStr hoisted__Str_g27;
     TilStrSubstr(&hoisted__Str_g27, &reassigned, hoisted__U64_g25, hoisted__U64_g26);
     {
-        TilStr replacement;
-        TilStrClone(&replacement, &hoisted__Str_g27);
+        TilStr replacement_1;
+        TilStrClone(&replacement_1, &hoisted__Str_g27);
         TilStrDelete(&reassigned, FALSE);
-        TilStrCopyValue(&reassigned, &replacement);
+        TilStrCopyValue(&reassigned, &replacement_1);
     }
     TilStrDelete(&hoisted__Str_g27, FALSE);
     TilStr returned;

@@ -1201,13 +1201,16 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Set__Str str_return_functions;
     Set__Str struct_names;
     Map__Str_Str enum_types;
+    Set__Str payload_enum_names;
     USize switch_id;
+    USize temp_id;
     Bool needs_i64_div;
     Bool needs_i64_mod;
 } priv___src_self_holyc_codegen_til__HolyCEmitState;
 
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
+    Map__Str_Str payload_names;
     Map__Str_Str pointer_types;
     Set__Str str_names;
     Set__Str str_pointer_names;

@@ -25,3 +25,23 @@ default second
 medium high
 nested cold
 evaluated once
+payload equal
+payload clone independent
+payload text payl
+payload text payload
+payload count 42
+payload byte 255
+payload empty
+empty variant equal
+payload empty
+payload tags differ
+payload is count
+record clone independent
+payload record 9:payl
+payload record 9:payload
+nested payload equal
+shadow payload payload
+payload record 9:payload
+payload text payload
+payload text ayload
+payload empty

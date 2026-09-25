@@ -137,3 +137,99 @@ case .Warm:
 case: println("unexpected counted tag")
 }
 if point.x == 8 { println("evaluated once") }
+
+PayloadEnvelope := enum { Empty, Wrapped: PayloadValue }
+PayloadValue := enum { Empty, Byte: U8, Count: I64, Text: Str, Record: PayloadRecord }
+PayloadRecord := struct {
+    number : I64 = 0
+    name : Str = ""
+}
+
+make_payload_text := func(text: Str) returns PayloadValue {
+    if text.is_empty() { return PayloadValue.Empty }
+    return PayloadValue.Text(text.clone())
+}
+replace_payload := func(mut value: PayloadValue, text: Str) {
+    value = make_payload_text(text)
+}
+show_payload := proc(value: PayloadValue) {
+    switch value {
+    case .Empty: println("payload empty")
+    case .Byte(byte): println("payload byte ", byte.to_i64().to_str())
+    case .Count(count): println("payload count ", count.to_str())
+    case .Text(text): println("payload text ", text)
+    case .Record(record): println("payload record ", record.number.to_str(), ":", record.name)
+    }
+}
+
+mut payload_source := Str.with_capacity(7)
+payload_source.push_str("payload")
+mut text_payload := make_payload_text(payload_source)
+text_payload_copy := text_payload.clone()
+if text_payload.eq(text_payload_copy) { println("payload equal") }
+switch text_payload {
+case .Text(text): text = text.substr(0, 4).clone()
+case:
+}
+if text_payload.neq(text_payload_copy) { println("payload clone independent") }
+show_payload(text_payload)
+own text_payload.delete()
+show_payload(text_payload_copy)
+
+mut count_payload := PayloadValue.Count(41)
+switch count_payload {
+case .Count(count): count = count + 1
+case:
+}
+show_payload(count_payload)
+byte_payload := PayloadValue.Byte(255)
+show_payload(byte_payload)
+empty_payload := PayloadValue.Empty
+show_payload(empty_payload)
+if empty_payload.eq(PayloadValue.Empty) { println("empty variant equal") }
+show_payload(PayloadValue.Empty)
+if empty_payload.neq(byte_payload) { println("payload tags differ") }
+if count_payload.is(PayloadValue.Count) { println("payload is count") }
+
+mut record_payload := PayloadValue.Record(PayloadRecord(number=9, name=payload_source.clone()))
+record_payload_copy := record_payload.clone()
+switch record_payload {
+case .Record(record): record.name = record.name.substr(0, 4).clone()
+case:
+}
+if record_payload.neq(record_payload_copy) { println("record clone independent") }
+show_payload(record_payload)
+own record_payload.delete()
+show_payload(record_payload_copy)
+
+envelope := PayloadEnvelope.Wrapped(record_payload_copy.clone())
+envelope_copy := envelope.clone()
+if envelope.eq(envelope_copy) { println("nested payload equal") }
+switch envelope {
+case .Wrapped(value):
+    switch value {
+    case .Record(value): println("shadow payload ", value.name)
+    case:
+    }
+    show_payload(value)
+case .Empty: println("unexpected empty envelope")
+}
+own envelope.delete()
+own envelope_copy.delete()
+
+replace_payload(count_payload, payload_source)
+show_payload(count_payload)
+switch count_payload {
+case .Text(text): text = text.substr(1, 6).clone()
+case:
+}
+show_payload(count_payload)
+count_payload = PayloadValue.Empty
+show_payload(count_payload)
+
+own text_payload_copy.delete()
+own record_payload_copy.delete()
+own count_payload.delete()
+own byte_payload.delete()
+own empty_payload.delete()
+own payload_source.delete()

@@ -65,6 +65,31 @@ Bool StructNamedPoint_Eq(StructNamedPoint *a, StructNamedPoint *b)
   return TRUE;
 }
 
+class PayloadRecord {
+  I64 number;
+  TilStr name;
+};
+
+U0 PayloadRecord_Clone(PayloadRecord *out, PayloadRecord *src)
+{
+  out->number = src->number;
+  TilStrClone(&out->name, &src->name);
+}
+
+U0 PayloadRecord_Delete(PayloadRecord *self)
+{
+  TilStrDelete(&self->name, FALSE);
+}
+
+Bool PayloadRecord_Eq(PayloadRecord *a, PayloadRecord *b)
+{
+  if (a->number != b->number)
+    return FALSE;
+  if (!TilStrEq(&a->name, &b->name))
+    return FALSE;
+  return TRUE;
+}
+
 class StructSegment {
   StructPoint start;
   StructPoint finish;
@@ -95,6 +120,175 @@ Bool StructSegment_Eq(StructSegment *a, StructSegment *b)
   return TRUE;
 }
 
+class PayloadValue {
+  U8 tag;
+  union {
+    U8 payload_Byte;
+    I64 payload_Count;
+    TilStr payload_Text;
+    PayloadRecord payload_Record;
+  };
+};
+
+PayloadValue PayloadValue_Literal_Empty;
+PayloadValue_Literal_Empty.tag = 0;
+
+U0 PayloadValue_CopyValue(PayloadValue *out, PayloadValue *src)
+{
+  out->tag = src->tag;
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    out->payload_Byte = src->payload_Byte;
+    return;
+  }
+  if (src->tag == 2) {
+    out->payload_Count = src->payload_Count;
+    return;
+  }
+  if (src->tag == 3) {
+    TilStrCopyValue(&out->payload_Text, &src->payload_Text);
+    return;
+  }
+  if (src->tag == 4) {
+    out->payload_Record.number = src->payload_Record.number;
+    TilStrCopyValue(&out->payload_Record.name, &src->payload_Record.name);
+    return;
+  }
+  TilPanicZ("invalid PayloadValue tag");
+}
+
+U0 PayloadValue_Clone(PayloadValue *out, PayloadValue *src)
+{
+  out->tag = src->tag;
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    out->payload_Byte = src->payload_Byte;
+    return;
+  }
+  if (src->tag == 2) {
+    out->payload_Count = src->payload_Count;
+    return;
+  }
+  if (src->tag == 3) {
+    TilStrClone(&out->payload_Text, &src->payload_Text);
+    return;
+  }
+  if (src->tag == 4) {
+    PayloadRecord_Clone(&out->payload_Record, &src->payload_Record);
+    return;
+  }
+  TilPanicZ("invalid PayloadValue tag");
+}
+
+U0 PayloadValue_Delete(PayloadValue *src)
+{
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    return;
+  }
+  if (src->tag == 2) {
+    return;
+  }
+  if (src->tag == 3) {
+    TilStrDelete(&src->payload_Text, FALSE);
+    return;
+  }
+  if (src->tag == 4) {
+    PayloadRecord_Delete(&src->payload_Record);
+    return;
+  }
+  TilPanicZ("invalid PayloadValue tag");
+}
+
+Bool PayloadValue_Eq(PayloadValue *a, PayloadValue *b)
+{
+  if (a->tag != b->tag) return FALSE;
+  if (a->tag == 0) {
+    return TRUE;
+  }
+  if (a->tag == 1) {
+    return a->payload_Byte == b->payload_Byte;
+  }
+  if (a->tag == 2) {
+    return a->payload_Count == b->payload_Count;
+  }
+  if (a->tag == 3) {
+    return TilStrEq(&a->payload_Text, &b->payload_Text);
+  }
+  if (a->tag == 4) {
+    return PayloadRecord_Eq(&a->payload_Record, &b->payload_Record);
+  }
+  TilPanicZ("invalid PayloadValue tag");
+  return FALSE;
+}
+
+class PayloadEnvelope {
+  U8 tag;
+  union {
+    PayloadValue payload_Wrapped;
+  };
+};
+
+PayloadEnvelope PayloadEnvelope_Literal_Empty;
+PayloadEnvelope_Literal_Empty.tag = 0;
+
+U0 PayloadEnvelope_CopyValue(PayloadEnvelope *out, PayloadEnvelope *src)
+{
+  out->tag = src->tag;
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    PayloadValue_CopyValue(&out->payload_Wrapped, &src->payload_Wrapped);
+    return;
+  }
+  TilPanicZ("invalid PayloadEnvelope tag");
+}
+
+U0 PayloadEnvelope_Clone(PayloadEnvelope *out, PayloadEnvelope *src)
+{
+  out->tag = src->tag;
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    PayloadValue_Clone(&out->payload_Wrapped, &src->payload_Wrapped);
+    return;
+  }
+  TilPanicZ("invalid PayloadEnvelope tag");
+}
+
+U0 PayloadEnvelope_Delete(PayloadEnvelope *src)
+{
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    PayloadValue_Delete(&src->payload_Wrapped);
+    return;
+  }
+  TilPanicZ("invalid PayloadEnvelope tag");
+}
+
+Bool PayloadEnvelope_Eq(PayloadEnvelope *a, PayloadEnvelope *b)
+{
+  if (a->tag != b->tag) return FALSE;
+  if (a->tag == 0) {
+    return TRUE;
+  }
+  if (a->tag == 1) {
+    return PayloadValue_Eq(&a->payload_Wrapped, &b->payload_Wrapped);
+  }
+  TilPanicZ("invalid PayloadEnvelope tag");
+  return FALSE;
+}
+
 extern U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name);
 extern I64 struct_named_point_score(StructNamedPoint *named);
 extern U0 rename_struct_named_point(StructNamedPoint *named);
@@ -104,6 +298,9 @@ extern U8 small_from_signal(U16 signal);
 extern U8 default_from_signal(U16 signal);
 extern U32 medium_from_signal(U16 signal);
 extern U16 counted_signal(StructPoint *point);
+extern U0 make_payload_text(PayloadValue *return_out, TilStr *text);
+extern U0 replace_payload(PayloadValue *value, TilStr *text);
+extern U0 show_payload(PayloadValue *value);
 
 U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name)
 {
@@ -114,13 +311,13 @@ U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name)
     hoisted__StructNamedPoint_2.point.y = hoisted__I64_1;
     TilStrClone(&hoisted__StructNamedPoint_2.name, name);
     {
-        StructNamedPoint return_value;
-        return_value.point.x = hoisted__StructNamedPoint_2.point.x;
-        return_value.point.y = hoisted__StructNamedPoint_2.point.y;
-        TilStrCopyValue(&return_value.name, &hoisted__StructNamedPoint_2.name);
-        return_out->point.x = return_value.point.x;
-        return_out->point.y = return_value.point.y;
-        TilStrCopyValue(&return_out->name, &return_value.name);
+        StructNamedPoint return_value_0;
+        return_value_0.point.x = hoisted__StructNamedPoint_2.point.x;
+        return_value_0.point.y = hoisted__StructNamedPoint_2.point.y;
+        TilStrCopyValue(&return_value_0.name, &hoisted__StructNamedPoint_2.name);
+        return_out->point.x = return_value_0.point.x;
+        return_out->point.y = return_value_0.point.y;
+        TilStrCopyValue(&return_out->name, &return_value_0.name);
         return;
     }
 }
@@ -129,7 +326,7 @@ I64 struct_named_point_score(StructNamedPoint *named)
 {
     U64 hoisted__U64_0 = (&named->name)->count;
     I64 hoisted__I64_1 = (named->point.x + named->point.y);
-    I64 hoisted__I64_2 = (hoisted__U64_0)(I64);
+    I64 hoisted__I64_2 = ((hoisted__U64_0) + 0)(I64);
     I64 hoisted__I64_3 = (hoisted__I64_1 + hoisted__I64_2);
     return hoisted__I64_3;
 }
@@ -137,10 +334,10 @@ I64 struct_named_point_score(StructNamedPoint *named)
 U0 rename_struct_named_point(StructNamedPoint *named)
 {
     {
-        TilStr replacement;
-        TilStrInitLit(&replacement, "beta", 4);
+        TilStr replacement_1;
+        TilStrInitLit(&replacement_1, "beta", 4);
         TilStrDelete(&named->name, FALSE);
-        TilStrCopyValue(&named->name, &replacement);
+        TilStrCopyValue(&named->name, &replacement_1);
     }
 }
 
@@ -204,46 +401,178 @@ U16 counted_signal(StructPoint *point)
     return 12;
 }
 
+U0 make_payload_text(PayloadValue *return_out, TilStr *text)
+{
+    Bool hoisted__Bool_0 = ((text)->count == 0);
+    if (hoisted__Bool_0) {
+        {
+            PayloadValue return_value_2;
+            return_value_2.tag = 0;
+            PayloadValue_CopyValue(return_out, &return_value_2);
+            return;
+        }
+    }
+    TilStr hoisted__Str_make_payload_text_1;
+    TilStrClone(&hoisted__Str_make_payload_text_1, text);
+    PayloadValue hoisted__PayloadValue_2;
+    hoisted__PayloadValue_2.tag = 3;
+    TilStrCopyValue(&hoisted__PayloadValue_2.payload_Text, &hoisted__Str_make_payload_text_1);
+    {
+        PayloadValue return_value_3;
+        PayloadValue_CopyValue(&return_value_3, &hoisted__PayloadValue_2);
+        PayloadValue_CopyValue(return_out, &return_value_3);
+        return;
+    }
+}
+
+U0 replace_payload(PayloadValue *value, TilStr *text)
+{
+    PayloadValue hoisted__PayloadValue_0;
+    make_payload_text(&hoisted__PayloadValue_0, text);
+    U64 hoisted__U64_1 = sizeof(PayloadValue);
+    {
+        if (hoisted__U64_1 != sizeof(PayloadValue)) TilPanicZ("partial enum swap is not supported");
+        PayloadValue swap_value_4;
+        PayloadValue_CopyValue(&swap_value_4, value);
+        PayloadValue_CopyValue(value, &hoisted__PayloadValue_0);
+        PayloadValue_CopyValue(&hoisted__PayloadValue_0, &swap_value_4);
+    }
+    PayloadValue_Delete(&hoisted__PayloadValue_0);
+}
+
+U0 show_payload(PayloadValue *value)
+{
+    do {
+        U8 enum_switch_1 = (value)->tag;
+        if ((enum_switch_1 == 0)) {
+            U64 hoisted__U64_0 = 1;
+            TilStrArray _va_Array_0;
+            TilStrArrayNew(&_va_Array_0, hoisted__U64_0);
+            I64 _va_Array_0_ek = 0;
+            U64 hoisted__U64_1 = 0;
+            TilStr hoisted__Str_show_payload_2;
+            TilStrInitLit(&hoisted__Str_show_payload_2, "payload empty", 13);
+            TilStrArraySet(&_va_Array_0, hoisted__U64_1, &hoisted__Str_show_payload_2);
+            TilPrintln(&_va_Array_0);
+            break;
+        }
+        if ((enum_switch_1 == 1)) {
+            U8 *payload_5 = ((&(value)->payload_Byte))(U8 *);
+            U64 hoisted__U64_3 = 2;
+            TilStrArray _va_Array_1;
+            TilStrArrayNew(&_va_Array_1, hoisted__U64_3);
+            I64 _va_Array_1_ek = 0;
+            U64 hoisted__U64_4 = 0;
+            TilStr hoisted__Str_show_payload_5;
+            TilStrInitLit(&hoisted__Str_show_payload_5, "payload byte ", 13);
+            TilStrArraySet(&_va_Array_1, hoisted__U64_4, &hoisted__Str_show_payload_5);
+            I64 hoisted__I64_6 = (((*((TilCheckPtr(payload_5))(U8 *)))) + 0)(I64);
+            U64 hoisted__U64_7 = 1;
+            TilStr hoisted__Str_show_payload_8;
+            TilStrFromI64(&hoisted__Str_show_payload_8, hoisted__I64_6);
+            TilStrArraySet(&_va_Array_1, hoisted__U64_7, &hoisted__Str_show_payload_8);
+            TilPrintln(&_va_Array_1);
+            break;
+        }
+        if ((enum_switch_1 == 2)) {
+            I64 *payload_6 = ((&(value)->payload_Byte))(I64 *);
+            U64 hoisted__U64_9 = 2;
+            TilStrArray _va_Array_2;
+            TilStrArrayNew(&_va_Array_2, hoisted__U64_9);
+            I64 _va_Array_2_ek = 0;
+            U64 hoisted__U64_10 = 0;
+            TilStr hoisted__Str_show_payload_11;
+            TilStrInitLit(&hoisted__Str_show_payload_11, "payload count ", 14);
+            TilStrArraySet(&_va_Array_2, hoisted__U64_10, &hoisted__Str_show_payload_11);
+            U64 hoisted__U64_12 = 1;
+            TilStr hoisted__Str_show_payload_13;
+            TilStrFromI64(&hoisted__Str_show_payload_13, (*((TilCheckPtr(payload_6))(I64 *))));
+            TilStrArraySet(&_va_Array_2, hoisted__U64_12, &hoisted__Str_show_payload_13);
+            TilPrintln(&_va_Array_2);
+            break;
+        }
+        if ((enum_switch_1 == 3)) {
+            TilStr *payload_7 = ((&(value)->payload_Byte))(TilStr *);
+            U64 hoisted__U64_14 = 2;
+            TilStrArray _va_Array_3;
+            TilStrArrayNew(&_va_Array_3, hoisted__U64_14);
+            I64 _va_Array_3_ek = 0;
+            U64 hoisted__U64_15 = 0;
+            TilStr hoisted__Str_show_payload_16;
+            TilStrInitLit(&hoisted__Str_show_payload_16, "payload text ", 13);
+            TilStrArraySet(&_va_Array_3, hoisted__U64_15, &hoisted__Str_show_payload_16);
+            U64 hoisted__U64_17 = 1;
+            TilStr hoisted__Str_show_payload_18;
+            TilStrClone(&hoisted__Str_show_payload_18, payload_7);
+            TilStrArraySet(&_va_Array_3, hoisted__U64_17, &hoisted__Str_show_payload_18);
+            TilPrintln(&_va_Array_3);
+            break;
+        }
+        PayloadRecord *payload_8 = ((&(value)->payload_Byte))(PayloadRecord *);
+        U64 hoisted__U64_19 = 4;
+        TilStrArray _va_Array_4;
+        TilStrArrayNew(&_va_Array_4, hoisted__U64_19);
+        I64 _va_Array_4_ek = 0;
+        U64 hoisted__U64_20 = 0;
+        TilStr hoisted__Str_show_payload_21;
+        TilStrInitLit(&hoisted__Str_show_payload_21, "payload record ", 15);
+        TilStrArraySet(&_va_Array_4, hoisted__U64_20, &hoisted__Str_show_payload_21);
+        U64 hoisted__U64_22 = 1;
+        TilStr hoisted__Str_show_payload_23;
+        TilStrFromI64(&hoisted__Str_show_payload_23, payload_8->number);
+        TilStrArraySet(&_va_Array_4, hoisted__U64_22, &hoisted__Str_show_payload_23);
+        U64 hoisted__U64_24 = 2;
+        TilStr hoisted__Str_show_payload_25;
+        TilStrInitLit(&hoisted__Str_show_payload_25, ":", 1);
+        TilStrArraySet(&_va_Array_4, hoisted__U64_24, &hoisted__Str_show_payload_25);
+        U64 hoisted__U64_26 = 3;
+        TilStr hoisted__Str_show_payload_27;
+        TilStrClone(&hoisted__Str_show_payload_27, &payload_8->name);
+        TilStrArraySet(&_va_Array_4, hoisted__U64_26, &hoisted__Str_show_payload_27);
+        TilPrintln(&_va_Array_4);
+    } while (FALSE);
+}
+
 I64 TilMain()
 {
-    I64 hoisted__I64_g86 = 2;
-    I64 hoisted__I64_g87 = 3;
+    I64 hoisted__I64_g126 = 2;
+    I64 hoisted__I64_g127 = 3;
     StructPoint point;
-    point.x = hoisted__I64_g86;
-    point.y = hoisted__I64_g87;
-    I64 hoisted__I64_g88 = 7;
-    point.x = hoisted__I64_g88;
-    I64 hoisted__I64_g89 = 5;
-    I64 hoisted__I64_g90 = 7;
-    I64 hoisted__I64_g91 = 11;
-    I64 hoisted__I64_g92 = 13;
-    Bool hoisted__Bool_g93 = TRUE;
+    point.x = hoisted__I64_g126;
+    point.y = hoisted__I64_g127;
+    I64 hoisted__I64_g128 = 7;
+    point.x = hoisted__I64_g128;
+    I64 hoisted__I64_g129 = 5;
+    I64 hoisted__I64_g130 = 7;
+    I64 hoisted__I64_g131 = 11;
+    I64 hoisted__I64_g132 = 13;
+    Bool hoisted__Bool_g133 = TRUE;
     StructSegment segment;
-    segment.start.x = hoisted__I64_g89;
-    segment.start.y = hoisted__I64_g90;
-    segment.finish.x = hoisted__I64_g91;
-    segment.finish.y = hoisted__I64_g92;
-    segment.active = hoisted__Bool_g93;
-    U64 hoisted__U64_g94 = 1;
-    TilStrArray _va_Array_g24;
-    TilStrArrayNew(&_va_Array_g24, hoisted__U64_g94);
-    I64 _va_Array_g24_ek = 0;
-    I64 hoisted__I64_g95 = (point.x + point.y);
-    U64 hoisted__U64_g96 = 0;
-    TilStr hoisted__Str_g97;
-    TilStrFromI64(&hoisted__Str_g97, hoisted__I64_g95);
-    TilStrArraySet(&_va_Array_g24, hoisted__U64_g96, &hoisted__Str_g97);
-    TilPrintln(&_va_Array_g24);
-    U64 hoisted__U64_g98 = 1;
-    TilStrArray _va_Array_g25;
-    TilStrArrayNew(&_va_Array_g25, hoisted__U64_g98);
-    I64 _va_Array_g25_ek = 0;
-    I64 hoisted__I64_g99 = (segment.start.x + segment.finish.y);
-    U64 hoisted__U64_g100 = 0;
-    TilStr hoisted__Str_g101;
-    TilStrFromI64(&hoisted__Str_g101, hoisted__I64_g99);
-    TilStrArraySet(&_va_Array_g25, hoisted__U64_g100, &hoisted__Str_g101);
-    TilPrintln(&_va_Array_g25);
+    segment.start.x = hoisted__I64_g129;
+    segment.start.y = hoisted__I64_g130;
+    segment.finish.x = hoisted__I64_g131;
+    segment.finish.y = hoisted__I64_g132;
+    segment.active = hoisted__Bool_g133;
+    U64 hoisted__U64_g134 = 1;
+    TilStrArray _va_Array_g33;
+    TilStrArrayNew(&_va_Array_g33, hoisted__U64_g134);
+    I64 _va_Array_g33_ek = 0;
+    I64 hoisted__I64_g135 = (point.x + point.y);
+    U64 hoisted__U64_g136 = 0;
+    TilStr hoisted__Str_g137;
+    TilStrFromI64(&hoisted__Str_g137, hoisted__I64_g135);
+    TilStrArraySet(&_va_Array_g33, hoisted__U64_g136, &hoisted__Str_g137);
+    TilPrintln(&_va_Array_g33);
+    U64 hoisted__U64_g138 = 1;
+    TilStrArray _va_Array_g34;
+    TilStrArrayNew(&_va_Array_g34, hoisted__U64_g138);
+    I64 _va_Array_g34_ek = 0;
+    I64 hoisted__I64_g139 = (segment.start.x + segment.finish.y);
+    U64 hoisted__U64_g140 = 0;
+    TilStr hoisted__Str_g141;
+    TilStrFromI64(&hoisted__Str_g141, hoisted__I64_g139);
+    TilStrArraySet(&_va_Array_g34, hoisted__U64_g140, &hoisted__Str_g141);
+    TilPrintln(&_va_Array_g34);
     if (segment.active) {
         U64 hoisted__U64_g7 = 1;
         TilStrArray _va_Array_g0;
@@ -257,8 +586,8 @@ I64 TilMain()
     }
     StructSegment segment_copy;
     StructSegment_Clone(&segment_copy, &segment);
-    Bool hoisted__Bool_g102 = StructSegment_Eq(&segment, &segment_copy);
-    if (hoisted__Bool_g102) {
+    Bool hoisted__Bool_g142 = StructSegment_Eq(&segment, &segment_copy);
+    if (hoisted__Bool_g142) {
         U64 hoisted__U64_g10 = 1;
         TilStrArray _va_Array_g1;
         TilStrArrayNew(&_va_Array_g1, hoisted__U64_g10);
@@ -269,10 +598,10 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g1, hoisted__U64_g11, &hoisted__Str_g12);
         TilPrintln(&_va_Array_g1);
     }
-    I64 hoisted__I64_g103 = 14;
-    segment_copy.finish.y = hoisted__I64_g103;
-    Bool hoisted__Bool_g104 = (!StructSegment_Eq(&segment, &segment_copy));
-    if (hoisted__Bool_g104) {
+    I64 hoisted__I64_g143 = 14;
+    segment_copy.finish.y = hoisted__I64_g143;
+    Bool hoisted__Bool_g144 = (!StructSegment_Eq(&segment, &segment_copy));
+    if (hoisted__Bool_g144) {
         U64 hoisted__U64_g13 = 1;
         TilStrArray _va_Array_g2;
         TilStrArrayNew(&_va_Array_g2, hoisted__U64_g13);
@@ -283,19 +612,19 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g2, hoisted__U64_g14, &hoisted__Str_g15);
         TilPrintln(&_va_Array_g2);
     }
-    U64 hoisted__U64_g105 = 5;
+    U64 hoisted__U64_g145 = 5;
     TilStr source;
-    TilStrWithCapacity(&source, hoisted__U64_g105);
-    TilStr hoisted__Str_g106;
-    TilStrInitLit(&hoisted__Str_g106, "alpha", 5);
-    TilStrPush(&source, &hoisted__Str_g106);
-    TilStrDelete(&hoisted__Str_g106, FALSE);
+    TilStrWithCapacity(&source, hoisted__U64_g145);
+    TilStr hoisted__Str_g146;
+    TilStrInitLit(&hoisted__Str_g146, "alpha", 5);
+    TilStrPush(&source, &hoisted__Str_g146);
+    TilStrDelete(&hoisted__Str_g146, FALSE);
     StructNamedPoint named;
     make_struct_named_point(&named, &source);
     StructNamedPoint copy;
     StructNamedPoint_Clone(&copy, &named);
-    Bool hoisted__Bool_g107 = StructNamedPoint_Eq(&named, &copy);
-    if (hoisted__Bool_g107) {
+    Bool hoisted__Bool_g147 = StructNamedPoint_Eq(&named, &copy);
+    if (hoisted__Bool_g147) {
         U64 hoisted__U64_g16 = 1;
         TilStrArray _va_Array_g3;
         TilStrArrayNew(&_va_Array_g3, hoisted__U64_g16);
@@ -307,8 +636,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g3);
     }
     rename_struct_named_point(&named);
-    Bool hoisted__Bool_g108 = (!StructNamedPoint_Eq(&named, &copy));
-    if (hoisted__Bool_g108) {
+    Bool hoisted__Bool_g148 = (!StructNamedPoint_Eq(&named, &copy));
+    if (hoisted__Bool_g148) {
         U64 hoisted__U64_g19 = 1;
         TilStrArray _va_Array_g4;
         TilStrArrayNew(&_va_Array_g4, hoisted__U64_g19);
@@ -319,44 +648,44 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g4, hoisted__U64_g20, &hoisted__Str_g21);
         TilPrintln(&_va_Array_g4);
     }
-    U64 hoisted__U64_g109 = 1;
-    TilStrArray _va_Array_g26;
-    TilStrArrayNew(&_va_Array_g26, hoisted__U64_g109);
-    I64 _va_Array_g26_ek = 0;
-    U64 hoisted__U64_g110 = 0;
-    TilStr hoisted__Str_g111;
-    TilStrClone(&hoisted__Str_g111, &copy.name);
-    TilStrArraySet(&_va_Array_g26, hoisted__U64_g110, &hoisted__Str_g111);
-    TilPrintln(&_va_Array_g26);
-    U64 hoisted__U64_g112 = 1;
-    TilStrArray _va_Array_g27;
-    TilStrArrayNew(&_va_Array_g27, hoisted__U64_g112);
-    I64 _va_Array_g27_ek = 0;
-    U64 hoisted__U64_g113 = 0;
-    TilStr hoisted__Str_g114;
-    TilStrClone(&hoisted__Str_g114, &named.name);
-    TilStrArraySet(&_va_Array_g27, hoisted__U64_g113, &hoisted__Str_g114);
-    TilPrintln(&_va_Array_g27);
-    U64 hoisted__U64_g115 = 1;
-    TilStrArray _va_Array_g28;
-    TilStrArrayNew(&_va_Array_g28, hoisted__U64_g115);
-    I64 _va_Array_g28_ek = 0;
-    I64 hoisted__I64_g116 = struct_named_point_score(&copy);
-    U64 hoisted__U64_g117 = 0;
-    TilStr hoisted__Str_g118;
-    TilStrFromI64(&hoisted__Str_g118, hoisted__I64_g116);
-    TilStrArraySet(&_va_Array_g28, hoisted__U64_g117, &hoisted__Str_g118);
-    TilPrintln(&_va_Array_g28);
-    U64 hoisted__U64_g119 = 1;
-    TilStrArray _va_Array_g29;
-    TilStrArrayNew(&_va_Array_g29, hoisted__U64_g119);
-    I64 _va_Array_g29_ek = 0;
-    I64 hoisted__I64_g120 = struct_named_point_score(&named);
-    U64 hoisted__U64_g121 = 0;
-    TilStr hoisted__Str_g122;
-    TilStrFromI64(&hoisted__Str_g122, hoisted__I64_g120);
-    TilStrArraySet(&_va_Array_g29, hoisted__U64_g121, &hoisted__Str_g122);
-    TilPrintln(&_va_Array_g29);
+    U64 hoisted__U64_g149 = 1;
+    TilStrArray _va_Array_g35;
+    TilStrArrayNew(&_va_Array_g35, hoisted__U64_g149);
+    I64 _va_Array_g35_ek = 0;
+    U64 hoisted__U64_g150 = 0;
+    TilStr hoisted__Str_g151;
+    TilStrClone(&hoisted__Str_g151, &copy.name);
+    TilStrArraySet(&_va_Array_g35, hoisted__U64_g150, &hoisted__Str_g151);
+    TilPrintln(&_va_Array_g35);
+    U64 hoisted__U64_g152 = 1;
+    TilStrArray _va_Array_g36;
+    TilStrArrayNew(&_va_Array_g36, hoisted__U64_g152);
+    I64 _va_Array_g36_ek = 0;
+    U64 hoisted__U64_g153 = 0;
+    TilStr hoisted__Str_g154;
+    TilStrClone(&hoisted__Str_g154, &named.name);
+    TilStrArraySet(&_va_Array_g36, hoisted__U64_g153, &hoisted__Str_g154);
+    TilPrintln(&_va_Array_g36);
+    U64 hoisted__U64_g155 = 1;
+    TilStrArray _va_Array_g37;
+    TilStrArrayNew(&_va_Array_g37, hoisted__U64_g155);
+    I64 _va_Array_g37_ek = 0;
+    I64 hoisted__I64_g156 = struct_named_point_score(&copy);
+    U64 hoisted__U64_g157 = 0;
+    TilStr hoisted__Str_g158;
+    TilStrFromI64(&hoisted__Str_g158, hoisted__I64_g156);
+    TilStrArraySet(&_va_Array_g37, hoisted__U64_g157, &hoisted__Str_g158);
+    TilPrintln(&_va_Array_g37);
+    U64 hoisted__U64_g159 = 1;
+    TilStrArray _va_Array_g38;
+    TilStrArrayNew(&_va_Array_g38, hoisted__U64_g159);
+    I64 _va_Array_g38_ek = 0;
+    I64 hoisted__I64_g160 = struct_named_point_score(&named);
+    U64 hoisted__U64_g161 = 0;
+    TilStr hoisted__Str_g162;
+    TilStrFromI64(&hoisted__Str_g162, hoisted__I64_g160);
+    TilStrArraySet(&_va_Array_g38, hoisted__U64_g161, &hoisted__Str_g162);
+    TilPrintln(&_va_Array_g38);
     StructNamedPoint_Delete(&named);
     StructNamedPoint_Delete(&copy);
     TilStrDelete(&source, FALSE);
@@ -371,8 +700,8 @@ I64 TilMain()
             break;
         }
         do {
-            U16 enum_switch_1 = current_signal;
-            if ((enum_switch_1 == 7)) {
+            U16 enum_switch_2 = current_signal;
+            if ((enum_switch_2 == 7)) {
                 U64 hoisted__U64_g23 = 1;
                 TilStrArray _va_Array_g5;
                 TilStrArrayNew(&_va_Array_g5, hoisted__U64_g23);
@@ -434,8 +763,8 @@ I64 TilMain()
         (++turns);
     }
     do {
-        U16 enum_switch_2 = current_signal;
-        if ((enum_switch_2 == 13)) {
+        U16 enum_switch_3 = current_signal;
+        if ((enum_switch_3 == 13)) {
             U64 hoisted__U64_g42 = 1;
             TilStrArray _va_Array_g10;
             TilStrArrayNew(&_va_Array_g10, hoisted__U64_g42);
@@ -458,8 +787,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g11);
     } while (FALSE);
     U64 wide = wide_from_signal(current_signal);
-    Bool hoisted__Bool_g123 = (wide == 4294967303);
-    if (hoisted__Bool_g123) {
+    Bool hoisted__Bool_g163 = (wide == 4294967303);
+    if (hoisted__Bool_g163) {
         U64 hoisted__U64_g48 = 1;
         TilStrArray _va_Array_g12;
         TilStrArrayNew(&_va_Array_g12, hoisted__U64_g48);
@@ -470,8 +799,8 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g12, hoisted__U64_g49, &hoisted__Str_g50);
         TilPrintln(&_va_Array_g12);
     }
-    Bool hoisted__Bool_g124 = (wide != 7);
-    if (hoisted__Bool_g124) {
+    Bool hoisted__Bool_g164 = (wide != 7);
+    if (hoisted__Bool_g164) {
         U64 hoisted__U64_g51 = 1;
         TilStrArray _va_Array_g13;
         TilStrArrayNew(&_va_Array_g13, hoisted__U64_g51);
@@ -483,8 +812,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g13);
     }
     do {
-        U64 enum_switch_3 = wide;
-        if ((enum_switch_3 == 7)) {
+        U64 enum_switch_4 = wide;
+        if ((enum_switch_4 == 7)) {
             U64 hoisted__U64_g54 = 1;
             TilStrArray _va_Array_g14;
             TilStrArrayNew(&_va_Array_g14, hoisted__U64_g54);
@@ -496,7 +825,7 @@ I64 TilMain()
             TilPrintln(&_va_Array_g14);
             break;
         }
-        if ((enum_switch_3 == 4294967303)) {
+        if ((enum_switch_4 == 4294967303)) {
             U64 hoisted__U64_g57 = 1;
             TilStrArray _va_Array_g15;
             TilStrArrayNew(&_va_Array_g15, hoisted__U64_g57);
@@ -519,8 +848,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g16);
     } while (FALSE);
     U8 small = small_from_signal(current_signal);
-    Bool hoisted__Bool_g125 = (small == 255);
-    if (hoisted__Bool_g125) {
+    Bool hoisted__Bool_g165 = (small == 255);
+    if (hoisted__Bool_g165) {
         U64 hoisted__U64_g63 = 1;
         TilStrArray _va_Array_g17;
         TilStrArrayNew(&_va_Array_g17, hoisted__U64_g63);
@@ -532,8 +861,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g17);
     }
     U8 default_signal = default_from_signal(current_signal);
-    Bool hoisted__Bool_g126 = (default_signal == 1);
-    if (hoisted__Bool_g126) {
+    Bool hoisted__Bool_g166 = (default_signal == 1);
+    if (hoisted__Bool_g166) {
         U64 hoisted__U64_g66 = 1;
         TilStrArray _va_Array_g18;
         TilStrArrayNew(&_va_Array_g18, hoisted__U64_g66);
@@ -545,8 +874,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g18);
     }
     U32 medium = medium_from_signal(current_signal);
-    Bool hoisted__Bool_g127 = (medium == 4294967295);
-    if (hoisted__Bool_g127) {
+    Bool hoisted__Bool_g167 = (medium == 4294967295);
+    if (hoisted__Bool_g167) {
         U64 hoisted__U64_g69 = 1;
         TilStrArray _va_Array_g19;
         TilStrArrayNew(&_va_Array_g19, hoisted__U64_g69);
@@ -563,8 +892,8 @@ I64 TilMain()
         hoisted__Signal_g81;
         if (hoisted__Bool_g82) {
             do {
-                U16 enum_switch_4 = current_signal;
-                if ((enum_switch_4 == 7)) {
+                U16 enum_switch_5 = current_signal;
+                if ((enum_switch_5 == 7)) {
                     U64 hoisted__U64_g72 = 1;
                     TilStrArray _va_Array_g20;
                     TilStrArrayNew(&_va_Array_g20, hoisted__U64_g72);
@@ -598,9 +927,9 @@ I64 TilMain()
             TilPrintln(&_va_Array_g22);
         }
     }
-    I64 hoisted__I64_g128 = 8;
-    Bool hoisted__Bool_g129 = (point.x == hoisted__I64_g128);
-    if (hoisted__Bool_g129) {
+    I64 hoisted__I64_g168 = 8;
+    Bool hoisted__Bool_g169 = (point.x == hoisted__I64_g168);
+    if (hoisted__Bool_g169) {
         U64 hoisted__U64_g83 = 1;
         TilStrArray _va_Array_g23;
         TilStrArrayNew(&_va_Array_g23, hoisted__U64_g83);
@@ -611,6 +940,258 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g23, hoisted__U64_g84, &hoisted__Str_g85);
         TilPrintln(&_va_Array_g23);
     }
+    U64 hoisted__U64_g170 = 7;
+    TilStr payload_source;
+    TilStrWithCapacity(&payload_source, hoisted__U64_g170);
+    TilStr hoisted__Str_g171;
+    TilStrInitLit(&hoisted__Str_g171, "payload", 7);
+    TilStrPush(&payload_source, &hoisted__Str_g171);
+    TilStrDelete(&hoisted__Str_g171, FALSE);
+    PayloadValue text_payload;
+    make_payload_text(&text_payload, &payload_source);
+    PayloadValue text_payload_copy;
+    PayloadValue_Clone(&text_payload_copy, &text_payload);
+    Bool hoisted__Bool_g172 = PayloadValue_Eq(&text_payload, &text_payload_copy);
+    if (hoisted__Bool_g172) {
+        U64 hoisted__U64_g86 = 1;
+        TilStrArray _va_Array_g24;
+        TilStrArrayNew(&_va_Array_g24, hoisted__U64_g86);
+        I64 _va_Array_g24_ek = 0;
+        U64 hoisted__U64_g87 = 0;
+        TilStr hoisted__Str_g88;
+        TilStrInitLit(&hoisted__Str_g88, "payload equal", 13);
+        TilStrArraySet(&_va_Array_g24, hoisted__U64_g87, &hoisted__Str_g88);
+        TilPrintln(&_va_Array_g24);
+    }
+    do {
+        U8 enum_switch_6 = (&text_payload)->tag;
+        if ((enum_switch_6 == 3)) {
+            TilStr *payload_9 = ((&(&text_payload)->payload_Byte))(TilStr *);
+            U64 hoisted__U64_g89 = 0;
+            U64 hoisted__U64_g90 = 4;
+            TilStr hoisted__Str_g91;
+            TilStrSubstr(&hoisted__Str_g91, payload_9, hoisted__U64_g89, hoisted__U64_g90);
+            {
+                TilStr replacement_10;
+                TilStrClone(&replacement_10, &hoisted__Str_g91);
+                TilStrDelete(payload_9, FALSE);
+                TilStrCopyValue(payload_9, &replacement_10);
+            }
+            TilStrDelete(&hoisted__Str_g91, FALSE);
+            break;
+        }
+    } while (FALSE);
+    Bool hoisted__Bool_g173 = (!PayloadValue_Eq(&text_payload, &text_payload_copy));
+    if (hoisted__Bool_g173) {
+        U64 hoisted__U64_g92 = 1;
+        TilStrArray _va_Array_g25;
+        TilStrArrayNew(&_va_Array_g25, hoisted__U64_g92);
+        I64 _va_Array_g25_ek = 0;
+        U64 hoisted__U64_g93 = 0;
+        TilStr hoisted__Str_g94;
+        TilStrInitLit(&hoisted__Str_g94, "payload clone independent", 25);
+        TilStrArraySet(&_va_Array_g25, hoisted__U64_g93, &hoisted__Str_g94);
+        TilPrintln(&_va_Array_g25);
+    }
+    show_payload(&text_payload);
+    PayloadValue_Delete(&text_payload);
+    show_payload(&text_payload_copy);
+    PayloadValue count_payload;
+    count_payload.tag = 2;
+    count_payload.payload_Count = 41;
+    do {
+        U8 enum_switch_7 = (&count_payload)->tag;
+        if ((enum_switch_7 == 2)) {
+            I64 *payload_11 = ((&(&count_payload)->payload_Byte))(I64 *);
+            I64 hoisted__I64_g95 = 1;
+            I64 hoisted__I64_g96 = ((*((TilCheckPtr(payload_11))(I64 *))) + hoisted__I64_g95);
+            (*((TilCheckPtr(payload_11))(I64 *))) = hoisted__I64_g96;
+            break;
+        }
+    } while (FALSE);
+    show_payload(&count_payload);
+    PayloadValue byte_payload;
+    byte_payload.tag = 1;
+    byte_payload.payload_Byte = 255;
+    show_payload(&byte_payload);
+    PayloadValue empty_payload;
+    empty_payload.tag = 0;
+    show_payload(&empty_payload);
+    Bool hoisted__Bool_g176 = PayloadValue_Eq(&empty_payload, &PayloadValue_Literal_Empty);
+    if (hoisted__Bool_g176) {
+        U64 hoisted__U64_g97 = 1;
+        TilStrArray _va_Array_g26;
+        TilStrArrayNew(&_va_Array_g26, hoisted__U64_g97);
+        I64 _va_Array_g26_ek = 0;
+        U64 hoisted__U64_g98 = 0;
+        TilStr hoisted__Str_g99;
+        TilStrInitLit(&hoisted__Str_g99, "empty variant equal", 19);
+        TilStrArraySet(&_va_Array_g26, hoisted__U64_g98, &hoisted__Str_g99);
+        TilPrintln(&_va_Array_g26);
+    }
+    show_payload(&PayloadValue_Literal_Empty);
+    Bool hoisted__Bool_g177 = (!PayloadValue_Eq(&empty_payload, &byte_payload));
+    if (hoisted__Bool_g177) {
+        U64 hoisted__U64_g100 = 1;
+        TilStrArray _va_Array_g27;
+        TilStrArrayNew(&_va_Array_g27, hoisted__U64_g100);
+        I64 _va_Array_g27_ek = 0;
+        U64 hoisted__U64_g101 = 0;
+        TilStr hoisted__Str_g102;
+        TilStrInitLit(&hoisted__Str_g102, "payload tags differ", 19);
+        TilStrArraySet(&_va_Array_g27, hoisted__U64_g101, &hoisted__Str_g102);
+        TilPrintln(&_va_Array_g27);
+    }
+    Bool hoisted__Bool_g178 = ((&count_payload)->tag == 2);
+    if (hoisted__Bool_g178) {
+        U64 hoisted__U64_g103 = 1;
+        TilStrArray _va_Array_g28;
+        TilStrArrayNew(&_va_Array_g28, hoisted__U64_g103);
+        I64 _va_Array_g28_ek = 0;
+        U64 hoisted__U64_g104 = 0;
+        TilStr hoisted__Str_g105;
+        TilStrInitLit(&hoisted__Str_g105, "payload is count", 16);
+        TilStrArraySet(&_va_Array_g28, hoisted__U64_g104, &hoisted__Str_g105);
+        TilPrintln(&_va_Array_g28);
+    }
+    I64 hoisted__I64_g179 = 9;
+    PayloadRecord hoisted__PayloadRecord_g180;
+    hoisted__PayloadRecord_g180.number = hoisted__I64_g179;
+    TilStrClone(&hoisted__PayloadRecord_g180.name, &payload_source);
+    PayloadValue record_payload;
+    record_payload.tag = 4;
+    record_payload.payload_Record.number = hoisted__PayloadRecord_g180.number;
+    TilStrCopyValue(&record_payload.payload_Record.name, &hoisted__PayloadRecord_g180.name);
+    PayloadValue record_payload_copy;
+    PayloadValue_Clone(&record_payload_copy, &record_payload);
+    do {
+        U8 enum_switch_8 = (&record_payload)->tag;
+        if ((enum_switch_8 == 4)) {
+            PayloadRecord *payload_12 = ((&(&record_payload)->payload_Byte))(PayloadRecord *);
+            U64 hoisted__U64_g106 = 0;
+            U64 hoisted__U64_g107 = 4;
+            TilStr hoisted__Str_g108;
+            TilStrSubstr(&hoisted__Str_g108, &payload_12->name, hoisted__U64_g106, hoisted__U64_g107);
+            {
+                TilStr replacement_13;
+                TilStrClone(&replacement_13, &hoisted__Str_g108);
+                TilStrDelete(&payload_12->name, FALSE);
+                TilStrCopyValue(&payload_12->name, &replacement_13);
+            }
+            TilStrDelete(&hoisted__Str_g108, FALSE);
+            break;
+        }
+    } while (FALSE);
+    Bool hoisted__Bool_g181 = (!PayloadValue_Eq(&record_payload, &record_payload_copy));
+    if (hoisted__Bool_g181) {
+        U64 hoisted__U64_g109 = 1;
+        TilStrArray _va_Array_g29;
+        TilStrArrayNew(&_va_Array_g29, hoisted__U64_g109);
+        I64 _va_Array_g29_ek = 0;
+        U64 hoisted__U64_g110 = 0;
+        TilStr hoisted__Str_g111;
+        TilStrInitLit(&hoisted__Str_g111, "record clone independent", 24);
+        TilStrArraySet(&_va_Array_g29, hoisted__U64_g110, &hoisted__Str_g111);
+        TilPrintln(&_va_Array_g29);
+    }
+    show_payload(&record_payload);
+    PayloadValue_Delete(&record_payload);
+    show_payload(&record_payload_copy);
+    PayloadValue hoisted__PayloadValue_g182;
+    PayloadValue_Clone(&hoisted__PayloadValue_g182, &record_payload_copy);
+    PayloadEnvelope envelope;
+    envelope.tag = 1;
+    PayloadValue_CopyValue(&envelope.payload_Wrapped, &hoisted__PayloadValue_g182);
+    PayloadEnvelope envelope_copy;
+    PayloadEnvelope_Clone(&envelope_copy, &envelope);
+    Bool hoisted__Bool_g183 = PayloadEnvelope_Eq(&envelope, &envelope_copy);
+    if (hoisted__Bool_g183) {
+        U64 hoisted__U64_g112 = 1;
+        TilStrArray _va_Array_g30;
+        TilStrArrayNew(&_va_Array_g30, hoisted__U64_g112);
+        I64 _va_Array_g30_ek = 0;
+        U64 hoisted__U64_g113 = 0;
+        TilStr hoisted__Str_g114;
+        TilStrInitLit(&hoisted__Str_g114, "nested payload equal", 20);
+        TilStrArraySet(&_va_Array_g30, hoisted__U64_g113, &hoisted__Str_g114);
+        TilPrintln(&_va_Array_g30);
+    }
+    do {
+        U8 enum_switch_9 = (&envelope)->tag;
+        if ((enum_switch_9 == 1)) {
+            PayloadValue *payload_14 = ((&(&envelope)->payload_Wrapped))(PayloadValue *);
+            do {
+                U8 enum_switch_10 = (payload_14)->tag;
+                if ((enum_switch_10 == 4)) {
+                    PayloadRecord *payload_15 = ((&(payload_14)->payload_Byte))(PayloadRecord *);
+                    PayloadRecord shadow_16;
+                    shadow_16.number = payload_15->number;
+                    TilStrCopyValue(&shadow_16.name, &payload_15->name);
+                    U64 hoisted__U64_g115 = 2;
+                    TilStrArray _va_Array_g31;
+                    TilStrArrayNew(&_va_Array_g31, hoisted__U64_g115);
+                    I64 _va_Array_g31_ek = 0;
+                    U64 hoisted__U64_g116 = 0;
+                    TilStr hoisted__Str_g117;
+                    TilStrInitLit(&hoisted__Str_g117, "shadow payload ", 15);
+                    TilStrArraySet(&_va_Array_g31, hoisted__U64_g116, &hoisted__Str_g117);
+                    U64 hoisted__U64_g118 = 1;
+                    TilStr hoisted__Str_g119;
+                    TilStrClone(&hoisted__Str_g119, &shadow_16.name);
+                    TilStrArraySet(&_va_Array_g31, hoisted__U64_g118, &hoisted__Str_g119);
+                    TilPrintln(&_va_Array_g31);
+                    break;
+                }
+            } while (FALSE);
+            show_payload(payload_14);
+            break;
+        }
+        U64 hoisted__U64_g120 = 1;
+        TilStrArray _va_Array_g32;
+        TilStrArrayNew(&_va_Array_g32, hoisted__U64_g120);
+        I64 _va_Array_g32_ek = 0;
+        U64 hoisted__U64_g121 = 0;
+        TilStr hoisted__Str_g122;
+        TilStrInitLit(&hoisted__Str_g122, "unexpected empty envelope", 25);
+        TilStrArraySet(&_va_Array_g32, hoisted__U64_g121, &hoisted__Str_g122);
+        TilPrintln(&_va_Array_g32);
+    } while (FALSE);
+    PayloadEnvelope_Delete(&envelope);
+    PayloadEnvelope_Delete(&envelope_copy);
+    replace_payload(&count_payload, &payload_source);
+    show_payload(&count_payload);
+    do {
+        U8 enum_switch_11 = (&count_payload)->tag;
+        if ((enum_switch_11 == 3)) {
+            TilStr *payload_17 = ((&(&count_payload)->payload_Byte))(TilStr *);
+            U64 hoisted__U64_g123 = 1;
+            U64 hoisted__U64_g124 = 6;
+            TilStr hoisted__Str_g125;
+            TilStrSubstr(&hoisted__Str_g125, payload_17, hoisted__U64_g123, hoisted__U64_g124);
+            {
+                TilStr replacement_18;
+                TilStrClone(&replacement_18, &hoisted__Str_g125);
+                TilStrDelete(payload_17, FALSE);
+                TilStrCopyValue(payload_17, &replacement_18);
+            }
+            TilStrDelete(&hoisted__Str_g125, FALSE);
+            break;
+        }
+    } while (FALSE);
+    show_payload(&count_payload);
+    PayloadValue_Delete(&count_payload);
+    {
+        PayloadValue replacement_19;
+        replacement_19.tag = 0;
+        PayloadValue_CopyValue(&count_payload, &replacement_19);
+    }
+    show_payload(&count_payload);
+    PayloadValue_Delete(&text_payload_copy);
+    PayloadValue_Delete(&record_payload_copy);
+    PayloadValue_Delete(&count_payload);
+    PayloadValue_Delete(&byte_payload);
+    PayloadValue_Delete(&empty_payload);
+    TilStrDelete(&payload_source, FALSE);
     return 0;
 }
 

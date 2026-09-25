@@ -336,6 +336,20 @@ retarget_loaded_aliases := func(mut lp: LoadedProgram) {
 // Constfolder across per-file units (rstil-style): fold macros/pure funcs in the
 // canonical ASTs stored in lp.ctx.imported.
 priv constfolder_imported := proc(mut lp: LoadedProgram) {
+    // HolyC stores enum payloads inline, even for enums whose C layout uses
+    // a niche pointer. Keep their sizes backend-resolved on every host width.
+    if lp.target.is(Target.TempleosX86) {
+        for unit : ProgramUnit in lp.units {
+            ref program : Expr = lp.ctx.imported[unit.path].ast
+            for stmt : Expr in program.children {
+                if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().neq(1)) { continue }
+                if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
+                if enum_has_payloads(stmt.children[0]).not() { continue }
+                ref decl : Declaration = decl_of(stmt)
+                lp.ctx.constfolder_foldables.remove(format(decl.name, "_size"))
+            }
+        }
+    }
     // Make codegen_lp() available so raw dispatch helpers can read Context
     // fields (eval.cached_str_name) populated by interpreter_init_ns below.
     // Only reset the fold-results scope here; the foldable-name table

@@ -269,7 +269,7 @@
   interpreter, C backend, and HolyC translation, and deliberately declares its
   outer struct before its inline dependency. TempleOS 5.03 compiled and ran it
   with ~TILTEST:PASS~; a self-checking guest probe verified every nested field.
-  Ref fields and payload-bearing enums remain in the unchecked aggregate milestone.
+  Ref/pointer-bearing aggregates remain in the unchecked aggregate milestone.
 
   The thirteenth slice adds managed Str fields and value-struct function ABI.
   Generated recursive clone/delete helpers preserve nested aggregate ownership,
@@ -310,6 +310,29 @@
   read as U32. Interpreter and C outputs match. TempleOS 5.03 under QEMU TCG
   compiled the same generated program with ~ExeFile2~, produced the complete
   expected output over debugcon, and reported ~TILTEST:PASS~.
+
+  The sixteenth slice adds payload-bearing enums as tagged HolyC classes with
+  inline union storage. Scalar, Str, struct, and nested-enum payloads have
+  constructors, borrowed/mutable case bindings, caller-owned returns, active-
+  payload clone/delete/equality, and replacement following the shared ownership
+  pass. Empty variants also have addressable values for calls and comparisons.
+  Struct-payload comparison eligibility reuses the shared recursive field check
+  when its generated methods have not yet been materialized.
+
+  HolyC's function-wide local names require unique payload bindings and emitter
+  temporaries, including nested shadowing. Numeric widening first forces an
+  rvalue: HolyC's postfix I64 cast otherwise widens the memory read of a narrow
+  payload. Payload-enum sizes remain backend-resolved rather than folding the
+  shared/C layout; lowered whole-value swaps use typed copies and validate their
+  size against HolyC sizeof. Pointer/ref payloads and custom lifecycle methods
+  remain explicit unsupported shapes.
+
+  The expanded ~test/script_struct_runtime.til~ checks independent managed
+  clones after mutation/deletion, U8 and I64 payloads, empty values, nested
+  payloads and shadowing, multiple return paths, and mutable-parameter/payload
+  replacement. Interpreter and generated C output match. TempleOS 5.03 under
+  QEMU TCG produced the same 47 lines and ~TILTEST:PASS~. The native Str/raw-
+  allocation goldens also record the corrected temporary naming and widening.
 
 *** QEMU validation
 

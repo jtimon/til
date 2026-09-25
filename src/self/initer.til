@@ -1212,6 +1212,8 @@ priv init_type_supports_generated_method := func(type_name: Str, method: Str, sc
     // Enum helpers may be generated in declaration order, so an enum payload
     // can be supportable even before its own generated method has been pushed.
     switch def.node_type {
+    case .StructDef(sd):
+        return struct_fields_support_generated_method(sd, method, scope, symbols)
     case .EnumDef(ed):
         for vd : VariantDef in ed.variants {
             if vd.payload_type.len() == 0 { continue }

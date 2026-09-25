@@ -36,7 +36,7 @@ I64 TilMain()
     TilStrArray _va_Array_g0;
     TilStrArrayNew(&_va_Array_g0, hoisted__U64_g14);
     I64 _va_Array_g0_ek = 0;
-    I64 hoisted__I64_g15 = ((*(TilCheckPtr(a))(U8 *)))(I64);
+    I64 hoisted__I64_g15 = (((*((TilCheckPtr(a))(U8 *)))) + 0)(I64);
     U64 hoisted__U64_g16 = 0;
     TilStr hoisted__Str_g17;
     TilStrFromI64(&hoisted__Str_g17, hoisted__I64_g15);
@@ -46,7 +46,7 @@ I64 TilMain()
     TilStrArray _va_Array_g1;
     TilStrArrayNew(&_va_Array_g1, hoisted__U64_g18);
     I64 _va_Array_g1_ek = 0;
-    I64 hoisted__I64_g19 = ((*(TilCheckPtr(b))(U8 *)))(I64);
+    I64 hoisted__I64_g19 = (((*((TilCheckPtr(b))(U8 *)))) + 0)(I64);
     U64 hoisted__U64_g20 = 0;
     TilStr hoisted__Str_g21;
     TilStrFromI64(&hoisted__Str_g21, hoisted__I64_g19);
