@@ -319,6 +319,64 @@ own_param_paths := test() {
     assert_eq(USize, own_param_ctor_in_branch(own b, false), 5)
 }
 
+// --- hand-written destructor call (#209) ---------------------------------
+//
+// `own x.delete()` spells call_free's default, true. Whether true may free
+// the OUTER storage is a storage fact, not a source fact: a closed-world own
+// parameter lives in its caller's frame (#346), a module-level value is
+// static -- and the same parameter is a heap box its callee owns in a library
+// build, so the source cannot say. The garbager records false for these in
+// the AST, and the builder translates it verbatim; it used to overwrite the
+// argument at emission instead. These cells run the three shapes under ASAN
+// on both backends, and src/tests.til pins that the C hands the destructor
+// the storage itself with call_free 0, rather than boxing a copy to free.
+
+Shelf209 := struct {
+    s := ""
+}
+
+own_param_dtor_top := func(own h: Shelf209) returns USize {
+    n := h.s.len()
+    own h.delete()
+    return n
+}
+
+// The shape parser.til's anon_lift writes: the destructor inside a branch,
+// where the transfer is not a top-level statement of the body.
+own_param_dtor_in_branches := func(own h: Shelf209, flag: Bool) returns USize {
+    n := h.s.len()
+    if flag {
+        own h.delete()
+    } else {
+        own h.delete()
+    }
+    return n
+}
+
+own_param_dtor_paths := test() {
+    lit := "hello"
+    a := Shelf209(s = lit.clone())
+    b := Shelf209(s = lit.clone())
+    c := Shelf209(s = lit.clone())
+    assert_eq(USize, own_param_dtor_top(own a), 5)
+    assert_eq(USize, own_param_dtor_in_branches(own b, true), 5)
+    assert_eq(USize, own_param_dtor_in_branches(own c, false), 5)
+}
+
+// The shape lexer.til's lexer_cleanup writes for KEYWORDS: a module-level
+// value reclaimed at teardown, then zeroed.
+shelf209_global := Shelf209(s = format("sta", "tic"))
+
+global_dtor := func() {
+    own shelf209_global.delete(true)
+    memset(shelf209_global, 0, Shelf209.size().to_uptr())
+}
+
+global_dtor_path := test() {
+    assert_eq(USize, shelf209_global.s.len(), 6)
+    global_dtor()
+}
+
 // --- borrowed parameter -------------------------------------------------
 
 ref_param_into_ref_field := func(s: Str) returns USize {

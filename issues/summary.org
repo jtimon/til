@@ -1,6 +1,9 @@
 * Bugs
+** High
+*** [[./open/407.org][#407]] Garbager insert-pass errors are printed but ignored on otherwise clean programs
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
+*** [[./open/406.org][#406]] Translate/build cache serves stale output written by another program or compiler
 ** Low
 *** [[./open/400.org][#400]] Dynamic's width is written down twice, and only one copy follows the target
 * Cleanups
@@ -10,7 +13,6 @@
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
 ** Low
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
-*** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
 * Optimizations
 ** Medium
 *** [[./open/397.org][#397]] A Type carries its Sym: Struct/Enum/Custom payloads become symbols

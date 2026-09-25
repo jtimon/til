@@ -5390,14 +5390,16 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         // no reader in the emitted C.
         if is_raw_alloc { continue }
         // #326: `T.delete(x, call_free)`'s Bool literal is read by value in
-        // both back ends -- the interpreter evaluates it in place, and the
-        // C emitter either passes it through or OVERRIDES it for a stack
-        // local (`Point_delete(&p, (Bool){0})`, whatever the AST says),
-        // because storage is an emit-time fact. Hoisting it manufactured a
-        // `Bool hoisted__Bool_N = 0;` binding with no reader wherever the
-        // override fired, papered over by a `(void)` cast this file's own
-        // temp-naming comment forbids. Literals only: a computed call_free
-        // keeps its hoist, and a forwarded param is an Ident that never
+        // both back ends, which pass it through as the AST says. For storage
+        // with no outer box (a stack local, a closed-world own parameter's
+        // caller slot, a module-level value) the garbager later REWRITES the
+        // slot to `false` -- #209 moved that decision out of the C emitter,
+        // which used to overwrite the argument at emission. Hoisting the
+        // literal manufactured a `Bool hoisted__Bool_N = 0;` binding with no
+        // reader wherever that rewrite applies, papered over by a `(void)`
+        // cast this file's own temp-naming comment forbids. Literals only: a
+        // computed call_free keeps its hoist (so the garbager's rewrite never
+        // drops a side effect), and a forwarded param is an Ident that never
         // hoisted anyway.
         if is_delete_call.and(i == 2) {
             if expr.children[i].node_type.is_literal_bool() { continue }

@@ -1,6 +1,79 @@
 # priority: low
 # category: cleanups
-** OPEN #209 Move the stack-vs-heap Str delete decision out of the builder into the AST
+** FIXED #209 Move the stack-vs-heap Str delete decision out of the builder into the AST
+
+*** Post-mortem
+
+Root cause, as it stood when this was taken: most of the plan below had
+already happened under other numbers. #302 and #346 moved the
+stack-vs-heap decision into the garbager -- ~GcStorage~ on every Decl,
+~stack_own_params~ built from the same two C ABI predicates the builder
+used -- and every delete the garbager INSERTS carries ~call_free =
+is_heap~, so the shallow-return (str_view) and POD-ctor cases the issue
+lists were already agreeing. What the builder's overwrite
+(~delete_call_has_stack_outer~, at both emit sites) was still rescuing
+was one thing: HAND-WRITTEN destructor calls. ~own x.delete()~ spells
+call_free's default, true, and on storage with no outer box -- a
+closed-world own parameter's caller slot, a stack local, a module-level
+value -- the AST said true while the C said ~(Bool){0}~.
+
+Measured before changing anything: the builder was overwriting ~9,400
+delete arguments in the compiler's own output, and in exactly TWO the AST
+disagreed -- ~own KEYWORDS.delete(true)~ (lexer.til, a value global) and
+~own def.delete()~ (parser.til's anon_lift, an own param the caller
+passes as ~&hoisted__Expr_1~). The own-parameter case is also why the
+answer could never live in the source: ~param_value_abi_ok~ is a
+whole-program setting, and in a library build the same parameter IS a
+heap box the callee owns, so the same line correctly means true there.
+
+Fix: ~realign_delete_call_free~ in the garbager, run beside the pass's
+other records and before ~record_keep_outer_args~ (which keys on the
+literal). For a ~T.delete(own x, call_free)~ whose resolved callee's
+second parameter is ~call_free~ -- the builder's own test -- and whose
+target is a non-heap Decl local, a stack own parameter, or a
+module-level value binding (scoped: a nested block's re-declaration
+shadows), the slot becomes ~false~. A non-literal is replaced too: the
+desugarer already lifts a computed call_free into a temp, so what can
+remain in the slot is a pure read, and for storage with no outer box the
+flag has no meaning -- the same thing the builder did, now in the AST.
+The builder's overwrite, its predicate, and the ~delete_stack_outer~
+term in the own-argument flag are gone; keep-outer, set from the
+realigned literal, covers the latter. lexer.til's ~KEYWORDS~ line now
+says ~false~ and its comment no longer describes a malloc'd copy the C
+never built; doc/long.org's entry is marked fixed.
+
+Verified as a pure relocation, both directions, by emitting C for all
+189 translatable programs under test/ and examples/ with master's
+compiler and with this one: after normalizing only the call_free
+literal's spelling (the override wrote ~(Bool){0}~, the ordinary literal
+path writes ~0~) and the build SHA embedded in library symbol names, all
+189 are byte-identical, while 177 of them really did change raw. Every
+output was deleted before its translate: #170's cache is mtime-only and
+does not treat the compiler binary as a dependency, which silently
+served stale files to the first two attempts at this measurement (filed
+as #406).
+
+Found along the way, not fixed here: an error the garbager raises in its
+insert pass on an otherwise clean program is printed and ignored --
+~finish_init_and_type_program~ never checks ~ctx.errors~ after
+~garbager_destroy~, so ~til build~ exits 0 and writes a binary even for
+"use of 'x' after ownership transfer" (filed as #407). Audit of the
+issue's item 4:
+~is_noop_delete_stmt~ does not disagree with the AST -- it drops delete
+statements that cannot do anything (a free-only destructor with a
+literal false, the static CAP_LIT wrapper of an immutable Str literal, a
+stack POD enum) -- so it stays.
+
+Regression tests: three cells in test/ownership_shapes.til
+(~own_param_dtor_paths~ for the top-level and in-branch own-parameter
+shapes, ~global_dtor_path~ for the module-level value), run on both
+backends under ASAN, and ~handwritten_dtor_call_free~ in src/tests.til
+pinning the emitted shape -- ~Shelf209_delete(h, 0)~ x3,
+~Shelf209_delete(&shelf209_global, 0)~ x1, and no ~Shelf209 *_oa =
+malloc~. A runtime test alone could not pin this: with neither the
+override nor the realign, the C takes a still-correct
+copy-then-~delete(copy, 1)~ route, so only the emitted shape tells the
+two apart.
 
 *** Summary
 

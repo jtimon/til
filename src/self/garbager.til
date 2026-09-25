@@ -3117,6 +3117,166 @@ priv record_keep_outer_args := proc(mut body: Expr, symbols: SymbolPool) {
     record_keep_outer_args_expr(body, false_names, symbols)
 }
 
+// #209: the call_free a destructor call carries is decided HERE, once, from
+// the storage record this pass keeps -- never afterwards by a backend.
+//
+// The pass writes its own deletes as `T.delete(x, is_heap)`, so those always
+// agreed with the storage. A HAND-WRITTEN `own x.delete()` did not: call_free
+// defaults to true, and on a binding whose outer storage the callee does not
+// own, true frees an address that was never malloc'd -- a caller-frame slot,
+// a stack local, a module-level value. The C builder rescued exactly those by
+// overwriting the argument at emission time, so the AST said `true` and the
+// C said `false`, and nothing but the builder knew. Now the AST says false
+// and the builder translates it verbatim; record_keep_outer_args, which runs
+// after this, then reads the realigned literal like any other.
+//
+// The three storage classes the builder overwrote, each from the record that
+// decides it:
+//   - a Decl local this body stores by value -- what record_storage_decisions
+//     stamps GcStorage.Stack;
+//   - a stack own parameter (stack_own_params, built from the same two C ABI
+//     predicates). This is why the decision cannot live in the source: in a
+//     library build the same parameter IS a heap box the callee owns, and the
+//     same `own def.delete()` means true;
+//   - a module-level value binding, whose storage is static.
+// Whatever the slot held becomes `false`, literal or not: for storage with no
+// outer box there is nothing a true could free, so the flag has no meaning
+// here -- the storage answers it. Nothing is lost by dropping a non-literal:
+// the desugarer lifts a COMPUTED call_free into a temp before this pass (it
+// leaves only literals in place), so what can still sit in the slot is a pure
+// read -- a name, a field -- and the temp keeps any side effect it had.
+
+// The call_free slot of `T.delete(own x, call_free)` -- [callee, target,
+// call_free], the callee resolving to a delete whose second parameter IS
+// call_free (the same test the builder's overwrite used) -- or None.
+priv delete_call_free_target_sym := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(Sym) {
+    if e.node_type.is(NodeType.FCall).not() { return Option(Sym).None }
+    if e.children.len() != 3 { return Option(Sym).None }
+    switch e.children[0].node_type {
+    case .FieldAccess(dfa):
+        if dfa.field_access_name(symbols.names) != "delete" { return Option(Sym).None }
+    case:
+        return Option(Sym).None
+    }
+    mut target_sym := Option(Sym).None
+    switch e.children[1].node_type {
+    case .Ident(tid): target_sym = Option(Sym).Some(tid.ident_sym())
+    case: return Option(Sym).None
+    }
+    fdef_o := resolve_direct_fcall(e, scope, symbols)
+    if fdef_o.is_none() { return Option(Sym).None }
+    switch fdef_o.unwrap().node_type {
+    case .FuncDef(dfd):
+        if dfd.sig.params.len() < 2 { return Option(Sym).None }
+        if dfd.sig.params[1].name != "call_free" { return Option(Sym).None }
+    case:
+        return Option(Sym).None
+    }
+    return target_sym
+}
+
+// A module-level binding stored BY VALUE: found at the root scope with no
+// binding for the name in any scope between (a local or parameter of the
+// same name shadows it), and not one of the two pointer-storage shapes a
+// global can have -- a `ref`, or a raw allocation (a Dynamic global is
+// excluded from that one: `void *` IS its value).
+priv sym_is_value_global := func(scope: TypeScope, sym: Sym) returns Bool {
+    if scope.has_local_binding_sym(sym) {
+        if scope.parent.is_some() { return false }
+        ref gb : TypeBinding = scope.local_binding_sym(sym).unwrap()
+        if gb.own_type.is(OwnType.Ref) { return false }
+        if gb.is_raw_alloc.and(gb.type.is(Type.Dynamic).not()) { return false }
+        return true
+    }
+    switch scope.parent {
+    case .Some(p): return sym_is_value_global(p, sym)
+    case .None: return false
+    }
+}
+
+// Is `target`, at this point of the walk, one of the bindings this body
+// decided is not a heap box? `shadow` lists the names nested blocks declared
+// on the way down -- from its declaration on, such a name is a different
+// binding, whatever it shadows. A module-level value is asked about only for
+// a name this body does not bind itself: its own locals, globals included at
+// program scope, are already answered by the storage record.
+priv delete_target_is_non_heap := func(target: Sym, stack_names: Set(Sym), own_names: Set(Sym), shadow: Vec(Sym), scope: TypeScope) returns Bool {
+    for s : Sym in shadow {
+        if s == target { return false }
+    }
+    if stack_names.has(target) { return true }
+    if own_names.has(target) { return false }
+    return sym_is_value_global(scope, target)
+}
+
+priv realign_delete_call_free_expr := proc(mut e: Expr, stack_names: Set(Sym), own_names: Set(Sym), mut shadow: Vec(Sym), scope: TypeScope, mut ctx: Context) {
+    switch e.node_type {
+    // Separate scopes, each with its own pass over its own bindings.
+    case .FuncDef, .CaptureBlock, .BodyValue: return
+    case:
+    }
+    target_o := delete_call_free_target_sym(e, scope, ctx.symbols)
+    if target_o.is_some() {
+        target := target_o.unwrap()
+        if delete_target_is_non_heap(target, stack_names, own_names, shadow, scope) {
+            ref cf : Expr = e.children[2]
+            mut already_false := false
+            switch cf.node_type {
+            case .Literal(Literal.Bool(cf_lit)): already_false = cf_lit.not()
+            case:
+            }
+            if already_false.not() {
+                mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), cf.line, cf.col)
+                false_lit.set_til_type(cf.til_type().clone())
+                e.children[2] = false_lit
+            }
+        }
+    }
+    if e.node_type.is(NodeType.Body) {
+        mark := shadow.len()
+        for mut bchild : Expr in e.children {
+            realign_delete_call_free_expr(bchild, stack_names, own_names, shadow, scope, ctx)
+            switch bchild.node_type {
+            case .Decl(sdd): shadow.push(own ctx.symbols.intern(sdd.name))
+            case:
+            }
+        }
+        while shadow.len() > mark { shadow.pop() }
+        return
+    }
+    for mut child : Expr in e.children {
+        realign_delete_call_free_expr(child, stack_names, own_names, shadow, scope, ctx)
+    }
+}
+
+priv realign_delete_call_free := proc(mut body: Expr, locals: Vec(LocalInfo), stack_own_params: Set(Str), scope: TypeScope, mut ctx: Context) {
+    mut stack_names := Set(Sym).new()
+    mut own_names := Set(Sym).new()
+    for local : LocalInfo in locals {
+        own_names.add(own ctx.symbols.intern(local.name))
+        if local.is_heap { continue }
+        if local.decl_index >= 0 {
+            // record_storage_decisions' test: a by-value Decl, not a borrow.
+            ref ls : Expr = body.children[local.decl_index.to_usize()]
+            switch ls.node_type {
+            case .Decl(ldd):
+                if ldd.own_type.is(OwnType.Ref) { continue }
+            case:
+                continue
+            }
+            stack_names.add(own ctx.symbols.intern(local.name))
+        } else if stack_own_params.has(local.name) {
+            stack_names.add(own ctx.symbols.intern(local.name))
+        }
+    }
+    // The body's OWN statements shadow nothing -- its Decls are the bindings
+    // stack_names was built from -- so walk them directly, not as a block.
+    mut shadow := Vec(Sym).new()
+    for mut stmt : Expr in body.children {
+        realign_delete_call_free_expr(stmt, stack_names, own_names, shadow, scope, ctx)
+    }
+}
+
 // --- #302 stage 5: the temp contract, checked ------------------------------
 //
 // The hoisting division of labor says every owned-aggregate-producing
@@ -3283,6 +3443,8 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: Type
     // and the stage-5 temp contract applies to every body.
     flag_outer_assign_rebinds(body, locals_vec, scope, ctx.symbols)
     record_field_transfer_decisions(body, scope, ctx.symbols)
+    // #209: before record_keep_outer_args, which keys on these literals.
+    realign_delete_call_free(body, locals_vec, stack_own_params, scope, ctx)
     record_keep_outer_args(body, ctx.symbols)
     temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }

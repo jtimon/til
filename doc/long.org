@@ -8,7 +8,23 @@ right for the long run", not for sprint-sized fixes.
 
 ** Builder stack-local Str delete special-case
 
-Tracked as [[../issues/open/209.org][#209]].
+Fixed as [[../issues/fixed/209.org][#209]].
+
+How it resolved: by the time #209 was taken, #302 and #346 had already
+moved the stack-vs-heap decision into the garbager (~GcStorage~ on each
+Decl; ~stack_own_params~ from the same two ABI predicates the builder
+used), and every delete the garbager inserts carries ~call_free =
+is_heap~.  The builder's overwrite was left rescuing exactly one thing:
+HAND-WRITTEN destructor calls (~own x.delete()~, whose ~call_free~
+defaults to true) on storage with no outer box -- a closed-world own
+parameter's caller slot, a stack local, a module-level value.  The
+garbager now rewrites that slot to ~false~ in the AST
+(~realign_delete_call_free~), and the builder translates the argument
+verbatim.  The own-parameter case is why the decision could never have
+lived in the source: in a library build the same parameter IS a heap box
+its callee owns, and the same line means true.
+
+Historical, as it read when the special-case was live:
 
 src/self/builder.til ~1413-1437 force-emits
 ~Str_delete(&name, &(Bool){0})~ for stack-local Str deletes,

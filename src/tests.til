@@ -1339,6 +1339,18 @@ main := proc(args: ..Str) {
     add_count(tests, "aggregate_own_param_pointer_return", "build",
         "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", 2,
         format(til_bin, " translate -c gen/c/aggregate_own_return.c test/structs.til '&&' cat gen/c/aggregate_own_return.c"))
+    // #209: a HAND-WRITTEN destructor call on storage its callee does not own
+    // -- a closed-world own parameter's caller slot, a module-level value --
+    // reaches the C with call_free 0 because the garbager recorded it in the
+    // AST, not because the builder overwrote the argument at emission. Both
+    // regressions show here: without the AST decision the C boxes a copy to
+    // free (`*_oa = malloc`), and a builder overwrite comes back spelled
+    // `(Bool){0}` instead of the literal the AST carries.
+    add_counts(tests, "handwritten_dtor_call_free", "build",
+        format(til_bin, " translate -c gen/c/handwritten_dtor.c test/ownership_shapes.til '&&' cat gen/c/handwritten_dtor.c"),
+        CountCheck(needle = "Shelf209_delete(h, 0);", expected_count = 3),
+        CountCheck(needle = "Shelf209_delete(&shelf209_global, 0);", expected_count = 1),
+        CountCheck(needle = "Shelf209 *_oa = malloc", expected_count = 0))
     add_count(tests, "aggregate_own_escape_boxes", "build",
         "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", 1,
         format(til_bin, " translate -c gen/c/aggregate_own_escape.c test/structs.til '&&' cat gen/c/aggregate_own_escape.c"))
@@ -1378,7 +1390,7 @@ main := proc(args: ..Str) {
         "static Str format(Array__Str * parts)", 2,
         "cat boot/til.c")
     add_count(tests, "variadic_param_stack_cleanup", "build",
-        "Array__Str_delete(parts, (Bool){0});\n    { Str _ret = out;", 1,
+        "Array__Str_delete(parts, 0);\n    { Str _ret = out;", 1,
         "cat boot/til.c")
     add_count(tests, "variadic_param_no_outer_boxes", "build",
         "Array__Str *_oa = malloc(TIL_BOX(Array__Str))", 0,
@@ -1405,10 +1417,10 @@ main := proc(args: ..Str) {
         "Expr_delete(({ Expr *_oa = malloc(TIL_BOX(Expr))", 0,
         "cat boot/til.c")
     add_count(tests, "stack_delete_borrows_outer", "build",
-        "Expr_delete(&def, (Bool){0})", 2,
+        "Expr_delete(&def, 0)", 2,
         "cat boot/til.c")
     add_count(tests, "global_delete_borrows_outer", "build",
-        "Map__Str_TokenType_delete(&priv___src_self_lexer_til__KEYWORDS, (Bool){0})", 1,
+        "Map__Str_TokenType_delete(&priv___src_self_lexer_til__KEYWORDS, 0)", 1,
         "cat boot/til.c")
     add_count(tests, "expr_new_value_return_abi", "build",
         "static Expr Expr_new(NodeType * data, U32 line, U32 col)", 2,
@@ -1836,7 +1848,7 @@ main := proc(args: ..Str) {
     // leave a declaration nothing reads, and retiring the declaration too
     // is the ownership rewrite #302 owns. test_delete's `p := Point(x=3,
     // y=7); Point.delete(own p)` is exactly that shape.
-    add_count(tests, "structs_keeps_sole_reader_delete", "build", "Point_delete(&p, (Bool){0});", 1,
+    add_count(tests, "structs_keeps_sole_reader_delete", "build", "Point_delete(&p, 0);", 1,
         format(til_bin, " translate -c gen/c/structs_sr.c test/structs.til '&&' cat gen/c/structs_sr.c"))
     // A destructor with real field work keeps every call.
     add_count(tests, "errors_keeps_field_deletes", "build", "Str_delete(&self->msg, 0);", 6,
@@ -1851,7 +1863,7 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/structs_nd.c test/structs.til '&&' cat gen/c/structs_nd.c"))
     // ...and a MUTABLE one keeps its delete: `mut out := "..."` is
     // reassigned, so by the delete the cap is whatever the last write left.
-    add_count(tests, "strings_keeps_mut_literal_delete", "build", "\n    Str_delete(&out, (Bool){0});", 2,
+    add_count(tests, "strings_keeps_mut_literal_delete", "build", "\n    Str_delete(&out, 0);", 2,
         format(til_bin, " translate -c gen/c/strings_md.c test/strings.til '&&' cat gen/c/strings_md.c"))
     // A `ref` decl's deliberately-unused (void) guard was written twice --
     // once in the Ref arm and once by the shared tail that runs for both

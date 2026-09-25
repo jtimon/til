@@ -1,0 +1,43 @@
+# priority: medium
+# category: bugs
+** OPEN #406 Translate/build cache serves stale output written by another program or compiler
+
+#170's cache decides an artifact is current in ~artifacts_outrank_deps~
+(src/self/builder.til) by one test: every output is strictly newer than
+every file in ~lp.unit_paths()~ and ~lp.mode_files~. Nothing records WHICH
+program or WHICH compiler wrote the artifact, so a newer file at the
+requested path is accepted whatever it contains. On a hit
+~translate_output_is_current~ prints the same "Generated:" lines as a real
+translate, so the caller cannot tell.
+
+Reproduced on master (1b84be8), shared ~-c~ path across two programs:
+
+  rm -f tmp/shared406.c
+  bin/til translate -c tmp/shared406.c test/variadic.til
+  bin/til translate -c tmp/shared406.c test/tuples.til
+
+Both exit 0 and print "Generated: tmp/shared406.c". The file still holds
+test/variadic.til's program: ~test_mixed_splat_generic~ appears 10 times,
+~test_tuple_grow~ (tuples.til) zero times. ~build -o~ has the same shape
+through ~build_artifact_is_current~.
+
+The same hole covers the compiler itself: the binary that emitted the
+artifact is not a dependency, so rebuilding ~bin/til~ and re-translating
+an unchanged program returns the previous compiler's C. That silently
+served stale files to the first two attempts at #209's
+old-vs-new-compiler C comparison; only deleting every output before each
+translate made the measurement honest. Environment that changes emission
+is likewise not keyed.
+
+Existing escapes: ~--force-rebuild~ bypasses the check, and #170's
+addendum already carves out programs with a get_version VALUE macro
+(~program_declares_value_macro~). Neither helps a caller that does not
+know the path was reused or the compiler changed.
+
+Direction to investigate: stamp the artifact with what produced it -- at
+least the root source path and the compiler's identity (its build SHA or
+the binary's mtime) -- and treat a mismatch as a miss. Where the stamp
+lives is a design question to settle with the human first (an in-file
+comment in the emitted C versus a sidecar file is a new artifact, see
+CLAUDE.md "Explicit Approval For New Surfaces"). A cheaper partial step
+is counting the running compiler binary's mtime as a dependency.

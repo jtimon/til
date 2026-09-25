@@ -465,7 +465,7 @@ static Str format(Array__Str * parts) {
             Str_push_str(&out, s);
         }
     }
-    Array__Str_delete(parts, (Bool){0});
+    Array__Str_delete(parts, 0);
     { Str _ret = out; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
@@ -689,7 +689,7 @@ static void Array__Str_set(Array__Str * self, U64 i, Str * val, I64 * _err_kind)
     if (hoisted__Bool_3) {
         Array__Str_unsafe_set(self, i, val);
     } else {
-        Str_delete(val, (Bool){0});
+        Str_delete(val, 0);
     }
 }
 
@@ -794,7 +794,7 @@ static void Vec__Str_set(Vec__Str * self, U64 i, Str * val, I64 * _err_kind) {
     if (hoisted__Bool_3) {
         Vec__Str_unsafe_set(self, i, val);
     } else {
-        Str_delete(val, (Bool){0});
+        Str_delete(val, 0);
     }
 }
 
@@ -903,7 +903,7 @@ static __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     Str hoisted__Str_panic_7 = format(&hoisted__Array__Str_5);
     Array__Str_set(&_va_Array_0, hoisted__U64_6, &hoisted__Str_panic_7, &_va_Array_0_ek);
     println(&_va_Array_0);
-    Array__Str_delete(parts, (Bool){0});
+    Array__Str_delete(parts, 0);
     I64 hoisted__I64_8 = 1;
     exit(hoisted__I64_8);
 }
@@ -963,7 +963,7 @@ static void expect(Bool cond, Array__Str * parts, Str * loc) {
         Array__Str_set(&_va_Array_0, hoisted__U64_4, &hoisted__Str_expect_5, &_va_Array_0_ek);
         panic(&_va_Array_0, loc);
     }
-    Array__Str_delete(parts, (Bool){0});
+    Array__Str_delete(parts, 0);
 }
 
 static void println(Array__Str * parts) {
@@ -983,7 +983,7 @@ static void println(Array__Str * parts) {
             print_single(s);
         }
     }
-    Array__Str_delete(parts, (Bool){0});
+    Array__Str_delete(parts, 0);
     print_flush();
 }
 
@@ -1111,15 +1111,15 @@ static void test_struct_fold_f32(void) {
     Str hoisted__Str_test_struct_fold_f32_3 = ({ Str *_hp = (Str *)F32_to_str(v.x); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
     static Str hoisted__Str_test_struct_fold_f32_4 = (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT};
     assert_eq__Str(&hoisted__Str_test_struct_fold_f32_3, &hoisted__Str_test_struct_fold_f32_4, &hoisted__Str_test_struct_fold_f32_5);
-    Str_delete(&hoisted__Str_test_struct_fold_f32_3, (Bool){0});
+    Str_delete(&hoisted__Str_test_struct_fold_f32_3, 0);
     Str hoisted__Str_test_struct_fold_f32_6 = ({ Str *_hp = (Str *)F32_to_str(v.y); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
     static Str hoisted__Str_test_struct_fold_f32_7 = (Str){.c_str = (void *)"4", .count = 1ULL, .cap = TIL_CAP_LIT};
     assert_eq__Str(&hoisted__Str_test_struct_fold_f32_6, &hoisted__Str_test_struct_fold_f32_7, &hoisted__Str_test_struct_fold_f32_8);
-    Str_delete(&hoisted__Str_test_struct_fold_f32_6, (Bool){0});
+    Str_delete(&hoisted__Str_test_struct_fold_f32_6, 0);
     Str hoisted__Str_test_struct_fold_f32_9 = ({ Str *_hp = (Str *)F32_to_str(v.z); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
     static Str hoisted__Str_test_struct_fold_f32_10 = (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT};
     assert_eq__Str(&hoisted__Str_test_struct_fold_f32_9, &hoisted__Str_test_struct_fold_f32_10, &hoisted__Str_test_struct_fold_f32_11);
-    Str_delete(&hoisted__Str_test_struct_fold_f32_9, (Bool){0});
+    Str_delete(&hoisted__Str_test_struct_fold_f32_9, 0);
 }
 
 static Bool Color_eq(Color * self, Color * other) {
@@ -1180,7 +1180,7 @@ static void test_enum_literal_fold(void) {
         }
     }
     assert_eq__Str(&_m_Str_0, &_til_str_lits.h00000002b617, &hoisted__Str_test_enum_literal_fold_5);
-    Str_delete(&_m_Str_0, (Bool){0});
+    Str_delete(&_m_Str_0, 0);
     Bool hoisted__Bool_6 = ((Bool)(1));
     assert(hoisted__Bool_6, &hoisted__Str_test_enum_literal_fold_7);
     Bool hoisted__Bool_8 = ((Bool)(0));
@@ -1213,7 +1213,7 @@ static void test_enum_payload_fold(void) {
     Bool hoisted__Bool_3 = ((Bool)((((Token *)(&t))->tag) == Token_TAG_Eof));
     Bool hoisted__Bool_4 = ((Bool)(!(hoisted__Bool_3)));
     assert(hoisted__Bool_4, &hoisted__Str_test_enum_payload_fold_5);
-    Token_delete(&t, (Bool){0});
+    Token_delete(&t, 0);
 }
 
 static void test_enum_return_fold(void) {
@@ -1232,7 +1232,7 @@ static void test_enum_payload_return_fold(void) {
     Bool hoisted__Bool_3 = ((Bool)((((Token *)(&t))->tag) == Token_TAG_Eof));
     Bool hoisted__Bool_4 = ((Bool)(!(hoisted__Bool_3)));
     assert(hoisted__Bool_4, &hoisted__Str_test_enum_payload_return_fold_5);
-    Token_delete(&t, (Bool){0});
+    Token_delete(&t, 0);
 }
 
 static WideToken WideToken_Num(I64 * val) {
@@ -1327,7 +1327,7 @@ static void test_nested_enum_payload_return_fold(void) {
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_nested_enum_payload_return_fold_5);
     }
     }
-    NestedToken_delete(&nested, (Bool){0});
+    NestedToken_delete(&nested, 0);
 }
 
 U64 CfNestedValues_size(void) {
@@ -1387,14 +1387,14 @@ static void test_collection_return_fold(void) {
     }
     I64 hoisted__I64_83 = 22;
     assert_eq__I64(DEREF(_bang_ret_1), hoisted__I64_83, &hoisted__Str_test_collection_return_fold_84);
-    Vec__I64_delete(&values, (Bool){0});
+    Vec__I64_delete(&values, 0);
     Vec__I64 empty = Vec__I64_clone(&_til_precomputed_sequence_24);
     U64 hoisted__U64_85 = 0ULL;
     U64 hoisted__U64_86 = 0ULL;
     assert_eq__USize(hoisted__U64_85, hoisted__U64_86, &hoisted__Str_test_collection_return_fold_87);
     U64 hoisted__U64_88 = 0ULL;
     assert_eq__USize(empty.cap, hoisted__U64_88, &hoisted__Str_test_collection_return_fold_89);
-    Vec__I64_delete(&empty, (Bool){0});
+    Vec__I64_delete(&empty, 0);
     Array__I64 fixed = Array__I64_clone(&_til_precomputed_sequence_25);
     U64 hoisted__U64_90 = 3ULL;
     U64 hoisted__U64_91 = 3ULL;
@@ -1431,7 +1431,7 @@ static void test_collection_return_fold(void) {
     }
     I64 hoisted__I64_101 = 8;
     assert_eq__I64(DEREF(_bang_ret_3), hoisted__I64_101, &hoisted__Str_test_collection_return_fold_102);
-    Array__I64_delete(&fixed, (Bool){0});
+    Array__I64_delete(&fixed, 0);
     Map__Str_I64 table = {0};
     table.keys = Vec__Str_clone(&_til_precomputed_sequence_26);
     table.values = Vec__I64_clone(&_til_precomputed_sequence_27);
@@ -1468,7 +1468,7 @@ static void test_collection_return_fold(void) {
     }
     I64 hoisted__I64_114 = 20;
     assert_eq__I64(DEREF(_bang_ret_5), hoisted__I64_114, &hoisted__Str_test_collection_return_fold_115);
-    Map__Str_I64_delete(&table, (Bool){0});
+    Map__Str_I64_delete(&table, 0);
     Vec__CfNestedValues nested = Vec__CfNestedValues_clone(&_til_precomputed_sequence_30);
     U64 hoisted__U64_116 = 2ULL;
     U64 hoisted__U64_117 = 2ULL;
@@ -1564,7 +1564,7 @@ static void test_collection_return_fold(void) {
         panic(&_va_Array_11, &hoisted__Str_test_collection_return_fold_59);
     }
     assert_eq__Str(_bang_ret_8, &_til_str_lits.hd0b1c236fb8f, &hoisted__Str_test_collection_return_fold_143);
-    Vec__Str_delete(&left, (Bool){0});
+    Vec__Str_delete(&left, 0);
     U64 hoisted__U64_144 = 0ULL;
     Str *_bang_ret_9 = (((Bool)(hoisted__U64_144 < right.count)) ? (Str *)((Str *)((void *)((U8 *)(right.data) + (((U64)(((U64)(hoisted__U64_144)) * ((U64)(Str_size())))))))) : (_err_kind = 1, (Str *)NULL));
     I64 hoisted__I64_145 = 1;
@@ -1580,7 +1580,7 @@ static void test_collection_return_fold(void) {
         panic(&_va_Array_12, &hoisted__Str_test_collection_return_fold_64);
     }
     assert_eq__Str(_bang_ret_9, &_til_str_lits.h00310f176c2b, &hoisted__Str_test_collection_return_fold_148);
-    Vec__Str_delete(&right, (Bool){0});
+    Vec__Str_delete(&right, 0);
     Vec__I64 macro_values = Vec__I64_clone(&_til_precomputed_sequence_33);
     U64 hoisted__U64_149 = 4ULL;
     assert_eq__USize(macro_values.cap, hoisted__U64_149, &hoisted__Str_test_collection_return_fold_150);
@@ -1598,10 +1598,10 @@ static void test_collection_return_fold(void) {
         Array__Str_set(&_va_Array_13, hoisted__U64_67, &_til_str_lits.h4d3ab87300de, &_va_Array_13_ek);
         panic(&_va_Array_13, &hoisted__Str_test_collection_return_fold_69);
     }
-    Vec__CfNestedValues_delete(&nested, (Bool){0});
+    Vec__CfNestedValues_delete(&nested, 0);
     I64 hoisted__I64_154 = 22;
     assert_eq__I64(DEREF(_bang_ret_10), hoisted__I64_154, &hoisted__Str_test_collection_return_fold_155);
-    Vec__I64_delete(&macro_values, (Bool){0});
+    Vec__I64_delete(&macro_values, 0);
 }
 
 static void test_serialized_values_are_compositional(void) {
