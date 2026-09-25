@@ -273,6 +273,7 @@ typedef struct Map__U32_Str Map__U32_Str;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Map__Str_FFITypePtrBox Map__Str_FFITypePtrBox;
+typedef struct Map__UPtr_call_Vec_Str Map__UPtr_call_Vec_Str;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
@@ -291,11 +292,12 @@ typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
+typedef struct Vec__UPtr Vec__UPtr;
+typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
 typedef struct Vec__StructLayout Vec__StructLayout;
-typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
 typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
@@ -898,6 +900,20 @@ typedef struct Vec__FFITypePtrBox {
 } Vec__FFITypePtrBox;
 
 
+typedef struct Vec__UPtr {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__UPtr;
+
+
+typedef struct Vec__call_Vec_Str {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__call_Vec_Str;
+
+
 typedef struct Vec__Mode {
     U8 *data;
     USize count;
@@ -924,13 +940,6 @@ typedef struct Vec__StructLayout {
     USize count;
     USize cap;
 } Vec__StructLayout;
-
-
-typedef struct Vec__call_Vec_Str {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__call_Vec_Str;
 
 
 struct Option__ref_Mode {
@@ -1666,24 +1675,6 @@ typedef struct InternedTypes {
 } InternedTypes;
 
 
-typedef struct EvalState {
-    Bool has_return;
-    Bool has_break;
-    Bool has_continue;
-    void * *return_value;
-    Bool interp_ret_is_ref;
-    void * *interp_ret_dest;
-    Option__ref_Str interp_ret_type;
-    OwnType interp_ret_own_type;
-    Bool interp_cstr_arg;
-    Bool constfold_active;
-    Bool eval_aborted;
-    Bool repl_session;
-    Option__Scope ns_fields;
-    Str cached_str_name;
-} EvalState;
-
-
 typedef struct Map__U32_TypeBinding {
     Vec__U32 keys;
     Vec__TypeBinding values;
@@ -1706,6 +1697,12 @@ typedef struct Map__Str_FFITypePtrBox {
     Vec__Str keys;
     Vec__FFITypePtrBox values;
 } Map__Str_FFITypePtrBox;
+
+
+typedef struct Map__UPtr_call_Vec_Str {
+    Vec__UPtr keys;
+    Vec__call_Vec_Str values;
+} Map__UPtr_call_Vec_Str;
 
 
 typedef struct Map__Str_Mode {
@@ -1854,6 +1851,25 @@ typedef struct FfiState {
     Map__Str_FFITypePtrBox type_cache;
     Bool type_cache_inited;
 } FfiState;
+
+
+typedef struct EvalState {
+    Bool has_return;
+    Bool has_break;
+    Bool has_continue;
+    void * *return_value;
+    Bool interp_ret_is_ref;
+    void * *interp_ret_dest;
+    Option__ref_Str interp_ret_type;
+    OwnType interp_ret_own_type;
+    Bool interp_cstr_arg;
+    Bool constfold_active;
+    Bool eval_aborted;
+    Bool repl_session;
+    Option__Scope ns_fields;
+    Map__UPtr_call_Vec_Str foreign_places;
+    Str cached_str_name;
+} EvalState;
 
 
 typedef struct Context {

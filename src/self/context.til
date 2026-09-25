@@ -1139,6 +1139,11 @@ EvalState := struct {
     // teardown moves the scope out before scope_free instead of freeing
     // through a ref field.
     ns_fields := Option(Scope).None
+    // Borrowed library storage, keyed by its real address. An object and its
+    // first inline field can share an address, so keep every target-layout
+    // type viewed there. The bytes remain owned by the library. Aliases and
+    // Dynamic pointers keep their address, so all views consult the same entry.
+    foreign_places := Map(UPtr, Vec(Str)).new()
     // #177 interpreter cache for the canonical Str type name, populated by
     // populate_cached_aggregate_defs / interpreter_init_ns and read by raw
     // allocation, field-layout, and argv construction paths. #321: now an

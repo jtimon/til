@@ -40,7 +40,67 @@ main := proc() returns I64 {
     if library_namespace_a_point_state.scalar != 24 { return 25 }
     if library_namespace_a_core_string() != 5 { return 26 }
     if library_namespace_b_core_string() != 3 { return 27 }
-    if library_namespace_a_origin_ref.size != 29 { return 28 }
-    if library_namespace_a_origin_ref.scalar != library_namespace_a_origin.scalar { return 29 }
+    ref mut widths : BindingWidths = library_widths_ref()
+    ref alias : BindingWidths = library_widths_identity(widths)
+    if widths.first != 41 { return 28 }
+    if widths.second != 73 { return 29 }
+    if widths.marker != 123456789 { return 30 }
+    widths.second = 97
+    if alias.second != 97 { return 31 }
+    if library_widths_second() != 97 { return 32 }
+    library_set_widths(113)
+    if widths.second != 113 { return 33 }
+    if alias.second != 113 { return 34 }
+    ref mut second : USize = widths.second
+    second = 127
+    if library_widths_second() != 127 { return 35 }
+    copied := library_widths
+    library_set_widths(149)
+    if copied.second != 127 { return 36 }
+    if widths.second != 149 { return 37 }
+    library_nested_widths.inner.second = 151
+    if library_nested_widths.inner.second != 151 { return 38 }
+    if library_nested_widths.suffix != 29 { return 39 }
+    BindingNestedWidths.STATE.second = 157
+    if BindingNestedWidths.STATE.second != 157 { return 40 }
+    ref text : Str = library_text_ref()
+    if text.len() != 12 { return 41 }
+    saved_text := text.clone()
+    library_set_text()
+    if text.len() != 14 { return 42 }
+    if text != "changed abroad" { return 43 }
+    if saved_text != "foreign text" { return 44 }
+    library_widths = BindingWidths(first = 163, second = 167, marker = 173)
+    if widths.first != 163 { return 45 }
+    if alias.second != 167 { return 46 }
+    if library_widths.marker != 173 { return 47 }
+    if ptr_eq(widths, alias).not() { return 48 }
+    mut local := BindingWidths(first = 179, second = 181, marker = 191)
+    ref local_alias : BindingWidths = library_widths_identity(local)
+    local.second = 193
+    if local_alias.second != 193 { return 49 }
+    if ptr_eq(local, local_alias).not() { return 50 }
+    mut nested := BindingNestedWidths(inner = BindingWidths())
+    ref nested_alias : BindingWidths = library_inner_ref(nested)
+    nested.inner.second = 197
+    if nested_alias.second != 197 { return 51 }
+    ref namespace_alias : BindingWidths = BindingNestedWidths.STATE
+    BindingNestedWidths.STATE = BindingWidths(first = 199, second = 211, marker = 223)
+    if namespace_alias.second != 211 { return 52 }
+    ref foreign_nested_alias : BindingWidths = library_inner_ref(library_nested_widths)
+    library_nested_widths.inner.second = 227
+    if foreign_nested_alias.second != 227 { return 53 }
+    held := library_widths_holder
+    library_set_widths(229)
+    if held.value.second != 229 { return 54 }
+    ref erased : Dynamic = widths
+    ref restored : BindingWidths = erased
+    if restored.second != 229 { return 55 }
+    if ptr_eq(text, library_text_ref()).not() { return 56 }
+    if library_widths_alias_read(local, local) != 317 { return 57 }
+    if local_alias.second != 317 { return 58 }
+    if library_widths_alias_read(widths, alias) != 317 { return 59 }
+    if library_namespace_a_origin_ref.size != 29 { return 60 }
+    if library_namespace_a_origin_ref.scalar != library_namespace_a_origin.scalar { return 61 }
     return 0
 }

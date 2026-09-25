@@ -127,6 +127,14 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
     ref sdef_data : StructDef = structdef_of(struct_def)
     sz := ctx_total_size(struct_name, ctx)
     mut dst_data : Dynamic = EvalHeap.heap_alloc(sz)
+    if ffi_place_is_foreign(data, ctx) {
+        ffi_copy_struct_into(struct_name, data, false, dst_data, true, ctx)
+        // Normalize the wrapper, then clone its payload by the normal host
+        // ownership walk. The temporary only borrows the payload pointers.
+        cloned : Dynamic = heap_clone(struct_name, dst_data, ctx)
+        EvalHeap.heap_free(own dst_data)
+        return cloned
+    }
     memcpy(dst_data, data, sz)
     if struct_name == "Str" {
         clone_str_storage_into(dst_data, data, ctx)
@@ -634,31 +642,12 @@ priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns Dynamic
     return result
 }
 
-// #321: an ext function's ref-Str result is a COPY only when the callee
-// actually DECLARES a Str return -- that is the C-buffer case this rule
-// exists for. A callee declaring `returns ref Dynamic` (deref, to_ptr) is
-// laundering a pointer into memory the program already owns, and the
-// stamped Str comes from the CALLER (make_payload_ref_decl pre-types the
-// deref wrapper with the payload type). Treating those as copies made the
-// interpreter free a BORROWED Str payload: `Option(ref Str)` corrupted the
-// heap in interpreted mode while compiling and running fine.
-// An ext callee hands back a C-owned Str buffer
-// only when it declares one. `returns ref Dynamic` is pointer laundering.
-priv ext_fdef_copies_str := func(fd: FunctionDef) returns Bool {
-    if fd.sig.func_type.is_ext().not() { return false }
-    return fd.sig.return_type == "Str"
-}
-
-priv resolved_call_result_is_ref := func(shallow result_type: Type, fn_def: Expr) returns Bool {
+// A ref result always preserves its address, including an external Str.
+// Foreign-place metadata supplies the ABI instead of cloning the referent.
+priv resolved_call_result_is_ref := func(fn_def: Expr) returns Bool {
     switch fn_def.node_type {
     case .FuncDef(fd):
-        if fd.sig.return_own_type.is(OwnType.Ref).not() { return false }
-        switch result_type {
-        case .Struct(name):
-            if (name == "Str").and(ext_fdef_copies_str(fd)) { return false }
-        case:
-        }
-        return true
+        return fd.sig.return_own_type.is(OwnType.Ref)
     case:
         return false
     }
@@ -851,7 +840,7 @@ priv raw_result_source_type := func(info: RawResultInfo) returns ref Type {
 }
 
 priv set_resolved_call_result_info := func(shallow result_type: Type, fn_def: Expr, destination: Dynamic, mut info: RawResultInfo, ctx: Context) {
-    info.is_ref = resolved_call_result_is_ref(result_type, fn_def)
+    info.is_ref = resolved_call_result_is_ref(fn_def)
     info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(result_type, ctx))
 }
 
@@ -1343,6 +1332,74 @@ priv field_access_decl := func(e: Expr, sname: Str, ctx: Context) returns Option
     }
 }
 
+priv ffi_place_is_foreign := func(data: Dynamic, ctx: Context) returns Bool {
+    return ctx.eval.foreign_places.has(word_bits(data).cast(UPtr))
+}
+
+priv ffi_cached_layout := func(type_name: Str, ctx: Context, host_layout: Bool) returns ref FFITypePtrBox {
+    mut domain := "target:"
+    if host_layout { domain = "host:" }
+    return ctx.ffi.type_cache[format(domain, type_name)]
+}
+
+priv place_field_layout := func(type_name: Str, field_name: Str, data: Dynamic, ctx: Context) returns FieldLayout {
+    mut field := ctx_field_layout(type_name, field_name, ctx).clone()
+    if ffi_place_is_foreign(data, ctx).not() { return field }
+    ref def : Expr = lookup_interp_type_def(type_name, ctx).unwrap()
+    ref sd : StructDef = structdef_of(def)
+    ref index : USize = sd.fields_index[field_name]
+    ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, false)
+    ref offset : U64 = ptr_add(layout.offsets, index.to_usize().mul(8))
+    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.to_usize().mul(8)))
+    field.offset = offset.to_usize()
+    field.size = field_type.size.to_usize()
+    return field
+}
+
+priv ffi_borrow_place := proc(type_name: Str, data: Dynamic, mut ctx: Context) {
+    if size_intrinsics_use_sizeof(ctx).not() { return }
+    mut visited := Set(Str).new()
+    ffi_borrow_place_walk(type_name, data, visited, ctx)
+}
+
+priv ffi_remember_place := func(type_name: Str, data: Dynamic, mut ctx: Context) {
+    address := word_bits(data).cast(UPtr)
+    if ctx.eval.foreign_places.has(address).not() {
+        names := Vec(Str).new()
+        ctx.eval.foreign_places.set(address, own names)
+    }
+    ref mut names : Vec(Str) = ctx.eval.foreign_places[address]
+    for name : Str in names { if name == type_name { return } }
+    names.push(own type_name.clone())
+}
+
+priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, mut visited: Set(Str), mut ctx: Context) {
+    // Pointer fields in a foreign object may be absent or cyclic.
+    if data.is_null() { return }
+    ref target : ffi_type = shallow_ffi_type(type_name, ctx, false)
+    if target.type != FFI_TYPE_STRUCT.to_u16() { return }
+    visit_key := format(type_name, "@", word_bits(data).to_str())
+    if visited.has(visit_key) { return }
+    visited.add(own visit_key)
+    // Force both layouts before any pure interpreter field/clone operation.
+    build_struct_ffi_type(type_name, ctx, true)
+    ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, false)
+    if layout.layout_status != FFI_OK { panic("cannot borrow foreign layout: ", type_name) }
+    ffi_remember_place(type_name, data, ctx)
+    ref def : Expr = ctx.ffi.struct_defs[type_name].ptr
+    ref sd : StructDef = structdef_of(def)
+    for i in 0..sd.fields.len() {
+        ref fd : Declaration = sd.fields[i]
+        fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
+        ref slot : Dynamic = ptr_add(data, fl.offset)
+        if fd.own_type.is(OwnType.Shallow) {
+            ffi_borrow_place_walk(fd.type_name(), slot, visited, ctx)
+        } else {
+            ffi_borrow_place_walk(fd.type_name(), deref(slot), visited, ctx)
+        }
+    }
+}
+
 // Resolve storage for an identifier-rooted struct field chain without
 // evaluating or copying its intermediate aggregates.
 priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context) returns Option(ref Dynamic) {
@@ -1371,15 +1428,19 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
         fdecl_o := field_access_decl(obj, sname, ctx)
         if fdecl_o.is_none() { return Option(ref Dynamic).None }
         ref fdecl : Declaration = fdecl_o.unwrap()
-        ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
+        fl := place_field_layout(sname, fa.field_access_name(ctx.symbols.names), parent, ctx)
         ref slot : Dynamic = ptr_add(parent, fl.offset)
-        if fdecl.own_type.is(OwnType.Shallow) { return safe_ref(Dynamic, slot) }
+        if fdecl.own_type.is(OwnType.Shallow) {
+            if ffi_place_is_foreign(parent, ctx) { ffi_borrow_place(fdecl.type_name(), slot, ctx) }
+            return safe_ref(Dynamic, slot)
+        }
         // REM: a non-shallow field yields the STORED pointer. A field
         // declared `ref x : T = NULL` still stores a real null here, and the
         // niche cannot spell Some(null) -- it reads back as None. Callers
         // already treat both as "no base" and error out, so nothing changes
         // today, and step 1's forbid removes the case entirely.
         ref stored : Dynamic = deref(slot)
+        if ffi_place_is_foreign(parent, ctx) { ffi_borrow_place(fdecl.type_name(), stored, ctx) }
         return safe_ref(Dynamic, stored)
     case .FCall:
         mut info := raw_result_info_new()
@@ -1444,6 +1505,12 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             ref stored : Dynamic = to_ptr(stored_hb.ptr)
             info.source_type_p = stored_hb.til_type_p
             ref stored_type : Type = hb_type(stored_hb)
+            if stored_hb.is_borrowed.and(ffi_place_is_foreign(stored, ctx)) {
+                info.is_ref = true
+                info.is_word = false
+                result : Dynamic = stored
+                return result
+            }
             if raw_type_is_prim(stored_type, ctx) {
                 ns_word : Dynamic = scalar_word_load(stored_type, stored, ctx)
                 return raw_result_finish(stored_type, ns_word, destination, false, ctx)
@@ -1469,7 +1536,9 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         info.is_ref = decl_is_funcsig(fdecl, ctx).not()
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
-        ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
+        base_o := field_access_base(scope, e.children[0], ctx)
+        mut fl := ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx).clone()
+        if base_o.is_some() { fl = place_field_layout(sname, fa.field_access_name(ctx.symbols.names), base_o.unwrap(), ctx) }
         // Generic instantiation may have replaced the USize/UPtr spelling
         // with its target primitive, so select the storage width by layout.
         if raw_type_is_prim(field_resolved_type, ctx) {
@@ -1479,14 +1548,17 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             }
             info.source_type_p = to_ptr(interp_intern_type(field_type, ctx))
         }
-        base_o := field_access_base(scope, e.children[0], ctx)
         if base_o.is_some() {
             ref base : Dynamic = base_o.unwrap()
             if cstr_arg { check_c_string_terminator(base, ctx) }
             if info.is_ref {
                 if fdecl.own_type.is(OwnType.Shallow).not() {
-                    return deref(ptr_add(base, fl.offset))
+                    ref pointed : Dynamic = deref(ptr_add(base, fl.offset))
+                    if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(fdecl.type_name(), pointed, ctx) }
+                    result : Dynamic = pointed
+                    return result
                 }
+                if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(fdecl.type_name(), ptr_add(base, fl.offset), ctx) }
                 return ptr_add(base, fl.offset)
             }
             return read_field(base, fdecl, fl.offset, fl.size, ctx)
@@ -1993,7 +2065,8 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         // deliberately absent from the known-value scope, which prevents any
         // function reading it from being folded as a constant.
         if ctx.ffi.loaded.not() { return }
-        ref address : U8 = ffi_dlsym(dd.external_symbol)
+        mut host_layout := false
+        ref address : U8 = ffi_resolve(dd.external_symbol, false, host_layout)
         if address.is_null() { panic("external global symbol not found: ", dd.external_symbol) }
         external_type := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
         if dd.own_type.is(OwnType.Ref) {
@@ -2002,12 +2075,14 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             // follows a re-point.
             mut pointee : Dynamic = address
             pointee = deref(address)
+            if host_layout.not() { ffi_borrow_place(resolved_type_name(external_type), pointee, ctx) }
             scope_set_heap_owned(scope, dd.name, pointee, interp_intern_type(external_type, ctx),
                 OwnType.Ref, ctx, false, true)
             ref mut ext_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name).unwrap()
             ext_hb.ext_slot = Option(ref U8).Some(address)
             return
         }
+        if host_layout.not() { ffi_borrow_place(resolved_type_name(external_type), address, ctx) }
         scope_set_heap_owned(scope, dd.name, address, interp_intern_type(external_type, ctx),
             OwnType.Shallow, ctx, false, true)
         return
@@ -2487,64 +2562,14 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     ns_set("", fname, val_raw, target_type, ctx)
                 }
             } else {
-                // The chain walk below reassigns `base` through raw pointer
-                // arithmetic (ptr_add / deref), so it is a raw Dynamic from
-                // here on; the Option only answers "did the root resolve".
-                base_root_o := resolve_field_assign_base(scope, stmt.children[0], ctx.symbols)
+                // Reads and writes resolve the same place, including foreign
+                // globals, nested fields, and ref-returning call receivers.
+                base_root_o := field_access_base(scope, stmt.children[0], ctx)
                 mut base : Dynamic = 0
                 if base_root_o.is_some() { base = base_root_o.unwrap() }
-                mut cur_sdef_o := resolve_field_assign_sdef(scope, stmt.children[0], ctx)
-                mut cur_sname : Str = resolve_field_assign_sname(scope, stmt.children[0], ctx.symbols)
-                // Chain walking for nested field access (e.g. a.b.c = val).
-                // Collect the chain's field names outer-to-inner (for
-                // `c.b.a`: [a, b]) while descending to the root Ident, then
-                // apply them root-to-leaf so `base` ends at the struct whose
-                // field `fname` is assigned. Previously only depth==1 was
-                // handled, so `c.b.a.x = 42` left base/cur_sdef pointing at
-                // `c`/C; find_field_decl(C, "x") then returned NULL and
-                // write_field dereferenced the null Declaration (a segfault
-                // in field_nested_def -> is_primitive).
-                if stmt.children[0].node_type.is(NodeType.FieldAccess) {
-                    mut chain_names := Vec(Str).new()
-                    ref mut cur : Expr = stmt.children[0]
-                    while cur.node_type.is(NodeType.FieldAccess) {
-                        switch cur.node_type {
-                        case .FieldAccess(fa_link):
-                            chain_names.push(own Str.clone(fa_link.field_access_name(ctx.symbols.names)))
-                        case:
-                        }
-                        cur = cur.children[0]
-                    }
-                    switch cur.node_type {
-                    case .Ident:
-                        // A root that does not resolve leaves `base` as the
-                        // caller found it; the is_null check below reports it.
-                        base_ident_o := resolve_field_assign_base(scope, cur, ctx.symbols)
-                        if base_ident_o.is_some() {
-                            base = base_ident_o.unwrap()
-                            cur_sdef_o = resolve_field_assign_sdef(scope, cur, ctx)
-                            cur_sname = resolve_field_assign_sname(scope, cur, ctx.symbols)
-                            mut step_i : USize = chain_names.len()
-                            while step_i > 0 {
-                                step_i--
-                                ref step_name : Str = chain_names[step_i]
-                                if cur_sdef_o.is_none() { break }
-                                step_fd_o := find_field_decl(cur_sdef_o.unwrap(), step_name)
-                                if step_fd_o.is_none() { break }
-                                ref step_fd : Declaration = step_fd_o.unwrap()
-                                step_off := ctx_field_layout(cur_sname, step_name, ctx).offset
-                                if step_fd.own_type.is(OwnType.Shallow).not() {
-                                    base = deref(ptr_add(base, step_off))
-                                } else {
-                                    base = ptr_add(base, step_off)
-                                }
-                                cur_sdef_o = field_nested_def(step_fd, ctx)
-                                cur_sname = resolved_type_name(declaration_resolved_type(step_fd, ctx.scope, ctx.symbols))
-                            }
-                        }
-                    case:
-                    }
-                }
+                mut fallback_sname := ""
+                ref cur_sname : Str = field_access_sname(stmt, fallback_sname, ctx.symbols)
+                cur_sdef_o := lookup_interp_type_def(cur_sname, ctx)
                 if base.is_null() {
                     interp_error(stmt, "field assign on non-struct", ctx)
                     exit(1)
@@ -2558,7 +2583,10 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 // field name comes from the same assign node, so a miss
                 // here is a broken layout, not a state.
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname).unwrap()
-                ref wf_fl : FieldLayout = ctx_field_layout(cur_sname, fname, ctx)
+                wf_fl := place_field_layout(cur_sname, fname, base, ctx)
+                if ffi_place_is_foreign(base, ctx).and(fdecl.own_type.is(OwnType.Shallow)) {
+                    ffi_borrow_place(fdecl.type_name(), ptr_add(base, wf_fl.offset), ctx)
+                }
                 write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_source_type, val_is_ref, fad.save_old_delete, ctx)
             }
         case .FCall(fcd):
@@ -3750,6 +3778,13 @@ priv clone_tuple_buffer := func(src_tuple: Dynamic, mut dst_tuple: Dynamic, ctx:
 // share a pointer, so freeing here would risk a double-free).
 priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context) {
     if data.is_null() { return }
+    if ffi_place_is_foreign(data, ctx) {
+        mut local : Dynamic = EvalHeap.heap_alloc(ctx_total_size(struct_name, ctx))
+        ffi_copy_struct_into(struct_name, data, false, local, true, ctx)
+        heap_drop_struct(struct_name, local, ctx)
+        EvalHeap.heap_free(own local)
+        return
+    }
     if struct_name == "Str" {
         ref s_str : Str = to_ptr(data)
         if str_owns_c_str(data, ctx) {
@@ -4437,7 +4472,11 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         return true
     case .Struct(sname):
         if drop_old { heap_drop_struct(sname, dst, ctx) }
-        memcpy(dst, src, ctx_total_size(sname, ctx).to_uptr())
+        if ffi_place_is_foreign(dst, ctx) {
+            ffi_copy_struct_into(sname, src, true, dst, false, ctx)
+        } else {
+            memcpy(dst, src, ctx_total_size(sname, ctx).to_uptr())
+        }
         owned_src2 : Dynamic = src
         EvalHeap.heap_free(own owned_src2)
         return true
@@ -5116,10 +5155,12 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
                 ref mut nsd : Declaration = reg_ns.unsafe_get(cur_nci)
                 if nsd.external_symbol.len() > 0 {
                     if ctx.ffi.loaded.not() { continue }
-                    ref address : U8 = ffi_dlsym(nsd.external_symbol)
+                    mut host_layout := false
+                    ref address : U8 = ffi_resolve(nsd.external_symbol, false, host_layout)
                     if address.is_null() { panic("external global symbol not found: ", nsd.external_symbol) }
                     qname := ns_qname(dd.name, def_ns_name_at(sdef, cur_nci))
                     external_type := declaration_resolved_type(nsd, ctx.scope, ctx.symbols)
+                    if host_layout.not() { ffi_borrow_place(resolved_type_name(external_type), address, ctx) }
                     scope_set_heap_owned(ns_scope(ctx), qname, address,
                         interp_intern_type(external_type, ctx), OwnType.Shallow,
                         ctx, false, true)
@@ -5293,7 +5334,7 @@ priv str_usize_read_width := func(field_size: USize, ctx: Context) returns USize
 // it at the ctx offset instead (low bytes carry the value / the CAP_VIEW /
 // CAP_LIT sentinels, which fit in 32 bits).
 str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
-    ref cap_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "cap", ctx)
+    cap_fl := place_field_layout(ctx.eval.cached_str_name, "cap", str_base, ctx)
     return str_usize_field_at(str_base, cap_fl.offset, str_usize_read_width(cap_fl.size, ctx))
 }
 
@@ -5304,7 +5345,7 @@ str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
 // count@8 AND the neighbouring cap@12, so count comes back with cap in its
 // high word -- a garbage huge value that crashes the buffer clone's memcpy.
 str_count_at := func(str_base: Dynamic, ctx: Context) returns USize {
-    ref count_fl : FieldLayout = ctx_field_layout(ctx.eval.cached_str_name, "count", ctx)
+    count_fl := place_field_layout(ctx.eval.cached_str_name, "count", str_base, ctx)
     return str_usize_field_at(str_base, count_fl.offset, str_usize_read_width(count_fl.size, ctx))
 }
 
@@ -5409,7 +5450,11 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         } else {
             if drop_old { free_inline_struct_slot(dst, name, ctx) }
             cloned : Dynamic = heap_clone(name, source, ctx)
-            memcpy(dst, cloned, field_size)
+            if ffi_place_is_foreign(dst, ctx) {
+                ffi_copy_struct_into(name, cloned, true, dst, false, ctx)
+            } else {
+                memcpy(dst, cloned, field_size)
+            }
             EvalHeap.heap_free(own cloned)
         }
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
@@ -5664,6 +5709,22 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         ref iu : ImportUnit = lp.ctx.imported[upath]
         ffi_init_struct_defs_append(iu.ast, lp.ctx)
         ffi_init_scan_program(iu.ast, lp.ctx, realpath_str(upath).starts_with(runtime_src_prefix))
+    }
+
+    // A full REPL reload starts a new Context while the session bindings keep
+    // their old Contexts alive. Carry their foreign provenance into this turn.
+    for _, hb in session_global(session).heap_bindings {
+        if ptr_eq(hb.ctx, lp.ctx) { continue }
+        for address, names in hb.ctx.eval.foreign_places {
+            for name : Str in names { ffi_remember_place(name, bits_word(address.to_u64()), lp.ctx) }
+        }
+    }
+    // Rebuild layouts against this turn's AST after ffi_reset.
+    for names in lp.ctx.eval.foreign_places.values {
+        for name : Str in names {
+            build_struct_ffi_type(name, lp.ctx, false)
+            build_struct_ffi_type(name, lp.ctx, true)
+        }
     }
 
     // Refresh definition pointers and namespace state against this turn's AST.
@@ -6288,14 +6349,6 @@ ffi_last_error := ext_proc() returns Str {}
 // folds it -- and bin/til_asan is built by the non-ASAN bin/til, so the fold
 // bakes in `false` and the ASAN flag never reaches the FFI compile (#299).
 til_built_with_asan := ext_proc() returns shallow Bool {}
-
-priv ffi_dlsym := func(name: Str) returns ref U8 {
-    ref fn : U8 = ffi_user_symbol(name)
-    if fn.is_null().not() {
-        return fn
-    }
-    return ffi_global_symbol(name)
-}
 
 // `link("vendor/raylib/src/libraylib.a")` puts a PATH in link_flags. A
 // COMPILED program links that archive and stays self-contained, but an
@@ -8276,18 +8329,25 @@ priv ffi_copy_width_field := func(struct_name: Str, type_name: Str, field_name: 
 
 priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Bool,
                                      mut dst: Dynamic, dst_host: Bool, mut ctx: Context) {
+    build_struct_ffi_type(type_name, ctx, src_host)
+    build_struct_ffi_type(type_name, ctx, dst_host)
+    ffi_copy_struct_into(type_name, src, src_host, dst, dst_host, ctx)
+}
+
+priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
+                                 mut dst: Dynamic, dst_host: Bool, ctx: Context) {
     ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
     ref def : Expr = box.ptr
     switch def.node_type {
     case .StructDef(sd):
-        ref src_layout : FFITypePtrBox = ffi_struct_layout(type_name, ctx, src_host)
+        ref src_layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, src_host)
         if src_layout.layout_status != FFI_OK {
             panic("libffi cannot compute source layout for ", type_name)
         }
         // Map insertions can move the boxes, but their owned descriptor and
         // offset allocations remain stable across nested layout lookups.
         ref src_offsets : U64 = src_layout.offsets
-        ref dst_layout : FFITypePtrBox = ffi_struct_layout(type_name, ctx, dst_host)
+        ref dst_layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, dst_host)
         if dst_layout.layout_status != FFI_OK {
             panic("libffi cannot compute destination layout for ", type_name)
         }
@@ -8301,11 +8361,11 @@ priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Boo
             if fd.own_type.is(OwnType.Shallow).not() {
                 memcpy(dst_field, src_field, Dynamic.size())
             } else if fd.type_name().eq("USize").or(fd.type_name().eq("UPtr")) {
-                ffi_copy_width_field(type_name, fd.type_name(), fd.name, src_field, src_host, dst_field, dst_host, ctx)
+                ffi_copy_width_field(type_name, fd.type_name(), sd.field_name_at(i), src_field, src_host, dst_field, dst_host, ctx)
             } else {
-                ref field_type : ffi_type = field_ffi_type(fd, ctx, src_host)
+                ref field_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(8)))
                 if field_type.type == FFI_TYPE_STRUCT.to_u16() {
-                    ffi_marshal_struct_into(fd.type_name(), src_field, src_host, dst_field, dst_host, ctx)
+                    ffi_copy_struct_into(fd.type_name(), src_field, src_host, dst_field, dst_host, ctx)
                 } else {
                     memcpy(dst_field, src_field, field_type.size.to_usize())
                 }
@@ -8327,12 +8387,42 @@ priv ffi_marshal_struct := proc(type_name: Str, src: Dynamic, src_host: Bool,
     return dst
 }
 
+// A reference returned into a converted argument must point back into the
+// caller's original object, not into the temporary freed after ffi_call.
+priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: Dynamic,
+                                  borrowed: Dynamic, converted_host: Bool, original_host: Bool,
+                                  ctx: Context) returns Dynamic {
+    if borrowed.ptr_eq(converted) { result : Dynamic = original; return result }
+    ref from : FFITypePtrBox = ffi_cached_layout(type_name, ctx, converted_host)
+    ref into : FFITypePtrBox = ffi_cached_layout(type_name, ctx, original_host)
+    ref sd : StructDef = structdef_of(ctx.ffi.struct_defs[type_name].ptr)
+    delta := word_bits(borrowed) - word_bits(converted)
+    for i in 0..sd.fields.len() {
+        ref from_offset : U64 = ptr_add(from.offsets, i.mul(8))
+        ref into_offset : U64 = ptr_add(into.offsets, i.mul(8))
+        ref ft : ffi_type = deref(ptr_add(from.ptr.elements, i.mul(8)))
+        if delta.lt(from_offset).or(delta.gte(from_offset + ft.size)) { continue }
+        if ft.type == FFI_TYPE_STRUCT.to_u16() {
+            return ffi_rebase_reference(sd.fields[i].type_name(),
+                ptr_add(converted, from_offset.to_usize()), ptr_add(original, into_offset.to_usize()),
+                borrowed, converted_host, original_host, ctx)
+        }
+        ref dt : ffi_type = deref(ptr_add(into.ptr.elements, i.mul(8)))
+        within := delta - from_offset
+        if within >= dt.size { panic("FFI returned a reference into width-conversion padding") }
+        result : Dynamic = bits_word(word_bits(original) + into_offset + within)
+        return result
+    }
+    panic("FFI returned a reference into aggregate padding: ", type_name)
+}
+
 priv ffi_clear_struct_ownership := proc(type_name: Str, mut data: Dynamic, mut ctx: Context) {
     ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
     switch box.ptr.node_type {
     case .StructDef(sd):
-        for fd : Declaration in sd.fields {
-            ref fl : FieldLayout = ctx_field_layout(type_name, fd.name, ctx)
+        for i in 0..sd.fields.len() {
+            ref fd : Declaration = sd.fields[i]
+            fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
             if fd.own_type.is(OwnType.Own) {
                 write_ptr(ptr_add(data, fl.offset), bits_word(0))
             } else if fd.own_type.is(OwnType.Shallow).and(ctx.ffi.struct_defs.has(fd.type_name())) {
@@ -8469,13 +8559,26 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(8)), arg_info.is_ref)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(9)), arg_pointer.ptr_eq(arg_raw))
-        if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)).and(i.lt(fe.param_types.len())) {
+        source_host := ffi_place_is_foreign(arg_pointer, ctx).not()
+        if source_host.neq(fe.host_layout).and(size_intrinsics_use_sizeof(ctx)).and(i.lt(fe.param_types.len())) {
             ref param_type : Str = fe.param_types[i]
             ref param_ffi_type : ffi_type = shallow_ffi_type(param_type, ctx, false)
             if param_ffi_type.type == FFI_TYPE_STRUCT.to_u16() {
                 ref param_own : Bool = ptr_add(fe.param_owns, i)
                 write_ptr(ptr_add(marshal_sources, i.mul(8)), arg_pointer)
-                marshaled : Dynamic = ffi_marshal_struct(param_type, arg_pointer, true, false, ctx)
+                // Two arguments borrowing the same object must share one ABI
+                // conversion, so writes through either remain visible to both.
+                mut marshaled : Dynamic = 0
+                for prior in 0..i {
+                    ref source : Dynamic = deref(ptr_add(marshal_sources, prior.mul(8)))
+                    if source.ptr_eq(arg_pointer).and(fe.param_types[prior] == param_type) {
+                        marshaled = deref(ptr_add(marshaled_args, prior.mul(8)))
+                        break
+                    }
+                }
+                if marshaled.is_null() {
+                    marshaled = ffi_marshal_struct(param_type, arg_pointer, source_host, fe.host_layout, ctx)
+                }
                 write_ptr(ptr_add(marshaled_args, i.mul(8)), marshaled)
                 if param_own { ffi_clear_struct_ownership(param_type, arg_pointer, ctx) }
                 arg_pointer = marshaled
@@ -8586,35 +8689,39 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     } else {
         ref rtype : Str = fe.return_type.unwrap()
         ref raw_ptr : Dynamic = deref(raw)
-        if rtype.eq("Str").and(fe.host_layout.not()).and(size_intrinsics_use_sizeof(ctx)) {
-            if fe.return_is_ref { panic("cross-width FFI cannot borrow aggregate return: Str") }
+        if fe.return_is_ref {
+            mut borrowed : Dynamic = raw_ptr
+            mut borrowed_host := fe.host_layout
+            for i in 0..nargs {
+                ref converted : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
+                if converted.is_null() { continue }
+                ref layout : FFITypePtrBox = ffi_cached_layout(fe.param_types[i], ctx, fe.host_layout)
+                address := word_bits(raw_ptr)
+                start := word_bits(converted)
+                if address.lt(start).or(address.gte(start + layout.ptr.size)) { continue }
+                ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(8)))
+                borrowed_host = ffi_place_is_foreign(source, ctx).not()
+                borrowed = ffi_rebase_reference(fe.param_types[i], converted, source, raw_ptr,
+                    fe.host_layout, borrowed_host, ctx)
+                break
+            }
+            if borrowed_host.not() { ffi_borrow_place(rtype, borrowed, ctx) }
+            write_ptr(result, borrowed)
+        } else if rtype.eq("Str").and(fe.host_layout.not()).and(size_intrinsics_use_sizeof(ctx)) {
             ffi_marshal_struct_into(rtype, raw_ptr, false, result, true, ctx)
             mut owned_raw_ptr : Dynamic = raw_ptr
             free(own owned_raw_ptr)
         } else if rtype == "Str" {
             ref sp : ExtStr = raw_ptr
-            // A `returns ref Str` borrows the C buffer; copy it into independent
-            // owned raw Str storage.
-            if fe.return_is_ref { dispatch_write_str(result, sp.data, sp.count, ctx) }
-            else {
-                // Adopt the ext_func's Str* contents into the raw result AT
-                // THE TARGET LAYOUT: the C-side Str is host-layout, so copy
-                // the buffer pointer and rewrite count/cap at the ctx width.
-                // Preserve CAP_VIEW/CAP_LIT (they say whether the returned
-                // c_str is owned; the sentinels survive width truncation),
-                // else cap=count so typed teardown reclaims the c_str. The
-                // old whole-struct memcpy fused the host count+cap pair into
-                // the target count under --usize=64.
-                write_ptr(result, sp.data)
-                mut adopted_cap : USize = sp.count
-                if sp.cap >= CAP_VIEW { adopted_cap = sp.cap }
-                str_write_count_cap(result, sp.count, adopted_cap, ctx)
-                mut owned_str_wrapper : Dynamic = raw_ptr
-                EvalHeap.heap_free(own owned_str_wrapper)
-            }
+            // Adopt the owned host-layout result, preserving the ownership
+            // sentinels. Borrowed Str results took the ref path above.
+            write_ptr(result, sp.data)
+            mut adopted_cap : USize = sp.count
+            if sp.cap >= CAP_VIEW { adopted_cap = sp.cap }
+            str_write_count_cap(result, sp.count, adopted_cap, ctx)
+            mut owned_str_wrapper : Dynamic = raw_ptr
+            EvalHeap.heap_free(own owned_str_wrapper)
         } else if rtype == "Dynamic" {
-            write_ptr(result, raw_ptr)
-        } else if fe.return_is_ref {
             write_ptr(result, raw_ptr)
         } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx, fe.host_layout) {
             // A non-shallow `returns <scalar>` (C signature `T *f(...)`) hands
@@ -8629,24 +8736,13 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                 free(own owned_ret)
             }
         } else if ctx.ffi.struct_defs.has(fe.return_type.unwrap()) {
-            // `returns ref T` hands back a borrowed pointer into foreign / C
-            // memory; flag the wrapper borrowed so the garbager's deep delete
-            // does not free a buffer the runtime never malloc'd (ext_libc:
-            // getenv returns a pointer into libc's environ).
-            if fe.return_is_ref {
-                if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
-                    panic("cross-width FFI cannot borrow aggregate return: ", fe.return_type.unwrap())
-                }
-                write_ptr(result, raw_ptr)
+            if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
+                ffi_marshal_struct_into(fe.return_type.unwrap(), raw_ptr, false, result, true, ctx)
             } else {
-                if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
-                    ffi_marshal_struct_into(fe.return_type.unwrap(), raw_ptr, false, result, true, ctx)
-                } else {
-                    memcpy(result, raw_ptr, ctx_total_size(fe.return_type.unwrap(), ctx))
-                }
-                mut owned_struct_wrapper : Dynamic = raw_ptr
-                EvalHeap.heap_free(own owned_struct_wrapper)
+                memcpy(result, raw_ptr, ctx_total_size(fe.return_type.unwrap(), ctx))
             }
+            mut owned_struct_wrapper : Dynamic = raw_ptr
+            EvalHeap.heap_free(own owned_struct_wrapper)
         } else {
             panic("unsupported FFI return type: ", fe.return_type.unwrap())
         }
@@ -8660,9 +8756,20 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         if param_mutable.and(param_own.not()) {
             mut source : Dynamic = 0
             source = deref(ptr_add(marshal_sources, i.mul(8)))
-            ffi_marshal_struct_into(fe.param_types[i], marshaled, false, source, true, ctx)
+            ffi_marshal_struct_into(fe.param_types[i], marshaled, fe.host_layout, source, ffi_place_is_foreign(source, ctx).not(), ctx)
         }
-        free(own marshaled)
+    }
+    // Copy every mutable view back before releasing any shared conversion.
+    for i in 0..nargs {
+        mut marshaled : Dynamic = 0
+        marshaled = deref(ptr_add(marshaled_args, i.mul(8)))
+        if marshaled.is_null() { continue }
+        mut shared := false
+        for prior in 0..i {
+            ref earlier : Dynamic = deref(ptr_add(marshaled_args, prior.mul(8)))
+            if earlier.ptr_eq(marshaled) { shared = true; break }
+        }
+        if shared.not() { free(own marshaled) }
     }
     for i in 0..nargs {
         ref bf : Bool = ptr_add(boxed_flags, i)

@@ -134,3 +134,39 @@ library_namespace_a_throwing := func(value: I64) returns I64 throws BindingError
     if value < 0 { throw BindingError() }
     return value
 }
+
+BindingWidths := struct {
+    first : USize = 41
+    second : USize = 73
+    marker : U64 = 123456789
+}
+
+BindingNestedWidths := struct {
+    prefix : USize = 17
+    extra : USize = 19
+    inner : BindingWidths
+    suffix : USize = 29
+namespace:
+    mut STATE := BindingWidths()
+}
+
+mut library_widths := BindingWidths()
+mut library_nested_widths := BindingNestedWidths(inner = BindingWidths())
+mut library_borrowed_text := "foreign text"
+
+BindingWidthHolder := struct {
+    ref value : BindingWidths
+}
+library_widths_holder := BindingWidthHolder(value = library_widths)
+
+library_widths_ref := func() returns ref BindingWidths { return library_widths }
+library_text_ref := func() returns ref Str { return library_borrowed_text }
+library_widths_identity := func(value: BindingWidths) returns ref BindingWidths { return value }
+library_inner_ref := func(value: BindingNestedWidths) returns ref BindingWidths { return value.inner }
+library_widths_alias_read := func(mut first: BindingWidths, second: BindingWidths) returns USize {
+    first.second = 317
+    return second.second
+}
+library_widths_second := func() returns USize { return library_widths.second }
+library_set_widths := func(second: USize) { library_widths.second = second }
+library_set_text := func() { library_borrowed_text = "changed abroad" }

@@ -214,4 +214,20 @@ main := proc() {
     interpreted.env("LD_LIBRARY_PATH", "gen/lib")
     interpreted.env("DYLD_LIBRARY_PATH", "gen/lib")
     interpreted.run_checked()
+
+    // Borrowed foreign places survive a cloned Context and rebuilt FFI cache
+    // on each REPL turn; their address must still name the library's storage.
+    File.writefile("tmp/library_namespace_repl_input",
+        "lib := import(\"gen/til/library_namespace_a\")\nref w := lib.library_widths_ref()\nlib.library_set_widths(307)\nprintln(format(\"foreign-repl=\", w.second.to_str()))\nref t := lib.library_text_ref()\nlib.library_set_text()\nprintln(format(\"foreign-text=\", t))\n")
+    repl := Cmd.new("sh", "-c", "bin/til < tmp/library_namespace_repl_input")
+    repl.env("LIBRARY_PATH", "gen/lib")
+    repl.env("LD_LIBRARY_PATH", "gen/lib")
+    repl.env("DYLD_LIBRARY_PATH", "gen/lib")
+    repl.capture()
+    repl.run_checked()
+    output := format(repl.out(), repl.err())
+    require_contains(output, "foreign-repl=307")
+    require_contains(output, "foreign-text=changed abroad")
+    require_absent(output, "panic:")
+    require_absent(output, "error:")
 }
