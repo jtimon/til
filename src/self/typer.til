@@ -7303,7 +7303,9 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 rb_o := scope.get_binding_sym(rhs_id2.ident_sym())
                 if rb_o.is_some() {
                     ref rb : TypeBinding = rb_o.unwrap()
-                    if rb.is_mut.or(rb.own_type.is(OwnType.Own)).not().and(rb.own_type.is(OwnType.Ref).not().or(rb.is_alias)).and(rb.is_param.not()) {
+                    if rb.is_mut.or(rb.own_type.is(OwnType.Own))
+                        .or(rb.own_type.is(OwnType.Ref).and(rb.is_alias.not()))
+                        .or(rb.is_param).not() {
                         sdecl.own_type = OwnType.Ref
                         decl_b.own_type = OwnType.Ref
                         decl_b.is_alias = true

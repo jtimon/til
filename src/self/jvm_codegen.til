@@ -2517,8 +2517,8 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                 if fdef_o.is_some() {
                     ref fexpr : Expr = fdef_o.unwrap()
                     ref fd : FunctionDef = funcdef_of(fexpr)
-                    if fd.sig.func_type.is_bodyless().not()
-                        .and(jvm_runtime_bound_function(name).not()) {
+                    if fd.sig.func_type.is_bodyless()
+                        .or(jvm_runtime_bound_function(name)).not() {
                         mut synthetic := Expr.new(NodeType.Decl(Declaration(name = name.clone())),
                             fexpr.line, fexpr.col)
                         synthetic.add_child(own fexpr.clone())

@@ -861,18 +861,18 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         return cli
     }
 
-    if and(cli.command.starts_with("-").not(),
-           cli.command.eq("interpret").not(),
-           cli.command.eq("translate").not(),
-           cli.command.eq("build").not(),
-           cli.command.eq("install").not(),
-           cli.command.eq("run").not(), cli.command.eq("test").not(),
-           cli.command.eq("doc").not(), cli.command.eq("ast").not(),
-           cli.command.eq("bindings").not(),
-           cli.command.eq("help").not(),
-           cli.command.eq("--help").not(),
-           cli.command.eq("--version").not(),
-           cli.command.eq("-v").not()) {
+    if or(cli.command.starts_with("-"),
+          cli.command.eq("interpret"),
+          cli.command.eq("translate"),
+          cli.command.eq("build"),
+          cli.command.eq("install"),
+          cli.command.eq("run"), cli.command.eq("test"),
+          cli.command.eq("doc"), cli.command.eq("ast"),
+          cli.command.eq("bindings"),
+          cli.command.eq("help"),
+          cli.command.eq("--help"),
+          cli.command.eq("--version"),
+          cli.command.eq("-v")).not() {
         cli.command = "interpret"
         cli.path_idx = 0
     } else if cli.command.starts_with("-") {

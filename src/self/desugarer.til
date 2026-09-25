@@ -3282,8 +3282,8 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                     mut all_named := true
                     for sp_ci in 1..match_expr.children.len() {
                         ref sp_child : Expr = match_expr.children[sp_ci]
-                        if sp_child.node_type.is(NodeType.RestPattern).not()
-                            .and(sp_child.node_type.is(NodeType.NamedArg).not()) {
+                        if sp_child.node_type.is(NodeType.RestPattern)
+                            .or(sp_child.node_type.is(NodeType.NamedArg)).not() {
                             all_named = false
                         }
                     }

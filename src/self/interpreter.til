@@ -1829,7 +1829,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name(ctx.symbols.names))
         if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name(ctx.symbols.names)) }
         ref hb : HeapBinding = hb_o.unwrap()
-        if hb_type(hb).is(Type.Dynamic).and(expr_type.is(Type.Dynamic).not()).not() {
+        if hb_type(hb).is(Type.Dynamic).not().or(expr_type.is(Type.Dynamic)) {
             info.source_type_p = hb.til_type_p
         }
         info.arg_deref = hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not())
@@ -3397,7 +3397,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                         switch arg.node_type {
                         case .Ident(arg_ident):
                             ref mut source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name(ctx.symbols.names)).unwrap()
-                            if hb_type(source_hb).is(Type.Dynamic).and(arg.til_type().is(Type.Dynamic).not()).not() {
+                            if hb_type(source_hb).is(Type.Dynamic).not().or(arg.til_type().is(Type.Dynamic)) {
                                 arg_source_type = hb_type(source_hb).clone()
                             }
                             mut move_iface_val := false
