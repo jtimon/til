@@ -1,0 +1,5 @@
+// The implicit self-edge must be deduplicated like an explicit cycle.
+mode loading_support
+
+println("mode support initialized")
+mode_base := func(n: I64) returns I64 { return n + 1 }

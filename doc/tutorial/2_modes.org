@@ -188,5 +188,23 @@ til run --extra-modes=examples/custom_modes.til program.til
 This keeps application files concise while allowing a project to define its
 own entry contracts and automatically provided APIs.
 
+Mode-definition files can import other ~mode mode~ files with ordinary
+~import("other_modes")~ calls. Each file is loaded once, including shared
+dependencies and cycles. Mode names are unique across the loaded definitions:
+reusing a name is an error, including attempts to replace a built-in mode.
+
+An ~auto_import~ path omits ~.til~, just like an ordinary import. It resolves
+relative to the file that declares the mode. Existing spellings also search
+the compiler root, the application's directory, and the compiler's
+~src/modes/~ directory, in that order after the definition's directory.
+Absolute support paths are accepted directly. Missing definition files or
+support modules are errors.
+
+Every source file receives its own mode's support, including imported source
+files. Explicit imports and mode support share the same dependency graph, so
+a support module reached by both routes is loaded and initialized only once.
+To reuse facilities, define another ~Mode(...)~ and let its support module
+import the existing support modules. There is no mode inheritance.
+
 See [[file:../concepts/modes.org][the mode reference]] for a concise list of
 the built-in modes.

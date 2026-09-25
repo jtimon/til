@@ -1,56 +1,70 @@
 # priority: low
 # category: features
-** OPEN #63 User-defined modes
+** WIP #63 User-defined modes
 
-8 built-in modes are hardcoded in the compiler/runtime mode table:
-  - ~script~ — top-level statements, no main required
-  - ~cli~ — ~main(args: ..Str)~ entry point, decls only
-  - ~gui~ — like cli, auto-imports modes/gui.til, links raylib
-  - ~test~ — ~test()~ blocks, assert helpers, decls only
-  - ~lib~ — library, no entry point, decls only
-  - ~liba~ — lib + allows print/println inside funcs
-  - ~pure~ — pure only (no procs), decls only
-  - ~pura~ — pure + allows print/println inside funcs
+*** Current implementation
 
-  The ~a~ suffix relaxes the func-cannot-call-proc rule specifically for
-  print/println, letting you debug/log from funcs without switching to procs.
+The main feature landed in ~8cd7f3bff~ (2026-05-29). Built-ins are
+~Mode(...)~ declarations in ~src/core/modes.til~, loaded by the same
+mechanism as user definitions supplied through ~--extra-modes=<file>~.
+Only the bootstrap ~mode~ mode is registered directly by the compiler.
 
-  User-defined modes would let users declare their own modes using the same
-  mechanism, with the built-in modes becoming just pre-linked defaults —
-  eating our own dogfood.
+There are nine declared built-ins: script, cli, gui, theme, test, pure,
+pura, lib, and liba. All currently set ~decls_only = false~. The active
+~Mode~ schema is ~src/std/mode_type.til~: needs_main, decls_only,
+auto_import, is_library, is_pure, run_tests, and debug_prints.
 
-  #+begin_src til
-  // Declare a mode
-  server := mode {
-      // mode body: what this mode provides (entry point shape, imports, etc.)
-  }
+~examples/custom_modes.til~ supplies four networking modes, covered by
+four build tests and an interpreter smoke test. User documentation is
+in ~doc/tutorial/2_modes.org~.
 
-  // Use it
-  mode server
-  #+end_src
+*** Agreed scope
 
-  The built-in modes would eventually be redefined using the same system:
-  #+begin_src til
-  // These would ship as stdlib modes, linked by default
-  cli := mode { ... }    // main(args: ..Str)
-  test := mode { ... }   // test() blocks, assert helpers
-  gui := mode { ... }    // links raylib, provides window/draw
-  script := mode { ... } // top-level statements
-  lib := mode { ... }    // library, no entry point, exports funcs/types
-  liba := mode { ... }   // lib + allows print/println inside funcs
-  pure := mode { ... }   // pure only, no procs at all
-  pura := mode { ... }   // pure + allows print/println inside funcs
-  #+end_src
+Users define another mode and reuse support through ordinary imports.
+No inheritance, derived-mode evaluation, special composition syntax, or
+new configuration format is needed. Mode-definition files can import
+other mode-definition files. A mode's support module can import other
+support modules and carry ordinary ~link~ / ~link_c~ declarations.
 
-  The ~a~ suffix ("annotated"/"audible") relaxes the func-cannot-call-proc
-  rule specifically for print/println, letting you debug/log from funcs
-  without switching to procs.
+#+begin_src til
+mode mode
+import("other_modes")
+server := Mode(needs_main = true, auto_import = "server_support")
+#+end_src
 
-  Needs a linking mechanism so modes can compose or depend on each other
-  (e.g. a ~game~ mode might link ~gui~ and add game-loop scaffolding).
+The application selects ~mode server~ and the compiler loads the
+definitions through the existing ~--extra-modes~ option.
 
-  Design questions:
-  - What exactly goes in a mode body? Entry point signature, auto-imports,
-    linked libraries, compiler flags?
-  - How does mode linking/composition work? ~mode gui + server~? Inheritance?
-  - How are stdlib modes distributed — as .til files? Compiled-in?
+*** Completion checklist
+
+- [X] Load built-in and user-defined policies through ~Mode(...)~ files.
+- [X] Supply custom mode files through ~--extra-modes~.
+- [X] Allow imports between mode-definition files, deduplicating shared
+  dependencies and cycles rather than re-registering their declarations.
+- [X] Load each file's mode support, including ordinary imported files;
+  preserve explicit per-file support edges for typing and execution.
+- [X] Resolve support paths relative to the defining mode file first.
+  Preserve existing compiler-root, entrypoint-relative, and built-in
+  ~src/modes/~ shorthand spellings as compatibility search locations.
+- [X] Diagnose missing mode files, missing support modules, and duplicate
+  mode names rather than silently ignoring or overwriting them.
+- [X] Add dependency-free regressions for imports, per-file support,
+  resolution from another working directory, cycles, and diagnostics.
+- [ ] Verify declaration-only enforcement and document the actual policy
+  contract, including interpreter/compiler agreement.
+- [ ] Review GUI dependency selection, which still recognizes support
+  path spellings rather than actual imported dependencies.
+
+Loader regressions live in ~test/mode_loading.til~, registered as
+~mode_loading~ in the suite. They exercise both interpretation and compiled
+execution from a different working directory, cyclic mode definitions,
+repeated mode-file flags, implicit support cycles, shared support
+initialization, legacy path resolution, and missing/conflicting definitions.
+
+*** Boundary still to settle
+
+~needs_main~ selects the compiler's existing entry contract; it does not
+define an arbitrary entry signature. ~theme~ has a compiler-owned output
+generator selected by its name, not by its ~Mode~ fields. User-defined
+entry contracts and output generators require an explicit further design;
+the loader work above does not introduce such a compiler-extension API.

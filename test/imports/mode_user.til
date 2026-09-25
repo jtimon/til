@@ -1,0 +1,3 @@
+mode loading_child
+
+mode_answer := func() returns I64 { return mode_layer_value(40) }

@@ -1,0 +1,56 @@
+mode cli
+
+import("../src/std/sys")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+check_mode_loading := proc(compiler: Str, root: Str, command: Str,
+    definitions: Str, expected: Str, succeeds: Bool, asan: Bool) {
+    cmd := Cmd.new(compiler, command)
+    cmd.cwd(root.format("/test"))
+    cmd.arg(format("--extra-modes=", root, "/test/", definitions))
+    if succeeds {
+        // Repeated flags and cyclic imports still load each definition once.
+        cmd.arg(format("--extra-modes=", root, "/test/imports/mode_definitions_more.til"))
+    }
+    if command == "run" {
+        cmd.args("-c", root.format("/gen/c/mode_loading_app.c"),
+            "-o", root.format("/bin/c/mode_loading_app"))
+        if asan { cmd.arg("--asan") }
+    }
+    cmd.arg("mode_loading_app.til")
+    cmd.capture()
+    status := cmd.run()
+    output := cmd.out()
+    errors := cmd.err()
+    if succeeds {
+        if status.neq(0).or(output.neq(expected)) {
+            panic("mode loading ", command, " failed: ", output, errors)
+        }
+    } else {
+        if status.eq(0).or(format(output, errors).contains(expected).not()) {
+            panic("missing mode diagnostic for ", definitions, ": ", output, errors)
+        }
+    }
+}
+
+main := proc(args: ..Str) {
+    root := realpath_str(".")
+    compiler := realpath_str(args[0])
+    asan := args.len() > 1
+    for command : Str in array(Str, "interpret", "run") {
+        check_mode_loading(compiler, root, command, "imports/mode_definitions.til",
+            "mode support initialized\nmode layer initialized\n42\n", true, asan)
+        check_mode_loading(compiler, root, command, "imports/no_such_modes_63.til",
+            "could not find mode file", false, asan)
+        check_mode_loading(compiler, root, command, "imports/mode_missing_import.til",
+            "could not find mode import 'no_such_mode_definitions_63.til'", false, asan)
+        check_mode_loading(compiler, root, command, "imports/mode_missing_support.til",
+            "could not find mode support 'no_such_mode_support_63'", false, asan)
+        check_mode_loading(compiler, root, command, "imports/mode_duplicate.til",
+            "duplicate mode 'loading_entry'", false, asan)
+        check_mode_loading(compiler, root, command, "mode_loading_app.til",
+            "is not a 'mode mode' file", false, asan)
+    }
+    println("mode loading passed")
+}

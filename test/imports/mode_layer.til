@@ -1,0 +1,4 @@
+mode loading_support
+
+println("mode layer initialized")
+mode_layer_value := func(n: I64) returns I64 { return mode_base(n) + 1 }

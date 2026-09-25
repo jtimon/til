@@ -2309,6 +2309,12 @@ main := proc(args: ..Str) {
             "examples/issues.til"))
 
     // === custom modes build tests ===
+    // #63: ordinary mode imports and implicit per-file support edges share
+    // deduplication, including cycles; the driver also changes child cwd.
+    add_count(tests, "mode_loading", "build", "mode loading passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/mode_loading -c gen/c/mode_loading.c test/mode_loading.til ",
+            til_bin, asan_flag))
     add_single(tests, "build_sender", "build", 0, "",
         format(til_bin, " build", asan_flag, " -o bin/sender --extra-modes=examples/custom_modes.til examples/sender.til"))
     add_single(tests, "build_receiver", "build", 0, "",

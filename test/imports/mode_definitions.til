@@ -1,0 +1,7 @@
+mode mode
+
+import("mode_definitions_more")
+loading_entry := Mode(auto_import = "mode_support")
+// Existing compiler-root and entrypoint-relative spellings remain valid.
+loading_legacy_root := Mode(auto_import = "test/imports/mode_support")
+loading_legacy_entry := Mode(auto_import = "imports/mode_support")

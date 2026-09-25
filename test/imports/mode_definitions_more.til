@@ -1,0 +1,5 @@
+mode mode
+
+import("mode_definitions")
+loading_child := Mode(auto_import = "mode_layer")
+loading_support := Mode(auto_import = "mode_support")

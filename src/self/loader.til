@@ -79,63 +79,66 @@ ProgramUnit := struct {
 priv resolve_imports := proc(body: Expr, source_path: Str, base_dir: Str,
     mut resolved_set: Set(Str), mut units: Vec(ProgramUnit), lib_dir: Str,
     mut ctx: Context, cwd: Str) returns I32 {
-        for stmt : Expr in body.children {
-            import_path := import_path_for_stmt(stmt, source_path, ctx.symbols)
-            if import_path.len() == 0 { continue }
-            abs := resolve_import_abs(import_path, base_dir, lib_dir)
-            if abs == "" {
-                println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
-                return 1
-            }
-
-            // Dedup (also handles circular imports -- files are added to
-            // resolved_set when they start processing)
-            if resolved_set.has(abs) {
-                continue
-            }
-            resolved_set.add(own abs.clone())
-
-            // Load, lex, parse the imported file. Use display_path for the
-            // path strings that get embedded in the AST / generated C, so the
-            // boot/ files don't carry absolute paths.
-            disp := display_path(abs, cwd)
-            source := File.readfile(abs)
-            tokens := tokenize(source, disp)
-            mut sub_mode := ""
-            mut parse_errors_sub_ast : I32 = 0
-            mut sub_ast := parse(tokens, source, disp, sub_mode, ctx.anon_type_counter, ctx.symbols, parse_errors_sub_ast)
-            // A syntax error in an imported file must stop the load: parse
-            // reports it and returns a PARTIAL ast, and carrying on would bury
-            // that message under downstream type errors. Reported as a failed
-            // resolution rather than exit(1), so the caller decides -- a file
-            // compile still exits, the REPL drops the turn.
-            if parse_errors_sub_ast > 0 { return 1 }
-            sub_mode = normalize_mode_name(sub_mode)
-            ref sub_mode_def : Mode = require_mode(ctx, disp, sub_mode)
-            context_register_path_mode(ctx, disp, sub_mode_def)
-
-            // Get imported file's directory for recursive resolution
-            sub_dir := dir_of(abs)
-
-            err := resolve_imports(sub_ast, disp, sub_dir, resolved_set, units,
-                lib_dir, ctx, cwd)
-            if err > 0 {
-                return err
-            }
-
-            // Store canonical import unit in ctx (rstil-style).
-            mut iu := ImportUnit(mode = sub_mode_def.clone(),
-                import_dir = sub_dir.clone(), import_lib_dir = lib_dir.clone())
-            iu.ast.take_children(sub_ast)
-            ctx.imported.set(disp, own iu)
-
-            // Record ordering metadata as a ProgramUnit.
-            mut unit := ProgramUnit(path = disp.clone())
-            units.push(own unit)
-
+    for stmt : Expr in body.children {
+        import_path := import_path_for_stmt(stmt, source_path, ctx.symbols)
+        if import_path.len() == 0 { continue }
+        abs := resolve_import_abs(import_path, base_dir, lib_dir)
+        if abs == "" {
+            println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
+            return 1
         }
-        return 0
+        err := load_import_unit(abs, resolved_set, units, lib_dir, ctx, cwd)
+        if err > 0 { return err }
     }
+    return 0
+}
+
+// Registered modes carry resolved support paths. The implicit edge belongs
+// to every file using the mode, even when another file already loaded it.
+priv resolve_mode_import := proc(mode: Mode, mut mode_disp: Str,
+    mut resolved_set: Set(Str), mut units: Vec(ProgramUnit), lib_dir: Str,
+    mut ctx: Context, cwd: Str) returns I32 {
+    if mode.auto_import.len() == 0 { return 0 }
+    abs := realpath_str(mode.auto_import.format(".til"))
+    if abs.len() == 0 {
+        println(format("error: could not find mode support '", mode.auto_import, "'"))
+        return 1
+    }
+    mode_disp = display_path(abs, cwd)
+    return load_import_unit(abs, resolved_set, units, lib_dir, ctx, cwd)
+}
+
+priv load_import_unit := proc(abs: Str, mut resolved_set: Set(Str),
+    mut units: Vec(ProgramUnit), lib_dir: Str, mut ctx: Context, cwd: Str) returns I32 {
+    // Mark before following either kind of edge: explicit and implicit
+    // imports share deduplication and cycle handling.
+    if resolved_set.has(abs) { return 0 }
+    resolved_set.add(own abs.clone())
+    disp := display_path(abs, cwd)
+    source := File.readfile(abs)
+    tokens := tokenize(source, disp)
+    mut mode_str := ""
+    mut parse_errors_ast : I32 = 0
+    mut ast := parse(tokens, source, disp, mode_str, ctx.anon_type_counter, ctx.symbols, parse_errors_ast)
+    // parse returns a partial AST for the REPL; do not type a broken file.
+    if parse_errors_ast > 0 { return 1 }
+    mode_str = normalize_mode_name(mode_str)
+    mode := require_mode(ctx, disp, mode_str).clone()
+    context_register_path_mode(ctx, disp, mode)
+    mut mode_disp := ""
+    mut err := resolve_mode_import(mode, mode_disp, resolved_set, units, lib_dir, ctx, cwd)
+    if err > 0 { return err }
+    base_dir := dir_of(abs)
+    err = resolve_imports(ast, disp, base_dir, resolved_set, units, lib_dir, ctx, cwd)
+    if err > 0 { return err }
+    mut iu := ImportUnit(mode = mode.clone(), mode_str = mode_str.clone(),
+        mode_import = mode_disp.clone(), import_dir = base_dir.clone(),
+        import_lib_dir = lib_dir.clone())
+    iu.ast.take_children(ast)
+    ctx.imported.set(disp, own iu)
+    units.push(own ProgramUnit(path = disp.clone()))
+    return 0
+}
 
 // --- LoadedProgram ---
 
@@ -725,10 +728,34 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
     }
 }
 
-priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
+// Definition-relative paths are authoritative. The remaining locations
+// preserve the spellings accepted before modes remembered their origin.
+priv resolve_mode_support := proc(path: Str, definition: Str, bin_dir: Str,
+    user_dir: Str) returns Str {
+    if path.len() == 0 { return "" }
+    mut abs := ""
+    if File.is_absolute(path) {
+        abs = realpath_str(path.format(".til"))
+    } else {
+        abs = realpath_str(dir_of(definition).format("/", path, ".til"))
+        if abs.len() == 0 { abs = realpath_str(bin_dir.format("/", path, ".til")) }
+        if abs.len() == 0 { abs = realpath_str(user_dir.format("/", path, ".til")) }
+        if abs.len() == 0 { abs = realpath_str(bin_dir.format("/src/modes/", path, ".til")) }
+    }
+    if abs.len() == 0 {
+        panic(": could not find mode support '", path, "'", loc = definition)
+    }
+    return abs.strip_suffix(".til").clone()
+}
+
+priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str,
+    bin_dir: Str, user_dir: Str) {
     abs_path := realpath_str(path)
-    if abs_path == "" { return }
+    if abs_path == "" { panic("could not find mode file '", path, "'") }
     disp := display_path(abs_path, cwd)
+    for loaded : Str in lp.mode_files {
+        if loaded == disp { return }
+    }
     source := File.readfile(abs_path)
     tokens := tokenize(source, disp)
     mut mode_str := ""
@@ -742,7 +769,10 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     if mode_str.eq("mode").not() {
         panic("file '", disp, "' is not a 'mode mode' file")
     }
+    // Mark before recursing into mode imports, including cyclic graphs.
+    lp.mode_files.push(own disp.clone())
     for stmt : Expr in ast.children {
+        if import_path_for_stmt(stmt, disp, lp.ctx.symbols).len() > 0 { continue }
         mut is_valid := false
         if stmt.node_type.is(NodeType.Decl) {
             switch stmt.node_type {
@@ -779,6 +809,10 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                                         panic(": Mode arguments must be named (e.g. needs_main = true)", loc = disp)
                                     }
                                 }
+                                if lp.ctx.mode_registry.has(decl.name) {
+                                    panic(": duplicate mode '", decl.name, "'", loc = disp)
+                                }
+                                m.auto_import = resolve_mode_support(m.auto_import, abs_path, bin_dir, user_dir)
                                 lp.ctx.mode_registry.set(decl.name, own m.clone())
                             }
                         case:
@@ -790,8 +824,18 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
         }
         if is_valid.not() {
             loc := disp.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
-            panic(": only Mode(...) declarations are allowed in 'mode mode' files", loc = loc)
+            panic(": only Mode(...) declarations and imports are allowed in 'mode mode' files", loc = loc)
         }
+    }
+
+    for stmt : Expr in ast.children {
+        import_path := import_path_for_stmt(stmt, disp, lp.ctx.symbols)
+        if import_path.len() == 0 { continue }
+        dep := resolve_import_abs(import_path, dir_of(abs_path), "")
+        if dep.len() == 0 {
+            panic(": could not find mode import '", import_path, "'", loc = disp)
+        }
+        load_mode_file(lp, dep, cwd, bin_dir, user_dir)
     }
 
     // Store in lp.ctx.imported so it can be typechecked.
@@ -804,7 +848,6 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     iu.ast.take_children(ast)
     context_register_path_mode(lp.ctx, disp, iu.mode)
     lp.ctx.imported.set(disp, own iu)
-    lp.mode_files.push(own disp.clone())
 }
 
 // Load core.til + user file + imports + mode auto_import. Returns a
@@ -817,6 +860,10 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
 load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), import_base: Str = "") returns LoadedProgram {
     mut lp := LoadedProgram()
     context_init_mode_registry(lp.ctx)
+    // The bootstrap mode is the one definition that has no source file.
+    ref mut bootstrap_mode : Mode = lp.ctx.mode_registry["mode"]
+    bootstrap_mode.auto_import = resolve_mode_support(
+        "src/std/mode_type", format(bin_dir, "/src/core/modes.til"), bin_dir, cwd)
     lp.ctx.import_cwd = cwd.clone()
     lp.path = path.clone()
     lp.ext_c_path = ext_c_path.clone()
@@ -825,63 +872,28 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     core_path := format(bin_dir, "/src/core/core.til")
     core_disp := display_path(core_path, cwd)
 
-    load_mode_file(lp, format(bin_dir, "/src/core/modes.til"), cwd)
+    abs_path := realpath_str(path)
+    mut user_dir := "."
+    if abs_path.len() > 0 { user_dir = dir_of(abs_path) }
+    load_mode_file(lp, format(bin_dir, "/src/core/modes.til"), cwd, bin_dir, user_dir)
     for extra_mode : Str in extra_modes {
-        load_mode_file(lp, extra_mode, cwd)
+        load_mode_file(lp, extra_mode, cwd, bin_dir, user_dir)
     }
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
     mut resolved := Set(Str).new()
+    for mode_file : Str in lp.mode_files {
+        resolved.add(own realpath_str(mode_file))
+    }
 
     // Resolve mode files' imports
     mut core_units := Vec(ProgramUnit).new()
     for mode_file : Str in lp.mode_files {
         mode_dir := lp.ctx.imported[mode_file].import_dir.clone()
-        mode_auto_import := lp.ctx.imported[mode_file].mode.auto_import.clone()
+        mode_def := lp.ctx.imported[mode_file].mode.clone()
         mut auto_disp := ""
-        if mode_auto_import.len() > 0 {
-            mut auto_path := bin_dir.format("/", mode_auto_import, ".til")
-            if realpath_str(auto_path) == "" {
-                // If it fails relative to bin_dir, maybe it's relative to the CWD (for custom modes in other projects)
-                auto_path = cwd.format("/", mode_auto_import, ".til")
-            }
-            abs_auto := realpath_str(auto_path)
-            if abs_auto.len() > 0 {
-                if resolved.has(abs_auto).not() {
-                    resolved.add(own abs_auto.clone())
-                    disp_auto := display_path(abs_auto, cwd)
-                    source_auto := File.readfile(abs_auto)
-                    tokens_auto := tokenize(source_auto, disp_auto)
-                    mut mode_auto := ""
-                    mut parse_errors_ast_auto : I32 = 0
-                    mut ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_ast_auto)
-                    // A syntax error must stop the build here. parse reports it and returns
-                    // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
-                    // carried on would bury that message under downstream type errors.
-                    if parse_errors_ast_auto > 0 { exit(1) }
-                    mode_auto = normalize_mode_name(mode_auto)
-                    ref mode_auto_def : Mode = require_mode(lp.ctx, disp_auto, mode_auto)
-                    context_register_path_mode(lp.ctx, disp_auto, mode_auto_def)
-
-                    auto_dir := dir_of(abs_auto)
-                    err := resolve_imports(ast_auto, disp_auto, auto_dir, resolved,
-                        core_units, "", lp.ctx, cwd)
-                    if err > 0 {
-                        panic("failed to resolve imports for mode auto-import ", disp_auto)
-                    }
-
-                    mut iu_auto := ImportUnit(mode_str = mode_auto.clone(),
-                        import_dir = auto_dir.clone())
-                    iu_auto.mode = mode_auto_def.clone()
-                    iu_auto.ast.take_children(ast_auto)
-                    lp.ctx.imported.set(disp_auto, own iu_auto)
-
-                    mut unit_auto := ProgramUnit(path = disp_auto.clone())
-                    core_units.push(own unit_auto)
-                }
-                auto_disp = display_path(abs_auto, cwd)
-            }
-        }
+        mode_err := resolve_mode_import(mode_def, auto_disp, resolved, core_units, "", lp.ctx, cwd)
+        if mode_err > 0 { panic("failed to resolve mode support for ", mode_file) }
         err := resolve_imports(lp.ctx.imported[mode_file].ast, mode_file,
             mode_dir, resolved, core_units, "", lp.ctx, cwd)
         if err > 0 {
@@ -894,10 +906,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     }
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
-    abs_path := realpath_str(path)
-    mut user_dir := "."
     if abs_path.len() > 0 {
-        user_dir = dir_of(abs_path)
         resolved.add(own abs_path.clone())
     }
 
@@ -925,7 +934,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     }
 
     // Resolve core imports directly from the parsed AST.
+    mut core_mode_disp := ""
     if skip_core.not() {
+        mode_err := resolve_mode_import(core_mode, core_mode_disp, resolved, core_units, "", lp.ctx, cwd)
+        if mode_err > 0 { panic("failed to resolve core mode support") }
         core_dir := format(bin_dir, "/src/core")
         err := resolve_imports(core_ast, core_disp, core_dir, resolved,
             core_units, "", lp.ctx, cwd)
@@ -955,9 +967,6 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     context_register_path_mode(lp.ctx, path, cur_mode)
     lp.ctx.mode = cur_mode.clone()
 
-    // If mode has auto_import, load its .til declarations
-    auto_import := cur_mode.auto_import
-
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
     mut units := Vec(ProgramUnit).new()
     lib_dir := format(bin_dir, "/lib")
@@ -969,7 +978,13 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // file in the user's cwd", which is where the user thinks he is.
     mut import_dir := user_dir.clone()
     if import_base.len() > 0 { import_dir = import_base.clone() }
-    mut err := resolve_imports(user_ast, path, import_dir, resolved, units,
+    mut mode_disp := ""
+    mut err := resolve_mode_import(cur_mode, mode_disp, resolved, units, lib_dir, lp.ctx, cwd)
+    if err > 0 {
+        lp.load_errors = err
+        return lp
+    }
+    err = resolve_imports(user_ast, path, import_dir, resolved, units,
         lib_dir, lp.ctx, cwd)
     // A missing or unparsable import is USER error -- a typo at the REPL
     // prompt is enough -- so it is recorded, not fatal. cmd_* exits on it;
@@ -982,61 +997,13 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
     // Core entrypoint import unit.
     mut core_iu := ImportUnit(mode = core_mode.clone(),
-        import_dir = format(bin_dir, "/src/core"))
+        mode_import = core_mode_disp.clone(), import_dir = format(bin_dir, "/src/core"))
     core_iu.ast.take_children(core_ast)
     lp.ctx.imported.set(core_disp, own core_iu)
 
     // Core entrypoint unit (after its imports).
     mut core_unit := ProgramUnit(path = core_disp.clone())
     core_units.push(own core_unit)
-
-    // Mode auto-import is represented as the first unit (if present),
-    // followed by imported files, with the user entrypoint unit last.
-    mut mode_disp := ""
-    if auto_import.len() > 0 {
-        mut mode_til_path := bin_dir.format("/", auto_import, ".til")
-        if realpath_str(mode_til_path) == "" {
-            mode_til_path = user_dir.format("/", auto_import, ".til")
-        }
-        if realpath_str(mode_til_path) == "" {
-            mode_til_path = bin_dir.format("/src/modes/", auto_import, ".til")
-        }
-        mode_abs := realpath_str(mode_til_path)
-        mode_disp = display_path(mode_abs, cwd)
-        resolved.add(own mode_abs.clone())
-        mode_source := File.readfile(mode_abs)
-        mode_tokens := tokenize(mode_source, mode_disp)
-        mut mode_mode := ""
-        mut parse_errors_mode_ast : I32 = 0
-        mut mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_mode_ast)
-        // A syntax error must stop the build here. parse reports it and returns
-        // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
-        // carried on would bury that message under downstream type errors.
-        if parse_errors_mode_ast > 0 { exit(1) }
-        mode_mode = normalize_mode_name(mode_mode)
-        ref mode_mode_def : Mode = require_mode(lp.ctx, mode_disp, mode_mode)
-        context_register_path_mode(lp.ctx, mode_disp, mode_mode_def)
-
-        // Resolve the auto-import file's own imports (mirrors core.til).
-        mode_dir := dir_of(mode_abs)
-        err = resolve_imports(mode_ast, mode_disp, mode_dir, resolved,
-            units, lib_dir, lp.ctx, cwd)
-        if err > 0 {
-            panic("failed to resolve mode auto-import imports")
-        }
-
-        // Mode auto-import import unit.
-        mut mode_iu := ImportUnit(mode = mode_mode_def.clone(),
-            import_dir = mode_dir.clone(),
-            import_lib_dir = lib_dir.clone())
-        mode_iu.ast.take_children(mode_ast)
-        lp.ctx.imported.set(mode_disp, own mode_iu)
-
-        // Mode auto-import unit.
-        mut mode_unit := ProgramUnit(path = mode_disp.clone())
-        units.push(own mode_unit)
-
-    }
 
     // User entrypoint import unit.
     mut user_iu := ImportUnit(mode = cur_mode.clone(),

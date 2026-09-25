@@ -1,0 +1,6 @@
+mode loading_entry
+
+import("imports/mode_user")
+// The same support reached explicitly must not be parsed/executed twice.
+import("imports/mode_support")
+println(mode_base(mode_answer() - 1))
