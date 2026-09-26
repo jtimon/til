@@ -1906,6 +1906,7 @@ typedef struct EvalState {
     Bool repl_session;
     Option__Scope ns_fields;
     Map__UPtr_ForeignPlace foreign_places;
+    U8 *foreign_cleanup_dirty;
     Str cached_str_name;
 } EvalState;
 

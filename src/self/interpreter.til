@@ -1377,6 +1377,21 @@ priv ffi_place_reset_borrows := func(place: ForeignPlace) {
     ffi_place_set_in_flight(place, false)
 }
 
+priv ffi_mark_cleanup_dirty := func(ctx: Context) {
+    mut flag : Dynamic = bits_word(word_bits(ctx.eval.foreign_cleanup_dirty))
+    write_bool(flag, true)
+}
+
+priv ffi_cleanup_is_dirty := func(ctx: Context) returns Bool {
+    ref flag : Bool = to_ptr(ctx.eval.foreign_cleanup_dirty)
+    return flag.clone()
+}
+
+priv ffi_clear_cleanup_dirty := func(ctx: Context) {
+    mut flag : Dynamic = bits_word(word_bits(ctx.eval.foreign_cleanup_dirty))
+    write_bool(flag, false)
+}
+
 priv ffi_place_is_foreign := func(data: Dynamic, ctx: Context) returns Bool {
     address := word_bits(data).cast(UPtr)
     if ctx.eval.foreign_places.has(address).not() { return false }
@@ -1441,10 +1456,13 @@ priv ffi_refresh_external_place := proc(mut hb: HeapBinding, mut ctx: Context) {
 priv ffi_release_binding := func(hb: HeapBinding) {
     if hb.foreign_root == 0 { return }
     ref place : ForeignPlace = hb.ctx.eval.foreign_places[hb.foreign_root]
+    if ffi_place_borrows(place) == 1 { ffi_mark_cleanup_dirty(hb.ctx) }
     ffi_place_release_borrow(place)
 }
 
 priv ffi_expire_unbound_places := func(mut ctx: Context) {
+    if ffi_cleanup_is_dirty(ctx).not() { return }
+    ffi_clear_cleanup_dirty(ctx)
     for _, place in ctx.eval.foreign_places {
         if ffi_place_borrows(place) == 0 && ffi_place_in_flight(place) { ffi_place_set_in_flight(place, false) }
     }
@@ -1467,7 +1485,10 @@ priv ffi_remember_place := func(type_name: Str, data: Dynamic, root: UPtr, mut c
         ctx.eval.foreign_places.set(address, own ForeignPlace(state = calloc(1, 8)))
     }
     ref mut place : ForeignPlace = ctx.eval.foreign_places[address]
-    if address == root && ffi_place_borrows(place) == 0 { ffi_place_set_in_flight(place, true) }
+    if address == root && ffi_place_borrows(place) == 0 {
+        ffi_place_set_in_flight(place, true)
+        ffi_mark_cleanup_dirty(ctx)
+    }
     else {
         mut found := false
         for prev : UPtr in place.roots { if prev == root { found = true } }
@@ -5856,6 +5877,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     // rather than keeping the clone's counts for addresses no longer borrowed.
     if session.is_repl {
         for place in lp.ctx.eval.foreign_places.values { ffi_place_reset_borrows(place) }
+        if lp.ctx.eval.foreign_places.len() > 0 { ffi_mark_cleanup_dirty(lp.ctx) }
     }
     // A full REPL reload starts a new Context while the session bindings keep
     // their old Contexts alive. Carry their foreign provenance into this turn.

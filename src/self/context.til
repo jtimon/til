@@ -1162,6 +1162,11 @@ EvalState := struct {
     // type viewed there. The bytes remain owned by the library. Aliases and
     // Dynamic pointers keep their address, so all views consult the same entry.
     foreign_places := Map(UPtr, ForeignPlace).new()
+    // A released last borrow or an unbound FFI result may leave dead entries.
+    // scope_free only borrows its Context, so the dirty bit lives in an owned
+    // stable byte, like ForeignPlace.state. Most statements have nothing to
+    // expire and need not walk the entire foreign_places table.
+    own foreign_cleanup_dirty : U8 = calloc(1, 1)
     // #177 interpreter cache for the canonical Str type name, populated by
     // populate_cached_aggregate_defs / interpreter_init_ns and read by raw
     // allocation, field-layout, and argv construction paths. #321: now an
