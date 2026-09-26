@@ -691,8 +691,9 @@ priv register_enum_definition := proc(mut ctx: Context, stmt: Expr, mut scope: T
 
 collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec(Str), mut variant_types: Vec(Str), mut has_payloads: Bool) {
     ref edd : EnumDef = enumdef_of(enum_def)
-    has_payloads = enum_has_payloads(enum_def)
+    has_payloads = false
     for vd : VariantDef in edd.variants {
+        if vd.payload_type.len() > 0 { has_payloads = true }
         variant_names.push(own vd.name.clone())
         variant_types.push(own vd.payload_type.clone())
     }
