@@ -26,16 +26,15 @@ U0 StructPoint_Clone(StructPoint *out, StructPoint *src)
   out->y = src->y;
 }
 
-U0 StructPoint_Delete(StructPoint *self)
+U0 StructPoint_Delete(StructPoint *self, Bool call_free)
 {
+  if (call_free) TilFree(self);
 }
 
 Bool StructPoint_Eq(StructPoint *a, StructPoint *b)
 {
-  if (a->x != b->x)
-    return FALSE;
-  if (a->y != b->y)
-    return FALSE;
+  if (!(a->x == b->x)) return FALSE;
+  if (!(a->y == b->y)) return FALSE;
   return TRUE;
 }
 
@@ -50,18 +49,17 @@ U0 StructNamedPoint_Clone(StructNamedPoint *out, StructNamedPoint *src)
   TilStrClone(&out->name, &src->name);
 }
 
-U0 StructNamedPoint_Delete(StructNamedPoint *self)
+U0 StructNamedPoint_Delete(StructNamedPoint *self, Bool call_free)
 {
-  StructPoint_Delete(&self->point);
+  StructPoint_Delete(&self->point, FALSE);
   TilStrDelete(&self->name, FALSE);
+  if (call_free) TilFree(self);
 }
 
 Bool StructNamedPoint_Eq(StructNamedPoint *a, StructNamedPoint *b)
 {
-  if (!StructPoint_Eq(&a->point, &b->point))
-    return FALSE;
-  if (!TilStrEq(&a->name, &b->name))
-    return FALSE;
+  if (!StructPoint_Eq(&a->point, &b->point)) return FALSE;
+  if (!TilStrEq(&a->name, &b->name)) return FALSE;
   return TRUE;
 }
 
@@ -76,18 +74,195 @@ U0 PayloadRecord_Clone(PayloadRecord *out, PayloadRecord *src)
   TilStrClone(&out->name, &src->name);
 }
 
-U0 PayloadRecord_Delete(PayloadRecord *self)
+U0 PayloadRecord_Delete(PayloadRecord *self, Bool call_free)
 {
   TilStrDelete(&self->name, FALSE);
+  if (call_free) TilFree(self);
 }
 
 Bool PayloadRecord_Eq(PayloadRecord *a, PayloadRecord *b)
 {
-  if (a->number != b->number)
-    return FALSE;
-  if (!TilStrEq(&a->name, &b->name))
-    return FALSE;
+  if (!(a->number == b->number)) return FALSE;
+  if (!TilStrEq(&a->name, &b->name)) return FALSE;
   return TRUE;
+}
+
+class StructBorrowed {
+  StructPoint * point;
+  I64 * count;
+  TilStr * label;
+};
+
+U0 StructBorrowed_Clone(StructBorrowed *out, StructBorrowed *src)
+{
+  out->point = src->point;
+  out->count = src->count;
+  out->label = src->label;
+}
+
+U0 StructBorrowed_Delete(StructBorrowed *self, Bool call_free)
+{
+  if (call_free) TilFree(self);
+}
+
+Bool StructBorrowed_Eq(StructBorrowed *a, StructBorrowed *b)
+{
+  if (!StructPoint_Eq(a->point, b->point)) return FALSE;
+  if (!((*((TilCheckPtr(a->count))(I64 *))) == (*((TilCheckPtr(b->count))(I64 *))))) return FALSE;
+  if (!TilStrEq(a->label, b->label)) return FALSE;
+  return TRUE;
+}
+
+class StructOwned {
+  StructNamedPoint * named;
+  TilStr * label;
+};
+
+U0 StructOwned_Clone(StructOwned *out, StructOwned *src)
+{
+  out->named = (TilMAlloc(sizeof(StructNamedPoint)))(StructNamedPoint *);
+  StructNamedPoint_Clone(out->named, src->named);
+  out->label = (TilMAlloc(sizeof(TilStr)))(TilStr *);
+  TilStrClone(out->label, src->label);
+}
+
+U0 StructOwned_Delete(StructOwned *self, Bool call_free)
+{
+  StructNamedPoint_Delete(self->named, TRUE);
+  TilStrDelete(self->label, TRUE);
+  if (call_free) TilFree(self);
+}
+
+class StructForwardPoint {
+  I64 value;
+};
+
+U0 StructForwardPoint_Clone(StructForwardPoint *out, StructForwardPoint *src)
+{
+  out->value = src->value;
+}
+
+U0 StructForwardPoint_Delete(StructForwardPoint *self, Bool call_free)
+{
+  if (call_free) TilFree(self);
+}
+
+class StructSelfRef {
+  I64 value;
+  StructSelfRef * next;
+};
+
+U0 StructSelfRef_Clone(StructSelfRef *out, StructSelfRef *src)
+{
+  out->value = src->value;
+  out->next = src->next;
+}
+
+U0 StructSelfRef_Delete(StructSelfRef *self, Bool call_free)
+{
+  if (call_free) TilFree(self);
+}
+
+class StructNullable {
+  I64 value;
+  StructNullable * next;
+};
+
+U0 StructNullable_Clone(StructNullable *out, StructNullable *src)
+{
+  out->value = src->value;
+  out->next = src->next;
+}
+
+U0 StructNullable_Delete(StructNullable *self, Bool call_free)
+{
+  if (call_free) TilFree(self);
+}
+
+Bool StructNullable_Eq(StructNullable *a, StructNullable *b)
+{
+  if (!(a->value == b->value)) return FALSE;
+  if ((a->next == NULL) != (b->next == NULL)) return FALSE;
+  if (a->next != NULL && !StructNullable_Eq(a->next, b->next)) return FALSE;
+  return TRUE;
+}
+
+class StructBorrowTag {
+  U8 tag;
+  union {
+    StructPoint * payload_Borrowed;
+    I64 payload_Number;
+  };
+};
+
+StructBorrowTag StructBorrowTag_Literal_Empty;
+StructBorrowTag_Literal_Empty.tag = 0;
+
+U0 StructBorrowTag_CopyValue(StructBorrowTag *out, StructBorrowTag *src)
+{
+  out->tag = src->tag;
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    out->payload_Borrowed = src->payload_Borrowed;
+    return;
+  }
+  if (src->tag == 2) {
+    out->payload_Number = src->payload_Number;
+    return;
+  }
+  TilPanicZ("invalid StructBorrowTag tag");
+}
+
+U0 StructBorrowTag_Clone(StructBorrowTag *out, StructBorrowTag *src)
+{
+  out->tag = src->tag;
+  if (src->tag == 0) {
+    return;
+  }
+  if (src->tag == 1) {
+    out->payload_Borrowed = src->payload_Borrowed;
+    return;
+  }
+  if (src->tag == 2) {
+    out->payload_Number = src->payload_Number;
+    return;
+  }
+  TilPanicZ("invalid StructBorrowTag tag");
+}
+
+U0 StructBorrowTag_Delete(StructBorrowTag *src, Bool call_free)
+{
+  if (src->tag == 0) {
+    if (call_free) TilFree(src);
+    return;
+  }
+  if (src->tag == 1) {
+    if (call_free) TilFree(src);
+    return;
+  }
+  if (src->tag == 2) {
+    if (call_free) TilFree(src);
+    return;
+  }
+  TilPanicZ("invalid StructBorrowTag tag");
+}
+
+Bool StructBorrowTag_Eq(StructBorrowTag *a, StructBorrowTag *b)
+{
+  if (a->tag != b->tag) return FALSE;
+  if (a->tag == 0) {
+    return TRUE;
+  }
+  if (a->tag == 1) {
+    return StructPoint_Eq(a->payload_Borrowed, b->payload_Borrowed);
+  }
+  if (a->tag == 2) {
+    return a->payload_Number == b->payload_Number;
+  }
+  TilPanicZ("invalid StructBorrowTag tag");
+  return FALSE;
 }
 
 class StructSegment {
@@ -103,20 +278,18 @@ U0 StructSegment_Clone(StructSegment *out, StructSegment *src)
   out->active = src->active;
 }
 
-U0 StructSegment_Delete(StructSegment *self)
+U0 StructSegment_Delete(StructSegment *self, Bool call_free)
 {
-  StructPoint_Delete(&self->start);
-  StructPoint_Delete(&self->finish);
+  StructPoint_Delete(&self->start, FALSE);
+  StructPoint_Delete(&self->finish, FALSE);
+  if (call_free) TilFree(self);
 }
 
 Bool StructSegment_Eq(StructSegment *a, StructSegment *b)
 {
-  if (!StructPoint_Eq(&a->start, &b->start))
-    return FALSE;
-  if (!StructPoint_Eq(&a->finish, &b->finish))
-    return FALSE;
-  if (a->active != b->active)
-    return FALSE;
+  if (!StructPoint_Eq(&a->start, &b->start)) return FALSE;
+  if (!StructPoint_Eq(&a->finish, &b->finish)) return FALSE;
+  if (!(a->active == b->active)) return FALSE;
   return TRUE;
 }
 
@@ -184,23 +357,28 @@ U0 PayloadValue_Clone(PayloadValue *out, PayloadValue *src)
   TilPanicZ("invalid PayloadValue tag");
 }
 
-U0 PayloadValue_Delete(PayloadValue *src)
+U0 PayloadValue_Delete(PayloadValue *src, Bool call_free)
 {
   if (src->tag == 0) {
+    if (call_free) TilFree(src);
     return;
   }
   if (src->tag == 1) {
+    if (call_free) TilFree(src);
     return;
   }
   if (src->tag == 2) {
+    if (call_free) TilFree(src);
     return;
   }
   if (src->tag == 3) {
     TilStrDelete(&src->payload_Text, FALSE);
+    if (call_free) TilFree(src);
     return;
   }
   if (src->tag == 4) {
-    PayloadRecord_Delete(&src->payload_Record);
+    PayloadRecord_Delete(&src->payload_Record, FALSE);
+    if (call_free) TilFree(src);
     return;
   }
   TilPanicZ("invalid PayloadValue tag");
@@ -226,6 +404,20 @@ Bool PayloadValue_Eq(PayloadValue *a, PayloadValue *b)
   }
   TilPanicZ("invalid PayloadValue tag");
   return FALSE;
+}
+
+class StructForwardRef {
+  StructForwardPoint * point;
+};
+
+U0 StructForwardRef_Clone(StructForwardRef *out, StructForwardRef *src)
+{
+  out->point = src->point;
+}
+
+U0 StructForwardRef_Delete(StructForwardRef *self, Bool call_free)
+{
+  if (call_free) TilFree(self);
 }
 
 class PayloadEnvelope {
@@ -264,13 +456,15 @@ U0 PayloadEnvelope_Clone(PayloadEnvelope *out, PayloadEnvelope *src)
   TilPanicZ("invalid PayloadEnvelope tag");
 }
 
-U0 PayloadEnvelope_Delete(PayloadEnvelope *src)
+U0 PayloadEnvelope_Delete(PayloadEnvelope *src, Bool call_free)
 {
   if (src->tag == 0) {
+    if (call_free) TilFree(src);
     return;
   }
   if (src->tag == 1) {
-    PayloadValue_Delete(&src->payload_Wrapped);
+    PayloadValue_Delete(&src->payload_Wrapped, FALSE);
+    if (call_free) TilFree(src);
     return;
   }
   TilPanicZ("invalid PayloadEnvelope tag");
@@ -301,6 +495,11 @@ extern U16 counted_signal(StructPoint *point);
 extern U0 make_payload_text(PayloadValue *return_out, TilStr *text);
 extern U0 replace_payload(PayloadValue *value, TilStr *text);
 extern U0 show_payload(PayloadValue *value);
+extern StructPoint * borrowed_point(StructBorrowed *holder);
+extern I64 * borrowed_count(StructBorrowed *holder);
+extern U0 bump_borrowed_count(I64 *count);
+extern U0 borrowed_copy(StructBorrowed *return_out, StructBorrowed *holder);
+extern StructNullable * safe_ref__StructNullable(StructNullable *value);
 
 U0 make_struct_named_point(StructNamedPoint *return_out, TilStr *name)
 {
@@ -437,7 +636,7 @@ U0 replace_payload(PayloadValue *value, TilStr *text)
         PayloadValue_CopyValue(value, &hoisted__PayloadValue_0);
         PayloadValue_CopyValue(&hoisted__PayloadValue_0, &swap_value_4);
     }
-    PayloadValue_Delete(&hoisted__PayloadValue_0);
+    PayloadValue_Delete(&hoisted__PayloadValue_0, FALSE);
 }
 
 U0 show_payload(PayloadValue *value)
@@ -457,7 +656,7 @@ U0 show_payload(PayloadValue *value)
             break;
         }
         if ((enum_switch_1 == 1)) {
-            U8 *payload_5 = ((&(value)->payload_Byte))(U8 *);
+            U8 *payload_6 = ((&(value)->payload_Byte))(U8 *);
             U64 hoisted__U64_3 = 2;
             TilStrArray _va_Array_1;
             TilStrArrayNew(&_va_Array_1, hoisted__U64_3);
@@ -466,7 +665,7 @@ U0 show_payload(PayloadValue *value)
             TilStr hoisted__Str_show_payload_5;
             TilStrInitLit(&hoisted__Str_show_payload_5, "payload byte ", 13);
             TilStrArraySet(&_va_Array_1, hoisted__U64_4, &hoisted__Str_show_payload_5);
-            I64 hoisted__I64_6 = (((*((TilCheckPtr(payload_5))(U8 *)))) + 0)(I64);
+            I64 hoisted__I64_6 = (((*((TilCheckPtr(payload_6))(U8 *)))) + 0)(I64);
             U64 hoisted__U64_7 = 1;
             TilStr hoisted__Str_show_payload_8;
             TilStrFromI64(&hoisted__Str_show_payload_8, hoisted__I64_6);
@@ -475,7 +674,7 @@ U0 show_payload(PayloadValue *value)
             break;
         }
         if ((enum_switch_1 == 2)) {
-            I64 *payload_6 = ((&(value)->payload_Byte))(I64 *);
+            I64 *payload_8 = ((&(value)->payload_Byte))(I64 *);
             U64 hoisted__U64_9 = 2;
             TilStrArray _va_Array_2;
             TilStrArrayNew(&_va_Array_2, hoisted__U64_9);
@@ -486,13 +685,13 @@ U0 show_payload(PayloadValue *value)
             TilStrArraySet(&_va_Array_2, hoisted__U64_10, &hoisted__Str_show_payload_11);
             U64 hoisted__U64_12 = 1;
             TilStr hoisted__Str_show_payload_13;
-            TilStrFromI64(&hoisted__Str_show_payload_13, (*((TilCheckPtr(payload_6))(I64 *))));
+            TilStrFromI64(&hoisted__Str_show_payload_13, (*((TilCheckPtr(payload_8))(I64 *))));
             TilStrArraySet(&_va_Array_2, hoisted__U64_12, &hoisted__Str_show_payload_13);
             TilPrintln(&_va_Array_2);
             break;
         }
         if ((enum_switch_1 == 3)) {
-            TilStr *payload_7 = ((&(value)->payload_Byte))(TilStr *);
+            TilStr *payload_10 = ((&(value)->payload_Byte))(TilStr *);
             U64 hoisted__U64_14 = 2;
             TilStrArray _va_Array_3;
             TilStrArrayNew(&_va_Array_3, hoisted__U64_14);
@@ -503,12 +702,12 @@ U0 show_payload(PayloadValue *value)
             TilStrArraySet(&_va_Array_3, hoisted__U64_15, &hoisted__Str_show_payload_16);
             U64 hoisted__U64_17 = 1;
             TilStr hoisted__Str_show_payload_18;
-            TilStrClone(&hoisted__Str_show_payload_18, payload_7);
+            TilStrClone(&hoisted__Str_show_payload_18, payload_10);
             TilStrArraySet(&_va_Array_3, hoisted__U64_17, &hoisted__Str_show_payload_18);
             TilPrintln(&_va_Array_3);
             break;
         }
-        PayloadRecord *payload_8 = ((&(value)->payload_Byte))(PayloadRecord *);
+        PayloadRecord *payload_12 = ((&(value)->payload_Byte))(PayloadRecord *);
         U64 hoisted__U64_19 = 4;
         TilStrArray _va_Array_4;
         TilStrArrayNew(&_va_Array_4, hoisted__U64_19);
@@ -519,7 +718,7 @@ U0 show_payload(PayloadValue *value)
         TilStrArraySet(&_va_Array_4, hoisted__U64_20, &hoisted__Str_show_payload_21);
         U64 hoisted__U64_22 = 1;
         TilStr hoisted__Str_show_payload_23;
-        TilStrFromI64(&hoisted__Str_show_payload_23, payload_8->number);
+        TilStrFromI64(&hoisted__Str_show_payload_23, payload_12->number);
         TilStrArraySet(&_va_Array_4, hoisted__U64_22, &hoisted__Str_show_payload_23);
         U64 hoisted__U64_24 = 2;
         TilStr hoisted__Str_show_payload_25;
@@ -527,52 +726,89 @@ U0 show_payload(PayloadValue *value)
         TilStrArraySet(&_va_Array_4, hoisted__U64_24, &hoisted__Str_show_payload_25);
         U64 hoisted__U64_26 = 3;
         TilStr hoisted__Str_show_payload_27;
-        TilStrClone(&hoisted__Str_show_payload_27, &payload_8->name);
+        TilStrClone(&hoisted__Str_show_payload_27, &payload_12->name);
         TilStrArraySet(&_va_Array_4, hoisted__U64_26, &hoisted__Str_show_payload_27);
         TilPrintln(&_va_Array_4);
     } while (FALSE);
 }
 
+StructPoint * borrowed_point(StructBorrowed *holder)
+{
+    return holder->point;
+}
+
+I64 * borrowed_count(StructBorrowed *holder)
+{
+    return holder->count;
+}
+
+U0 bump_borrowed_count(I64 *count)
+{
+    (++(*((TilCheckPtr(count))(I64 *))));
+}
+
+U0 borrowed_copy(StructBorrowed *return_out, StructBorrowed *holder)
+{
+    StructBorrowed hoisted__StructBorrowed_0;
+    StructBorrowed_Clone(&hoisted__StructBorrowed_0, holder);
+    {
+        StructBorrowed return_value_13;
+        return_value_13.point = hoisted__StructBorrowed_0.point;
+        return_value_13.count = hoisted__StructBorrowed_0.count;
+        return_value_13.label = hoisted__StructBorrowed_0.label;
+        return_out->point = return_value_13.point;
+        return_out->count = return_value_13.count;
+        return_out->label = return_value_13.label;
+        return;
+    }
+}
+
+StructNullable * safe_ref__StructNullable(StructNullable *value)
+{
+    StructNullable * hoisted__Option__ref_StructNullable_0 = value;
+    return hoisted__Option__ref_StructNullable_0;
+}
+
 I64 TilMain()
 {
-    I64 hoisted__I64_g126 = 2;
-    I64 hoisted__I64_g127 = 3;
+    I64 hoisted__I64_g165 = 2;
+    I64 hoisted__I64_g166 = 3;
     StructPoint point;
-    point.x = hoisted__I64_g126;
-    point.y = hoisted__I64_g127;
-    I64 hoisted__I64_g128 = 7;
-    point.x = hoisted__I64_g128;
-    I64 hoisted__I64_g129 = 5;
-    I64 hoisted__I64_g130 = 7;
-    I64 hoisted__I64_g131 = 11;
-    I64 hoisted__I64_g132 = 13;
-    Bool hoisted__Bool_g133 = TRUE;
+    point.x = hoisted__I64_g165;
+    point.y = hoisted__I64_g166;
+    I64 hoisted__I64_g167 = 7;
+    point.x = hoisted__I64_g167;
+    I64 hoisted__I64_g168 = 5;
+    I64 hoisted__I64_g169 = 7;
+    I64 hoisted__I64_g170 = 11;
+    I64 hoisted__I64_g171 = 13;
+    Bool hoisted__Bool_g172 = TRUE;
     StructSegment segment;
-    segment.start.x = hoisted__I64_g129;
-    segment.start.y = hoisted__I64_g130;
-    segment.finish.x = hoisted__I64_g131;
-    segment.finish.y = hoisted__I64_g132;
-    segment.active = hoisted__Bool_g133;
-    U64 hoisted__U64_g134 = 1;
-    TilStrArray _va_Array_g33;
-    TilStrArrayNew(&_va_Array_g33, hoisted__U64_g134);
-    I64 _va_Array_g33_ek = 0;
-    I64 hoisted__I64_g135 = (point.x + point.y);
-    U64 hoisted__U64_g136 = 0;
-    TilStr hoisted__Str_g137;
-    TilStrFromI64(&hoisted__Str_g137, hoisted__I64_g135);
-    TilStrArraySet(&_va_Array_g33, hoisted__U64_g136, &hoisted__Str_g137);
-    TilPrintln(&_va_Array_g33);
-    U64 hoisted__U64_g138 = 1;
-    TilStrArray _va_Array_g34;
-    TilStrArrayNew(&_va_Array_g34, hoisted__U64_g138);
-    I64 _va_Array_g34_ek = 0;
-    I64 hoisted__I64_g139 = (segment.start.x + segment.finish.y);
-    U64 hoisted__U64_g140 = 0;
-    TilStr hoisted__Str_g141;
-    TilStrFromI64(&hoisted__Str_g141, hoisted__I64_g139);
-    TilStrArraySet(&_va_Array_g34, hoisted__U64_g140, &hoisted__Str_g141);
-    TilPrintln(&_va_Array_g34);
+    segment.start.x = hoisted__I64_g168;
+    segment.start.y = hoisted__I64_g169;
+    segment.finish.x = hoisted__I64_g170;
+    segment.finish.y = hoisted__I64_g171;
+    segment.active = hoisted__Bool_g172;
+    U64 hoisted__U64_g173 = 1;
+    TilStrArray _va_Array_g45;
+    TilStrArrayNew(&_va_Array_g45, hoisted__U64_g173);
+    I64 _va_Array_g45_ek = 0;
+    I64 hoisted__I64_g174 = (point.x + point.y);
+    U64 hoisted__U64_g175 = 0;
+    TilStr hoisted__Str_g176;
+    TilStrFromI64(&hoisted__Str_g176, hoisted__I64_g174);
+    TilStrArraySet(&_va_Array_g45, hoisted__U64_g175, &hoisted__Str_g176);
+    TilPrintln(&_va_Array_g45);
+    U64 hoisted__U64_g177 = 1;
+    TilStrArray _va_Array_g46;
+    TilStrArrayNew(&_va_Array_g46, hoisted__U64_g177);
+    I64 _va_Array_g46_ek = 0;
+    I64 hoisted__I64_g178 = (segment.start.x + segment.finish.y);
+    U64 hoisted__U64_g179 = 0;
+    TilStr hoisted__Str_g180;
+    TilStrFromI64(&hoisted__Str_g180, hoisted__I64_g178);
+    TilStrArraySet(&_va_Array_g46, hoisted__U64_g179, &hoisted__Str_g180);
+    TilPrintln(&_va_Array_g46);
     if (segment.active) {
         U64 hoisted__U64_g7 = 1;
         TilStrArray _va_Array_g0;
@@ -586,8 +822,8 @@ I64 TilMain()
     }
     StructSegment segment_copy;
     StructSegment_Clone(&segment_copy, &segment);
-    Bool hoisted__Bool_g142 = StructSegment_Eq(&segment, &segment_copy);
-    if (hoisted__Bool_g142) {
+    Bool hoisted__Bool_g181 = StructSegment_Eq(&segment, &segment_copy);
+    if (hoisted__Bool_g181) {
         U64 hoisted__U64_g10 = 1;
         TilStrArray _va_Array_g1;
         TilStrArrayNew(&_va_Array_g1, hoisted__U64_g10);
@@ -598,10 +834,10 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g1, hoisted__U64_g11, &hoisted__Str_g12);
         TilPrintln(&_va_Array_g1);
     }
-    I64 hoisted__I64_g143 = 14;
-    segment_copy.finish.y = hoisted__I64_g143;
-    Bool hoisted__Bool_g144 = (!StructSegment_Eq(&segment, &segment_copy));
-    if (hoisted__Bool_g144) {
+    I64 hoisted__I64_g182 = 14;
+    segment_copy.finish.y = hoisted__I64_g182;
+    Bool hoisted__Bool_g183 = (!StructSegment_Eq(&segment, &segment_copy));
+    if (hoisted__Bool_g183) {
         U64 hoisted__U64_g13 = 1;
         TilStrArray _va_Array_g2;
         TilStrArrayNew(&_va_Array_g2, hoisted__U64_g13);
@@ -612,19 +848,19 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g2, hoisted__U64_g14, &hoisted__Str_g15);
         TilPrintln(&_va_Array_g2);
     }
-    U64 hoisted__U64_g145 = 5;
+    U64 hoisted__U64_g184 = 5;
     TilStr source;
-    TilStrWithCapacity(&source, hoisted__U64_g145);
-    TilStr hoisted__Str_g146;
-    TilStrInitLit(&hoisted__Str_g146, "alpha", 5);
-    TilStrPush(&source, &hoisted__Str_g146);
-    TilStrDelete(&hoisted__Str_g146, FALSE);
+    TilStrWithCapacity(&source, hoisted__U64_g184);
+    TilStr hoisted__Str_g185;
+    TilStrInitLit(&hoisted__Str_g185, "alpha", 5);
+    TilStrPush(&source, &hoisted__Str_g185);
+    TilStrDelete(&hoisted__Str_g185, FALSE);
     StructNamedPoint named;
     make_struct_named_point(&named, &source);
     StructNamedPoint copy;
     StructNamedPoint_Clone(&copy, &named);
-    Bool hoisted__Bool_g147 = StructNamedPoint_Eq(&named, &copy);
-    if (hoisted__Bool_g147) {
+    Bool hoisted__Bool_g186 = StructNamedPoint_Eq(&named, &copy);
+    if (hoisted__Bool_g186) {
         U64 hoisted__U64_g16 = 1;
         TilStrArray _va_Array_g3;
         TilStrArrayNew(&_va_Array_g3, hoisted__U64_g16);
@@ -636,8 +872,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g3);
     }
     rename_struct_named_point(&named);
-    Bool hoisted__Bool_g148 = (!StructNamedPoint_Eq(&named, &copy));
-    if (hoisted__Bool_g148) {
+    Bool hoisted__Bool_g187 = (!StructNamedPoint_Eq(&named, &copy));
+    if (hoisted__Bool_g187) {
         U64 hoisted__U64_g19 = 1;
         TilStrArray _va_Array_g4;
         TilStrArrayNew(&_va_Array_g4, hoisted__U64_g19);
@@ -648,48 +884,48 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g4, hoisted__U64_g20, &hoisted__Str_g21);
         TilPrintln(&_va_Array_g4);
     }
-    U64 hoisted__U64_g149 = 1;
-    TilStrArray _va_Array_g35;
-    TilStrArrayNew(&_va_Array_g35, hoisted__U64_g149);
-    I64 _va_Array_g35_ek = 0;
-    U64 hoisted__U64_g150 = 0;
-    TilStr hoisted__Str_g151;
-    TilStrClone(&hoisted__Str_g151, &copy.name);
-    TilStrArraySet(&_va_Array_g35, hoisted__U64_g150, &hoisted__Str_g151);
-    TilPrintln(&_va_Array_g35);
-    U64 hoisted__U64_g152 = 1;
-    TilStrArray _va_Array_g36;
-    TilStrArrayNew(&_va_Array_g36, hoisted__U64_g152);
-    I64 _va_Array_g36_ek = 0;
-    U64 hoisted__U64_g153 = 0;
-    TilStr hoisted__Str_g154;
-    TilStrClone(&hoisted__Str_g154, &named.name);
-    TilStrArraySet(&_va_Array_g36, hoisted__U64_g153, &hoisted__Str_g154);
-    TilPrintln(&_va_Array_g36);
-    U64 hoisted__U64_g155 = 1;
-    TilStrArray _va_Array_g37;
-    TilStrArrayNew(&_va_Array_g37, hoisted__U64_g155);
-    I64 _va_Array_g37_ek = 0;
-    I64 hoisted__I64_g156 = struct_named_point_score(&copy);
-    U64 hoisted__U64_g157 = 0;
-    TilStr hoisted__Str_g158;
-    TilStrFromI64(&hoisted__Str_g158, hoisted__I64_g156);
-    TilStrArraySet(&_va_Array_g37, hoisted__U64_g157, &hoisted__Str_g158);
-    TilPrintln(&_va_Array_g37);
-    U64 hoisted__U64_g159 = 1;
-    TilStrArray _va_Array_g38;
-    TilStrArrayNew(&_va_Array_g38, hoisted__U64_g159);
-    I64 _va_Array_g38_ek = 0;
-    I64 hoisted__I64_g160 = struct_named_point_score(&named);
-    U64 hoisted__U64_g161 = 0;
-    TilStr hoisted__Str_g162;
-    TilStrFromI64(&hoisted__Str_g162, hoisted__I64_g160);
-    TilStrArraySet(&_va_Array_g38, hoisted__U64_g161, &hoisted__Str_g162);
-    TilPrintln(&_va_Array_g38);
-    StructNamedPoint_Delete(&named);
-    StructNamedPoint_Delete(&copy);
+    U64 hoisted__U64_g188 = 1;
+    TilStrArray _va_Array_g47;
+    TilStrArrayNew(&_va_Array_g47, hoisted__U64_g188);
+    I64 _va_Array_g47_ek = 0;
+    U64 hoisted__U64_g189 = 0;
+    TilStr hoisted__Str_g190;
+    TilStrClone(&hoisted__Str_g190, &copy.name);
+    TilStrArraySet(&_va_Array_g47, hoisted__U64_g189, &hoisted__Str_g190);
+    TilPrintln(&_va_Array_g47);
+    U64 hoisted__U64_g191 = 1;
+    TilStrArray _va_Array_g48;
+    TilStrArrayNew(&_va_Array_g48, hoisted__U64_g191);
+    I64 _va_Array_g48_ek = 0;
+    U64 hoisted__U64_g192 = 0;
+    TilStr hoisted__Str_g193;
+    TilStrClone(&hoisted__Str_g193, &named.name);
+    TilStrArraySet(&_va_Array_g48, hoisted__U64_g192, &hoisted__Str_g193);
+    TilPrintln(&_va_Array_g48);
+    U64 hoisted__U64_g194 = 1;
+    TilStrArray _va_Array_g49;
+    TilStrArrayNew(&_va_Array_g49, hoisted__U64_g194);
+    I64 _va_Array_g49_ek = 0;
+    I64 hoisted__I64_g195 = struct_named_point_score(&copy);
+    U64 hoisted__U64_g196 = 0;
+    TilStr hoisted__Str_g197;
+    TilStrFromI64(&hoisted__Str_g197, hoisted__I64_g195);
+    TilStrArraySet(&_va_Array_g49, hoisted__U64_g196, &hoisted__Str_g197);
+    TilPrintln(&_va_Array_g49);
+    U64 hoisted__U64_g198 = 1;
+    TilStrArray _va_Array_g50;
+    TilStrArrayNew(&_va_Array_g50, hoisted__U64_g198);
+    I64 _va_Array_g50_ek = 0;
+    I64 hoisted__I64_g199 = struct_named_point_score(&named);
+    U64 hoisted__U64_g200 = 0;
+    TilStr hoisted__Str_g201;
+    TilStrFromI64(&hoisted__Str_g201, hoisted__I64_g199);
+    TilStrArraySet(&_va_Array_g50, hoisted__U64_g200, &hoisted__Str_g201);
+    TilPrintln(&_va_Array_g50);
+    StructNamedPoint_Delete(&named, FALSE);
+    StructNamedPoint_Delete(&copy, FALSE);
     TilStrDelete(&source, FALSE);
-    StructSegment_Delete(&segment_copy);
+    StructSegment_Delete(&segment_copy, FALSE);
     U16 current_signal = 7;
     I64 turns = 0;
     while (TRUE) {
@@ -787,8 +1023,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g11);
     } while (FALSE);
     U64 wide = wide_from_signal(current_signal);
-    Bool hoisted__Bool_g163 = (wide == 4294967303);
-    if (hoisted__Bool_g163) {
+    Bool hoisted__Bool_g202 = (wide == 4294967303);
+    if (hoisted__Bool_g202) {
         U64 hoisted__U64_g48 = 1;
         TilStrArray _va_Array_g12;
         TilStrArrayNew(&_va_Array_g12, hoisted__U64_g48);
@@ -799,8 +1035,8 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g12, hoisted__U64_g49, &hoisted__Str_g50);
         TilPrintln(&_va_Array_g12);
     }
-    Bool hoisted__Bool_g164 = (wide != 7);
-    if (hoisted__Bool_g164) {
+    Bool hoisted__Bool_g203 = (wide != 7);
+    if (hoisted__Bool_g203) {
         U64 hoisted__U64_g51 = 1;
         TilStrArray _va_Array_g13;
         TilStrArrayNew(&_va_Array_g13, hoisted__U64_g51);
@@ -848,8 +1084,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g16);
     } while (FALSE);
     U8 small = small_from_signal(current_signal);
-    Bool hoisted__Bool_g165 = (small == 255);
-    if (hoisted__Bool_g165) {
+    Bool hoisted__Bool_g204 = (small == 255);
+    if (hoisted__Bool_g204) {
         U64 hoisted__U64_g63 = 1;
         TilStrArray _va_Array_g17;
         TilStrArrayNew(&_va_Array_g17, hoisted__U64_g63);
@@ -861,8 +1097,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g17);
     }
     U8 default_signal = default_from_signal(current_signal);
-    Bool hoisted__Bool_g166 = (default_signal == 1);
-    if (hoisted__Bool_g166) {
+    Bool hoisted__Bool_g205 = (default_signal == 1);
+    if (hoisted__Bool_g205) {
         U64 hoisted__U64_g66 = 1;
         TilStrArray _va_Array_g18;
         TilStrArrayNew(&_va_Array_g18, hoisted__U64_g66);
@@ -874,8 +1110,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g18);
     }
     U32 medium = medium_from_signal(current_signal);
-    Bool hoisted__Bool_g167 = (medium == 4294967295);
-    if (hoisted__Bool_g167) {
+    Bool hoisted__Bool_g206 = (medium == 4294967295);
+    if (hoisted__Bool_g206) {
         U64 hoisted__U64_g69 = 1;
         TilStrArray _va_Array_g19;
         TilStrArrayNew(&_va_Array_g19, hoisted__U64_g69);
@@ -927,9 +1163,9 @@ I64 TilMain()
             TilPrintln(&_va_Array_g22);
         }
     }
-    I64 hoisted__I64_g168 = 8;
-    Bool hoisted__Bool_g169 = (point.x == hoisted__I64_g168);
-    if (hoisted__Bool_g169) {
+    I64 hoisted__I64_g207 = 8;
+    Bool hoisted__Bool_g208 = (point.x == hoisted__I64_g207);
+    if (hoisted__Bool_g208) {
         U64 hoisted__U64_g83 = 1;
         TilStrArray _va_Array_g23;
         TilStrArrayNew(&_va_Array_g23, hoisted__U64_g83);
@@ -940,19 +1176,19 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g23, hoisted__U64_g84, &hoisted__Str_g85);
         TilPrintln(&_va_Array_g23);
     }
-    U64 hoisted__U64_g170 = 7;
+    U64 hoisted__U64_g209 = 7;
     TilStr payload_source;
-    TilStrWithCapacity(&payload_source, hoisted__U64_g170);
-    TilStr hoisted__Str_g171;
-    TilStrInitLit(&hoisted__Str_g171, "payload", 7);
-    TilStrPush(&payload_source, &hoisted__Str_g171);
-    TilStrDelete(&hoisted__Str_g171, FALSE);
+    TilStrWithCapacity(&payload_source, hoisted__U64_g209);
+    TilStr hoisted__Str_g210;
+    TilStrInitLit(&hoisted__Str_g210, "payload", 7);
+    TilStrPush(&payload_source, &hoisted__Str_g210);
+    TilStrDelete(&hoisted__Str_g210, FALSE);
     PayloadValue text_payload;
     make_payload_text(&text_payload, &payload_source);
     PayloadValue text_payload_copy;
     PayloadValue_Clone(&text_payload_copy, &text_payload);
-    Bool hoisted__Bool_g172 = PayloadValue_Eq(&text_payload, &text_payload_copy);
-    if (hoisted__Bool_g172) {
+    Bool hoisted__Bool_g211 = PayloadValue_Eq(&text_payload, &text_payload_copy);
+    if (hoisted__Bool_g211) {
         U64 hoisted__U64_g86 = 1;
         TilStrArray _va_Array_g24;
         TilStrArrayNew(&_va_Array_g24, hoisted__U64_g86);
@@ -966,23 +1202,23 @@ I64 TilMain()
     do {
         U8 enum_switch_6 = (&text_payload)->tag;
         if ((enum_switch_6 == 3)) {
-            TilStr *payload_9 = ((&(&text_payload)->payload_Byte))(TilStr *);
+            TilStr *payload_15 = ((&(&text_payload)->payload_Byte))(TilStr *);
             U64 hoisted__U64_g89 = 0;
             U64 hoisted__U64_g90 = 4;
             TilStr hoisted__Str_g91;
-            TilStrSubstr(&hoisted__Str_g91, payload_9, hoisted__U64_g89, hoisted__U64_g90);
+            TilStrSubstr(&hoisted__Str_g91, payload_15, hoisted__U64_g89, hoisted__U64_g90);
             {
-                TilStr replacement_10;
-                TilStrClone(&replacement_10, &hoisted__Str_g91);
-                TilStrDelete(payload_9, FALSE);
-                TilStrCopyValue(payload_9, &replacement_10);
+                TilStr replacement_16;
+                TilStrClone(&replacement_16, &hoisted__Str_g91);
+                TilStrDelete(payload_15, FALSE);
+                TilStrCopyValue(payload_15, &replacement_16);
             }
             TilStrDelete(&hoisted__Str_g91, FALSE);
             break;
         }
     } while (FALSE);
-    Bool hoisted__Bool_g173 = (!PayloadValue_Eq(&text_payload, &text_payload_copy));
-    if (hoisted__Bool_g173) {
+    Bool hoisted__Bool_g212 = (!PayloadValue_Eq(&text_payload, &text_payload_copy));
+    if (hoisted__Bool_g212) {
         U64 hoisted__U64_g92 = 1;
         TilStrArray _va_Array_g25;
         TilStrArrayNew(&_va_Array_g25, hoisted__U64_g92);
@@ -994,7 +1230,7 @@ I64 TilMain()
         TilPrintln(&_va_Array_g25);
     }
     show_payload(&text_payload);
-    PayloadValue_Delete(&text_payload);
+    PayloadValue_Delete(&text_payload, FALSE);
     show_payload(&text_payload_copy);
     PayloadValue count_payload;
     count_payload.tag = 2;
@@ -1002,10 +1238,10 @@ I64 TilMain()
     do {
         U8 enum_switch_7 = (&count_payload)->tag;
         if ((enum_switch_7 == 2)) {
-            I64 *payload_11 = ((&(&count_payload)->payload_Byte))(I64 *);
+            I64 *payload_18 = ((&(&count_payload)->payload_Byte))(I64 *);
             I64 hoisted__I64_g95 = 1;
-            I64 hoisted__I64_g96 = ((*((TilCheckPtr(payload_11))(I64 *))) + hoisted__I64_g95);
-            (*((TilCheckPtr(payload_11))(I64 *))) = hoisted__I64_g96;
+            I64 hoisted__I64_g96 = ((*((TilCheckPtr(payload_18))(I64 *))) + hoisted__I64_g95);
+            (*((TilCheckPtr(payload_18))(I64 *))) = hoisted__I64_g96;
             break;
         }
     } while (FALSE);
@@ -1017,8 +1253,8 @@ I64 TilMain()
     PayloadValue empty_payload;
     empty_payload.tag = 0;
     show_payload(&empty_payload);
-    Bool hoisted__Bool_g176 = PayloadValue_Eq(&empty_payload, &PayloadValue_Literal_Empty);
-    if (hoisted__Bool_g176) {
+    Bool hoisted__Bool_g215 = PayloadValue_Eq(&empty_payload, &PayloadValue_Literal_Empty);
+    if (hoisted__Bool_g215) {
         U64 hoisted__U64_g97 = 1;
         TilStrArray _va_Array_g26;
         TilStrArrayNew(&_va_Array_g26, hoisted__U64_g97);
@@ -1030,8 +1266,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g26);
     }
     show_payload(&PayloadValue_Literal_Empty);
-    Bool hoisted__Bool_g177 = (!PayloadValue_Eq(&empty_payload, &byte_payload));
-    if (hoisted__Bool_g177) {
+    Bool hoisted__Bool_g216 = (!PayloadValue_Eq(&empty_payload, &byte_payload));
+    if (hoisted__Bool_g216) {
         U64 hoisted__U64_g100 = 1;
         TilStrArray _va_Array_g27;
         TilStrArrayNew(&_va_Array_g27, hoisted__U64_g100);
@@ -1042,8 +1278,8 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g27, hoisted__U64_g101, &hoisted__Str_g102);
         TilPrintln(&_va_Array_g27);
     }
-    Bool hoisted__Bool_g178 = ((&count_payload)->tag == 2);
-    if (hoisted__Bool_g178) {
+    Bool hoisted__Bool_g217 = ((&count_payload)->tag == 2);
+    if (hoisted__Bool_g217) {
         U64 hoisted__U64_g103 = 1;
         TilStrArray _va_Array_g28;
         TilStrArrayNew(&_va_Array_g28, hoisted__U64_g103);
@@ -1054,36 +1290,36 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g28, hoisted__U64_g104, &hoisted__Str_g105);
         TilPrintln(&_va_Array_g28);
     }
-    I64 hoisted__I64_g179 = 9;
-    PayloadRecord hoisted__PayloadRecord_g180;
-    hoisted__PayloadRecord_g180.number = hoisted__I64_g179;
-    TilStrClone(&hoisted__PayloadRecord_g180.name, &payload_source);
+    I64 hoisted__I64_g218 = 9;
+    PayloadRecord hoisted__PayloadRecord_g219;
+    hoisted__PayloadRecord_g219.number = hoisted__I64_g218;
+    TilStrClone(&hoisted__PayloadRecord_g219.name, &payload_source);
     PayloadValue record_payload;
     record_payload.tag = 4;
-    record_payload.payload_Record.number = hoisted__PayloadRecord_g180.number;
-    TilStrCopyValue(&record_payload.payload_Record.name, &hoisted__PayloadRecord_g180.name);
+    record_payload.payload_Record.number = hoisted__PayloadRecord_g219.number;
+    TilStrCopyValue(&record_payload.payload_Record.name, &hoisted__PayloadRecord_g219.name);
     PayloadValue record_payload_copy;
     PayloadValue_Clone(&record_payload_copy, &record_payload);
     do {
         U8 enum_switch_8 = (&record_payload)->tag;
         if ((enum_switch_8 == 4)) {
-            PayloadRecord *payload_12 = ((&(&record_payload)->payload_Byte))(PayloadRecord *);
+            PayloadRecord *payload_20 = ((&(&record_payload)->payload_Byte))(PayloadRecord *);
             U64 hoisted__U64_g106 = 0;
             U64 hoisted__U64_g107 = 4;
             TilStr hoisted__Str_g108;
-            TilStrSubstr(&hoisted__Str_g108, &payload_12->name, hoisted__U64_g106, hoisted__U64_g107);
+            TilStrSubstr(&hoisted__Str_g108, &payload_20->name, hoisted__U64_g106, hoisted__U64_g107);
             {
-                TilStr replacement_13;
-                TilStrClone(&replacement_13, &hoisted__Str_g108);
-                TilStrDelete(&payload_12->name, FALSE);
-                TilStrCopyValue(&payload_12->name, &replacement_13);
+                TilStr replacement_21;
+                TilStrClone(&replacement_21, &hoisted__Str_g108);
+                TilStrDelete(&payload_20->name, FALSE);
+                TilStrCopyValue(&payload_20->name, &replacement_21);
             }
             TilStrDelete(&hoisted__Str_g108, FALSE);
             break;
         }
     } while (FALSE);
-    Bool hoisted__Bool_g181 = (!PayloadValue_Eq(&record_payload, &record_payload_copy));
-    if (hoisted__Bool_g181) {
+    Bool hoisted__Bool_g220 = (!PayloadValue_Eq(&record_payload, &record_payload_copy));
+    if (hoisted__Bool_g220) {
         U64 hoisted__U64_g109 = 1;
         TilStrArray _va_Array_g29;
         TilStrArrayNew(&_va_Array_g29, hoisted__U64_g109);
@@ -1095,17 +1331,17 @@ I64 TilMain()
         TilPrintln(&_va_Array_g29);
     }
     show_payload(&record_payload);
-    PayloadValue_Delete(&record_payload);
+    PayloadValue_Delete(&record_payload, FALSE);
     show_payload(&record_payload_copy);
-    PayloadValue hoisted__PayloadValue_g182;
-    PayloadValue_Clone(&hoisted__PayloadValue_g182, &record_payload_copy);
+    PayloadValue hoisted__PayloadValue_g221;
+    PayloadValue_Clone(&hoisted__PayloadValue_g221, &record_payload_copy);
     PayloadEnvelope envelope;
     envelope.tag = 1;
-    PayloadValue_CopyValue(&envelope.payload_Wrapped, &hoisted__PayloadValue_g182);
+    PayloadValue_CopyValue(&envelope.payload_Wrapped, &hoisted__PayloadValue_g221);
     PayloadEnvelope envelope_copy;
     PayloadEnvelope_Clone(&envelope_copy, &envelope);
-    Bool hoisted__Bool_g183 = PayloadEnvelope_Eq(&envelope, &envelope_copy);
-    if (hoisted__Bool_g183) {
+    Bool hoisted__Bool_g222 = PayloadEnvelope_Eq(&envelope, &envelope_copy);
+    if (hoisted__Bool_g222) {
         U64 hoisted__U64_g112 = 1;
         TilStrArray _va_Array_g30;
         TilStrArrayNew(&_va_Array_g30, hoisted__U64_g112);
@@ -1119,14 +1355,12 @@ I64 TilMain()
     do {
         U8 enum_switch_9 = (&envelope)->tag;
         if ((enum_switch_9 == 1)) {
-            PayloadValue *payload_14 = ((&(&envelope)->payload_Wrapped))(PayloadValue *);
+            PayloadValue *payload_23 = ((&(&envelope)->payload_Wrapped))(PayloadValue *);
             do {
-                U8 enum_switch_10 = (payload_14)->tag;
+                U8 enum_switch_10 = (payload_23)->tag;
                 if ((enum_switch_10 == 4)) {
-                    PayloadRecord *payload_15 = ((&(payload_14)->payload_Byte))(PayloadRecord *);
-                    PayloadRecord shadow_16;
-                    shadow_16.number = payload_15->number;
-                    TilStrCopyValue(&shadow_16.name, &payload_15->name);
+                    PayloadRecord *payload_25 = ((&(payload_23)->payload_Byte))(PayloadRecord *);
+                    PayloadRecord *ref_value_26 = payload_25;
                     U64 hoisted__U64_g115 = 2;
                     TilStrArray _va_Array_g31;
                     TilStrArrayNew(&_va_Array_g31, hoisted__U64_g115);
@@ -1137,13 +1371,13 @@ I64 TilMain()
                     TilStrArraySet(&_va_Array_g31, hoisted__U64_g116, &hoisted__Str_g117);
                     U64 hoisted__U64_g118 = 1;
                     TilStr hoisted__Str_g119;
-                    TilStrClone(&hoisted__Str_g119, &shadow_16.name);
+                    TilStrClone(&hoisted__Str_g119, &ref_value_26->name);
                     TilStrArraySet(&_va_Array_g31, hoisted__U64_g118, &hoisted__Str_g119);
                     TilPrintln(&_va_Array_g31);
                     break;
                 }
             } while (FALSE);
-            show_payload(payload_14);
+            show_payload(payload_23);
             break;
         }
         U64 hoisted__U64_g120 = 1;
@@ -1156,42 +1390,534 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g32, hoisted__U64_g121, &hoisted__Str_g122);
         TilPrintln(&_va_Array_g32);
     } while (FALSE);
-    PayloadEnvelope_Delete(&envelope);
-    PayloadEnvelope_Delete(&envelope_copy);
+    PayloadEnvelope_Delete(&envelope, FALSE);
+    PayloadEnvelope_Delete(&envelope_copy, FALSE);
     replace_payload(&count_payload, &payload_source);
     show_payload(&count_payload);
     do {
         U8 enum_switch_11 = (&count_payload)->tag;
         if ((enum_switch_11 == 3)) {
-            TilStr *payload_17 = ((&(&count_payload)->payload_Byte))(TilStr *);
+            TilStr *payload_28 = ((&(&count_payload)->payload_Byte))(TilStr *);
             U64 hoisted__U64_g123 = 1;
             U64 hoisted__U64_g124 = 6;
             TilStr hoisted__Str_g125;
-            TilStrSubstr(&hoisted__Str_g125, payload_17, hoisted__U64_g123, hoisted__U64_g124);
+            TilStrSubstr(&hoisted__Str_g125, payload_28, hoisted__U64_g123, hoisted__U64_g124);
             {
-                TilStr replacement_18;
-                TilStrClone(&replacement_18, &hoisted__Str_g125);
-                TilStrDelete(payload_17, FALSE);
-                TilStrCopyValue(payload_17, &replacement_18);
+                TilStr replacement_29;
+                TilStrClone(&replacement_29, &hoisted__Str_g125);
+                TilStrDelete(payload_28, FALSE);
+                TilStrCopyValue(payload_28, &replacement_29);
             }
             TilStrDelete(&hoisted__Str_g125, FALSE);
             break;
         }
     } while (FALSE);
     show_payload(&count_payload);
-    PayloadValue_Delete(&count_payload);
+    PayloadValue_Delete(&count_payload, FALSE);
     {
-        PayloadValue replacement_19;
-        replacement_19.tag = 0;
-        PayloadValue_CopyValue(&count_payload, &replacement_19);
+        PayloadValue replacement_30;
+        replacement_30.tag = 0;
+        PayloadValue_CopyValue(&count_payload, &replacement_30);
     }
     show_payload(&count_payload);
-    PayloadValue_Delete(&text_payload_copy);
-    PayloadValue_Delete(&record_payload_copy);
-    PayloadValue_Delete(&count_payload);
-    PayloadValue_Delete(&byte_payload);
-    PayloadValue_Delete(&empty_payload);
+    PayloadValue_Delete(&text_payload_copy, FALSE);
+    PayloadValue_Delete(&record_payload_copy, FALSE);
+    PayloadValue_Delete(&count_payload, FALSE);
+    PayloadValue_Delete(&byte_payload, FALSE);
+    PayloadValue_Delete(&empty_payload, FALSE);
     TilStrDelete(&payload_source, FALSE);
+    I64 hoisted__I64_g223 = 4;
+    I64 hoisted__I64_g224 = 0;
+    StructPoint first;
+    first.x = hoisted__I64_g223;
+    first.y = hoisted__I64_g224;
+    I64 hoisted__I64_g225 = 20;
+    I64 hoisted__I64_g226 = 0;
+    StructPoint second;
+    second.x = hoisted__I64_g225;
+    second.y = hoisted__I64_g226;
+    I64 borrowed_number = 5;
+    I64 next_number = 30;
+    U64 hoisted__U64_g227 = 9;
+    TilStr borrowed_label;
+    TilStrWithCapacity(&borrowed_label, hoisted__U64_g227);
+    TilStr hoisted__Str_g228;
+    TilStrInitLit(&hoisted__Str_g228, "borrowed", 8);
+    TilStrPush(&borrowed_label, &hoisted__Str_g228);
+    TilStrDelete(&hoisted__Str_g228, FALSE);
+    StructBorrowed holder;
+    holder.point = &first;
+    holder.count = &borrowed_number;
+    holder.label = &borrowed_label;
+    StructBorrowed holder_copy;
+    borrowed_copy(&holder_copy, &holder);
+    U64 hoisted__U64_g229 = 5;
+    TilStrArray _va_Array_g51;
+    TilStrArrayNew(&_va_Array_g51, hoisted__U64_g229);
+    I64 _va_Array_g51_ek = 0;
+    U64 hoisted__U64_g230 = 0;
+    TilStr hoisted__Str_g231;
+    TilStrFromI64(&hoisted__Str_g231, (borrowed_point(&holder))->x);
+    TilStrArraySet(&_va_Array_g51, hoisted__U64_g230, &hoisted__Str_g231);
+    U64 hoisted__U64_g232 = 1;
+    TilStr hoisted__Str_g233;
+    TilStrInitLit(&hoisted__Str_g233, ":", 1);
+    TilStrArraySet(&_va_Array_g51, hoisted__U64_g232, &hoisted__Str_g233);
+    I64 *ref_value_31 = borrowed_count(&holder);
+    U64 hoisted__U64_g235 = 2;
+    TilStr hoisted__Str_g236;
+    TilStrFromI64(&hoisted__Str_g236, (*((TilCheckPtr(ref_value_31))(I64 *))));
+    TilStrArraySet(&_va_Array_g51, hoisted__U64_g235, &hoisted__Str_g236);
+    U64 hoisted__U64_g237 = 3;
+    TilStr hoisted__Str_g238;
+    TilStrInitLit(&hoisted__Str_g238, ":", 1);
+    TilStrArraySet(&_va_Array_g51, hoisted__U64_g237, &hoisted__Str_g238);
+    U64 hoisted__U64_g239 = 4;
+    TilStr hoisted__Str_g240;
+    TilStrClone(&hoisted__Str_g240, holder_copy.label);
+    TilStrArraySet(&_va_Array_g51, hoisted__U64_g239, &hoisted__Str_g240);
+    TilPrintln(&_va_Array_g51);
+    bump_borrowed_count(holder.count);
+    I64 hoisted__I64_g241 = 11;
+    first.x = hoisted__I64_g241;
+    TilStr hoisted__Str_g242;
+    TilStrInitLit(&hoisted__Str_g242, "!", 1);
+    TilStrPush(&borrowed_label, &hoisted__Str_g242);
+    TilStrDelete(&hoisted__Str_g242, FALSE);
+    U64 hoisted__U64_g243 = 5;
+    TilStrArray _va_Array_g52;
+    TilStrArrayNew(&_va_Array_g52, hoisted__U64_g243);
+    I64 _va_Array_g52_ek = 0;
+    U64 hoisted__U64_g244 = 0;
+    TilStr hoisted__Str_g245;
+    TilStrFromI64(&hoisted__Str_g245, holder_copy.point->x);
+    TilStrArraySet(&_va_Array_g52, hoisted__U64_g244, &hoisted__Str_g245);
+    U64 hoisted__U64_g246 = 1;
+    TilStr hoisted__Str_g247;
+    TilStrInitLit(&hoisted__Str_g247, ":", 1);
+    TilStrArraySet(&_va_Array_g52, hoisted__U64_g246, &hoisted__Str_g247);
+    I64 *ref_value_32 = borrowed_count(&holder_copy);
+    I64 hoisted__I64_g249 = (*((TilCheckPtr(ref_value_32))(I64 *)));
+    U64 hoisted__U64_g250 = 2;
+    TilStr hoisted__Str_g251;
+    TilStrFromI64(&hoisted__Str_g251, hoisted__I64_g249);
+    TilStrArraySet(&_va_Array_g52, hoisted__U64_g250, &hoisted__Str_g251);
+    U64 hoisted__U64_g252 = 3;
+    TilStr hoisted__Str_g253;
+    TilStrInitLit(&hoisted__Str_g253, ":", 1);
+    TilStrArraySet(&_va_Array_g52, hoisted__U64_g252, &hoisted__Str_g253);
+    U64 hoisted__U64_g254 = 4;
+    TilStr hoisted__Str_g255;
+    TilStrClone(&hoisted__Str_g255, holder_copy.label);
+    TilStrArraySet(&_va_Array_g52, hoisted__U64_g254, &hoisted__Str_g255);
+    TilPrintln(&_va_Array_g52);
+    holder.point = &second;
+    holder.count = &next_number;
+    U64 hoisted__U64_g256 = 3;
+    TilStrArray _va_Array_g53;
+    TilStrArrayNew(&_va_Array_g53, hoisted__U64_g256);
+    I64 _va_Array_g53_ek = 0;
+    U64 hoisted__U64_g257 = 0;
+    TilStr hoisted__Str_g258;
+    TilStrFromI64(&hoisted__Str_g258, holder.point->x);
+    TilStrArraySet(&_va_Array_g53, hoisted__U64_g257, &hoisted__Str_g258);
+    U64 hoisted__U64_g259 = 1;
+    TilStr hoisted__Str_g260;
+    TilStrInitLit(&hoisted__Str_g260, ":", 1);
+    TilStrArraySet(&_va_Array_g53, hoisted__U64_g259, &hoisted__Str_g260);
+    I64 *ref_value_33 = borrowed_count(&holder);
+    I64 hoisted__I64_g262 = (*((TilCheckPtr(ref_value_33))(I64 *)));
+    U64 hoisted__U64_g263 = 2;
+    TilStr hoisted__Str_g264;
+    TilStrFromI64(&hoisted__Str_g264, hoisted__I64_g262);
+    TilStrArraySet(&_va_Array_g53, hoisted__U64_g263, &hoisted__Str_g264);
+    TilPrintln(&_va_Array_g53);
+    U64 hoisted__U64_g265 = 3;
+    TilStrArray _va_Array_g54;
+    TilStrArrayNew(&_va_Array_g54, hoisted__U64_g265);
+    I64 _va_Array_g54_ek = 0;
+    U64 hoisted__U64_g266 = 0;
+    TilStr hoisted__Str_g267;
+    TilStrFromI64(&hoisted__Str_g267, holder_copy.point->x);
+    TilStrArraySet(&_va_Array_g54, hoisted__U64_g266, &hoisted__Str_g267);
+    U64 hoisted__U64_g268 = 1;
+    TilStr hoisted__Str_g269;
+    TilStrInitLit(&hoisted__Str_g269, ":", 1);
+    TilStrArraySet(&_va_Array_g54, hoisted__U64_g268, &hoisted__Str_g269);
+    I64 *ref_value_34 = borrowed_count(&holder_copy);
+    I64 hoisted__I64_g271 = (*((TilCheckPtr(ref_value_34))(I64 *)));
+    U64 hoisted__U64_g272 = 2;
+    TilStr hoisted__Str_g273;
+    TilStrFromI64(&hoisted__Str_g273, hoisted__I64_g271);
+    TilStrArraySet(&_va_Array_g54, hoisted__U64_g272, &hoisted__Str_g273);
+    TilPrintln(&_va_Array_g54);
+    I64 hoisted__I64_g274 = 20;
+    I64 hoisted__I64_g275 = 0;
+    StructPoint equal_point;
+    equal_point.x = hoisted__I64_g274;
+    equal_point.y = hoisted__I64_g275;
+    I64 equal_number = 30;
+    U64 hoisted__U64_g276 = 9;
+    TilStr equal_label;
+    TilStrWithCapacity(&equal_label, hoisted__U64_g276);
+    TilStr hoisted__Str_g277;
+    TilStrInitLit(&hoisted__Str_g277, "borrowed!", 9);
+    TilStrPush(&equal_label, &hoisted__Str_g277);
+    TilStrDelete(&hoisted__Str_g277, FALSE);
+    StructBorrowed equal_holder;
+    equal_holder.point = &equal_point;
+    equal_holder.count = &equal_number;
+    equal_holder.label = &equal_label;
+    Bool hoisted__Bool_g278 = StructBorrowed_Eq(&holder, &equal_holder);
+    if (hoisted__Bool_g278) {
+        U64 hoisted__U64_g126 = 1;
+        TilStrArray _va_Array_g33;
+        TilStrArrayNew(&_va_Array_g33, hoisted__U64_g126);
+        I64 _va_Array_g33_ek = 0;
+        U64 hoisted__U64_g127 = 0;
+        TilStr hoisted__Str_g128;
+        TilStrInitLit(&hoisted__Str_g128, "borrowed fields compare values", 30);
+        TilStrArraySet(&_va_Array_g33, hoisted__U64_g127, &hoisted__Str_g128);
+        TilPrintln(&_va_Array_g33);
+    }
+    I64 hoisted__I64_g279 = 31;
+    equal_number = hoisted__I64_g279;
+    Bool hoisted__Bool_g280 = StructBorrowed_Eq(&holder, &equal_holder);
+    Bool hoisted__Bool_g281 = (!hoisted__Bool_g280);
+    if (hoisted__Bool_g281) {
+        U64 hoisted__U64_g129 = 1;
+        TilStrArray _va_Array_g34;
+        TilStrArrayNew(&_va_Array_g34, hoisted__U64_g129);
+        I64 _va_Array_g34_ek = 0;
+        U64 hoisted__U64_g130 = 0;
+        TilStr hoisted__Str_g131;
+        TilStrInitLit(&hoisted__Str_g131, "borrowed fields changed", 23);
+        TilStrArraySet(&_va_Array_g34, hoisted__U64_g130, &hoisted__Str_g131);
+        TilPrintln(&_va_Array_g34);
+    }
+    U64 hoisted__U64_g282 = 5;
+    TilStr owned_label;
+    TilStrWithCapacity(&owned_label, hoisted__U64_g282);
+    TilStr hoisted__Str_g283;
+    TilStrInitLit(&hoisted__Str_g283, "owned", 5);
+    TilStrPush(&owned_label, &hoisted__Str_g283);
+    TilStrDelete(&hoisted__Str_g283, FALSE);
+    I64 hoisted__I64_g284 = 3;
+    I64 hoisted__I64_g285 = 0;
+    StructNamedPoint hoisted__StructNamedPoint_g286;
+    hoisted__StructNamedPoint_g286.point.x = hoisted__I64_g284;
+    hoisted__StructNamedPoint_g286.point.y = hoisted__I64_g285;
+    TilStrClone(&hoisted__StructNamedPoint_g286.name, &owned_label);
+    TilStr hoisted__Str_g287;
+    TilStrClone(&hoisted__Str_g287, &owned_label);
+    StructOwned owned;
+    StructNamedPoint owned_value_35;
+    owned_value_35.point.x = hoisted__StructNamedPoint_g286.point.x;
+    owned_value_35.point.y = hoisted__StructNamedPoint_g286.point.y;
+    TilStrCopyValue(&owned_value_35.name, &hoisted__StructNamedPoint_g286.name);
+    owned.named = (TilMAlloc(sizeof(StructNamedPoint)))(StructNamedPoint *);
+    owned.named->point.x = owned_value_35.point.x;
+    owned.named->point.y = owned_value_35.point.y;
+    TilStrCopyValue(&owned.named->name, &owned_value_35.name);
+    TilStr owned_value_36;
+    TilStrCopyValue(&owned_value_36, &hoisted__Str_g287);
+    owned.label = (TilMAlloc(sizeof(TilStr)))(TilStr *);
+    TilStrCopyValue(owned.label, &owned_value_36);
+    TilStrPrepareReturn(owned.label);
+    StructOwned owned_copy;
+    StructOwned_Clone(&owned_copy, &owned);
+    I64 hoisted__I64_g288 = 7;
+    owned.named->point.x = hoisted__I64_g288;
+    {
+        TilStr replacement_37;
+        TilStrInitLit(&replacement_37, "changed", 7);
+        TilStrDelete(&owned.named->name, FALSE);
+        TilStrCopyValue(&owned.named->name, &replacement_37);
+    }
+    TilStr hoisted__Str_g289;
+    TilStrInitLit(&hoisted__Str_g289, "new", 3);
+    {
+        TilStr *replacement_38;
+        TilStr owned_value_39;
+        TilStrCopyValue(&owned_value_39, &hoisted__Str_g289);
+        replacement_38 = (TilMAlloc(sizeof(TilStr)))(TilStr *);
+        TilStrCopyValue(replacement_38, &owned_value_39);
+        TilStrPrepareReturn(replacement_38);
+        TilStr *old_field_40 = owned.label;
+        owned.label = replacement_38;
+        TilStrDelete(old_field_40, TRUE);
+    }
+    U64 hoisted__U64_g290 = 5;
+    TilStrArray _va_Array_g55;
+    TilStrArrayNew(&_va_Array_g55, hoisted__U64_g290);
+    I64 _va_Array_g55_ek = 0;
+    U64 hoisted__U64_g291 = 0;
+    TilStr hoisted__Str_g292;
+    TilStrFromI64(&hoisted__Str_g292, owned.named->point.x);
+    TilStrArraySet(&_va_Array_g55, hoisted__U64_g291, &hoisted__Str_g292);
+    U64 hoisted__U64_g293 = 1;
+    TilStr hoisted__Str_g294;
+    TilStrInitLit(&hoisted__Str_g294, ":", 1);
+    TilStrArraySet(&_va_Array_g55, hoisted__U64_g293, &hoisted__Str_g294);
+    U64 hoisted__U64_g295 = 2;
+    TilStr hoisted__Str_g296;
+    TilStrClone(&hoisted__Str_g296, &owned.named->name);
+    TilStrArraySet(&_va_Array_g55, hoisted__U64_g295, &hoisted__Str_g296);
+    U64 hoisted__U64_g297 = 3;
+    TilStr hoisted__Str_g298;
+    TilStrInitLit(&hoisted__Str_g298, ":", 1);
+    TilStrArraySet(&_va_Array_g55, hoisted__U64_g297, &hoisted__Str_g298);
+    U64 hoisted__U64_g299 = 4;
+    TilStr hoisted__Str_g300;
+    TilStrClone(&hoisted__Str_g300, owned.label);
+    TilStrArraySet(&_va_Array_g55, hoisted__U64_g299, &hoisted__Str_g300);
+    TilPrintln(&_va_Array_g55);
+    U64 hoisted__U64_g301 = 5;
+    TilStrArray _va_Array_g56;
+    TilStrArrayNew(&_va_Array_g56, hoisted__U64_g301);
+    I64 _va_Array_g56_ek = 0;
+    U64 hoisted__U64_g302 = 0;
+    TilStr hoisted__Str_g303;
+    TilStrFromI64(&hoisted__Str_g303, owned_copy.named->point.x);
+    TilStrArraySet(&_va_Array_g56, hoisted__U64_g302, &hoisted__Str_g303);
+    U64 hoisted__U64_g304 = 1;
+    TilStr hoisted__Str_g305;
+    TilStrInitLit(&hoisted__Str_g305, ":", 1);
+    TilStrArraySet(&_va_Array_g56, hoisted__U64_g304, &hoisted__Str_g305);
+    U64 hoisted__U64_g306 = 2;
+    TilStr hoisted__Str_g307;
+    TilStrClone(&hoisted__Str_g307, &owned_copy.named->name);
+    TilStrArraySet(&_va_Array_g56, hoisted__U64_g306, &hoisted__Str_g307);
+    U64 hoisted__U64_g308 = 3;
+    TilStr hoisted__Str_g309;
+    TilStrInitLit(&hoisted__Str_g309, ":", 1);
+    TilStrArraySet(&_va_Array_g56, hoisted__U64_g308, &hoisted__Str_g309);
+    U64 hoisted__U64_g310 = 4;
+    TilStr hoisted__Str_g311;
+    TilStrClone(&hoisted__Str_g311, owned_copy.label);
+    TilStrArraySet(&_va_Array_g56, hoisted__U64_g310, &hoisted__Str_g311);
+    TilPrintln(&_va_Array_g56);
+    I64 hoisted__I64_g312 = 9;
+    I64 hoisted__I64_g313 = 0;
+    StructNamedPoint hoisted__StructNamedPoint_g314;
+    hoisted__StructNamedPoint_g314.point.x = hoisted__I64_g312;
+    hoisted__StructNamedPoint_g314.point.y = hoisted__I64_g313;
+    TilStrInitLit(&hoisted__StructNamedPoint_g314.name, "replacement", 11);
+    {
+        StructNamedPoint *replacement_41;
+        StructNamedPoint owned_value_42;
+        owned_value_42.point.x = hoisted__StructNamedPoint_g314.point.x;
+        owned_value_42.point.y = hoisted__StructNamedPoint_g314.point.y;
+        TilStrCopyValue(&owned_value_42.name, &hoisted__StructNamedPoint_g314.name);
+        replacement_41 = (TilMAlloc(sizeof(StructNamedPoint)))(StructNamedPoint *);
+        replacement_41->point.x = owned_value_42.point.x;
+        replacement_41->point.y = owned_value_42.point.y;
+        TilStrCopyValue(&replacement_41->name, &owned_value_42.name);
+        StructNamedPoint *old_field_43 = owned.named;
+        owned.named = replacement_41;
+        StructNamedPoint_Delete(old_field_43, TRUE);
+    }
+    U64 hoisted__U64_g315 = 3;
+    TilStrArray _va_Array_g57;
+    TilStrArrayNew(&_va_Array_g57, hoisted__U64_g315);
+    I64 _va_Array_g57_ek = 0;
+    U64 hoisted__U64_g316 = 0;
+    TilStr hoisted__Str_g317;
+    TilStrFromI64(&hoisted__Str_g317, owned.named->point.x);
+    TilStrArraySet(&_va_Array_g57, hoisted__U64_g316, &hoisted__Str_g317);
+    U64 hoisted__U64_g318 = 1;
+    TilStr hoisted__Str_g319;
+    TilStrInitLit(&hoisted__Str_g319, ":", 1);
+    TilStrArraySet(&_va_Array_g57, hoisted__U64_g318, &hoisted__Str_g319);
+    U64 hoisted__U64_g320 = 2;
+    TilStr hoisted__Str_g321;
+    TilStrClone(&hoisted__Str_g321, &owned.named->name);
+    TilStrArraySet(&_va_Array_g57, hoisted__U64_g320, &hoisted__Str_g321);
+    TilPrintln(&_va_Array_g57);
+    StructOwned_Delete(&owned, FALSE);
+    StructOwned_Delete(&owned_copy, FALSE);
+    TilStrDelete(&owned_label, FALSE);
+    TilStrDelete(&borrowed_label, FALSE);
+    TilStrDelete(&equal_label, FALSE);
+    I64 hoisted__I64_g322 = 17;
+    StructForwardPoint forward_point;
+    forward_point.value = hoisted__I64_g322;
+    StructForwardRef forward_holder;
+    forward_holder.point = &forward_point;
+    U64 hoisted__U64_g323 = 1;
+    TilStrArray _va_Array_g58;
+    TilStrArrayNew(&_va_Array_g58, hoisted__U64_g323);
+    I64 _va_Array_g58_ek = 0;
+    U64 hoisted__U64_g324 = 0;
+    TilStr hoisted__Str_g325;
+    TilStrFromI64(&hoisted__Str_g325, forward_holder.point->value);
+    TilStrArraySet(&_va_Array_g58, hoisted__U64_g324, &hoisted__Str_g325);
+    TilPrintln(&_va_Array_g58);
+    if (TRUE) {
+        StructSelfRef *self_node = (TilMAlloc(sizeof(StructSelfRef)))(StructSelfRef *);
+        I64 hoisted__I64_g132 = 23;
+        self_node->value = hoisted__I64_g132;
+        self_node->next = self_node;
+        U64 hoisted__U64_g133 = 1;
+        TilStrArray _va_Array_g35;
+        TilStrArrayNew(&_va_Array_g35, hoisted__U64_g133);
+        I64 _va_Array_g35_ek = 0;
+        U64 hoisted__U64_g134 = 0;
+        TilStr hoisted__Str_g135;
+        TilStrFromI64(&hoisted__Str_g135, self_node->next->value);
+        TilStrArraySet(&_va_Array_g35, hoisted__U64_g134, &hoisted__Str_g135);
+        TilPrintln(&_va_Array_g35);
+        StructSelfRef_Delete(self_node, TRUE);
+    }
+    I64 hoisted__I64_g326 = 2;
+    StructNullable nullable_tail;
+    nullable_tail.value = hoisted__I64_g326;
+    nullable_tail.next = NULL;
+    I64 hoisted__I64_g327 = 1;
+    StructNullable nullable_head;
+    nullable_head.value = hoisted__I64_g327;
+    nullable_head.next = safe_ref__StructNullable(&nullable_tail);
+    Bool hoisted__Bool_g328 = (nullable_head.next != NULL);
+    if (hoisted__Bool_g328) {
+        StructNullable *ref_value_44 = (TilCheckPtr(nullable_head.next))(StructNullable *);
+        U64 hoisted__U64_g136 = 1;
+        TilStrArray _va_Array_g36;
+        TilStrArrayNew(&_va_Array_g36, hoisted__U64_g136);
+        I64 _va_Array_g36_ek = 0;
+        U64 hoisted__U64_g137 = 0;
+        TilStr hoisted__Str_g138;
+        TilStrFromI64(&hoisted__Str_g138, ref_value_44->value);
+        TilStrArraySet(&_va_Array_g36, hoisted__U64_g137, &hoisted__Str_g138);
+        TilPrintln(&_va_Array_g36);
+    }
+    StructNullable nullable_copy;
+    StructNullable_Clone(&nullable_copy, &nullable_head);
+    I64 hoisted__I64_g329 = 6;
+    nullable_tail.value = hoisted__I64_g329;
+    Bool hoisted__Bool_g330 = (nullable_copy.next != NULL);
+    if (hoisted__Bool_g330) {
+        StructNullable *ref_value_45 = (TilCheckPtr(nullable_copy.next))(StructNullable *);
+        U64 hoisted__U64_g139 = 1;
+        TilStrArray _va_Array_g37;
+        TilStrArrayNew(&_va_Array_g37, hoisted__U64_g139);
+        I64 _va_Array_g37_ek = 0;
+        U64 hoisted__U64_g140 = 0;
+        TilStr hoisted__Str_g141;
+        TilStrFromI64(&hoisted__Str_g141, ref_value_45->value);
+        TilStrArraySet(&_va_Array_g37, hoisted__U64_g140, &hoisted__Str_g141);
+        TilPrintln(&_va_Array_g37);
+    }
+    Bool hoisted__Bool_g331 = (nullable_tail.next == NULL);
+    if (hoisted__Bool_g331) {
+        U64 hoisted__U64_g142 = 1;
+        TilStrArray _va_Array_g38;
+        TilStrArrayNew(&_va_Array_g38, hoisted__U64_g142);
+        I64 _va_Array_g38_ek = 0;
+        U64 hoisted__U64_g143 = 0;
+        TilStr hoisted__Str_g144;
+        TilStrInitLit(&hoisted__Str_g144, "no next", 7);
+        TilStrArraySet(&_va_Array_g38, hoisted__U64_g143, &hoisted__Str_g144);
+        TilPrintln(&_va_Array_g38);
+    }
+    I64 hoisted__I64_g332 = 6;
+    StructNullable equal_tail;
+    equal_tail.value = hoisted__I64_g332;
+    equal_tail.next = NULL;
+    I64 hoisted__I64_g333 = 1;
+    StructNullable equal_head;
+    equal_head.value = hoisted__I64_g333;
+    equal_head.next = safe_ref__StructNullable(&equal_tail);
+    Bool hoisted__Bool_g334 = StructNullable_Eq(&nullable_head, &equal_head);
+    if (hoisted__Bool_g334) {
+        U64 hoisted__U64_g145 = 1;
+        TilStrArray _va_Array_g39;
+        TilStrArrayNew(&_va_Array_g39, hoisted__U64_g145);
+        I64 _va_Array_g39_ek = 0;
+        U64 hoisted__U64_g146 = 0;
+        TilStr hoisted__Str_g147;
+        TilStrInitLit(&hoisted__Str_g147, "nullable refs compare values", 28);
+        TilStrArraySet(&_va_Array_g39, hoisted__U64_g146, &hoisted__Str_g147);
+        TilPrintln(&_va_Array_g39);
+    }
+    StructBorrowTag borrow_tag;
+    borrow_tag.tag = 1;
+    borrow_tag.payload_Borrowed = &first;
+    do {
+        U8 enum_switch_12 = (&borrow_tag)->tag;
+        if ((enum_switch_12 == 1)) {
+            StructPoint *payload_47 = ((&(&borrow_tag)->payload_Borrowed))(StructPoint *);
+            StructPoint *ref_value_48 = TilDeref((payload_47)(U8 **));
+            U64 hoisted__U64_g149 = 1;
+            TilStrArray _va_Array_g40;
+            TilStrArrayNew(&_va_Array_g40, hoisted__U64_g149);
+            I64 _va_Array_g40_ek = 0;
+            U64 hoisted__U64_g150 = 0;
+            TilStr hoisted__Str_g151;
+            TilStrFromI64(&hoisted__Str_g151, ref_value_48->x);
+            TilStrArraySet(&_va_Array_g40, hoisted__U64_g150, &hoisted__Str_g151);
+            TilPrintln(&_va_Array_g40);
+            break;
+        }
+        U64 hoisted__U64_g152 = 1;
+        TilStrArray _va_Array_g41;
+        TilStrArrayNew(&_va_Array_g41, hoisted__U64_g152);
+        I64 _va_Array_g41_ek = 0;
+        U64 hoisted__U64_g153 = 0;
+        TilStr hoisted__Str_g154;
+        TilStrInitLit(&hoisted__Str_g154, "unexpected borrow tag", 21);
+        TilStrArraySet(&_va_Array_g41, hoisted__U64_g153, &hoisted__Str_g154);
+        TilPrintln(&_va_Array_g41);
+    } while (FALSE);
+    I64 hoisted__I64_g335 = 18;
+    first.x = hoisted__I64_g335;
+    StructBorrowTag borrow_tag_copy;
+    StructBorrowTag_Clone(&borrow_tag_copy, &borrow_tag);
+    do {
+        U8 enum_switch_13 = (&borrow_tag_copy)->tag;
+        if ((enum_switch_13 == 1)) {
+            StructPoint *payload_50 = ((&(&borrow_tag_copy)->payload_Borrowed))(StructPoint *);
+            StructPoint *ref_value_51 = TilDeref((payload_50)(U8 **));
+            U64 hoisted__U64_g156 = 1;
+            TilStrArray _va_Array_g42;
+            TilStrArrayNew(&_va_Array_g42, hoisted__U64_g156);
+            I64 _va_Array_g42_ek = 0;
+            U64 hoisted__U64_g157 = 0;
+            TilStr hoisted__Str_g158;
+            TilStrFromI64(&hoisted__Str_g158, ref_value_51->x);
+            TilStrArraySet(&_va_Array_g42, hoisted__U64_g157, &hoisted__Str_g158);
+            TilPrintln(&_va_Array_g42);
+            break;
+        }
+        U64 hoisted__U64_g159 = 1;
+        TilStrArray _va_Array_g43;
+        TilStrArrayNew(&_va_Array_g43, hoisted__U64_g159);
+        I64 _va_Array_g43_ek = 0;
+        U64 hoisted__U64_g160 = 0;
+        TilStr hoisted__Str_g161;
+        TilStrInitLit(&hoisted__Str_g161, "unexpected cloned tag", 21);
+        TilStrArraySet(&_va_Array_g43, hoisted__U64_g160, &hoisted__Str_g161);
+        TilPrintln(&_va_Array_g43);
+    } while (FALSE);
+    I64 hoisted__I64_g336 = 18;
+    I64 hoisted__I64_g337 = 0;
+    StructPoint equal_borrow_point;
+    equal_borrow_point.x = hoisted__I64_g336;
+    equal_borrow_point.y = hoisted__I64_g337;
+    StructBorrowTag equal_borrow_tag;
+    equal_borrow_tag.tag = 1;
+    equal_borrow_tag.payload_Borrowed = &equal_borrow_point;
+    Bool hoisted__Bool_g338 = StructBorrowTag_Eq(&borrow_tag_copy, &equal_borrow_tag);
+    if (hoisted__Bool_g338) {
+        U64 hoisted__U64_g162 = 1;
+        TilStrArray _va_Array_g44;
+        TilStrArrayNew(&_va_Array_g44, hoisted__U64_g162);
+        I64 _va_Array_g44_ek = 0;
+        U64 hoisted__U64_g163 = 0;
+        TilStr hoisted__Str_g164;
+        TilStrInitLit(&hoisted__Str_g164, "ref enum compares values", 24);
+        TilStrArraySet(&_va_Array_g44, hoisted__U64_g163, &hoisted__Str_g164);
+        TilPrintln(&_va_Array_g44);
+    }
     return 0;
 }
 

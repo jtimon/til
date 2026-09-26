@@ -5587,6 +5587,14 @@ priv free_owned_enum_slot := func(ptr: Dynamic, enum_name: Str, ctx: Context) {
     EvalHeap.heap_free(own old_data)
 }
 
+// A literal's characters are static, but an own field stores its value in a
+// heap wrapper. Mark that wrapper as a view so delete frees the wrapper only.
+priv prepare_owned_str_wrapper := func(mut value: Dynamic, ctx: Context) {
+    if str_cap_at(value, ctx) == CAP_LIT {
+        str_write_count_cap(value, str_count_at(value, ctx), CAP_VIEW, ctx)
+    }
+}
+
 priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, mut raw: Dynamic, shallow raw_type: Type, raw_is_ref: Bool, drop_old: Bool, ctx: Context) {
     ref mut dst : Dynamic = ptr_add(inst_data, field_offset)
     if decl_is_funcsig(dd, ctx) {
@@ -5604,8 +5612,15 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         mut source : Dynamic = raw
         if dd.own_type.is(OwnType.Own) {
             if drop_old { free_owned_struct_slot(dst, name, ctx) }
-            if raw_is_ref { write_ptr(dst, heap_clone(name, source, ctx)) }
-            else { write_ptr(dst, source); return }
+            if raw_is_ref {
+                mut cloned : Dynamic = heap_clone(name, source, ctx)
+                if name == "Str" { prepare_owned_str_wrapper(cloned, ctx) }
+                write_ptr(dst, cloned)
+            } else {
+                if name == "Str" { prepare_owned_str_wrapper(source, ctx) }
+                write_ptr(dst, source)
+                return
+            }
         } else if dd.own_type.is(OwnType.Ref) {
             write_ptr(dst, source)
         } else {

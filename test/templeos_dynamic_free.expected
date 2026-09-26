@@ -20,8 +20,8 @@ I64 TilMain()
     U8 *slot = TilMAlloc(8);
     U8 *hoisted__v_g7 = TilMAlloc(4);
     TilWritePtr(slot, hoisted__v_g7);
-    U8 *back = TilDeref((slot)(U8 **));
-    U8 *recovered = back;
+    U8 *ref_value_0 = TilDeref((slot)(U8 **));
+    U8 *recovered = ref_value_0;
     TilFree(recovered);
     TilFree(slot);
     U64 hoisted__U64_g8 = 1;
@@ -36,8 +36,8 @@ I64 TilMain()
     U8 *slot2 = TilMAlloc(8);
     I8 *b = TilMAlloc(4);
     TilWritePtr(slot2, b);
-    U8 *back2 = TilDeref((slot2)(U8 **));
-    U8 *recovered2 = back2;
+    U8 *ref_value_1 = TilDeref((slot2)(U8 **));
+    U8 *recovered2 = ref_value_1;
     TilFree(recovered2);
     TilFree(slot2);
     U64 hoisted__U64_g11 = 1;

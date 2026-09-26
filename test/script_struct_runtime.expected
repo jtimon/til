@@ -45,3 +45,21 @@ payload record 9:payload
 payload text payload
 payload text ayload
 payload empty
+4:5:borrowed
+11:6:borrowed!
+20:30
+11:6
+borrowed fields compare values
+borrowed fields changed
+7:changed:new
+3:owned:owned
+9:replacement
+17
+23
+2
+6
+no next
+nullable refs compare values
+11
+18
+ref enum compares values

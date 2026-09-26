@@ -233,3 +233,115 @@ own count_payload.delete()
 own byte_payload.delete()
 own empty_payload.delete()
 own payload_source.delete()
+
+StructBorrowed := struct {
+    ref point : StructPoint
+    ref count : I64
+    ref label : Str
+}
+borrowed_point := func(holder: StructBorrowed) returns ref StructPoint { return holder.point }
+borrowed_count := func(holder: StructBorrowed) returns ref I64 { return holder.count }
+bump_borrowed_count := func(mut count: I64) { count.inc() }
+borrowed_copy := func(holder: StructBorrowed) returns StructBorrowed { return holder.clone() }
+
+mut first := StructPoint(x=4)
+mut second := StructPoint(x=20)
+mut borrowed_number : I64 = 5
+mut next_number : I64 = 30
+mut borrowed_label := Str.with_capacity(9)
+borrowed_label.push_str("borrowed")
+mut holder := StructBorrowed(point=first, count=borrowed_number, label=borrowed_label)
+holder_copy := borrowed_copy(holder)
+println(borrowed_point(holder).x.to_str(), ":", borrowed_count(holder).to_str(), ":", holder_copy.label)
+bump_borrowed_count(holder.count)
+first.x = 11
+borrowed_label.push_str("!")
+println(holder_copy.point.x.to_str(), ":", borrowed_count(holder_copy).clone().to_str(), ":", holder_copy.label)
+holder.point = second
+holder.count = next_number
+println(holder.point.x.to_str(), ":", borrowed_count(holder).clone().to_str())
+println(holder_copy.point.x.to_str(), ":", borrowed_count(holder_copy).clone().to_str())
+mut equal_point := StructPoint(x=20)
+mut equal_number : I64 = 30
+mut equal_label := Str.with_capacity(9)
+equal_label.push_str("borrowed!")
+equal_holder := StructBorrowed(point=equal_point, count=equal_number, label=equal_label)
+if holder.eq(equal_holder) { println("borrowed fields compare values") }
+equal_number = 31
+if holder.eq(equal_holder).not() { println("borrowed fields changed") }
+
+StructOwned := struct {
+    own named := StructNamedPoint()
+    own label : Str = ""
+}
+mut owned_label := Str.with_capacity(5)
+owned_label.push_str("owned")
+mut owned := StructOwned(named=StructNamedPoint(point=StructPoint(x=3), name=owned_label.clone()), label=owned_label.clone())
+owned_copy := owned.clone()
+owned.named.point.x = 7
+owned.named.name = "changed"
+owned.label = "new"
+println(owned.named.point.x.to_str(), ":", owned.named.name, ":", owned.label)
+println(owned_copy.named.point.x.to_str(), ":", owned_copy.named.name, ":", owned_copy.label)
+owned.named = StructNamedPoint(point=StructPoint(x=9), name="replacement")
+println(owned.named.point.x.to_str(), ":", owned.named.name)
+own owned.delete()
+own owned_copy.delete()
+own owned_label.delete()
+own borrowed_label.delete()
+own equal_label.delete()
+
+StructForwardRef := struct { ref point : StructForwardPoint }
+StructForwardPoint := struct { value := 0 }
+forward_point := StructForwardPoint(value=17)
+forward_holder := StructForwardRef(point=forward_point)
+println(forward_holder.point.value.to_str())
+
+StructSelfRef := struct {
+    value := 0
+    ref next : StructSelfRef
+}
+if true {
+    mut self_node : StructSelfRef = malloc(StructSelfRef.size())
+    self_node.value = 23
+    self_node.next = self_node
+    println(self_node.next.value.to_str())
+    own self_node.delete()
+}
+
+StructNullable := struct {
+    value := 0
+    next := Option(ref StructNullable).None
+}
+mut nullable_tail := StructNullable(value=2)
+nullable_head := StructNullable(value=1, next=safe_ref(nullable_tail))
+if nullable_head.next.is_some() {
+    ref nullable_next : StructNullable = nullable_head.next.unwrap()
+    println(nullable_next.value.to_str())
+}
+nullable_copy := nullable_head.clone()
+nullable_tail.value = 6
+if nullable_copy.next.is_some() {
+    ref borrowed_next : StructNullable = nullable_copy.next.unwrap()
+    println(borrowed_next.value.to_str())
+}
+if nullable_tail.next.is_none() { println("no next") }
+equal_tail := StructNullable(value=6)
+equal_head := StructNullable(value=1, next=safe_ref(equal_tail))
+if nullable_head.eq(equal_head) { println("nullable refs compare values") }
+
+StructBorrowTag := enum { Empty, Borrowed: ref StructPoint, Number: I64 }
+borrow_tag := StructBorrowTag.Borrowed(first)
+switch borrow_tag {
+case .Borrowed(borrowed): println(borrowed.x.to_str())
+case: println("unexpected borrow tag")
+}
+first.x = 18
+borrow_tag_copy := borrow_tag.clone()
+switch borrow_tag_copy {
+case .Borrowed(borrowed): println(borrowed.x.to_str())
+case: println("unexpected cloned tag")
+}
+equal_borrow_point := StructPoint(x=18)
+equal_borrow_tag := StructBorrowTag.Borrowed(equal_borrow_point)
+if borrow_tag_copy.eq(equal_borrow_tag) { println("ref enum compares values") }

@@ -324,8 +324,8 @@
   rvalue: HolyC's postfix I64 cast otherwise widens the memory read of a narrow
   payload. Payload-enum sizes remain backend-resolved rather than folding the
   shared/C layout; lowered whole-value swaps use typed copies and validate their
-  size against HolyC sizeof. Pointer/ref payloads and custom lifecycle methods
-  remain explicit unsupported shapes.
+  size against HolyC sizeof. At this stage pointer/ref payloads and custom
+  lifecycle methods remained explicit unsupported shapes.
 
   The expanded ~test/script_struct_runtime.til~ checks independent managed
   clones after mutation/deletion, U8 and I64 payloads, empty values, nested
@@ -333,6 +333,34 @@
   replacement. Interpreter and generated C output match. TempleOS 5.03 under
   QEMU TCG produced the same 47 lines and ~TILTEST:PASS~. The native Str/raw-
   allocation goldens also record the corrected temporary naming and widening.
+
+  The seventeenth slice adds pointer-bearing aggregate storage: required ref
+  fields borrow their pointees, own fields allocate and recursively clone/free
+  boxed values, and field replacement initializes its new value before tearing
+  down the old box. Ref-returning functions, borrowed aggregate/scalar
+  parameters, mutable scalar parameters, and typed malloc-backed struct values
+  use pointer ABI throughout. Stack-owned function parameters never free the
+  caller's wrapper on delete, even if the C ABI passes a free flag. Generated
+  struct helpers accept a call-free flag for owned heap boxes. Class definitions
+  order cross-type pointer fields after their targets; self-references need no
+  forward class declaration (which HolyC rejects).
+
+  ~Option(ref T)~ niche values carry one borrowed pointer, including nullable
+  recursive fields, Some/None construction, is_some/is_none and checked unwrap.
+  Multi-variant enum ref payloads store and clone the pointer without owning
+  the pointee; generated equality compares pointee values, including distinct
+  pointers with equal contents. Borrowed struct fields and nullable refs also
+  compare pointee values when the frontend generated equality. Ref payload
+  bindings read through the lowered pointer slot, and their HolyC local names
+  are unique across switch arms. Other niche shapes (owned boxes) and
+  non-niche function-pointer payloads remain unsupported. The interpreter now
+  demotes a moved literal Str in an own field from CAP_LIT to CAP_VIEW: the
+  characters remain static, while deleting the owned heap wrapper no longer
+  leaks it.
+  The shared ~test/script_struct_runtime.til~ exercises these paths, including
+  forwarding and self-referential classes, in the interpreter and C backend;
+  TempleOS 5.03 under QEMU TCG produced the same 65 output lines and
+  ~TILTEST:PASS~.
 
 *** QEMU validation
 
