@@ -1340,7 +1340,7 @@ main := proc(args: ..Str) {
         "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", 2,
         format(til_bin, " translate -c gen/c/aggregate_own_return.c test/structs.til '&&' cat gen/c/aggregate_own_return.c"))
     // #209: a HAND-WRITTEN destructor call on storage its callee does not own
-    // -- a closed-world own parameter's caller slot, a module-level value --
+    // -- a closed-world own parameter's caller slot, a stack local, a module-level value --
     // reaches the C with call_free 0 because the garbager recorded it in the
     // AST, not because the builder overwrote the argument at emission. Both
     // regressions show here: without the AST decision the C boxes a copy to
@@ -1349,6 +1349,7 @@ main := proc(args: ..Str) {
     add_counts(tests, "handwritten_dtor_call_free", "build",
         format(til_bin, " translate -c gen/c/handwritten_dtor.c test/ownership_shapes.til '&&' cat gen/c/handwritten_dtor.c"),
         CountCheck(needle = "Shelf209_delete(h, 0);", expected_count = 3),
+        CountCheck(needle = "Shelf209_delete(&h, 0);", expected_count = 1),
         CountCheck(needle = "Shelf209_delete(&shelf209_global, 0);", expected_count = 1),
         CountCheck(needle = "Shelf209 *_oa = malloc", expected_count = 0))
     add_count(tests, "aggregate_own_escape_boxes", "build",

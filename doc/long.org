@@ -24,6 +24,10 @@ verbatim.  The own-parameter case is why the decision could never have
 lived in the source: in a library build the same parameter IS a heap box
 its callee owns, and the same line means true.
 
+A later fold of a declaration's initializer to a Str literal is also
+normalized against ~GcStorage~ in the constfolder; the scavenger restores
+~Shallow~ for DCE. Neither needs an emission-time delete rewrite.
+
 Historical, as it read when the special-case was live:
 
 src/self/builder.til ~1413-1437 force-emits

@@ -64,14 +64,15 @@ statements that cannot do anything (a free-only destructor with a
 literal false, the static CAP_LIT wrapper of an immutable Str literal, a
 stack POD enum) -- so it stays.
 
-Regression tests: three cells in test/ownership_shapes.til
-(~own_param_dtor_paths~ for the top-level and in-branch own-parameter
-shapes, ~global_dtor_path~ for the module-level value), run on both
+Regression tests in test/ownership_shapes.til:
+~own_param_dtor_paths~ for the top-level and in-branch own-parameter
+shapes, ~stack_local_dtor_path~ for an owned frame local with a computed
+call_free, and ~global_dtor_path~ for the module-level value, run on both
 backends under ASAN, and ~handwritten_dtor_call_free~ in src/tests.til
 pinning the emitted shape -- ~Shelf209_delete(h, 0)~ x3,
-~Shelf209_delete(&shelf209_global, 0)~ x1, and no ~Shelf209 *_oa =
-malloc~. A runtime test alone could not pin this: with neither the
-override nor the realign, the C takes a still-correct
+~Shelf209_delete(&h, 0)~ x1, ~Shelf209_delete(&shelf209_global, 0)~ x1,
+and no ~Shelf209 *_oa = malloc~. A runtime test alone could not pin this:
+with neither the override nor the realign, the C takes a still-correct
 copy-then-~delete(copy, 1)~ route, so only the emitted shape tells the
 two apart.
 
