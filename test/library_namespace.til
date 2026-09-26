@@ -109,15 +109,32 @@ main := proc() {
             "Str_to_i64", "Str_to_u64", "Str_to_i8", "Str_to_u8", "Str_to_i16", "Str_to_u16",
             "Str_to_i32", "Str_to_u32", "Str_to_usize", "Str_to_f32", "Str_to_f64",
             "digit_value", "I64_MIN", "I64_MAX", "U64_MAX",
-            "Vec__Str", "Vec__Str_new", "Vec__Str_with_capacity", "Vec__Str_size",
-            "Vec__Str_len", "Vec__Str_unsafe_get", "Vec__Str_get", "Vec__Str_push",
-            "Vec__Str_clear", "Vec__Str_delete", "Vec__Str_clone", "Str_split", "join") {
+            "Vec__Str", "Vec__Str_len", "Vec__Str_unsafe_get", "Vec__Str_push",
+            "Vec__Str_clone", "Str_split", "join") {
         prefix := format("#define ", core_name, " ")
         alias_a := line_starting_with(fwd_a, prefix)
         alias_b := line_starting_with(fwd_b, prefix)
         if alias_a != alias_b { panic("inconsistent shared core symbol: ", core_name) }
         require_contains(alias_a, "til_tilcore_x2d")
     }
+    // The selected ABI must be identical for every library of this compiler
+    // revision; each build publishes the core at the SAME versioned path.
+    for alias_a : Str in fwd_a.split("\n") {
+        if alias_a.starts_with("#define ").and(alias_a.contains(" til_tilcore_x2d")) {
+            require_contains(fwd_b, format(alias_a, "\n"))
+        }
+    }
+    for alias_b : Str in fwd_b.split("\n") {
+        if alias_b.starts_with("#define ").and(alias_b.contains(" til_tilcore_x2d")) {
+            require_contains(fwd_a, format(alias_b, "\n"))
+        }
+    }
+    // FuncSig typedefs still point to each library's own closure layout;
+    // giving them a common core name makes two public headers conflict.
+    closure_alias_a := line_starting_with(fwd_a, "#define TilClosure ")
+    closure_alias_b := line_starting_with(fwd_b, "#define TilClosure ")
+    if closure_alias_a == closure_alias_b { panic("library-local closure layout gained a shared-core name") }
+    require_contains(fwd_a, "#define HashFn til_library_x5fnamespace_x5fa__HashFn")
     parser_alias := line_starting_with(fwd_a, "#define Str_to_i64 ")
     core_prefix := parser_alias.strip_prefix("#define Str_to_i64 ").strip_suffix("Str_to_i64")
     helper_target := format(" ", core_prefix, "str_parse_integer_magnitude\n")

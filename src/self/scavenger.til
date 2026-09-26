@@ -1712,7 +1712,284 @@ priv scav_is_type_gen_template := func(fdef: Expr) returns Bool {
     return false
 }
 
-priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
+// Share concrete types whose layout is fixed by core alone. Str is the C
+// runtime's aggregate boundary; primitive aliases and Dynamic have fixed C
+// layouts. Core's Array/Vec instantiations on those types own only a raw byte
+// buffer and target-width counters. A user type's instantiation is created in
+// its calling unit, not among the always-imported core units scanned below.
+priv shared_core_type := func(name: Str, ctx: Context) returns Bool {
+    if name.eq("Str").or(name.eq("Dynamic")).or(is_scalar_type_name(name)) { return true }
+    mut element := ""
+    if name.starts_with("Array__") { element = name.strip_prefix("Array__").clone() }
+    else if name.starts_with("Vec__") { element = name.strip_prefix("Vec__").clone() }
+    if element.len() == 0 { return false }
+    return ctx.type_gen_synths.has(name)
+        .and(element.eq("Str").or(element.eq("Dynamic")).or(is_scalar_type_name(element)))
+}
+
+priv shared_core_signature := func(fd: FunctionDef, ctx: Context, core_top: Map(Str, DeclRef)) returns Bool {
+    if fd.sig.func_type.is_bodyless().or(fd.sig.func_type.is(FuncType.Macro)) { return false }
+    if fd.captures.len() > 0 { return false }
+    if fd.sig.return_type.len() > 0 {
+        if shared_core_type(fd.sig.return_type, ctx).not() { return false }
+    }
+    for p : Declaration in fd.sig.params {
+        if shared_core_type(p.type_name(), ctx).not() { return false }
+    }
+    // A fieldless core error uses the fixed scalar error slot, not an
+    // artifact-specific payload layout (Vec(Str).get, Array(Str).set).
+    for error_type : Str in fd.sig.throw_types {
+        if core_top.has(error_type).not() { return false }
+        ref location : DeclRef = core_top[error_type]
+        ref iu : ImportUnit = ctx.imported[location.path]
+        ref stmt : Expr = iu.ast.children[location.idx]
+        ref def : Expr = stmt.children[0]
+        if def.node_type.is(NodeType.StructDef).not() { return false }
+        if structdef_of(def).fields.len() > 0 { return false }
+    }
+    return true
+}
+
+priv shared_core_has_artifact_nodes := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .PrecomputedSequence(data):
+        if data.capacity > 0 { return true }
+    case .FuncDef(fd):
+        if fd.captures.len() > 0 { return true }
+    case .BodyValue: return true
+    case:
+    }
+    for child : Expr in e.children {
+        if shared_core_has_artifact_nodes(child) { return true }
+    }
+    return false
+}
+
+priv shared_core_private_c_name := func(path: Str, orig_name: Str) returns Str {
+    slash := path.rfind("/")
+    base := path.substr(slash.add(1).to_usize(), path.len().sub(slash.add(1).to_usize()))
+    return format(base.strip_suffix(".til"), "_", orig_name)
+}
+
+// Derive the versioned core ABI from the same typed, const-folded core AST
+// every library already imports. The candidates have stable scalar/string
+// layouts; the fixpoint discards bodies whose dependencies are user-owned,
+// mutable, dynamically dispatched, or another rejected core declaration.
+// Store the result in builder_core_c_names, which the C emitter already uses
+// for both the source namespace and the core-only/shared-object partition.
+priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, DeclRef),
+        user_top: Map(Str, DeclRef)) returns Vec(Str) {
+    mut declared := Set(Str).new()
+    mut external := Set(Str).new()
+    mut candidates := Map(Str, Str).new()
+    mut deps := Map(Str, Vec(Str)).new()
+    for u : ProgramUnit in lp.core_units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
+            ref d : Declaration = decl_of(stmt)
+            declared.add(own d.name.clone())
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                ref members : Vec(Declaration) = def_ns_decls(rhs)
+                for i in 0..members.len() {
+                    member_name := d.name.concat3(".", def_ns_name_at(rhs, i))
+                    declared.add(own member_name)
+                }
+            } else if rhs.node_type.is(NodeType.FuncDef) {
+                ref fd : FunctionDef = funcdef_of(rhs)
+                if fd.sig.func_type.is_bodyless() { external.add(own d.name.clone()) }
+            }
+        }
+    }
+    for u : ProgramUnit in lp.core_units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
+            ref d : Declaration = decl_of(stmt)
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                if shared_core_type(d.name, lp.ctx).and(is_scalar_type_name(d.name).not()).and(d.name != "Dynamic") {
+                    mut stable_fields := rhs.node_type.is(NodeType.StructDef)
+                    if stable_fields {
+                        ref sd : StructDef = structdef_of(rhs)
+                        for field : Declaration in sd.fields {
+                            if shared_core_type(field.type_name(), lp.ctx).not() { stable_fields = false break }
+                        }
+                    }
+                    if stable_fields { candidates.set(d.name, own d.name.clone()) }
+                }
+                ref members : Vec(Declaration) = def_ns_decls(rhs)
+                for i in 0..members.len() {
+                    ref member : Declaration = members[i]
+                    if member.default_value.is_none() { continue }
+                    source_name := d.name.concat3(".", def_ns_name_at(rhs, i))
+                    c_name := d.name.concat3("_", def_ns_name_at(rhs, i))
+                    ref value : Expr = member.default_expr()
+                    switch value.node_type {
+                    case .FuncDef(fd):
+                        if fd.sig.func_type.is_bodyless() { external.add(own source_name.clone()) }
+                        else if (value.children.len() > 0)
+                            .and(shared_core_type(d.name, lp.ctx))
+                            .and(shared_core_signature(fd, lp.ctx, core_top))
+                            .and(shared_core_has_artifact_nodes(value).not()) {
+                            candidates.set(source_name, own c_name)
+                            mut refs := Vec(Str).new()
+                            collect_refs(value, refs, lp.ctx.symbols)
+                            if fd.sig.variadic_index >= 0 {
+                                ref variadic : Declaration = fd.sig.params[fd.sig.variadic_index.to_usize()]
+                                vec_push_str(refs, format("Array__", variadic.type_name()))
+                            }
+                            deps.set(source_name, own refs)
+                        }
+                    case .Literal:
+                        if member.is_mut.not().and(shared_core_type(member.type_name(), lp.ctx)) {
+                            candidates.set(source_name, own c_name)
+                        }
+                    case:
+                    }
+                }
+            } else {
+                switch rhs.node_type {
+                case .FuncDef(fd):
+                    if fd.sig.func_type.is_bodyless() {
+                        // The C emitter, not ext.c, supplies these two
+                        // core declarations' bodies as its print prelude.
+                        if d.name.eq("print_single").or(d.name.eq("print_flush")) {
+                            candidates.set(d.name, own d.name.clone())
+                        }
+                    } else if (rhs.children.len() > 0)
+                        .and(shared_core_signature(fd, lp.ctx, core_top))
+                        .and(shared_core_has_artifact_nodes(rhs).not()) {
+                        mut c_name := d.name.clone()
+                        if d.is_priv.and(d.orig_name.len() > 0) {
+                            c_name = shared_core_private_c_name(u.path, d.orig_name)
+                        }
+                        candidates.set(d.name, own c_name)
+                        mut refs := Vec(Str).new()
+                        collect_refs(rhs, refs, lp.ctx.symbols)
+                        if fd.sig.variadic_index >= 0 {
+                            ref variadic : Declaration = fd.sig.params[fd.sig.variadic_index.to_usize()]
+                            vec_push_str(refs, format("Array__", variadic.type_name()))
+                        }
+                        deps.set(d.name, own refs)
+                    }
+                case .Literal:
+                    if d.is_mut.not().and(shared_core_type(d.type_name(), lp.ctx)) {
+                        candidates.set(d.name, own d.name.clone())
+                    }
+                case:
+                }
+            }
+        }
+    }
+    mut accepted := Set(Str).new()
+    for name : Str in candidates.keys { accepted.add(own name.clone()) }
+    mut changed := true
+    while changed {
+        changed = false
+        for name : Str in candidates.keys {
+            if accepted.has(name).not().or(deps.has(name).not()) { continue }
+            for ref_name : Str in deps[name] {
+                if ref_name.starts_with("?") { continue }
+                if shared_core_type(ref_name, lp.ctx) { continue }
+                if ref_name.starts_with("*.") { accepted.remove(name) changed = true break }
+                if user_top.has(ref_name) { accepted.remove(name) changed = true break }
+                if external.has(ref_name) {
+                    // These ext_func families are emitted from the PROGRAM's
+                    // reflection/dispatch inventory, not from ext.c.
+                    if ref_name.starts_with("dyn_").or(ref_name.starts_with("struct_field_"))
+                        .or(ref_name.starts_with("enum_variant_"))
+                        .or(ref_name.starts_with("func_sig_")) {
+                        accepted.remove(name)
+                        changed = true
+                        break
+                    }
+                    continue
+                }
+                if declared.has(ref_name).and(accepted.has(ref_name).not()) {
+                    if core_top.has(ref_name) {
+                        ref origin : DeclRef = core_top[ref_name]
+                        ref core_iu : ImportUnit = lp.ctx.imported[origin.path]
+                        ref core_decl : Expr = core_iu.ast.children[origin.idx]
+                        if core_decl.children.len() > 0 {
+                            if scav_is_type_gen_template(core_decl.children[0]) { continue }
+                        }
+                    }
+                    accepted.remove(name)
+                    changed = true
+                    break
+                }
+            }
+        }
+    }
+    // The C runtime names Str regardless of the user program. Its source
+    // unit's helpers (format, join, parsers, immutable cap sentinels) and
+    // Str's methods are the stable entrypoints. Pull in only their actual
+    // dependencies, rather than exporting every method of every reached
+    // collection specialization merely because its layout is needed.
+    ref str_owner : DeclRef = core_top["Str"]
+    ref str_iu : ImportUnit = lp.ctx.imported[str_owner.path]
+    ref str_def : Expr = str_iu.ast.children[str_owner.idx].children[0]
+    ref str_members : Vec(Declaration) = def_ns_decls(str_def)
+    mut explicit_str_methods := Set(Str).new()
+    for i in 0..str_members.len() {
+        ref method : Declaration = str_members[i]
+        if method.default_value.is_none() { continue }
+        switch method.default_expr().node_type {
+        case .FuncDef(fd):
+            if fd.auto_generated.not() {
+                explicit_str_methods.add(own "Str".concat3(".", def_ns_name_at(str_def, i)))
+            }
+        case:
+        }
+    }
+    mut shared := Set(Str).new()
+    for name : Str in candidates.keys {
+        if accepted.has(name).not() { continue }
+        if name.eq("Str").or(explicit_str_methods.has(name)) {
+            shared.add(own name.clone())
+            continue
+        }
+        if core_top.has(name) {
+            if core_top[name].path == str_owner.path { shared.add(own name.clone()) }
+            continue
+        }
+        dot := name.find(".")
+        if dot < 0 { continue }
+        owner := name.substr(0, dot.to_usize())
+        member := name.substr(dot.to_usize() + 1, name.len() - dot.to_usize() - 1)
+        if is_scalar_type_name(owner).or(owner.eq("Dynamic")) {
+            if member.eq("size").or(member.eq("delete")) { shared.add(own name.clone()) }
+        }
+    }
+    changed = true
+    while changed {
+        changed = false
+        for name : Str in candidates.keys {
+            if shared.has(name).not() { continue }
+            if deps.has(name) {
+                for ref_name : Str in deps[name] {
+                    if accepted.has(ref_name).and(shared.has(ref_name).not()) {
+                        shared.add(own ref_name.clone())
+                        changed = true
+                    }
+                }
+            }
+        }
+    }
+    mut roots := Vec(Str).new()
+    lp.ctx.builder_core_c_names = Map(Str, Str).new()
+    for name : Str in candidates.keys {
+        if shared.has(name).not() { continue }
+        roots.push(own name.clone())
+        c_name := name.replace(".", "_")
+        lp.ctx.builder_core_c_names.set(c_name, own candidates[name].clone())
+    }
+    return roots
+}
+
+priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
     if lp.cur_mode.needs_main {
         if lp.run_tests.not() {
@@ -1796,7 +2073,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     }
     if is_library {
         seed_library_roots(lp, worklist)
-        for shared_core_name : Str in builder_shared_core_source_names() {
+        for shared_core_name : Str in shared_core_from_imports(lp, core_top, top) {
             dot := shared_core_name.find(".")
             if dot >= 0 {
                 dot_u := dot.to_usize()

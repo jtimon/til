@@ -331,3 +331,35 @@ Vec(Str) between two libraries, and mutable/owned vector arguments. The
 install regression exercises split/join through the installed Python binding.
 The interpreted consumer also runs under ASAN to verify no invalid frees or
 leaked conversion buffers.
+
+*** Follow-up: derive shared ownership from imported core (2026-09-25)
+
+The previous shared-core name list in Context repeated individual methods,
+types, and globals already defined by the always-imported core AST. The
+scavenger now selects candidates from those typed, const-folded declarations:
+stable Str/scalar and concrete core Array/Vec layouts, immutable literal
+globals, and functions with signatures over those layouts. It drops bodies
+with nonempty artifact-local precomputed templates, captured closures,
+payload-carrying throws, user declarations, mutable/unselected core globals,
+or program-specific reflection/dispatch dependencies. From the actual Str
+definition it roots its explicitly declared methods and the helpers in the
+same core unit, then follows the candidate dependency closure. Scalar
+size/delete methods are shared by their lifecycle role. No new index or
+source-of-truth file is written; the result reuses the existing core C-name
+map and the existing versioned library/core artifacts. Private helper C
+names derive from their source unit, not their checkout/install path.
+
+The first attempt to export every eligible core declaration was counter to
+the purpose of sharing: the two-library fixture's core grew from 83,600 to
+179,240 bytes (97 to 251 exports). Limiting ownership to the Str entrypoints
+and their dependencies leaves 90 exports and shrinks the core to 82,744
+bytes. Across the core plus both shared libraries, measured ELF text drops
+from 141,325 to 140,639 bytes; their two static archives together drop
+from 569,194 to 565,350 bytes. These are code-size measurements, not a
+measured CPU-cache or execution-speed improvement.
+
+The library_namespace regression now compares the entire canonical alias
+set between independently generated libraries: both builds publish the SAME
+versioned core path, so one must never demand an export the other omitted.
+It also checks that a FuncSig/closure layout remains library-local while
+compiled, interpreted, installed, static and shared consumers still work.
