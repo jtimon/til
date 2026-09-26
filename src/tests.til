@@ -2501,6 +2501,12 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_block_own_error_build", "typer",
         "after ownership transfer", 1,
         format(til_bin, " build", asan_flag, " test/capture_block_own_error.til"))
+    // #407: the counts above only see the diagnostic, not what happened
+    // after it -- which was nothing: the garbager's errors on a cleanly typed
+    // program were printed and ignored, and both backends went on to run it.
+    // The golden pins the exit status AND that no program output follows.
+    add_cli_pair(tests, "use_after_transfer", "test/use_after_transfer_error.til",
+        "", 1, "test/use_after_transfer_error.expected", til_bin, asan_flag)
     // #364: a local declared outside a loop and consumed under a guard
     // inside it is rejected, exactly like the unguarded form (3 cases).
     // #365: so is one the loop reassigns before or after the transfer,

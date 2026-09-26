@@ -1,6 +1,4 @@
 * Bugs
-** High
-*** [[./open/407.org][#407]] Garbager insert-pass errors are printed but ignored on otherwise clean programs
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 *** [[./open/406.org][#406]] Translate/build cache serves stale output written by another program or compiler

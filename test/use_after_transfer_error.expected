@@ -1,0 +1,4 @@
+test/use_after_transfer_error.til:16:9: error: use of 'doomed' after ownership transfer
+test/use_after_transfer_error.til:15:1: note: ownership transferred here
+  help: pass a clone instead: own doomed.clone()
+1 type error(s) found
