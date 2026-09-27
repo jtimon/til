@@ -59,3 +59,184 @@ the existing logo font directly. That small GUI feature does not
 require the full terminal foundation or a graphics protocol. The
 decision there to keep ordinary ~til repl~ prompts textual remains
 in place; this issue explores the more general terminal facility.
+
+*** Design review against master d72865e0d
+
+This is a source/protocol review, not a working terminal implementation
+or a claim of tested interoperability. Recommended direction: first
+establish a reusable terminal session and screen model, then implement
+an existing graphics protocol. Kitty graphics is the strongest match
+among the protocols reviewed for queryable, reusable inline images.
+
+**** Existing code and reuse boundaries
+
+- ~src/std/sys.til~'s ~Cmd~ provides argv, environment, cwd, process
+  start, and exit-status handling. Its capture mode uses spool files
+  for reading completed output; it exposes neither a PTY nor an
+  interactive stdin stream. Replacing ~run_cmd~ with ~Cmd.capture~
+  would not turn tilminal into a terminal.
+- ~src/self/repl_editor.til~ and the ~repl_term_*~ C functions operate
+  on the application's existing terminal. Their input decoder turns
+  terminal key sequences into editor actions; a terminal emulator
+  instead parses child output into screen operations and encodes GUI
+  keys into child input. Reuse the testing ideas, not the editor's
+  one-line/history model as the emulator's screen.
+- ~test/repl_pty.til~ obtains its PTY through the external ~script~
+  command. ~test/repl_wincon.til~ and ~test/wincon.c~ test a real
+  Windows console through console APIs, not ConPTY. Both provide
+  useful application scenarios, but neither supplies a reusable
+  terminal-host transport or proves ConPTY behavior.
+
+**** Session, screen, and view responsibilities
+
+Keep these responsibilities separate, with one independent instance
+per pane; this describes boundaries, not new public API signatures:
+
+- Platform session: own the child and terminal handles; read/write
+  bytes, propagate size, report exit/EOF/errors, and finish teardown.
+  Child exit and draining its remaining output are distinct events.
+- Terminal model: incremental UTF-8 and escape parsing, cell contents
+  and attributes, cursor and wrap state, scroll regions, primary and
+  alternate screens, and outgoing terminal-query responses. Retain
+  incomplete sequences between reads; reads are not lines or frames.
+- Raylib view: render cells in a supplied pane rectangle, determine
+  rows/columns from cell metrics, and translate focused input. Window
+  creation and the main event loop belong to the standalone/tiled
+  host, so embedding does not open another window or event loop.
+
+The shell or child application owns its prompt, line editing, echo,
+and history. The current fixed ~$ ~ input bar and Enter-to-run logic
+are not appropriate inside an emulated terminal. Tilminal should not
+inspect child text to recognize or replace a til prompt. The direct
+GUI logo in #159 remains distinct from application-supplied graphics.
+
+**** Platform transport findings
+
+POSIX: allocate a PTY, create a child session with its slave as the
+controlling terminal and stdin/stdout/stderr, then execute the shell.
+The parent owns the master. Use nonblocking I/O with queued partial
+writes and bounded per-frame processing so a busy child cannot starve
+the GUI. Resize through ~TIOCSWINSZ~; let the tty's line discipline
+deliver Ctrl-C/Ctrl-Z to the foreground job rather than manually
+signalling the shell for every key. Close unused descriptors, report
+spawn failures, and reap the child. ~posix_openpt~/~grantpt~/~unlockpt~
+are a candidate allocation route; check Linux/macOS details before
+choosing the C boundary.
+
+Windows: create the pipe pair and ~CreatePseudoConsole~ first, then
+attach the child through ~STARTUPINFOEX~ and
+~PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE~. The terminal host consumes the
+UTF-8/VT output stream and sends encoded input; existing console API
+clients can run behind ConPTY. Use ~ResizePseudoConsole~ for size.
+Microsoft recommends separate servicing threads for synchronous input
+and output channels to avoid deadlock. Those workers must communicate
+with the GUI through owned queues, not mutate the screen or call
+raylib. Keep draining output during ~ClosePseudoConsole~; closing can
+emit a final frame. Native Windows execution is needed to verify this
+path, including whether the chosen graphics sequences survive ConPTY.
+
+**** Screen and input requirements
+
+The first end-to-end milestone should support a persistent shell and
+unmodified ~til repl~: CR/LF, backspace, tabs, cursor movement, erase
+line/display, wrapping, scrolling, basic SGR attributes, key forwarding,
+resizing, and process lifecycle. Follow with alternate-screen and
+scroll-region behavior required by full-screen terminal applications.
+Choose and test a terminal compatibility baseline before advertising
+a ~TERM~ value; do not claim xterm compatibility from a few CSI codes.
+
+Cell width is not UTF-8 byte count. Preserve wide-character continuation
+cells and combining text, with incremental decoding across reads.
+Character coverage and Unicode width/shaping policy need an explicit
+implementation decision; raylib text drawing alone does not define
+terminal layout. Unknown terminal sequences must be consumed according
+to parser rules without leaking their payload as printable text, while
+broken internal invariants and platform failures remain explicit errors.
+
+Escape must reach the child instead of triggering raylib's default
+window-close key. Existing startup command behavior, shell selection,
+window-close behavior, and host shortcuts need an explicit UX decision
+before replacing the current command runner. These are not changes
+implemented or finalized by this review.
+
+**** Graphics protocol comparison
+
+- Kitty graphics: application-supplied pixels, a real query action
+  (~a=q~), image/placement IDs, deletion, and sizing in cells (~c~, ~r~).
+  Direct base64 transmission (~t=d~) works without a shared filesystem,
+  making it suitable for SSH when the transport passes the sequences.
+  The protocol specifies chunks no larger than 4096 encoded bytes.
+  Prefer this route over terminal-name or installed-font detection.
+- iTerm2 OSC 1337 images: also transfers base64 image contents and
+  accepts cell dimensions; multipart transfers and feature reporting
+  are documented. It is another viable existing protocol, but kitty's
+  explicit image/placement lifecycle is a better starting point for
+  reused prompt icons. The current iTerm2 documentation also reports
+  support for kitty graphics, so the choice need not be kitty-only.
+- DEC DECDLD/DRCS: downloads bitmap character sets and selects them
+  through terminal character-set state. This is closer to a literal
+  custom glyph, but involves legacy charset selection and limited
+  font buffers rather than ordinary Unicode text or a TTF upload.
+  It is not the recommended first route for general inline graphics.
+
+For kitty detection, the specification recommends a tiny image query
+followed by primary device attributes (~CSI c~). A graphics response
+establishes support; a device-attributes response without the earlier
+graphics response establishes non-support under the protocol's reply
+ordering. An application still needs a deadline for terminals or
+intermediaries that do not reply, and must distinguish replies from
+keyboard input. This solves capability detection for this protocol,
+not arbitrary font selection in a terminal.
+
+A one-cell placement is possible with ~c=1,r=1~. Default image placement
+moves the cursor down as well as right; a same-line prompt needs
+~C=1~ and explicit cursor management, or the protocol's Unicode
+placeholder mechanism. Images have no inherent copied-text meaning.
+Unicode placeholders (~U+10EEEE~ plus attributes/combining markers)
+can make images follow text redraws, but require the corresponding
+Unicode cell model and protocol support; they are not plain font glyphs.
+Treat placeholder support as a separate capability to verify, not an
+automatic consequence of basic image support.
+
+Before implementing the graphics milestone, define the supported
+protocol subset and responses for unsupported requests. Static inline
+transfer, query, placement/replacement, and deletion are the candidate
+first subset. Specify image lifetime on scroll, erase, resize, alternate
+screen, and reset, plus storage bounds and cleanup. Multiplexer support
+requires end-to-end checks: direct transmission avoids remote paths,
+but does not guarantee that tmux or another intermediary forwards the
+commands and replies. Animation and file/shared-memory transfer are
+not prerequisites for a one-cell icon.
+
+**** Verification and next implementation boundary
+
+- Headless model tests: feed identical bytes whole and split at every
+  boundary; compare cells, cursor, modes, and generated replies. Cover
+  narrow grids, pending wrap, wide/combining text, scrolling, erase,
+  and primary/alternate screen restoration.
+- Transport tests: interactive child behavior, persistent cwd/env,
+  foreground-job interruption, resize observation, partial I/O, final
+  output before exit, and teardown. Exercise native POSIX and Windows
+  hosts; the current REPL console tests are not substitutes for ConPTY.
+- GUI milestone: shell plus unmodified ~til repl~, repeated editing,
+  Escape forwarding, resizing, and a child producing continuous output
+  while the window remains responsive. Verify instance isolation for
+  eventual tiled panes.
+- Graphics milestone: use an independent application speaking the
+  selected protocol; test support/unsupported responses, one-cell
+  placement without cursor drift, reuse/delete, scrolling, and a
+  remote session. Record multiplexer and ConPTY results separately.
+
+The next implementation proposal should pin down the platform bridge
+and reusable example-module layout, the initial terminal compatibility
+and Unicode scope, and the command-runner UX transition. Any new API,
+file layout, dependency, or installed terminfo entry needs approval
+before creation. No such surface is introduced by this review.
+
+**** References
+
+- [[https://man7.org/linux/man-pages/man7/pty.7.html][POSIX/Linux PTY model and allocation]]
+- [[https://learn.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session][Microsoft ConPTY session, I/O, resize, and teardown]]
+- [[https://sw.kovidgoyal.net/kitty/graphics-protocol/][Kitty graphics protocol, queries, placements, and Unicode placeholders]]
+- [[https://iterm2.com/documentation-images.html][iTerm2 inline image protocol and detection]]
+- [[https://vt100.net/docs/vt510-rm/DECDLD.html][DEC dynamically redefinable character sets]]
