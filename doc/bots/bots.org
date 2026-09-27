@@ -209,6 +209,13 @@ fanfare:
   - "On top of master `60bd9a3`, + my commits + uncommitted edits to
     `src/self/builder.til`."
 
+Count only commits whose changes have not yet landed on master. A
+cherry-picked or re-committed change is already merged even if the
+original commit still sits at the worktree's HEAD; do not report it as
+"+ 1 commit of my own" or as pending work. Rebase the worktree onto
+master after the merge. Until then, report its old base and the current
+master tip separately, and say plainly that nothing remains to merge.
+
 If unsure which master you are based on, find it with
 `git merge-base HEAD origin/master` rather than guessing.
 
