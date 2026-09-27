@@ -240,3 +240,173 @@ before creation. No such surface is introduced by this review.
 - [[https://sw.kovidgoyal.net/kitty/graphics-protocol/][Kitty graphics protocol, queries, placements, and Unicode placeholders]]
 - [[https://iterm2.com/documentation-images.html][iTerm2 inline image protocol and detection]]
 - [[https://vt100.net/docs/vt510-rm/DECDLD.html][DEC dynamically redefinable character sets]]
+
+*** Implementation proposal against master 24b032796 (pending approval)
+
+Deliver a standalone terminal that runs a persistent shell and
+unmodified ~til repl~, with the same terminal instances usable later
+inside tiled. The proposal below names the new source surfaces and UX
+changes for approval; it does not create them. Kitty graphics remains
+the next milestone after the terminal foundation, not part of the
+initial terminal implementation.
+
+**** Proposed source layout and ownership
+
+- ~examples/lib/terminal_model.til~: pure til parser and screen state.
+  Owns cells, cursor, modes, scroll regions, and pending replies.
+  Used by the view, headless tests, and eventually tiled.
+- ~examples/lib/terminal_text.til~: UTF-8 decoding and cell-width
+  classification shared by the parser and renderer. Keep pinned
+  Unicode 17 width/combining range data here as source with attribution
+  and provenance, rather than depending on host locale or font advance.
+- ~examples/lib/terminal_session.til~: til ownership wrapper for a
+  child terminal session. Imports its example-local C bridge with
+  ~link_c~; used by tilminal, transport tests, and eventually tiled.
+- ~examples/lib/terminal_session.c~: POSIX PTY and Windows ConPTY
+  handles, process creation, I/O queues, resize, and teardown. Follow
+  the existing ~test/wincon.c~ example-local bridge pattern rather than
+  adding terminal-host primitives to the compiler's ~src/c/ext.c~.
+- ~examples/lib/terminal_view.til~: raylib cell rendering and input
+  encoding, taking a pane rectangle and focus state. Imports model
+  and session code, but does not create a window or own an event loop.
+- ~test/terminal_model.til~: headless parser, text-width, screen, and
+  input-encoding cases.
+- ~test/terminal_session.til~ and ~test/terminal_session_child.til~:
+  transport driver and deterministic child for real-terminal tests.
+  The driver launches the child in each supported host's PTY/ConPTY.
+
+These would be ordinary maintained source files, compiled through
+the existing example/test build paths. The Unicode ranges are an
+explicit versioned copy of upstream Unicode data, read by tilminal's
+width classifier; maintainers update them deliberately alongside tests,
+not through a build-time download or a generated cache. The existing
+byte-oriented Str operations and raylib glyph advances do not supply
+portable terminal cell widths. This adds a small Unicode-data
+maintenance obligation in exchange for reproducible behavior across
+POSIX and Windows; it does not promise complete Unicode text shaping.
+
+Update ~examples/tilminal.til~ to compose these modules and register
+the tests through the existing ~src/tests.til~ machinery. OS calls
+and the already-vendored raylib supply the native functionality; no
+new third-party runtime library is proposed. Binaries and generated C
+use the existing ~bin/~, ~gen/~, and ~tmp/~ conventions. No new
+installed font, terminfo file, manifest, or CLI configuration is needed
+for this first milestone. No new public stdlib API is proposed.
+
+**** Proposed module contracts
+
+~TerminalSession~ is an owning, non-clonable session handle. Its til
+interface has the following operations; the C bridge should accept
+scalar arguments and strings rather than duplicate Vec/enum layouts:
+
+- ~new~ and ~arg~ construct an argv-based child command, following
+  Cmd's ownership pattern. Arguments are appended before starting.
+- ~start(columns, rows)~ creates the terminal and child exactly once.
+- ~send(bytes)~ queues input without blocking the GUI.
+- ~pump~ services available work and returns output bytes. Empty
+  output is a legitimate no-data-yet state, not EOF. A distinct session
+  state reports running, draining, and exited-with-status; platform
+  errors are reported with their operation and OS error.
+- ~resize(columns, rows)~ updates the child terminal size.
+- ~close~ performs explicit orderly teardown; destruction also releases
+  the owned session. No global singleton terminal state is permitted.
+
+~TerminalScreen~ owns the cell grid and incremental parser. Its
+interface is ~new(columns, rows)~, ~feed(bytes)~, ~resize~, and
+~take_replies~. The host queues those replies to the session in parser
+order. A cell owns its text, rendition, and span (single, double, or
+wide-character continuation). The cursor position and pending-wrap
+state are separate. Consumers read the grid; only model operations
+change terminal state.
+
+The view exposes a per-frame update and draw operation over an
+instance plus a supplied rectangle/focus state. Update computes resize,
+queues focused keyboard input, pumps session output into the model,
+and returns parser replies to the session. Draw has no process I/O.
+Keep key-to-terminal-byte encoding testable without opening a window.
+Tiled can run these same operations once per pane, assigning focus and
+geometry itself.
+
+**** Initial compatibility and text scope
+
+Use the existing ~vt100~ terminal profile on POSIX, after tests verify
+the advertised terminfo operations. Implement its cursor addressing,
+tabs, erase/insert/delete operations as advertised, SGR rendition,
+scroll regions, save/restore cursor, application cursor/keypad modes,
+DEC special graphics, and device/status replies. Add the output
+sequences exercised by ConPTY to the shared model. Do not advertise
+an xterm/kitty terminal profile or graphics support at this stage.
+
+Decode UTF-8 incrementally. For the first text implementation, use
+Unicode scalar cell widths: wide/fullwidth characters span two cells,
+combining marks attach to the preceding base, and ambiguous-width
+characters use one cell. Retain the actual text for future selection.
+Malformed UTF-8 produces a visible replacement character, as an
+explicit input-decoding policy. Width is independent of font coverage:
+a missing rendered glyph retains the source character's cell span.
+Emoji ZWJ ligatures, bidi layout, and full grapheme shaping are later
+text work, not claimed by this initial scalar-width profile.
+
+Draw from the existing bundled font at fixed cell positions; do not
+measure a whole proportional string and call its advance a column.
+Load the glyphs needed by received text without interpreting font
+availability as a terminal capability. Grid resize initially preserves
+row contents with clipping/padding rather than reflowing paragraphs.
+Retain the visible screen and scroll within it; scrollback navigation,
+selection/clipboard, and alternate-screen applications are later
+milestones. This first acceptance target is shell/REPL interaction.
+
+**** Proposed standalone startup and keyboard behavior
+
+- With no command, POSIX starts the executable named by the existing
+  ~SHELL~ environment variable interactively (~/bin/sh~ when unset).
+  Windows starts ~COMSPEC~ (the system command processor when unset).
+  This reads conventional OS settings; it adds no til-specific setting.
+- Preserve the current optional command-string argument as a one-shot
+  shell command, now attached to the terminal: POSIX shell ~-c~,
+  Windows command processor ~/C~. Its completion leaves the final
+  screen and exit status visible; it does not silently start a second
+  shell. Cwd and environment are inherited at startup.
+- Remove tilminal's private input bar, echo, ~help~, and ~clear~
+  dispatch. Editing and history belong to the shell or foreground application.
+  Enter sends Return immediately; printable text, Backspace, Tab,
+  arrows, Home/End/Delete, modifiers, and control keys are encoded for
+  the child using the current terminal modes.
+- Escape goes to the child; disable raylib's Escape-to-close default.
+  Window-manager close ends the standalone session. Do not add another
+  tilminal shortcut or a keybinding configuration surface in this slice.
+- On normal child exit keep the final screen, with exit status in
+  host-owned window chrome rather than injected into the child's grid.
+  On window close tear down the session and reap/join its resources.
+
+POSIX should use ~posix_openpt~/~grantpt~/~unlockpt~ with child
+session/controlling-terminal setup and nonblocking parent I/O. Windows
+uses ~CreatePseudoConsole~, ~CreateProcessW~ with the pseudoconsole
+attribute, and dedicated input/output servicing behind the same til
+contract. Only the UI thread accesses raylib and TerminalScreen.
+Partial writes remain queued; EOF, child exit, and OS errors are
+distinct. Limit per-frame work so continuous child output leaves the
+host responsive, with backpressure rather than discarded bytes.
+
+**** Acceptance and delivery
+
+Implement and test the pure text/model layer first, then the native
+session adapters, then wire the existing GUI to both. This is a work
+order within #408, not new tracking issues or a requirement to split
+the final change into separate commits.
+
+The milestone is ready when a persistent shell retains ~cd~ and
+environment changes; unmodified ~til repl~ supports editing/history,
+Ctrl-L and resize; control keys reach the foreground job; final output
+is drained; and closing the host releases its children/handles. Check
+chunk-split parsing, Unicode spans, narrow grids, tab/erase/wrap,
+reply ordering, argv with spaces, start failure, and two independent
+session/model instances. Verify the native Windows path rather than
+equating cross-compilation or Wine with ConPTY conformance.
+
+Run the existing full suite as well as the new focused tests. Record
+native GUI/ConPTY checks separately from headless test results. Keep
+#408 open: tiled integration, broader terminal compatibility, and the
+graphics protocol remain subsequent work. Approval is requested for
+the named source files, example-level contracts, Unicode-data copy,
+initial compatibility scope, and standalone UX transition above.
