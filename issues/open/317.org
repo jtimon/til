@@ -7,6 +7,17 @@ project, https://mlir.llvm.org/) as a codegen backend next to the C
 backend. Filed as a low priority feature to capture the design space;
 the C backend stays the default and the bootstrap path.
 
+*** Related SIMD and heterogeneous-execution work
+
+- [[../fixed/318.org][#318]] delivered interpreter/C SIMD; ordinary execution
+  remains CPU-side unless a future device API is explicitly used.
+- [[./409.org][#409]] covers CPU feature selection and performance validation.
+- [[./410.org][#410]] defines additional portable vector operations.
+- [[./411.org][#411]] designs explicit kernels, devices, memory and synchronization.
+- [[./412.org][#412]] proves a small end-to-end GPU path, then matrix multiplication
+  and second-vendor portability. It need not wait for this entire backend;
+  MLIR infrastructure alone does not implement the device execution model.
+
 *** Why MLIR
 
 - MLIR is organized around "dialects" (func, arith, scf/cf, memref,

@@ -1,0 +1,49 @@
+# priority: low
+# category: features
+** OPEN #410 SIMD shuffles, masked memory, gather/scatter and explicit FMA
+
+Extend [[../fixed/318.org][#318]] with portable operations needed by real
+vector algorithms. Define their semantics once for the interpreter and C,
+with [[./317.org][#317]] and future GPU lowering as additional implementations.
+None of these operations inherently requires MLIR or GPU execution.
+
+*** Contracts to settle before implementing the public surface
+
+- Shuffles/permutations: result width, one/two input vectors, constant versus
+  dynamic indices, and invalid-index behavior. Do not expose compiler-specific
+  undefined-lane selectors as accidental til semantics.
+- Masked loads/stores: inactive lanes do not access memory. Specify inactive
+  load values explicitly, and validate active accesses before any store if
+  the checked API promises no partial writes. Loading everything and then
+  calling ~select~ is not a masked load.
+- Gather/scatter: index type, bounds behavior, alignment and aliasing. Decide
+  duplicate-index scatter behavior explicitly; hardware-dependent write order
+  must not decide the language result. Keep checked and unchecked contracts
+  distinguishable if both are proposed.
+- Explicit FMA: one rounding for multiply-add, with scalar/interpreter/C
+  agreement on NaNs, infinities and signed zero. Existing ~a*b+c~ retains
+  separate rounding. Software lowering must implement genuine fused semantics
+  when there is no native FMA; an ordinary multiply followed by add is wrong.
+
+Use the existing Simd type and Bool masks. Propose exact method names and
+signatures, error behavior and any necessary runtime/toolchain requirements
+for approval. This issue does not approve new flags, artifacts or dependencies.
+
+*** Verification and acceptance
+
+- A vectorized loop handles lengths 0, N-1, N, N+1 and multiple tail sizes
+  without out-of-bounds accesses or incorrect inactive-lane values.
+- Test mask patterns, index bounds, duplicate scatter indices and aliasing;
+  use a memory-access-sensitive test for inactive lanes, not merely correct
+  final output. Include rounding-sensitive FMA cases that distinguish fusion
+  from separate arithmetic.
+- Interpreter and C agree for every supported operation. Reject unsupported
+  forms at translation time. Scalar expansion is valid when it implements the
+  specified semantics, but measurements must identify it rather than call it
+  native SIMD acceleration.
+- Record GCC/Clang support and inspect representative optimized code. CPU
+  tuning belongs to [[./409.org][#409]], not to semantic changes here.
+
+GPU memory spaces and execution/synchronization are tracked separately in
+[[./411.org][#411]] and [[./412.org][#412]]. Keep the operator semantics reusable
+inside future kernels without conflating SIMD lanes with GPU threads.

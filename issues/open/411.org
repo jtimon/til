@@ -1,0 +1,57 @@
+# priority: low
+# category: backends
+** OPEN #411 Explicit GPU/device execution model for til
+
+Design explicit accelerator execution while keeping ordinary til functions
+and SIMD on the CPU by default. Reuse [[../fixed/318.org][#318]]'s value and
+elementwise-operation semantics inside device code where supported. An APU's
+integrated GPU is still a distinct execution target, even with shared memory.
+
+*** Design questions
+
+- Device-function/kernel entry points: what makes code device-callable, what
+  host operations are forbidden, what subset is initially supported, and how
+  source-located diagnostics report unsupported calls or types.
+- Device selection and availability: explicit selection, reported capability
+  requirements and errors. No silent CPU fallback when a GPU is requested.
+- Work distribution: kernel arguments, grid/block dimensions, thread indices,
+  barriers and any subgroup operations. A Simd value belongs to the executing
+  thread; its N lanes must not silently become N GPU threads or warp lanes.
+- Memory: host/device buffers, transfers or mappings, address spaces,
+  alignment, ownership and aliasing. Specify when asynchronous work borrows
+  buffers and when mutation/destruction becomes legal again. Unified physical
+  memory does not eliminate lifetime or synchronization requirements.
+- Completion and errors: synchronous/asynchronous launch semantics, waiting,
+  ordering, launch failures and execution failures. Decide how device code
+  handles failures when host throw/catch or I/O cannot be implemented there.
+- Compilation boundary: shared helpers may specialize for host and device,
+  but the host C runtime cannot simply be linked into a GPU kernel. Define the
+  primitive/library subset and preserve IEEE/reduction/mask semantics rather
+  than inheriting backend defaults.
+
+*** Research and deliverable
+
+Study the public Mojo compiler, device runtime interfaces and examples in
+~modular/modular~ at a recorded revision. The reviewed ~ce67c4bba4~ example
+~Mojo/examples/homepage/homepage_examples.mojo~ uses DeviceContext, explicit
+buffers, ~enqueue_function~ and launch dimensions; the SIMD implementation is
+in ~Mojo/stdlib/std/simd.mojo~. Record which parts are reusable concepts and
+which require til-specific implementation; source portability does not imply
+performance portability or support for every device vendor.
+
+Produce a small, concrete host/kernel example and a proposal for syntax,
+types, ownership, runtime ABI and supported initial devices. Before adding
+surfaces, obtain approval for exact APIs/flags, generated paths and formats,
+tool dependencies and runtime installation. Identify who writes and reads
+each artifact, how it is regenerated, why existing C outputs are insufficient,
+and the maintenance/build tradeoff. No device-code cache or second source of
+truth is approved by this design issue.
+
+[[./317.org][#317]] supplies a possible MLIR route, not the execution model
+itself. [[./412.org][#412]] validates an approved small slice; it need not wait
+for a complete general-purpose MLIR backend. [[./409.org][#409]] and
+[[./410.org][#410]] remain independently useful CPU/vector work.
+
+Acceptance: the proposal has explicit host/device semantics and an approved
+minimal surface sufficient for #412, including failure and lifetime rules.
+This issue does not claim GPU support merely because a design is agreed.

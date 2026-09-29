@@ -14,6 +14,7 @@
 *** [[./open/397.org][#397]] A Type carries its Sym: Struct/Enum/Custom payloads become symbols
 ** Low
 *** [[./open/405.org][#405]] Avoid owning Array(Str) and formatting allocations in panic
+*** [[./open/409.org][#409]] CPU SIMD feature targeting and performance validation
 * Features
 ** Medium
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing
@@ -35,6 +36,7 @@
 *** [[./open/339.org][#339]] Add Ed25519, Ed448, and ECDSA/secp256r1 signature backends
 *** [[./open/370.org][#370]] til embeds in the lua/lisp sense: host program, guest til
 *** [[./open/384.org][#384]] Allow explicit inc/dec step arguments
+*** [[./open/410.org][#410]] SIMD shuffles, masked memory, gather/scatter and explicit FMA
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
@@ -46,10 +48,12 @@
 *** [[./open/385.org][#385]] Emacs Lisp backend alongside the C backend
 *** [[./open/386.org][#386]] Lua backend alongside the C backend
 *** [[./open/387.org][#387]] Arduino target alongside hosted targets
+*** [[./open/411.org][#411]] Explicit GPU/device execution model for til
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
+*** [[./open/412.org][#412]] End-to-end til GPU kernel prototype and portability check
 * Examples
 ** Low
 *** [[./open/24.org][#24]] Music theory examples: ongoing improvements

@@ -1,0 +1,41 @@
+# priority: low
+# category: optimizations
+** OPEN #409 CPU SIMD feature targeting and performance validation
+
+Follow up [[../fixed/318.org][#318]] with explicit CPU-feature targeting and
+measurements of useful vector loops. Ordinary til SIMD remains CPU code;
+choosing an ISA is not choosing a GPU or enabling automatic offload.
+
+*** Scope
+
+- Model the compilation target's enabled CPU features separately from its
+  OS/architecture. Keep conservative baseline builds reproducible; do not
+  silently select the build host's ISA or introduce runtime dispatch.
+- Make ~simd_width(T)~ agree with the enabled features and C compiler flags.
+  It reports a recommended fixed lane count, not a guarantee of one machine
+  instruction per operation. Scalable SVE/RVV lengths need a separate design.
+- Measure array arithmetic, loads/stores, comparisons, selection and
+  reductions on x86-64 and AArch64. Include short inputs, tails, unaligned
+  starts, widths below/above a register and data sets larger than cache.
+- Compare scalar and explicit-SIMD implementations with identical numerical
+  semantics. Inspect assembly to distinguish vector instructions, scalarized
+  operations, copying at storage boundaries and call overhead. Record CPU,
+  compiler version, flags, timing method and results, including regressions.
+
+*** Proposed sequence and acceptance
+
+First establish measurements using the existing toolchains and artifacts.
+Then propose a target-feature representation and its user-facing selection
+syntax for approval before implementation. The proposal must name any new
+flags/configuration, their readers, cross-compilation behavior and installation
+requirements; no feature database, cache or manifest is pre-approved here.
+
+Acceptance: selected features consistently control emitted code and width
+queries; baseline binaries do not require optional instructions; cross-builds
+do not consult host CPUID; semantic tests match the interpreter; and reported
+performance is supported by reproducible measurements. No universal speedup
+or cross-architecture bit identity beyond the language contract is promised.
+
+Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
+[[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
+and its prototype by [[./412.org][#412]].

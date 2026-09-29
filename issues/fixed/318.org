@@ -15,6 +15,18 @@ backend issues. The proposed type, constructors, masks, checked lane and
 array access, reductions, conversions and target-width query are approved.
 Use all/any initially; optional reduction aliases remain outside this scope.
 
+*** Follow-ups
+
+Ordinary functions and SIMD run on the CPU by default. Future GPU/APU-device
+execution is explicit, with its own launch and memory/synchronization model.
+
+- [[../open/409.org][#409]] CPU SIMD feature targeting and performance validation.
+- [[../open/410.org][#410]] Shuffles, masked memory, gather/scatter and explicit FMA.
+- [[../open/411.org][#411]] GPU/device execution model, informed by Mojo's source.
+- [[../open/412.org][#412]] End-to-end GPU prototype and cross-vendor check.
+- [[../open/317.org][#317]] remains the general MLIR backend issue; it is not a
+  prerequisite for all the CPU work or for a restricted GPU prototype.
+
 *** Post-mortem (FIXED; implemented on master 8225629b9)
 
 The missing pieces were a width-bearing value type, defined lane/mask

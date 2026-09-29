@@ -1,0 +1,49 @@
+# priority: low
+# category: experiments
+** OPEN #412 End-to-end til GPU kernel prototype and portability check
+
+Validate an approved slice of [[./411.org][#411]] with an actual til kernel,
+starting with vector addition on one supported GPU. Merely calling a
+hand-written vendor kernel from til is not sufficient: demonstrate device
+code generated from til and the corresponding host launch/runtime path.
+
+*** Staged experiment
+
+- Identify an available device and record its vendor/model, driver, compiler
+  tools and versions. Propose one code-generation/runtime route and obtain
+  approval before installing dependencies or introducing output artifacts.
+  [[./317.org][#317]] is a candidate infrastructure path; completion of that
+  entire backend is not a prerequisite for this restricted device subset.
+- Compile vector addition with explicit host buffers, launch dimensions,
+  completion and result retrieval. Exercise both scalar device arithmetic
+  and Simd values within device code, separating vector lanes from threads.
+- Compare results with the CPU/interpreter implementation from
+  [[../fixed/318.org][#318]]. Include empty/small inputs, non-multiple sizes,
+  bounds, masks where supported and reported device/launch failures. Define
+  each numerical comparison against the operation contract, not an arbitrary
+  tolerance that conceals a different computation.
+- Add matrix multiplication after vector addition is correct. Explain the
+  mapping to rows/column tiles, memory access, synchronization and accumulation
+  order. Explicit FMA and masked operations may build on [[./410.org][#410]];
+  changing reduction order or enabling fast math must be stated explicitly.
+- Port the same kernel source to a second GPU vendor when hardware/tooling
+  is available. Record actual runs and remaining gaps separately: one vendor's
+  success does not establish heterogeneous portability. An integrated GPU/APU
+  is a useful additional memory-model check, not implicit coverage.
+
+*** Acceptance and reporting
+
+Record reproducible commands, generated-device-code inspection, correctness
+results, supported subset and unsupported diagnostics. Report compilation,
+transfer, launch and kernel execution costs separately; compare end-to-end
+work with the CPU baseline rather than only timing the GPU kernel. Use
+[[./409.org][#409]]'s CPU measurements when comparing speed.
+
+The first working device is an explicit milestone; the full experiment also
+reports the matrix case and second-vendor portability result. Missing hardware
+must remain an unverified milestone, not be represented as a successful test.
+
+Keep this opt-in: normal C/bootstrap builds must not require GPU tools or a
+GPU. The approved prototype must specify the writer/reader and regeneration
+of any device artifact and how its host runtime is installed. It does not
+authorize a new persistent cache, manifest or alternate source-of-truth path.
