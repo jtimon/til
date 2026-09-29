@@ -430,6 +430,39 @@ needs elevation. If old root-owned temporary files block a run, report the
 ownership problem and repair it explicitly rather than running tests as
 root or silently switching to global temporary storage.
 
+### Compiler versions, installs, and shared core
+
+Do not conflate the installed `til` with a worktree's `bin/til` or with
+the copy `test/install.til` puts under `tmp/install_test`. Run `til -v`
+and `bin/til -v` when comparing them; they can be different revisions.
+`src/til.til` currently spells `VERSION` as `0.0.1-<short HEAD>` and
+stores the FULL commit in `COMPILER_REVISION`. The planned semantic
+version will still carry a commit ID; that identifies source, but is
+not proof of binary authenticity or of a clean build.
+
+`make install` currently replaces ONE compiler and its support tree:
+on Unix, by default `/usr/local/bin/til` and
+`/usr/local/lib/til/src/{core,std,...}`.
+`bin/til install --prefix=...` chooses another location; it is not a
+side-by-side versioning mechanism under one prefix. Libraries already
+use revision/target/USize/ASAN-qualified `libtilrt-*` and `libtilcore-*`
+names, so do not propose an installation-root hash as a substitute for
+versioning the compiler executable AND its source tree. A real
+multi-version installer needs each compiler pinned to its matching
+core/std sources, with an explicit default compiler selection; that
+layout does not exist yet and needs human approval before implementation.
+
+The same-revision `libtilcore` comparison built two libraries from ONE
+checkout: exported names, disassembly, relocations, and `.rodata` matched,
+though whole-file hashes differed. The test-installed compiler had the
+same revision but loaded core sources from its ABSOLUTE temporary install
+path. Its shared core baked that path into `__LOC__`, changing `.rodata`,
+relocation addends, and instruction displacements without changing the
+callable ABI. That is a comparison of two build locations, not evidence
+that different til versions collide. Do not normalize installed source
+paths or change core artifact names based on this test without an explicit
+decision about diagnostic output and the install layout.
+
 ## ASAN (remote sessions)
 
 Remote sessions may hit `AddressSanitizer failed to allocate shadow

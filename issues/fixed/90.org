@@ -363,3 +363,27 @@ set between independently generated libraries: both builds publish the SAME
 versioned core path, so one must never demand an export the other omitted.
 It also checks that a FuncSig/closure layout remains library-local while
 compiled, interpreted, installed, static and shared consumers still work.
+
+*** Follow-up: same revision, different build location (2026-09-27)
+
+The two namespace-fixture libraries built separately from one checkout
+produced equal core exports, disassembly, relocations and read-only data.
+Their full shared-object hashes differed, so a whole-file hash is not a
+useful test of the exported implementation by itself. The temporary
+installed compiler in ~test/install.til~ reported the SAME revision but
+read the copied core/std sources from its installed support tree. Its
+~__LOC__~ strings contained the absolute installation path instead of
+~./src/core/str.til~; read-only data, relocation targets and instruction
+displacements consequently differed. No call signatures, type layouts or
+library ABI revision changed, and no source-root hash or path rewriting
+was added to the core artifact identity.
+
+This is not a two-compiler-version test. ~make install~ currently replaces
+the one installed compiler and support tree; multiple compiler revisions
+under the same prefix will require a versioned compiler/source install
+layout. Existing full-commit ABI names already distinguish different
+revisions' runtime and core dependencies. The installed ~til~ on this
+machine was also a DIFFERENT revision from the worktree's ~bin/til~;
+~test/install.til~ uses a THIRD, temporary installation built from the
+worktree version. Compare the actual commands with ~-v~ before drawing
+conclusions from their generated code.

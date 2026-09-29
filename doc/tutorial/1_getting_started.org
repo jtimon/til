@@ -26,6 +26,23 @@ Add the selected prefix's ~bin~ directory to ~PATH~ if it is not there
 already. The rest of this tutorial assumes the installed command is named
 ~til~; from a repository checkout, use ~bin/til~ instead.
 
+Check the compiler you are actually running with ~til -v~ (installed) or
+~bin/til -v~ (checkout/worktree). Today the version is ~0.0.1-<short commit>~:
+the three numbers are not yet used for semantic versioning. The full commit
+hash is also built into the compiler as its library ABI revision. A future
+~1.0.0~ release can give the three numbers their normal meaning while keeping
+the commit hash for exact source identification. The hash alone does not
+authenticate the executable or guarantee it was built from a clean tree.
+
+~make install~ currently occupies ONE compiler slot at the selected prefix:
+~bin/til~ and its ~lib/til/src/core~, ~lib/til/src/std~, and other support
+sources are replaced by the next install. Distinct versioned library runtime
+and core shared objects can remain in ~lib/~ for already-built libraries, but
+that does not retain the previous compiler or its source tree for rebuilding.
+Side-by-side compiler installations under one prefix are not implemented.
+The alternate ~--prefix~ command above picks a different installation, not a
+version manager.
+
 ** Hello World
 
 Create ~hello.til~ with one line:

@@ -144,6 +144,14 @@ incompatible ABIs coexist. Installed libraries install both dependencies
 beside the library. Static archives remain self-contained and need no
 additional link argument.
 
+The revision identifies the compiler source/ABI, not the path of that source
+on disk. When the same revision builds from a checkout or an installed copy,
+~__LOC__~ in a shared-core error can name ~./src/core/str.til~ in one build and
+the installed ~lib/til/src/core/str.til~ in the other. Their diagnostics and
+resulting core binary bytes differ despite matching callable ABIs. Normal
+library builds from ONE installation use that installation's real core/std
+source paths; no installation path is added to the versioned ABI name.
+
 ~mode pure~ is a library mode that rejects impure ~proc~ declarations. The
 [[file:../../examples/hello_pure.til][pure Hello World example]] contains only
 a pure function and its test:
