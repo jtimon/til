@@ -384,6 +384,19 @@
   POD field also still hits the host C backend's own-field clone value/pointer
   mismatch; it needs a shared compiler fix before it can join the guest corpus.
 
+  The nineteenth slice adds ordered ~Map(K, V)~ and ~Set(T)~ lowering for
+  scalar and Str keys/elements. Map uses the frontend's two aligned typed
+  Vec fields; Set uses sorted contiguous storage. Generated helpers implement
+  binary-search lookup, sorted insertion and removal, duplicate Set handling,
+  Map overwrite, pre-sizing, clear, deep clone, and ownership-aware delete.
+  Map values include scalar, Str, struct, and nested Vec types; specializations
+  use the already-lowered storage field types, including nested type names.
+  The shared ~test/script_struct_runtime.til~ checks literals, mutations,
+  misses, overwrites, deep clone independence, pre-sizing, and nested values
+  in the interpreter and compiled C. TempleOS 5.03 under QEMU TCG produced
+  the same 102 output lines and ~TILTEST:PASS~. Aggregate keys and custom
+  comparison methods remain outside this slice.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI

@@ -457,3 +457,86 @@ nested_numbers.push(own inner_numbers)
 ref nested_value : Vec(I64) = nested_numbers.unsafe_get(0)
 println(nested_value.unsafe_get(0).to_str())
 own nested_numbers.delete(false)
+
+mut fruit_values := Map(Str, I64).new()
+fruit_values.set("pear", own 5)
+fruit_values.set("apple", own 3)
+fruit_values.set("cherry", own 7)
+println(fruit_values.len().to_i64().to_str(), ":", fruit_values["apple"].to_str())
+mut fruit_copy := fruit_values.clone()
+fruit_values.set("apple", own 9)
+println(fruit_values["apple"].to_str(), ":", fruit_copy["apple"].to_str())
+if fruit_values.has("pear") { println("pear present") }
+if fruit_values.remove("pear") { println("pear removed") }
+if fruit_values.has("pear").not() { println("pear absent") }
+fruit_values.clear()
+println(fruit_values.len().to_i64().to_str(), ":", fruit_copy.len().to_i64().to_str())
+own fruit_values.delete(false)
+own fruit_copy.delete(false)
+
+mut names_set := Set(Str).new()
+names_set.add(own "pear")
+names_set.add(own "apple")
+names_set.add(own "pear")
+println(names_set.len().to_i64().to_str())
+mut names_set_copy := names_set.clone()
+if names_set.remove("apple") { println("apple removed") }
+if names_set.has("apple").not() { println("apple absent") }
+if names_set_copy.has("apple") { println("apple retained") }
+names_set.clear()
+println(names_set.len().to_i64().to_str())
+own names_set.delete(false)
+own names_set_copy.delete(false)
+
+mut number_set := Set(I64).new()
+number_set.add(own 3)
+number_set.add(own 1)
+number_set.add(own 2)
+number_set.add(own 2)
+if number_set.has(1).and(number_set.remove(2)) {
+    println(number_set.len().to_i64().to_str())
+}
+own number_set.delete(false)
+
+mut word_values := Map(I64, Str).new()
+word_values.set(5, own "five")
+word_values.set(1, own "one")
+mut word_values_copy := word_values.clone()
+word_values.set(1, own "updated")
+println(word_values[1], ":", word_values_copy[1])
+if word_values.remove(5) { println("five removed") }
+own word_values.delete(false)
+own word_values_copy.delete(false)
+
+mut reserved_set := Set(Str).with_capacity(2)
+reserved_set.add(own "reserved")
+println(reserved_set.len().to_i64().to_str())
+own reserved_set.delete(false)
+
+mut named_values := Map(I64, StructNamedPoint).with_capacity(2)
+named_values.set(1, own StructNamedPoint(point=StructPoint(x=5), name="first"))
+mut named_values_copy := named_values.clone()
+named_values.set(1, own StructNamedPoint(point=StructPoint(x=7), name="next"))
+ref old_named : StructNamedPoint = named_values_copy[1]
+println(old_named.point.x.to_str(), ":", old_named.name)
+if named_values.remove(1) { println("named removed") }
+own named_values.delete(false)
+own named_values_copy.delete(false)
+
+mut grouped_values := Map(I64, Vec(I64)).new()
+mut grouped_numbers := Vec(I64).new()
+grouped_numbers.push(own 8)
+grouped_values.set(2, own grouped_numbers)
+mut grouped_copy := grouped_values.clone()
+if grouped_values.remove(2) { println("group removed") }
+ref saved_group : Vec(I64) = grouped_copy[2]
+println(saved_group.unsafe_get(0).to_str())
+own grouped_values.delete(false)
+own grouped_copy.delete(false)
+
+literal_values := {"z": 9, "a": 1}
+println(literal_values["a"].to_str())
+own literal_values.delete(false)
+literal_members := {3, 1, 2}
+println(literal_members.len().to_i64().to_str())
+own literal_members.delete(false)

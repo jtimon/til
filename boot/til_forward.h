@@ -2064,6 +2064,11 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str niche_ref_types;
     Map__Str_Str collection_elements;
     Set__Str vec_names;
+    Map__Str_Str set_elements;
+    Map__Str_Str map_keys;
+    Map__Str_Str map_values;
+    Map__Str_Str map_key_vecs;
+    Map__Str_Str map_value_vecs;
     Str usize_ctype;
     USize switch_id;
     USize temp_id;

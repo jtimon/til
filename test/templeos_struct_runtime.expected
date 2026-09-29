@@ -618,6 +618,230 @@ U0 Array__StructNamedPoint_ToVec(Vec__StructNamedPoint *out, Array__StructNamedP
   out->count = src->cap;
 }
 
+class Set__I64 {
+  I64 *data;
+  U64 count;
+  U64 cap;
+};
+
+U0 Set__I64_CopyValue(Set__I64 *out, Set__I64 *src)
+{
+  out->data = src->data;
+  out->count = src->count;
+  out->cap = src->cap;
+}
+
+U0 Set__I64_New(Set__I64 *out)
+{
+  out->data = NULL;
+  out->count = 0;
+  out->cap = 0;
+}
+
+U0 Set__I64_WithCapacity(Set__I64 *out, U64 n)
+{
+  if (n > I64_MAX/sizeof(I64)) TilPanicZ("Set: allocation overflow\n");
+  out->data = NULL;
+  if (n) out->data = (TilMAlloc(n*sizeof(I64)))(I64 *);
+  out->count = 0;
+  out->cap = n;
+}
+
+U0 Set__I64_Clone(Set__I64 *out, Set__I64 *src)
+{
+  Set__I64_WithCapacity(out, src->cap);
+  U64 i = 0;
+  while (i < src->count) {
+    out->data[i] = src->data[i];
+    i++;
+  }
+  out->count = src->count;
+}
+
+U0 Set__I64_Clear(Set__I64 *self)
+{
+  U64 i = 0;
+  while (i < self->count) {
+    i++;
+  }
+  self->count = 0;
+}
+
+U0 Set__I64_Delete(Set__I64 *self, Bool call_free)
+{
+  Set__I64_Clear(self);
+  TilFree(self->data);
+  self->data = NULL;
+  self->cap = 0;
+  if (call_free) TilFree(self);
+}
+
+Bool Set__I64_Find(Set__I64 *self, I64 value, U64 *index)
+{
+  U64 lo = 0;
+  U64 hi = self->count;
+  while (lo < hi) {
+    U64 mid = lo + (hi-lo)/2;
+    I64 cmp = (self->data[mid] > value) - (self->data[mid] < value);
+    if (cmp < 0) lo = mid+1;
+    else if (cmp > 0) hi = mid;
+    else { *index = mid; return TRUE; }
+  }
+  *index = lo;
+  return FALSE;
+}
+
+Bool Set__I64_Has(Set__I64 *self, I64 value)
+{
+  U64 i;
+  return Set__I64_Find(self, value, &i);
+}
+
+U0 Set__I64_Add(Set__I64 *self, I64 value)
+{
+  U64 i;
+  if (Set__I64_Find(self, value, &i)) {
+    return;
+  }
+  if (self->count == self->cap) {
+    if (self->cap > I64_MAX/2) TilPanicZ("Set: capacity overflow\n");
+    U64 cap = self->cap*2;
+    if (!cap) cap = 1;
+    if (cap > I64_MAX/sizeof(I64)) TilPanicZ("Set: allocation overflow\n");
+    self->data = (TilReAlloc(self->data, cap*sizeof(I64)))(I64 *);
+    self->cap = cap;
+  }
+  U64 tail = self->count-i;
+  if (tail) TilMemMove(&self->data[i+1], &self->data[i], tail*sizeof(I64));
+  self->data[i] = value;
+  self->count++;
+}
+
+Bool Set__I64_Remove(Set__I64 *self, I64 value)
+{
+  U64 i;
+  if (!Set__I64_Find(self, value, &i)) return FALSE;
+  U64 last = self->count-1;
+  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(I64));
+  self->count = last;
+  TilMemSet(&self->data[last], 0, sizeof(I64));
+  return TRUE;
+}
+
+class Set__Str {
+  TilStr *data;
+  U64 count;
+  U64 cap;
+};
+
+U0 Set__Str_CopyValue(Set__Str *out, Set__Str *src)
+{
+  out->data = src->data;
+  out->count = src->count;
+  out->cap = src->cap;
+}
+
+U0 Set__Str_New(Set__Str *out)
+{
+  out->data = NULL;
+  out->count = 0;
+  out->cap = 0;
+}
+
+U0 Set__Str_WithCapacity(Set__Str *out, U64 n)
+{
+  if (n > I64_MAX/sizeof(TilStr)) TilPanicZ("Set: allocation overflow\n");
+  out->data = NULL;
+  if (n) out->data = (TilMAlloc(n*sizeof(TilStr)))(TilStr *);
+  out->count = 0;
+  out->cap = n;
+}
+
+U0 Set__Str_Clone(Set__Str *out, Set__Str *src)
+{
+  Set__Str_WithCapacity(out, src->cap);
+  U64 i = 0;
+  while (i < src->count) {
+    TilStrClone(&out->data[i], &src->data[i]);
+    i++;
+  }
+  out->count = src->count;
+}
+
+U0 Set__Str_Clear(Set__Str *self)
+{
+  U64 i = 0;
+  while (i < self->count) {
+    TilStrDelete(&self->data[i], FALSE);
+    i++;
+  }
+  self->count = 0;
+}
+
+U0 Set__Str_Delete(Set__Str *self, Bool call_free)
+{
+  Set__Str_Clear(self);
+  TilFree(self->data);
+  self->data = NULL;
+  self->cap = 0;
+  if (call_free) TilFree(self);
+}
+
+Bool Set__Str_Find(Set__Str *self, TilStr *value, U64 *index)
+{
+  U64 lo = 0;
+  U64 hi = self->count;
+  while (lo < hi) {
+    U64 mid = lo + (hi-lo)/2;
+    I64 cmp = TilStrCmp(&self->data[mid], value);
+    if (cmp < 0) lo = mid+1;
+    else if (cmp > 0) hi = mid;
+    else { *index = mid; return TRUE; }
+  }
+  *index = lo;
+  return FALSE;
+}
+
+Bool Set__Str_Has(Set__Str *self, TilStr *value)
+{
+  U64 i;
+  return Set__Str_Find(self, value, &i);
+}
+
+U0 Set__Str_Add(Set__Str *self, TilStr *value)
+{
+  U64 i;
+  if (Set__Str_Find(self, value, &i)) {
+    TilStrDelete(value, FALSE);
+    return;
+  }
+  if (self->count == self->cap) {
+    if (self->cap > I64_MAX/2) TilPanicZ("Set: capacity overflow\n");
+    U64 cap = self->cap*2;
+    if (!cap) cap = 1;
+    if (cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Set: allocation overflow\n");
+    self->data = (TilReAlloc(self->data, cap*sizeof(TilStr)))(TilStr *);
+    self->cap = cap;
+  }
+  U64 tail = self->count-i;
+  if (tail) TilMemMove(&self->data[i+1], &self->data[i], tail*sizeof(TilStr));
+  TilMemCpy(&self->data[i], value, sizeof(TilStr));
+  TilMemSet(value, 0, sizeof(TilStr));
+  self->count++;
+}
+
+Bool Set__Str_Remove(Set__Str *self, TilStr *value)
+{
+  U64 i;
+  if (!Set__Str_Find(self, value, &i)) return FALSE;
+  TilStrDelete(&self->data[i], FALSE);
+  U64 last = self->count-1;
+  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(TilStr));
+  self->count = last;
+  TilMemSet(&self->data[last], 0, sizeof(TilStr));
+  return TRUE;
+}
+
 class Vec__I64 {
   I64 *data;
   U64 count;
@@ -1430,6 +1654,455 @@ U0 Vec__call_Vec_I64_DeleteMarked(Vec__call_Vec_I64 *self, U8 *marks)
     r++;
   }
   self->count = w;
+}
+
+class Map__I64_Str {
+  Vec__I64 keys;
+  Vec__Str values;
+};
+
+U0 Map__I64_Str_CopyValue(Map__I64_Str *out, Map__I64_Str *src)
+{
+  Vec__I64_CopyValue(&out->keys, &src->keys);
+  Vec__Str_CopyValue(&out->values, &src->values);
+}
+
+U0 Map__I64_Str_New(Map__I64_Str *out)
+{
+  Vec__I64_New(&out->keys);
+  Vec__Str_New(&out->values);
+}
+
+U0 Map__I64_Str_WithCapacity(Map__I64_Str *out, U64 n)
+{
+  Vec__I64_WithCapacity(&out->keys, n);
+  Vec__Str_WithCapacity(&out->values, n);
+}
+
+U0 Map__I64_Str_Clone(Map__I64_Str *out, Map__I64_Str *src)
+{
+  Vec__I64_Clone(&out->keys, &src->keys);
+  Vec__Str_Clone(&out->values, &src->values);
+}
+
+U0 Map__I64_Str_Clear(Map__I64_Str *self)
+{
+  Vec__I64_Clear(&self->keys);
+  Vec__Str_Clear(&self->values);
+}
+
+U0 Map__I64_Str_Delete(Map__I64_Str *self, Bool call_free)
+{
+  Vec__I64_Delete(&self->keys, FALSE);
+  Vec__Str_Delete(&self->values, FALSE);
+  if (call_free) TilFree(self);
+}
+
+Bool Map__I64_Str_Find(Map__I64_Str *self, I64 value, U64 *index)
+{
+  U64 lo = 0;
+  U64 hi = self->keys.count;
+  while (lo < hi) {
+    U64 mid = lo + (hi-lo)/2;
+    I64 cmp = (self->keys.data[mid] > value) - (self->keys.data[mid] < value);
+    if (cmp < 0) lo = mid+1;
+    else if (cmp > 0) hi = mid;
+    else { *index = mid; return TRUE; }
+  }
+  *index = lo;
+  return FALSE;
+}
+
+Bool Map__I64_Str_Has(Map__I64_Str *self, I64 value)
+{
+  U64 i;
+  return Map__I64_Str_Find(self, value, &i);
+}
+
+TilStr *Map__I64_Str_Get(Map__I64_Str *self, I64 value, I64 *err_kind)
+{
+  U64 i;
+  *err_kind = 0;
+  if (Map__I64_Str_Find(self, value, &i)) return &self->values.data[i];
+  *err_kind = 4;
+  return NULL;
+}
+
+U0 Map__I64_Str_Set(Map__I64_Str *self, I64 value, TilStr *val)
+{
+  U64 i;
+  if (Map__I64_Str_Find(self, value, &i)) {
+    TilStrDelete(&self->values.data[i], FALSE);
+    TilMemCpy(&self->values.data[i], val, sizeof(TilStr));
+    TilMemSet(val, 0, sizeof(TilStr));
+    return;
+  }
+  if (self->keys.count == self->keys.cap) {
+    if (self->keys.cap > I64_MAX/2) TilPanicZ("Map: capacity overflow\n");
+    U64 cap = self->keys.cap*2;
+    if (!cap) cap = 1;
+    if (cap > I64_MAX/sizeof(I64) || cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Map: allocation overflow\n");
+    self->keys.data = (TilReAlloc(self->keys.data, cap*sizeof(I64)))(I64 *);
+    self->values.data = (TilReAlloc(self->values.data, cap*sizeof(TilStr)))(TilStr *);
+    self->keys.cap = cap;
+    self->values.cap = cap;
+  }
+  U64 tail = self->keys.count-i;
+  if (tail) {
+    TilMemMove(&self->keys.data[i+1], &self->keys.data[i], tail*sizeof(I64));
+    TilMemMove(&self->values.data[i+1], &self->values.data[i], tail*sizeof(TilStr));
+  }
+  self->keys.data[i] = value;
+  TilMemCpy(&self->values.data[i], val, sizeof(TilStr));
+  TilMemSet(val, 0, sizeof(TilStr));
+  self->keys.count++;
+  self->values.count++;
+}
+
+Bool Map__I64_Str_Remove(Map__I64_Str *self, I64 value)
+{
+  U64 i;
+  if (!Map__I64_Str_Find(self, value, &i)) return FALSE;
+  I64 err_kind = 0;
+  Vec__I64_RemoveAt(&self->keys, i, &err_kind);
+  Vec__Str_RemoveAt(&self->values, i, &err_kind);
+  return TRUE;
+}
+
+class Map__I64_StructNamedPoint {
+  Vec__I64 keys;
+  Vec__StructNamedPoint values;
+};
+
+U0 Map__I64_StructNamedPoint_CopyValue(Map__I64_StructNamedPoint *out, Map__I64_StructNamedPoint *src)
+{
+  Vec__I64_CopyValue(&out->keys, &src->keys);
+  Vec__StructNamedPoint_CopyValue(&out->values, &src->values);
+}
+
+U0 Map__I64_StructNamedPoint_New(Map__I64_StructNamedPoint *out)
+{
+  Vec__I64_New(&out->keys);
+  Vec__StructNamedPoint_New(&out->values);
+}
+
+U0 Map__I64_StructNamedPoint_WithCapacity(Map__I64_StructNamedPoint *out, U64 n)
+{
+  Vec__I64_WithCapacity(&out->keys, n);
+  Vec__StructNamedPoint_WithCapacity(&out->values, n);
+}
+
+U0 Map__I64_StructNamedPoint_Clone(Map__I64_StructNamedPoint *out, Map__I64_StructNamedPoint *src)
+{
+  Vec__I64_Clone(&out->keys, &src->keys);
+  Vec__StructNamedPoint_Clone(&out->values, &src->values);
+}
+
+U0 Map__I64_StructNamedPoint_Clear(Map__I64_StructNamedPoint *self)
+{
+  Vec__I64_Clear(&self->keys);
+  Vec__StructNamedPoint_Clear(&self->values);
+}
+
+U0 Map__I64_StructNamedPoint_Delete(Map__I64_StructNamedPoint *self, Bool call_free)
+{
+  Vec__I64_Delete(&self->keys, FALSE);
+  Vec__StructNamedPoint_Delete(&self->values, FALSE);
+  if (call_free) TilFree(self);
+}
+
+Bool Map__I64_StructNamedPoint_Find(Map__I64_StructNamedPoint *self, I64 value, U64 *index)
+{
+  U64 lo = 0;
+  U64 hi = self->keys.count;
+  while (lo < hi) {
+    U64 mid = lo + (hi-lo)/2;
+    I64 cmp = (self->keys.data[mid] > value) - (self->keys.data[mid] < value);
+    if (cmp < 0) lo = mid+1;
+    else if (cmp > 0) hi = mid;
+    else { *index = mid; return TRUE; }
+  }
+  *index = lo;
+  return FALSE;
+}
+
+Bool Map__I64_StructNamedPoint_Has(Map__I64_StructNamedPoint *self, I64 value)
+{
+  U64 i;
+  return Map__I64_StructNamedPoint_Find(self, value, &i);
+}
+
+StructNamedPoint *Map__I64_StructNamedPoint_Get(Map__I64_StructNamedPoint *self, I64 value, I64 *err_kind)
+{
+  U64 i;
+  *err_kind = 0;
+  if (Map__I64_StructNamedPoint_Find(self, value, &i)) return &self->values.data[i];
+  *err_kind = 4;
+  return NULL;
+}
+
+U0 Map__I64_StructNamedPoint_Set(Map__I64_StructNamedPoint *self, I64 value, StructNamedPoint *val)
+{
+  U64 i;
+  if (Map__I64_StructNamedPoint_Find(self, value, &i)) {
+    StructNamedPoint_Delete(&self->values.data[i], FALSE);
+    TilMemCpy(&self->values.data[i], val, sizeof(StructNamedPoint));
+    TilMemSet(val, 0, sizeof(StructNamedPoint));
+    return;
+  }
+  if (self->keys.count == self->keys.cap) {
+    if (self->keys.cap > I64_MAX/2) TilPanicZ("Map: capacity overflow\n");
+    U64 cap = self->keys.cap*2;
+    if (!cap) cap = 1;
+    if (cap > I64_MAX/sizeof(I64) || cap > I64_MAX/sizeof(StructNamedPoint)) TilPanicZ("Map: allocation overflow\n");
+    self->keys.data = (TilReAlloc(self->keys.data, cap*sizeof(I64)))(I64 *);
+    self->values.data = (TilReAlloc(self->values.data, cap*sizeof(StructNamedPoint)))(StructNamedPoint *);
+    self->keys.cap = cap;
+    self->values.cap = cap;
+  }
+  U64 tail = self->keys.count-i;
+  if (tail) {
+    TilMemMove(&self->keys.data[i+1], &self->keys.data[i], tail*sizeof(I64));
+    TilMemMove(&self->values.data[i+1], &self->values.data[i], tail*sizeof(StructNamedPoint));
+  }
+  self->keys.data[i] = value;
+  TilMemCpy(&self->values.data[i], val, sizeof(StructNamedPoint));
+  TilMemSet(val, 0, sizeof(StructNamedPoint));
+  self->keys.count++;
+  self->values.count++;
+}
+
+Bool Map__I64_StructNamedPoint_Remove(Map__I64_StructNamedPoint *self, I64 value)
+{
+  U64 i;
+  if (!Map__I64_StructNamedPoint_Find(self, value, &i)) return FALSE;
+  I64 err_kind = 0;
+  Vec__I64_RemoveAt(&self->keys, i, &err_kind);
+  Vec__StructNamedPoint_RemoveAt(&self->values, i, &err_kind);
+  return TRUE;
+}
+
+class Map__I64_call_Vec_I64 {
+  Vec__I64 keys;
+  Vec__call_Vec_I64 values;
+};
+
+U0 Map__I64_call_Vec_I64_CopyValue(Map__I64_call_Vec_I64 *out, Map__I64_call_Vec_I64 *src)
+{
+  Vec__I64_CopyValue(&out->keys, &src->keys);
+  Vec__call_Vec_I64_CopyValue(&out->values, &src->values);
+}
+
+U0 Map__I64_call_Vec_I64_New(Map__I64_call_Vec_I64 *out)
+{
+  Vec__I64_New(&out->keys);
+  Vec__call_Vec_I64_New(&out->values);
+}
+
+U0 Map__I64_call_Vec_I64_WithCapacity(Map__I64_call_Vec_I64 *out, U64 n)
+{
+  Vec__I64_WithCapacity(&out->keys, n);
+  Vec__call_Vec_I64_WithCapacity(&out->values, n);
+}
+
+U0 Map__I64_call_Vec_I64_Clone(Map__I64_call_Vec_I64 *out, Map__I64_call_Vec_I64 *src)
+{
+  Vec__I64_Clone(&out->keys, &src->keys);
+  Vec__call_Vec_I64_Clone(&out->values, &src->values);
+}
+
+U0 Map__I64_call_Vec_I64_Clear(Map__I64_call_Vec_I64 *self)
+{
+  Vec__I64_Clear(&self->keys);
+  Vec__call_Vec_I64_Clear(&self->values);
+}
+
+U0 Map__I64_call_Vec_I64_Delete(Map__I64_call_Vec_I64 *self, Bool call_free)
+{
+  Vec__I64_Delete(&self->keys, FALSE);
+  Vec__call_Vec_I64_Delete(&self->values, FALSE);
+  if (call_free) TilFree(self);
+}
+
+Bool Map__I64_call_Vec_I64_Find(Map__I64_call_Vec_I64 *self, I64 value, U64 *index)
+{
+  U64 lo = 0;
+  U64 hi = self->keys.count;
+  while (lo < hi) {
+    U64 mid = lo + (hi-lo)/2;
+    I64 cmp = (self->keys.data[mid] > value) - (self->keys.data[mid] < value);
+    if (cmp < 0) lo = mid+1;
+    else if (cmp > 0) hi = mid;
+    else { *index = mid; return TRUE; }
+  }
+  *index = lo;
+  return FALSE;
+}
+
+Bool Map__I64_call_Vec_I64_Has(Map__I64_call_Vec_I64 *self, I64 value)
+{
+  U64 i;
+  return Map__I64_call_Vec_I64_Find(self, value, &i);
+}
+
+Vec__I64 *Map__I64_call_Vec_I64_Get(Map__I64_call_Vec_I64 *self, I64 value, I64 *err_kind)
+{
+  U64 i;
+  *err_kind = 0;
+  if (Map__I64_call_Vec_I64_Find(self, value, &i)) return &self->values.data[i];
+  *err_kind = 4;
+  return NULL;
+}
+
+U0 Map__I64_call_Vec_I64_Set(Map__I64_call_Vec_I64 *self, I64 value, Vec__I64 *val)
+{
+  U64 i;
+  if (Map__I64_call_Vec_I64_Find(self, value, &i)) {
+    Vec__I64_Delete(&self->values.data[i], FALSE);
+    TilMemCpy(&self->values.data[i], val, sizeof(Vec__I64));
+    TilMemSet(val, 0, sizeof(Vec__I64));
+    return;
+  }
+  if (self->keys.count == self->keys.cap) {
+    if (self->keys.cap > I64_MAX/2) TilPanicZ("Map: capacity overflow\n");
+    U64 cap = self->keys.cap*2;
+    if (!cap) cap = 1;
+    if (cap > I64_MAX/sizeof(I64) || cap > I64_MAX/sizeof(Vec__I64)) TilPanicZ("Map: allocation overflow\n");
+    self->keys.data = (TilReAlloc(self->keys.data, cap*sizeof(I64)))(I64 *);
+    self->values.data = (TilReAlloc(self->values.data, cap*sizeof(Vec__I64)))(Vec__I64 *);
+    self->keys.cap = cap;
+    self->values.cap = cap;
+  }
+  U64 tail = self->keys.count-i;
+  if (tail) {
+    TilMemMove(&self->keys.data[i+1], &self->keys.data[i], tail*sizeof(I64));
+    TilMemMove(&self->values.data[i+1], &self->values.data[i], tail*sizeof(Vec__I64));
+  }
+  self->keys.data[i] = value;
+  TilMemCpy(&self->values.data[i], val, sizeof(Vec__I64));
+  TilMemSet(val, 0, sizeof(Vec__I64));
+  self->keys.count++;
+  self->values.count++;
+}
+
+Bool Map__I64_call_Vec_I64_Remove(Map__I64_call_Vec_I64 *self, I64 value)
+{
+  U64 i;
+  if (!Map__I64_call_Vec_I64_Find(self, value, &i)) return FALSE;
+  I64 err_kind = 0;
+  Vec__I64_RemoveAt(&self->keys, i, &err_kind);
+  Vec__call_Vec_I64_RemoveAt(&self->values, i, &err_kind);
+  return TRUE;
+}
+
+class Map__Str_I64 {
+  Vec__Str keys;
+  Vec__I64 values;
+};
+
+U0 Map__Str_I64_CopyValue(Map__Str_I64 *out, Map__Str_I64 *src)
+{
+  Vec__Str_CopyValue(&out->keys, &src->keys);
+  Vec__I64_CopyValue(&out->values, &src->values);
+}
+
+U0 Map__Str_I64_New(Map__Str_I64 *out)
+{
+  Vec__Str_New(&out->keys);
+  Vec__I64_New(&out->values);
+}
+
+U0 Map__Str_I64_WithCapacity(Map__Str_I64 *out, U64 n)
+{
+  Vec__Str_WithCapacity(&out->keys, n);
+  Vec__I64_WithCapacity(&out->values, n);
+}
+
+U0 Map__Str_I64_Clone(Map__Str_I64 *out, Map__Str_I64 *src)
+{
+  Vec__Str_Clone(&out->keys, &src->keys);
+  Vec__I64_Clone(&out->values, &src->values);
+}
+
+U0 Map__Str_I64_Clear(Map__Str_I64 *self)
+{
+  Vec__Str_Clear(&self->keys);
+  Vec__I64_Clear(&self->values);
+}
+
+U0 Map__Str_I64_Delete(Map__Str_I64 *self, Bool call_free)
+{
+  Vec__Str_Delete(&self->keys, FALSE);
+  Vec__I64_Delete(&self->values, FALSE);
+  if (call_free) TilFree(self);
+}
+
+Bool Map__Str_I64_Find(Map__Str_I64 *self, TilStr *value, U64 *index)
+{
+  U64 lo = 0;
+  U64 hi = self->keys.count;
+  while (lo < hi) {
+    U64 mid = lo + (hi-lo)/2;
+    I64 cmp = TilStrCmp(&self->keys.data[mid], value);
+    if (cmp < 0) lo = mid+1;
+    else if (cmp > 0) hi = mid;
+    else { *index = mid; return TRUE; }
+  }
+  *index = lo;
+  return FALSE;
+}
+
+Bool Map__Str_I64_Has(Map__Str_I64 *self, TilStr *value)
+{
+  U64 i;
+  return Map__Str_I64_Find(self, value, &i);
+}
+
+I64 *Map__Str_I64_Get(Map__Str_I64 *self, TilStr *value, I64 *err_kind)
+{
+  U64 i;
+  *err_kind = 0;
+  if (Map__Str_I64_Find(self, value, &i)) return &self->values.data[i];
+  *err_kind = 4;
+  return NULL;
+}
+
+U0 Map__Str_I64_Set(Map__Str_I64 *self, TilStr *value, I64 val)
+{
+  U64 i;
+  if (Map__Str_I64_Find(self, value, &i)) {
+    self->values.data[i] = val;
+    return;
+  }
+  if (self->keys.count == self->keys.cap) {
+    if (self->keys.cap > I64_MAX/2) TilPanicZ("Map: capacity overflow\n");
+    U64 cap = self->keys.cap*2;
+    if (!cap) cap = 1;
+    if (cap > I64_MAX/sizeof(TilStr) || cap > I64_MAX/sizeof(I64)) TilPanicZ("Map: allocation overflow\n");
+    self->keys.data = (TilReAlloc(self->keys.data, cap*sizeof(TilStr)))(TilStr *);
+    self->values.data = (TilReAlloc(self->values.data, cap*sizeof(I64)))(I64 *);
+    self->keys.cap = cap;
+    self->values.cap = cap;
+  }
+  U64 tail = self->keys.count-i;
+  if (tail) {
+    TilMemMove(&self->keys.data[i+1], &self->keys.data[i], tail*sizeof(TilStr));
+    TilMemMove(&self->values.data[i+1], &self->values.data[i], tail*sizeof(I64));
+  }
+  TilStrClone(&self->keys.data[i], value);
+  self->values.data[i] = val;
+  self->keys.count++;
+  self->values.count++;
+}
+
+Bool Map__Str_I64_Remove(Map__Str_I64 *self, TilStr *value)
+{
+  U64 i;
+  if (!Map__Str_I64_Find(self, value, &i)) return FALSE;
+  I64 err_kind = 0;
+  Vec__Str_RemoveAt(&self->keys, i, &err_kind);
+  Vec__I64_RemoveAt(&self->values, i, &err_kind);
+  return TRUE;
 }
 
 class StructSegment {
@@ -2260,44 +2933,44 @@ StructNullable * safe_ref__StructNullable(StructNullable *value)
 I64 TilMain()
 {
     I64 _err_kind = 0;
-    I64 hoisted__I64_g211 = 2;
-    I64 hoisted__I64_g212 = 3;
+    I64 hoisted__I64_g291 = 2;
+    I64 hoisted__I64_g292 = 3;
     StructPoint point;
-    point.x = hoisted__I64_g211;
-    point.y = hoisted__I64_g212;
-    I64 hoisted__I64_g213 = 7;
-    point.x = hoisted__I64_g213;
-    I64 hoisted__I64_g214 = 5;
-    I64 hoisted__I64_g215 = 7;
-    I64 hoisted__I64_g216 = 11;
-    I64 hoisted__I64_g217 = 13;
-    Bool hoisted__Bool_g218 = TRUE;
+    point.x = hoisted__I64_g291;
+    point.y = hoisted__I64_g292;
+    I64 hoisted__I64_g293 = 7;
+    point.x = hoisted__I64_g293;
+    I64 hoisted__I64_g294 = 5;
+    I64 hoisted__I64_g295 = 7;
+    I64 hoisted__I64_g296 = 11;
+    I64 hoisted__I64_g297 = 13;
+    Bool hoisted__Bool_g298 = TRUE;
     StructSegment segment;
-    segment.start.x = hoisted__I64_g214;
-    segment.start.y = hoisted__I64_g215;
-    segment.finish.x = hoisted__I64_g216;
-    segment.finish.y = hoisted__I64_g217;
-    segment.active = hoisted__Bool_g218;
-    U64 hoisted__U64_g219 = 1;
-    TilStrArray _va_Array_g55;
-    TilStrArrayNew(&_va_Array_g55, hoisted__U64_g219);
-    I64 _va_Array_g55_ek = 0;
-    I64 hoisted__I64_g220 = (point.x + point.y);
-    U64 hoisted__U64_g221 = 0;
-    TilStr hoisted__Str_g222;
-    TilStrFromI64(&hoisted__Str_g222, hoisted__I64_g220);
-    TilStrArraySet(&_va_Array_g55, hoisted__U64_g221, &hoisted__Str_g222);
-    TilPrintln(&_va_Array_g55);
-    U64 hoisted__U64_g223 = 1;
-    TilStrArray _va_Array_g56;
-    TilStrArrayNew(&_va_Array_g56, hoisted__U64_g223);
-    I64 _va_Array_g56_ek = 0;
-    I64 hoisted__I64_g224 = (segment.start.x + segment.finish.y);
-    U64 hoisted__U64_g225 = 0;
-    TilStr hoisted__Str_g226;
-    TilStrFromI64(&hoisted__Str_g226, hoisted__I64_g224);
-    TilStrArraySet(&_va_Array_g56, hoisted__U64_g225, &hoisted__Str_g226);
-    TilPrintln(&_va_Array_g56);
+    segment.start.x = hoisted__I64_g294;
+    segment.start.y = hoisted__I64_g295;
+    segment.finish.x = hoisted__I64_g296;
+    segment.finish.y = hoisted__I64_g297;
+    segment.active = hoisted__Bool_g298;
+    U64 hoisted__U64_g299 = 1;
+    TilStrArray _va_Array_g73;
+    TilStrArrayNew(&_va_Array_g73, hoisted__U64_g299);
+    I64 _va_Array_g73_ek = 0;
+    I64 hoisted__I64_g300 = (point.x + point.y);
+    U64 hoisted__U64_g301 = 0;
+    TilStr hoisted__Str_g302;
+    TilStrFromI64(&hoisted__Str_g302, hoisted__I64_g300);
+    TilStrArraySet(&_va_Array_g73, hoisted__U64_g301, &hoisted__Str_g302);
+    TilPrintln(&_va_Array_g73);
+    U64 hoisted__U64_g303 = 1;
+    TilStrArray _va_Array_g74;
+    TilStrArrayNew(&_va_Array_g74, hoisted__U64_g303);
+    I64 _va_Array_g74_ek = 0;
+    I64 hoisted__I64_g304 = (segment.start.x + segment.finish.y);
+    U64 hoisted__U64_g305 = 0;
+    TilStr hoisted__Str_g306;
+    TilStrFromI64(&hoisted__Str_g306, hoisted__I64_g304);
+    TilStrArraySet(&_va_Array_g74, hoisted__U64_g305, &hoisted__Str_g306);
+    TilPrintln(&_va_Array_g74);
     if (segment.active) {
         U64 hoisted__U64_g7 = 1;
         TilStrArray _va_Array_g0;
@@ -2311,8 +2984,8 @@ I64 TilMain()
     }
     StructSegment segment_copy;
     StructSegment_Clone(&segment_copy, &segment);
-    Bool hoisted__Bool_g227 = StructSegment_Eq(&segment, &segment_copy);
-    if (hoisted__Bool_g227) {
+    Bool hoisted__Bool_g307 = StructSegment_Eq(&segment, &segment_copy);
+    if (hoisted__Bool_g307) {
         U64 hoisted__U64_g10 = 1;
         TilStrArray _va_Array_g1;
         TilStrArrayNew(&_va_Array_g1, hoisted__U64_g10);
@@ -2323,10 +2996,10 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g1, hoisted__U64_g11, &hoisted__Str_g12);
         TilPrintln(&_va_Array_g1);
     }
-    I64 hoisted__I64_g228 = 14;
-    segment_copy.finish.y = hoisted__I64_g228;
-    Bool hoisted__Bool_g229 = (!StructSegment_Eq(&segment, &segment_copy));
-    if (hoisted__Bool_g229) {
+    I64 hoisted__I64_g308 = 14;
+    segment_copy.finish.y = hoisted__I64_g308;
+    Bool hoisted__Bool_g309 = (!StructSegment_Eq(&segment, &segment_copy));
+    if (hoisted__Bool_g309) {
         U64 hoisted__U64_g13 = 1;
         TilStrArray _va_Array_g2;
         TilStrArrayNew(&_va_Array_g2, hoisted__U64_g13);
@@ -2337,19 +3010,19 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g2, hoisted__U64_g14, &hoisted__Str_g15);
         TilPrintln(&_va_Array_g2);
     }
-    U64 hoisted__U64_g230 = 5;
+    U64 hoisted__U64_g310 = 5;
     TilStr source;
-    TilStrWithCapacity(&source, hoisted__U64_g230);
-    TilStr hoisted__Str_g231;
-    TilStrInitLit(&hoisted__Str_g231, "alpha", 5);
-    TilStrPush(&source, &hoisted__Str_g231);
-    TilStrDelete(&hoisted__Str_g231, FALSE);
+    TilStrWithCapacity(&source, hoisted__U64_g310);
+    TilStr hoisted__Str_g311;
+    TilStrInitLit(&hoisted__Str_g311, "alpha", 5);
+    TilStrPush(&source, &hoisted__Str_g311);
+    TilStrDelete(&hoisted__Str_g311, FALSE);
     StructNamedPoint named;
     make_struct_named_point(&named, &source);
     StructNamedPoint copy;
     StructNamedPoint_Clone(&copy, &named);
-    Bool hoisted__Bool_g232 = StructNamedPoint_Eq(&named, &copy);
-    if (hoisted__Bool_g232) {
+    Bool hoisted__Bool_g312 = StructNamedPoint_Eq(&named, &copy);
+    if (hoisted__Bool_g312) {
         U64 hoisted__U64_g16 = 1;
         TilStrArray _va_Array_g3;
         TilStrArrayNew(&_va_Array_g3, hoisted__U64_g16);
@@ -2361,8 +3034,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g3);
     }
     rename_struct_named_point(&named);
-    Bool hoisted__Bool_g233 = (!StructNamedPoint_Eq(&named, &copy));
-    if (hoisted__Bool_g233) {
+    Bool hoisted__Bool_g313 = (!StructNamedPoint_Eq(&named, &copy));
+    if (hoisted__Bool_g313) {
         U64 hoisted__U64_g19 = 1;
         TilStrArray _va_Array_g4;
         TilStrArrayNew(&_va_Array_g4, hoisted__U64_g19);
@@ -2373,44 +3046,44 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g4, hoisted__U64_g20, &hoisted__Str_g21);
         TilPrintln(&_va_Array_g4);
     }
-    U64 hoisted__U64_g234 = 1;
-    TilStrArray _va_Array_g57;
-    TilStrArrayNew(&_va_Array_g57, hoisted__U64_g234);
-    I64 _va_Array_g57_ek = 0;
-    U64 hoisted__U64_g235 = 0;
-    TilStr hoisted__Str_g236;
-    TilStrClone(&hoisted__Str_g236, &copy.name);
-    TilStrArraySet(&_va_Array_g57, hoisted__U64_g235, &hoisted__Str_g236);
-    TilPrintln(&_va_Array_g57);
-    U64 hoisted__U64_g237 = 1;
-    TilStrArray _va_Array_g58;
-    TilStrArrayNew(&_va_Array_g58, hoisted__U64_g237);
-    I64 _va_Array_g58_ek = 0;
-    U64 hoisted__U64_g238 = 0;
-    TilStr hoisted__Str_g239;
-    TilStrClone(&hoisted__Str_g239, &named.name);
-    TilStrArraySet(&_va_Array_g58, hoisted__U64_g238, &hoisted__Str_g239);
-    TilPrintln(&_va_Array_g58);
-    U64 hoisted__U64_g240 = 1;
-    TilStrArray _va_Array_g59;
-    TilStrArrayNew(&_va_Array_g59, hoisted__U64_g240);
-    I64 _va_Array_g59_ek = 0;
-    I64 hoisted__I64_g241 = struct_named_point_score(&copy);
-    U64 hoisted__U64_g242 = 0;
-    TilStr hoisted__Str_g243;
-    TilStrFromI64(&hoisted__Str_g243, hoisted__I64_g241);
-    TilStrArraySet(&_va_Array_g59, hoisted__U64_g242, &hoisted__Str_g243);
-    TilPrintln(&_va_Array_g59);
-    U64 hoisted__U64_g244 = 1;
-    TilStrArray _va_Array_g60;
-    TilStrArrayNew(&_va_Array_g60, hoisted__U64_g244);
-    I64 _va_Array_g60_ek = 0;
-    I64 hoisted__I64_g245 = struct_named_point_score(&named);
-    U64 hoisted__U64_g246 = 0;
-    TilStr hoisted__Str_g247;
-    TilStrFromI64(&hoisted__Str_g247, hoisted__I64_g245);
-    TilStrArraySet(&_va_Array_g60, hoisted__U64_g246, &hoisted__Str_g247);
-    TilPrintln(&_va_Array_g60);
+    U64 hoisted__U64_g314 = 1;
+    TilStrArray _va_Array_g75;
+    TilStrArrayNew(&_va_Array_g75, hoisted__U64_g314);
+    I64 _va_Array_g75_ek = 0;
+    U64 hoisted__U64_g315 = 0;
+    TilStr hoisted__Str_g316;
+    TilStrClone(&hoisted__Str_g316, &copy.name);
+    TilStrArraySet(&_va_Array_g75, hoisted__U64_g315, &hoisted__Str_g316);
+    TilPrintln(&_va_Array_g75);
+    U64 hoisted__U64_g317 = 1;
+    TilStrArray _va_Array_g76;
+    TilStrArrayNew(&_va_Array_g76, hoisted__U64_g317);
+    I64 _va_Array_g76_ek = 0;
+    U64 hoisted__U64_g318 = 0;
+    TilStr hoisted__Str_g319;
+    TilStrClone(&hoisted__Str_g319, &named.name);
+    TilStrArraySet(&_va_Array_g76, hoisted__U64_g318, &hoisted__Str_g319);
+    TilPrintln(&_va_Array_g76);
+    U64 hoisted__U64_g320 = 1;
+    TilStrArray _va_Array_g77;
+    TilStrArrayNew(&_va_Array_g77, hoisted__U64_g320);
+    I64 _va_Array_g77_ek = 0;
+    I64 hoisted__I64_g321 = struct_named_point_score(&copy);
+    U64 hoisted__U64_g322 = 0;
+    TilStr hoisted__Str_g323;
+    TilStrFromI64(&hoisted__Str_g323, hoisted__I64_g321);
+    TilStrArraySet(&_va_Array_g77, hoisted__U64_g322, &hoisted__Str_g323);
+    TilPrintln(&_va_Array_g77);
+    U64 hoisted__U64_g324 = 1;
+    TilStrArray _va_Array_g78;
+    TilStrArrayNew(&_va_Array_g78, hoisted__U64_g324);
+    I64 _va_Array_g78_ek = 0;
+    I64 hoisted__I64_g325 = struct_named_point_score(&named);
+    U64 hoisted__U64_g326 = 0;
+    TilStr hoisted__Str_g327;
+    TilStrFromI64(&hoisted__Str_g327, hoisted__I64_g325);
+    TilStrArraySet(&_va_Array_g78, hoisted__U64_g326, &hoisted__Str_g327);
+    TilPrintln(&_va_Array_g78);
     StructNamedPoint_Delete(&named, FALSE);
     StructNamedPoint_Delete(&copy, FALSE);
     TilStrDelete(&source, FALSE);
@@ -2512,8 +3185,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g11);
     } while (FALSE);
     U64 wide = wide_from_signal(current_signal);
-    Bool hoisted__Bool_g248 = (wide == 4294967303);
-    if (hoisted__Bool_g248) {
+    Bool hoisted__Bool_g328 = (wide == 4294967303);
+    if (hoisted__Bool_g328) {
         U64 hoisted__U64_g48 = 1;
         TilStrArray _va_Array_g12;
         TilStrArrayNew(&_va_Array_g12, hoisted__U64_g48);
@@ -2524,8 +3197,8 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g12, hoisted__U64_g49, &hoisted__Str_g50);
         TilPrintln(&_va_Array_g12);
     }
-    Bool hoisted__Bool_g249 = (wide != 7);
-    if (hoisted__Bool_g249) {
+    Bool hoisted__Bool_g329 = (wide != 7);
+    if (hoisted__Bool_g329) {
         U64 hoisted__U64_g51 = 1;
         TilStrArray _va_Array_g13;
         TilStrArrayNew(&_va_Array_g13, hoisted__U64_g51);
@@ -2573,8 +3246,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g16);
     } while (FALSE);
     U8 small = small_from_signal(current_signal);
-    Bool hoisted__Bool_g250 = (small == 255);
-    if (hoisted__Bool_g250) {
+    Bool hoisted__Bool_g330 = (small == 255);
+    if (hoisted__Bool_g330) {
         U64 hoisted__U64_g63 = 1;
         TilStrArray _va_Array_g17;
         TilStrArrayNew(&_va_Array_g17, hoisted__U64_g63);
@@ -2586,8 +3259,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g17);
     }
     U8 default_signal = default_from_signal(current_signal);
-    Bool hoisted__Bool_g251 = (default_signal == 1);
-    if (hoisted__Bool_g251) {
+    Bool hoisted__Bool_g331 = (default_signal == 1);
+    if (hoisted__Bool_g331) {
         U64 hoisted__U64_g66 = 1;
         TilStrArray _va_Array_g18;
         TilStrArrayNew(&_va_Array_g18, hoisted__U64_g66);
@@ -2599,8 +3272,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g18);
     }
     U32 medium = medium_from_signal(current_signal);
-    Bool hoisted__Bool_g252 = (medium == 4294967295);
-    if (hoisted__Bool_g252) {
+    Bool hoisted__Bool_g332 = (medium == 4294967295);
+    if (hoisted__Bool_g332) {
         U64 hoisted__U64_g69 = 1;
         TilStrArray _va_Array_g19;
         TilStrArrayNew(&_va_Array_g19, hoisted__U64_g69);
@@ -2652,9 +3325,9 @@ I64 TilMain()
             TilPrintln(&_va_Array_g22);
         }
     }
-    I64 hoisted__I64_g253 = 8;
-    Bool hoisted__Bool_g254 = (point.x == hoisted__I64_g253);
-    if (hoisted__Bool_g254) {
+    I64 hoisted__I64_g333 = 8;
+    Bool hoisted__Bool_g334 = (point.x == hoisted__I64_g333);
+    if (hoisted__Bool_g334) {
         U64 hoisted__U64_g83 = 1;
         TilStrArray _va_Array_g23;
         TilStrArrayNew(&_va_Array_g23, hoisted__U64_g83);
@@ -2665,19 +3338,19 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g23, hoisted__U64_g84, &hoisted__Str_g85);
         TilPrintln(&_va_Array_g23);
     }
-    U64 hoisted__U64_g255 = 7;
+    U64 hoisted__U64_g335 = 7;
     TilStr payload_source;
-    TilStrWithCapacity(&payload_source, hoisted__U64_g255);
-    TilStr hoisted__Str_g256;
-    TilStrInitLit(&hoisted__Str_g256, "payload", 7);
-    TilStrPush(&payload_source, &hoisted__Str_g256);
-    TilStrDelete(&hoisted__Str_g256, FALSE);
+    TilStrWithCapacity(&payload_source, hoisted__U64_g335);
+    TilStr hoisted__Str_g336;
+    TilStrInitLit(&hoisted__Str_g336, "payload", 7);
+    TilStrPush(&payload_source, &hoisted__Str_g336);
+    TilStrDelete(&hoisted__Str_g336, FALSE);
     PayloadValue text_payload;
     make_payload_text(&text_payload, &payload_source);
     PayloadValue text_payload_copy;
     PayloadValue_Clone(&text_payload_copy, &text_payload);
-    Bool hoisted__Bool_g257 = PayloadValue_Eq(&text_payload, &text_payload_copy);
-    if (hoisted__Bool_g257) {
+    Bool hoisted__Bool_g337 = PayloadValue_Eq(&text_payload, &text_payload_copy);
+    if (hoisted__Bool_g337) {
         U64 hoisted__U64_g86 = 1;
         TilStrArray _va_Array_g24;
         TilStrArrayNew(&_va_Array_g24, hoisted__U64_g86);
@@ -2706,8 +3379,8 @@ I64 TilMain()
             break;
         }
     } while (FALSE);
-    Bool hoisted__Bool_g258 = (!PayloadValue_Eq(&text_payload, &text_payload_copy));
-    if (hoisted__Bool_g258) {
+    Bool hoisted__Bool_g338 = (!PayloadValue_Eq(&text_payload, &text_payload_copy));
+    if (hoisted__Bool_g338) {
         U64 hoisted__U64_g92 = 1;
         TilStrArray _va_Array_g25;
         TilStrArrayNew(&_va_Array_g25, hoisted__U64_g92);
@@ -2742,8 +3415,8 @@ I64 TilMain()
     PayloadValue empty_payload;
     empty_payload.tag = 0;
     show_payload(&empty_payload);
-    Bool hoisted__Bool_g261 = PayloadValue_Eq(&empty_payload, &PayloadValue_Literal_Empty);
-    if (hoisted__Bool_g261) {
+    Bool hoisted__Bool_g341 = PayloadValue_Eq(&empty_payload, &PayloadValue_Literal_Empty);
+    if (hoisted__Bool_g341) {
         U64 hoisted__U64_g97 = 1;
         TilStrArray _va_Array_g26;
         TilStrArrayNew(&_va_Array_g26, hoisted__U64_g97);
@@ -2755,8 +3428,8 @@ I64 TilMain()
         TilPrintln(&_va_Array_g26);
     }
     show_payload(&PayloadValue_Literal_Empty);
-    Bool hoisted__Bool_g262 = (!PayloadValue_Eq(&empty_payload, &byte_payload));
-    if (hoisted__Bool_g262) {
+    Bool hoisted__Bool_g342 = (!PayloadValue_Eq(&empty_payload, &byte_payload));
+    if (hoisted__Bool_g342) {
         U64 hoisted__U64_g100 = 1;
         TilStrArray _va_Array_g27;
         TilStrArrayNew(&_va_Array_g27, hoisted__U64_g100);
@@ -2767,8 +3440,8 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g27, hoisted__U64_g101, &hoisted__Str_g102);
         TilPrintln(&_va_Array_g27);
     }
-    Bool hoisted__Bool_g263 = ((&count_payload)->tag == 2);
-    if (hoisted__Bool_g263) {
+    Bool hoisted__Bool_g343 = ((&count_payload)->tag == 2);
+    if (hoisted__Bool_g343) {
         U64 hoisted__U64_g103 = 1;
         TilStrArray _va_Array_g28;
         TilStrArrayNew(&_va_Array_g28, hoisted__U64_g103);
@@ -2779,14 +3452,14 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g28, hoisted__U64_g104, &hoisted__Str_g105);
         TilPrintln(&_va_Array_g28);
     }
-    I64 hoisted__I64_g264 = 9;
-    PayloadRecord hoisted__PayloadRecord_g265;
-    hoisted__PayloadRecord_g265.number = hoisted__I64_g264;
-    TilStrClone(&hoisted__PayloadRecord_g265.name, &payload_source);
+    I64 hoisted__I64_g344 = 9;
+    PayloadRecord hoisted__PayloadRecord_g345;
+    hoisted__PayloadRecord_g345.number = hoisted__I64_g344;
+    TilStrClone(&hoisted__PayloadRecord_g345.name, &payload_source);
     PayloadValue record_payload;
     record_payload.tag = 4;
-    record_payload.payload_Record.number = hoisted__PayloadRecord_g265.number;
-    TilStrCopyValue(&record_payload.payload_Record.name, &hoisted__PayloadRecord_g265.name);
+    record_payload.payload_Record.number = hoisted__PayloadRecord_g345.number;
+    TilStrCopyValue(&record_payload.payload_Record.name, &hoisted__PayloadRecord_g345.name);
     PayloadValue record_payload_copy;
     PayloadValue_Clone(&record_payload_copy, &record_payload);
     do {
@@ -2807,8 +3480,8 @@ I64 TilMain()
             break;
         }
     } while (FALSE);
-    Bool hoisted__Bool_g266 = (!PayloadValue_Eq(&record_payload, &record_payload_copy));
-    if (hoisted__Bool_g266) {
+    Bool hoisted__Bool_g346 = (!PayloadValue_Eq(&record_payload, &record_payload_copy));
+    if (hoisted__Bool_g346) {
         U64 hoisted__U64_g109 = 1;
         TilStrArray _va_Array_g29;
         TilStrArrayNew(&_va_Array_g29, hoisted__U64_g109);
@@ -2822,15 +3495,15 @@ I64 TilMain()
     show_payload(&record_payload);
     PayloadValue_Delete(&record_payload, FALSE);
     show_payload(&record_payload_copy);
-    PayloadValue hoisted__PayloadValue_g267;
-    PayloadValue_Clone(&hoisted__PayloadValue_g267, &record_payload_copy);
+    PayloadValue hoisted__PayloadValue_g347;
+    PayloadValue_Clone(&hoisted__PayloadValue_g347, &record_payload_copy);
     PayloadEnvelope envelope;
     envelope.tag = 1;
-    PayloadValue_CopyValue(&envelope.payload_Wrapped, &hoisted__PayloadValue_g267);
+    PayloadValue_CopyValue(&envelope.payload_Wrapped, &hoisted__PayloadValue_g347);
     PayloadEnvelope envelope_copy;
     PayloadEnvelope_Clone(&envelope_copy, &envelope);
-    Bool hoisted__Bool_g268 = PayloadEnvelope_Eq(&envelope, &envelope_copy);
-    if (hoisted__Bool_g268) {
+    Bool hoisted__Bool_g348 = PayloadEnvelope_Eq(&envelope, &envelope_copy);
+    if (hoisted__Bool_g348) {
         U64 hoisted__U64_g112 = 1;
         TilStrArray _va_Array_g30;
         TilStrArrayNew(&_va_Array_g30, hoisted__U64_g112);
@@ -2915,150 +3588,150 @@ I64 TilMain()
     PayloadValue_Delete(&byte_payload, FALSE);
     PayloadValue_Delete(&empty_payload, FALSE);
     TilStrDelete(&payload_source, FALSE);
-    I64 hoisted__I64_g269 = 4;
-    I64 hoisted__I64_g270 = 0;
+    I64 hoisted__I64_g349 = 4;
+    I64 hoisted__I64_g350 = 0;
     StructPoint first;
-    first.x = hoisted__I64_g269;
-    first.y = hoisted__I64_g270;
-    I64 hoisted__I64_g271 = 20;
-    I64 hoisted__I64_g272 = 0;
+    first.x = hoisted__I64_g349;
+    first.y = hoisted__I64_g350;
+    I64 hoisted__I64_g351 = 20;
+    I64 hoisted__I64_g352 = 0;
     StructPoint second;
-    second.x = hoisted__I64_g271;
-    second.y = hoisted__I64_g272;
+    second.x = hoisted__I64_g351;
+    second.y = hoisted__I64_g352;
     I64 borrowed_number = 5;
     I64 next_number = 30;
-    U64 hoisted__U64_g273 = 9;
+    U64 hoisted__U64_g353 = 9;
     TilStr borrowed_label;
-    TilStrWithCapacity(&borrowed_label, hoisted__U64_g273);
-    TilStr hoisted__Str_g274;
-    TilStrInitLit(&hoisted__Str_g274, "borrowed", 8);
-    TilStrPush(&borrowed_label, &hoisted__Str_g274);
-    TilStrDelete(&hoisted__Str_g274, FALSE);
+    TilStrWithCapacity(&borrowed_label, hoisted__U64_g353);
+    TilStr hoisted__Str_g354;
+    TilStrInitLit(&hoisted__Str_g354, "borrowed", 8);
+    TilStrPush(&borrowed_label, &hoisted__Str_g354);
+    TilStrDelete(&hoisted__Str_g354, FALSE);
     StructBorrowed holder;
     holder.point = &first;
     holder.count = &borrowed_number;
     holder.label = &borrowed_label;
     StructBorrowed holder_copy;
     borrowed_copy(&holder_copy, &holder);
-    U64 hoisted__U64_g275 = 5;
-    TilStrArray _va_Array_g61;
-    TilStrArrayNew(&_va_Array_g61, hoisted__U64_g275);
-    I64 _va_Array_g61_ek = 0;
-    U64 hoisted__U64_g276 = 0;
-    TilStr hoisted__Str_g277;
-    TilStrFromI64(&hoisted__Str_g277, (borrowed_point(&holder))->x);
-    TilStrArraySet(&_va_Array_g61, hoisted__U64_g276, &hoisted__Str_g277);
-    U64 hoisted__U64_g278 = 1;
-    TilStr hoisted__Str_g279;
-    TilStrInitLit(&hoisted__Str_g279, ":", 1);
-    TilStrArraySet(&_va_Array_g61, hoisted__U64_g278, &hoisted__Str_g279);
+    U64 hoisted__U64_g355 = 5;
+    TilStrArray _va_Array_g79;
+    TilStrArrayNew(&_va_Array_g79, hoisted__U64_g355);
+    I64 _va_Array_g79_ek = 0;
+    U64 hoisted__U64_g356 = 0;
+    TilStr hoisted__Str_g357;
+    TilStrFromI64(&hoisted__Str_g357, (borrowed_point(&holder))->x);
+    TilStrArraySet(&_va_Array_g79, hoisted__U64_g356, &hoisted__Str_g357);
+    U64 hoisted__U64_g358 = 1;
+    TilStr hoisted__Str_g359;
+    TilStrInitLit(&hoisted__Str_g359, ":", 1);
+    TilStrArraySet(&_va_Array_g79, hoisted__U64_g358, &hoisted__Str_g359);
     I64 *ref_value_33 = borrowed_count(&holder);
-    U64 hoisted__U64_g281 = 2;
-    TilStr hoisted__Str_g282;
-    TilStrFromI64(&hoisted__Str_g282, (*((TilCheckPtr(ref_value_33))(I64 *))));
-    TilStrArraySet(&_va_Array_g61, hoisted__U64_g281, &hoisted__Str_g282);
-    U64 hoisted__U64_g283 = 3;
-    TilStr hoisted__Str_g284;
-    TilStrInitLit(&hoisted__Str_g284, ":", 1);
-    TilStrArraySet(&_va_Array_g61, hoisted__U64_g283, &hoisted__Str_g284);
-    U64 hoisted__U64_g285 = 4;
-    TilStr hoisted__Str_g286;
-    TilStrClone(&hoisted__Str_g286, holder_copy.label);
-    TilStrArraySet(&_va_Array_g61, hoisted__U64_g285, &hoisted__Str_g286);
-    TilPrintln(&_va_Array_g61);
+    U64 hoisted__U64_g361 = 2;
+    TilStr hoisted__Str_g362;
+    TilStrFromI64(&hoisted__Str_g362, (*((TilCheckPtr(ref_value_33))(I64 *))));
+    TilStrArraySet(&_va_Array_g79, hoisted__U64_g361, &hoisted__Str_g362);
+    U64 hoisted__U64_g363 = 3;
+    TilStr hoisted__Str_g364;
+    TilStrInitLit(&hoisted__Str_g364, ":", 1);
+    TilStrArraySet(&_va_Array_g79, hoisted__U64_g363, &hoisted__Str_g364);
+    U64 hoisted__U64_g365 = 4;
+    TilStr hoisted__Str_g366;
+    TilStrClone(&hoisted__Str_g366, holder_copy.label);
+    TilStrArraySet(&_va_Array_g79, hoisted__U64_g365, &hoisted__Str_g366);
+    TilPrintln(&_va_Array_g79);
     bump_borrowed_count(holder.count);
-    I64 hoisted__I64_g287 = 11;
-    first.x = hoisted__I64_g287;
-    TilStr hoisted__Str_g288;
-    TilStrInitLit(&hoisted__Str_g288, "!", 1);
-    TilStrPush(&borrowed_label, &hoisted__Str_g288);
-    TilStrDelete(&hoisted__Str_g288, FALSE);
-    U64 hoisted__U64_g289 = 5;
-    TilStrArray _va_Array_g62;
-    TilStrArrayNew(&_va_Array_g62, hoisted__U64_g289);
-    I64 _va_Array_g62_ek = 0;
-    U64 hoisted__U64_g290 = 0;
-    TilStr hoisted__Str_g291;
-    TilStrFromI64(&hoisted__Str_g291, holder_copy.point->x);
-    TilStrArraySet(&_va_Array_g62, hoisted__U64_g290, &hoisted__Str_g291);
-    U64 hoisted__U64_g292 = 1;
-    TilStr hoisted__Str_g293;
-    TilStrInitLit(&hoisted__Str_g293, ":", 1);
-    TilStrArraySet(&_va_Array_g62, hoisted__U64_g292, &hoisted__Str_g293);
+    I64 hoisted__I64_g367 = 11;
+    first.x = hoisted__I64_g367;
+    TilStr hoisted__Str_g368;
+    TilStrInitLit(&hoisted__Str_g368, "!", 1);
+    TilStrPush(&borrowed_label, &hoisted__Str_g368);
+    TilStrDelete(&hoisted__Str_g368, FALSE);
+    U64 hoisted__U64_g369 = 5;
+    TilStrArray _va_Array_g80;
+    TilStrArrayNew(&_va_Array_g80, hoisted__U64_g369);
+    I64 _va_Array_g80_ek = 0;
+    U64 hoisted__U64_g370 = 0;
+    TilStr hoisted__Str_g371;
+    TilStrFromI64(&hoisted__Str_g371, holder_copy.point->x);
+    TilStrArraySet(&_va_Array_g80, hoisted__U64_g370, &hoisted__Str_g371);
+    U64 hoisted__U64_g372 = 1;
+    TilStr hoisted__Str_g373;
+    TilStrInitLit(&hoisted__Str_g373, ":", 1);
+    TilStrArraySet(&_va_Array_g80, hoisted__U64_g372, &hoisted__Str_g373);
     I64 *ref_value_34 = borrowed_count(&holder_copy);
-    I64 hoisted__I64_g295 = (*((TilCheckPtr(ref_value_34))(I64 *)));
-    U64 hoisted__U64_g296 = 2;
-    TilStr hoisted__Str_g297;
-    TilStrFromI64(&hoisted__Str_g297, hoisted__I64_g295);
-    TilStrArraySet(&_va_Array_g62, hoisted__U64_g296, &hoisted__Str_g297);
-    U64 hoisted__U64_g298 = 3;
-    TilStr hoisted__Str_g299;
-    TilStrInitLit(&hoisted__Str_g299, ":", 1);
-    TilStrArraySet(&_va_Array_g62, hoisted__U64_g298, &hoisted__Str_g299);
-    U64 hoisted__U64_g300 = 4;
-    TilStr hoisted__Str_g301;
-    TilStrClone(&hoisted__Str_g301, holder_copy.label);
-    TilStrArraySet(&_va_Array_g62, hoisted__U64_g300, &hoisted__Str_g301);
-    TilPrintln(&_va_Array_g62);
+    I64 hoisted__I64_g375 = (*((TilCheckPtr(ref_value_34))(I64 *)));
+    U64 hoisted__U64_g376 = 2;
+    TilStr hoisted__Str_g377;
+    TilStrFromI64(&hoisted__Str_g377, hoisted__I64_g375);
+    TilStrArraySet(&_va_Array_g80, hoisted__U64_g376, &hoisted__Str_g377);
+    U64 hoisted__U64_g378 = 3;
+    TilStr hoisted__Str_g379;
+    TilStrInitLit(&hoisted__Str_g379, ":", 1);
+    TilStrArraySet(&_va_Array_g80, hoisted__U64_g378, &hoisted__Str_g379);
+    U64 hoisted__U64_g380 = 4;
+    TilStr hoisted__Str_g381;
+    TilStrClone(&hoisted__Str_g381, holder_copy.label);
+    TilStrArraySet(&_va_Array_g80, hoisted__U64_g380, &hoisted__Str_g381);
+    TilPrintln(&_va_Array_g80);
     holder.point = &second;
     holder.count = &next_number;
-    U64 hoisted__U64_g302 = 3;
-    TilStrArray _va_Array_g63;
-    TilStrArrayNew(&_va_Array_g63, hoisted__U64_g302);
-    I64 _va_Array_g63_ek = 0;
-    U64 hoisted__U64_g303 = 0;
-    TilStr hoisted__Str_g304;
-    TilStrFromI64(&hoisted__Str_g304, holder.point->x);
-    TilStrArraySet(&_va_Array_g63, hoisted__U64_g303, &hoisted__Str_g304);
-    U64 hoisted__U64_g305 = 1;
-    TilStr hoisted__Str_g306;
-    TilStrInitLit(&hoisted__Str_g306, ":", 1);
-    TilStrArraySet(&_va_Array_g63, hoisted__U64_g305, &hoisted__Str_g306);
+    U64 hoisted__U64_g382 = 3;
+    TilStrArray _va_Array_g81;
+    TilStrArrayNew(&_va_Array_g81, hoisted__U64_g382);
+    I64 _va_Array_g81_ek = 0;
+    U64 hoisted__U64_g383 = 0;
+    TilStr hoisted__Str_g384;
+    TilStrFromI64(&hoisted__Str_g384, holder.point->x);
+    TilStrArraySet(&_va_Array_g81, hoisted__U64_g383, &hoisted__Str_g384);
+    U64 hoisted__U64_g385 = 1;
+    TilStr hoisted__Str_g386;
+    TilStrInitLit(&hoisted__Str_g386, ":", 1);
+    TilStrArraySet(&_va_Array_g81, hoisted__U64_g385, &hoisted__Str_g386);
     I64 *ref_value_35 = borrowed_count(&holder);
-    I64 hoisted__I64_g308 = (*((TilCheckPtr(ref_value_35))(I64 *)));
-    U64 hoisted__U64_g309 = 2;
-    TilStr hoisted__Str_g310;
-    TilStrFromI64(&hoisted__Str_g310, hoisted__I64_g308);
-    TilStrArraySet(&_va_Array_g63, hoisted__U64_g309, &hoisted__Str_g310);
-    TilPrintln(&_va_Array_g63);
-    U64 hoisted__U64_g311 = 3;
-    TilStrArray _va_Array_g64;
-    TilStrArrayNew(&_va_Array_g64, hoisted__U64_g311);
-    I64 _va_Array_g64_ek = 0;
-    U64 hoisted__U64_g312 = 0;
-    TilStr hoisted__Str_g313;
-    TilStrFromI64(&hoisted__Str_g313, holder_copy.point->x);
-    TilStrArraySet(&_va_Array_g64, hoisted__U64_g312, &hoisted__Str_g313);
-    U64 hoisted__U64_g314 = 1;
-    TilStr hoisted__Str_g315;
-    TilStrInitLit(&hoisted__Str_g315, ":", 1);
-    TilStrArraySet(&_va_Array_g64, hoisted__U64_g314, &hoisted__Str_g315);
+    I64 hoisted__I64_g388 = (*((TilCheckPtr(ref_value_35))(I64 *)));
+    U64 hoisted__U64_g389 = 2;
+    TilStr hoisted__Str_g390;
+    TilStrFromI64(&hoisted__Str_g390, hoisted__I64_g388);
+    TilStrArraySet(&_va_Array_g81, hoisted__U64_g389, &hoisted__Str_g390);
+    TilPrintln(&_va_Array_g81);
+    U64 hoisted__U64_g391 = 3;
+    TilStrArray _va_Array_g82;
+    TilStrArrayNew(&_va_Array_g82, hoisted__U64_g391);
+    I64 _va_Array_g82_ek = 0;
+    U64 hoisted__U64_g392 = 0;
+    TilStr hoisted__Str_g393;
+    TilStrFromI64(&hoisted__Str_g393, holder_copy.point->x);
+    TilStrArraySet(&_va_Array_g82, hoisted__U64_g392, &hoisted__Str_g393);
+    U64 hoisted__U64_g394 = 1;
+    TilStr hoisted__Str_g395;
+    TilStrInitLit(&hoisted__Str_g395, ":", 1);
+    TilStrArraySet(&_va_Array_g82, hoisted__U64_g394, &hoisted__Str_g395);
     I64 *ref_value_36 = borrowed_count(&holder_copy);
-    I64 hoisted__I64_g317 = (*((TilCheckPtr(ref_value_36))(I64 *)));
-    U64 hoisted__U64_g318 = 2;
-    TilStr hoisted__Str_g319;
-    TilStrFromI64(&hoisted__Str_g319, hoisted__I64_g317);
-    TilStrArraySet(&_va_Array_g64, hoisted__U64_g318, &hoisted__Str_g319);
-    TilPrintln(&_va_Array_g64);
-    I64 hoisted__I64_g320 = 20;
-    I64 hoisted__I64_g321 = 0;
+    I64 hoisted__I64_g397 = (*((TilCheckPtr(ref_value_36))(I64 *)));
+    U64 hoisted__U64_g398 = 2;
+    TilStr hoisted__Str_g399;
+    TilStrFromI64(&hoisted__Str_g399, hoisted__I64_g397);
+    TilStrArraySet(&_va_Array_g82, hoisted__U64_g398, &hoisted__Str_g399);
+    TilPrintln(&_va_Array_g82);
+    I64 hoisted__I64_g400 = 20;
+    I64 hoisted__I64_g401 = 0;
     StructPoint equal_point;
-    equal_point.x = hoisted__I64_g320;
-    equal_point.y = hoisted__I64_g321;
+    equal_point.x = hoisted__I64_g400;
+    equal_point.y = hoisted__I64_g401;
     I64 equal_number = 30;
-    U64 hoisted__U64_g322 = 9;
+    U64 hoisted__U64_g402 = 9;
     TilStr equal_label;
-    TilStrWithCapacity(&equal_label, hoisted__U64_g322);
-    TilStr hoisted__Str_g323;
-    TilStrInitLit(&hoisted__Str_g323, "borrowed!", 9);
-    TilStrPush(&equal_label, &hoisted__Str_g323);
-    TilStrDelete(&hoisted__Str_g323, FALSE);
+    TilStrWithCapacity(&equal_label, hoisted__U64_g402);
+    TilStr hoisted__Str_g403;
+    TilStrInitLit(&hoisted__Str_g403, "borrowed!", 9);
+    TilStrPush(&equal_label, &hoisted__Str_g403);
+    TilStrDelete(&hoisted__Str_g403, FALSE);
     StructBorrowed equal_holder;
     equal_holder.point = &equal_point;
     equal_holder.count = &equal_number;
     equal_holder.label = &equal_label;
-    Bool hoisted__Bool_g324 = StructBorrowed_Eq(&holder, &equal_holder);
-    if (hoisted__Bool_g324) {
+    Bool hoisted__Bool_g404 = StructBorrowed_Eq(&holder, &equal_holder);
+    if (hoisted__Bool_g404) {
         U64 hoisted__U64_g126 = 1;
         TilStrArray _va_Array_g33;
         TilStrArrayNew(&_va_Array_g33, hoisted__U64_g126);
@@ -3069,11 +3742,11 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g33, hoisted__U64_g127, &hoisted__Str_g128);
         TilPrintln(&_va_Array_g33);
     }
-    I64 hoisted__I64_g325 = 31;
-    equal_number = hoisted__I64_g325;
-    Bool hoisted__Bool_g326 = StructBorrowed_Eq(&holder, &equal_holder);
-    Bool hoisted__Bool_g327 = (!hoisted__Bool_g326);
-    if (hoisted__Bool_g327) {
+    I64 hoisted__I64_g405 = 31;
+    equal_number = hoisted__I64_g405;
+    Bool hoisted__Bool_g406 = StructBorrowed_Eq(&holder, &equal_holder);
+    Bool hoisted__Bool_g407 = (!hoisted__Bool_g406);
+    if (hoisted__Bool_g407) {
         U64 hoisted__U64_g129 = 1;
         TilStrArray _va_Array_g34;
         TilStrArrayNew(&_va_Array_g34, hoisted__U64_g129);
@@ -3084,51 +3757,51 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g34, hoisted__U64_g130, &hoisted__Str_g131);
         TilPrintln(&_va_Array_g34);
     }
-    U64 hoisted__U64_g328 = 5;
+    U64 hoisted__U64_g408 = 5;
     TilStr owned_label;
-    TilStrWithCapacity(&owned_label, hoisted__U64_g328);
-    TilStr hoisted__Str_g329;
-    TilStrInitLit(&hoisted__Str_g329, "owned", 5);
-    TilStrPush(&owned_label, &hoisted__Str_g329);
-    TilStrDelete(&hoisted__Str_g329, FALSE);
-    I64 hoisted__I64_g330 = 3;
-    I64 hoisted__I64_g331 = 0;
-    StructNamedPoint hoisted__StructNamedPoint_g332;
-    hoisted__StructNamedPoint_g332.point.x = hoisted__I64_g330;
-    hoisted__StructNamedPoint_g332.point.y = hoisted__I64_g331;
-    TilStrClone(&hoisted__StructNamedPoint_g332.name, &owned_label);
-    TilStr hoisted__Str_g333;
-    TilStrClone(&hoisted__Str_g333, &owned_label);
+    TilStrWithCapacity(&owned_label, hoisted__U64_g408);
+    TilStr hoisted__Str_g409;
+    TilStrInitLit(&hoisted__Str_g409, "owned", 5);
+    TilStrPush(&owned_label, &hoisted__Str_g409);
+    TilStrDelete(&hoisted__Str_g409, FALSE);
+    I64 hoisted__I64_g410 = 3;
+    I64 hoisted__I64_g411 = 0;
+    StructNamedPoint hoisted__StructNamedPoint_g412;
+    hoisted__StructNamedPoint_g412.point.x = hoisted__I64_g410;
+    hoisted__StructNamedPoint_g412.point.y = hoisted__I64_g411;
+    TilStrClone(&hoisted__StructNamedPoint_g412.name, &owned_label);
+    TilStr hoisted__Str_g413;
+    TilStrClone(&hoisted__Str_g413, &owned_label);
     StructOwned owned;
     StructNamedPoint owned_value_37;
-    owned_value_37.point.x = hoisted__StructNamedPoint_g332.point.x;
-    owned_value_37.point.y = hoisted__StructNamedPoint_g332.point.y;
-    TilStrCopyValue(&owned_value_37.name, &hoisted__StructNamedPoint_g332.name);
+    owned_value_37.point.x = hoisted__StructNamedPoint_g412.point.x;
+    owned_value_37.point.y = hoisted__StructNamedPoint_g412.point.y;
+    TilStrCopyValue(&owned_value_37.name, &hoisted__StructNamedPoint_g412.name);
     owned.named = (TilMAlloc(sizeof(StructNamedPoint)))(StructNamedPoint *);
     owned.named->point.x = owned_value_37.point.x;
     owned.named->point.y = owned_value_37.point.y;
     TilStrCopyValue(&owned.named->name, &owned_value_37.name);
     TilStr owned_value_38;
-    TilStrCopyValue(&owned_value_38, &hoisted__Str_g333);
+    TilStrCopyValue(&owned_value_38, &hoisted__Str_g413);
     owned.label = (TilMAlloc(sizeof(TilStr)))(TilStr *);
     TilStrCopyValue(owned.label, &owned_value_38);
     TilStrPrepareReturn(owned.label);
     StructOwned owned_copy;
     StructOwned_Clone(&owned_copy, &owned);
-    I64 hoisted__I64_g334 = 7;
-    owned.named->point.x = hoisted__I64_g334;
+    I64 hoisted__I64_g414 = 7;
+    owned.named->point.x = hoisted__I64_g414;
     {
         TilStr replacement_39;
         TilStrInitLit(&replacement_39, "changed", 7);
         TilStrDelete(&owned.named->name, FALSE);
         TilStrCopyValue(&owned.named->name, &replacement_39);
     }
-    TilStr hoisted__Str_g335;
-    TilStrInitLit(&hoisted__Str_g335, "new", 3);
+    TilStr hoisted__Str_g415;
+    TilStrInitLit(&hoisted__Str_g415, "new", 3);
     {
         TilStr *replacement_40;
         TilStr owned_value_41;
-        TilStrCopyValue(&owned_value_41, &hoisted__Str_g335);
+        TilStrCopyValue(&owned_value_41, &hoisted__Str_g415);
         replacement_40 = (TilMAlloc(sizeof(TilStr)))(TilStr *);
         TilStrCopyValue(replacement_40, &owned_value_41);
         TilStrPrepareReturn(replacement_40);
@@ -3136,68 +3809,68 @@ I64 TilMain()
         owned.label = replacement_40;
         TilStrDelete(old_field_42, TRUE);
     }
-    U64 hoisted__U64_g336 = 5;
-    TilStrArray _va_Array_g65;
-    TilStrArrayNew(&_va_Array_g65, hoisted__U64_g336);
-    I64 _va_Array_g65_ek = 0;
-    U64 hoisted__U64_g337 = 0;
-    TilStr hoisted__Str_g338;
-    TilStrFromI64(&hoisted__Str_g338, owned.named->point.x);
-    TilStrArraySet(&_va_Array_g65, hoisted__U64_g337, &hoisted__Str_g338);
-    U64 hoisted__U64_g339 = 1;
-    TilStr hoisted__Str_g340;
-    TilStrInitLit(&hoisted__Str_g340, ":", 1);
-    TilStrArraySet(&_va_Array_g65, hoisted__U64_g339, &hoisted__Str_g340);
-    U64 hoisted__U64_g341 = 2;
-    TilStr hoisted__Str_g342;
-    TilStrClone(&hoisted__Str_g342, &owned.named->name);
-    TilStrArraySet(&_va_Array_g65, hoisted__U64_g341, &hoisted__Str_g342);
-    U64 hoisted__U64_g343 = 3;
-    TilStr hoisted__Str_g344;
-    TilStrInitLit(&hoisted__Str_g344, ":", 1);
-    TilStrArraySet(&_va_Array_g65, hoisted__U64_g343, &hoisted__Str_g344);
-    U64 hoisted__U64_g345 = 4;
-    TilStr hoisted__Str_g346;
-    TilStrClone(&hoisted__Str_g346, owned.label);
-    TilStrArraySet(&_va_Array_g65, hoisted__U64_g345, &hoisted__Str_g346);
-    TilPrintln(&_va_Array_g65);
-    U64 hoisted__U64_g347 = 5;
-    TilStrArray _va_Array_g66;
-    TilStrArrayNew(&_va_Array_g66, hoisted__U64_g347);
-    I64 _va_Array_g66_ek = 0;
-    U64 hoisted__U64_g348 = 0;
-    TilStr hoisted__Str_g349;
-    TilStrFromI64(&hoisted__Str_g349, owned_copy.named->point.x);
-    TilStrArraySet(&_va_Array_g66, hoisted__U64_g348, &hoisted__Str_g349);
-    U64 hoisted__U64_g350 = 1;
-    TilStr hoisted__Str_g351;
-    TilStrInitLit(&hoisted__Str_g351, ":", 1);
-    TilStrArraySet(&_va_Array_g66, hoisted__U64_g350, &hoisted__Str_g351);
-    U64 hoisted__U64_g352 = 2;
-    TilStr hoisted__Str_g353;
-    TilStrClone(&hoisted__Str_g353, &owned_copy.named->name);
-    TilStrArraySet(&_va_Array_g66, hoisted__U64_g352, &hoisted__Str_g353);
-    U64 hoisted__U64_g354 = 3;
-    TilStr hoisted__Str_g355;
-    TilStrInitLit(&hoisted__Str_g355, ":", 1);
-    TilStrArraySet(&_va_Array_g66, hoisted__U64_g354, &hoisted__Str_g355);
-    U64 hoisted__U64_g356 = 4;
-    TilStr hoisted__Str_g357;
-    TilStrClone(&hoisted__Str_g357, owned_copy.label);
-    TilStrArraySet(&_va_Array_g66, hoisted__U64_g356, &hoisted__Str_g357);
-    TilPrintln(&_va_Array_g66);
-    I64 hoisted__I64_g358 = 9;
-    I64 hoisted__I64_g359 = 0;
-    StructNamedPoint hoisted__StructNamedPoint_g360;
-    hoisted__StructNamedPoint_g360.point.x = hoisted__I64_g358;
-    hoisted__StructNamedPoint_g360.point.y = hoisted__I64_g359;
-    TilStrInitLit(&hoisted__StructNamedPoint_g360.name, "replacement", 11);
+    U64 hoisted__U64_g416 = 5;
+    TilStrArray _va_Array_g83;
+    TilStrArrayNew(&_va_Array_g83, hoisted__U64_g416);
+    I64 _va_Array_g83_ek = 0;
+    U64 hoisted__U64_g417 = 0;
+    TilStr hoisted__Str_g418;
+    TilStrFromI64(&hoisted__Str_g418, owned.named->point.x);
+    TilStrArraySet(&_va_Array_g83, hoisted__U64_g417, &hoisted__Str_g418);
+    U64 hoisted__U64_g419 = 1;
+    TilStr hoisted__Str_g420;
+    TilStrInitLit(&hoisted__Str_g420, ":", 1);
+    TilStrArraySet(&_va_Array_g83, hoisted__U64_g419, &hoisted__Str_g420);
+    U64 hoisted__U64_g421 = 2;
+    TilStr hoisted__Str_g422;
+    TilStrClone(&hoisted__Str_g422, &owned.named->name);
+    TilStrArraySet(&_va_Array_g83, hoisted__U64_g421, &hoisted__Str_g422);
+    U64 hoisted__U64_g423 = 3;
+    TilStr hoisted__Str_g424;
+    TilStrInitLit(&hoisted__Str_g424, ":", 1);
+    TilStrArraySet(&_va_Array_g83, hoisted__U64_g423, &hoisted__Str_g424);
+    U64 hoisted__U64_g425 = 4;
+    TilStr hoisted__Str_g426;
+    TilStrClone(&hoisted__Str_g426, owned.label);
+    TilStrArraySet(&_va_Array_g83, hoisted__U64_g425, &hoisted__Str_g426);
+    TilPrintln(&_va_Array_g83);
+    U64 hoisted__U64_g427 = 5;
+    TilStrArray _va_Array_g84;
+    TilStrArrayNew(&_va_Array_g84, hoisted__U64_g427);
+    I64 _va_Array_g84_ek = 0;
+    U64 hoisted__U64_g428 = 0;
+    TilStr hoisted__Str_g429;
+    TilStrFromI64(&hoisted__Str_g429, owned_copy.named->point.x);
+    TilStrArraySet(&_va_Array_g84, hoisted__U64_g428, &hoisted__Str_g429);
+    U64 hoisted__U64_g430 = 1;
+    TilStr hoisted__Str_g431;
+    TilStrInitLit(&hoisted__Str_g431, ":", 1);
+    TilStrArraySet(&_va_Array_g84, hoisted__U64_g430, &hoisted__Str_g431);
+    U64 hoisted__U64_g432 = 2;
+    TilStr hoisted__Str_g433;
+    TilStrClone(&hoisted__Str_g433, &owned_copy.named->name);
+    TilStrArraySet(&_va_Array_g84, hoisted__U64_g432, &hoisted__Str_g433);
+    U64 hoisted__U64_g434 = 3;
+    TilStr hoisted__Str_g435;
+    TilStrInitLit(&hoisted__Str_g435, ":", 1);
+    TilStrArraySet(&_va_Array_g84, hoisted__U64_g434, &hoisted__Str_g435);
+    U64 hoisted__U64_g436 = 4;
+    TilStr hoisted__Str_g437;
+    TilStrClone(&hoisted__Str_g437, owned_copy.label);
+    TilStrArraySet(&_va_Array_g84, hoisted__U64_g436, &hoisted__Str_g437);
+    TilPrintln(&_va_Array_g84);
+    I64 hoisted__I64_g438 = 9;
+    I64 hoisted__I64_g439 = 0;
+    StructNamedPoint hoisted__StructNamedPoint_g440;
+    hoisted__StructNamedPoint_g440.point.x = hoisted__I64_g438;
+    hoisted__StructNamedPoint_g440.point.y = hoisted__I64_g439;
+    TilStrInitLit(&hoisted__StructNamedPoint_g440.name, "replacement", 11);
     {
         StructNamedPoint *replacement_43;
         StructNamedPoint owned_value_44;
-        owned_value_44.point.x = hoisted__StructNamedPoint_g360.point.x;
-        owned_value_44.point.y = hoisted__StructNamedPoint_g360.point.y;
-        TilStrCopyValue(&owned_value_44.name, &hoisted__StructNamedPoint_g360.name);
+        owned_value_44.point.x = hoisted__StructNamedPoint_g440.point.x;
+        owned_value_44.point.y = hoisted__StructNamedPoint_g440.point.y;
+        TilStrCopyValue(&owned_value_44.name, &hoisted__StructNamedPoint_g440.name);
         replacement_43 = (TilMAlloc(sizeof(StructNamedPoint)))(StructNamedPoint *);
         replacement_43->point.x = owned_value_44.point.x;
         replacement_43->point.y = owned_value_44.point.y;
@@ -3206,42 +3879,42 @@ I64 TilMain()
         owned.named = replacement_43;
         StructNamedPoint_Delete(old_field_45, TRUE);
     }
-    U64 hoisted__U64_g361 = 3;
-    TilStrArray _va_Array_g67;
-    TilStrArrayNew(&_va_Array_g67, hoisted__U64_g361);
-    I64 _va_Array_g67_ek = 0;
-    U64 hoisted__U64_g362 = 0;
-    TilStr hoisted__Str_g363;
-    TilStrFromI64(&hoisted__Str_g363, owned.named->point.x);
-    TilStrArraySet(&_va_Array_g67, hoisted__U64_g362, &hoisted__Str_g363);
-    U64 hoisted__U64_g364 = 1;
-    TilStr hoisted__Str_g365;
-    TilStrInitLit(&hoisted__Str_g365, ":", 1);
-    TilStrArraySet(&_va_Array_g67, hoisted__U64_g364, &hoisted__Str_g365);
-    U64 hoisted__U64_g366 = 2;
-    TilStr hoisted__Str_g367;
-    TilStrClone(&hoisted__Str_g367, &owned.named->name);
-    TilStrArraySet(&_va_Array_g67, hoisted__U64_g366, &hoisted__Str_g367);
-    TilPrintln(&_va_Array_g67);
+    U64 hoisted__U64_g441 = 3;
+    TilStrArray _va_Array_g85;
+    TilStrArrayNew(&_va_Array_g85, hoisted__U64_g441);
+    I64 _va_Array_g85_ek = 0;
+    U64 hoisted__U64_g442 = 0;
+    TilStr hoisted__Str_g443;
+    TilStrFromI64(&hoisted__Str_g443, owned.named->point.x);
+    TilStrArraySet(&_va_Array_g85, hoisted__U64_g442, &hoisted__Str_g443);
+    U64 hoisted__U64_g444 = 1;
+    TilStr hoisted__Str_g445;
+    TilStrInitLit(&hoisted__Str_g445, ":", 1);
+    TilStrArraySet(&_va_Array_g85, hoisted__U64_g444, &hoisted__Str_g445);
+    U64 hoisted__U64_g446 = 2;
+    TilStr hoisted__Str_g447;
+    TilStrClone(&hoisted__Str_g447, &owned.named->name);
+    TilStrArraySet(&_va_Array_g85, hoisted__U64_g446, &hoisted__Str_g447);
+    TilPrintln(&_va_Array_g85);
     StructOwned_Delete(&owned, FALSE);
     StructOwned_Delete(&owned_copy, FALSE);
     TilStrDelete(&owned_label, FALSE);
     TilStrDelete(&borrowed_label, FALSE);
     TilStrDelete(&equal_label, FALSE);
-    I64 hoisted__I64_g368 = 17;
+    I64 hoisted__I64_g448 = 17;
     StructForwardPoint forward_point;
-    forward_point.value = hoisted__I64_g368;
+    forward_point.value = hoisted__I64_g448;
     StructForwardRef forward_holder;
     forward_holder.point = &forward_point;
-    U64 hoisted__U64_g369 = 1;
-    TilStrArray _va_Array_g68;
-    TilStrArrayNew(&_va_Array_g68, hoisted__U64_g369);
-    I64 _va_Array_g68_ek = 0;
-    U64 hoisted__U64_g370 = 0;
-    TilStr hoisted__Str_g371;
-    TilStrFromI64(&hoisted__Str_g371, forward_holder.point->value);
-    TilStrArraySet(&_va_Array_g68, hoisted__U64_g370, &hoisted__Str_g371);
-    TilPrintln(&_va_Array_g68);
+    U64 hoisted__U64_g449 = 1;
+    TilStrArray _va_Array_g86;
+    TilStrArrayNew(&_va_Array_g86, hoisted__U64_g449);
+    I64 _va_Array_g86_ek = 0;
+    U64 hoisted__U64_g450 = 0;
+    TilStr hoisted__Str_g451;
+    TilStrFromI64(&hoisted__Str_g451, forward_holder.point->value);
+    TilStrArraySet(&_va_Array_g86, hoisted__U64_g450, &hoisted__Str_g451);
+    TilPrintln(&_va_Array_g86);
     if (TRUE) {
         StructSelfRef *self_node = (TilMAlloc(sizeof(StructSelfRef)))(StructSelfRef *);
         I64 hoisted__I64_g132 = 23;
@@ -3258,16 +3931,16 @@ I64 TilMain()
         TilPrintln(&_va_Array_g35);
         StructSelfRef_Delete(self_node, TRUE);
     }
-    I64 hoisted__I64_g372 = 2;
+    I64 hoisted__I64_g452 = 2;
     StructNullable nullable_tail;
-    nullable_tail.value = hoisted__I64_g372;
+    nullable_tail.value = hoisted__I64_g452;
     nullable_tail.next = NULL;
-    I64 hoisted__I64_g373 = 1;
+    I64 hoisted__I64_g453 = 1;
     StructNullable nullable_head;
-    nullable_head.value = hoisted__I64_g373;
+    nullable_head.value = hoisted__I64_g453;
     nullable_head.next = safe_ref__StructNullable(&nullable_tail);
-    Bool hoisted__Bool_g374 = (nullable_head.next != NULL);
-    if (hoisted__Bool_g374) {
+    Bool hoisted__Bool_g454 = (nullable_head.next != NULL);
+    if (hoisted__Bool_g454) {
         StructNullable *ref_value_46 = (TilCheckPtr(nullable_head.next))(StructNullable *);
         U64 hoisted__U64_g136 = 1;
         TilStrArray _va_Array_g36;
@@ -3281,10 +3954,10 @@ I64 TilMain()
     }
     StructNullable nullable_copy;
     StructNullable_Clone(&nullable_copy, &nullable_head);
-    I64 hoisted__I64_g375 = 6;
-    nullable_tail.value = hoisted__I64_g375;
-    Bool hoisted__Bool_g376 = (nullable_copy.next != NULL);
-    if (hoisted__Bool_g376) {
+    I64 hoisted__I64_g455 = 6;
+    nullable_tail.value = hoisted__I64_g455;
+    Bool hoisted__Bool_g456 = (nullable_copy.next != NULL);
+    if (hoisted__Bool_g456) {
         StructNullable *ref_value_47 = (TilCheckPtr(nullable_copy.next))(StructNullable *);
         U64 hoisted__U64_g139 = 1;
         TilStrArray _va_Array_g37;
@@ -3296,8 +3969,8 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g37, hoisted__U64_g140, &hoisted__Str_g141);
         TilPrintln(&_va_Array_g37);
     }
-    Bool hoisted__Bool_g377 = (nullable_tail.next == NULL);
-    if (hoisted__Bool_g377) {
+    Bool hoisted__Bool_g457 = (nullable_tail.next == NULL);
+    if (hoisted__Bool_g457) {
         U64 hoisted__U64_g142 = 1;
         TilStrArray _va_Array_g38;
         TilStrArrayNew(&_va_Array_g38, hoisted__U64_g142);
@@ -3308,16 +3981,16 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g38, hoisted__U64_g143, &hoisted__Str_g144);
         TilPrintln(&_va_Array_g38);
     }
-    I64 hoisted__I64_g378 = 6;
+    I64 hoisted__I64_g458 = 6;
     StructNullable equal_tail;
-    equal_tail.value = hoisted__I64_g378;
+    equal_tail.value = hoisted__I64_g458;
     equal_tail.next = NULL;
-    I64 hoisted__I64_g379 = 1;
+    I64 hoisted__I64_g459 = 1;
     StructNullable equal_head;
-    equal_head.value = hoisted__I64_g379;
+    equal_head.value = hoisted__I64_g459;
     equal_head.next = safe_ref__StructNullable(&equal_tail);
-    Bool hoisted__Bool_g380 = StructNullable_Eq(&nullable_head, &equal_head);
-    if (hoisted__Bool_g380) {
+    Bool hoisted__Bool_g460 = StructNullable_Eq(&nullable_head, &equal_head);
+    if (hoisted__Bool_g460) {
         U64 hoisted__U64_g145 = 1;
         TilStrArray _va_Array_g39;
         TilStrArrayNew(&_va_Array_g39, hoisted__U64_g145);
@@ -3357,8 +4030,8 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g41, hoisted__U64_g153, &hoisted__Str_g154);
         TilPrintln(&_va_Array_g41);
     } while (FALSE);
-    I64 hoisted__I64_g381 = 18;
-    first.x = hoisted__I64_g381;
+    I64 hoisted__I64_g461 = 18;
+    first.x = hoisted__I64_g461;
     StructBorrowTag borrow_tag_copy;
     StructBorrowTag_Clone(&borrow_tag_copy, &borrow_tag);
     do {
@@ -3387,16 +4060,16 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g43, hoisted__U64_g160, &hoisted__Str_g161);
         TilPrintln(&_va_Array_g43);
     } while (FALSE);
-    I64 hoisted__I64_g382 = 18;
-    I64 hoisted__I64_g383 = 0;
+    I64 hoisted__I64_g462 = 18;
+    I64 hoisted__I64_g463 = 0;
     StructPoint equal_borrow_point;
-    equal_borrow_point.x = hoisted__I64_g382;
-    equal_borrow_point.y = hoisted__I64_g383;
+    equal_borrow_point.x = hoisted__I64_g462;
+    equal_borrow_point.y = hoisted__I64_g463;
     StructBorrowTag equal_borrow_tag;
     equal_borrow_tag.tag = 1;
     equal_borrow_tag.payload_Borrowed = &equal_borrow_point;
-    Bool hoisted__Bool_g384 = StructBorrowTag_Eq(&borrow_tag_copy, &equal_borrow_tag);
-    if (hoisted__Bool_g384) {
+    Bool hoisted__Bool_g464 = StructBorrowTag_Eq(&borrow_tag_copy, &equal_borrow_tag);
+    if (hoisted__Bool_g464) {
         U64 hoisted__U64_g162 = 1;
         TilStrArray _va_Array_g44;
         TilStrArrayNew(&_va_Array_g44, hoisted__U64_g162);
@@ -3407,15 +4080,15 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g44, hoisted__U64_g163, &hoisted__Str_g164);
         TilPrintln(&_va_Array_g44);
     }
-    U64 hoisted__U64_g385 = 2;
+    U64 hoisted__U64_g465 = 2;
     Array__I64 fixed_numbers;
-    Array__I64_New(&fixed_numbers, hoisted__U64_g385);
-    U64 hoisted__U64_g386 = 0;
-    I64 hoisted__I64_g387 = 3;
-    Array__I64_Set(&fixed_numbers, hoisted__U64_g386, hoisted__I64_g387, &_err_kind);
-    I64 hoisted__I64_g388 = 1;
-    Bool hoisted__Bool_g389 = (_err_kind == hoisted__I64_g388);
-    if (hoisted__Bool_g389) {
+    Array__I64_New(&fixed_numbers, hoisted__U64_g465);
+    U64 hoisted__U64_g466 = 0;
+    I64 hoisted__I64_g467 = 3;
+    Array__I64_Set(&fixed_numbers, hoisted__U64_g466, hoisted__I64_g467, &_err_kind);
+    I64 hoisted__I64_g468 = 1;
+    Bool hoisted__Bool_g469 = (_err_kind == hoisted__I64_g468);
+    if (hoisted__Bool_g469) {
         I64 hoisted__I64_g165 = 0;
         _err_kind = hoisted__I64_g165;
         U64 hoisted__U64_g166 = 1;
@@ -3430,12 +4103,12 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g169, "test/script_struct_runtime.til:350:14", 37);
         TilPanicParts(&_va_Array_g45, &hoisted__Str_g169);
     }
-    U64 hoisted__U64_g390 = 1;
-    I64 hoisted__I64_g391 = 5;
-    Array__I64_Set(&fixed_numbers, hoisted__U64_g390, hoisted__I64_g391, &_err_kind);
-    I64 hoisted__I64_g392 = 1;
-    Bool hoisted__Bool_g393 = (_err_kind == hoisted__I64_g392);
-    if (hoisted__Bool_g393) {
+    U64 hoisted__U64_g470 = 1;
+    I64 hoisted__I64_g471 = 5;
+    Array__I64_Set(&fixed_numbers, hoisted__U64_g470, hoisted__I64_g471, &_err_kind);
+    I64 hoisted__I64_g472 = 1;
+    Bool hoisted__Bool_g473 = (_err_kind == hoisted__I64_g472);
+    if (hoisted__Bool_g473) {
         I64 hoisted__I64_g170 = 0;
         _err_kind = hoisted__I64_g170;
         U64 hoisted__U64_g171 = 1;
@@ -3452,14 +4125,14 @@ I64 TilMain()
     }
     Array__I64 fixed_copy;
     Array__I64_Clone(&fixed_copy, &fixed_numbers);
-    U64 hoisted__U64_g394 = 0;
-    I64 hoisted__I64_g395 = 7;
-    Array__I64_UnsafeSet(&fixed_copy, hoisted__U64_g394, hoisted__I64_g395);
-    U64 hoisted__U64_g396 = 0;
-    I64 *ref_value_54 = Array__I64_Get(&fixed_numbers, hoisted__U64_g396, &_err_kind);
-    I64 hoisted__I64_g397 = 1;
-    Bool hoisted__Bool_g398 = (_err_kind == hoisted__I64_g397);
-    if (hoisted__Bool_g398) {
+    U64 hoisted__U64_g474 = 0;
+    I64 hoisted__I64_g475 = 7;
+    Array__I64_UnsafeSet(&fixed_copy, hoisted__U64_g474, hoisted__I64_g475);
+    U64 hoisted__U64_g476 = 0;
+    I64 *ref_value_54 = Array__I64_Get(&fixed_numbers, hoisted__U64_g476, &_err_kind);
+    I64 hoisted__I64_g477 = 1;
+    Bool hoisted__Bool_g478 = (_err_kind == hoisted__I64_g477);
+    if (hoisted__Bool_g478) {
         I64 hoisted__I64_g175 = 0;
         _err_kind = hoisted__I64_g175;
         U64 hoisted__U64_g176 = 1;
@@ -3474,11 +4147,11 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g179, "test/script_struct_runtime.til:354:22", 37);
         TilPanicParts(&_va_Array_g47, &hoisted__Str_g179);
     }
-    U64 hoisted__U64_g399 = 0;
-    I64 *ref_value_55 = Array__I64_Get(&fixed_copy, hoisted__U64_g399, &_err_kind);
-    I64 hoisted__I64_g400 = 1;
-    Bool hoisted__Bool_g401 = (_err_kind == hoisted__I64_g400);
-    if (hoisted__Bool_g401) {
+    U64 hoisted__U64_g479 = 0;
+    I64 *ref_value_55 = Array__I64_Get(&fixed_copy, hoisted__U64_g479, &_err_kind);
+    I64 hoisted__I64_g480 = 1;
+    Bool hoisted__Bool_g481 = (_err_kind == hoisted__I64_g480);
+    if (hoisted__Bool_g481) {
         I64 hoisted__I64_g180 = 0;
         _err_kind = hoisted__I64_g180;
         U64 hoisted__U64_g181 = 1;
@@ -3493,32 +4166,32 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g184, "test/script_struct_runtime.til:354:51", 37);
         TilPanicParts(&_va_Array_g48, &hoisted__Str_g184);
     }
-    U64 hoisted__U64_g402 = 3;
-    TilStrArray _va_Array_g69;
-    TilStrArrayNew(&_va_Array_g69, hoisted__U64_g402);
-    I64 _va_Array_g69_ek = 0;
-    U64 hoisted__U64_g403 = 0;
-    TilStr hoisted__Str_g404;
-    TilStrFromI64(&hoisted__Str_g404, (*((TilCheckPtr(ref_value_54))(I64 *))));
-    TilStrArraySet(&_va_Array_g69, hoisted__U64_g403, &hoisted__Str_g404);
-    U64 hoisted__U64_g405 = 1;
-    TilStr hoisted__Str_g406;
-    TilStrInitLit(&hoisted__Str_g406, ":", 1);
-    TilStrArraySet(&_va_Array_g69, hoisted__U64_g405, &hoisted__Str_g406);
-    U64 hoisted__U64_g407 = 2;
-    TilStr hoisted__Str_g408;
-    TilStrFromI64(&hoisted__Str_g408, (*((TilCheckPtr(ref_value_55))(I64 *))));
-    TilStrArraySet(&_va_Array_g69, hoisted__U64_g407, &hoisted__Str_g408);
-    TilPrintln(&_va_Array_g69);
+    U64 hoisted__U64_g482 = 3;
+    TilStrArray _va_Array_g87;
+    TilStrArrayNew(&_va_Array_g87, hoisted__U64_g482);
+    I64 _va_Array_g87_ek = 0;
+    U64 hoisted__U64_g483 = 0;
+    TilStr hoisted__Str_g484;
+    TilStrFromI64(&hoisted__Str_g484, (*((TilCheckPtr(ref_value_54))(I64 *))));
+    TilStrArraySet(&_va_Array_g87, hoisted__U64_g483, &hoisted__Str_g484);
+    U64 hoisted__U64_g485 = 1;
+    TilStr hoisted__Str_g486;
+    TilStrInitLit(&hoisted__Str_g486, ":", 1);
+    TilStrArraySet(&_va_Array_g87, hoisted__U64_g485, &hoisted__Str_g486);
+    U64 hoisted__U64_g487 = 2;
+    TilStr hoisted__Str_g488;
+    TilStrFromI64(&hoisted__Str_g488, (*((TilCheckPtr(ref_value_55))(I64 *))));
+    TilStrArraySet(&_va_Array_g87, hoisted__U64_g487, &hoisted__Str_g488);
+    TilPrintln(&_va_Array_g87);
     Array__I64 joined_numbers;
     Array__I64_Concat(&joined_numbers, &fixed_numbers, &fixed_copy);
     Vec__I64 from_array;
     Array__I64_ToVec(&from_array, &joined_numbers);
-    U64 hoisted__U64_g409 = 2;
-    I64 *ref_value_56 = Vec__I64_Get(&from_array, hoisted__U64_g409, &_err_kind);
-    I64 hoisted__I64_g410 = 1;
-    Bool hoisted__Bool_g411 = (_err_kind == hoisted__I64_g410);
-    if (hoisted__Bool_g411) {
+    U64 hoisted__U64_g489 = 2;
+    I64 *ref_value_56 = Vec__I64_Get(&from_array, hoisted__U64_g489, &_err_kind);
+    I64 hoisted__I64_g490 = 1;
+    Bool hoisted__Bool_g491 = (_err_kind == hoisted__I64_g490);
+    if (hoisted__Bool_g491) {
         I64 hoisted__I64_g185 = 0;
         _err_kind = hoisted__I64_g185;
         U64 hoisted__U64_g186 = 1;
@@ -3533,30 +4206,30 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g189, "test/script_struct_runtime.til:357:60", 37);
         TilPanicParts(&_va_Array_g49, &hoisted__Str_g189);
     }
-    U64 hoisted__U64_g412 = 3;
-    TilStrArray _va_Array_g70;
-    TilStrArrayNew(&_va_Array_g70, hoisted__U64_g412);
-    I64 _va_Array_g70_ek = 0;
-    U64 hoisted__U64_g413 = (&from_array)->count;
-    I64 hoisted__I64_g414 = ((hoisted__U64_g413) + 0)(I64);
-    U64 hoisted__U64_g415 = 0;
-    TilStr hoisted__Str_g416;
-    TilStrFromI64(&hoisted__Str_g416, hoisted__I64_g414);
-    TilStrArraySet(&_va_Array_g70, hoisted__U64_g415, &hoisted__Str_g416);
-    U64 hoisted__U64_g417 = 1;
-    TilStr hoisted__Str_g418;
-    TilStrInitLit(&hoisted__Str_g418, ":", 1);
-    TilStrArraySet(&_va_Array_g70, hoisted__U64_g417, &hoisted__Str_g418);
-    U64 hoisted__U64_g419 = 2;
-    TilStr hoisted__Str_g420;
-    TilStrFromI64(&hoisted__Str_g420, (*((TilCheckPtr(ref_value_56))(I64 *))));
-    TilStrArraySet(&_va_Array_g70, hoisted__U64_g419, &hoisted__Str_g420);
-    TilPrintln(&_va_Array_g70);
-    U64 hoisted__U64_g421 = 1;
-    Vec__I64_RemoveAt(&from_array, hoisted__U64_g421, &_err_kind);
-    I64 hoisted__I64_g422 = 1;
-    Bool hoisted__Bool_g423 = (_err_kind == hoisted__I64_g422);
-    if (hoisted__Bool_g423) {
+    U64 hoisted__U64_g492 = 3;
+    TilStrArray _va_Array_g88;
+    TilStrArrayNew(&_va_Array_g88, hoisted__U64_g492);
+    I64 _va_Array_g88_ek = 0;
+    U64 hoisted__U64_g493 = (&from_array)->count;
+    I64 hoisted__I64_g494 = ((hoisted__U64_g493) + 0)(I64);
+    U64 hoisted__U64_g495 = 0;
+    TilStr hoisted__Str_g496;
+    TilStrFromI64(&hoisted__Str_g496, hoisted__I64_g494);
+    TilStrArraySet(&_va_Array_g88, hoisted__U64_g495, &hoisted__Str_g496);
+    U64 hoisted__U64_g497 = 1;
+    TilStr hoisted__Str_g498;
+    TilStrInitLit(&hoisted__Str_g498, ":", 1);
+    TilStrArraySet(&_va_Array_g88, hoisted__U64_g497, &hoisted__Str_g498);
+    U64 hoisted__U64_g499 = 2;
+    TilStr hoisted__Str_g500;
+    TilStrFromI64(&hoisted__Str_g500, (*((TilCheckPtr(ref_value_56))(I64 *))));
+    TilStrArraySet(&_va_Array_g88, hoisted__U64_g499, &hoisted__Str_g500);
+    TilPrintln(&_va_Array_g88);
+    U64 hoisted__U64_g501 = 1;
+    Vec__I64_RemoveAt(&from_array, hoisted__U64_g501, &_err_kind);
+    I64 hoisted__I64_g502 = 1;
+    Bool hoisted__Bool_g503 = (_err_kind == hoisted__I64_g502);
+    if (hoisted__Bool_g503) {
         I64 hoisted__I64_g190 = 0;
         _err_kind = hoisted__I64_g190;
         U64 hoisted__U64_g191 = 1;
@@ -3571,11 +4244,11 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g194, "test/script_struct_runtime.til:358:12", 37);
         TilPanicParts(&_va_Array_g50, &hoisted__Str_g194);
     }
-    U64 hoisted__U64_g424 = 1;
-    I64 *ref_value_57 = Vec__I64_Get(&from_array, hoisted__U64_g424, &_err_kind);
-    I64 hoisted__I64_g425 = 1;
-    Bool hoisted__Bool_g426 = (_err_kind == hoisted__I64_g425);
-    if (hoisted__Bool_g426) {
+    U64 hoisted__U64_g504 = 1;
+    I64 *ref_value_57 = Vec__I64_Get(&from_array, hoisted__U64_g504, &_err_kind);
+    I64 hoisted__I64_g505 = 1;
+    Bool hoisted__Bool_g506 = (_err_kind == hoisted__I64_g505);
+    if (hoisted__Bool_g506) {
         I64 hoisted__I64_g195 = 0;
         _err_kind = hoisted__I64_g195;
         U64 hoisted__U64_g196 = 1;
@@ -3590,108 +4263,108 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g199, "test/script_struct_runtime.til:359:19", 37);
         TilPanicParts(&_va_Array_g51, &hoisted__Str_g199);
     }
-    U64 hoisted__U64_g427 = 1;
-    TilStrArray _va_Array_g71;
-    TilStrArrayNew(&_va_Array_g71, hoisted__U64_g427);
-    I64 _va_Array_g71_ek = 0;
-    U64 hoisted__U64_g428 = 0;
-    TilStr hoisted__Str_g429;
-    TilStrFromI64(&hoisted__Str_g429, (*((TilCheckPtr(ref_value_57))(I64 *))));
-    TilStrArraySet(&_va_Array_g71, hoisted__U64_g428, &hoisted__Str_g429);
-    TilPrintln(&_va_Array_g71);
-    U64 hoisted__U64_g430 = 0;
-    Vec__I64_Truncate(&from_array, hoisted__U64_g430);
-    U64 hoisted__U64_g431 = 1;
-    TilStrArray _va_Array_g72;
-    TilStrArrayNew(&_va_Array_g72, hoisted__U64_g431);
-    I64 _va_Array_g72_ek = 0;
-    U64 hoisted__U64_g432 = (&from_array)->count;
-    I64 hoisted__I64_g433 = ((hoisted__U64_g432) + 0)(I64);
-    U64 hoisted__U64_g434 = 0;
-    TilStr hoisted__Str_g435;
-    TilStrFromI64(&hoisted__Str_g435, hoisted__I64_g433);
-    TilStrArraySet(&_va_Array_g72, hoisted__U64_g434, &hoisted__Str_g435);
-    TilPrintln(&_va_Array_g72);
+    U64 hoisted__U64_g507 = 1;
+    TilStrArray _va_Array_g89;
+    TilStrArrayNew(&_va_Array_g89, hoisted__U64_g507);
+    I64 _va_Array_g89_ek = 0;
+    U64 hoisted__U64_g508 = 0;
+    TilStr hoisted__Str_g509;
+    TilStrFromI64(&hoisted__Str_g509, (*((TilCheckPtr(ref_value_57))(I64 *))));
+    TilStrArraySet(&_va_Array_g89, hoisted__U64_g508, &hoisted__Str_g509);
+    TilPrintln(&_va_Array_g89);
+    U64 hoisted__U64_g510 = 0;
+    Vec__I64_Truncate(&from_array, hoisted__U64_g510);
+    U64 hoisted__U64_g511 = 1;
+    TilStrArray _va_Array_g90;
+    TilStrArrayNew(&_va_Array_g90, hoisted__U64_g511);
+    I64 _va_Array_g90_ek = 0;
+    U64 hoisted__U64_g512 = (&from_array)->count;
+    I64 hoisted__I64_g513 = ((hoisted__U64_g512) + 0)(I64);
+    U64 hoisted__U64_g514 = 0;
+    TilStr hoisted__Str_g515;
+    TilStrFromI64(&hoisted__Str_g515, hoisted__I64_g513);
+    TilStrArraySet(&_va_Array_g90, hoisted__U64_g514, &hoisted__Str_g515);
+    TilPrintln(&_va_Array_g90);
     Vec__I64_Delete(&from_array, FALSE);
     Array__I64_Delete(&joined_numbers, FALSE);
     Array__I64_Delete(&fixed_copy, FALSE);
     Array__I64_Delete(&fixed_numbers, FALSE);
     Vec__Str collection_words;
     Vec__Str_WithCapacity(&collection_words, 0);
-    U64 hoisted__U64_g436 = 4;
+    U64 hoisted__U64_g516 = 4;
     TilStr word_source;
-    TilStrWithCapacity(&word_source, hoisted__U64_g436);
-    TilStr hoisted__Str_g437;
-    TilStrInitLit(&hoisted__Str_g437, "word", 4);
-    TilStrPush(&word_source, &hoisted__Str_g437);
-    TilStrDelete(&hoisted__Str_g437, FALSE);
-    TilStr hoisted__Str_g438;
-    TilStrClone(&hoisted__Str_g438, &word_source);
-    Vec__Str_Push(&collection_words, &hoisted__Str_g438);
-    TilStr hoisted__Str_g439;
-    TilStrInitLit(&hoisted__Str_g439, "second", 6);
-    Vec__Str_Push(&collection_words, &hoisted__Str_g439);
+    TilStrWithCapacity(&word_source, hoisted__U64_g516);
+    TilStr hoisted__Str_g517;
+    TilStrInitLit(&hoisted__Str_g517, "word", 4);
+    TilStrPush(&word_source, &hoisted__Str_g517);
+    TilStrDelete(&hoisted__Str_g517, FALSE);
+    TilStr hoisted__Str_g518;
+    TilStrClone(&hoisted__Str_g518, &word_source);
+    Vec__Str_Push(&collection_words, &hoisted__Str_g518);
+    TilStr hoisted__Str_g519;
+    TilStrInitLit(&hoisted__Str_g519, "second", 6);
+    Vec__Str_Push(&collection_words, &hoisted__Str_g519);
     Vec__Str words_copy;
     Vec__Str_Clone(&words_copy, &collection_words);
-    U64 hoisted__U64_g440 = 0;
-    TilStr hoisted__Str_g441;
-    TilStrInitLit(&hoisted__Str_g441, "changed", 7);
-    Vec__Str_UnsafeSet(&collection_words, hoisted__U64_g440, &hoisted__Str_g441);
-    U64 hoisted__U64_g442 = 0;
-    TilStr *ref_value_58 = Vec__Str_UnsafeGet(&words_copy, hoisted__U64_g442);
-    U64 hoisted__U64_g443 = 3;
-    TilStrArray _va_Array_g73;
-    TilStrArrayNew(&_va_Array_g73, hoisted__U64_g443);
-    I64 _va_Array_g73_ek = 0;
-    U64 hoisted__U64_g444 = 0;
-    TilStr hoisted__Str_g445;
-    TilStrClone(&hoisted__Str_g445, ref_value_58);
-    TilStrArraySet(&_va_Array_g73, hoisted__U64_g444, &hoisted__Str_g445);
-    U64 hoisted__U64_g446 = 1;
-    TilStr hoisted__Str_g447;
-    TilStrInitLit(&hoisted__Str_g447, ":", 1);
-    TilStrArraySet(&_va_Array_g73, hoisted__U64_g446, &hoisted__Str_g447);
-    U64 hoisted__U64_g448 = 0;
-    TilStr *ref_value_59 = Vec__Str_UnsafeGet(&collection_words, hoisted__U64_g448);
-    U64 hoisted__U64_g450 = 2;
-    TilStr hoisted__Str_g451;
-    TilStrClone(&hoisted__Str_g451, ref_value_59);
-    TilStrArraySet(&_va_Array_g73, hoisted__U64_g450, &hoisted__Str_g451);
-    TilPrintln(&_va_Array_g73);
-    U64 hoisted__U64_g452 = 1;
-    TilStrArray _va_Array_g74;
-    TilStrArrayNew(&_va_Array_g74, hoisted__U64_g452);
-    I64 _va_Array_g74_ek = 0;
-    U64 hoisted__U64_g453 = 0;
-    TilStr hoisted__Str_g454;
-    Vec__Str_Pop(&hoisted__Str_g454, &words_copy);
-    TilStrArraySet(&_va_Array_g74, hoisted__U64_g453, &hoisted__Str_g454);
-    TilPrintln(&_va_Array_g74);
+    U64 hoisted__U64_g520 = 0;
+    TilStr hoisted__Str_g521;
+    TilStrInitLit(&hoisted__Str_g521, "changed", 7);
+    Vec__Str_UnsafeSet(&collection_words, hoisted__U64_g520, &hoisted__Str_g521);
+    U64 hoisted__U64_g522 = 0;
+    TilStr *ref_value_58 = Vec__Str_UnsafeGet(&words_copy, hoisted__U64_g522);
+    U64 hoisted__U64_g523 = 3;
+    TilStrArray _va_Array_g91;
+    TilStrArrayNew(&_va_Array_g91, hoisted__U64_g523);
+    I64 _va_Array_g91_ek = 0;
+    U64 hoisted__U64_g524 = 0;
+    TilStr hoisted__Str_g525;
+    TilStrClone(&hoisted__Str_g525, ref_value_58);
+    TilStrArraySet(&_va_Array_g91, hoisted__U64_g524, &hoisted__Str_g525);
+    U64 hoisted__U64_g526 = 1;
+    TilStr hoisted__Str_g527;
+    TilStrInitLit(&hoisted__Str_g527, ":", 1);
+    TilStrArraySet(&_va_Array_g91, hoisted__U64_g526, &hoisted__Str_g527);
+    U64 hoisted__U64_g528 = 0;
+    TilStr *ref_value_59 = Vec__Str_UnsafeGet(&collection_words, hoisted__U64_g528);
+    U64 hoisted__U64_g530 = 2;
+    TilStr hoisted__Str_g531;
+    TilStrClone(&hoisted__Str_g531, ref_value_59);
+    TilStrArraySet(&_va_Array_g91, hoisted__U64_g530, &hoisted__Str_g531);
+    TilPrintln(&_va_Array_g91);
+    U64 hoisted__U64_g532 = 1;
+    TilStrArray _va_Array_g92;
+    TilStrArrayNew(&_va_Array_g92, hoisted__U64_g532);
+    I64 _va_Array_g92_ek = 0;
+    U64 hoisted__U64_g533 = 0;
+    TilStr hoisted__Str_g534;
+    Vec__Str_Pop(&hoisted__Str_g534, &words_copy);
+    TilStrArraySet(&_va_Array_g92, hoisted__U64_g533, &hoisted__Str_g534);
+    TilPrintln(&_va_Array_g92);
     Vec__Str_Delete(&collection_words, FALSE);
     Vec__Str_Delete(&words_copy, FALSE);
     TilStrDelete(&word_source, FALSE);
-    U64 hoisted__U64_g455 = 2;
+    U64 hoisted__U64_g535 = 2;
     TilStrArray fixed_words;
-    TilStrArrayNew(&fixed_words, hoisted__U64_g455);
-    U64 hoisted__U64_g456 = 0;
-    TilStr hoisted__Str_g457;
-    TilStrInitLit(&hoisted__Str_g457, "left", 4);
-    TilStrArraySet(&fixed_words, hoisted__U64_g456, &hoisted__Str_g457);
-    U64 hoisted__U64_g458 = 1;
-    TilStr hoisted__Str_g459;
-    TilStrInitLit(&hoisted__Str_g459, "right", 5);
-    TilStrArraySet(&fixed_words, hoisted__U64_g458, &hoisted__Str_g459);
+    TilStrArrayNew(&fixed_words, hoisted__U64_g535);
+    U64 hoisted__U64_g536 = 0;
+    TilStr hoisted__Str_g537;
+    TilStrInitLit(&hoisted__Str_g537, "left", 4);
+    TilStrArraySet(&fixed_words, hoisted__U64_g536, &hoisted__Str_g537);
+    U64 hoisted__U64_g538 = 1;
+    TilStr hoisted__Str_g539;
+    TilStrInitLit(&hoisted__Str_g539, "right", 5);
+    TilStrArraySet(&fixed_words, hoisted__U64_g538, &hoisted__Str_g539);
     TilStrArray fixed_words_copy;
     clone_fixed_words(&fixed_words_copy, &fixed_words);
-    U64 hoisted__U64_g460 = 0;
-    TilStr hoisted__Str_g461;
-    TilStrInitLit(&hoisted__Str_g461, "gone", 4);
-    TilStrArraySet(&fixed_words, hoisted__U64_g460, &hoisted__Str_g461);
-    U64 hoisted__U64_g462 = 0;
-    TilStr *ref_value_60 = TilStrArrayGet(&fixed_words_copy, hoisted__U64_g462, &_err_kind);
-    I64 hoisted__I64_g463 = 1;
-    Bool hoisted__Bool_g464 = (_err_kind == hoisted__I64_g463);
-    if (hoisted__Bool_g464) {
+    U64 hoisted__U64_g540 = 0;
+    TilStr hoisted__Str_g541;
+    TilStrInitLit(&hoisted__Str_g541, "gone", 4);
+    TilStrArraySet(&fixed_words, hoisted__U64_g540, &hoisted__Str_g541);
+    U64 hoisted__U64_g542 = 0;
+    TilStr *ref_value_60 = TilStrArrayGet(&fixed_words_copy, hoisted__U64_g542, &_err_kind);
+    I64 hoisted__I64_g543 = 1;
+    Bool hoisted__Bool_g544 = (_err_kind == hoisted__I64_g543);
+    if (hoisted__Bool_g544) {
         I64 hoisted__I64_g200 = 0;
         _err_kind = hoisted__I64_g200;
         U64 hoisted__U64_g201 = 1;
@@ -3706,103 +4379,103 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g204, "test/script_struct_runtime.til:387:5", 36);
         TilPanicParts(&_va_Array_g52, &hoisted__Str_g204);
     }
-    U64 hoisted__U64_g465 = 1;
-    TilStrArray _va_Array_g75;
-    TilStrArrayNew(&_va_Array_g75, hoisted__U64_g465);
-    I64 _va_Array_g75_ek = 0;
-    U64 hoisted__U64_g466 = 0;
-    TilStr hoisted__Str_g467;
-    TilStrClone(&hoisted__Str_g467, ref_value_60);
-    TilStrArraySet(&_va_Array_g75, hoisted__U64_g466, &hoisted__Str_g467);
-    TilPrintln(&_va_Array_g75);
+    U64 hoisted__U64_g545 = 1;
+    TilStrArray _va_Array_g93;
+    TilStrArrayNew(&_va_Array_g93, hoisted__U64_g545);
+    I64 _va_Array_g93_ek = 0;
+    U64 hoisted__U64_g546 = 0;
+    TilStr hoisted__Str_g547;
+    TilStrClone(&hoisted__Str_g547, ref_value_60);
+    TilStrArraySet(&_va_Array_g93, hoisted__U64_g546, &hoisted__Str_g547);
+    TilPrintln(&_va_Array_g93);
     TilStrArray combined_words;
     TilStrArrayConcat(&combined_words, &fixed_words_copy, &fixed_words_copy);
     Vec__Str combined_vec;
     TilStrArrayToVec(&combined_vec, &combined_words);
-    U64 hoisted__U64_g468 = 3;
-    TilStr *ref_value_61 = Vec__Str_UnsafeGet(&combined_vec, hoisted__U64_g468);
-    U64 hoisted__U64_g469 = 1;
-    TilStrArray _va_Array_g76;
-    TilStrArrayNew(&_va_Array_g76, hoisted__U64_g469);
-    I64 _va_Array_g76_ek = 0;
-    U64 hoisted__U64_g470 = 0;
-    TilStr hoisted__Str_g471;
-    TilStrClone(&hoisted__Str_g471, ref_value_61);
-    TilStrArraySet(&_va_Array_g76, hoisted__U64_g470, &hoisted__Str_g471);
-    TilPrintln(&_va_Array_g76);
+    U64 hoisted__U64_g548 = 3;
+    TilStr *ref_value_61 = Vec__Str_UnsafeGet(&combined_vec, hoisted__U64_g548);
+    U64 hoisted__U64_g549 = 1;
+    TilStrArray _va_Array_g94;
+    TilStrArrayNew(&_va_Array_g94, hoisted__U64_g549);
+    I64 _va_Array_g94_ek = 0;
+    U64 hoisted__U64_g550 = 0;
+    TilStr hoisted__Str_g551;
+    TilStrClone(&hoisted__Str_g551, ref_value_61);
+    TilStrArraySet(&_va_Array_g94, hoisted__U64_g550, &hoisted__Str_g551);
+    TilPrintln(&_va_Array_g94);
     TilStrArrayDelete(&fixed_words);
     TilStrArrayDelete(&fixed_words_copy);
     TilStrArrayDelete(&combined_words);
     Vec__Str_Delete(&combined_vec, FALSE);
     Vec__StructNamedPoint named_elements;
     Vec__StructNamedPoint_WithCapacity(&named_elements, 0);
-    I64 hoisted__I64_g472 = 3;
-    I64 hoisted__I64_g473 = 0;
-    StructNamedPoint hoisted__StructNamedPoint_g474;
-    hoisted__StructNamedPoint_g474.point.x = hoisted__I64_g472;
-    hoisted__StructNamedPoint_g474.point.y = hoisted__I64_g473;
-    TilStrInitLit(&hoisted__StructNamedPoint_g474.name, "third", 5);
-    Vec__StructNamedPoint_Push(&named_elements, &hoisted__StructNamedPoint_g474);
+    I64 hoisted__I64_g552 = 3;
+    I64 hoisted__I64_g553 = 0;
+    StructNamedPoint hoisted__StructNamedPoint_g554;
+    hoisted__StructNamedPoint_g554.point.x = hoisted__I64_g552;
+    hoisted__StructNamedPoint_g554.point.y = hoisted__I64_g553;
+    TilStrInitLit(&hoisted__StructNamedPoint_g554.name, "third", 5);
+    Vec__StructNamedPoint_Push(&named_elements, &hoisted__StructNamedPoint_g554);
     Vec__StructNamedPoint named_elements_copy;
     clone_named_elements(&named_elements_copy, &named_elements);
-    I64 hoisted__I64_g475 = 7;
-    I64 hoisted__I64_g476 = 0;
-    U64 hoisted__U64_g477 = 0;
-    StructNamedPoint hoisted__StructNamedPoint_g478;
-    hoisted__StructNamedPoint_g478.point.x = hoisted__I64_g475;
-    hoisted__StructNamedPoint_g478.point.y = hoisted__I64_g476;
-    TilStrInitLit(&hoisted__StructNamedPoint_g478.name, "seventh", 7);
-    Vec__StructNamedPoint_UnsafeSet(&named_elements, hoisted__U64_g477, &hoisted__StructNamedPoint_g478);
-    U64 hoisted__U64_g479 = 0;
-    StructNamedPoint *ref_value_62 = Vec__StructNamedPoint_UnsafeGet(&named_elements_copy, hoisted__U64_g479);
-    U64 hoisted__U64_g480 = 3;
-    TilStrArray _va_Array_g77;
-    TilStrArrayNew(&_va_Array_g77, hoisted__U64_g480);
-    I64 _va_Array_g77_ek = 0;
-    U64 hoisted__U64_g481 = 0;
-    TilStr hoisted__Str_g482;
-    TilStrFromI64(&hoisted__Str_g482, ref_value_62->point.x);
-    TilStrArraySet(&_va_Array_g77, hoisted__U64_g481, &hoisted__Str_g482);
-    U64 hoisted__U64_g483 = 1;
-    TilStr hoisted__Str_g484;
-    TilStrInitLit(&hoisted__Str_g484, ":", 1);
-    TilStrArraySet(&_va_Array_g77, hoisted__U64_g483, &hoisted__Str_g484);
-    U64 hoisted__U64_g485 = 2;
-    TilStr hoisted__Str_g486;
-    TilStrClone(&hoisted__Str_g486, &ref_value_62->name);
-    TilStrArraySet(&_va_Array_g77, hoisted__U64_g485, &hoisted__Str_g486);
-    TilPrintln(&_va_Array_g77);
-    U64 hoisted__U64_g487 = 0;
-    StructNamedPoint *ref_value_63 = Vec__StructNamedPoint_UnsafeGet(&named_elements, hoisted__U64_g487);
-    U64 hoisted__U64_g488 = 3;
-    TilStrArray _va_Array_g78;
-    TilStrArrayNew(&_va_Array_g78, hoisted__U64_g488);
-    I64 _va_Array_g78_ek = 0;
-    U64 hoisted__U64_g489 = 0;
-    TilStr hoisted__Str_g490;
-    TilStrFromI64(&hoisted__Str_g490, ref_value_63->point.x);
-    TilStrArraySet(&_va_Array_g78, hoisted__U64_g489, &hoisted__Str_g490);
-    U64 hoisted__U64_g491 = 1;
-    TilStr hoisted__Str_g492;
-    TilStrInitLit(&hoisted__Str_g492, ":", 1);
-    TilStrArraySet(&_va_Array_g78, hoisted__U64_g491, &hoisted__Str_g492);
-    U64 hoisted__U64_g493 = 2;
-    TilStr hoisted__Str_g494;
-    TilStrClone(&hoisted__Str_g494, &ref_value_63->name);
-    TilStrArraySet(&_va_Array_g78, hoisted__U64_g493, &hoisted__Str_g494);
-    TilPrintln(&_va_Array_g78);
+    I64 hoisted__I64_g555 = 7;
+    I64 hoisted__I64_g556 = 0;
+    U64 hoisted__U64_g557 = 0;
+    StructNamedPoint hoisted__StructNamedPoint_g558;
+    hoisted__StructNamedPoint_g558.point.x = hoisted__I64_g555;
+    hoisted__StructNamedPoint_g558.point.y = hoisted__I64_g556;
+    TilStrInitLit(&hoisted__StructNamedPoint_g558.name, "seventh", 7);
+    Vec__StructNamedPoint_UnsafeSet(&named_elements, hoisted__U64_g557, &hoisted__StructNamedPoint_g558);
+    U64 hoisted__U64_g559 = 0;
+    StructNamedPoint *ref_value_62 = Vec__StructNamedPoint_UnsafeGet(&named_elements_copy, hoisted__U64_g559);
+    U64 hoisted__U64_g560 = 3;
+    TilStrArray _va_Array_g95;
+    TilStrArrayNew(&_va_Array_g95, hoisted__U64_g560);
+    I64 _va_Array_g95_ek = 0;
+    U64 hoisted__U64_g561 = 0;
+    TilStr hoisted__Str_g562;
+    TilStrFromI64(&hoisted__Str_g562, ref_value_62->point.x);
+    TilStrArraySet(&_va_Array_g95, hoisted__U64_g561, &hoisted__Str_g562);
+    U64 hoisted__U64_g563 = 1;
+    TilStr hoisted__Str_g564;
+    TilStrInitLit(&hoisted__Str_g564, ":", 1);
+    TilStrArraySet(&_va_Array_g95, hoisted__U64_g563, &hoisted__Str_g564);
+    U64 hoisted__U64_g565 = 2;
+    TilStr hoisted__Str_g566;
+    TilStrClone(&hoisted__Str_g566, &ref_value_62->name);
+    TilStrArraySet(&_va_Array_g95, hoisted__U64_g565, &hoisted__Str_g566);
+    TilPrintln(&_va_Array_g95);
+    U64 hoisted__U64_g567 = 0;
+    StructNamedPoint *ref_value_63 = Vec__StructNamedPoint_UnsafeGet(&named_elements, hoisted__U64_g567);
+    U64 hoisted__U64_g568 = 3;
+    TilStrArray _va_Array_g96;
+    TilStrArrayNew(&_va_Array_g96, hoisted__U64_g568);
+    I64 _va_Array_g96_ek = 0;
+    U64 hoisted__U64_g569 = 0;
+    TilStr hoisted__Str_g570;
+    TilStrFromI64(&hoisted__Str_g570, ref_value_63->point.x);
+    TilStrArraySet(&_va_Array_g96, hoisted__U64_g569, &hoisted__Str_g570);
+    U64 hoisted__U64_g571 = 1;
+    TilStr hoisted__Str_g572;
+    TilStrInitLit(&hoisted__Str_g572, ":", 1);
+    TilStrArraySet(&_va_Array_g96, hoisted__U64_g571, &hoisted__Str_g572);
+    U64 hoisted__U64_g573 = 2;
+    TilStr hoisted__Str_g574;
+    TilStrClone(&hoisted__Str_g574, &ref_value_63->name);
+    TilStrArraySet(&_va_Array_g96, hoisted__U64_g573, &hoisted__Str_g574);
+    TilPrintln(&_va_Array_g96);
     Vec__StructNamedPoint_Delete(&named_elements, FALSE);
     Vec__StructNamedPoint_Delete(&named_elements_copy, FALSE);
     Vec__PayloadValue enum_elements;
     Vec__PayloadValue_WithCapacity(&enum_elements, 0);
-    PayloadValue hoisted__PayloadValue_g496;
-    hoisted__PayloadValue_g496.tag = 3;
-    TilStrInitLit(&hoisted__PayloadValue_g496.payload_Text, "in vector", 9);
-    Vec__PayloadValue_Push(&enum_elements, &hoisted__PayloadValue_g496);
+    PayloadValue hoisted__PayloadValue_g576;
+    hoisted__PayloadValue_g576.tag = 3;
+    TilStrInitLit(&hoisted__PayloadValue_g576.payload_Text, "in vector", 9);
+    Vec__PayloadValue_Push(&enum_elements, &hoisted__PayloadValue_g576);
     Vec__PayloadValue enum_elements_copy;
     Vec__PayloadValue_Clone(&enum_elements_copy, &enum_elements);
-    U64 hoisted__U64_g497 = 0;
-    PayloadValue *ref_value_64 = Vec__PayloadValue_UnsafeGet(&enum_elements_copy, hoisted__U64_g497);
+    U64 hoisted__U64_g577 = 0;
+    PayloadValue *ref_value_64 = Vec__PayloadValue_UnsafeGet(&enum_elements_copy, hoisted__U64_g577);
     do {
         U8 enum_switch_14 = (ref_value_64)->tag;
         if ((enum_switch_14 == 3)) {
@@ -3830,111 +4503,111 @@ I64 TilMain()
     } while (FALSE);
     Vec__PayloadValue_Delete(&enum_elements, FALSE);
     Vec__PayloadValue_Delete(&enum_elements_copy, FALSE);
-    U64 hoisted__U64_g498 = 1;
+    U64 hoisted__U64_g578 = 1;
     Array__StructNamedPoint zeroed_names;
-    Array__StructNamedPoint_New(&zeroed_names, hoisted__U64_g498);
+    Array__StructNamedPoint_New(&zeroed_names, hoisted__U64_g578);
     Array__StructNamedPoint zeroed_copy;
     Array__StructNamedPoint_Clone(&zeroed_copy, &zeroed_names);
     Array__StructNamedPoint_Delete(&zeroed_names, FALSE);
     Array__StructNamedPoint_Delete(&zeroed_copy, FALSE);
     Vec__I64 remaining_numbers;
     Vec__I64_WithCapacity(&remaining_numbers, 0);
-    I64 hoisted__I64_g499 = 31;
-    Vec__I64_Push(&remaining_numbers, hoisted__I64_g499);
-    I64 hoisted__I64_g500 = 33;
-    Vec__I64_Push(&remaining_numbers, hoisted__I64_g500);
-    I64 hoisted__I64_g501 = 35;
-    Vec__I64_Push(&remaining_numbers, hoisted__I64_g501);
-    U64 hoisted__U64_g502 = 2;
+    I64 hoisted__I64_g579 = 31;
+    Vec__I64_Push(&remaining_numbers, hoisted__I64_g579);
+    I64 hoisted__I64_g580 = 33;
+    Vec__I64_Push(&remaining_numbers, hoisted__I64_g580);
+    I64 hoisted__I64_g581 = 35;
+    Vec__I64_Push(&remaining_numbers, hoisted__I64_g581);
+    U64 hoisted__U64_g582 = 2;
     Vec__I64 prefix_numbers;
-    Vec__I64_TakePrefix(&prefix_numbers, &remaining_numbers, hoisted__U64_g502);
-    U64 hoisted__U64_g503 = 3;
-    TilStrArray _va_Array_g79;
-    TilStrArrayNew(&_va_Array_g79, hoisted__U64_g503);
-    I64 _va_Array_g79_ek = 0;
-    U64 hoisted__U64_g504 = 1;
-    I64 *ref_value_67 = Vec__I64_UnsafeGet(&prefix_numbers, hoisted__U64_g504);
-    U64 hoisted__U64_g506 = 0;
-    TilStr hoisted__Str_g507;
-    TilStrFromI64(&hoisted__Str_g507, (*((TilCheckPtr(ref_value_67))(I64 *))));
-    TilStrArraySet(&_va_Array_g79, hoisted__U64_g506, &hoisted__Str_g507);
-    U64 hoisted__U64_g508 = 1;
-    TilStr hoisted__Str_g509;
-    TilStrInitLit(&hoisted__Str_g509, ":", 1);
-    TilStrArraySet(&_va_Array_g79, hoisted__U64_g508, &hoisted__Str_g509);
-    U64 hoisted__U64_g510 = 0;
-    I64 *ref_value_68 = Vec__I64_UnsafeGet(&remaining_numbers, hoisted__U64_g510);
-    U64 hoisted__U64_g512 = 2;
-    TilStr hoisted__Str_g513;
-    TilStrFromI64(&hoisted__Str_g513, (*((TilCheckPtr(ref_value_68))(I64 *))));
-    TilStrArraySet(&_va_Array_g79, hoisted__U64_g512, &hoisted__Str_g513);
-    TilPrintln(&_va_Array_g79);
-    U64 hoisted__U64_g514 = 2;
+    Vec__I64_TakePrefix(&prefix_numbers, &remaining_numbers, hoisted__U64_g582);
+    U64 hoisted__U64_g583 = 3;
+    TilStrArray _va_Array_g97;
+    TilStrArrayNew(&_va_Array_g97, hoisted__U64_g583);
+    I64 _va_Array_g97_ek = 0;
+    U64 hoisted__U64_g584 = 1;
+    I64 *ref_value_67 = Vec__I64_UnsafeGet(&prefix_numbers, hoisted__U64_g584);
+    U64 hoisted__U64_g586 = 0;
+    TilStr hoisted__Str_g587;
+    TilStrFromI64(&hoisted__Str_g587, (*((TilCheckPtr(ref_value_67))(I64 *))));
+    TilStrArraySet(&_va_Array_g97, hoisted__U64_g586, &hoisted__Str_g587);
+    U64 hoisted__U64_g588 = 1;
+    TilStr hoisted__Str_g589;
+    TilStrInitLit(&hoisted__Str_g589, ":", 1);
+    TilStrArraySet(&_va_Array_g97, hoisted__U64_g588, &hoisted__Str_g589);
+    U64 hoisted__U64_g590 = 0;
+    I64 *ref_value_68 = Vec__I64_UnsafeGet(&remaining_numbers, hoisted__U64_g590);
+    U64 hoisted__U64_g592 = 2;
+    TilStr hoisted__Str_g593;
+    TilStrFromI64(&hoisted__Str_g593, (*((TilCheckPtr(ref_value_68))(I64 *))));
+    TilStrArraySet(&_va_Array_g97, hoisted__U64_g592, &hoisted__Str_g593);
+    TilPrintln(&_va_Array_g97);
+    U64 hoisted__U64_g594 = 2;
     Vec__I64 moved_numbers;
-    Vec__I64_WithCapacity(&moved_numbers, hoisted__U64_g514);
-    I64 hoisted__I64_g515 = 1;
-    Vec__I64_Push(&moved_numbers, hoisted__I64_g515);
+    Vec__I64_WithCapacity(&moved_numbers, hoisted__U64_g594);
+    I64 hoisted__I64_g595 = 1;
+    Vec__I64_Push(&moved_numbers, hoisted__I64_g595);
     Vec__I64_MoveTo(&remaining_numbers, &moved_numbers);
-    U64 hoisted__U64_g516 = 1;
-    TilStrArray _va_Array_g80;
-    TilStrArrayNew(&_va_Array_g80, hoisted__U64_g516);
-    I64 _va_Array_g80_ek = 0;
-    U64 hoisted__U64_g517 = 0;
-    I64 *ref_value_69 = Vec__I64_UnsafeGet(&moved_numbers, hoisted__U64_g517);
-    U64 hoisted__U64_g519 = 0;
-    TilStr hoisted__Str_g520;
-    TilStrFromI64(&hoisted__Str_g520, (*((TilCheckPtr(ref_value_69))(I64 *))));
-    TilStrArraySet(&_va_Array_g80, hoisted__U64_g519, &hoisted__Str_g520);
-    TilPrintln(&_va_Array_g80);
+    U64 hoisted__U64_g596 = 1;
+    TilStrArray _va_Array_g98;
+    TilStrArrayNew(&_va_Array_g98, hoisted__U64_g596);
+    I64 _va_Array_g98_ek = 0;
+    U64 hoisted__U64_g597 = 0;
+    I64 *ref_value_69 = Vec__I64_UnsafeGet(&moved_numbers, hoisted__U64_g597);
+    U64 hoisted__U64_g599 = 0;
+    TilStr hoisted__Str_g600;
+    TilStrFromI64(&hoisted__Str_g600, (*((TilCheckPtr(ref_value_69))(I64 *))));
+    TilStrArraySet(&_va_Array_g98, hoisted__U64_g599, &hoisted__Str_g600);
+    TilPrintln(&_va_Array_g98);
     Vec__I64 selected_numbers;
     Vec__I64_WithCapacity(&selected_numbers, 0);
-    I64 hoisted__I64_g521 = 41;
-    Vec__I64_Push(&selected_numbers, hoisted__I64_g521);
-    I64 hoisted__I64_g522 = 43;
-    Vec__I64_Push(&selected_numbers, hoisted__I64_g522);
-    I64 hoisted__I64_g523 = 45;
-    Vec__I64_Push(&selected_numbers, hoisted__I64_g523);
+    I64 hoisted__I64_g601 = 41;
+    Vec__I64_Push(&selected_numbers, hoisted__I64_g601);
+    I64 hoisted__I64_g602 = 43;
+    Vec__I64_Push(&selected_numbers, hoisted__I64_g602);
+    I64 hoisted__I64_g603 = 45;
+    Vec__I64_Push(&selected_numbers, hoisted__I64_g603);
     U8 *marks = TilCAlloc(3, 1);
-    U64 hoisted__U64_g524 = 1;
-    U8 *ref_value_70 = (marks + hoisted__U64_g524);
-    I32 hoisted__I32_g526 = 1;
-    U64 hoisted__U64_g527 = 1;
-    TilMemSet(ref_value_70, hoisted__I32_g526, hoisted__U64_g527);
+    U64 hoisted__U64_g604 = 1;
+    U8 *ref_value_70 = (marks + hoisted__U64_g604);
+    I32 hoisted__I32_g606 = 1;
+    U64 hoisted__U64_g607 = 1;
+    TilMemSet(ref_value_70, hoisted__I32_g606, hoisted__U64_g607);
     Vec__I64_DeleteMarked(&selected_numbers, marks);
-    U64 hoisted__U64_g528 = 3;
-    TilStrArray _va_Array_g81;
-    TilStrArrayNew(&_va_Array_g81, hoisted__U64_g528);
-    I64 _va_Array_g81_ek = 0;
-    U64 hoisted__U64_g529 = (&selected_numbers)->count;
-    I64 hoisted__I64_g530 = ((hoisted__U64_g529) + 0)(I64);
-    U64 hoisted__U64_g531 = 0;
-    TilStr hoisted__Str_g532;
-    TilStrFromI64(&hoisted__Str_g532, hoisted__I64_g530);
-    TilStrArraySet(&_va_Array_g81, hoisted__U64_g531, &hoisted__Str_g532);
-    U64 hoisted__U64_g533 = 1;
-    TilStr hoisted__Str_g534;
-    TilStrInitLit(&hoisted__Str_g534, ":", 1);
-    TilStrArraySet(&_va_Array_g81, hoisted__U64_g533, &hoisted__Str_g534);
-    U64 hoisted__U64_g535 = 1;
-    I64 *ref_value_71 = Vec__I64_UnsafeGet(&selected_numbers, hoisted__U64_g535);
-    U64 hoisted__U64_g537 = 2;
-    TilStr hoisted__Str_g538;
-    TilStrFromI64(&hoisted__Str_g538, (*((TilCheckPtr(ref_value_71))(I64 *))));
-    TilStrArraySet(&_va_Array_g81, hoisted__U64_g537, &hoisted__Str_g538);
-    TilPrintln(&_va_Array_g81);
-    U64 hoisted__U64_g539 = 0;
-    Vec__I64_PushTake(&moved_numbers, &selected_numbers, hoisted__U64_g539);
-    U64 hoisted__U64_g540 = 1;
-    TilStrArray _va_Array_g82;
-    TilStrArrayNew(&_va_Array_g82, hoisted__U64_g540);
-    I64 _va_Array_g82_ek = 0;
-    U64 hoisted__U64_g541 = 1;
-    I64 *ref_value_72 = Vec__I64_UnsafeGet(&moved_numbers, hoisted__U64_g541);
-    U64 hoisted__U64_g543 = 0;
-    TilStr hoisted__Str_g544;
-    TilStrFromI64(&hoisted__Str_g544, (*((TilCheckPtr(ref_value_72))(I64 *))));
-    TilStrArraySet(&_va_Array_g82, hoisted__U64_g543, &hoisted__Str_g544);
-    TilPrintln(&_va_Array_g82);
+    U64 hoisted__U64_g608 = 3;
+    TilStrArray _va_Array_g99;
+    TilStrArrayNew(&_va_Array_g99, hoisted__U64_g608);
+    I64 _va_Array_g99_ek = 0;
+    U64 hoisted__U64_g609 = (&selected_numbers)->count;
+    I64 hoisted__I64_g610 = ((hoisted__U64_g609) + 0)(I64);
+    U64 hoisted__U64_g611 = 0;
+    TilStr hoisted__Str_g612;
+    TilStrFromI64(&hoisted__Str_g612, hoisted__I64_g610);
+    TilStrArraySet(&_va_Array_g99, hoisted__U64_g611, &hoisted__Str_g612);
+    U64 hoisted__U64_g613 = 1;
+    TilStr hoisted__Str_g614;
+    TilStrInitLit(&hoisted__Str_g614, ":", 1);
+    TilStrArraySet(&_va_Array_g99, hoisted__U64_g613, &hoisted__Str_g614);
+    U64 hoisted__U64_g615 = 1;
+    I64 *ref_value_71 = Vec__I64_UnsafeGet(&selected_numbers, hoisted__U64_g615);
+    U64 hoisted__U64_g617 = 2;
+    TilStr hoisted__Str_g618;
+    TilStrFromI64(&hoisted__Str_g618, (*((TilCheckPtr(ref_value_71))(I64 *))));
+    TilStrArraySet(&_va_Array_g99, hoisted__U64_g617, &hoisted__Str_g618);
+    TilPrintln(&_va_Array_g99);
+    U64 hoisted__U64_g619 = 0;
+    Vec__I64_PushTake(&moved_numbers, &selected_numbers, hoisted__U64_g619);
+    U64 hoisted__U64_g620 = 1;
+    TilStrArray _va_Array_g100;
+    TilStrArrayNew(&_va_Array_g100, hoisted__U64_g620);
+    I64 _va_Array_g100_ek = 0;
+    U64 hoisted__U64_g621 = 1;
+    I64 *ref_value_72 = Vec__I64_UnsafeGet(&moved_numbers, hoisted__U64_g621);
+    U64 hoisted__U64_g623 = 0;
+    TilStr hoisted__Str_g624;
+    TilStrFromI64(&hoisted__Str_g624, (*((TilCheckPtr(ref_value_72))(I64 *))));
+    TilStrArraySet(&_va_Array_g100, hoisted__U64_g623, &hoisted__Str_g624);
+    TilPrintln(&_va_Array_g100);
     TilFree(marks);
     Vec__I64_Delete(&prefix_numbers, FALSE);
     Vec__I64_Delete(&moved_numbers, FALSE);
@@ -3943,23 +4616,632 @@ I64 TilMain()
     Vec__call_Vec_I64_New(&nested_numbers);
     Vec__I64 inner_numbers;
     Vec__I64_WithCapacity(&inner_numbers, 0);
-    I64 hoisted__I64_g545 = 52;
-    Vec__I64_Push(&inner_numbers, hoisted__I64_g545);
+    I64 hoisted__I64_g625 = 52;
+    Vec__I64_Push(&inner_numbers, hoisted__I64_g625);
     Vec__call_Vec_I64_Push(&nested_numbers, &inner_numbers);
-    U64 hoisted__U64_g546 = 0;
-    Vec__I64 *ref_value_73 = Vec__call_Vec_I64_UnsafeGet(&nested_numbers, hoisted__U64_g546);
-    U64 hoisted__U64_g547 = 1;
-    TilStrArray _va_Array_g83;
-    TilStrArrayNew(&_va_Array_g83, hoisted__U64_g547);
-    I64 _va_Array_g83_ek = 0;
-    U64 hoisted__U64_g548 = 0;
-    I64 *ref_value_74 = Vec__I64_UnsafeGet(ref_value_73, hoisted__U64_g548);
-    U64 hoisted__U64_g550 = 0;
-    TilStr hoisted__Str_g551;
-    TilStrFromI64(&hoisted__Str_g551, (*((TilCheckPtr(ref_value_74))(I64 *))));
-    TilStrArraySet(&_va_Array_g83, hoisted__U64_g550, &hoisted__Str_g551);
-    TilPrintln(&_va_Array_g83);
+    U64 hoisted__U64_g626 = 0;
+    Vec__I64 *ref_value_73 = Vec__call_Vec_I64_UnsafeGet(&nested_numbers, hoisted__U64_g626);
+    U64 hoisted__U64_g627 = 1;
+    TilStrArray _va_Array_g101;
+    TilStrArrayNew(&_va_Array_g101, hoisted__U64_g627);
+    I64 _va_Array_g101_ek = 0;
+    U64 hoisted__U64_g628 = 0;
+    I64 *ref_value_74 = Vec__I64_UnsafeGet(ref_value_73, hoisted__U64_g628);
+    U64 hoisted__U64_g630 = 0;
+    TilStr hoisted__Str_g631;
+    TilStrFromI64(&hoisted__Str_g631, (*((TilCheckPtr(ref_value_74))(I64 *))));
+    TilStrArraySet(&_va_Array_g101, hoisted__U64_g630, &hoisted__Str_g631);
+    TilPrintln(&_va_Array_g101);
     Vec__call_Vec_I64_Delete(&nested_numbers, FALSE);
+    Map__Str_I64 fruit_values;
+    Map__Str_I64_WithCapacity(&fruit_values, 0);
+    TilStr hoisted__Str_g632;
+    TilStrInitLit(&hoisted__Str_g632, "pear", 4);
+    I64 hoisted__I64_g633 = 5;
+    Map__Str_I64_Set(&fruit_values, &hoisted__Str_g632, hoisted__I64_g633);
+    TilStrDelete(&hoisted__Str_g632, FALSE);
+    TilStr hoisted__Str_g634;
+    TilStrInitLit(&hoisted__Str_g634, "apple", 5);
+    I64 hoisted__I64_g635 = 3;
+    Map__Str_I64_Set(&fruit_values, &hoisted__Str_g634, hoisted__I64_g635);
+    TilStrDelete(&hoisted__Str_g634, FALSE);
+    TilStr hoisted__Str_g636;
+    TilStrInitLit(&hoisted__Str_g636, "cherry", 6);
+    I64 hoisted__I64_g637 = 7;
+    Map__Str_I64_Set(&fruit_values, &hoisted__Str_g636, hoisted__I64_g637);
+    TilStrDelete(&hoisted__Str_g636, FALSE);
+    TilStr hoisted__Str_g638;
+    TilStrInitLit(&hoisted__Str_g638, "apple", 5);
+    I64 *ref_value_75 = Map__Str_I64_Get(&fruit_values, &hoisted__Str_g638, &_err_kind);
+    I64 hoisted__I64_g639 = 4;
+    Bool hoisted__Bool_g640 = (_err_kind == hoisted__I64_g639);
+    if (hoisted__Bool_g640) {
+        I64 hoisted__I64_g211 = 0;
+        _err_kind = hoisted__I64_g211;
+        U64 hoisted__U64_g212 = 1;
+        TilStrArray _va_Array_g55;
+        TilStrArrayNew(&_va_Array_g55, hoisted__U64_g212);
+        I64 _va_Array_g55_ek = 0;
+        U64 hoisted__U64_g213 = 0;
+        TilStr hoisted__Str_g214;
+        TilStrInitLit(&hoisted__Str_g214, "uncaught throw 'KeyNotFound'", 28);
+        TilStrArraySet(&_va_Array_g55, hoisted__U64_g213, &hoisted__Str_g214);
+        TilStr hoisted__Str_g215;
+        TilStrInitLit(&hoisted__Str_g215, "test/script_struct_runtime.til:465:64", 37);
+        TilPanicParts(&_va_Array_g55, &hoisted__Str_g215);
+    }
+    U64 hoisted__U64_g641 = 3;
+    TilStrArray _va_Array_g102;
+    TilStrArrayNew(&_va_Array_g102, hoisted__U64_g641);
+    I64 _va_Array_g102_ek = 0;
+    U64 hoisted__U64_g642 = (&fruit_values)->keys.count;
+    I64 hoisted__I64_g643 = ((hoisted__U64_g642) + 0)(I64);
+    U64 hoisted__U64_g644 = 0;
+    TilStr hoisted__Str_g645;
+    TilStrFromI64(&hoisted__Str_g645, hoisted__I64_g643);
+    TilStrArraySet(&_va_Array_g102, hoisted__U64_g644, &hoisted__Str_g645);
+    U64 hoisted__U64_g646 = 1;
+    TilStr hoisted__Str_g647;
+    TilStrInitLit(&hoisted__Str_g647, ":", 1);
+    TilStrArraySet(&_va_Array_g102, hoisted__U64_g646, &hoisted__Str_g647);
+    U64 hoisted__U64_g648 = 2;
+    TilStr hoisted__Str_g649;
+    TilStrFromI64(&hoisted__Str_g649, (*((TilCheckPtr(ref_value_75))(I64 *))));
+    TilStrDelete(&hoisted__Str_g638, FALSE);
+    TilStrArraySet(&_va_Array_g102, hoisted__U64_g648, &hoisted__Str_g649);
+    TilPrintln(&_va_Array_g102);
+    Map__Str_I64 fruit_copy;
+    Map__Str_I64_Clone(&fruit_copy, &fruit_values);
+    TilStr hoisted__Str_g650;
+    TilStrInitLit(&hoisted__Str_g650, "apple", 5);
+    I64 hoisted__I64_g651 = 9;
+    Map__Str_I64_Set(&fruit_values, &hoisted__Str_g650, hoisted__I64_g651);
+    TilStrDelete(&hoisted__Str_g650, FALSE);
+    TilStr hoisted__Str_g652;
+    TilStrInitLit(&hoisted__Str_g652, "apple", 5);
+    I64 *ref_value_76 = Map__Str_I64_Get(&fruit_values, &hoisted__Str_g652, &_err_kind);
+    I64 hoisted__I64_g653 = 4;
+    Bool hoisted__Bool_g654 = (_err_kind == hoisted__I64_g653);
+    if (hoisted__Bool_g654) {
+        I64 hoisted__I64_g216 = 0;
+        _err_kind = hoisted__I64_g216;
+        U64 hoisted__U64_g217 = 1;
+        TilStrArray _va_Array_g56;
+        TilStrArrayNew(&_va_Array_g56, hoisted__U64_g217);
+        I64 _va_Array_g56_ek = 0;
+        U64 hoisted__U64_g218 = 0;
+        TilStr hoisted__Str_g219;
+        TilStrInitLit(&hoisted__Str_g219, "uncaught throw 'KeyNotFound'", 28);
+        TilStrArraySet(&_va_Array_g56, hoisted__U64_g218, &hoisted__Str_g219);
+        TilStr hoisted__Str_g220;
+        TilStrInitLit(&hoisted__Str_g220, "test/script_struct_runtime.til:468:21", 37);
+        TilPanicParts(&_va_Array_g56, &hoisted__Str_g220);
+    }
+    TilStr hoisted__Str_g655;
+    TilStrInitLit(&hoisted__Str_g655, "apple", 5);
+    I64 *ref_value_77 = Map__Str_I64_Get(&fruit_copy, &hoisted__Str_g655, &_err_kind);
+    I64 hoisted__I64_g656 = 1;
+    Bool hoisted__Bool_g657 = (_err_kind == hoisted__I64_g656);
+    if (hoisted__Bool_g657) {
+        I64 hoisted__I64_g221 = 0;
+        _err_kind = hoisted__I64_g221;
+        U64 hoisted__U64_g222 = 1;
+        TilStrArray _va_Array_g57;
+        TilStrArrayNew(&_va_Array_g57, hoisted__U64_g222);
+        I64 _va_Array_g57_ek = 0;
+        U64 hoisted__U64_g223 = 0;
+        TilStr hoisted__Str_g224;
+        TilStrInitLit(&hoisted__Str_g224, "uncaught throw 'OutOfBounds'", 28);
+        TilStrArraySet(&_va_Array_g57, hoisted__U64_g223, &hoisted__Str_g224);
+        TilStr hoisted__Str_g225;
+        TilStrInitLit(&hoisted__Str_g225, "test/script_struct_runtime.til:468:56", 37);
+        TilPanicParts(&_va_Array_g57, &hoisted__Str_g225);
+    }
+    U64 hoisted__U64_g658 = 3;
+    TilStrArray _va_Array_g103;
+    TilStrArrayNew(&_va_Array_g103, hoisted__U64_g658);
+    I64 _va_Array_g103_ek = 0;
+    U64 hoisted__U64_g659 = 0;
+    TilStr hoisted__Str_g660;
+    TilStrFromI64(&hoisted__Str_g660, (*((TilCheckPtr(ref_value_76))(I64 *))));
+    TilStrDelete(&hoisted__Str_g652, FALSE);
+    TilStrArraySet(&_va_Array_g103, hoisted__U64_g659, &hoisted__Str_g660);
+    U64 hoisted__U64_g661 = 1;
+    TilStr hoisted__Str_g662;
+    TilStrInitLit(&hoisted__Str_g662, ":", 1);
+    TilStrArraySet(&_va_Array_g103, hoisted__U64_g661, &hoisted__Str_g662);
+    U64 hoisted__U64_g663 = 2;
+    TilStr hoisted__Str_g664;
+    TilStrFromI64(&hoisted__Str_g664, (*((TilCheckPtr(ref_value_77))(I64 *))));
+    TilStrDelete(&hoisted__Str_g655, FALSE);
+    TilStrArraySet(&_va_Array_g103, hoisted__U64_g663, &hoisted__Str_g664);
+    TilPrintln(&_va_Array_g103);
+    TilStr hoisted__Str_g665;
+    TilStrInitLit(&hoisted__Str_g665, "pear", 4);
+    Bool hoisted__Bool_g666 = Map__Str_I64_Has(&fruit_values, &hoisted__Str_g665);
+    TilStrDelete(&hoisted__Str_g665, FALSE);
+    if (hoisted__Bool_g666) {
+        U64 hoisted__U64_g226 = 1;
+        TilStrArray _va_Array_g58;
+        TilStrArrayNew(&_va_Array_g58, hoisted__U64_g226);
+        I64 _va_Array_g58_ek = 0;
+        U64 hoisted__U64_g227 = 0;
+        TilStr hoisted__Str_g228;
+        TilStrInitLit(&hoisted__Str_g228, "pear present", 12);
+        TilStrArraySet(&_va_Array_g58, hoisted__U64_g227, &hoisted__Str_g228);
+        TilPrintln(&_va_Array_g58);
+    }
+    TilStr hoisted__Str_g667;
+    TilStrInitLit(&hoisted__Str_g667, "pear", 4);
+    Bool hoisted__Bool_g668 = Map__Str_I64_Remove(&fruit_values, &hoisted__Str_g667);
+    TilStrDelete(&hoisted__Str_g667, FALSE);
+    if (hoisted__Bool_g668) {
+        U64 hoisted__U64_g229 = 1;
+        TilStrArray _va_Array_g59;
+        TilStrArrayNew(&_va_Array_g59, hoisted__U64_g229);
+        I64 _va_Array_g59_ek = 0;
+        U64 hoisted__U64_g230 = 0;
+        TilStr hoisted__Str_g231;
+        TilStrInitLit(&hoisted__Str_g231, "pear removed", 12);
+        TilStrArraySet(&_va_Array_g59, hoisted__U64_g230, &hoisted__Str_g231);
+        TilPrintln(&_va_Array_g59);
+    }
+    TilStr hoisted__Str_g669;
+    TilStrInitLit(&hoisted__Str_g669, "pear", 4);
+    Bool hoisted__Bool_g670 = Map__Str_I64_Has(&fruit_values, &hoisted__Str_g669);
+    TilStrDelete(&hoisted__Str_g669, FALSE);
+    Bool hoisted__Bool_g671 = (!hoisted__Bool_g670);
+    if (hoisted__Bool_g671) {
+        U64 hoisted__U64_g232 = 1;
+        TilStrArray _va_Array_g60;
+        TilStrArrayNew(&_va_Array_g60, hoisted__U64_g232);
+        I64 _va_Array_g60_ek = 0;
+        U64 hoisted__U64_g233 = 0;
+        TilStr hoisted__Str_g234;
+        TilStrInitLit(&hoisted__Str_g234, "pear absent", 11);
+        TilStrArraySet(&_va_Array_g60, hoisted__U64_g233, &hoisted__Str_g234);
+        TilPrintln(&_va_Array_g60);
+    }
+    Map__Str_I64_Clear(&fruit_values);
+    U64 hoisted__U64_g672 = 3;
+    TilStrArray _va_Array_g104;
+    TilStrArrayNew(&_va_Array_g104, hoisted__U64_g672);
+    I64 _va_Array_g104_ek = 0;
+    U64 hoisted__U64_g673 = (&fruit_values)->keys.count;
+    I64 hoisted__I64_g674 = ((hoisted__U64_g673) + 0)(I64);
+    U64 hoisted__U64_g675 = 0;
+    TilStr hoisted__Str_g676;
+    TilStrFromI64(&hoisted__Str_g676, hoisted__I64_g674);
+    TilStrArraySet(&_va_Array_g104, hoisted__U64_g675, &hoisted__Str_g676);
+    U64 hoisted__U64_g677 = 1;
+    TilStr hoisted__Str_g678;
+    TilStrInitLit(&hoisted__Str_g678, ":", 1);
+    TilStrArraySet(&_va_Array_g104, hoisted__U64_g677, &hoisted__Str_g678);
+    U64 hoisted__U64_g679 = (&fruit_copy)->keys.count;
+    I64 hoisted__I64_g680 = ((hoisted__U64_g679) + 0)(I64);
+    U64 hoisted__U64_g681 = 2;
+    TilStr hoisted__Str_g682;
+    TilStrFromI64(&hoisted__Str_g682, hoisted__I64_g680);
+    TilStrArraySet(&_va_Array_g104, hoisted__U64_g681, &hoisted__Str_g682);
+    TilPrintln(&_va_Array_g104);
+    Map__Str_I64_Delete(&fruit_values, FALSE);
+    Map__Str_I64_Delete(&fruit_copy, FALSE);
+    Set__Str names_set;
+    Set__Str_New(&names_set);
+    TilStr hoisted__Str_g683;
+    TilStrInitLit(&hoisted__Str_g683, "pear", 4);
+    Set__Str_Add(&names_set, &hoisted__Str_g683);
+    TilStr hoisted__Str_g684;
+    TilStrInitLit(&hoisted__Str_g684, "apple", 5);
+    Set__Str_Add(&names_set, &hoisted__Str_g684);
+    TilStr hoisted__Str_g685;
+    TilStrInitLit(&hoisted__Str_g685, "pear", 4);
+    Set__Str_Add(&names_set, &hoisted__Str_g685);
+    U64 hoisted__U64_g686 = 1;
+    TilStrArray _va_Array_g105;
+    TilStrArrayNew(&_va_Array_g105, hoisted__U64_g686);
+    I64 _va_Array_g105_ek = 0;
+    U64 hoisted__U64_g687 = (&names_set)->count;
+    I64 hoisted__I64_g688 = ((hoisted__U64_g687) + 0)(I64);
+    U64 hoisted__U64_g689 = 0;
+    TilStr hoisted__Str_g690;
+    TilStrFromI64(&hoisted__Str_g690, hoisted__I64_g688);
+    TilStrArraySet(&_va_Array_g105, hoisted__U64_g689, &hoisted__Str_g690);
+    TilPrintln(&_va_Array_g105);
+    Set__Str names_set_copy;
+    Set__Str_Clone(&names_set_copy, &names_set);
+    TilStr hoisted__Str_g691;
+    TilStrInitLit(&hoisted__Str_g691, "apple", 5);
+    Bool hoisted__Bool_g692 = Set__Str_Remove(&names_set, &hoisted__Str_g691);
+    TilStrDelete(&hoisted__Str_g691, FALSE);
+    if (hoisted__Bool_g692) {
+        U64 hoisted__U64_g235 = 1;
+        TilStrArray _va_Array_g61;
+        TilStrArrayNew(&_va_Array_g61, hoisted__U64_g235);
+        I64 _va_Array_g61_ek = 0;
+        U64 hoisted__U64_g236 = 0;
+        TilStr hoisted__Str_g237;
+        TilStrInitLit(&hoisted__Str_g237, "apple removed", 13);
+        TilStrArraySet(&_va_Array_g61, hoisted__U64_g236, &hoisted__Str_g237);
+        TilPrintln(&_va_Array_g61);
+    }
+    TilStr hoisted__Str_g693;
+    TilStrInitLit(&hoisted__Str_g693, "apple", 5);
+    Bool hoisted__Bool_g694 = Set__Str_Has(&names_set, &hoisted__Str_g693);
+    TilStrDelete(&hoisted__Str_g693, FALSE);
+    Bool hoisted__Bool_g695 = (!hoisted__Bool_g694);
+    if (hoisted__Bool_g695) {
+        U64 hoisted__U64_g238 = 1;
+        TilStrArray _va_Array_g62;
+        TilStrArrayNew(&_va_Array_g62, hoisted__U64_g238);
+        I64 _va_Array_g62_ek = 0;
+        U64 hoisted__U64_g239 = 0;
+        TilStr hoisted__Str_g240;
+        TilStrInitLit(&hoisted__Str_g240, "apple absent", 12);
+        TilStrArraySet(&_va_Array_g62, hoisted__U64_g239, &hoisted__Str_g240);
+        TilPrintln(&_va_Array_g62);
+    }
+    TilStr hoisted__Str_g696;
+    TilStrInitLit(&hoisted__Str_g696, "apple", 5);
+    Bool hoisted__Bool_g697 = Set__Str_Has(&names_set_copy, &hoisted__Str_g696);
+    TilStrDelete(&hoisted__Str_g696, FALSE);
+    if (hoisted__Bool_g697) {
+        U64 hoisted__U64_g241 = 1;
+        TilStrArray _va_Array_g63;
+        TilStrArrayNew(&_va_Array_g63, hoisted__U64_g241);
+        I64 _va_Array_g63_ek = 0;
+        U64 hoisted__U64_g242 = 0;
+        TilStr hoisted__Str_g243;
+        TilStrInitLit(&hoisted__Str_g243, "apple retained", 14);
+        TilStrArraySet(&_va_Array_g63, hoisted__U64_g242, &hoisted__Str_g243);
+        TilPrintln(&_va_Array_g63);
+    }
+    Set__Str_Clear(&names_set);
+    U64 hoisted__U64_g698 = 1;
+    TilStrArray _va_Array_g106;
+    TilStrArrayNew(&_va_Array_g106, hoisted__U64_g698);
+    I64 _va_Array_g106_ek = 0;
+    U64 hoisted__U64_g699 = (&names_set)->count;
+    I64 hoisted__I64_g700 = ((hoisted__U64_g699) + 0)(I64);
+    U64 hoisted__U64_g701 = 0;
+    TilStr hoisted__Str_g702;
+    TilStrFromI64(&hoisted__Str_g702, hoisted__I64_g700);
+    TilStrArraySet(&_va_Array_g106, hoisted__U64_g701, &hoisted__Str_g702);
+    TilPrintln(&_va_Array_g106);
+    Set__Str_Delete(&names_set, FALSE);
+    Set__Str_Delete(&names_set_copy, FALSE);
+    Set__I64 number_set;
+    Set__I64_New(&number_set);
+    I64 hoisted__I64_g703 = 3;
+    Set__I64_Add(&number_set, hoisted__I64_g703);
+    I64 hoisted__I64_g704 = 1;
+    Set__I64_Add(&number_set, hoisted__I64_g704);
+    I64 hoisted__I64_g705 = 2;
+    Set__I64_Add(&number_set, hoisted__I64_g705);
+    I64 hoisted__I64_g706 = 2;
+    Set__I64_Add(&number_set, hoisted__I64_g706);
+    Bool _m_Bool_g244 = FALSE;
+    {
+        I64 hoisted__I64_g249 = 1;
+        Bool _sw_Bool_g245 = Set__I64_Has(&number_set, hoisted__I64_g249);
+        Bool hoisted__Bool_g250 = TRUE;
+        Bool hoisted__Bool_g251 = (_sw_Bool_g245 == hoisted__Bool_g250);
+        if (hoisted__Bool_g251) {
+            I64 hoisted__I64_g246 = 2;
+            Bool hoisted__Bool_g247 = Set__I64_Remove(&number_set, hoisted__I64_g246);
+            _m_Bool_g244 = hoisted__Bool_g247;
+        } else {
+            Bool hoisted__Bool_g248 = FALSE;
+            _m_Bool_g244 = hoisted__Bool_g248;
+        }
+    }
+    if (_m_Bool_g244) {
+        U64 hoisted__U64_g252 = 1;
+        TilStrArray _va_Array_g64;
+        TilStrArrayNew(&_va_Array_g64, hoisted__U64_g252);
+        I64 _va_Array_g64_ek = 0;
+        U64 hoisted__U64_g253 = (&number_set)->count;
+        I64 hoisted__I64_g254 = ((hoisted__U64_g253) + 0)(I64);
+        U64 hoisted__U64_g255 = 0;
+        TilStr hoisted__Str_g256;
+        TilStrFromI64(&hoisted__Str_g256, hoisted__I64_g254);
+        TilStrArraySet(&_va_Array_g64, hoisted__U64_g255, &hoisted__Str_g256);
+        TilPrintln(&_va_Array_g64);
+    }
+    Set__I64_Delete(&number_set, FALSE);
+    Map__I64_Str word_values;
+    Map__I64_Str_WithCapacity(&word_values, 0);
+    I64 hoisted__I64_g707 = 5;
+    TilStr hoisted__Str_g708;
+    TilStrInitLit(&hoisted__Str_g708, "five", 4);
+    Map__I64_Str_Set(&word_values, hoisted__I64_g707, &hoisted__Str_g708);
+    I64 hoisted__I64_g709 = 1;
+    TilStr hoisted__Str_g710;
+    TilStrInitLit(&hoisted__Str_g710, "one", 3);
+    Map__I64_Str_Set(&word_values, hoisted__I64_g709, &hoisted__Str_g710);
+    Map__I64_Str word_values_copy;
+    Map__I64_Str_Clone(&word_values_copy, &word_values);
+    I64 hoisted__I64_g711 = 1;
+    TilStr hoisted__Str_g712;
+    TilStrInitLit(&hoisted__Str_g712, "updated", 7);
+    Map__I64_Str_Set(&word_values, hoisted__I64_g711, &hoisted__Str_g712);
+    I64 hoisted__I64_g713 = 1;
+    TilStr *ref_value_78 = Map__I64_Str_Get(&word_values, hoisted__I64_g713, &_err_kind);
+    I64 hoisted__I64_g714 = 4;
+    Bool hoisted__Bool_g715 = (_err_kind == hoisted__I64_g714);
+    if (hoisted__Bool_g715) {
+        I64 hoisted__I64_g257 = 0;
+        _err_kind = hoisted__I64_g257;
+        U64 hoisted__U64_g258 = 1;
+        TilStrArray _va_Array_g65;
+        TilStrArrayNew(&_va_Array_g65, hoisted__U64_g258);
+        I64 _va_Array_g65_ek = 0;
+        U64 hoisted__U64_g259 = 0;
+        TilStr hoisted__Str_g260;
+        TilStrInitLit(&hoisted__Str_g260, "uncaught throw 'KeyNotFound'", 28);
+        TilStrArraySet(&_va_Array_g65, hoisted__U64_g259, &hoisted__Str_g260);
+        TilStr hoisted__Str_g261;
+        TilStrInitLit(&hoisted__Str_g261, "test/script_struct_runtime.til:506:20", 37);
+        TilPanicParts(&_va_Array_g65, &hoisted__Str_g261);
+    }
+    I64 hoisted__I64_g716 = 1;
+    TilStr *ref_value_79 = Map__I64_Str_Get(&word_values_copy, hoisted__I64_g716, &_err_kind);
+    I64 hoisted__I64_g717 = 1;
+    Bool hoisted__Bool_g718 = (_err_kind == hoisted__I64_g717);
+    if (hoisted__Bool_g718) {
+        I64 hoisted__I64_g262 = 0;
+        _err_kind = hoisted__I64_g262;
+        U64 hoisted__U64_g263 = 1;
+        TilStrArray _va_Array_g66;
+        TilStrArrayNew(&_va_Array_g66, hoisted__U64_g263);
+        I64 _va_Array_g66_ek = 0;
+        U64 hoisted__U64_g264 = 0;
+        TilStr hoisted__Str_g265;
+        TilStrInitLit(&hoisted__Str_g265, "uncaught throw 'OutOfBounds'", 28);
+        TilStrArraySet(&_va_Array_g66, hoisted__U64_g264, &hoisted__Str_g265);
+        TilStr hoisted__Str_g266;
+        TilStrInitLit(&hoisted__Str_g266, "test/script_struct_runtime.til:506:46", 37);
+        TilPanicParts(&_va_Array_g66, &hoisted__Str_g266);
+    }
+    U64 hoisted__U64_g719 = 3;
+    TilStrArray _va_Array_g107;
+    TilStrArrayNew(&_va_Array_g107, hoisted__U64_g719);
+    I64 _va_Array_g107_ek = 0;
+    U64 hoisted__U64_g720 = 0;
+    TilStr hoisted__Str_g721;
+    TilStrClone(&hoisted__Str_g721, ref_value_78);
+    TilStrArraySet(&_va_Array_g107, hoisted__U64_g720, &hoisted__Str_g721);
+    U64 hoisted__U64_g722 = 1;
+    TilStr hoisted__Str_g723;
+    TilStrInitLit(&hoisted__Str_g723, ":", 1);
+    TilStrArraySet(&_va_Array_g107, hoisted__U64_g722, &hoisted__Str_g723);
+    U64 hoisted__U64_g724 = 2;
+    TilStr hoisted__Str_g725;
+    TilStrClone(&hoisted__Str_g725, ref_value_79);
+    TilStrArraySet(&_va_Array_g107, hoisted__U64_g724, &hoisted__Str_g725);
+    TilPrintln(&_va_Array_g107);
+    I64 hoisted__I64_g726 = 5;
+    Bool hoisted__Bool_g727 = Map__I64_Str_Remove(&word_values, hoisted__I64_g726);
+    if (hoisted__Bool_g727) {
+        U64 hoisted__U64_g267 = 1;
+        TilStrArray _va_Array_g67;
+        TilStrArrayNew(&_va_Array_g67, hoisted__U64_g267);
+        I64 _va_Array_g67_ek = 0;
+        U64 hoisted__U64_g268 = 0;
+        TilStr hoisted__Str_g269;
+        TilStrInitLit(&hoisted__Str_g269, "five removed", 12);
+        TilStrArraySet(&_va_Array_g67, hoisted__U64_g268, &hoisted__Str_g269);
+        TilPrintln(&_va_Array_g67);
+    }
+    Map__I64_Str_Delete(&word_values, FALSE);
+    Map__I64_Str_Delete(&word_values_copy, FALSE);
+    U64 hoisted__U64_g728 = 2;
+    Set__Str reserved_set;
+    Set__Str_WithCapacity(&reserved_set, hoisted__U64_g728);
+    TilStr hoisted__Str_g729;
+    TilStrInitLit(&hoisted__Str_g729, "reserved", 8);
+    Set__Str_Add(&reserved_set, &hoisted__Str_g729);
+    U64 hoisted__U64_g730 = 1;
+    TilStrArray _va_Array_g108;
+    TilStrArrayNew(&_va_Array_g108, hoisted__U64_g730);
+    I64 _va_Array_g108_ek = 0;
+    U64 hoisted__U64_g731 = (&reserved_set)->count;
+    I64 hoisted__I64_g732 = ((hoisted__U64_g731) + 0)(I64);
+    U64 hoisted__U64_g733 = 0;
+    TilStr hoisted__Str_g734;
+    TilStrFromI64(&hoisted__Str_g734, hoisted__I64_g732);
+    TilStrArraySet(&_va_Array_g108, hoisted__U64_g733, &hoisted__Str_g734);
+    TilPrintln(&_va_Array_g108);
+    Set__Str_Delete(&reserved_set, FALSE);
+    Map__I64_StructNamedPoint named_values;
+    Map__I64_StructNamedPoint_WithCapacity(&named_values, 2);
+    I64 hoisted__I64_g736 = 5;
+    I64 hoisted__I64_g737 = 0;
+    I64 hoisted__I64_g738 = 1;
+    StructNamedPoint hoisted__StructNamedPoint_g739;
+    hoisted__StructNamedPoint_g739.point.x = hoisted__I64_g736;
+    hoisted__StructNamedPoint_g739.point.y = hoisted__I64_g737;
+    TilStrInitLit(&hoisted__StructNamedPoint_g739.name, "first", 5);
+    Map__I64_StructNamedPoint_Set(&named_values, hoisted__I64_g738, &hoisted__StructNamedPoint_g739);
+    Map__I64_StructNamedPoint named_values_copy;
+    Map__I64_StructNamedPoint_Clone(&named_values_copy, &named_values);
+    I64 hoisted__I64_g740 = 7;
+    I64 hoisted__I64_g741 = 0;
+    I64 hoisted__I64_g742 = 1;
+    StructNamedPoint hoisted__StructNamedPoint_g743;
+    hoisted__StructNamedPoint_g743.point.x = hoisted__I64_g740;
+    hoisted__StructNamedPoint_g743.point.y = hoisted__I64_g741;
+    TilStrInitLit(&hoisted__StructNamedPoint_g743.name, "next", 4);
+    Map__I64_StructNamedPoint_Set(&named_values, hoisted__I64_g742, &hoisted__StructNamedPoint_g743);
+    I64 hoisted__I64_g744 = 1;
+    StructNamedPoint *ref_value_80 = Map__I64_StructNamedPoint_Get(&named_values_copy, hoisted__I64_g744, &_err_kind);
+    I64 hoisted__I64_g745 = 1;
+    Bool hoisted__Bool_g746 = (_err_kind == hoisted__I64_g745);
+    if (hoisted__Bool_g746) {
+        I64 hoisted__I64_g270 = 0;
+        _err_kind = hoisted__I64_g270;
+        U64 hoisted__U64_g271 = 1;
+        TilStrArray _va_Array_g68;
+        TilStrArrayNew(&_va_Array_g68, hoisted__U64_g271);
+        I64 _va_Array_g68_ek = 0;
+        U64 hoisted__U64_g272 = 0;
+        TilStr hoisted__Str_g273;
+        TilStrInitLit(&hoisted__Str_g273, "uncaught throw 'OutOfBounds'", 28);
+        TilStrArraySet(&_va_Array_g68, hoisted__U64_g272, &hoisted__Str_g273);
+        TilStr hoisted__Str_g274;
+        TilStrInitLit(&hoisted__Str_g274, "test/script_struct_runtime.til:520:5", 36);
+        TilPanicParts(&_va_Array_g68, &hoisted__Str_g274);
+    }
+    U64 hoisted__U64_g747 = 3;
+    TilStrArray _va_Array_g109;
+    TilStrArrayNew(&_va_Array_g109, hoisted__U64_g747);
+    I64 _va_Array_g109_ek = 0;
+    U64 hoisted__U64_g748 = 0;
+    TilStr hoisted__Str_g749;
+    TilStrFromI64(&hoisted__Str_g749, ref_value_80->point.x);
+    TilStrArraySet(&_va_Array_g109, hoisted__U64_g748, &hoisted__Str_g749);
+    U64 hoisted__U64_g750 = 1;
+    TilStr hoisted__Str_g751;
+    TilStrInitLit(&hoisted__Str_g751, ":", 1);
+    TilStrArraySet(&_va_Array_g109, hoisted__U64_g750, &hoisted__Str_g751);
+    U64 hoisted__U64_g752 = 2;
+    TilStr hoisted__Str_g753;
+    TilStrClone(&hoisted__Str_g753, &ref_value_80->name);
+    TilStrArraySet(&_va_Array_g109, hoisted__U64_g752, &hoisted__Str_g753);
+    TilPrintln(&_va_Array_g109);
+    I64 hoisted__I64_g754 = 1;
+    Bool hoisted__Bool_g755 = Map__I64_StructNamedPoint_Remove(&named_values, hoisted__I64_g754);
+    if (hoisted__Bool_g755) {
+        U64 hoisted__U64_g275 = 1;
+        TilStrArray _va_Array_g69;
+        TilStrArrayNew(&_va_Array_g69, hoisted__U64_g275);
+        I64 _va_Array_g69_ek = 0;
+        U64 hoisted__U64_g276 = 0;
+        TilStr hoisted__Str_g277;
+        TilStrInitLit(&hoisted__Str_g277, "named removed", 13);
+        TilStrArraySet(&_va_Array_g69, hoisted__U64_g276, &hoisted__Str_g277);
+        TilPrintln(&_va_Array_g69);
+    }
+    Map__I64_StructNamedPoint_Delete(&named_values, FALSE);
+    Map__I64_StructNamedPoint_Delete(&named_values_copy, FALSE);
+    Map__I64_call_Vec_I64 grouped_values;
+    Map__I64_call_Vec_I64_New(&grouped_values);
+    Vec__I64 grouped_numbers;
+    Vec__I64_WithCapacity(&grouped_numbers, 0);
+    I64 hoisted__I64_g756 = 8;
+    Vec__I64_Push(&grouped_numbers, hoisted__I64_g756);
+    I64 hoisted__I64_g757 = 2;
+    Map__I64_call_Vec_I64_Set(&grouped_values, hoisted__I64_g757, &grouped_numbers);
+    Map__I64_call_Vec_I64 grouped_copy;
+    Map__I64_call_Vec_I64_Clone(&grouped_copy, &grouped_values);
+    I64 hoisted__I64_g758 = 2;
+    Bool hoisted__Bool_g759 = Map__I64_call_Vec_I64_Remove(&grouped_values, hoisted__I64_g758);
+    if (hoisted__Bool_g759) {
+        U64 hoisted__U64_g278 = 1;
+        TilStrArray _va_Array_g70;
+        TilStrArrayNew(&_va_Array_g70, hoisted__U64_g278);
+        I64 _va_Array_g70_ek = 0;
+        U64 hoisted__U64_g279 = 0;
+        TilStr hoisted__Str_g280;
+        TilStrInitLit(&hoisted__Str_g280, "group removed", 13);
+        TilStrArraySet(&_va_Array_g70, hoisted__U64_g279, &hoisted__Str_g280);
+        TilPrintln(&_va_Array_g70);
+    }
+    I64 hoisted__I64_g760 = 2;
+    Vec__I64 *ref_value_81 = Map__I64_call_Vec_I64_Get(&grouped_copy, hoisted__I64_g760, &_err_kind);
+    I64 hoisted__I64_g761 = 1;
+    Bool hoisted__Bool_g762 = (_err_kind == hoisted__I64_g761);
+    if (hoisted__Bool_g762) {
+        I64 hoisted__I64_g281 = 0;
+        _err_kind = hoisted__I64_g281;
+        U64 hoisted__U64_g282 = 1;
+        TilStrArray _va_Array_g71;
+        TilStrArrayNew(&_va_Array_g71, hoisted__U64_g282);
+        I64 _va_Array_g71_ek = 0;
+        U64 hoisted__U64_g283 = 0;
+        TilStr hoisted__Str_g284;
+        TilStrInitLit(&hoisted__Str_g284, "uncaught throw 'OutOfBounds'", 28);
+        TilStrArraySet(&_va_Array_g71, hoisted__U64_g283, &hoisted__Str_g284);
+        TilStr hoisted__Str_g285;
+        TilStrInitLit(&hoisted__Str_g285, "test/script_struct_runtime.til:532:5", 36);
+        TilPanicParts(&_va_Array_g71, &hoisted__Str_g285);
+    }
+    U64 hoisted__U64_g763 = 1;
+    TilStrArray _va_Array_g110;
+    TilStrArrayNew(&_va_Array_g110, hoisted__U64_g763);
+    I64 _va_Array_g110_ek = 0;
+    U64 hoisted__U64_g764 = 0;
+    I64 *ref_value_82 = Vec__I64_UnsafeGet(ref_value_81, hoisted__U64_g764);
+    U64 hoisted__U64_g766 = 0;
+    TilStr hoisted__Str_g767;
+    TilStrFromI64(&hoisted__Str_g767, (*((TilCheckPtr(ref_value_82))(I64 *))));
+    TilStrArraySet(&_va_Array_g110, hoisted__U64_g766, &hoisted__Str_g767);
+    TilPrintln(&_va_Array_g110);
+    Map__I64_call_Vec_I64_Delete(&grouped_values, FALSE);
+    Map__I64_call_Vec_I64_Delete(&grouped_copy, FALSE);
+    Map__Str_I64 literal_values;
+    Map__Str_I64_WithCapacity(&literal_values, 0);
+    TilStr hoisted__Str_g768;
+    TilStrInitLit(&hoisted__Str_g768, "z", 1);
+    I64 hoisted__I64_g769 = 9;
+    Map__Str_I64_Set(&literal_values, &hoisted__Str_g768, hoisted__I64_g769);
+    TilStrDelete(&hoisted__Str_g768, FALSE);
+    TilStr hoisted__Str_g770;
+    TilStrInitLit(&hoisted__Str_g770, "a", 1);
+    I64 hoisted__I64_g771 = 1;
+    Map__Str_I64_Set(&literal_values, &hoisted__Str_g770, hoisted__I64_g771);
+    TilStrDelete(&hoisted__Str_g770, FALSE);
+    TilStr hoisted__Str_g772;
+    TilStrInitLit(&hoisted__Str_g772, "a", 1);
+    I64 *ref_value_83 = Map__Str_I64_Get(&literal_values, &hoisted__Str_g772, &_err_kind);
+    I64 hoisted__I64_g773 = 4;
+    Bool hoisted__Bool_g774 = (_err_kind == hoisted__I64_g773);
+    if (hoisted__Bool_g774) {
+        I64 hoisted__I64_g286 = 0;
+        _err_kind = hoisted__I64_g286;
+        U64 hoisted__U64_g287 = 1;
+        TilStrArray _va_Array_g72;
+        TilStrArrayNew(&_va_Array_g72, hoisted__U64_g287);
+        I64 _va_Array_g72_ek = 0;
+        U64 hoisted__U64_g288 = 0;
+        TilStr hoisted__Str_g289;
+        TilStrInitLit(&hoisted__Str_g289, "uncaught throw 'KeyNotFound'", 28);
+        TilStrArraySet(&_va_Array_g72, hoisted__U64_g288, &hoisted__Str_g289);
+        TilStr hoisted__Str_g290;
+        TilStrInitLit(&hoisted__Str_g290, "test/script_struct_runtime.til:538:23", 37);
+        TilPanicParts(&_va_Array_g72, &hoisted__Str_g290);
+    }
+    U64 hoisted__U64_g775 = 1;
+    TilStrArray _va_Array_g111;
+    TilStrArrayNew(&_va_Array_g111, hoisted__U64_g775);
+    I64 _va_Array_g111_ek = 0;
+    U64 hoisted__U64_g776 = 0;
+    TilStr hoisted__Str_g777;
+    TilStrFromI64(&hoisted__Str_g777, (*((TilCheckPtr(ref_value_83))(I64 *))));
+    TilStrDelete(&hoisted__Str_g772, FALSE);
+    TilStrArraySet(&_va_Array_g111, hoisted__U64_g776, &hoisted__Str_g777);
+    TilPrintln(&_va_Array_g111);
+    Map__Str_I64_Delete(&literal_values, FALSE);
+    Set__I64 literal_members;
+    Set__I64_New(&literal_members);
+    I64 hoisted__I64_g778 = 3;
+    Set__I64_Add(&literal_members, hoisted__I64_g778);
+    I64 hoisted__I64_g779 = 1;
+    Set__I64_Add(&literal_members, hoisted__I64_g779);
+    I64 hoisted__I64_g780 = 2;
+    Set__I64_Add(&literal_members, hoisted__I64_g780);
+    U64 hoisted__U64_g781 = 1;
+    TilStrArray _va_Array_g112;
+    TilStrArrayNew(&_va_Array_g112, hoisted__U64_g781);
+    I64 _va_Array_g112_ek = 0;
+    U64 hoisted__U64_g782 = (&literal_members)->count;
+    I64 hoisted__I64_g783 = ((hoisted__U64_g782) + 0)(I64);
+    U64 hoisted__U64_g784 = 0;
+    TilStr hoisted__Str_g785;
+    TilStrFromI64(&hoisted__Str_g785, hoisted__I64_g783);
+    TilStrArraySet(&_va_Array_g112, hoisted__U64_g784, &hoisted__Str_g785);
+    TilPrintln(&_va_Array_g112);
+    Set__I64_Delete(&literal_members, FALSE);
     return 0;
 }
 
