@@ -37,6 +37,10 @@ plus test/use_after_transfer_error.expected, the diagnostic and nothing
 after it -- before the fix the ~_r~ row exited 0 and printed "ab" and the
 freed buffer.
 
+Follow-up regression: ~test/repl_help.til~ enters an ownership-transfer
+error in both a delta turn and a full-load turn, checks that neither
+turn runs, and verifies that the REPL accepts the next turn in each case.
+
 *** Summary
 
 An error the garbager raises while inserting deletes -- for example "use
