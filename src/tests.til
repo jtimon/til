@@ -2065,6 +2065,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/maps.til", flags)
     add_both(tests, "test/dyn_maps.til", flags)
     add_both(tests, "test/hashes.til", flags)
+    add_both(tests, "test/u256.til", flags)
     add_both(tests, "test/operators.til", flags)
     add_both(tests, "test/flow.til", flags)
     add_both(tests, "test/asting.til", flags)

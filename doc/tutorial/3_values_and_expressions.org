@@ -46,6 +46,18 @@ Til also provides signed ~I8~ through ~I64~, unsigned ~U8~ through ~U64~,
 target-sized ~USize~ and ~UPtr~, and ~F32~ and ~F64~ floating-point values.
 Use the type required by the data rather than annotating every local.
 
+~U256~ is the 32-byte value type for hashes and keys (a SHA-256 digest, a
+secp256k1 key). It has no arithmetic and no literal: it is parsed from and
+printed as 64 hex digits, compared byte-wise as a big-endian number, and
+its bytes are its wire serialisation.
+
+#+begin_src til :doctest
+digest := U256.from_hex("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+assert_eq(Str, digest.to_hex(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+assert_eq(U8, digest.byte_at(0), 227)
+assert(U256() < digest)
+#+end_src
+
 ** Operations
 
 Operators are convenient spellings for methods. These pairs are equivalent:

@@ -1,0 +1,83 @@
+mode test
+
+import("../src/std/hashmap")
+
+// Issue #235: U256, the 32-byte value type for hashes and keys. Its bytes
+// are its big-endian serialisation, so hex in and out, byte access,
+// ordering and equality are all byte-wise, and the auto-generated hash
+// and size make it a HashMap key and a Vec element as it stands.
+
+// sha256("") -- a value with distinct bytes at both ends.
+EMPTY_SHA256 := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+u256_hex_roundtrip := test() {
+    v := U256.from_hex(EMPTY_SHA256)
+    assert_eq(Str, v.to_hex(), EMPTY_SHA256)
+    assert_eq(Str, v.to_str(), EMPTY_SHA256)
+    // Either case in, lowercase out.
+    upper := U256.from_hex("E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855")
+    assert_eq(Str, upper.to_hex(), EMPTY_SHA256)
+    assert(upper == v)
+    // Byte 0 is the most significant: 0xe3 = 227; byte 31 is 0x55 = 85.
+    assert_eq(U8, v.byte_at(0), 227)
+    assert_eq(U8, v.byte_at(1), 176)
+    assert_eq(U8, v.byte_at(31), 85)
+    zero := U256()
+    assert_eq(Str, zero.to_hex(), "0000000000000000000000000000000000000000000000000000000000000000")
+    assert_eq(U8, zero.byte_at(0), 0)
+}
+
+u256_order := test() {
+    one := U256.from_hex("0000000000000000000000000000000000000000000000000000000000000001")
+    two := U256.from_hex("0000000000000000000000000000000000000000000000000000000000000002")
+    // 2^248: a single bit in the FIRST byte, numerically above every value
+    // whose first byte is zero -- word-wise comparison on a little-endian
+    // host would get this one wrong.
+    big := U256.from_hex("0100000000000000000000000000000000000000000000000000000000000000")
+    max := U256.from_hex("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+    assert_eq(I64, U256.cmp(one, two), -1)
+    assert_eq(I64, U256.cmp(two, one), 1)
+    assert_eq(I64, U256.cmp(one, one), 0)
+    assert_eq(I64, U256.cmp(two, big), -1)
+    assert_eq(I64, U256.cmp(big, max), -1)
+    assert(one < two)
+    assert(two < big)
+    assert(big < max)
+    assert(max > one)
+    assert(one <= one)
+    assert(one == U256.from_hex("0000000000000000000000000000000000000000000000000000000000000001"))
+    assert(one != two)
+    assert(U256() < one)
+}
+
+u256_in_containers := test() {
+    assert_eq(USize, U256.size(), 32)
+    a := U256.from_hex(EMPTY_SHA256)
+    b := U256.from_hex(EMPTY_SHA256)
+    c := U256.from_hex("0000000000000000000000000000000000000000000000000000000000000001")
+    // The auto-generated hash covers the 32 bytes: equal values hash equal,
+    // and a one-bit difference is seen.
+    assert(a.hash(fnv1a) == b.hash(fnv1a))
+    assert(a.hash(fnv1a) != c.hash(fnv1a))
+
+    mut m := HashMap(U256, Str).new()
+    m.set(a, own "empty")
+    m.set(c, own "one")
+    assert_eq(USize, m.len(), 2)
+    assert(m.has(b))
+    assert(m.has(U256()).not())
+    ref found : Str = m.get(c)!
+    assert_eq(Str, found, "one")
+    m.set(b, own "empty again")
+    assert_eq(USize, m.len(), 2)
+    ref again : Str = m.get(a)!
+    assert_eq(Str, again, "empty again")
+
+    mut v := Vec(U256).new()
+    v.push(own a.clone())
+    v.push(own c.clone())
+    assert_eq(USize, v.len(), 2)
+    assert(v[0] == b)
+    assert(v[1] == c)
+    assert_eq(Str, v[1].to_str(), c.to_hex())
+}

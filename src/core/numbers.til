@@ -869,3 +869,83 @@ UPtr := U64
 /// USize and UPtr are retargeted together before type checking, so this
 /// cast is either same-width or same-signedness widening on every target.
 usize_to_uptr := func(val: USize) returns UPtr { return val.cast(UPtr) }
+
+/// 256-bit unsigned value (issue #235): the width of a SHA-256 digest, a
+/// secp256k1 secret key, an x-only public key and a BIP-340 message.
+/// Four U64 words holding the value's 32 BYTES in memory order, most
+/// significant byte first -- the struct IS its big-endian wire
+/// serialisation, so its address goes straight to a C call that takes
+/// a 32-byte buffer, and the auto-generated ~hash~ hashes exactly those
+/// bytes (so a U256 is a HashMap key as it stands). The words are
+/// storage, not digits: on a little-endian host w0 is NOT the top 64
+/// bits, which is why cmp/eq/from_hex/to_hex work byte-wise and there
+/// is no arithmetic. Hashes and keys are compared, hashed, parsed and
+/// printed, never added.
+U256 := struct {
+    w0 : U64 = 0
+    w1 : U64 = 0
+    w2 : U64 = 0
+    w3 : U64 = 0
+
+namespace:
+    /// Byte ~i~ of the 32, 0 being the most significant.
+    byte_at := func(self: U256, i: USize) returns U8 {
+        if i >= 32 { panic("U256.byte_at: index ", i.to_str(), " out of range") }
+        ref b : U8 = ptr_add(self, i.to_uptr())
+        return b.clone()
+    }
+
+    /// Parse exactly 64 hex digits, either case, most significant first.
+    /// Panics on anything else, like Str.to_i64.
+    from_hex := func(hex: Str) returns U256 {
+        if hex.count != 64 {
+            panic("U256.from_hex: expected 64 hex digits, found ", hex.count.to_str(), " in '", hex, "'")
+        }
+        mut v := U256()
+        n : USize = 32
+        for i in 0..n {
+            b := hex_nibble(hex, i * 2) * 16 + hex_nibble(hex, i * 2 + 1)
+            write_u8(ptr_add(v, i.to_uptr()), b.to_u8())
+        }
+        return v
+    }
+
+    /// The 64 lowercase hex digits, most significant first.
+    to_hex := func(self: U256) returns Str {
+        digits := "0123456789abcdef"
+        mut out := Str.with_capacity(64)
+        n : USize = 32
+        for i in 0..n {
+            ref b : U8 = ptr_add(self, i.to_uptr())
+            v := b.to_i64()
+            out.push_str(digits.substr((v / 16).to_usize(), 1))
+            out.push_str(digits.substr((v % 16).to_usize(), 1))
+        }
+        return out
+    }
+
+    to_str := func(self: U256) returns Str { return self.to_hex() }
+
+    /// Numeric order, -1/0/1: byte-wise from the most significant byte,
+    /// which is what big-endian storage makes memcmp's order.
+    cmp := func(a: U256, b: U256) returns I64 {
+        c := memcmp(a, b, 32)
+        if c < 0 { return -1 }
+        if c > 0 { return 1 }
+        return 0
+    }
+
+    eq := func(a: U256, b: U256) returns Bool {
+        return memcmp(a, b, 32) == 0
+    }
+}
+
+/// The value of the hex digit at ~i~ in ~hex~; panics on a non-digit.
+priv hex_nibble := func(hex: Str, i: USize) returns I64 {
+    ref c : I8 = hex.unsafe_get(i)
+    if c.gte('0').and(c.lte('9')) { return (c - '0').cast(I64) }
+    if c.gte('a').and(c.lte('f')) { return (c - 'a').cast(I64) + 10 }
+    if c.gte('A').and(c.lte('F')) { return (c - 'A').cast(I64) + 10 }
+    panic("U256.from_hex: '", hex.substr(i, 1), "' is not a hex digit in '", hex, "'")
+    return 0
+}
